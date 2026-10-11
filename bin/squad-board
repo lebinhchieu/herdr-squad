@@ -213,9 +213,169 @@ def build_pods(squad, columns):
 
 # --- section: timeline ---
 
-def derive_timeline(messages, activity, columns, now, selected_iteration):
-    """BRD-02."""
-    return {"rows": [], "bars": [], "agents": {}}
+FOLD_GAP_S = 180    # D5: a longer quiet stretch between two visible rows folds into one gap row
+WAKE_WINDOW_S = 2   # D7: the hook can stamp `working` just before the message that woke the agent
+MICROS = 10 ** 6
+EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+BAR_STATUSES = ("working", "blocked", "idle", "done")
+
+
+def micros(ts):
+    """Integer microseconds since the epoch: exact, so boundary tests never meet float noise."""
+    delta = parse_ts(ts) - EPOCH
+    return (delta.days * 86400 + delta.seconds) * MICROS + delta.microseconds
+
+
+def whole_seconds(start_us, end_us):
+    """Floored seconds, never negative: a skewed clock gives 0."""
+    return max(0, (end_us - start_us) // MICROS)
+
+
+def open_segment(bar):
+    seg = bar["blocked"][-1] if bar["blocked"] else None
+    return seg if seg is not None and seg["end_us"] is None else None
+
+
+class TimelineBuilder:
+    """Replays all records once, in time order, and collects rows, bars and blocked segments.
+
+    Rows and bars are referred to by their index in the unfiltered run; the iteration filter and
+    the gap folding renumber them afterwards.
+    """
+
+    def __init__(self, lowest_iteration):
+        self.lowest = lowest_iteration
+        self.rows = []   # (row, µs, iteration)
+        self.bars = []   # every bar, in start order
+        self.open = {}   # agent -> its open bar
+
+    def add_row(self, row, rec, us):
+        self.rows.append((row, us, rec["iteration"] if rec["iteration"] is not None else self.lowest))
+        return len(self.rows) - 1
+
+    def start_bar(self, agent, row_index, self_start):
+        if agent in self.open:
+            return
+        row, us, iteration = self.rows[row_index]
+        bar = {"agent": agent, "start": row_index, "end": None, "start_ts": row["ts"], "end_ts": None,
+               "start_us": us, "end_us": None, "self_start": self_start, "iteration": iteration,
+               "blocked": []}
+        self.open[agent] = bar
+        self.bars.append(bar)
+
+    def close_segment(self, bar, row_index):
+        seg = open_segment(bar)
+        if seg is not None:
+            row, us, _ = self.rows[row_index]
+            seg.update(end=row_index, end_ts=row["ts"], end_us=us)
+
+    def message(self, rec, us):
+        row = {"kind": "message", "ts": rec["ts"], "from": rec["from"], "to": rec["to"],
+               "type": rec["type"], "task": rec["task"], "text": rec["text"], "msg_id": rec["msg_id"]}
+        index = self.add_row(row, rec, us)
+        if rec["from"]:
+            self.start_bar(rec["from"], index, True)
+        if rec["to"]:
+            self.start_bar(rec["to"], index, False)
+
+    def status(self, rec, us, woken_by_message):
+        agent, status = rec["agent"], rec["status"]
+        bar = self.open.get(agent)
+        row = {"kind": "status", "ts": rec["ts"], "agent": agent, "status": status}
+        if status == "working":
+            if bar is None:
+                if not woken_by_message:
+                    self.start_bar(agent, self.add_row(row, rec, us), True)
+            elif open_segment(bar) is not None:
+                self.close_segment(bar, self.add_row(row, rec, us))
+        elif status == "blocked":
+            if bar is not None and open_segment(bar) is not None:
+                return
+            index = self.add_row(row, rec, us)
+            self.start_bar(agent, index, True)
+            self.open[agent]["blocked"].append({"start": index, "end": None, "start_ts": rec["ts"],
+                                                "end_ts": None, "start_us": us, "end_us": None})
+        elif bar is not None:
+            row["duration_s"] = whole_seconds(bar["start_us"], us)
+            index = self.add_row(row, rec, us)
+            self.close_segment(bar, index)
+            bar.update(end=index, end_ts=rec["ts"], end_us=us)
+            del self.open[agent]
+
+
+def replay_records(messages, activity, lowest_iteration):
+    """Feed messages and status events to a TimelineBuilder in time order (message first on a tie)."""
+    events = [(micros(m["ts"]), 0, i, m) for i, m in enumerate(messages)]
+    events += [(micros(a["ts"]), 1, i, a) for i, a in enumerate(activity) if a["status"] in BAR_STATUSES]
+    events.sort(key=lambda e: e[:3])
+    incoming = {}  # agent -> times of the messages sent to it, for the D7 look-ahead
+    for us, kind, _, rec in events:
+        if kind == 0 and rec["to"]:
+            incoming.setdefault(rec["to"], []).append(us)
+    seen = dict.fromkeys(incoming, 0)  # events come in time order, so each list is walked once
+    builder = TimelineBuilder(lowest_iteration)
+    for us, kind, _, rec in events:
+        if kind == 0:
+            builder.message(rec, us)
+            continue
+        agent, times, woken = rec["agent"], incoming.get(rec["agent"], ()), False
+        if times:
+            while seen[agent] < len(times) and times[seen[agent]] <= us:
+                seen[agent] += 1
+            woken = seen[agent] < len(times) and times[seen[agent]] - us <= WAKE_WINDOW_S * MICROS
+        builder.status(rec, us, woken)
+    return builder
+
+
+def fold_rows(rows, selected_iteration):
+    """Visible rows with `id`s and gap rows. Returns `(rows, {unfiltered index: id})`."""
+    out, ids, previous = [], {}, None
+    for index, (row, us, iteration) in enumerate(rows):
+        if selected_iteration is not None and iteration != selected_iteration:
+            continue
+        if previous is not None and us - previous[1] > FOLD_GAP_S * MICROS:
+            out.append({"id": len(out), "kind": "gap", "ts": previous[0]["ts"],
+                        "seconds": (us - previous[1]) // MICROS,
+                        "from_ts": previous[0]["ts"], "to_ts": row["ts"]})
+        ids[index] = len(out)
+        out.append(dict(row, id=len(out)))
+        previous = (row, us)
+    return out, ids
+
+
+def finish_bar(bar, ids, now_us):
+    """A bar as the state shows it. A row that is not visible in this iteration becomes null;
+    its timestamp stays, so the bar is closed, not open."""
+    end_us = bar["end_us"] if bar["end_us"] is not None else now_us
+    segments = []
+    for seg in bar["blocked"]:
+        seg_end = seg["end_us"] if seg["end_us"] is not None else now_us
+        segments.append({"start_row": ids.get(seg["start"]), "end_row": ids.get(seg["end"]),
+                         "start_ts": seg["start_ts"], "end_ts": seg["end_ts"],
+                         "duration_s": whole_seconds(seg["start_us"], seg_end)})
+    return {"agent": bar["agent"], "start_row": ids.get(bar["start"]), "end_row": ids.get(bar["end"]),
+            "start_ts": bar["start_ts"], "end_ts": bar["end_ts"], "self_start": bar["self_start"],
+            "open": bar["end_us"] is None, "duration_s": whole_seconds(bar["start_us"], end_us),
+            "blocked": segments}
+
+
+def derive_timeline(messages, activity, columns, now, selected_iteration, lowest_iteration=None):
+    """Rows, bars and per-agent totals. Totals cover the whole run; rows and bars only the selected
+    iteration. A record without an iteration counts as `lowest_iteration`."""
+    now_us = micros(now)
+    builder = replay_records(messages, activity, lowest_iteration)
+    rows, ids = fold_rows(builder.rows, selected_iteration)
+    agents = dict((c["agent"], {"working_s": 0, "blocked_s": 0, "wakes": 0}) for c in columns)
+    bars = []
+    for bar in builder.bars:
+        shown = finish_bar(bar, ids, now_us)
+        totals = agents.setdefault(bar["agent"], {"working_s": 0, "blocked_s": 0, "wakes": 0})
+        totals["working_s"] += shown["duration_s"]
+        totals["blocked_s"] += sum(seg["duration_s"] for seg in shown["blocked"])
+        totals["wakes"] += 0 if bar["self_start"] else 1
+        if selected_iteration is None or bar["iteration"] == selected_iteration:
+            bars.append(shown)
+    return {"rows": rows, "bars": bars, "agents": agents}
 
 
 # --- section: tasks ---
@@ -259,7 +419,8 @@ def build_state(squad_dir, now=None, selected_iteration=None):
     now = now or latest_ts(messages, activity) or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     columns = build_columns(squad, messages, activity)
-    timeline = derive_timeline(messages, activity, columns, now, selected_iteration)
+    timeline = derive_timeline(messages, activity, columns, now, selected_iteration,
+                               iterations[0] if iterations else None)
     tokens = read_tokens(columns, squad_dir)
     for col in columns:
         for key in ("working_s", "blocked_s", "wakes"):
