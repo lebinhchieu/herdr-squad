@@ -1,0 +1,400 @@
+#!/usr/bin/env python3
+"""squad-board: a live board of the squad at work.
+
+Iteration 1: replay mode only. Reads a squad folder and serves its state over HTTP.
+One file, standard library only, Python 3.9-safe (no `match`, no `X | None` at runtime).
+Design: .scratch/squad-board/design.md. Each later ticket fills its own section below.
+"""
+import argparse
+import json
+import re
+import sys
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs
+
+DEFAULT_PORT = 7420
+UNLISTED_POD = "(unlisted)"
+ITERATION_RE = re.compile(r"[0-9]{1,6}")
+STATUS_FOR_EVENT = {"working": "working", "blocked": "blocked", "idle": "idle", "done": "idle"}
+
+
+class BadRequest(Exception):
+    """The client asked for something the state cannot answer: HTTP 400."""
+
+
+# --- section: squad reader ---
+
+# Logs and squad files are written by other tools; read them as bytes-tolerant text.
+def read_text(path):
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def clean_cell(cell):
+    return cell.replace("\\|", "|").replace("**", "").replace("`", "").strip()
+
+
+def strip_parenthetical(cell):
+    """`board (S+QAW)` -> `board`: the roster and scopes.md annotate these cells."""
+    return re.sub(r"\s*\([^)]*\)\s*$", "", cell)
+
+
+def read_first_table(path):
+    """Rows of the first markdown table in the file, as dicts keyed by lowercased header."""
+    table = None
+    for line in read_text(path).splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            if table is not None:
+                break
+            continue
+        body = re.sub(r"^\||(?<!\\)\|$", "", line)
+        cells = [clean_cell(c) for c in re.split(r"(?<!\\)\|", body)]
+        if all(re.fullmatch(r":?-{3,}:?", c) for c in cells):
+            continue
+        if table is None:
+            table = {"header": [c.lower() for c in cells], "rows": []}
+        else:
+            table["rows"].append(dict(zip(table["header"], cells)))
+    return table["rows"] if table else []
+
+
+def read_squad(squad_dir):
+    """Roster, scopes, escalations, iteration texts and notes files of a squad folder."""
+    d = Path(squad_dir)
+    roster, seen = [], set()
+    for row in read_first_table(d / "roster.md"):
+        agent = row.get("agent", "")
+        if agent and agent not in seen:
+            seen.add(agent)
+            roster.append({"agent": agent, "role": row.get("role") or None,
+                           "scope": strip_parenthetical(row.get("scope", "")) or UNLISTED_POD,
+                           "status": row.get("status", "")})
+    scopes = [{"scope": strip_parenthetical(r.get("scope", "")),
+               "size": strip_parenthetical(r.get("size", "")) or None}
+              for r in read_first_table(d / "scopes.md")]
+    iterations = {}
+    for p in (d / "iterations").glob("*.md"):
+        if ITERATION_RE.fullmatch(p.stem) and p.is_file():
+            iterations[int(p.stem)] = read_text(p)
+    # Matching against real file names keeps untrusted agent names out of any path.
+    suffix = ".notes.md"
+    notes = set(p.name[:-len(suffix)] for p in (d / "roles").glob("*" + suffix) if p.is_file())
+    return {"roster": roster, "scopes": scopes, "escalations": read_first_table(d / "escalations.md"),
+            "iterations": iterations, "notes": notes}
+
+
+# --- section: log reader ---
+
+def parse_ts(value):
+    """Aware datetime from a log timestamp, or None (not a string, unparseable, or no zone)."""
+    if not isinstance(value, str):
+        return None
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return dt if dt.tzinfo is not None else None
+
+
+def read_jsonl(path):
+    # split on "\n" only: str.splitlines would also cut at U+2028 inside a JSON string
+    for line in read_text(path).split("\n"):
+        try:
+            rec = json.loads(line)
+        except (ValueError, RecursionError):
+            continue
+        if isinstance(rec, dict) and parse_ts(rec.get("ts")) is not None:
+            yield rec
+
+
+def text_or_none(value):
+    return value if isinstance(value, str) else None
+
+
+def int_or_none(value):
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def read_logs(squad_dir):
+    """`(messages, activity)` from the two logs. Bad lines are skipped, wrong types become None."""
+    d = Path(squad_dir)
+    messages, seen = [], set()
+    for rec in read_jsonl(d / "messages.jsonl"):
+        msg_id = text_or_none(rec.get("msg_id"))
+        if msg_id is not None:
+            if msg_id in seen:
+                continue
+            seen.add(msg_id)
+        messages.append({"ts": rec["ts"], "msg_id": msg_id, "from": text_or_none(rec.get("from")),
+                         "to": text_or_none(rec.get("to")), "type": text_or_none(rec.get("type")),
+                         "task": text_or_none(rec.get("task")), "text": text_or_none(rec.get("text")),
+                         "iteration": int_or_none(rec.get("iteration"))})
+    activity = []
+    for rec in read_jsonl(d / "activity.jsonl"):
+        agent = text_or_none(rec.get("agent"))
+        if agent:
+            activity.append({"ts": rec["ts"], "agent": agent, "status": text_or_none(rec.get("status")),
+                             "iteration": int_or_none(rec.get("iteration"))})
+    return messages, activity
+
+
+# --- section: columns ---
+
+def is_manager(role):
+    return (role or "").lower() == "manager"
+
+
+def make_column(agent, role, pod, retired, status, notes):
+    return {"agent": agent, "role": role, "pod": pod, "status": status, "retired": retired,
+            "notes_path": "roles/%s.notes.md" % agent if agent in notes else None,
+            "working_s": 0, "blocked_s": 0, "wakes": 0,
+            "context_tokens": None, "tokens_in": None, "tokens_out": None, "model": None}
+
+
+def latest_statuses(activity):
+    """Agent -> status of its latest event; `unknown` and other values are ignored."""
+    latest = {}
+    for i, event in enumerate(activity):
+        if event["status"] not in STATUS_FOR_EVENT:
+            continue
+        key = (parse_ts(event["ts"]), i)
+        if event["agent"] not in latest or key >= latest[event["agent"]][0]:
+            latest[event["agent"]] = (key, STATUS_FOR_EVENT[event["status"]])
+    return {agent: status for agent, (_, status) in latest.items()}
+
+
+def build_columns(squad, messages, activity):
+    """One column per agent: Manager first, pods by first appearance, roster order inside a pod."""
+    statuses = latest_statuses(activity)
+    roster = squad["roster"]
+    manager = next((r for r in roster if is_manager(r["role"])), None)
+    ordered = ([manager] if manager else []) + [r for r in roster if r is not manager]
+
+    pods = {}
+    for r in ordered:
+        pods.setdefault(r["scope"], []).append(make_column(
+            r["agent"], r["role"], r["scope"], r["status"].lower() != "live",
+            statuses.get(r["agent"], "idle"), squad["notes"]))
+
+    # An agent seen only in a log joins the end of the pod named by its first matching name part.
+    known = set(r["agent"] for r in ordered)
+    sightings = [(parse_ts(m["ts"]), name) for m in messages for name in (m["from"], m["to"]) if name]
+    sightings += [(parse_ts(a["ts"]), a["agent"]) for a in activity]
+    for _, name in sorted(sightings, key=lambda s: s[0]):
+        if name in known:
+            continue
+        known.add(name)
+        pod = next((part for part in name.split("-") if part in pods), UNLISTED_POD)
+        pods.setdefault(pod, []).append(make_column(
+            name, None, pod, False, statuses.get(name, "idle"), squad["notes"]))
+    return [col for pod in pods.values() for col in pod]
+
+
+def build_pods(squad, columns):
+    sizes = {}
+    for s in squad["scopes"]:
+        sizes.setdefault(s["scope"], s["size"])
+    pods = {}
+    for col in columns:
+        pods.setdefault(col["pod"], []).append(col)
+    return [{"name": name,
+             "size": None if any(is_manager(c["role"]) for c in cols) else sizes.get(name),
+             "agents": [c["agent"] for c in cols]}
+            for name, cols in pods.items()]
+
+
+# --- section: timeline ---
+
+def derive_timeline(messages, activity, columns, now, selected_iteration):
+    """BRD-02."""
+    return {"rows": [], "bars": [], "agents": {}}
+
+
+# --- section: tasks ---
+
+def derive_tasks(messages, activity, upto_iteration):
+    """BRD-03."""
+    return []
+
+
+# --- section: needs-you ---
+
+def derive_needs_you(squad, columns, activity):
+    """BRD-03."""
+    return []
+
+
+# --- section: tokens ---
+
+def read_tokens(columns, replay_root):
+    """BRD-04."""
+    return {}
+
+
+# --- section: state ---
+
+def latest_ts(messages, activity):
+    stamps = [r["ts"] for r in messages + activity]
+    return max(stamps, key=parse_ts) if stamps else None
+
+
+def build_state(squad_dir, now=None, selected_iteration=None):
+    """The whole board state from files alone. Raises BadRequest for an unknown iteration."""
+    squad = read_squad(squad_dir)
+    messages, activity = read_logs(squad_dir)
+    iterations = sorted(squad["iterations"])
+    iteration = iterations[-1] if iterations else None
+    if selected_iteration is None:
+        selected_iteration = iteration
+    elif selected_iteration not in squad["iterations"]:
+        raise BadRequest("unknown iteration %d" % selected_iteration)
+    now = now or latest_ts(messages, activity) or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    columns = build_columns(squad, messages, activity)
+    timeline = derive_timeline(messages, activity, columns, now, selected_iteration)
+    tokens = read_tokens(columns, squad_dir)
+    for col in columns:
+        for key in ("working_s", "blocked_s", "wakes"):
+            col[key] = timeline["agents"].get(col["agent"], {}).get(key, col[key])
+        for key in ("context_tokens", "tokens_in", "tokens_out", "model"):
+            col[key] = tokens.get(col["agent"], {}).get(key, col[key])
+    return {"now": now, "iterations": iterations, "iteration": iteration,
+            "selected_iteration": selected_iteration, "pods": build_pods(squad, columns),
+            "columns": columns, "rows": timeline["rows"], "bars": timeline["bars"],
+            "tasks": derive_tasks(messages, activity, selected_iteration),
+            "needs_you": derive_needs_you(squad, columns, activity)}
+
+
+# --- section: http ---
+
+PLACEHOLDER_PAGE = (b"<!doctype html><html><head><meta charset=\"utf-8\"><title>squad-board</title></head>"
+                    b"<body><p>squad-board: the page arrives in iteration 2. See <a href=\"/state\">/state</a>.</p>"
+                    b"</body></html>")
+
+
+def send(handler, status, content_type, body):
+    handler.send_response(status)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(body)))
+    handler.send_header("Cache-Control", "no-store")
+    if content_type.startswith("application/json"):
+        handler.send_header("X-Content-Type-Options", "nosniff")
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+def send_json(handler, status, obj):
+    send(handler, status, "application/json; charset=utf-8", json.dumps(obj).encode("utf-8"))
+
+
+def check_request(handler):
+    """The one entry point every request passes. BRD-05 adds the Host check here."""
+    return True
+
+
+def handle_root(handler):
+    send(handler, 200, "text/html; charset=utf-8", PLACEHOLDER_PAGE)
+
+
+def handle_state(handler):
+    values = parse_qs(handler.path.partition("?")[2], keep_blank_values=True).get("iteration")
+    selected = None
+    if values is not None:
+        if len(values) != 1 or not ITERATION_RE.fullmatch(values[0]):
+            return send_json(handler, 400, {"error": "iteration must be a number"})
+        selected = int(values[0])
+    try:
+        state = build_state(handler.server.replay_dir, handler.server.now, selected)
+    except BadRequest as e:
+        return send_json(handler, 400, {"error": str(e)})
+    send_json(handler, 200, state)
+
+
+def handle_events(handler):
+    """BRD-06."""
+    send_json(handler, 501, {"error": "not implemented"})
+
+
+def handle_jump(handler):
+    """BRD-05."""
+    send_json(handler, 501, {"error": "not implemented"})
+
+
+class BoardHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if not check_request(self):
+            return
+        path = self.path.partition("?")[0]
+        if path == "/":
+            handle_root(self)
+        elif path == "/state":
+            handle_state(self)
+        elif path == "/events":
+            handle_events(self)
+        else:
+            send_json(self, 404, {"error": "not found"})
+
+    def do_POST(self):
+        if not check_request(self):
+            return
+        if self.path.partition("?")[0].startswith("/jump/"):
+            handle_jump(self)
+        else:
+            send_json(self, 404, {"error": "not found"})
+
+    def log_message(self, format, *args):
+        # a request line on stderr would break the "silent when healthy" contract
+        pass
+
+
+class BoardServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+
+def make_server(replay_dir, now, port):
+    server = BoardServer(("127.0.0.1", port), BoardHandler)
+    server.replay_dir = replay_dir
+    server.now = now
+    return server
+
+
+def die(message, code):
+    print("squad-board: " + message, file=sys.stderr)
+    return code
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="squad-board", description="Live board of the squad.")
+    parser.add_argument("--replay", metavar="DIR", help="read this squad folder (required for now)")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="0 lets the OS pick")
+    parser.add_argument("--now", metavar="ISO", help="fixed time for replay, e.g. 2026-10-12T12:00:00Z")
+    args = parser.parse_args(argv)
+    if args.replay is None:
+        return die("--replay DIR is required: live mode arrives in iteration 2", 2)
+    if not Path(args.replay).is_dir():
+        return die("not a directory: %s" % args.replay, 2)
+    if args.now is not None and parse_ts(args.now) is None:
+        return die("--now must be an ISO time with a zone, e.g. 2026-10-12T12:00:00Z", 2)
+    if not 0 <= args.port <= 65535:
+        return die("--port must be 0..65535", 2)
+    try:
+        server = make_server(args.replay, args.now, args.port)
+    except OSError as e:
+        return die("cannot bind port %d: %s" % (args.port, e.strerror), 1)
+    print("squad-board: http://127.0.0.1:%d/" % server.server_address[1], flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

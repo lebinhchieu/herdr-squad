@@ -80,6 +80,10 @@ class Server:
         self._drain.join(5)
         self.proc.stdout.close()
 
+    def close(self):
+        self.stop()
+        self._stderr_file.close()
+
 
 class Fixture:
     """A squad folder in a temp dir. Call close() (or addCleanup(fx.close))."""
@@ -91,7 +95,7 @@ class Fixture:
 
     def close(self):
         for server in self._servers:
-            server.stop()
+            server.close()
         self._servers = []
         shutil.rmtree(self.root, ignore_errors=True)
 

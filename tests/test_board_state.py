@@ -98,6 +98,13 @@ class SquadReaderTest(BoardCase):
                        size_log=["| board | XL | x | none | 2026-10-12 | x |"])
         self.assertEqual(self.pod(self.state(), "board")["size"], "S")
 
+    def test_only_the_first_roster_table_counts(self):
+        self.fx.roster([MANAGER])
+        with open(self.fx.root / "roster.md", "a") as f:
+            f.write("\n## Old\n\n| Agent | Role | Scope | Owns | Status |\n|---|---|---|---|---|\n"
+                    "| dev-old | Developer | board | x | live |\n")
+        self.assertEqual([c["agent"] for c in self.state()["columns"]], ["manager"])
+
     def test_scope_cell_with_parenthetical_matches_scopes_row(self):
         self.fx.roster([{"agent": "dev-board-1", "scope": "board (S+QAW)"}])
         self.fx.scopes([{"scope": "board", "size": "S"}])
@@ -298,7 +305,7 @@ class RobustnessTest(BoardCase):
         self.assertEqual(srv.stderr(), "")
 
     def test_bad_json_lines_are_skipped(self):
-        self.fx.roster([MANAGER])
+        self.fx.roster([MANAGER, {"agent": "tech-board", "role": "Tech Lead"}])
         self.fx.append_jsonl("messages.jsonl", "{not json")
         self.fx.append_jsonl("messages.jsonl", "[1, 2]")
         self.fx.append_jsonl("messages.jsonl", '"text"')
@@ -322,7 +329,7 @@ class RobustnessTest(BoardCase):
         self.assert_clean(srv)
 
     def test_record_with_bad_ts_is_skipped(self):
-        self.fx.roster([MANAGER])
+        self.fx.roster([MANAGER, {"agent": "tech-board", "role": "Tech Lead"}])
         self.fx.message(ts="yesterday", **{"from": "ghost-a"})
         self.fx.message(ts=12345, **{"from": "ghost-b"})
         self.fx.message(ts=None, **{"from": "ghost-c"})
@@ -345,14 +352,14 @@ class RobustnessTest(BoardCase):
         self.assert_clean(srv)
 
     def test_odd_field_types_are_tolerated(self):
-        self.fx.roster([MANAGER])
+        self.fx.roster([MANAGER, {"agent": "tech-board", "role": "Tech Lead"}])
         self.fx.message(**{"from": 5, "to": ["a"], "unexpected": {"x": 1}})
         self.fx.message(type=3, text={"a": 1}, task=[], iteration="1", msg_id=7)
         self.fx.message(iteration="abc")
         self.fx.message(iteration=1.5)
         self.fx.activity(agent=None, status=7)
         srv = self.start()
-        self.assertEqual([c["agent"] for c in srv.state()["columns"]], ["manager"])
+        self.assertEqual([c["agent"] for c in srv.state()["columns"]], ["manager", "tech-board"])
         self.assert_clean(srv)
 
     def test_empty_fixture_folder_gives_empty_well_formed_state(self):
