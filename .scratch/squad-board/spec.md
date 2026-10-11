@@ -145,7 +145,7 @@ Agent-to-agent messages aren't stored anywhere, so after a check-in I can't repl
 
 - **Message hook.** A plugin-level hook that runs after every SendMessage tool call. It does nothing unless the session carries a squad name, which `squad-spawn` already sets for every agent. It appends one record to the squad's message log and parses message type and task ID from the message text's leading `TYPE TASK-ID` prefix. It is a small shell command using jq, already a plugin requirement.
 - **Board server** (`squad-board` command). One Python 3 file using only the standard library. Its jobs:
-  - **Activity recorder:** connects to herdr's socket, subscribes to events, and appends every agent status change to the squad's activity log.
+  - **Activity recorder:** connects to herdr's socket and subscribes to status changes once per agent pane, plus pane creation so new agents get added. It maps each pane to its squad name through the snapshot, stamps the time, and appends each change to the squad's activity log.
   - **Squad reader:** parses the roster, scopes, escalations and iteration files (markdown tables and sections).
   - **Derivation:** turns the logs plus squad files into the board state: columns, rows, bars, durations, task states, needs-you items and token figures.
   - **Transcript token reader:** finds each agent's transcript from the session ID in herdr's snapshot, searching every Claude config folder (`~/.claude*`), reads only newly appended lines, and keeps the model, the last reply's context tokens, and totals in and out.
@@ -163,7 +163,7 @@ Agent-to-agent messages aren't stored anywhere, so after a check-in I can't repl
 
 Both logs live in the squad folder, append only, one JSON object per line, never rotated.
 
-- **Message log record:** `ts` (ISO time), `from` (squad name), `to`, `type` (one of the typed message prefixes, or null), `task` (task ID or null), `text`, `iteration`.
+- **Message log record:** `ts` (ISO time), `msg_id` (from the SendMessage response, for dedupe), `from` (squad name), `to`, `type` (one of the typed message prefixes, or null), `task` (task ID or null), `text` (the full message, not the truncated `content` field), `iteration`.
 - **Activity log record:** `ts`, `agent` (squad name), `status` (working, idle, blocked, done), `iteration`.
 - Every record is tagged with the current iteration: the highest-numbered iteration file at write time.
 - herdr agent names match squad names, because `squad-spawn` labels the tab and agent with the squad name. That is the join key between herdr, the roster and both logs.
@@ -258,7 +258,24 @@ Both logs live in the squad folder, append only, one JSON object per line, never
 
 ## Further Notes
 
-- **Biggest risk:** whether a PostToolUse hook fires for SendMessage, and what its input fields are called, is unverified. It's the first throwaway test. If it fails, the fallback is for the server to read SendMessage tool calls from each agent's transcript; the message log record stays the same.
+- **Throwaway tests run 2026-10-12, both passed** (Claude Code 2.1.296, herdr 0.9.3, two Haiku sessions):
+  - **The hook fires for SendMessage.** A `PostToolUse` hook with matcher `*` fired for tool name `SendMessage`, both from a `--settings` file and from a plugin's hooks file.
+    - `SQUAD_NAME` from the herdr tab's environment reached the hook.
+    - The hook input gives the receiver as `tool_input.to` (also `recipient`, with `recipient_kind: "name"`) and the text as `tool_input.message`. Ignore `tool_input.content`, which is truncated.
+    - `tool_response` has `success` and `msg_id`; use `msg_id` to dedupe.
+    - Don't depend on SendMessage being the first tool call: the agent loaded it via `ToolSearch` first.
+  - **The receiver wakes on its own.** The message arrives as a user turn ("Another Claude session sent a message: `<cross-session-message from-name="spike-a">`"), so a turn starts with no PO input. This confirms the bar-start rule.
+  - **herdr events work, with three catches.**
+    - **One subscription per pane.** Every `pane.agent_status_changed` subscription needs a `pane_id`. The recorder subscribes once per agent pane, and also to `pane.created`, so it can add panes as agents spawn.
+    - **Events carry no agent name.** They carry only `pane_id`, `agent_status` and `workspace_id`; map pane to agent name with the snapshot.
+    - **Events carry no timestamp.** The recorder stamps the time.
+    - Framing is newline-delimited JSON with a request `id`.
+    - Observed order for one message: sender `working` → receiver `working` → receiver `done` → sender `done`.
+    - After a turn, herdr reports `done`, not `idle`.
+  - **Transcripts:**
+    - They record `agent-name` (the squad name) and a `turn_duration` entry (`durationMs`) per turn. That's a cross-check for bar durations.
+    - `~/.claude-2/projects` is a symlink to `~/.claude/projects` here, so the same transcript shows up under two paths. Dedupe by real path.
+  - **Not tested:** the `blocked` status (a permission prompt didn't occur in `auto` mode). Check it in the live S-size run.
 - **Already checked during design:**
   - herdr publishes `pane_agent_status_changed` with statuses idle / working / blocked / done / unknown through `events.subscribe` on its socket.
   - herdr's snapshot gives each agent's session ID.
