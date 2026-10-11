@@ -74,7 +74,7 @@ Send with `SendMessage` to the agent name in `roster.md`. **Start every message 
 | `BLOCKED` | Say you can't continue, and on what | `BLOCKED SET-01: AC-033 contradicts spec §4` |
 | `HANDIN` | Hand a task to QA | `HANDIN SET-01: branch squad/dev-settings-1, commit abc123` |
 | `PASS` / `FAIL` | QA verdict; FAIL points at findings | `FAIL SET-01: 2 findings in evidence/SET-01/qa-b.md` |
-| `STATUS` | Answer the Manager's health check | `STATUS: building SET-01, 60%, no blockers` |
+| `STATUS` | Answer the Manager's health check | `STATUS SET-01: building, 60%, no blockers` |
 
 - **Short.** Point at files and lines instead of pasting them.
 - **Task ID.** `BLOCKED`, `HANDIN`, `PASS`, `FAIL` and `STATUS` messages name their task ID right after the type (`FAIL SET-01: …`), so the squad board can derive task state.
