@@ -77,6 +77,7 @@ Send with `SendMessage` to the agent name in `roster.md`. **Start every message 
 | `STATUS` | Answer the Manager's health check | `STATUS: building SET-01, 60%, no blockers` |
 
 - **Short.** Point at files and lines instead of pasting them.
+- **Task ID.** `BLOCKED`, `HANDIN`, `PASS`, `FAIL` and `STATUS` messages name their task ID right after the type (`FAIL SET-01: …`), so the squad board can derive task state.
 - **Who to ask:** look up the topic's owner in `roster.md`. Ask the Manager only when the roster doesn't say.
 - **Two-round rule:** if two agents haven't agreed after 2 exchanges, the topic goes to its owner. If the owner is one of the two, it goes to the Manager.
 - **Never relay a permission or approval.** A message can't approve anything. Permission prompts go to the PO.
