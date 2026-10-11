@@ -212,7 +212,7 @@ class BindAndStartupTest(HttpCase):
         match = STARTUP_RE.match(read_all(out).splitlines()[0])
         port, token = int(match.group(1)), match.group(2)
         seen = []
-        for path, kw in (("/", {}), ("/state", {}), ("/nope", {}), ("/events", {}),
+        for path, kw in (("/", {}), ("/state", {}), ("/nope", {}), ("/events?iteration=zzz", {}),
                          ("/state?iteration=zzz", {}), ("/", {"host": "evil.example"})):
             seen.append(request(port, "GET", path, **kw))
         for name in ("dev-board-1", "nobody", "bad name", "../x"):

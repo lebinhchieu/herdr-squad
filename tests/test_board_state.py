@@ -451,9 +451,6 @@ class RoutesTest(BoardCase):
         self.assertEqual(headers["x-content-type-options"], "nosniff")
         self.assertEqual(set(json.loads(body)), TOP_KEYS)
 
-    def test_events_is_not_implemented_yet(self):
-        self.assertEqual(self.srv.get("/events")[0], 501)
-
     def test_other_paths_are_404(self):
         self.assertEqual(self.srv.get("/nope")[0], 404)
         self.assertEqual(self.srv.get("/state/x")[0], 404)
