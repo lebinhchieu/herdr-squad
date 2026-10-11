@@ -264,6 +264,28 @@ class PortTest(HttpCase):
         srv = self.fx.start(now=NOW, port=base)
         self.assertIn(srv.port, range(base + 1, base + 21))
 
+    def test_last_fallback_port_is_p_plus_twenty(self):
+        base, socks = occupy(21)
+        self.addCleanup(lambda: [s.close() for s in socks])
+        socks.pop().close()  # P+20 is the only free port
+        srv = self.fx.start(now=NOW, port=base)
+        self.assertEqual(srv.port, base + 20)
+
+    def test_port_shared_by_reuseport_sockets_still_counts_as_busy(self):
+        if not hasattr(socket, "SO_REUSEPORT"):
+            self.skipTest("no SO_REUSEPORT on this platform")
+        base, socks = occupy(1)
+        self.addCleanup(lambda: [s.close() for s in socks])
+        socks[0].close()
+        sock = socket.socket()
+        socks[0] = sock
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        sock.bind(("127.0.0.1", base))
+        sock.listen(1)
+        srv = self.fx.start(now=NOW, port=base)
+        self.assertIn(srv.port, range(base + 1, base + 21))
+
     def test_all_twenty_one_ports_busy_exits_one_with_message(self):
         base, socks = occupy(21)
         self.addCleanup(lambda: [s.close() for s in socks])
@@ -410,6 +432,11 @@ class JumpTest(HttpCase):
             with self.subTest(name=name):
                 self.assertEqual(self.jump(name).status, 400)
         self.assertNoCall()
+
+    def test_query_string_after_the_name_is_ignored(self):
+        self.start()
+        self.assertEqual(self.jump("manager?x=1").status, 200)
+        self.assertEqual(self.herdr_calls(), ["agent", "focus", "manager"])
 
     def test_longest_valid_name_passes_the_regex(self):
         self.start()
