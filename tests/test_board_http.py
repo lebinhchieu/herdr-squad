@@ -237,23 +237,25 @@ class PortTest(HttpCase):
         self.assertGreater(self.srv.port, 0)
         self.assertEqual(self.req("GET", "/state").status, 200)
 
-    def test_busy_port_falls_forward_and_prints_the_bound_port(self):
+    def test_bound_but_not_listening_port_counts_as_busy_and_the_bound_port_is_printed(self):
         base, socks = occupy(1)
         self.addCleanup(lambda: [s.close() for s in socks])
-        for reuse in (False, True):
-            socks[0].close()
-            sock = socket.socket()
-            if reuse:  # worst case: a socket that would share the port if the server let it
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                if hasattr(socket, "SO_REUSEPORT"):
-                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-            sock.bind(("127.0.0.1", base))
-            socks[0] = sock  # bound, not listening
-            srv = self.fx.start(now=NOW, port=base)
-            self.assertIn(srv.port, range(base + 1, base + 21), "reuse=%s" % reuse)
-            self.assertEqual(STARTUP_RE.match(srv.startup_line).group(1), str(srv.port))
-            self.assertEqual(srv.get("/state")[0], 200)
-            srv.stop()
+        socks[0].close()
+        sock = socket.socket()
+        socks[0] = sock
+        sock.bind(("127.0.0.1", base))
+        srv = self.fx.start(now=NOW, port=base)
+        self.assertIn(srv.port, range(base + 1, base + 21))
+        self.assertEqual(STARTUP_RE.match(srv.startup_line).group(1), str(srv.port))
+        self.assertEqual(srv.get("/state")[0], 200)
+
+    def test_restart_on_the_same_port_after_serving_a_request(self):
+        first = self.start()
+        port = first.port
+        self.assertEqual(first.get("/state")[0], 200)
+        first.stop()  # the closed connection lingers in TIME_WAIT; the default port must still be reusable
+        again = self.fx.start(now=NOW, port=port)
+        self.assertEqual(again.port, port)
 
     def test_listening_busy_port_falls_forward(self):
         base, socks = occupy(1)

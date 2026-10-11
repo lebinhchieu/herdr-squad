@@ -379,7 +379,7 @@ class BoardHandler(BaseHTTPRequestHandler):
             return
         path = self.path.partition("?")[0]
         if path.startswith(JUMP_PREFIX):
-            self.method_not_allowed()
+            send_json(self, 405, {"error": "method not allowed"})
         elif path == "/":
             handle_root(self)
         elif path == "/state":
@@ -414,8 +414,6 @@ class BoardHandler(BaseHTTPRequestHandler):
 
 class BoardServer(ThreadingHTTPServer):
     daemon_threads = True
-    # HTTPServer turns this on; with it a bound-but-not-listening socket can share our port
-    allow_reuse_address = False
 
 
 def make_server(replay_dir, now, port):
