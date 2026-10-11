@@ -31,17 +31,18 @@ HERDR_TIMEOUT_S = 5
 #   SQUAD_BOARD_POLL_S             how often the watcher looks at the squad files (default 0.5)
 #   SQUAD_BOARD_KEEPALIVE_S        quiet time before a ": keepalive" comment line (default 15)
 #   SQUAD_BOARD_REQUEST_TIMEOUT_S  longest a handler socket read or write may block (default 10)
+MAX_ENV_SECONDS = 86400
 
 
 def env_seconds(name, default):
-    """A positive, finite number of seconds from the environment, else exit 2 (0 would spin a loop,
-    nan and inf would never fire)."""
+    """Seconds from the environment, greater than 0 and at most a day, else exit 2 (0 would spin a
+    loop; nan, inf and absurd values would never fire)."""
     try:
         value = float(os.environ.get(name, default))
     except ValueError:
         value = 0
-    if not 0 < value < float("inf"):
-        print("squad-board: %s must be a number greater than 0" % name, file=sys.stderr)
+    if not 0 < value <= MAX_ENV_SECONDS:
+        print("squad-board: %s must be a number between 0 and %d" % (name, MAX_ENV_SECONDS), file=sys.stderr)
         sys.exit(2)
     return value
 

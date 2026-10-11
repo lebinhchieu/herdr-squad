@@ -480,14 +480,19 @@ class SocketTimeoutTest(EventsBase):
 class EnvKnobTest(EventsBase):
     def test_bad_values_exit_2_with_one_line_and_no_traceback(self):
         for name in ("SQUAD_BOARD_POLL_S", "SQUAD_BOARD_KEEPALIVE_S", "SQUAD_BOARD_REQUEST_TIMEOUT_S"):
-            for value in ("abc", "0", "-1", "nan", "inf", ""):
+            for value in ("abc", "0", "-1", "nan", "inf", "", "1e300", "86401"):
                 with self.subTest(name=name, value=value):
                     done = subprocess.run(
                         [sys.executable, str(BIN), "--replay", str(self.fx.root), "--port", "0"],
                         env=dict(os.environ, **{name: value}), capture_output=True, text=True, timeout=10)
                     self.assertEqual(done.returncode, 2)
-                    self.assertEqual(done.stderr, "squad-board: %s must be a number greater than 0\n" % name)
+                    self.assertEqual(done.stderr, "squad-board: %s must be a number between 0 and 86400\n" % name)
                     self.assertEqual(done.stdout, "")
+
+    def test_one_day_is_accepted(self):
+        env = {"SQUAD_BOARD_POLL_S": "86400", "SQUAD_BOARD_KEEPALIVE_S": "86400",
+               "SQUAD_BOARD_REQUEST_TIMEOUT_S": "86400"}
+        self.assertEqual(self.start(env=env).state()["selected_iteration"], 1)
 
 
 if __name__ == "__main__":
