@@ -335,6 +335,36 @@ class EscalationTest(TaskCase):
             f.write("| 2 | 2026-10-12 | short row? |\n")
         self.assertEqual([i["id"] for i in self.needs()], ["escalation:2"])
 
+    def append_raw(self, *lines):
+        with open(self.fx.root / "escalations.md", "a", encoding="utf-8") as f:
+            f.write("".join(line + "\n" for line in lines))
+
+    def test_blank_rows_are_not_items(self):
+        self.fx.escalations([{"answer": ""}])
+        self.append_raw("| | | | | | | |", "|  |", "| | 2026-10-12 | | A) x | | | |")
+        self.assertEqual([i["id"] for i in self.needs()], ["escalation:1"])
+
+    def test_whitespace_only_row_between_real_rows(self):
+        self.fx.escalations([{"answer": ""}])
+        self.append_raw("|   |   |   |   |   |   |   |", "| 3 | 2026-10-12 | third? | A | A | x | |")
+        self.assertEqual([i["id"] for i in self.needs()], ["escalation:1", "escalation:3"])
+
+    def test_row_with_only_a_number_is_an_item(self):
+        self.fx.escalations([])
+        self.append_raw("| 4 | | | | | | |")
+        self.assertEqual([i["id"] for i in self.needs()], ["escalation:4"])
+
+    def test_short_row_with_a_number_only_is_unanswered(self):
+        self.fx.escalations([])
+        self.append_raw("| 5 |")
+        self.assertEqual([i["id"] for i in self.needs()], ["escalation:5"])
+
+    def test_short_row_with_a_question_is_unanswered(self):
+        self.fx.escalations([])
+        self.append_raw("| 1 | 2026-10-12 | short row? |")
+        items = self.needs()
+        self.assertEqual([(i["id"], i["text"]) for i in items], [("escalation:1", "short row?")])
+
     def test_placeholder_answer_cells_count_as_answered(self):
         self.fx.escalations([{"answer": "—"}, {"answer": "-"}, {"answer": "  "}])
         self.assertEqual([i["id"] for i in self.needs()], ["escalation:3"])
@@ -460,6 +490,17 @@ class ManagerIdleTest(TaskCase):
 
     def test_indented_sub_bullet_counts_as_filled(self):
         self.fx.iteration(1, "## PO check-in\n- **Done:**\n- **Next:**\n  - BRD-08 integration\n")
+        self.idle_manager()
+        self.assertEqual(self.ids(), [])
+
+    def test_sub_heading_ends_the_bullet_text(self):
+        self.fx.iteration(1, "## PO check-in\n- **Done (with evidence):**\n### Notes\ntext under notes\n"
+                             "- **Next:**\n")
+        self.idle_manager()
+        self.assertEqual(self.ids(), ["manager_idle:1"])
+
+    def test_bullet_after_a_sub_heading_still_counts(self):
+        self.fx.iteration(1, "## PO check-in\n### Notes\n- **Done:** x\n- **Next:**\n")
         self.idle_manager()
         self.assertEqual(self.ids(), [])
 

@@ -270,8 +270,12 @@ def po_checkin_filled(text):
         return None
     filled, field = {"done": False, "next": False}, None
     for line in lines[start + 1:]:
-        if re.match(r"#{1,2}\s", line):
-            break
+        heading = re.match(r"(#+)\s", line)
+        if heading:
+            if len(heading.group(1)) <= 2:
+                break
+            field = None
+            continue
         bullet = re.match(r"[-*]\s+\*\*(\w+)[^*]*\*\*:?(.*)", line)
         if bullet:
             field, line = bullet.group(1).lower(), bullet.group(2)
@@ -300,7 +304,8 @@ def derive_needs_you(squad, columns, activity):
     rows = squad["escalations"]
     numbers = [r.get("#", "") for r in rows]
     for i, row in enumerate(rows, 1):
-        if row.get("answer"):
+        # a blank row has an empty Answer too, but without a number or question it is no escalation
+        if row.get("answer") or not (row.get("#") or row.get("question")):
             continue
         number = numbers[i - 1] if numbers[i - 1] and numbers.count(numbers[i - 1]) == 1 else i
         items.append({"id": "escalation:%s" % number, "kind": "escalation",
