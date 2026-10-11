@@ -105,6 +105,19 @@ class SquadReaderTest(BoardCase):
                     "| dev-old | Developer | board | x | live |\n")
         self.assertEqual([c["agent"] for c in self.state()["columns"]], ["manager"])
 
+    def test_roster_rows_with_an_empty_agent_role_or_scope_are_skipped(self):
+        self.fx.write("roster.md", (
+            "| Agent | Role | Scope | Owns | Status |\n|---|---|---|---|---|\n"
+            "| manager | Manager | all | x | live |\n"
+            "| only |\n"
+            "| no-role |  | board | x | live |\n"
+            "| no-scope | Developer |  | x | live |\n"
+            "|  | Developer | board | x | live |\n"
+            "| dev-board-1 | Developer | board | x | live |\n"))
+        st = self.state()
+        self.assertEqual([c["agent"] for c in st["columns"]], ["manager", "dev-board-1"])
+        self.assertEqual([p["name"] for p in st["pods"]], ["all", "board"])
+
     def test_scope_cell_with_parenthetical_matches_scopes_row(self):
         self.fx.roster([{"agent": "dev-board-1", "scope": "board (S+QAW)"}])
         self.fx.scopes([{"scope": "board", "size": "S"}])
@@ -213,6 +226,13 @@ class UnknownAgentTest(BoardCase):
                         {"agent": "ba-settings", "role": "BA", "scope": "settings"}])
         self.fx.message(**{"from": "qa-settings-board", "to": "manager"})
         self.assertEqual(self.column(self.state(), "qa-settings-board")["pod"], "settings")
+
+    def test_managers_pod_is_never_a_name_part_target(self):
+        self.fx.roster([MANAGER, {"agent": "tech-board", "role": "Tech Lead"}])
+        self.fx.activity(agent="dev-all-1", status="working")
+        st = self.state()
+        self.assertEqual(self.column(st, "dev-all-1")["pod"], "(unlisted)")
+        self.assertEqual(self.pod(st, "all")["agents"], ["manager"])
 
     def test_unsafe_log_agent_name_gets_no_notes_path(self):
         self.fx.roster([MANAGER])
@@ -360,6 +380,25 @@ class RobustnessTest(BoardCase):
         self.fx.activity(agent=None, status=7)
         srv = self.start()
         self.assertEqual([c["agent"] for c in srv.state()["columns"]], ["manager", "tech-board"])
+        self.assert_clean(srv)
+
+    def test_raw_u2028_inside_a_log_string_does_not_split_the_line(self):
+        self.fx.roster([MANAGER, {"agent": "tech-board", "role": "Tech Lead"}])
+        self.fx.message(**{"from": "dev-board-3"})
+        with open(self.fx.root / "messages.jsonl", "ab") as f:
+            f.write('{"ts":"2026-10-12T10:30:00.000Z","from":"a\u2028b","to":"manager"}\n'.encode("utf-8"))
+        srv = self.start()
+        self.assertIn("a\u2028b", [c["agent"] for c in srv.state()["columns"]])
+        self.assert_clean(srv)
+
+    def test_deeply_nested_json_line_is_skipped(self):
+        self.fx.roster([MANAGER, {"agent": "tech-board", "role": "Tech Lead"}])
+        self.fx.message(**{"from": "dev-board-3"})
+        self.fx.append_jsonl("messages.jsonl", '{"a":' * 100000)
+        self.fx.message(**{"from": "dev-board-4"})
+        srv = self.start()
+        names = [c["agent"] for c in srv.state()["columns"]]
+        self.assertEqual(names, ["manager", "tech-board", "dev-board-3", "dev-board-4"])
         self.assert_clean(srv)
 
     def test_empty_fixture_folder_gives_empty_well_formed_state(self):

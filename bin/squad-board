@@ -68,12 +68,11 @@ def read_squad(squad_dir):
     d = Path(squad_dir)
     roster, seen = [], set()
     for row in read_first_table(d / "roster.md"):
-        agent = row.get("agent", "")
-        if agent and agent not in seen:
+        agent, role = row.get("agent", ""), row.get("role", "")
+        scope = strip_parenthetical(row.get("scope", ""))
+        if agent and role and scope and agent not in seen:
             seen.add(agent)
-            roster.append({"agent": agent, "role": row.get("role") or None,
-                           "scope": strip_parenthetical(row.get("scope", "")) or UNLISTED_POD,
-                           "status": row.get("status", "")})
+            roster.append({"agent": agent, "role": role, "scope": scope, "status": row.get("status", "")})
     scopes = [{"scope": strip_parenthetical(r.get("scope", "")),
                "size": strip_parenthetical(r.get("size", "")) or None}
               for r in read_first_table(d / "scopes.md")]
@@ -184,6 +183,8 @@ def build_columns(squad, messages, activity):
             statuses.get(r["agent"], "idle"), squad["notes"]))
 
     # An agent seen only in a log joins the end of the pod named by its first matching name part.
+    # The Manager's pod is no target: `dev-all-1` is not one of the Manager's team.
+    manager_pod = manager["scope"] if manager else None
     known = set(r["agent"] for r in ordered)
     sightings = [(parse_ts(m["ts"]), name) for m in messages for name in (m["from"], m["to"]) if name]
     sightings += [(parse_ts(a["ts"]), a["agent"]) for a in activity]
@@ -191,7 +192,7 @@ def build_columns(squad, messages, activity):
         if name in known:
             continue
         known.add(name)
-        pod = next((part for part in name.split("-") if part in pods), UNLISTED_POD)
+        pod = next((part for part in name.split("-") if part in pods and part != manager_pod), UNLISTED_POD)
         pods.setdefault(pod, []).append(make_column(
             name, None, pod, False, statuses.get(name, "idle"), squad["notes"]))
     return [col for pod in pods.values() for col in pod]
