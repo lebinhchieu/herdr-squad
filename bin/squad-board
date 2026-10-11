@@ -239,6 +239,7 @@ import os
 import threading
 
 SESSION_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+SYNTHETIC_MODEL = "<synthetic>"
 HEAD_BYTES = 64  # a rewritten file that grew past the old offset is caught by comparing its start
 
 # Per transcript (by real path): the reader's place and the replies seen so far. The server is
@@ -254,7 +255,10 @@ def count(value):
 
 
 def parse_reply(line):
-    """`(message_id, tokens_in, tokens_out, model)` of an assistant line with usage, else None."""
+    """`(message_id, tokens_in, tokens_out, model)` of an assistant line with usage, else None.
+
+    A `<synthetic>` reply (Claude Code's own placeholder, usage all zero) is skipped: as the last
+    reply it would show a context of 0."""
     if b'"usage"' not in line:  # cheap filter: most transcript lines are tool output
         return None
     try:
@@ -263,7 +267,7 @@ def parse_reply(line):
         return None
     message = rec.get("message") if isinstance(rec, dict) and rec.get("type") == "assistant" else None
     usage = message.get("usage") if isinstance(message, dict) else None
-    if not isinstance(usage, dict):
+    if not isinstance(usage, dict) or message.get("model") == SYNTHETIC_MODEL:
         return None
     tokens_in = sum(count(usage.get(k)) for k in
                     ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
@@ -311,7 +315,7 @@ def transcript_figures(path):
         replies = list(entry["replies"].values())
     if not replies:
         return None
-    models = [model for _, _, model in replies if model and model != "<synthetic>"]
+    models = [model for _, _, model in replies if model]
     return {"context_tokens": replies[-1][0], "tokens_in": sum(r[0] for r in replies),
             "tokens_out": sum(r[1] for r in replies), "model": models[-1] if models else None}
 

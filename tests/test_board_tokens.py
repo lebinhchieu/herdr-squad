@@ -70,7 +70,8 @@ class TestTotals(TokenTestCase):
         # A's last line (in 5, out 5) replaces its first; A is also the last reply by position
         self.check({"context_tokens": 5, "tokens_in": 7, "tokens_out": 7, "model": "model-c"})
 
-    def test_synthetic_model_is_skipped_but_other_lines_are_ignored(self):
+    def test_synthetic_reply_is_ignored_entirely_and_other_lines_too(self):
+        # synthetic lines carry all-zero usage: as the last reply they would show context 0
         self.fx.transcript("claude", "p", SID, [
             reply("m1", 10, 0, 0, 1, "model-a"),
             {"type": "user", "message": {"role": "user", "content": "hi",
@@ -78,7 +79,11 @@ class TestTotals(TokenTestCase):
             {"type": "assistant", "message": {"id": "m-nousage", "model": "model-z", "content": []}},
             {"type": "system", "note": "x"},
             reply("m2", 3, 0, 0, 4, "<synthetic>")])
-        self.check({"context_tokens": 3, "tokens_in": 13, "tokens_out": 5, "model": "model-a"})
+        self.check({"context_tokens": 10, "tokens_in": 10, "tokens_out": 1, "model": "model-a"})
+
+    def test_only_synthetic_replies_give_nulls(self):
+        self.fx.transcript("claude", "p", SID, [reply("m1", 0, 0, 0, 0, "<synthetic>")])
+        self.check(NULLS)
 
     def test_reply_without_message_id_still_counts(self):
         rec = reply("x", 4, 0, 0, 6)
