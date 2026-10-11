@@ -268,6 +268,20 @@ class TestIncremental(TokenTestCase):
                          {"context_tokens": 3, "tokens_in": 3, "tokens_out": 1, "model": "model-a"})
         self.assertEqual(server.stderr(), "")
 
+    def test_file_truncated_keeping_the_same_first_bytes_is_recomputed(self):
+        # The start of the file is unchanged, so only the smaller size can show it was cut.
+        self.fx.transcript("claude", "p", SID, [reply("m1", 10, 0, 0, 1), reply("m2", 20, 0, 0, 2),
+                                                reply("m3", 30, 0, 0, 3)])
+        server = self.fx.start(now="2026-10-12T12:00:00Z")
+        self.assertEqual(figures(server.state(), "dev-board-5")["tokens_in"], 60)
+        data = self.tpath().read_bytes()
+        first = data.index(b"\n") + 1
+        self.assertGreater(first, 64)
+        self.tpath().write_bytes(data[:first + 10])  # one whole reply plus the start of the next
+        self.assertEqual(figures(server.state(), "dev-board-5"),
+                         {"context_tokens": 10, "tokens_in": 10, "tokens_out": 1, "model": "model-a"})
+        self.assertEqual(server.stderr(), "")
+
     def test_file_replaced_by_longer_different_content_is_recomputed(self):
         self.fx.transcript("claude", "p", SID, [reply("m1", 1, 0, 0, 1)])
         server = self.fx.start(now="2026-10-12T12:00:00Z")
