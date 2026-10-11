@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Ask a squad agent to save its notes, then close its herdr tab. Worktree and branch are kept.
+set -euo pipefail
+
+[[ $# -lt 1 || $1 == -h || $1 == --help ]] && { echo "Usage: squad-retire <agent-name> [--no-notes]"; exit 2; }
+name=$1; notes=1
+[[ ${2:-} == --no-notes ]] && notes=0
+
+tab=$(herdr agent get "$name" | jq -r '.result.agent.tab_id // .result.tab_id // empty')
+[[ -n $tab ]] || { echo "no live agent named $name" >&2; exit 1; }
+
+if [[ $notes == 1 ]]; then
+  herdr agent prompt "$name" "RETIRE: update your notes file in \$SQUAD_DIR/roles/ with anything a successor needs, then reply DONE." \
+    --wait --timeout 300000 >/dev/null || echo "warning: $name did not settle; closing anyway" >&2
+fi
+
+herdr tab close "$tab" >/dev/null
+jq -n --arg name "$name" --arg tab "$tab" '{name:$name, tab:$tab, status:"retired"}'

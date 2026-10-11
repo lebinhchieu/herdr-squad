@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Start one squad role as its own Claude Code session in a new herdr tab.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: squad-spawn <role> <agent-name> [options]
+
+Roles: manager ba team-lead tech-lead qa-whitebox qa-blackbox dev
+Name:  lowercase, [a-z][a-z0-9_-]{0,31}, e.g. ba-settings, dev-settings-1
+
+Options:
+  --scope S        Scope label, shown in the tab and passed as SQUAD_SCOPE
+  --repo DIR       Git repo to branch from; the agent works in its own worktree
+                   <project>/.worktrees/<agent-name> on branch squad/<agent-name>
+  --prompt TEXT    First message to send once the session is ready
+  --model M        Model override (default: the role file's model, else yours)
+  --dry-run        Print what would run, start nothing
+
+Env:
+  SQUAD_DIR         Squad folder (default: <git toplevel>/squad)
+  SQUAD_PLUGIN_DIR  Load the plugin from this dir with --plugin-dir (when not installed)
+EOF
+}
+
+[[ $# -lt 2 || $1 == -h || $1 == --help ]] && { usage; exit 2; }
+role=$1 name=$2; shift 2
+scope="" repo="" prompt="" model="" dry=0
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --scope) scope=$2; shift 2 ;;
+    --repo) repo=$2; shift 2 ;;
+    --prompt) prompt=$2; shift 2 ;;
+    --model) model=$2; shift 2 ;;
+    --dry-run) dry=1; shift ;;
+    *) echo "unknown option: $1" >&2; usage; exit 2 ;;
+  esac
+done
+
+case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev) ;;
+  *) echo "unknown role: $role" >&2; exit 2 ;; esac
+[[ $name =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { echo "bad agent name: $name (herdr needs [a-z][a-z0-9_-]{0,31})" >&2; exit 2; }
+[[ ${HERDR_ENV:-} == 1 ]] || { echo "not inside a herdr pane (HERDR_ENV != 1)" >&2; exit 1; }
+
+plugin_root=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+squad_dir=${SQUAD_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/squad}
+squad_dir=$(readlink -f "$squad_dir")
+[[ -f $squad_dir/process.md ]] || { echo "no squad folder at $squad_dir (run /squad:squad-init)" >&2; exit 1; }
+project_dir=$(dirname "$squad_dir")
+
+# Project-tuned permissions first, plugin defaults as fallback.
+settings=$squad_dir/settings/$role.json
+[[ -f $settings ]] || settings=$plugin_root/templates/squad/settings/$role.json
+
+cwd=$project_dir
+if [[ -n $repo ]]; then
+  repo=$(readlink -f "$repo")
+  wt=$project_dir/.worktrees/$name
+  if [[ ! -d $wt ]]; then
+    if [[ $dry == 1 ]]; then echo "would run: git -C $repo worktree add $wt -b squad/$name"
+    else git -C "$repo" worktree add "$wt" -b "squad/$name" >&2; fi
+  fi
+  cwd=$wt
+fi
+
+claude_args=(--agent "squad:$role" --name "$name" --permission-mode auto --settings "$settings")
+[[ -n $model ]] && claude_args+=(--model "$model")
+[[ -n ${SQUAD_PLUGIN_DIR:-} ]] && claude_args+=(--plugin-dir "$SQUAD_PLUGIN_DIR")
+
+env_args=(--env "SQUAD_DIR=$squad_dir" --env "SQUAD_NAME=$name" --env "SQUAD_ROLE=$role" --env "SQUAD_SCOPE=$scope")
+[[ -n ${SQUAD_PLUGIN_DIR:-} ]] && env_args+=(--env "SQUAD_PLUGIN_DIR=$SQUAD_PLUGIN_DIR")
+
+if [[ $dry == 1 ]]; then
+  echo "would run: herdr tab create --cwd $cwd --label $name --no-focus ${env_args[*]}"
+  echo "would run: herdr agent start $name --kind claude --pane <pane> -- ${claude_args[*]}"
+  exit 0
+fi
+
+tab_json=$(herdr tab create --cwd "$cwd" --label "$name" --no-focus "${env_args[@]}")
+pane=$(jq -r '.result.root_pane.pane_id' <<<"$tab_json")
+tab=$(jq -r '.result.tab.tab_id' <<<"$tab_json")
+
+herdr agent start "$name" --kind claude --pane "$pane" --timeout 120000 -- "${claude_args[@]}" >/dev/null || {
+  echo "agent did not become ready; inspect with: herdr agent read $name --lines 40" >&2
+  jq -n --arg name "$name" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" \
+    '{name:$name, tab:$tab, pane:$pane, cwd:$cwd, status:"not_ready"}'
+  exit 1
+}
+
+[[ -n $prompt ]] && herdr agent prompt "$name" "$prompt" >/dev/null
+
+jq -n --arg name "$name" --arg role "$role" --arg scope "$scope" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" \
+  '{name:$name, role:$role, scope:$scope, tab:$tab, pane:$pane, cwd:$cwd, status:"ready"}'
