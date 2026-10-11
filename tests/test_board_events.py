@@ -8,11 +8,12 @@ import os
 import select
 import signal
 import socket
+import subprocess
 import sys
 import time
 import unittest
 
-from board_fixture import Fixture
+from board_fixture import BIN, Fixture
 
 CHANGE_DEADLINE_S = 5  # AC2
 QUIET_S = 3  # AC3
@@ -308,6 +309,22 @@ class KeepaliveTest(EventsBase):
         self.assertEqual(seen[-1], ": keepalive")
         self.assertEqual(set(seen), {": keepalive"})
 
+    def test_keepalives_are_spaced_by_the_interval(self):
+        # at 0.2 s, about 1.1 s of reading holds 5 or 6 lines; a loop that forgets to restart
+        # the quiet timer would write hundreds of thousands
+        server = self.start(env=FAST)
+        s = self.stream(server)
+        self.assertIsNotNone(s.state(5))
+        deadline = time.monotonic() + 1.1
+        count = 0
+        while True:
+            block = s.block(max(deadline - time.monotonic(), 0))
+            if block is None:
+                break
+            self.assertEqual(block, ": keepalive")
+            count += 1
+        self.assertTrue(3 <= count <= 8, count)
+
     def test_default_interval_is_15_seconds(self):
         server = self.start()
         s = self.stream(server)
@@ -345,6 +362,8 @@ class IterationTest(EventsBase):
             self.assertLess(time.monotonic(), deadline, "the failed rebuild was not logged")
             time.sleep(0.05)
         self.assertFalse(s.eof)
+        time.sleep(1)  # a rebuild that retried at every wake-up would log again and again
+        self.assertEqual(server.stderr().count("state not rebuilt"), 1, server.stderr()[:300])
         self.fx.iteration(2)
         say(self.fx, "ghost-one")
         event = s.state_where(has_agent("ghost-one"))
@@ -456,6 +475,19 @@ class SocketTimeoutTest(EventsBase):
         self.assertFalse(s.eof, "server closed the quiet stream")
         say(self.fx, "ghost-one")
         self.assertIsNotNone(s.state_where(has_agent("ghost-one")))
+
+
+class EnvKnobTest(EventsBase):
+    def test_bad_values_exit_2_with_one_line_and_no_traceback(self):
+        for name in ("SQUAD_BOARD_POLL_S", "SQUAD_BOARD_KEEPALIVE_S", "SQUAD_BOARD_REQUEST_TIMEOUT_S"):
+            for value in ("abc", "0", "-1", "nan", "inf", ""):
+                with self.subTest(name=name, value=value):
+                    done = subprocess.run(
+                        [sys.executable, str(BIN), "--replay", str(self.fx.root), "--port", "0"],
+                        env=dict(os.environ, **{name: value}), capture_output=True, text=True, timeout=10)
+                    self.assertEqual(done.returncode, 2)
+                    self.assertEqual(done.stderr, "squad-board: %s must be a number greater than 0\n" % name)
+                    self.assertEqual(done.stdout, "")
 
 
 if __name__ == "__main__":

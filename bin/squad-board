@@ -31,9 +31,25 @@ HERDR_TIMEOUT_S = 5
 #   SQUAD_BOARD_POLL_S             how often the watcher looks at the squad files (default 0.5)
 #   SQUAD_BOARD_KEEPALIVE_S        quiet time before a ": keepalive" comment line (default 15)
 #   SQUAD_BOARD_REQUEST_TIMEOUT_S  longest a handler socket read or write may block (default 10)
-POLL_S = float(os.environ.get("SQUAD_BOARD_POLL_S", "0.5"))
-KEEPALIVE_S = float(os.environ.get("SQUAD_BOARD_KEEPALIVE_S", "15"))
-REQUEST_TIMEOUT_S = float(os.environ.get("SQUAD_BOARD_REQUEST_TIMEOUT_S", "10"))
+
+
+def env_seconds(name, default):
+    """A positive, finite number of seconds from the environment, else exit 2 (0 would spin a loop,
+    nan and inf would never fire)."""
+    try:
+        value = float(os.environ.get(name, default))
+    except ValueError:
+        value = 0
+    if not 0 < value < float("inf"):
+        print("squad-board: %s must be a number greater than 0" % name, file=sys.stderr)
+        sys.exit(2)
+    return value
+
+
+POLL_S = env_seconds("SQUAD_BOARD_POLL_S", 0.5)
+KEEPALIVE_S = env_seconds("SQUAD_BOARD_KEEPALIVE_S", 15)
+REQUEST_TIMEOUT_S = env_seconds("SQUAD_BOARD_REQUEST_TIMEOUT_S", 10)
+
 UNLISTED_POD = "(unlisted)"
 ITERATION_RE = re.compile(r"[0-9]{1,6}")
 STATUS_FOR_EVENT = {"working": "working", "blocked": "blocked", "idle": "idle", "done": "idle"}
