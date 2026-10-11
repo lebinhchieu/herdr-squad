@@ -6,8 +6,12 @@ One file, standard library only, Python 3.9-safe (no `match`, no `X | None` at r
 Design: .scratch/squad-board/design.md. Each later ticket fills its own section below.
 """
 import argparse
+import errno
+import hmac
 import json
 import re
+import secrets
+import subprocess
 import sys
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -15,6 +19,10 @@ from pathlib import Path
 from urllib.parse import parse_qs
 
 DEFAULT_PORT = 7420
+PORT_TRIES = 20  # busy port P: try P+1..P+20 (design D4)
+JUMP_PREFIX = "/jump/"
+JUMP_NAME_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}")
+HERDR_TIMEOUT_S = 5
 UNLISTED_POD = "(unlisted)"
 ITERATION_RE = re.compile(r"[0-9]{1,6}")
 STATUS_FOR_EVENT = {"working": "working", "blocked": "blocked", "idle": "idle", "done": "idle"}
@@ -296,8 +304,25 @@ def send_json(handler, status, obj):
 
 
 def check_request(handler):
-    """The one entry point every request passes. BRD-05 adds the Host check here."""
-    return True
+    """Host and Origin must name this server, else 403: a web page on another site (or a rebinding
+    DNS name) cannot talk to it. Runs before method, token and path, for every route."""
+    port = handler.server.server_address[1]
+    hosts = ["127.0.0.1:%d" % port, "localhost:%d" % port]
+    given = handler.headers.get_all("Host") or []
+    origins = handler.headers.get_all("Origin") or []
+    if (len(given) == 1 and given[0].lower() in hosts
+            and all(o.lower() in ["http://" + h for h in hosts] for o in origins)):
+        return True
+    send_json(handler, 403, {"error": "forbidden"})
+    return False
+
+
+def token_ok(handler):
+    """Constant-time compare on UTF-8 bytes: a non-ASCII header is a mismatch, not a TypeError.
+    A repeated header must have every copy right."""
+    expected = handler.server.token.encode("utf-8")
+    given = handler.headers.get_all("X-Board-Token") or []
+    return bool(given) and all(hmac.compare_digest(g.encode("utf-8"), expected) for g in given)
 
 
 def handle_root(handler):
@@ -324,8 +349,28 @@ def handle_events(handler):
 
 
 def handle_jump(handler):
-    """BRD-05."""
-    send_json(handler, 501, {"error": "not implemented"})
+    """POST /jump/<name>: focus a roster agent's herdr pane. Check order: token, name, roster, so a
+    refused token never reveals who is on the roster. Nothing is run until all three pass."""
+    if not token_ok(handler):
+        return send_json(handler, 403, {"error": "forbidden"})
+    name = handler.path.partition("?")[0][len(JUMP_PREFIX):]
+    if not JUMP_NAME_RE.fullmatch(name):
+        return send_json(handler, 400, {"error": "bad agent name"})
+    live = [r["agent"] for r in read_squad(handler.server.replay_dir)["roster"]
+            if r["status"].lower() == "live"]
+    if name not in live:
+        return send_json(handler, 404, {"error": "not on the roster"})
+    # argv list, never a shell; herdr's own output stays out of the response
+    try:
+        done = subprocess.run(["herdr", "agent", "focus", name], timeout=HERDR_TIMEOUT_S,
+                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        return send_json(handler, 502, {"ok": False, "error": "herdr timed out"})
+    except OSError:
+        return send_json(handler, 502, {"ok": False, "error": "herdr could not be run"})
+    if done.returncode != 0:
+        return send_json(handler, 502, {"ok": False, "error": "herdr exited with status %d" % done.returncode})
+    send_json(handler, 200, {"ok": True})
 
 
 class BoardHandler(BaseHTTPRequestHandler):
@@ -333,7 +378,9 @@ class BoardHandler(BaseHTTPRequestHandler):
         if not check_request(self):
             return
         path = self.path.partition("?")[0]
-        if path == "/":
+        if path.startswith(JUMP_PREFIX):
+            self.method_not_allowed()
+        elif path == "/":
             handle_root(self)
         elif path == "/state":
             handle_state(self)
@@ -345,10 +392,20 @@ class BoardHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not check_request(self):
             return
-        if self.path.partition("?")[0].startswith("/jump/"):
+        if self.path.partition("?")[0].startswith(JUMP_PREFIX):
             handle_jump(self)
         else:
             send_json(self, 404, {"error": "not found"})
+
+    def method_not_allowed(self):
+        if check_request(self):
+            send_json(self, 405, {"error": "method not allowed"})
+
+    do_HEAD = do_OPTIONS = do_PUT = do_PATCH = do_DELETE = method_not_allowed
+
+    def send_error(self, code, message=None, explain=None):
+        # the stock error page is HTML without our headers
+        send_json(self, code, {"error": message or self.responses.get(code, ("error",))[0]})
 
     def log_message(self, format, *args):
         # a request line on stderr would break the "silent when healthy" contract
@@ -357,13 +414,25 @@ class BoardHandler(BaseHTTPRequestHandler):
 
 class BoardServer(ThreadingHTTPServer):
     daemon_threads = True
+    # HTTPServer turns this on; with it a bound-but-not-listening socket can share our port
+    allow_reuse_address = False
 
 
 def make_server(replay_dir, now, port):
-    server = BoardServer(("127.0.0.1", port), BoardHandler)
-    server.replay_dir = replay_dir
-    server.now = now
-    return server
+    """Bind `port` on loopback, or the next free one of the following PORT_TRIES (not for port 0).
+    Raises OSError when the port cannot be bound; the last EADDRINUSE when all are busy."""
+    last = min(port + PORT_TRIES, 65535) if port else 0
+    for candidate in range(port, last + 1):
+        try:
+            server = BoardServer(("127.0.0.1", candidate), BoardHandler)
+        except OSError as e:
+            if e.errno != errno.EADDRINUSE or candidate == last:
+                raise
+            continue
+        server.replay_dir = replay_dir
+        server.now = now
+        server.token = secrets.token_urlsafe(16)
+        return server
 
 
 def die(message, code):
@@ -388,8 +457,10 @@ def main(argv=None):
     try:
         server = make_server(args.replay, args.now, args.port)
     except OSError as e:
+        if e.errno == errno.EADDRINUSE and args.port:
+            return die("ports %d..%d are all busy" % (args.port, min(args.port + PORT_TRIES, 65535)), 1)
         return die("cannot bind port %d: %s" % (args.port, e.strerror), 1)
-    print("squad-board: http://127.0.0.1:%d/" % server.server_address[1], flush=True)
+    print("squad-board: http://127.0.0.1:%d/?token=%s" % (server.server_address[1], server.token), flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

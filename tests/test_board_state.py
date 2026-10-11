@@ -434,8 +434,8 @@ class RoutesTest(BoardCase):
         self.srv = self.start()
 
     def test_startup_line_is_the_first_stdout_line(self):
-        self.assertRegex(self.srv.startup_line, r"^squad-board: http://127\.0\.0\.1:\d+/$")
-        self.assertIsNone(self.srv.token)
+        self.assertRegex(self.srv.startup_line, r"^squad-board: http://127\.0\.0\.1:\d+/\?token=[\w-]+$")
+        self.assertIsNotNone(self.srv.token)
 
     def test_root_is_a_placeholder_html_page(self):
         status, headers, body = self.srv.get("/")
@@ -451,9 +451,8 @@ class RoutesTest(BoardCase):
         self.assertEqual(headers["x-content-type-options"], "nosniff")
         self.assertEqual(set(json.loads(body)), TOP_KEYS)
 
-    def test_events_and_jump_are_not_implemented_yet(self):
+    def test_events_is_not_implemented_yet(self):
         self.assertEqual(self.srv.get("/events")[0], 501)
-        self.assertEqual(self.srv.post("/jump/manager")[0], 501)
 
     def test_other_paths_are_404(self):
         self.assertEqual(self.srv.get("/nope")[0], 404)
@@ -493,13 +492,6 @@ class CommandLineTest(unittest.TestCase):
         self.addCleanup(fx.close)
         res = self.run_cli("--replay", str(fx.root), "--now", "tomorrow")
         self.assertEqual(res.returncode, 2)
-
-    def test_busy_port_exits_1(self):
-        fx = Fixture()
-        self.addCleanup(fx.close)
-        srv = fx.start()
-        res = self.run_cli("--replay", str(fx.root), "--port", str(srv.port))
-        self.assertEqual(res.returncode, 1)
 
 
 if __name__ == "__main__":
