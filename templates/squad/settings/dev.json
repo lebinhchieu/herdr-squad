@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "SendMessage", "ListAgents", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git branch:*)", "Bash(echo:*)", "Bash(git add:*)", "Bash(git commit:*)"
+      "SendMessage", "ListAgents", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git branch:*)", "Bash(echo:*)", "Bash(squad-respawn:*)", "Bash(git add:*)", "Bash(git commit:*)"
     ],
     "deny": [
       "Bash(git push:*)", "Bash(git merge:*)", "Bash(git rebase:*)", "Bash(git reset --hard:*)", "Bash(git checkout main:*)", "Bash(git checkout dev:*)",

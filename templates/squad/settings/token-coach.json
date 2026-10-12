@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "SendMessage", "ListAgents", "Bash(squad-usage:*)", "Bash(echo:*)", "Bash(git log:*)",
+      "Write(/.claude/squads/*/iterations/*.coach.md)", "Edit(/.claude/squads/*/iterations/*.coach.md)"
+    ],
+    "deny": [
+      "Bash(git push:*)", "Bash(git merge:*)", "Bash(git rebase:*)", "Bash(git reset --hard:*)",
+      "Write(/.claude/squads/*/*.md)", "Edit(/.claude/squads/*/*.md)", "Write(/.claude/squads/*/settings/**)", "Edit(/.claude/squads/*/settings/**)",
+      "Read(~/.claude/projects/**)", "Read(~/.claude-2/projects/**)"
+    ]
+  }
+}

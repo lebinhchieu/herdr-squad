@@ -5,7 +5,7 @@
 ## Files are the truth, messages are the talk
 
 - **Durable things go in files first, then a message points at them.** A decision that only lives in a message is lost when a session restarts.
-- **Where things live** is in `project.md` (this project's requirements, AC, decisions, tickets, code repos, test commands). Use the project's own files; don't copy them into `squad/`.
+- **Where things live** is in `project.md` (this project's requirements, AC, decisions, tickets, code repos, test commands). Use the project's own files; don't copy them into the squad folder.
 - **Squad-only files** (this folder):
 
 | File | Owner | Holds |
@@ -20,6 +20,7 @@
 | `contracts/<name>.md` | Tech Leads of both scopes | A contract shared between scopes (XL): API, event, status model |
 | `iterations/<n>.md` | Manager | Goal, plan, retro and PO check-in of iteration n |
 | `roles/<agent>.notes.md` | each agent | Its own memory: context, open threads, what it learned |
+| `usage-events.jsonl` | cost hook | One line each time a cost rule fires |
 | `tasks/<id>.md` | Plan owner (Team Lead; Tech Lead in S and M) | Task state when the project has no ticket files of its own |
 
 ## Sizes: not every scope runs the full pod
@@ -72,7 +73,7 @@ Send with `SendMessage` to the agent name in `roster.md`. **Start every message 
 | `ANSWER` | Reply to an ASK | `ANSWER: yes, see requirements note in project.md#reqs` |
 | `DECISION` | Announce a decision already written to a file | `DECISION: tabs order fixed, logged in DECISIONS.md D12` |
 | `BLOCKED` | Say you can't continue, and on what | `BLOCKED SET-01: AC-033 contradicts spec §4` |
-| `HANDIN` | Hand a task to QA | `HANDIN SET-01: branch squad/dev-settings-1, commit abc123` |
+| `HANDIN` | Hand a task to QA | `HANDIN SET-01: branch squad/<squad>/dev-settings-1, commit abc123` |
 | `PASS` / `FAIL` | QA verdict; FAIL points at findings | `FAIL SET-01: 2 findings in evidence/SET-01/qa-b.md` |
 | `STATUS` | Answer the Manager's health check | `STATUS: building SET-01, 60%, no blockers` |
 
@@ -102,18 +103,28 @@ Send with `SendMessage` to the agent name in `roster.md`. **Start every message 
 - **Done = the scope size's rule** (see Sizes). A Developer's own checks are required but never enough.
 - **A returned task stays with the same Developer** and the same task file.
 - **3 returns on one task → the Manager steps in** and decides whether the task, the AC or the Developer is the problem.
-- **Evidence** goes where `project.md` says (default `squad/evidence/<task>/`): `qa-w.md`, `qa-b.md` (M, L), `dev-evidence.md`, `tl-review.md` (S), screenshots, test output.
+- **Evidence** goes where `project.md` says (default `$SQUAD_DIR/evidence/<task>/`): `qa-w.md`, `qa-b.md` (M, L), `dev-evidence.md`, `tl-review.md` (S), screenshots, test output.
 
 ## Iterations
 
 1. **Goal check:** Manager + PO agree the iteration goal in `iterations/<n>.md`, and the PO confirms each scope's size in `scopes.md`.
 2. **Plan:** the scope's roles (by size) talk freely; requirements, AC and tasks land in files.
 3. **Build and verify:** event-driven. Devs build, QA checks, gaps go to owners.
-4. **Retro:** Manager collects friction (loops, blocked panes, returns, unclear ownership), edits this file, drafts role-instruction changes.
+4. **Retro:** Manager collects friction (loops, blocked panes, returns, unclear ownership), spawns the Token Coach (`squad-spawn token-coach coach`), then edits this file and drafts role-instruction changes. The Coach writes `iterations/<n>.coach.md`: proposals ranked by saving, each with its evidence row. The Manager accepts the top 3 (logged in `process-log.md`) and moves the rest to the file's `## Backlog`.
 5. **Check-in:** Manager shows the PO what is done, open escalations, and proposed role-instruction changes.
+
+## Cost rules
+
+**Tokens are spent on context, so keep sessions small and fresh. A Stop hook (`squad-usage --check`) tells you when rule 2 or 3 fires; it logs to `usage-events.jsonl`.**
+
+1. **Reuse** a session while it stays on the same scope and context is under 50%.
+2. **Fresh** when context is over 60%, after a compaction, or on a new scope: write `roles/<you>.notes.md`, then `squad-respawn <you>`.
+3. **Idle** over 1h (the cache lifetime) with context over ~100k: fresh from notes.
+4. **Step-up** one notch of model or effort only on failure or escalation, for that task only.
+5. **Messages point at files.** The Manager reads summaries, never transcripts.
 
 ## Safety
 
-- **No push, merge or deploy.** Developers commit to their own `squad/<agent>` branch in their own worktree. The PO merges.
+- **No push, merge or deploy.** Developers commit to their own `squad/<squad>/<agent>` branch in their own worktree. The PO merges.
 - **No writes to Jira or Confluence.** Read only.
 - **Stay in your lane:** edit only the files your role owns, plus your own notes file.

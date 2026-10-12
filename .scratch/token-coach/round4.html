@@ -1,0 +1,137 @@
+<title>Token Coach Round 4</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: finding (code excerpt + notes) left, sticky; editable role table + question cards right; copy box last. Single light look by choice (mango-parrot light). */
+:root{
+  --bg:#FCF8F1;--panel:#F4ECDD;--line:#E7DBC8;--ink:#3E372E;--muted:#857A68;
+  --mango:#E8820E;--teal:#0C8A80;--red:#DB3B22;--blue:#2A6DC0;--purple:#9A40CF;--green:#368A1E;--yellow:#9E7A00;--slate:#5E6B78;
+  --display:"Fraunces",Georgia,serif;--body:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);padding-block:20px 40px;padding-inline:max(16px,3vw)}
+h1{font:600 28px/1.2 var(--display);margin:0;text-wrap:balance}
+h2{font:600 18px/1.3 var(--display);margin:0 0 10px}
+.lede{max-width:72ch;color:var(--muted);margin:6px 0 0}
+.tag{font:600 11px var(--mono);letter-spacing:.04em;padding:1px 6px;border-radius:4px;white-space:nowrap}
+.v{color:var(--green);background:#368A1E18}.i{color:var(--yellow);background:#9E7A0018}
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:28px;margin-top:20px;align-items:start}
+@media (max-width:960px){.grid{grid-template-columns:1fr}}
+.sticky{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+.code{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.code .hd{font:600 12px var(--mono);background:var(--panel);padding:6px 10px;color:var(--muted)}
+.code pre{margin:0;padding:8px 0;font:12.5px/1.6 var(--mono);overflow-x:auto;background:var(--bg)}
+.ln{display:block;padding:0 10px;white-space:pre}
+.ln .n{color:var(--muted);display:inline-block;width:3ch;margin-right:10px;text-align:right}
+.ln.hl{background:#E8820E1F}.ln.bad{background:#DB3B2218}
+.mk{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--mango);color:#fff;font:600 10.5px var(--mono);margin-left:6px;vertical-align:middle}
+.mk.r{background:var(--red)}
+.notes{display:grid;gap:8px;font-size:13.5px}
+.notes div{display:flex;gap:8px}
+.verdict{border-left:3px solid var(--red);background:#DB3B220D;padding:8px 12px;margin-top:12px;font-size:14px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{font:600 11.5px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:var(--panel)}
+tr:last-child td{border-bottom:0}
+select{font:13px var(--body);border:1px solid var(--line);border-radius:5px;padding:3px 6px;background:#fff;color:var(--ink)}
+select.changed{border-color:var(--mango);background:#E8820E10}
+.q{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;background:var(--bg)}
+.q h3{font:600 15px var(--body);margin:0 0 4px;display:flex;gap:8px;align-items:center}
+.q p{margin:4px 0 8px;max-width:70ch}
+.pin{display:inline-grid;place-items:center;min-width:24px;height:22px;border-radius:11px;background:var(--mango);color:#fff;font:600 11px var(--mono);padding:0 4px}
+.opts{display:grid;gap:6px}
+.opts label{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:6px;padding:7px 9px;cursor:pointer}
+.opts label:has(input:checked){border-color:var(--mango);background:#E8820E10}
+.opts input{margin-top:3px;accent-color:var(--mango)}
+.rec{font:600 10.5px var(--mono);color:var(--mango);margin-left:4px}
+.ev{font:12px var(--mono);color:var(--muted);margin-top:6px}
+textarea{width:100%;box-sizing:border-box;font:13px var(--body);border:1px solid var(--line);border-radius:6px;padding:6px;background:#fff;color:var(--ink);margin-top:6px}
+.copy{border:2px solid var(--mango);border-radius:10px;padding:14px}
+.copy pre{font:13px/1.5 var(--mono);background:var(--panel);padding:10px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;margin:8px 0}
+button.cta{font:600 14px var(--body);background:var(--mango);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.settled{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.settled span{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:2px 10px;background:var(--panel)}
+.settled span::before{content:"✓ ";color:var(--green)}
+footer{margin-top:28px;font:12px/1.6 var(--mono);color:var(--muted);white-space:pre-wrap;border-top:1px solid var(--line);padding-top:12px;overflow-x:auto}
+</style>
+
+<h1>Token Coach, round 4: every role runs Opus today</h1>
+<p class="lede">Only the Manager's role file names a model, so any role spawned without <code>--model</code> inherits the Manager's Opus. Fix: write a model and effort into each role file, so the Manager never has to pick one. Set the table, answer three questions, copy back. This is the last round.</p>
+<div class="settled"><span>Hook checks own session after each turn</span><span>Agent self-fixes + event logged</span><span>Coach ranks all, Manager decides top 3</span><span>squad-respawn &lt;self&gt;</span></div>
+
+<div class="grid">
+<section class="sticky" aria-label="Finding">
+  <h2>The finding</h2>
+  <div class="code"><div class="hd">bin/squad-spawn:19 · :83–85</div><pre>
+<span class="ln hl"><span class="n">19</span>  --model M   Model override (default: the role file's model, else yours)<span class="mk">1</span></span>
+<span class="ln"><span class="n">20</span>  --effort E  Effort level (low|medium|high|xhigh|max)</span>
+<span class="ln"><span class="n">⋮</span></span>
+<span class="ln"><span class="n">83</span>claude_args=(--agent "squad:$role" --name "$name" ... --settings "$settings")<span class="mk">3</span></span>
+<span class="ln hl"><span class="n">84</span>[[ -n $model ]] &amp;&amp; claude_args+=(--model "$model")<span class="mk">1</span></span>
+<span class="ln"><span class="n">85</span>[[ -n $effort ]] &amp;&amp; claude_args+=(--effort "$effort")</span></pre></div>
+  <div class="code"><div class="hd">grep "^model:|^effort:" agents/*.md</div><pre>
+<span class="ln"><span class="n"> </span>agents/manager.md:model: opus</span>
+<span class="ln bad"><span class="n"> </span>(ba, dev, qa-*, team-lead, tech-lead: nothing)<span class="mk r">2</span></span></pre></div>
+  <div class="notes">
+    <div><span class="mk">1</span><span>The model is passed only when the Manager remembers <code>--model</code>. <span class="tag v">verified</span></span></div>
+    <div><span class="mk r">2</span><span>Six role files fall back to "yours", i.e. the Manager's Opus. No role sets effort. <span class="tag v">verified</span></span></div>
+    <div><span class="mk">3</span><span>A squad settings file already goes to every role, so the Stop hook can live there (Q2). <span class="tag v">verified</span></span></div>
+  </div>
+  <div class="verdict">Your Sonnet/Haiku setup hangs on a per-spawn decision by the Manager, the kind of decision this whole design takes away from it.</div>
+</section>
+
+<section aria-label="Questions">
+  <div class="q"><h3><span class="pin">Q1</span> Default model and effort per role</h3>
+    <p>Preset to my proposal. You know which roles fail on Haiku; change any cell.</p>
+    <div class="tw"><table id="roles"><thead><tr><th>Role</th><th>Model</th><th>Effort</th></tr></thead><tbody></tbody></table></div>
+    <textarea id="n1" rows="1" placeholder="Which roles do you run on Haiku today, and do they hold up?"></textarea></div>
+
+  <div class="q"><h3><span class="pin">Q2</span> Where the hook is installed</h3>
+    <div class="opts">
+      <label><input type="radio" name="q2" value="squad-settings" checked> <span>The squad settings file squad-spawn already passes (line 83) <span class="rec">REC</span></span></label>
+      <label><input type="radio" name="q2" value="plugin-hooks"> <span>Plugin hooks (also fires in your non-squad sessions)</span></label>
+    </div>
+    <textarea id="n2" rows="1" placeholder="Note (optional)"></textarea></div>
+
+  <div class="q"><h3><span class="pin">Q3</span> How long a step-up lasts</h3>
+    <p>Rule 3: on failure or escalation, move one step up the model or effort.</p>
+    <div class="opts">
+      <label><input type="radio" name="q3" value="task" checked> <span>That task only; squad-respawn returns the role default <span class="rec">REC</span></span></label>
+      <label><input type="radio" name="q3" value="session"> <span>The rest of the agent's session</span></label>
+    </div>
+    <textarea id="n3" rows="1" placeholder="Note (optional)"></textarea></div>
+
+  <div class="q"><h3><span class="pin">Q4</span> Write it down</h3>
+    <div class="opts">
+      <label><input type="radio" name="q4" value="spec+tickets" checked> <span>.scratch/token-coach/spec.md, then tickets; squad-usage first since all else needs its numbers <span class="rec">REC</span></span></label>
+      <label><input type="radio" name="q4" value="spec-only"> <span>Spec only, no tickets yet</span></label>
+    </div>
+    <textarea id="n4" rows="1" placeholder="Note (optional)"></textarea></div>
+
+  <div class="copy"><h2>Your answers</h2>
+    <pre id="out"></pre>
+    <button class="cta" id="copyBtn">Copy answers</button> <span id="copied" class="ev"></span></div>
+</section>
+</div>
+
+<footer>Reader:     the user (PO) → decide round 4 and confirm shared understanding
+Question:   Which model and effort should each role default to, so the Manager never picks one?
+Dimension:  Comparison
+Form:       editable role × model/effort table beside the code finding, not radio options per role: one table compares all roles at once</footer>
+
+<script>
+const roles=[["Manager","opus","high"],["Tech Lead","sonnet","high"],["BA","sonnet","medium"],["Team Lead","sonnet","medium"],["Dev","sonnet","medium"],["QA whitebox","sonnet","medium"],["QA blackbox","haiku","medium"]];
+const tb=document.querySelector('#roles tbody');
+const sel=(id,opts,v)=>`<select id="${id}" data-def="${v}">${opts.map(o=>`<option${o===v?' selected':''}>${o}</option>`).join('')}</select>`;
+roles.forEach(([r,m,e],i)=>{tb.insertAdjacentHTML('beforeend',`<tr><td>${r}</td><td>${sel('m'+i,['opus','sonnet','haiku'],m)}</td><td>${sel('e'+i,['low','medium','high','xhigh','max'],e)}</td></tr>`)});
+const out=document.getElementById('out');
+function render(){
+  document.querySelectorAll('select').forEach(s=>s.classList.toggle('changed',s.value!==s.dataset.def));
+  const l=['R4 Q1: '+roles.map(([r],i)=>`${r}=${document.getElementById('m'+i).value}/${document.getElementById('e'+i).value}`).join(', ')+(document.getElementById('n1').value.trim()?' | '+document.getElementById('n1').value.trim():'')];
+  for(let i=2;i<=4;i++){const v=document.querySelector(`input[name=q${i}]:checked`).value;const n=document.getElementById('n'+i).value.trim();l.push(`R4 Q${i}: ${v}${n?' | '+n:''}`);}
+  out.textContent=l.join('\n');
+}
+document.addEventListener('input',render);document.addEventListener('change',render);render();
+document.getElementById('copyBtn').addEventListener('click',()=>{const c=document.getElementById('copied');navigator.clipboard.writeText(out.textContent).then(()=>c.textContent='Copied').catch(()=>{const r=document.createRange();r.selectNodeContents(out);const s=getSelection();s.removeAllRanges();s.addRange(r);c.textContent='Selected, press Ctrl+C';});});
+</script>

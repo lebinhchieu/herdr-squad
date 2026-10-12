@@ -6,47 +6,64 @@ usage() {
   cat <<'EOF'
 Usage: squad-spawn <role> <agent-name> [options]
 
-Roles: manager ba team-lead tech-lead qa-whitebox qa-blackbox dev
+Roles: manager ba team-lead tech-lead qa-whitebox qa-blackbox dev token-coach
 Name:  lowercase, [a-z][a-z0-9_-]{0,31}, e.g. ba-settings, dev-settings-1
 
 Options:
+  --squad NAME     Squad to join: <project>/.claude/squads/NAME (default: $SQUAD,
+                   else the only squad there)
   --scope S        Scope label, shown in the tab and passed as SQUAD_SCOPE
   --repo DIR       Git repo to branch from; the agent works in its own worktree
-                   <project>/.worktrees/<agent-name> on branch squad/<agent-name>
+                   <project>/.worktrees/<squad>/<agent-name> on branch squad/<squad>/<agent-name>
   --prompt TEXT    First message to send once the session is ready
   --model M        Model override (default: the role file's model, else yours)
+  --effort E       Effort override (low|medium|high|xhigh|max; default: the role file's effort)
   --dry-run        Print what would run, start nothing
 
 Env:
-  SQUAD_DIR         Squad folder (default: <git toplevel>/squad)
+  SQUAD             Squad name, same as --squad
+  SQUAD_DIR         Squad folder, overrides --squad (must be <project>/.claude/squads/<name>)
   SQUAD_PLUGIN_DIR  Load the plugin from this dir with --plugin-dir (when not installed)
 EOF
 }
 
 [[ $# -lt 2 || $1 == -h || $1 == --help ]] && { usage; exit 2; }
 role=$1 name=$2; shift 2
-scope="" repo="" prompt="" model="" dry=0
+squad=${SQUAD:-} scope="" repo="" prompt="" model="" effort="" dry=0
 while [[ $# -gt 0 ]]; do
   case $1 in
+    --squad) squad=$2; shift 2 ;;
     --scope) scope=$2; shift 2 ;;
     --repo) repo=$2; shift 2 ;;
     --prompt) prompt=$2; shift 2 ;;
     --model) model=$2; shift 2 ;;
+    --effort) effort=$2; shift 2 ;;
     --dry-run) dry=1; shift ;;
     *) echo "unknown option: $1" >&2; usage; exit 2 ;;
   esac
 done
 
-case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev) ;;
+case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach) ;;
   *) echo "unknown role: $role" >&2; exit 2 ;; esac
 [[ $name =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { echo "bad agent name: $name (herdr needs [a-z][a-z0-9_-]{0,31})" >&2; exit 2; }
 [[ ${HERDR_ENV:-} == 1 ]] || { echo "not inside a herdr pane (HERDR_ENV != 1)" >&2; exit 1; }
 
 plugin_root=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
-squad_dir=${SQUAD_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/squad}
+if [[ -n ${SQUAD_DIR:-} ]]; then
+  squad_dir=$SQUAD_DIR
+else
+  squads_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/squads
+  if [[ -z $squad ]]; then
+    found=("$squads_root"/*/process.md)
+    [[ ${#found[@]} == 1 && -f ${found[0]} ]] || { echo "pick a squad with --squad (found: $(ls "$squads_root" 2>/dev/null | xargs))" >&2; exit 2; }
+    squad=$(basename "$(dirname "${found[0]}")")
+  fi
+  squad_dir=$squads_root/$squad
+fi
 squad_dir=$(readlink -f "$squad_dir")
 [[ -f $squad_dir/process.md ]] || { echo "no squad folder at $squad_dir (run /squad:squad-init)" >&2; exit 1; }
-project_dir=$(dirname "$squad_dir")
+squad=$(basename "$squad_dir")
+project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
 
 # Project-tuned permissions first, plugin defaults as fallback.
 settings=$squad_dir/settings/$role.json
@@ -55,23 +72,34 @@ settings=$squad_dir/settings/$role.json
 cwd=$project_dir
 if [[ -n $repo ]]; then
   repo=$(readlink -f "$repo")
-  wt=$project_dir/.worktrees/$name
+  wt=$project_dir/.worktrees/$squad/$name
   if [[ ! -d $wt ]]; then
-    if [[ $dry == 1 ]]; then echo "would run: git -C $repo worktree add $wt -b squad/$name"
-    else git -C "$repo" worktree add "$wt" -b "squad/$name" >&2; fi
+    if [[ $dry == 1 ]]; then echo "would run: git -C $repo worktree add $wt -b squad/$squad/$name"
+    else git -C "$repo" worktree add "$wt" -b "squad/$squad/$name" >&2; fi
   fi
   cwd=$wt
 fi
 
-claude_args=(--agent "squad:$role" --name "$name" --permission-mode auto --settings "$settings")
+# Role defaults come from the role file's frontmatter; --model/--effort override them.
+role_file=$plugin_root/agents/$role.md
+fm() { awk -v k="$1:" 'NR==1&&$0!="---"{exit} NR>1&&$0=="---"{exit} $1==k{print $2; exit}' "$role_file"; }
+[[ -n $model ]] || model=$(fm model)
+[[ -n $effort ]] || effort=$(fm effort)
+
+# Known up front so roster.md can point at the transcript <config dir>/projects/<cwd>/<session>.jsonl.
+session=$(python3 -c 'import uuid; print(uuid.uuid4())')
+
+claude_args=(--agent "squad:$role" --name "$name" --session-id "$session" --permission-mode auto --settings "$settings")
 [[ -n $model ]] && claude_args+=(--model "$model")
+[[ -n $effort ]] && claude_args+=(--effort "$effort")
 [[ -n ${SQUAD_PLUGIN_DIR:-} ]] && claude_args+=(--plugin-dir "$SQUAD_PLUGIN_DIR")
 
-env_args=(--env "SQUAD_DIR=$squad_dir" --env "SQUAD_NAME=$name" --env "SQUAD_ROLE=$role" --env "SQUAD_SCOPE=$scope")
+env_args=(--env "SQUAD=$squad" --env "SQUAD_DIR=$squad_dir" --env "SQUAD_NAME=$name" --env "SQUAD_ROLE=$role" --env "SQUAD_SCOPE=$scope")
 [[ -n ${SQUAD_PLUGIN_DIR:-} ]] && env_args+=(--env "SQUAD_PLUGIN_DIR=$SQUAD_PLUGIN_DIR")
 
 if [[ $dry == 1 ]]; then
   echo "would run: herdr tab create --cwd $cwd --label $name --no-focus ${env_args[*]}"
+  echo "would run: squad-usage --set-session $name $session --role $role --scope $scope"
   echo "would run: herdr agent start $name --kind claude --pane <pane> -- ${claude_args[*]}"
   exit 0
 fi
@@ -87,7 +115,9 @@ herdr agent start "$name" --kind claude --pane "$pane" --timeout 120000 -- "${cl
   exit 1
 }
 
+"$plugin_root/bin/squad-usage" --squad-dir "$squad_dir" --set-session "$name" "$session" --role "$role" --scope "$scope"
+
 [[ -n $prompt ]] && herdr agent prompt "$name" "$prompt" >/dev/null
 
-jq -n --arg name "$name" --arg role "$role" --arg scope "$scope" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" \
-  '{name:$name, role:$role, scope:$scope, tab:$tab, pane:$pane, cwd:$cwd, status:"ready"}'
+jq -n --arg name "$name" --arg role "$role" --arg scope "$scope" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" --arg session "$session" \
+  '{name:$name, role:$role, scope:$scope, tab:$tab, pane:$pane, cwd:$cwd, session:$session, status:"ready"}'

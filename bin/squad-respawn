@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Replace a squad agent's session with a fresh one: same name, role, scope and worktree, the role's
+# default model. The new session starts from roles/<agent>.notes.md. roster.md gets the new session id.
+# Safe to run from the agent's own pane: the old tab is closed last.
+set -euo pipefail
+
+[[ $# -lt 1 || $1 == -h || $1 == --help ]] && { echo "Usage: squad-respawn <agent-name> [--dry-run]"; exit 2; }
+name=$1 dry=0
+[[ ${2:-} == --dry-run ]] && dry=1
+
+bin=$(dirname "$(readlink -f "$0")")
+[[ -n ${SQUAD_DIR:-} && -f $SQUAD_DIR/roster.md ]] || { echo "SQUAD_DIR is not set or has no roster.md" >&2; exit 1; }
+squad_dir=$(readlink -f "$SQUAD_DIR")
+
+IFS=$'\t' read -r role scope _ < <("$bin/squad-usage" --squad-dir "$squad_dir" --get "$name")
+role=$(tr 'A-Z ' 'a-z-' <<<"$role")
+
+project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
+wt=$project_dir/.worktrees/$(basename "$squad_dir")/$name
+repo_args=()
+# A Developer's repo is found from its existing worktree, so the branch and uncommitted work are kept.
+[[ -d $wt ]] && repo_args=(--repo "$(dirname "$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)")")
+
+prompt="RESPAWN: you are $name, restarted fresh. Read \$SQUAD_DIR/process.md, then your notes \$SQUAD_DIR/roles/$name.notes.md, and continue from them."
+spawn=("$bin/squad-spawn" "$role" "$name" --scope "$scope" "${repo_args[@]}" --prompt "$prompt")
+
+if [[ $dry == 1 ]]; then
+  echo "would run: herdr agent rename $name $name-prev"
+  echo "would run: ${spawn[*]}"
+  echo "would run: herdr tab close <old tab of $name>"
+  exit 0
+fi
+
+old_tab=$(herdr agent get "$name" | jq -r '.result.agent.tab_id // .result.tab_id // empty')
+[[ -n $old_tab ]] || { echo "no live agent named $name" >&2; exit 1; }
+
+herdr agent rename "$name" "$name-prev" >/dev/null
+SQUAD_DIR=$squad_dir "${spawn[@]}" || { herdr agent rename "$name-prev" "$name" >/dev/null; exit 1; }
+herdr tab close "$old_tab" >/dev/null
