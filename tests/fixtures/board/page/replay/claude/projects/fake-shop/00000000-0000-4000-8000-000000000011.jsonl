@@ -1,0 +1,1 @@
+{"type": "assistant", "message": {"id": "msg-dev-auth-2", "model": "fake-model-b", "role": "assistant", "usage": {"input_tokens": 110, "cache_creation_input_tokens": 11000, "cache_read_input_tokens": 135795, "output_tokens": 670}}}

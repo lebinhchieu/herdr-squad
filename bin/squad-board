@@ -678,21 +678,29 @@ def build_state(squad_dir, now=None, selected_iteration=None):
             "selected_iteration": selected_iteration, "pods": build_pods(squad, columns),
             "columns": columns, "rows": timeline["rows"], "bars": timeline["bars"],
             "tasks": derive_tasks(messages, activity, selected_iteration),
-            "needs_you": derive_needs_you(squad, columns, activity)}
+            "needs_you": derive_needs_you(squad, columns, activity),
+            "live": False}  # replay mode; the live mode of iteration 2 reports True
 
 
 # --- section: http ---
 
-PLACEHOLDER_PAGE = (b"<!doctype html><html><head><meta charset=\"utf-8\"><title>squad-board</title></head>"
-                    b"<body><p>squad-board: the page arrives in iteration 2. See <a href=\"/state\">/state</a>.</p>"
-                    b"</body></html>")
+# The page sits next to the real script file, so a symlink in a bin/ folder still finds it.
+PAGE_PATH = Path(os.path.realpath(__file__)).parent / "squad-board.html"
+# design-iteration-2 E10: the page runs only its own inline script and talks only to this server
+PAGE_HEADERS = (
+    ("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+     "connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"),
+    ("Referrer-Policy", "no-referrer"),
+)
 
 
-def send(handler, status, content_type, body):
+def send(handler, status, content_type, body, extra_headers=()):
     handler.send_response(status)
     handler.send_header("Content-Type", content_type)
     handler.send_header("Content-Length", str(len(body)))
     handler.send_header("Cache-Control", "no-store")
+    for name, value in extra_headers:
+        handler.send_header(name, value)
     if content_type.startswith("application/json"):
         handler.send_header("X-Content-Type-Options", "nosniff")
     handler.end_headers()
@@ -726,7 +734,13 @@ def token_ok(handler):
 
 
 def handle_root(handler):
-    send(handler, 200, "text/html; charset=utf-8", PLACEHOLDER_PAGE)
+    """GET /: the page file, read on every request so an edit shows on reload. The error text names
+    no path."""
+    try:
+        body = PAGE_PATH.read_bytes()
+    except OSError:
+        return send_json(handler, 500, {"error": "page file missing"})
+    send(handler, 200, "text/html; charset=utf-8", body, PAGE_HEADERS)
 
 
 def query_iteration(handler):

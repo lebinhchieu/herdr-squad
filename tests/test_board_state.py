@@ -8,7 +8,7 @@ import unittest
 from board_fixture import BIN, Fixture
 
 TOP_KEYS = {"now", "iterations", "iteration", "selected_iteration", "pods", "columns", "rows",
-            "bars", "tasks", "needs_you"}
+            "bars", "tasks", "needs_you", "live"}
 COLUMN_KEYS = {"agent", "role", "pod", "status", "retired", "notes_path", "working_s", "blocked_s",
                "wakes", "context_tokens", "tokens_in", "tokens_out", "model"}
 NOW = "2026-10-12T12:00:00Z"

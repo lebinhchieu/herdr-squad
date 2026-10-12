@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>squad board</title>
+<style>
+  /* Mango Parrot light palette; the look is the round 6 prototype. Design: design-iteration-2.md */
+  html { overflow-y: scroll; background: #FCF8F1; }
+  body { margin: 0; }
+  #stage { position: relative; }
+  /* viewport-sized and sticky (E15): the page scrolls, the canvas stays and draws what is in view */
+  #board { position: sticky; top: 0; left: 0; display: block; }
+  /* the text mirror (E17): hidden with the clip pattern, never display:none */
+  #board-text { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+  #board-text ul { margin: 0; padding: 0; list-style: none; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="board" aria-hidden="true"></canvas></div>
+
+<!-- section: mirror -->
+<div id="board-text">
+  <p id="connection-state" data-state="loading">Loading</p>
+  <section id="needs-you" data-count="0"><h2>Needs you</h2><p></p><ul></ul></section>
+  <section><h2>Pods</h2><ul id="pods"></ul></section>
+  <section><h2>Agents</h2><ul id="columns"></ul></section>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+// --- section: state ---
+// One state object from the server; every drawing and the mirror read it. The page fetches /state
+// once, then follows /events. Nothing is derived here: the server owns all derivation.
+
+const P = {
+  bg: '#FCF8F1', card: '#FFFDF9', line: '#E7DBC8', line2: '#D6CCBC', ink: '#3E372E', muted: '#857A68',
+  idle: '#A99C86', mango: '#E8820E', mangoDark: '#CE7000', red: '#DB3B22', teal: '#0C8A80',
+  blue: '#2A6DC0', purple: '#9A40CF', pink: '#CE1D6C', green: '#368A1E', yellow: '#9E7A00',
+};
+const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+const RETRY_FIRST_MS = 1000;
+const RETRY_MAX_MS = 15000;
+
+const canvas = document.getElementById('board');
+const stage = document.getElementById('stage');
+const EMPTY_STATE = { iterations: [], iteration: null, selected_iteration: null, pods: [], columns: [],
+  rows: [], bars: [], tasks: [], needs_you: [], live: false };
+
+let state = EMPTY_STATE;
+let loaded = false;
+let layout = null;
+let stream = null;
+let reconnecting = false;
+let retryMs = RETRY_FIRST_MS;
+let retryTimer = null;
+let frameQueued = false;
+
+function tint(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
+}
+
+// E19: header totals are compact ("7m", "1h05", minimum 1m once non-zero); tokens are raw.
+function fmtTotal(seconds) {
+  if (seconds >= 3600) {
+    return Math.floor(seconds / 3600) + 'h' + String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+  }
+  return seconds > 0 ? Math.max(1, Math.floor(seconds / 60)) + 'm' : '0m';
+}
+
+function fmtTokens(count) {
+  return count === null ? '—' : count.toLocaleString('en-US');
+}
+
+async function loadState() {
+  try {
+    const res = await fetch('/state', { cache: 'no-store' });
+    const next = await res.json();
+    applyState(next);
+    connectStream(next.selected_iteration);
+  } catch (e) {
+    retryLater(loadState);
+  }
+}
+
+// EventSource would retry on its own every few seconds; the backoff and the visible
+// "reconnecting" state are ours, so a failed stream is closed and reopened here.
+function connectStream(iteration) {
+  if (stream) stream.close();
+  const source = new EventSource('/events' + (iteration === null ? '' : '?iteration=' + iteration));
+  stream = source;
+  source.addEventListener('state', (ev) => {
+    retryMs = RETRY_FIRST_MS;
+    setReconnecting(false);
+    applyState(JSON.parse(ev.data));
+  });
+  source.onerror = () => {
+    source.close();
+    stream = null;
+    retryLater(() => connectStream(iteration));
+  };
+}
+
+function retryLater(attempt) {
+  clearTimeout(retryTimer);
+  setReconnecting(true);
+  retryTimer = setTimeout(attempt, retryMs);
+  retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
+}
+
+function setReconnecting(on) {
+  if (reconnecting === on) return;
+  reconnecting = on;
+  renderConnection();
+  scheduleDraw();
+}
+
+function applyState(next) {
+  const previous = state;
+  state = next;
+  loaded = true;
+  updateFollow(previous, next);
+  setupPicker(next);
+  checkAlerts(next);
+  relayout();
+  renderMirror(next);
+  renderConnection();
+  scheduleDraw();
+}
+
+// The canvas is as big as the window and no bigger (browsers cap canvas height); a spacer, the
+// stage, gives the page its scroll size. Backing store follows devicePixelRatio.
+function relayout() {
+  const width = document.documentElement.clientWidth;
+  const height = window.innerHeight;
+  const ratio = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+  }
+  layout = computeLayout(state, width, height);
+  stage.style.width = layout.contentWidth + 'px';
+  stage.style.height = layout.stageHeight + 'px';
+}
+
+// E16: frames are drawn on demand and keep coming only while something animates.
+function scheduleDraw() {
+  if (frameQueued) return;
+  frameQueued = true;
+  requestAnimationFrame(frame);
+}
+
+function frame(ts) {
+  frameQueued = false;
+  draw(ts);
+  if (wantsFrames(state)) scheduleDraw();
+}
+
+function wantsFrames(current) {
+  return headerAnimating(current);
+}
+
+function draw(ts) {
+  if (!layout) return;
+  const ctx = canvas.getContext('2d');
+  const ratio = canvas.width / layout.width;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.fillStyle = P.bg;
+  ctx.fillRect(0, 0, layout.width, layout.height);
+  const view = { state: state, layout: layout, ts: ts, scrollX: window.scrollX, scrollY: window.scrollY };
+  drawNeedsYou(ctx, view);
+  // the columns scroll sideways; the bar and the task card stay put
+  ctx.save();
+  ctx.translate(-view.scrollX, 0);
+  drawPods(ctx, view);
+  drawSequence(ctx, view);
+  drawHeaders(ctx, view);
+  ctx.restore();
+  drawTasks(ctx, view);
+  drawPanel(ctx, view);
+}
+
+canvas.addEventListener('mousemove', (ev) => {
+  const agent = headerAt(ev.offsetX + window.scrollX, ev.offsetY);
+  canvas.style.cursor = agent ? 'pointer' : 'default';
+  canvas.title = agent ? headerTitle(agent) : '';
+});
+canvas.addEventListener('click', (ev) => {
+  const agent = headerAt(ev.offsetX + window.scrollX, ev.offsetY);
+  if (agent) onHeaderClick(agent);
+});
+window.addEventListener('resize', () => { relayout(); scheduleDraw(); });
+window.addEventListener('scroll', scheduleDraw);
+
+// --- section: layout ---
+// E20 numbers, taken from the round 6 prototype.
+const ROW_H = 30;
+const BAR_Y = 14;
+const BAR_H = 46;
+const PODS_Y = 72;
+const HEADER_Y = 100;
+const HEADER_H = 66;
+const ROWS_Y = 180;
+const SIDE_W = 230;
+const MARGIN = 16;
+const MIN_COL_W = 84;
+const STUB_W = 24;
+const POD_COLOURS = [P.teal, P.blue, P.purple, P.pink, P.green, P.yellow];
+
+// A retired agent with no row and no bar in the viewed iteration is a narrow stub.
+function collapsedColumns(current) {
+  const busy = new Set();
+  current.rows.forEach((r) => {
+    if (r.kind === 'message') { busy.add(r.from); busy.add(r.to); } else if (r.kind === 'status') busy.add(r.agent);
+  });
+  return new Set(current.columns.filter((c) => c.retired && !busy.has(c.agent)).map((c) => c.agent));
+}
+
+function podLabel(pod) {
+  return pod.name.toUpperCase() + (pod.size ? ' · ' + pod.size.toUpperCase() : '');
+}
+
+function computeLayout(current, width, height) {
+  const stubs = collapsedColumns(current);
+  const full = current.columns.length - stubs.size;
+  const areaRight = width - SIDE_W;
+  const colW = Math.max(MIN_COL_W, (areaRight - MARGIN - stubs.size * STUB_W) / full);
+  const cols = [];
+  const byAgent = {};
+  let x = MARGIN;
+  current.columns.forEach((col) => {
+    const stub = stubs.has(col.agent);
+    const w = stub ? STUB_W : colW;
+    const entry = { col: col, x: x, w: w, cx: x + w / 2, stub: stub };
+    cols.push(entry);
+    byAgent[col.agent] = entry;
+    x += w;
+  });
+  // the Manager's pod (the one holding the Manager) is mango and unlabelled; the others take the
+  // other colours in order
+  let next = 0;
+  const pods = current.pods.map((pod) => {
+    const members = pod.agents.map((a) => byAgent[a]);
+    const isManager = members.some((m) => m.col.role === 'Manager');
+    const left = Math.min.apply(null, members.map((m) => m.x));
+    const right = Math.max.apply(null, members.map((m) => m.x + m.w));
+    const colour = isManager ? P.mango : POD_COLOURS[next++ % POD_COLOURS.length];
+    return { pod: pod, x: left, w: right - left, colour: colour, label: isManager ? '' : podLabel(pod) };
+  });
+  return { width: width, height: height, areaRight: areaRight, cols: cols, byAgent: byAgent, pods: pods,
+    contentWidth: Math.max(width, x + SIDE_W),
+    stageHeight: Math.max(height, ROWS_Y + current.rows.length * ROW_H + 24) };
+}
+
+// --- section: header ---
+// The needs-you bar, the pod bands and the column header cards. The right 360 px of the bar are
+// kept free for the iteration picker and the live button (BRD-14), with the connection text at
+// the far right.
+const BAR_RESERVED_RIGHT = 360;
+const ITEM_GAP = 28;
+const ITEM_MIN_W = 90;
+
+function shadowed(ctx, on) {
+  ctx.shadowColor = on ? tint(P.ink, 0.13) : 'transparent';
+  ctx.shadowBlur = on ? 16 : 0;
+  ctx.shadowOffsetY = on ? 5 : 0;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+}
+
+function setText(ctx, font, colour, align) {
+  ctx.font = font;
+  ctx.fillStyle = colour;
+  ctx.textAlign = align || 'left';
+}
+
+function fit(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let cut = text.length;
+  while (cut > 0 && ctx.measureText(text.slice(0, cut) + '…').width > maxWidth) cut--;
+  return text.slice(0, cut) + '…';
+}
+
+function statusColour(status) {
+  return status === 'blocked' ? P.red : status === 'working' ? P.teal : P.idle;
+}
+
+function pulse(ts, period) {
+  return 0.5 + 0.5 * Math.sin(ts / period);
+}
+
+function headerAnimating(current) {
+  return current.needs_you.length > 0 || current.columns.some((c) => c.status !== 'idle');
+}
+
+function drawNeedsYou(ctx, view) {
+  const items = view.state.needs_you;
+  const right = view.layout.width - MARGIN;
+  shadowed(ctx, true);
+  ctx.fillStyle = P.card;
+  roundRect(ctx, MARGIN, BAR_Y, right - MARGIN, BAR_H, 12);
+  ctx.fill();
+  shadowed(ctx, false);
+  ctx.fillStyle = items.length ? P.mango : P.idle;
+  roundRect(ctx, MARGIN, BAR_Y, 8, BAR_H, [12, 0, 0, 12]);
+  ctx.fill();
+  const dotY = BAR_Y + BAR_H / 2;
+  if (items.length) {
+    ctx.fillStyle = tint(P.mango, 0.25 + 0.35 * pulse(view.ts, 300));
+    ctx.beginPath();
+    ctx.arc(48, dotY, 9, 0, 7);
+    ctx.fill();
+  }
+  ctx.fillStyle = items.length ? P.mango : P.idle;
+  ctx.beginPath();
+  ctx.arc(48, dotY, 5, 0, 7);
+  ctx.fill();
+  const heading = !loaded ? 'Loading…' : items.length ? 'Needs you · ' + items.length : 'Nothing is waiting on you';
+  setText(ctx, '800 17px ' + FONT, items.length ? P.mangoDark : P.muted);
+  ctx.fillText(heading, 66, BAR_Y + 29);
+  let x = 66 + ctx.measureText(heading).width + 28;
+  const limit = right - BAR_RESERVED_RIGHT;
+  for (let i = 0; i < items.length; i++) {
+    // an item takes what it needs, but never more than an equal share of what is left
+    const share = (limit - x) / (items.length - i) - ITEM_GAP;
+    if (share < ITEM_MIN_W) {
+      setText(ctx, '700 13px ' + FONT, P.muted);
+      ctx.fillText('+' + (items.length - i) + ' more', x, BAR_Y + 29);
+      break;
+    }
+    if (i > 0) {
+      ctx.fillStyle = P.line2;
+      ctx.fillRect(x - ITEM_GAP / 2, BAR_Y + 12, 1.5, 22);
+    }
+    setText(ctx, '600 15px ' + FONT, P.ink);
+    const shown = fit(ctx, items[i].text, share);
+    ctx.fillText(shown, x, BAR_Y + 29);
+    x += ctx.measureText(shown).width + ITEM_GAP;
+  }
+  if (reconnecting) {
+    setText(ctx, '700 14px ' + FONT, P.mangoDark, 'right');
+    ctx.fillText('reconnecting…', right - 24, BAR_Y + 29);
+  }
+  ctx.textAlign = 'left';
+}
+
+function drawPods(ctx, view) {
+  view.layout.pods.forEach((p) => {
+    ctx.fillStyle = tint(p.colour, 0.07);
+    roundRect(ctx, p.x + 2, PODS_Y, p.w - 4, view.layout.height - PODS_Y - MARGIN, 14);
+    ctx.fill();
+    if (p.label) {
+      setText(ctx, '800 11.5px ' + FONT, p.colour);
+      ctx.fillText(fit(ctx, p.label, p.w - 28), p.x + 14, PODS_Y + 18);
+    }
+  });
+}
+
+function drawHeaders(ctx, view) {
+  view.layout.cols.forEach((cl) => {
+    if (cl.stub) drawStub(ctx, cl);
+    else drawHeaderCard(ctx, cl, view);
+  });
+}
+
+function drawStub(ctx, cl) {
+  ctx.strokeStyle = P.line2;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cl.cx, HEADER_Y + HEADER_H);
+  ctx.lineTo(cl.cx, HEADER_Y);
+  ctx.stroke();
+  ctx.save();
+  ctx.translate(cl.cx + 4, HEADER_Y + HEADER_H - 6);
+  ctx.rotate(-Math.PI / 2);
+  setText(ctx, '600 10px ' + FONT, P.idle);
+  ctx.fillText(fit(ctx, cl.col.agent, HEADER_H - 10), 0, 0);
+  ctx.restore();
+}
+
+function drawHeaderCard(ctx, cl, view) {
+  const col = cl.col;
+  const left = cl.x + 4;
+  const width = cl.w - 8;
+  const colour = statusColour(col.status);
+  const blocked = col.status === 'blocked';
+  shadowed(ctx, true);
+  ctx.fillStyle = P.card;
+  roundRect(ctx, left, HEADER_Y, width, HEADER_H, 11);
+  ctx.fill();
+  shadowed(ctx, false);
+  ctx.strokeStyle = blocked ? P.red : P.line;
+  ctx.lineWidth = blocked ? 2 : 1.5;
+  ctx.stroke();
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.arc(left + 13, HEADER_Y + 16, 5, 0, 7);
+  ctx.fill();
+  if (col.status !== 'idle') {
+    ctx.strokeStyle = tint(colour, 0.4 + 0.4 * pulse(view.ts, 240));
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(left + 13, HEADER_Y + 16, 9, 0, 7);
+    ctx.stroke();
+  }
+  setText(ctx, '700 11.5px ' + FONT, P.ink);
+  ctx.fillText(fit(ctx, col.agent, width - 30), left + 25, HEADER_Y + 20);
+  drawTotals(ctx, left + 6, left + width - 6, HEADER_Y + 39, col);
+  setText(ctx, '700 10.5px ' + FONT, col.context_tokens === null ? P.idle : P.muted, 'right');
+  ctx.fillText(fmtTokens(col.context_tokens), left + width - 6, HEADER_Y + 56);
+  ctx.textAlign = 'left';
+}
+
+// ⏱ on the left, ⛔ on the right when non-zero; a narrow card shrinks the type instead of overlapping.
+function drawTotals(ctx, from, to, y, col) {
+  const working = '\u23f1 ' + fmtTotal(col.working_s);
+  const blocked = col.blocked_s > 0 ? '\u26d4 ' + fmtTotal(col.blocked_s) : '';
+  let size = 11;
+  ctx.font = '700 ' + size + 'px ' + FONT;
+  while (size > 8.5 && ctx.measureText(working).width + ctx.measureText(blocked).width + 4 > to - from) {
+    size -= 0.5;
+    ctx.font = '700 ' + size + 'px ' + FONT;
+  }
+  setText(ctx, ctx.font, P.teal);
+  ctx.fillText(working, from, y);
+  if (blocked) {
+    setText(ctx, ctx.font, P.red, 'right');
+    ctx.fillText(blocked, to, y);
+  }
+}
+
+// The agent whose header card holds the point (page x already includes the sideways scroll).
+function headerAt(x, y) {
+  if (!layout || y < HEADER_Y || y > HEADER_Y + HEADER_H) return null;
+  const hit = layout.cols.find((cl) => !cl.stub && x >= cl.x + 4 && x <= cl.x + cl.w - 4);
+  return hit ? hit.col.agent : null;
+}
+
+function headerTitle(agent) {
+  const col = layout.byAgent[agent].col;
+  return col.agent + ' · ' + col.role + ' · ' + col.status;
+}
+
+// --- section: sequence ---
+// The dashed rail under every column. BRD-13 draws the rows, activation bars and arrows here,
+// clipped below the headers.
+function drawSequence(ctx, view) {
+  ctx.strokeStyle = P.line2;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3, 5]);
+  view.layout.cols.forEach((cl) => {
+    if (cl.stub) return;
+    ctx.beginPath();
+    ctx.moveTo(cl.cx, HEADER_Y + HEADER_H);
+    ctx.lineTo(cl.cx, view.layout.height - MARGIN);
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+}
+
+// --- section: tasks ---
+// The task card at the right edge. BRD-13 lists the tasks in it, grouped by state.
+function drawTasks(ctx, view) {
+  const left = view.layout.width - SIDE_W;
+  shadowed(ctx, true);
+  ctx.fillStyle = P.card;
+  roundRect(ctx, left, PODS_Y, SIDE_W - MARGIN, view.layout.height - PODS_Y - MARGIN, 14);
+  ctx.fill();
+  shadowed(ctx, false);
+  ctx.strokeStyle = P.line;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  setText(ctx, '800 11.5px ' + FONT, P.idle);
+  ctx.fillText('TASKS', left + 16, PODS_Y + 26);
+}
+
+// --- section: follow ---
+// BRD-14: following the bottom, pausing on scroll up, the "live" button.
+function updateFollow(previous, next) {
+}
+
+// --- section: picker ---
+// BRD-14: the iteration picker and the replay banner.
+function setupPicker(current) {
+}
+
+// --- section: panel ---
+// BRD-15: the side panel, Jump to pane and the notes link.
+function drawPanel(ctx, view) {
+}
+
+function onHeaderClick(agent) {
+}
+
+// --- section: alerts ---
+// BRD-16: notification, chime and tab title for needs-you items that appear while the page is open.
+function checkAlerts(current) {
+}
+
+// --- section: mirror ---
+// E17: a DOM copy of what the canvas shows, built with textContent only. The page tests and
+// screen readers read this instead of pixels.
+const needsYouBox = document.getElementById('needs-you');
+const podList = document.getElementById('pods');
+const columnList = document.getElementById('columns');
+const connectionLine = document.getElementById('connection-state');
+
+function item(text, attributes) {
+  const el = document.createElement('li');
+  el.textContent = text;
+  Object.keys(attributes).forEach((name) => el.setAttribute('data-' + name, attributes[name]));
+  return el;
+}
+
+function renderConnection() {
+  const status = reconnecting ? 'reconnecting' : loaded ? 'live' : 'loading';
+  connectionLine.setAttribute('data-state', status);
+  connectionLine.textContent = status === 'reconnecting' ? 'Reconnecting…' : status === 'live' ? 'Connected' : 'Loading';
+}
+
+function mirrorNeedsYou(current) {
+  const items = current.needs_you;
+  needsYouBox.setAttribute('data-count', items.length);
+  needsYouBox.querySelector('h2').textContent = 'Needs you · ' + items.length;
+  needsYouBox.querySelector('p').textContent = items.length ? '' : 'Nothing is waiting on you';
+  needsYouBox.querySelector('ul').replaceChildren(...items.map((n) => item(n.text, { kind: n.kind, id: n.id })));
+}
+
+function mirrorPods(current) {
+  podList.replaceChildren(...current.pods.map((p) => item(
+    p.name + (p.size ? ' · ' + p.size : ''), { pod: p.name, size: p.size === null ? '' : p.size })));
+}
+
+function mirrorColumns(current) {
+  const stubs = collapsedColumns(current);
+  columnList.replaceChildren(...current.columns.map((c) => {
+    const parts = [c.agent, c.role, c.status, '⏱ ' + fmtTotal(c.working_s)];
+    if (c.blocked_s > 0) parts.push('⛔ ' + fmtTotal(c.blocked_s));
+    parts.push(fmtTokens(c.context_tokens));
+    return item(parts.join(' · '), { agent: c.agent, status: c.status, retired: c.retired,
+      collapsed: stubs.has(c.agent) });
+  }));
+}
+
+function renderMirror(current) {
+  mirrorNeedsYou(current);
+  mirrorPods(current);
+  mirrorColumns(current);
+}
+
+loadState();
+})();
+</script>
+</body>
+</html>
