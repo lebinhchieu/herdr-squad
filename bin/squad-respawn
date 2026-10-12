@@ -12,7 +12,11 @@ bin=$(dirname "$(readlink -f "$0")")
 [[ -n ${SQUAD_DIR:-} && -f $SQUAD_DIR/roster.md ]] || { echo "SQUAD_DIR is not set or has no roster.md" >&2; exit 1; }
 squad_dir=$(readlink -f "$SQUAD_DIR")
 
-IFS=$'\t' read -r role scope _ < <("$bin/squad-usage" --squad-dir "$squad_dir" --get "$name")
+# Split by hand: `read` with a tab IFS collapses an empty scope (the Manager has none) and shifts the columns.
+row=$("$bin/squad-usage" --squad-dir "$squad_dir" --get "$name")
+role=${row%%$'\t'*}
+rest=${row#*$'\t'}
+scope=${rest%%$'\t'*}
 role=$(tr 'A-Z ' 'a-z-' <<<"$role")
 
 project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")

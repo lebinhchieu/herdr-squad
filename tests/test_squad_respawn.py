@@ -83,6 +83,25 @@ class RespawnTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(f"tab create --cwd {self.root} --label dev-1", self.log.read_text())
 
+    def test_manager_row_as_written_by_squad_spawn_respawns_with_role_and_notes(self):
+        # squad-start spawns manager-t; squad-spawn --set-session adds this row (empty scope, empty Owns).
+        with (self.squad / "roster.md").open("a") as f:
+            f.write("| manager-t | manager |  |  | live | old-sid |\n")
+        r = subprocess.run([str(BIN / "squad-respawn"), "manager-t"], env=self.env,
+                           text=True, capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        log = self.log.read_text().splitlines()
+        start = next(l for l in log if l.startswith("agent start manager-t"))
+        self.assertIn("--agent squad:manager", start)
+        sid = re.search(r"--session-id (\S+)", start).group(1)
+        self.assertIn(f"| manager-t | manager |  |  | live | {sid} |", (self.squad / "roster.md").read_text())
+        self.assertIn(f"tab create --cwd {self.root} --label manager-t", " ".join(log))
+        self.assertIn("SQUAD_SCOPE=", " ".join(log))
+        self.assertNotIn("SQUAD_SCOPE=old-sid", " ".join(log))  # an empty scope must not shift the columns
+        self.assertEqual(log[-1], "tab close t-old")
+        prompt = next(l for l in log if l.startswith("agent prompt"))
+        self.assertIn("roles/manager-t.notes.md", prompt)
+
     def test_unknown_agent_fails(self):
         r = subprocess.run([str(BIN / "squad-respawn"), "ghost"], env=self.env, text=True, capture_output=True, timeout=20)
         self.assertNotEqual(r.returncode, 0)

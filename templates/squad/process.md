@@ -118,7 +118,7 @@ Send with `SendMessage` to the agent name in `roster.md`. **Start every message 
 **Tokens are spent on context, so keep sessions small and fresh. A Stop hook (`squad-usage --check`) tells you when rule 2 or 3 fires; it logs to `usage-events.jsonl`.**
 
 1. **Reuse** a session while it stays on the same scope and context is under 50%.
-2. **Fresh** when context is over 60%, after a compaction, or on a new scope: write `roles/<you>.notes.md`, then `squad-respawn <you>`.
+2. **Fresh** when context is over 60%, after a compaction, or on a new scope: write `roles/<you>.notes.md`, then `squad-respawn <you>`. The Manager is exempt from the hook; it applies this rule itself after every PO check-in.
 3. **Idle** over 1h (the cache lifetime) with context over ~100k: fresh from notes.
 4. **Step-up** one notch of model or effort only on failure or escalation, for that task only.
 5. **Messages point at files.** The Manager reads summaries, never transcripts.
