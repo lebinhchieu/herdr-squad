@@ -3,7 +3,7 @@
 
 Iteration 1: replay mode only. Reads a squad folder and serves its state over HTTP.
 One file, standard library only, Python 3.9-safe (no `match`, no `X | None` at runtime).
-Design: .scratch/squad-board/design.md. Each later ticket fills its own section below.
+Design: .scratch/squad-board/design.md. Sections below follow its layout.
 """
 import argparse
 import errno
@@ -522,10 +522,6 @@ def derive_needs_you(squad, columns, activity):
 
 
 # --- section: tokens ---
-
-# Imported here, not at the top, so this ticket's diff stays inside its own section.
-import os
-import threading
 
 SESSION_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 SYNTHETIC_MODEL = "<synthetic>"
