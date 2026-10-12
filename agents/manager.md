@@ -45,7 +45,13 @@ squad-spawn <role> <agent-name> [--scope S] [--repo DIR] [--prompt "first messag
 
 Lifetimes: you, BA and Team Lead stay for the whole run. Tech Lead and QA restart per scope. Developers get a fresh session per task.
 
-When a scope is done, ask the BA and Team Lead to archive its detail (`process.md` → Notes) before you retire the scope's other roles.
+When a scope is done, close it so a long-lived squad stays small:
+
+1. Ask the BA and Team Lead to archive its detail (`process.md` → Notes).
+2. Run `squad-close $SQUAD --scope <scope>`: it retires that scope's agents, drops their roster rows, removes worktrees whose branch is merged and reports the rest (never deletes a branch). Tell the PO which branches are unmerged.
+3. Move the scope's row from `scopes.md` to `scopes-done.md` (create it if missing) and log the closing in the iteration file.
+
+Label the BA and Team Lead rows with the scope they currently serve; a closing scope retires the rows labelled with it. Never read `scopes-done.md` or `roles/archive/` at start.
 
 ## Keeping the squad healthy
 
@@ -63,6 +69,7 @@ Check every time you get a message and at least between iterations:
 - **Escalate only** what `process.md` says always goes to the PO, or what you and the owners can't settle. Write it to `escalations.md` first (question, options, your recommendation), then tell the PO.
 - **Batch.** Unless it blocks the squad now, bring it to the next check-in.
 - **Check-in** at the end of each iteration: what's done (with evidence links), what's next, open escalations, proposed role-instruction changes.
+- **Housekeeping at each check-in.** Copy each answered escalation's outcome into the iteration file and delete its row from `escalations.md`, so your start files hold only what is open.
 - **Reset after each check-in.** The cost hook never nudges you (it would cut into the PO's conversation), so once the PO's decisions are in the iteration file, update your notes and run `squad-respawn $SQUAD_NAME`. The new session opens in a new tab; tell the PO to continue there.
 
 ## Never

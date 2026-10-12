@@ -82,6 +82,46 @@ class CloseTest(unittest.TestCase):
         self.assertEqual(log[-1], "tab close t-manager-t")
         self.assertFalse(any(l.startswith("agent prompt") for l in log))  # nothing to save for a closed goal
 
+    def _add_scope_y_dev(self):
+        with (self.squad / "roster.md").open("a") as f:
+            f.write("| t-dev-y-1 | dev | y | task 9 | live | s9 |\n")
+        wt = self.root / ".worktrees" / "t" / "t-dev-y-1"
+        git("worktree", "add", "-q", str(wt), "-b", "squad/t/t-dev-y-1", cwd=self.root)
+        return wt
+
+    def test_scope_mode_closes_only_that_scopes_agents_and_keeps_the_squad(self):
+        y_wt = self._add_scope_y_dev()
+        r = self.close("--scope", "x")
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+        self.assertTrue(self.squad.exists())                   # folder stays, Manager keeps running
+        self.assertFalse(self.wts["t-dev-x-1"].exists())       # merged and clean: removed
+        self.assertTrue(self.wts["t-dev-x-2"].exists())        # unmerged: kept
+        self.assertTrue(y_wt.exists())                         # other scope untouched
+        self.assertNotIn("t-dev-y-1", r.stdout)
+
+        closed = [l for l in self.log.read_text().splitlines() if l.startswith("tab close")]
+        self.assertEqual(closed, ["tab close t-t-ba-x", "tab close t-t-dev-x-1"])
+
+        roster = (self.squad / "roster.md").read_text()
+        for gone in ("t-ba-x", "t-dev-x-1", "t-dev-x-2"):
+            self.assertNotIn(f"| {gone} |", roster)
+        self.assertIn("| manager-t |", roster)
+        self.assertIn("| t-dev-y-1 |", roster)
+        self.assertIn("| Agent | Role |", roster)              # header kept
+
+    def test_scope_mode_dry_run_changes_nothing(self):
+        before = (self.squad / "roster.md").read_text()
+        r = self.close("--scope", "x", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((self.squad / "roster.md").read_text(), before)
+        self.assertTrue(self.wts["t-dev-x-1"].exists())
+
+    def test_scope_mode_unknown_scope_fails(self):
+        r = self.close("--scope", "nope")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("no agents", r.stderr)
+
     def test_into_picks_the_branch_merges_are_checked_against(self):
         git("branch", "elsewhere", cwd=self.root)
         r = self.close("--into", "elsewhere")

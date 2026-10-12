@@ -1,6 +1,6 @@
 # Goal
 
-**<One sentence: what this run must deliver.>**
+**<One sentence: what this squad delivers or owns. A long-lived module squad names the module; each piece of work gets its own goal in `iterations/<n>.md`.>**
 
 ## In scope
 - <tickets, features, or areas>

@@ -35,4 +35,14 @@ Make sure `.worktrees/` is git-ignored at the project root (Developers get `<roo
 
 ## 5. Goal
 
-Draft `<squad>/goal.md` with the user: one-sentence goal, in/out of scope, Developer cap (suggest 3), iteration size (one pod, about 3–6 tasks per scope), budget, and what "done" means. If other squads already exist in `.claude/squads/`, read their `goal.md` and ask whether this goal touches the same files or modules: two squads editing the same files only collide at merge. If it does, suggest a scope in that squad instead of a new squad. Don't start the squad; tell the user to run `/squad:squad-start` when the goal is agreed.
+Draft `<squad>/goal.md` with the user: one-sentence mission (a per-goal squad: the goal; a long-lived module squad: the module, with each task's goal going to an iteration file), in/out of scope, Developer cap (suggest 3), iteration size (one pod, about 3–6 tasks per scope), budget, and what "done" means. If other squads already exist in `.claude/squads/`, read their `goal.md` and ask whether this goal touches the same files or modules: two squads editing the same files only collide at merge. If it does, suggest a scope in that squad instead of a new squad. Don't start the squad; tell the user to run `/squad:squad-start` when the goal is agreed.
+
+## 6. Keep or ignore the squad folder
+
+Ask the user once how `<root>/.claude/squads/` is tracked. A long-lived squad keeps its decisions, scope history and tuned `process.md` there, and an ignored folder lives only on this machine. Options:
+
+- **Commit the durable files only (recommended).** Write `<root>/.claude/squads/.gitignore` with `*/roles/`, `*/evidence/`, `*/*.jsonl` and `_done/`. The notes, evidence and logs stay local; `process.md`, `project.md`, `goal.md`, `scopes.md`, `iterations/` and `process-log.md` are shared.
+- **Commit everything.** Nothing is ignored; evidence and notes go into the history.
+- **Ignore everything.** Add `.claude/squads/` to the project's `.gitignore`; use it for a short-lived squad.
+
+Do what the user picks and tell them what you wrote. If `git check-ignore .claude/squads/<squad>/process.md` already matches a rule, say which one before adding anything.

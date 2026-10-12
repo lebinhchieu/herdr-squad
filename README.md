@@ -23,7 +23,7 @@ Then talk to the Manager in its tab. It proposes iteration 1 and a **size per sc
 |---|---|
 | `agents/*.md` | The 7 role definitions, started as **top-level sessions** with `claude --agent squad:<role>` (not as subagents) |
 | `bin/squad-spawn` | Opens a herdr tab, makes a git worktree for Developers, starts `claude --agent squad:<role> --name <agent> --permission-mode auto --settings <role settings>` |
-| `bin/squad-close` | Closes a finished squad: retires its agents (Manager last), removes worktrees whose branch is merged, archives the squad folder to `.claude/squads/_done/<squad>/`, and reports every branch (never deletes one) |
+| `bin/squad-close` | Closes a finished squad, or with `--scope S` one finished scope of a long-lived squad: retires the agents (Manager last for a squad), removes worktrees whose branch is merged, archives the squad folder to `.claude/squads/_done/<squad>/` (squad only), and reports every branch (never deletes one) |
 | `bin/squad-retire` | Asks an agent to save its notes, then closes its tab (worktree and branch are kept) |
 | `skills/squad-init` | Sets up `.claude/squads/<squad>/` in a project |
 | `skills/squad-start` | Starts the Manager |

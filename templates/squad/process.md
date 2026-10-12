@@ -10,13 +10,14 @@
 
 | File | Owner | Holds |
 |---|---|---|
-| `goal.md` | PO | Goal of the current run, constraints, budget |
+| `goal.md` | PO | What the squad delivers or owns (a per-goal squad: that goal), standing constraints, budget |
 | `project.md` | Manager | Source map: where each kind of truth lives in this project |
 | `roster.md` | Manager | Every live agent: name, role, scope, what it owns |
 | `process.md` | Manager | This file |
 | `process-log.md` | Manager | Each process change: date, change, why |
 | `escalations.md` | Manager | Questions waiting on the PO |
-| `scopes.md` | Manager | Each scope's size, the signals behind it, PO confirmation date, size-change log |
+| `scopes.md` | Manager | Each open scope's size, the signals behind it, PO confirmation date, size-change log |
+| `scopes-done.md` | Manager | Rows of closed scopes, moved out of `scopes.md`; nobody reads it at start |
 | `contracts/<name>.md` | Tech Leads of both scopes | A contract shared between scopes (XL): API, event, status model |
 | `iterations/<n>.md` | Manager | Goal, plan, retro and PO check-in of iteration n |
 | `roles/<agent>.notes.md` | each agent | Its own memory, a snapshot under 80 lines (see Notes) |
