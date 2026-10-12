@@ -50,7 +50,7 @@ class CloseTest(unittest.TestCase):
         (fake / "herdr").write_text(FAKE_HERDR)
         (fake / "herdr").chmod(0o755)
         self.log = self.root / "herdr.log"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD")}
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log),
                         DEAD="t-dev-x-2", PATH=f"{fake}:{os.environ['PATH']}")
 
@@ -146,6 +146,142 @@ class CloseTest(unittest.TestCase):
         self.env.pop("SQUAD_DIR")
         r = subprocess.run([str(BIN / "squad-close"), "ghost"], env=self.env, cwd=self.root, text=True, capture_output=True, timeout=10)
         self.assertNotEqual(r.returncode, 0)
+
+
+HEAD = "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
+
+
+class ScopedCloseTest(unittest.TestCase):
+    """Per-scope layout: scopes/sc1 (lone), scopes/sc2 and scopes/sc3 (goal g1), goals/g1."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        git("init", "-q", "-b", "main", cwd=self.root)
+        git("commit", "-q", "--allow-empty", "-m", "init", cwd=self.root)
+        self.squad = self.root / ".claude" / "squads" / "t"
+        (self.squad / "process.md").parent.mkdir(parents=True)
+        (self.squad / "process.md").write_text("x")
+        for d in ("scopes/sc1", "scopes/sc2", "scopes/sc3", "goals/g1/shared"):
+            (self.squad / d).mkdir(parents=True)
+        (self.squad / "scopes/sc1/roster.md").write_text(HEAD + "| t-mgr-sc1 | manager | sc1 |  | live | s0 |\n| t-dev-sc1-1 | dev | sc1 | x | live | s1 |\n")
+        (self.squad / "scopes/sc1/scope.md").write_text("# Scope\n\ngoal:\n")
+        (self.squad / "scopes/sc1/evidence").mkdir()
+        (self.squad / "scopes/sc1/evidence/proof.md").write_text("kept")
+        (self.squad / "scopes/sc2/roster.md").write_text(HEAD + "| t-dev-sc2-1 | dev | sc2 | x | live | s2 |\n")
+        (self.squad / "scopes/sc2/scope.md").write_text("# Scope\n\ngoal: g1\n")
+        (self.squad / "scopes/sc3/scope.md").write_text("# Scope\n\ngoal: g1\n")
+        (self.squad / "goals/g1/roster.md").write_text(HEAD + "| t-mgr-g1 | manager |  |  | live | s3 |\n")
+        (self.squad / "goals/g1/goal.md").write_text("# Goal\n")
+        (self.squad / "goals/g1/shared/decisions.md").write_text("# Decisions\n")
+        self.wts = {}
+        for scope, agent, merged in (("sc1", "t-dev-sc1-1", True), ("sc1", "t-dev-sc1-2", False), ("sc2", "t-dev-sc2-1", True)):
+            wt = self.root / ".worktrees" / "t" / scope / agent
+            git("worktree", "add", "-q", str(wt), "-b", f"squad/t/{scope}/{agent}", cwd=self.root)
+            if not merged:
+                git("commit", "-q", "--allow-empty", "-m", "work", cwd=wt)
+            self.wts[agent] = wt
+        fake = self.root / "fakebin"
+        fake.mkdir()
+        (fake / "herdr").write_text(FAKE_HERDR)
+        (fake / "herdr").chmod(0o755)
+        self.log = self.root / "herdr.log"
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log), PATH=f"{fake}:{os.environ['PATH']}")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def close(self, *args):
+        return subprocess.run([str(BIN / "squad-close"), "t", *args], env=self.env, cwd=self.root,
+                              text=True, capture_output=True, timeout=30)
+
+    def closed_tabs(self):
+        return [l for l in self.log.read_text().splitlines() if l.startswith("tab close")] if self.log.exists() else []
+
+    def test_scope_close_moves_the_folder_and_tidies_only_that_scopes_worktrees(self):
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse((self.squad / "scopes/sc1").exists())
+        self.assertEqual((self.squad / "scopes/_done/sc1/evidence/proof.md").read_text(), "kept")
+        self.assertFalse(self.wts["t-dev-sc1-1"].exists())          # merged: removed
+        self.assertTrue(self.wts["t-dev-sc1-2"].exists())           # unmerged: kept
+        self.assertTrue(self.wts["t-dev-sc2-1"].exists())           # other scope untouched
+        self.assertIn("squad/t/sc1/t-dev-sc1-1: merged into main, worktree removed", r.stdout)
+        self.assertIn("squad/t/sc1/t-dev-sc1-2: NOT merged into main, kept", r.stdout)
+        self.assertNotIn("sc2", r.stdout)
+        self.assertEqual(self.closed_tabs(), ["tab close t-t-dev-sc1-1", "tab close t-t-mgr-sc1"])  # the scope's Manager last
+        self.assertTrue((self.squad / "scopes/sc2").exists())
+        self.assertIn("squad/t/sc1/t-dev-sc1-1", git("branch", "--list", "squad/t/sc1/*", cwd=self.root))  # branches kept
+
+    def test_scope_close_dry_run_changes_nothing(self):
+        r = self.close("--scope", "sc1", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue((self.squad / "scopes/sc1").exists())
+        self.assertTrue(self.wts["t-dev-sc1-1"].exists())
+        self.assertEqual(self.closed_tabs(), [])
+
+    def test_scope_close_refuses_an_existing_archive_and_unknown_scope(self):
+        (self.squad / "scopes/_done/sc1").mkdir(parents=True)
+        self.assertNotEqual(self.close("--scope", "sc1").returncode, 0)
+        self.assertTrue(self.wts["t-dev-sc1-1"].exists())
+        self.assertNotEqual(self.close("--scope", "nope").returncode, 0)
+
+    def test_goal_close_refuses_while_a_scope_of_the_goal_is_open(self):
+        r = self.close("--goal", "g1")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("open scopes", r.stderr)
+        self.assertIn("sc2", r.stderr)
+        self.assertIn("sc3", r.stderr)
+        self.assertTrue((self.squad / "goals/g1").exists())
+
+    def test_goal_close_refuses_unpromoted_decisions_unless_forced(self):
+        for s in ("sc2", "sc3"):
+            (self.squad / "scopes" / "_done").mkdir(exist_ok=True)
+            (self.squad / "scopes" / s).rename(self.squad / "scopes" / "_done" / s)
+        (self.squad / "goals/g1/shared/decisions.md").write_text("# Decisions\n\n- the API returns ISO dates\n")
+        r = self.close("--goal", "g1")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("unpromoted", r.stderr)
+        self.assertTrue((self.squad / "goals/g1").exists())
+        self.assertEqual(self.close("--goal", "g1", "--force").returncode, 0)
+        self.assertTrue((self.squad / "goals/_done/g1").exists())
+
+    def test_goal_close_passes_once_promoted_and_retires_the_goal_manager(self):
+        for s in ("sc2", "sc3"):
+            (self.squad / "scopes" / "_done").mkdir(exist_ok=True)
+            (self.squad / "scopes" / s).rename(self.squad / "scopes" / "_done" / s)
+        (self.squad / "goals/g1/shared/decisions.md").write_text("# Decisions\n\n- the API returns ISO dates\n")
+        (self.squad / "goals/g1/goal.md").write_text("# Goal\n\npromoted: 2026-10-13 abc123\n")
+        r = self.close("--goal", "g1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse((self.squad / "goals/g1").exists())
+        self.assertEqual(self.closed_tabs(), ["tab close t-t-mgr-g1"])
+
+    def test_squad_close_covers_every_scope_and_goal_roster_and_nested_worktrees(self):
+        (self.squad / "goals/g1/shared/decisions.md").write_text("# D\n\n- fact\n")
+        r = self.close()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue((self.root / ".claude/squads/_done/t/scopes/sc1/evidence/proof.md").exists())
+        tabs = self.closed_tabs()
+        self.assertEqual(set(tabs), {"tab close t-t-dev-sc1-1", "tab close t-t-dev-sc2-1", "tab close t-t-mgr-sc1", "tab close t-t-mgr-g1"})
+        self.assertEqual(tabs[-2:].count("tab close t-t-mgr-sc1") + tabs[-2:].count("tab close t-t-mgr-g1"), 2)  # Managers last
+        self.assertIn("squad/t/sc1/t-dev-sc1-2: NOT merged into main, kept", r.stdout)
+        self.assertIn("WARNING: goal g1 has unpromoted decisions", r.stdout)
+
+    def test_flat_squad_with_the_oldest_worktree_layout_is_found_by_agent_name(self):
+        squad = self.root / ".claude" / "squads" / "old"
+        squad.mkdir(parents=True)
+        (squad / "process.md").write_text("x")
+        (squad / "roster.md").write_text(HEAD + "| dev-board-1 | dev | board | x | live | s |\n")
+        wt = self.root / ".worktrees" / "dev-board-1"
+        git("worktree", "add", "-q", str(wt), "-b", "squad/dev-board-1", cwd=self.root)
+        self.env["SQUAD_DIR"] = str(squad)
+        r = subprocess.run([str(BIN / "squad-close"), "old", "--scope", "board"], env=self.env, cwd=self.root,
+                           text=True, capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("squad/dev-board-1: merged into main, worktree removed", r.stdout)
+        self.assertFalse(wt.exists())
 
 
 if __name__ == "__main__":

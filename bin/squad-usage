@@ -7,7 +7,7 @@
   squad-usage --set-session NAME SESSION [--role R --scope S]
                                                 record a session id in roster.md (adds the column)
 
-Env: SQUAD_DIR (squad folder), CLAUDE_CONFIG_DIR (default ~/.claude).
+Env: SCOPE_DIR, else GOAL_DIR, else SQUAD_DIR: the folder holding roster.md. CLAUDE_CONFIG_DIR (default ~/.claude).
 """
 import argparse
 import glob
@@ -182,7 +182,7 @@ def main():
     p.add_argument("--role", default="")
     p.add_argument("--scope", default="")
     a = p.parse_args()
-    squad_dir = a.squad_dir or os.environ.get("SQUAD_DIR")
+    squad_dir = a.squad_dir or os.environ.get("SCOPE_DIR") or os.environ.get("GOAL_DIR") or os.environ.get("SQUAD_DIR")
 
     if a.check:
         path = Path(a.transcript) if a.transcript else find_transcript(a.check)

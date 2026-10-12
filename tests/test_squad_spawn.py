@@ -30,7 +30,7 @@ class SpawnDryRunTest(unittest.TestCase):
         self.squad = Path(self.tmp.name) / ".claude" / "squads" / "t"
         self.squad.mkdir(parents=True)
         (self.squad / "process.md").write_text("x")
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD")}
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
 
     def tearDown(self):
@@ -101,6 +101,105 @@ class SpawnDryRunTest(unittest.TestCase):
         for role in TABLE:
             with self.subTest(role=role):
                 self.assertIn("permissions", json.loads((settings / f"{role}.json").read_text()))
+
+
+def scoped_squad(root, goal_of_sc2="g1"):
+    """A squad in the per-scope layout: scopes/sc1 (lone), scopes/sc2 (in goal g1), goals/g1."""
+    squad = Path(root) / ".claude" / "squads" / "t"
+    header = "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
+    for d, goal in (("scopes/sc1", ""), ("scopes/sc2", goal_of_sc2), ("goals/g1", None)):
+        (squad / d).mkdir(parents=True)
+        (squad / d / "roster.md").write_text(header)
+        if goal is not None:
+            (squad / d / "scope.md").write_text(f"# Scope\n\ngoal: {goal}\ntouches:\n")
+    (squad / "process.md").write_text("x")
+    return squad
+
+
+class SpawnScopedTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.squad = scoped_squad(self.root)
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_spawn(self, role, name, *args):
+        return subprocess.run([str(SCRIPT), role, name, "--dry-run", *args], env=self.env,
+                              text=True, capture_output=True, timeout=10)
+
+    def test_lone_scope_agent_gets_scope_dir_and_no_goal_dir(self):
+        r = self.run_spawn("tech-lead", "t-tech-sc1", "--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"--env SCOPE_DIR={self.squad}/scopes/sc1", r.stdout)
+        self.assertIn("--env SQUAD_SCOPE=sc1", r.stdout)
+        self.assertNotIn("GOAL_DIR", r.stdout)
+        self.assertIn(f"--squad-dir {self.squad}/scopes/sc1 --set-session t-tech-sc1", r.stdout)
+
+    def test_scope_in_a_goal_also_gets_goal_dir(self):
+        r = self.run_spawn("tech-lead", "t-tech-sc2", "--scope", "sc2")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"--env SCOPE_DIR={self.squad}/scopes/sc2", r.stdout)
+        self.assertIn(f"--env GOAL_DIR={self.squad}/goals/g1", r.stdout)
+
+    def test_goal_manager_gets_goal_dir_and_no_scope_dir(self):
+        r = self.run_spawn("manager", "t-mgr-g1", "--goal", "g1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"--env GOAL_DIR={self.squad}/goals/g1", r.stdout)
+        self.assertNotIn("SCOPE_DIR", r.stdout)
+        self.assertIn(f"--squad-dir {self.squad}/goals/g1 --set-session t-mgr-g1", r.stdout)
+
+    def test_developer_worktree_and_branch_are_grouped_by_scope(self):
+        repo = self.root / "code"
+        repo.mkdir()
+        r = self.run_spawn("dev", "t-dev-sc1-1", "--scope", "sc1", "--repo", str(repo))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        wt = self.root / ".worktrees" / "t" / "sc1" / "t-dev-sc1-1"
+        self.assertIn(f"worktree add {wt} -b squad/t/sc1/t-dev-sc1-1", r.stdout)
+        self.assertIn(f"--cwd {wt}", r.stdout)
+
+    def test_worktree_flag_reuses_an_existing_worktree_wherever_it_is(self):
+        old = self.root / ".worktrees" / "dev-board-1"
+        old.mkdir(parents=True)
+        r = self.run_spawn("dev", "t-dev-sc1-1", "--scope", "sc1", "--worktree", str(old))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"--cwd {old}", r.stdout)
+        self.assertNotIn("worktree add", r.stdout)
+
+    def test_worktree_flag_must_exist(self):
+        r = self.run_spawn("dev", "t-dev-sc1-1", "--scope", "sc1", "--worktree", str(self.root / "nope"))
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_scope_or_goal_is_required(self):
+        r = self.run_spawn("dev", "t-dev-x")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("--scope or --goal", r.stderr)
+
+    def test_unknown_scope_or_goal_is_refused(self):
+        self.assertNotEqual(self.run_spawn("dev", "t-dev-x", "--scope", "nope").returncode, 0)
+        self.assertNotEqual(self.run_spawn("manager", "t-mgr-x", "--goal", "nope").returncode, 0)
+
+    def test_scope_and_goal_together_are_refused(self):
+        self.assertNotEqual(self.run_spawn("manager", "t-mgr-x", "--scope", "sc1", "--goal", "g1").returncode, 0)
+
+    def test_a_goal_manager_has_no_worktree(self):
+        r = self.run_spawn("manager", "t-mgr-g1", "--goal", "g1", "--repo", str(self.root))
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_real_spawn_writes_the_roster_row_in_the_scope_folder(self):
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "herdr").write_text(FAKE_HERDR)
+        (bin_dir / "herdr").chmod(0o755)
+        self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(self.root / "h.log"))
+        r = subprocess.run([str(SCRIPT), "tech-lead", "t-tech-sc1", "--scope", "sc1"], env=self.env,
+                           text=True, capture_output=True, timeout=10)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("| t-tech-sc1 | tech-lead | sc1 |", (self.squad / "scopes" / "sc1" / "roster.md").read_text())
+        self.assertNotIn("t-tech-sc1", (self.squad / "scopes" / "sc2" / "roster.md").read_text())
 
 
 if __name__ == "__main__":

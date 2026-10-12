@@ -21,6 +21,24 @@ def turn(minutes, msg_id, ctx=(2, 1000, 0), out=100, model="claude-sonnet-5-5", 
                                   "cache_creation_input_tokens": write, "output_tokens": out}}, **extra}
 
 
+class UsageHomeTest(unittest.TestCase):
+    def test_get_reads_the_roster_of_scope_dir_before_squad_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            squad, scope = Path(tmp) / "squad", Path(tmp) / "squad" / "scopes" / "sc1"
+            scope.mkdir(parents=True)
+            head = "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
+            (squad / "roster.md").write_text(head + "| dev-1 | dev | flat | x | live | s-flat |\n")
+            (scope / "roster.md").write_text(head + "| dev-1 | dev | sc1 | x | live | s-scope |\n")
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
+            env.update(SQUAD_DIR=str(squad), SCOPE_DIR=str(scope))
+            r = subprocess.run([str(SCRIPT), "--get", "dev-1"], env=env, text=True, capture_output=True, timeout=10)
+            self.assertEqual(r.stdout.split("\t")[2].strip(), "s-scope", r.stderr)
+            env.pop("SCOPE_DIR")
+            env["GOAL_DIR"] = str(scope)
+            r = subprocess.run([str(SCRIPT), "--get", "dev-1"], env=env, text=True, capture_output=True, timeout=10)
+            self.assertEqual(r.stdout.split("\t")[2].strip(), "s-scope", r.stderr)
+
+
 class UsageTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

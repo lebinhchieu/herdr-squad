@@ -35,7 +35,7 @@ class HookTest(unittest.TestCase):
         (self.proj / f"{sid}.jsonl").write_text(json.dumps(line(ctx)) + "\n")
 
     def run_hook(self, sid="sid-1", role="dev", squad_session=True, **payload):
-        env = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD_")}
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
         env["CLAUDE_CONFIG_DIR"] = str(Path(self.tmp.name) / "cfg")
         if squad_session:
             env.update(SQUAD_NAME="dev-1", SQUAD_DIR=str(self.squad), SQUAD_ROLE=role)
@@ -52,6 +52,19 @@ class HookTest(unittest.TestCase):
         [ev] = [json.loads(l) for l in self.events.read_text().splitlines()]
         self.assertEqual((ev["agent"], ev["role"], ev["session"], ev["rule"]), ("dev-1", "dev", "sid-1", "fresh"))
         self.assertIn("squad-respawn dev-1", ev["action"])
+
+    def test_event_goes_to_the_scope_folder_when_the_agent_has_one(self):
+        scope = Path(self.tmp.name) / "squad" / "scopes" / "sc1"
+        scope.mkdir(parents=True)
+        self.transcript("sid-1", 130_000)
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
+        env.update(CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "cfg"), SQUAD_NAME="dev-1", SQUAD_ROLE="dev",
+                   SQUAD_DIR=str(self.squad), SCOPE_DIR=str(scope))
+        r = subprocess.run([str(SCRIPT)], input=json.dumps({"hook_event_name": "Stop", "session_id": "sid-1"}),
+                           text=True, env=env, capture_output=True, timeout=10)
+        self.assertEqual(r.returncode, 2)
+        self.assertTrue((scope / "usage-events.jsonl").exists())
+        self.assertFalse(self.events.exists())
 
     def test_under_threshold_is_silent(self):
         self.transcript("sid-1", 50_000)

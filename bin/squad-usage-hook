@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Stop hook: when a cost rule fires for this squad session, tell the agent and log the event
-# to $SQUAD_DIR/usage-events.jsonl. No LLM call. Each rule fires once per session, so a
+# to usage-events.jsonl in the agent's own folder ($SCOPE_DIR, else $GOAL_DIR, else $SQUAD_DIR). No LLM call. Each rule fires once per session, so a
 # session that ignores it is not nagged every turn. The Manager (talks to the PO) is exempt.
 # Exit 2 + stderr is how a Stop hook hands text back to the agent.
 set -uo pipefail
 
 [[ -n ${SQUAD_NAME:-} && -n ${SQUAD_DIR:-} && -d ${SQUAD_DIR:-} && ${SQUAD_ROLE:-} != manager ]] || exit 0
+home=${SCOPE_DIR:-${GOAL_DIR:-$SQUAD_DIR}}
+[[ -d $home ]] || exit 0
 input=$(cat) || exit 0
 
 [[ $(jq -r '.stop_hook_active // false' <<<"$input" 2>/dev/null) == true ]] && exit 0
@@ -18,7 +20,7 @@ transcript=$(jq -r '.transcript_path // empty' <<<"$input" 2>/dev/null)
 rule=$("$(dirname "$(readlink -f "$0")")/squad-usage" "${args[@]}" 2>/dev/null) || exit 0
 [[ -n $rule ]] || exit 0
 
-log=$SQUAD_DIR/usage-events.jsonl
+log=$home/usage-events.jsonl
 if [[ -f $log ]] && jq -e --arg s "$session" --arg r "$rule" 'select(.session == $s and .rule == $r)' "$log" >/dev/null 2>&1; then
   exit 0
 fi

@@ -40,7 +40,7 @@ class RespawnTest(unittest.TestCase):
         (fake / "herdr").write_text(FAKE_HERDR)
         (fake / "herdr").chmod(0o755)
         self.log = self.root / "herdr.log"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD")}
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log),
                         PATH=f"{fake}:{os.environ['PATH']}")
 
@@ -115,6 +115,61 @@ class RespawnTest(unittest.TestCase):
         (self.squad / "roles").mkdir()
         (self.squad / "roles" / "dev-1.notes.md").write_text("line\n" * 30)
         self.assertNotIn("lines", self.respawn().stderr)
+
+    def scoped(self):
+        """Turn the test squad into a per-scope squad with scope sc1 and goal g1."""
+        head = "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
+        sc, g = self.squad / "scopes" / "sc1", self.squad / "goals" / "g1"
+        sc.mkdir(parents=True)
+        g.mkdir(parents=True)
+        (sc / "scope.md").write_text("# Scope\n\ngoal:\n")
+        (sc / "roster.md").write_text(head + "| t-dev-sc1-1 | dev | sc1 | task 1 | live | old-sid |\n")
+        (g / "roster.md").write_text(head + "| t-mgr-g1 | manager |  |  | live | old-g |\n")
+        self.env.update(SCOPE_DIR=str(sc))
+        return sc, g
+
+    def test_scope_agent_respawns_in_its_scope_worktree_with_scope_env(self):
+        sc, _ = self.scoped()
+        repo = self.root / "code"
+        repo.mkdir()
+        git("init", "-q", "-b", "main", cwd=repo)
+        git("commit", "-q", "--allow-empty", "-m", "init", cwd=repo)
+        wt = self.root / ".worktrees" / "t" / "sc1" / "t-dev-sc1-1"
+        git("worktree", "add", "-q", str(wt), "-b", "squad/t/sc1/t-dev-sc1-1", cwd=repo)
+        r = subprocess.run([str(BIN / "squad-respawn"), "t-dev-sc1-1"], env=self.env, text=True, capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        log = self.log.read_text().splitlines()
+        self.assertIn(f"tab create --cwd {wt} --label t-dev-sc1-1 --no-focus", " ".join(log))
+        self.assertIn(f"SCOPE_DIR={sc}", " ".join(log))
+        self.assertFalse(any("worktree add" in l for l in log))
+        sid = re.search(r"--session-id (\S+)", next(l for l in log if l.startswith("agent start"))).group(1)
+        self.assertIn(f"| t-dev-sc1-1 | dev | sc1 | task 1 | live | {sid} |", (sc / "roster.md").read_text())
+        self.assertIn("SCOPE_DIR/roles/t-dev-sc1-1.notes.md", next(l for l in log if l.startswith("agent prompt")))
+
+    def test_goal_manager_respawns_with_goal_env(self):
+        _, g = self.scoped()
+        self.env.pop("SCOPE_DIR")
+        self.env.update(GOAL_DIR=str(g))
+        r = subprocess.run([str(BIN / "squad-respawn"), "t-mgr-g1"], env=self.env, text=True, capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        log = " ".join(self.log.read_text().splitlines())
+        self.assertIn(f"GOAL_DIR={g}", log)
+        self.assertNotIn("SCOPE_DIR", log)
+        self.assertIn("| t-mgr-g1 | manager |", (g / "roster.md").read_text())
+
+    def test_flat_squad_finds_the_oldest_worktree_layout(self):
+        # squad-board's early layout: .worktrees/<agent>, branch squad/<agent>
+        repo = self.root / "code"
+        repo.mkdir()
+        git("init", "-q", "-b", "main", cwd=repo)
+        git("commit", "-q", "--allow-empty", "-m", "init", cwd=repo)
+        wt = self.root / ".worktrees" / "dev-1"
+        git("worktree", "add", "-q", str(wt), "-b", "squad/dev-1", cwd=repo)
+        r = self.respawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        log = self.log.read_text()
+        self.assertIn(f"tab create --cwd {wt} --label dev-1", log)
+        self.assertNotIn("worktree add", log)
 
     def test_unknown_agent_fails(self):
         r = subprocess.run([str(BIN / "squad-respawn"), "ghost"], env=self.env, text=True, capture_output=True, timeout=20)

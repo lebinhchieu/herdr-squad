@@ -9,26 +9,38 @@ name=$1 dry=0
 [[ ${2:-} == --dry-run ]] && dry=1
 
 bin=$(dirname "$(readlink -f "$0")")
-[[ -n ${SQUAD_DIR:-} && -f $SQUAD_DIR/roster.md ]] || { echo "SQUAD_DIR is not set or has no roster.md" >&2; exit 1; }
+# The folder holding this agent's roster and notes: its scope, else its goal, else (flat squad) the squad.
+if [[ -n ${SCOPE_DIR:-} ]]; then home=$SCOPE_DIR home_var=SCOPE_DIR
+elif [[ -n ${GOAL_DIR:-} ]]; then home=$GOAL_DIR home_var=GOAL_DIR
+else home=${SQUAD_DIR:-} home_var=SQUAD_DIR; fi
+[[ -n ${SQUAD_DIR:-} && -f $home/roster.md ]] || { echo "SQUAD_DIR is not set, or $home_var has no roster.md" >&2; exit 1; }
 squad_dir=$(readlink -f "$SQUAD_DIR")
 
 # Split by hand: `read` with a tab IFS collapses an empty scope (the Manager has none) and shifts the columns.
-row=$("$bin/squad-usage" --squad-dir "$squad_dir" --get "$name")
+row=$("$bin/squad-usage" --squad-dir "$home" --get "$name")
 role=${row%%$'\t'*}
 rest=${row#*$'\t'}
 scope=${rest%%$'\t'*}
 role=$(tr 'A-Z ' 'a-z-' <<<"$role")
 
 project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
-wt=$project_dir/.worktrees/$(basename "$squad_dir")/$name
-repo_args=()
-# A Developer's repo is found from its existing worktree, so the branch and uncommitted work are kept.
-[[ -d $wt ]] && repo_args=(--repo "$(dirname "$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)")")
+squad=$(basename "$squad_dir")
+# A Developer keeps its worktree, branch and uncommitted work. Newest layout first, then the older flat ones
+# (squad-board still uses them).
+wt_args=()
+candidates=("$project_dir/.worktrees/$squad/$name" "$project_dir/.worktrees/$name")
+[[ -z $scope ]] || candidates=("$project_dir/.worktrees/$squad/$scope/$name" "${candidates[@]}")
+for c in "${candidates[@]}"; do
+  [[ -d $c ]] && { wt_args=(--worktree "$c"); break; }
+done
 
-prompt="RESPAWN: you are $name, restarted fresh. Read \$SQUAD_DIR/process.md, then your notes \$SQUAD_DIR/roles/$name.notes.md, and continue from them."
-spawn=("$bin/squad-spawn" "$role" "$name" --scope "$scope" "${repo_args[@]}" --prompt "$prompt")
+scope_args=(--scope "$scope")
+[[ $home_var == GOAL_DIR ]] && scope_args=(--goal "$(basename "$GOAL_DIR")")
 
-notes=$squad_dir/roles/$name.notes.md
+prompt="RESPAWN: you are $name, restarted fresh. Read \$SQUAD_DIR/process.md, then your notes \$$home_var/roles/$name.notes.md, and continue from them."
+spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" --prompt "$prompt")
+
+notes=$home/roles/$name.notes.md
 if [[ -f $notes ]] && (( $(wc -l <"$notes") > 100 )); then
   echo "warning: $name's notes are $(wc -l <"$notes") lines (cap ~80, see process.md → Notes); the new session reads all of it, so trim it" >&2
 fi
