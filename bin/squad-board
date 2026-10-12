@@ -380,16 +380,109 @@ def derive_timeline(messages, activity, columns, now, selected_iteration, lowest
 
 # --- section: tasks ---
 
+TASK_STATE_FOR_TYPE = {"DECISION": "building", "STATUS": "building", "BLOCKED": "blocked",
+                       "HANDIN": "checking", "FAIL": "returned", "PASS": "done"}
+# ASK and ANSWER keep the state but make a task appear (as building) when they name it first.
+TASK_TYPES = set(TASK_STATE_FOR_TYPE) | {"ASK", "ANSWER"}
+
+
+def in_iteration(record, upto):
+    """A record without an iteration counts as the lowest one; no iteration files filter nothing."""
+    return upto is None or record["iteration"] is None or record["iteration"] <= upto
+
+
 def derive_tasks(messages, activity, upto_iteration):
-    """BRD-03."""
-    return []
+    """Task states as of the end of `upto_iteration`, in order of first appearance."""
+    # Messages sort before activity at the same time (as in the timeline); log order breaks the rest.
+    events = [(parse_ts(m["ts"]), 0, i, m) for i, m in enumerate(messages)
+              if m["type"] in TASK_TYPES and m["task"] and in_iteration(m, upto_iteration)]
+    events += [(parse_ts(a["ts"]), 1, i, a) for i, a in enumerate(activity)
+               if a["status"] == "working" and in_iteration(a, upto_iteration)]
+    tasks, blocked_by = {}, {}
+    for _, is_activity, _, rec in sorted(events, key=lambda e: e[:3]):
+        if is_activity:
+            for task in tasks.values():
+                if task["state"] == "blocked" and blocked_by[task["id"]] == rec["agent"]:
+                    task["state"] = "building"
+            continue
+        task = tasks.setdefault(rec["task"], {"id": rec["task"], "state": "building", "returns": 0,
+                                              "last_ts": None, "last_type": None})
+        if rec["type"] in TASK_STATE_FOR_TYPE:
+            task["state"] = TASK_STATE_FOR_TYPE[rec["type"]]
+        if rec["type"] == "BLOCKED":
+            blocked_by[rec["task"]] = rec["from"]
+        if rec["type"] == "FAIL":
+            task["returns"] += 1
+        task["last_ts"], task["last_type"] = rec["ts"], rec["type"]
+    return list(tasks.values())
 
 
 # --- section: needs-you ---
 
+def po_checkin_filled(text):
+    """Which of `done` / `next` have text in the `## PO check-in` section; None without the section.
+
+    Text on the bullet line or on any line under it (until the next bullet) counts as filled.
+    """
+    lines = text.splitlines()
+    start = next((i for i, line in enumerate(lines) if re.match(r"##\s+PO check-in\b", line, re.I)), None)
+    if start is None:
+        return None
+    filled, field = {"done": False, "next": False}, None
+    for line in lines[start + 1:]:
+        heading = re.match(r"(#+)\s", line)
+        if heading:
+            if len(heading.group(1)) <= 2:
+                break
+            field = None
+            continue
+        bullet = re.match(r"[-*]\s+\*\*(\w+)[^*]*\*\*:?(.*)", line)
+        if bullet:
+            field, line = bullet.group(1).lower(), bullet.group(2)
+        if field in filled and line.strip(" \t-*"):
+            filled[field] = True
+    return filled
+
+
+def latest_event_ts(activity, agent, statuses):
+    """Time of the agent's latest event with one of these statuses (log order breaks ties)."""
+    stamps = [(parse_ts(a["ts"]), i, a["ts"]) for i, a in enumerate(activity)
+              if a["agent"] == agent and a["status"] in statuses]
+    return max(stamps)[2] if stamps else None
+
+
 def derive_needs_you(squad, columns, activity):
-    """BRD-03."""
-    return []
+    """Blocked agents (roster order), then unanswered escalations, then the idle Manager."""
+    rank = {r["agent"]: i for i, r in enumerate(squad["roster"])}
+    items = []
+    for col in sorted(columns, key=lambda c: rank.get(c["agent"], len(rank))):
+        if col["status"] == "blocked" and not col["retired"]:
+            since = latest_event_ts(activity, col["agent"], ("blocked",))
+            items.append({"id": "blocked:%s:%s" % (col["agent"], since), "kind": "blocked",
+                          "text": "%s is blocked" % col["agent"], "agent": col["agent"], "since": since})
+
+    rows = squad["escalations"]
+    numbers = [r.get("#", "") for r in rows]
+    for i, row in enumerate(rows, 1):
+        # a blank row has an empty Answer too, but without a number or question it is no escalation
+        if row.get("answer") or not (row.get("#") or row.get("question")):
+            continue
+        number = numbers[i - 1] if numbers[i - 1] and numbers.count(numbers[i - 1]) == 1 else i
+        items.append({"id": "escalation:%s" % number, "kind": "escalation",
+                      "text": row.get("question", ""), "agent": None, "since": None})
+
+    manager = next((r["agent"] for r in squad["roster"] if is_manager(r["role"])), None)
+    manager_col = next((c for c in columns if c["agent"] == manager), None)
+    since = latest_event_ts(activity, manager, tuple(STATUS_FOR_EVENT))
+    if manager_col and not manager_col["retired"] and since and manager_col["status"] == "idle" \
+            and squad["iterations"]:
+        current = max(squad["iterations"])
+        filled = po_checkin_filled(squad["iterations"][current])
+        if filled is not None and not any(filled.values()):
+            items.append({"id": "manager_idle:%d" % current, "kind": "manager_idle",
+                          "text": "Manager is idle and the PO check-in of iteration %d is empty" % current,
+                          "agent": manager, "since": since})
+    return items
 
 
 # --- section: tokens ---
