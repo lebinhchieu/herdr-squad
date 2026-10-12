@@ -6,15 +6,51 @@ One file, standard library only, Python 3.9-safe (no `match`, no `X | None` at r
 Design: .scratch/squad-board/design.md. Each later ticket fills its own section below.
 """
 import argparse
+import errno
+import hmac
 import json
+import os
 import re
+import secrets
+import subprocess
 import sys
+import threading
+import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
 
 DEFAULT_PORT = 7420
+PORT_TRIES = 20  # busy port P: try P+1..P+20 (design D4)
+JUMP_PREFIX = "/jump/"
+JUMP_NAME_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}")
+HERDR_TIMEOUT_S = 5
+# Timings of the event stream and the handler socket. The environment overrides exist so tests need
+# not wait 15 s; they are read once at startup:
+#   SQUAD_BOARD_POLL_S             how often the watcher looks at the squad files (default 0.5)
+#   SQUAD_BOARD_KEEPALIVE_S        quiet time before a ": keepalive" comment line (default 15)
+#   SQUAD_BOARD_REQUEST_TIMEOUT_S  longest a handler socket read or write may block (default 10)
+MAX_ENV_SECONDS = 86400
+
+
+def env_seconds(name, default):
+    """Seconds from the environment, greater than 0 and at most a day, else exit 2 (0 would spin a
+    loop; nan, inf and absurd values would never fire)."""
+    try:
+        value = float(os.environ.get(name, default))
+    except ValueError:
+        value = 0
+    if not 0 < value <= MAX_ENV_SECONDS:
+        print("squad-board: %s must be a number between 0 and %d" % (name, MAX_ENV_SECONDS), file=sys.stderr)
+        sys.exit(2)
+    return value
+
+
+POLL_S = env_seconds("SQUAD_BOARD_POLL_S", 0.5)
+KEEPALIVE_S = env_seconds("SQUAD_BOARD_KEEPALIVE_S", 15)
+REQUEST_TIMEOUT_S = env_seconds("SQUAD_BOARD_REQUEST_TIMEOUT_S", 10)
+
 UNLISTED_POD = "(unlisted)"
 ITERATION_RE = re.compile(r"[0-9]{1,6}")
 STATUS_FOR_EVENT = {"working": "working", "blocked": "blocked", "idle": "idle", "done": "idle"}
@@ -672,44 +708,193 @@ def send_json(handler, status, obj):
 
 
 def check_request(handler):
-    """The one entry point every request passes. BRD-05 adds the Host check here."""
-    return True
+    """Host and Origin must name this server, else 403: a web page on another site (or a rebinding
+    DNS name) cannot talk to it. Runs before method, token and path, for every route."""
+    port = handler.server.server_address[1]
+    hosts = ["127.0.0.1:%d" % port, "localhost:%d" % port]
+    given = handler.headers.get_all("Host") or []
+    origins = handler.headers.get_all("Origin") or []
+    if (len(given) == 1 and given[0].lower() in hosts
+            and all(o.lower() in ["http://" + h for h in hosts] for o in origins)):
+        return True
+    send_json(handler, 403, {"error": "forbidden"})
+    return False
+
+
+def token_ok(handler):
+    """Constant-time compare on UTF-8 bytes: a non-ASCII header is a mismatch, not a TypeError.
+    A repeated header must have every copy right."""
+    expected = handler.server.token.encode("utf-8")
+    given = handler.headers.get_all("X-Board-Token") or []
+    return bool(given) and all(hmac.compare_digest(g.encode("utf-8"), expected) for g in given)
 
 
 def handle_root(handler):
     send(handler, 200, "text/html; charset=utf-8", PLACEHOLDER_PAGE)
 
 
-def handle_state(handler):
+def query_iteration(handler):
+    """The `iteration` query value as an int, or None when absent. Raises BadRequest."""
     values = parse_qs(handler.path.partition("?")[2], keep_blank_values=True).get("iteration")
-    selected = None
-    if values is not None:
-        if len(values) != 1 or not ITERATION_RE.fullmatch(values[0]):
-            return send_json(handler, 400, {"error": "iteration must be a number"})
-        selected = int(values[0])
+    if values is None:
+        return None
+    if len(values) != 1 or not ITERATION_RE.fullmatch(values[0]):
+        raise BadRequest("iteration must be a number")
+    return int(values[0])
+
+
+def handle_state(handler):
     try:
-        state = build_state(handler.server.replay_dir, handler.server.now, selected)
+        state = build_state(handler.server.replay_dir, handler.server.now, query_iteration(handler))
     except BadRequest as e:
         return send_json(handler, 400, {"error": str(e)})
     send_json(handler, 200, state)
 
 
+def watched_signature(squad_dir):
+    """What the squad files look like right now. The inode is part of it, so an editor that writes a
+    temp file and renames it over the original is seen even when size and mtime come out equal."""
+    root = Path(squad_dir)
+    paths = [root / name for name in ("messages.jsonl", "activity.jsonl", "escalations.md", "roster.md", "scopes.md")]
+    paths += sorted(root.glob("iterations/*.md")) + sorted(root.glob("roles/*.notes.md"))
+    signature = []
+    for path in paths:
+        try:
+            info = path.stat()
+        except OSError:
+            signature.append((str(path), None))  # missing counts as a state of its own
+        else:
+            signature.append((str(path), info.st_size, info.st_mtime_ns, info.st_ino))
+    return tuple(signature)
+
+
+class StateWatcher:
+    """One thread looks at the squad files; a state is built once per change and iteration, however
+    many streams are open. Streams wait on `changed` and never touch the files themselves."""
+
+    def __init__(self, squad_dir, now):
+        self.squad_dir = squad_dir
+        self.now = now
+        self.changed = threading.Condition()
+        self.version = 0
+        self.signature = watched_signature(squad_dir)
+        self.built = {}  # selected iteration -> (state without `now`, its JSON), for this version
+        threading.Thread(target=self.watch, daemon=True).start()
+
+    def refresh(self):
+        with self.changed:
+            signature = watched_signature(self.squad_dir)
+            if signature != self.signature:
+                self.signature = signature
+                self.version += 1
+                self.built = {}
+                self.changed.notify_all()
+
+    def watch(self):
+        while True:
+            try:
+                self.refresh()
+            except Exception as e:  # one bad poll must not end the watching
+                print("squad-board: watcher: %s" % e, file=sys.stderr, flush=True)
+            time.sleep(POLL_S)
+
+    def snapshot(self, selected):
+        """(version, state, JSON) for the files as they are now. Raises BadRequest for an unknown
+        iteration. Looks at the files first, so a new connection never gets a stale state."""
+        self.refresh()
+        with self.changed:
+            if selected not in self.built:
+                state = build_state(self.squad_dir, self.now, selected)
+                # `now` is left out of the comparison: a clock tick alone is not a change
+                self.built[selected] = ({k: v for k, v in state.items() if k != "now"}, json.dumps(state))
+            state, data = self.built[selected]
+            return self.version, state, data
+
+    def wait_after(self, version, timeout):
+        """The current version, once it differs from `version` or `timeout` seconds have passed."""
+        with self.changed:
+            self.changed.wait_for(lambda: self.version != version, timeout)
+            return self.version
+
+
 def handle_events(handler):
-    """BRD-06."""
-    send_json(handler, 501, {"error": "not implemented"})
+    """GET /events: the state now, then again whenever it changes, plus a keepalive comment line
+    when nothing was sent for KEEPALIVE_S. The iteration is fixed for the connection."""
+    watcher = handler.server.watcher
+    try:
+        selected = query_iteration(handler)
+        version, state, data = watcher.snapshot(selected)
+    except BadRequest as e:
+        return send_json(handler, 400, {"error": str(e)})
+    handler.send_response(200)
+    handler.send_header("Content-Type", "text/event-stream; charset=utf-8")
+    handler.send_header("Cache-Control", "no-store")
+    handler.end_headers()
+    handler.close_connection = True
+    try:
+        handler.wfile.write(("event: state\ndata: %s\n\n" % data).encode("utf-8"))
+        last_write = time.monotonic()
+        while True:
+            quiet = time.monotonic() - last_write
+            if quiet >= KEEPALIVE_S:
+                handler.wfile.write(b": keepalive\n\n")
+                last_write = time.monotonic()
+                continue
+            current = watcher.wait_after(version, KEEPALIVE_S - quiet)
+            if current == version:
+                continue
+            version = current
+            try:
+                version, new_state, data = watcher.snapshot(selected)
+            except Exception as e:  # e.g. the pinned iteration file was deleted: wait for the next change
+                print("squad-board: state not rebuilt: %s" % e, file=sys.stderr, flush=True)
+                continue
+            if new_state != state:
+                state = new_state
+                handler.wfile.write(("event: state\ndata: %s\n\n" % data).encode("utf-8"))
+                last_write = time.monotonic()
+    except OSError:
+        pass  # the client went away, or stopped reading for longer than REQUEST_TIMEOUT_S
 
 
 def handle_jump(handler):
-    """BRD-05."""
-    send_json(handler, 501, {"error": "not implemented"})
+    """POST /jump/<name>: focus a roster agent's herdr pane. Check order: token, name, roster, so a
+    refused token never reveals who is on the roster. Nothing is run until all three pass."""
+    if not token_ok(handler):
+        return send_json(handler, 403, {"error": "forbidden"})
+    name = handler.path.partition("?")[0][len(JUMP_PREFIX):]
+    if not JUMP_NAME_RE.fullmatch(name):
+        return send_json(handler, 400, {"error": "bad agent name"})
+    live = [r["agent"] for r in read_squad(handler.server.replay_dir)["roster"]
+            if r["status"].lower() == "live"]
+    if name not in live:
+        return send_json(handler, 404, {"error": "not on the roster"})
+    # argv list, never a shell; herdr's own output stays out of the response
+    try:
+        done = subprocess.run(["herdr", "agent", "focus", name], timeout=HERDR_TIMEOUT_S,
+                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        return send_json(handler, 502, {"ok": False, "error": "herdr timed out"})
+    except OSError:
+        return send_json(handler, 502, {"ok": False, "error": "herdr could not be run"})
+    if done.returncode != 0:
+        return send_json(handler, 502, {"ok": False, "error": "herdr exited with status %d" % done.returncode})
+    send_json(handler, 200, {"ok": True})
 
 
 class BoardHandler(BaseHTTPRequestHandler):
+    # StreamRequestHandler puts this on the connection socket: a client that connects and sends
+    # nothing frees its thread after REQUEST_TIMEOUT_S. The event stream only writes, so a quiet
+    # one is not cut; a stuck write (a client that stopped reading) times out the same way.
+    timeout = REQUEST_TIMEOUT_S
+
     def do_GET(self):
         if not check_request(self):
             return
         path = self.path.partition("?")[0]
-        if path == "/":
+        if path.startswith(JUMP_PREFIX):
+            send_json(self, 405, {"error": "method not allowed"})
+        elif path == "/":
             handle_root(self)
         elif path == "/state":
             handle_state(self)
@@ -721,10 +906,20 @@ class BoardHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not check_request(self):
             return
-        if self.path.partition("?")[0].startswith("/jump/"):
+        if self.path.partition("?")[0].startswith(JUMP_PREFIX):
             handle_jump(self)
         else:
             send_json(self, 404, {"error": "not found"})
+
+    def method_not_allowed(self):
+        if check_request(self):
+            send_json(self, 405, {"error": "method not allowed"})
+
+    do_HEAD = do_OPTIONS = do_PUT = do_PATCH = do_DELETE = method_not_allowed
+
+    def send_error(self, code, message=None, explain=None):
+        # the stock error page is HTML without our headers
+        send_json(self, code, {"error": message or self.responses.get(code, ("error",))[0]})
 
     def log_message(self, format, *args):
         # a request line on stderr would break the "silent when healthy" contract
@@ -736,10 +931,21 @@ class BoardServer(ThreadingHTTPServer):
 
 
 def make_server(replay_dir, now, port):
-    server = BoardServer(("127.0.0.1", port), BoardHandler)
-    server.replay_dir = replay_dir
-    server.now = now
-    return server
+    """Bind `port` on loopback, or the next free one of the following PORT_TRIES (not for port 0).
+    Raises OSError when the port cannot be bound; the last EADDRINUSE when all are busy."""
+    last = min(port + PORT_TRIES, 65535) if port else 0
+    for candidate in range(port, last + 1):
+        try:
+            server = BoardServer(("127.0.0.1", candidate), BoardHandler)
+        except OSError as e:
+            if e.errno != errno.EADDRINUSE or candidate == last:
+                raise
+            continue
+        server.replay_dir = replay_dir
+        server.now = now
+        server.token = secrets.token_urlsafe(16)
+        server.watcher = StateWatcher(replay_dir, now)
+        return server
 
 
 def die(message, code):
@@ -764,8 +970,10 @@ def main(argv=None):
     try:
         server = make_server(args.replay, args.now, args.port)
     except OSError as e:
+        if e.errno == errno.EADDRINUSE and args.port:
+            return die("ports %d..%d are all busy" % (args.port, min(args.port + PORT_TRIES, 65535)), 1)
         return die("cannot bind port %d: %s" % (args.port, e.strerror), 1)
-    print("squad-board: http://127.0.0.1:%d/" % server.server_address[1], flush=True)
+    print("squad-board: http://127.0.0.1:%d/?token=%s" % (server.server_address[1], server.token), flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
