@@ -419,6 +419,9 @@ def derive_timeline(messages, activity, columns, now, selected_iteration, lowest
 TASK_STATE_FOR_TYPE = {"DECISION": "building", "STATUS": "building", "BLOCKED": "blocked",
                        "HANDIN": "checking", "FAIL": "returned", "PASS": "done"}
 # ASK and ANSWER keep the state but make a task appear (as building) when they name it first.
+# These leave a `done` task alone (a late "STATUS BRD-01: PASS from qaw-board" is no rework);
+# HANDIN, FAIL and BLOCKED reopen it.
+DONE_STICKY_TYPES = {"DECISION", "STATUS"}
 TASK_TYPES = set(TASK_STATE_FOR_TYPE) | {"ASK", "ANSWER"}
 
 
@@ -434,7 +437,7 @@ def derive_tasks(messages, activity, upto_iteration):
               if m["type"] in TASK_TYPES and m["task"] and in_iteration(m, upto_iteration)]
     events += [(parse_ts(a["ts"]), 1, i, a) for i, a in enumerate(activity)
                if a["status"] == "working" and in_iteration(a, upto_iteration)]
-    tasks, blocked_by = {}, {}
+    tasks, blocked_by, handin_since_count = {}, {}, {}
     for _, is_activity, _, rec in sorted(events, key=lambda e: e[:3]):
         if is_activity:
             for task in tasks.values():
@@ -443,12 +446,17 @@ def derive_tasks(messages, activity, upto_iteration):
             continue
         task = tasks.setdefault(rec["task"], {"id": rec["task"], "state": "building", "returns": 0,
                                               "last_ts": None, "last_type": None})
-        if rec["type"] in TASK_STATE_FOR_TYPE:
+        if rec["type"] in TASK_STATE_FOR_TYPE and not (
+                task["state"] == "done" and rec["type"] in DONE_STICKY_TYPES):
             task["state"] = TASK_STATE_FOR_TYPE[rec["type"]]
         if rec["type"] == "BLOCKED":
             blocked_by[rec["task"]] = rec["from"]
-        if rec["type"] == "FAIL":
+        if rec["type"] == "HANDIN":
+            handin_since_count[rec["task"]] = True
+        if rec["type"] == "FAIL" and handin_since_count.get(rec["task"], True):
+            # one return per HANDIN: copies of a FAIL, or a second QA's FAIL, add nothing
             task["returns"] += 1
+            handin_since_count[rec["task"]] = False
         task["last_ts"], task["last_type"] = rec["ts"], rec["type"]
     return list(tasks.values())
 
