@@ -19,11 +19,13 @@
 | `scopes.md` | Manager | Each scope's size, the signals behind it, PO confirmation date, size-change log |
 | `contracts/<name>.md` | Tech Leads of both scopes | A contract shared between scopes (XL): API, event, status model |
 | `iterations/<n>.md` | Manager | Goal, plan, retro and PO check-in of iteration n |
-| `roles/<agent>.notes.md` | each agent | Its own memory: context, open threads, what it learned |
+| `roles/<agent>.notes.md` | each agent | Its own memory, a snapshot under 80 lines (see Notes) |
 | `usage-events.jsonl` | cost hook | One line each time a cost rule fires |
 | `tasks/<id>.md` | Plan owner (Team Lead; Tech Lead in S and M) | Task state when the project has no ticket files of its own |
 
 ## Sizes: not every scope runs the full pod
+
+**A pod is the group of role sessions that delivers one scope.** A squad serves one goal and can hold several pods.
 
 **Each scope gets a size. The Manager proposes it with its signals, the PO confirms it at the goal check, and `scopes.md` records it.** A goal can mix sizes.
 
@@ -69,11 +71,11 @@ Send with `SendMessage` to the agent name in `roster.md`. **Start every message 
 
 | Type | Use it to | Example |
 |---|---|---|
-| `ASK` | Ask the owner of a topic | `ASK ba-settings: does BR-014 apply to read-only users?` |
+| `ASK` | Ask the owner of a topic | `ASK bill-ba-invoices: does BR-014 apply to read-only users?` |
 | `ANSWER` | Reply to an ASK | `ANSWER: yes, see requirements note in project.md#reqs` |
 | `DECISION` | Announce a decision already written to a file | `DECISION: tabs order fixed, logged in DECISIONS.md D12` |
 | `BLOCKED` | Say you can't continue, and on what | `BLOCKED SET-01: AC-033 contradicts spec §4` |
-| `HANDIN` | Hand a task to QA | `HANDIN SET-01: branch squad/<squad>/dev-settings-1, commit abc123` |
+| `HANDIN` | Hand a task to QA | `HANDIN SET-01: branch squad/<squad>/bill-dev-invoices-1, commit abc123` |
 | `PASS` / `FAIL` | QA verdict; FAIL points at findings | `FAIL SET-01: 2 findings in evidence/SET-01/qa-b.md` |
 | `STATUS` | Answer the Manager's health check | `STATUS: building SET-01, 60%, no blockers` |
 
@@ -110,7 +112,7 @@ Send with `SendMessage` to the agent name in `roster.md`. **Start every message 
 1. **Goal check:** Manager + PO agree the iteration goal in `iterations/<n>.md`, and the PO confirms each scope's size in `scopes.md`.
 2. **Plan:** the scope's roles (by size) talk freely; requirements, AC and tasks land in files.
 3. **Build and verify:** event-driven. Devs build, QA checks, gaps go to owners.
-4. **Retro:** Manager collects friction (loops, blocked panes, returns, unclear ownership), spawns the Token Coach (`squad-spawn token-coach coach`), then edits this file and drafts role-instruction changes. The Coach writes `iterations/<n>.coach.md`: proposals ranked by saving, each with its evidence row. The Manager accepts the top 3 (logged in `process-log.md`) and moves the rest to the file's `## Backlog`.
+4. **Retro:** Manager collects friction (loops, blocked panes, returns, unclear ownership), spawns the Token Coach (`squad-spawn token-coach coach-$SQUAD`), then edits this file and drafts role-instruction changes. The Coach writes `iterations/<n>.coach.md`: proposals ranked by saving, each with its evidence row. The Manager accepts the top 3 (logged in `process-log.md`) and moves the rest to the file's `## Backlog`.
 5. **Check-in:** Manager shows the PO what is done, open escalations, and proposed role-instruction changes.
 
 ## Cost rules
@@ -122,6 +124,16 @@ Send with `SendMessage` to the agent name in `roster.md`. **Start every message 
 3. **Idle** over 1h (the cache lifetime) with context over ~100k: fresh from notes.
 4. **Step-up** one notch of model or effort only on failure or escalation, for that task only.
 5. **Messages point at files.** The Manager reads summaries, never transcripts.
+
+## Notes
+
+**`roles/<agent>.notes.md` is a snapshot of now, not a log. A fresh session reads all of it at start, so its size is your starting context.**
+
+- **Rewrite it on every save; never append.** Hard cap: about 80 lines.
+- **Fixed sections:** `Now`, `Open threads`, `Decisions that bind later work`, `Pointers`. A decision goes in the file `project.md` names, and the notes keep a one-line pointer to it.
+- **History lives elsewhere:** `iterations/<n>.md`, `process-log.md`, `scopes.md`. Don't copy it into notes.
+- **A scope closes → archive its detail** to `roles/archive/<agent>.<scope>.md` and keep one pointer line. Respawn never reads the archive; open it only when a question needs it.
+- `squad-respawn` warns when a notes file is over 100 lines. Trim it before the next save.
 
 ## Safety
 

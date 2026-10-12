@@ -15,6 +15,10 @@ TABLE = {"manager": ("opus", "medium"), "tech-lead": ("sonnet", "high"), "ba": (
 UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 FAKE_HERDR = """#!/usr/bin/env bash
 echo "$@" >> "$HERDR_LOG"
+if [[ "$1 $2" == "agent get" ]]; then
+  [[ " ${LIVE:-} " == *" $3 "* ]] && { echo '{"result":{"agent":{"tab_id":"t0"}}}'; exit 0; }
+  echo '{"error":{"code":"agent_not_found"}}'; exit 1
+fi
 [[ $1 == tab ]] && echo '{"result":{"root_pane":{"pane_id":"p1"},"tab":{"tab_id":"t1"}}}'
 exit 0
 """
@@ -67,6 +71,30 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertIn(f"| dev-1 | dev | s |  | live | {passed} |", (self.squad / "roster.md").read_text())
         self.assertIn(passed, r.stdout)
 
+
+    def _fake_herdr(self, live):
+        bin_dir = Path(self.tmp.name) / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        (bin_dir / "herdr").write_text(FAKE_HERDR)
+        (bin_dir / "herdr").chmod(0o755)
+        self.log = Path(self.tmp.name) / "herdr.log"
+        self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(self.log), LIVE=live)
+        (self.squad / "roster.md").write_text(
+            "| Agent | Role | Scope | Owns | Status |\n|---|---|---|---|---|\n")
+
+    def test_refuses_a_name_that_is_already_live_in_another_squad(self):
+        self._fake_herdr(live="bill-ba-invoices")
+        r = subprocess.run([str(SCRIPT), "ba", "bill-ba-invoices"], env=self.env,
+                           text=True, capture_output=True, timeout=10)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("already live", r.stderr)
+        self.assertNotIn("tab create", self.log.read_text())
+
+    def test_spawns_when_the_name_is_free(self):
+        self._fake_herdr(live="other-name")
+        r = subprocess.run([str(SCRIPT), "ba", "bill-ba-invoices"], env=self.env,
+                           text=True, capture_output=True, timeout=10)
+        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_every_role_has_settings_that_parse(self):
         settings = SCRIPT.parent.parent / "templates" / "squad" / "settings"

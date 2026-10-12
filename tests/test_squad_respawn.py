@@ -10,7 +10,9 @@ BIN = Path(__file__).resolve().parent.parent / "bin"
 FAKE_HERDR = """#!/usr/bin/env bash
 echo "$@" >> "$HERDR_LOG"
 case "$1 $2" in
-  "agent get") echo '{"result":{"agent":{"tab_id":"t-old"}}}' ;;
+  "agent get")
+    if grep -q "^agent rename $3 " "$HERDR_LOG"; then echo '{"error":{"code":"agent_not_found"}}'; exit 1; fi
+    echo '{"result":{"agent":{"tab_id":"t-old"}}}' ;;
   "tab create") echo '{"result":{"root_pane":{"pane_id":"p-new"},"tab":{"tab_id":"t-new"}}}' ;;
 esac
 exit 0
@@ -101,6 +103,18 @@ class RespawnTest(unittest.TestCase):
         self.assertEqual(log[-1], "tab close t-old")
         prompt = next(l for l in log if l.startswith("agent prompt"))
         self.assertIn("roles/manager-t.notes.md", prompt)
+
+    def test_warns_when_notes_are_over_100_lines(self):
+        (self.squad / "roles").mkdir()
+        (self.squad / "roles" / "dev-1.notes.md").write_text("line\n" * 101)
+        r = self.respawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("101 lines", r.stderr)
+
+    def test_no_warning_for_short_notes(self):
+        (self.squad / "roles").mkdir()
+        (self.squad / "roles" / "dev-1.notes.md").write_text("line\n" * 30)
+        self.assertNotIn("lines", self.respawn().stderr)
 
     def test_unknown_agent_fails(self):
         r = subprocess.run([str(BIN / "squad-respawn"), "ghost"], env=self.env, text=True, capture_output=True, timeout=20)

@@ -28,6 +28,11 @@ repo_args=()
 prompt="RESPAWN: you are $name, restarted fresh. Read \$SQUAD_DIR/process.md, then your notes \$SQUAD_DIR/roles/$name.notes.md, and continue from them."
 spawn=("$bin/squad-spawn" "$role" "$name" --scope "$scope" "${repo_args[@]}" --prompt "$prompt")
 
+notes=$squad_dir/roles/$name.notes.md
+if [[ -f $notes ]] && (( $(wc -l <"$notes") > 100 )); then
+  echo "warning: $name's notes are $(wc -l <"$notes") lines (cap ~80, see process.md → Notes); the new session reads all of it, so trim it" >&2
+fi
+
 if [[ $dry == 1 ]]; then
   echo "would run: herdr agent rename $name $name-prev"
   echo "would run: ${spawn[*]}"

@@ -35,4 +35,4 @@ Make sure `.worktrees/` is git-ignored at the project root (Developers get `<roo
 
 ## 5. Goal
 
-Draft `<squad>/goal.md` with the user: one-sentence goal, in/out of scope, Developer cap (suggest 3), iteration size (one pod, about 3–6 tasks per scope), budget, and what "done" means. Don't start the squad; tell the user to run `/squad:squad-start` when the goal is agreed.
+Draft `<squad>/goal.md` with the user: one-sentence goal, in/out of scope, Developer cap (suggest 3), iteration size (one pod, about 3–6 tasks per scope), budget, and what "done" means. If other squads already exist in `.claude/squads/`, read their `goal.md` and ask whether this goal touches the same files or modules: two squads editing the same files only collide at merge. If it does, suggest a scope in that squad instead of a new squad. Don't start the squad; tell the user to run `/squad:squad-start` when the goal is agreed.

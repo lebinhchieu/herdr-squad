@@ -36,14 +36,16 @@ squad-spawn <role> <agent-name> [--scope S] [--repo DIR] [--prompt "first messag
 
 - Roles: `ba`, `team-lead`, `tech-lead`, `qa-whitebox`, `qa-blackbox`, `dev`, `token-coach`.
 - **Tell every agent its scope's size in the first prompt**, so it knows which duties it carries (`process.md` → Sizes).
-- Names: `<role-short>-<scope>[-n]`, lowercase, ≤ 32 chars, e.g. `ba-settings`, `tl-settings`, `tech-settings`, `qaw-settings`, `qab-settings`, `dev-settings-1`.
+- Names: `<squad>-<role-short>-<scope>[-n]`, lowercase, ≤ 32 chars, e.g. `bill-ba-invoices`, `bill-tech-invoices`, `bill-qaw-invoices`, `bill-dev-invoices-1`. The squad prefix keeps names unique across squads, because agents are addressed by bare name; `squad-spawn` refuses a name that is already live. Keep squad and scope names short.
 - **Developers always get `--repo <code repo>`** so they work in their own git worktree on branch `squad/<squad>/<agent-name>`. Take the repo from the task's `repos` and `project.md`.
 - **The first prompt is the agent's only briefing.** Include: its scope, what it owns, the files to read first, and who it works with by name.
 - Add the roster row **before** sending the first prompt, so the new agent can find its peers.
 - Retire with `squad-retire <agent-name>`: it asks the agent to save its notes, then closes its tab. Developers retire after their task is done; their branch stays for the PO.
-- **Retro:** spawn the Token Coach (`squad-spawn token-coach coach`), tell it the iteration number and that it reads only `squad-usage` and `usage-events.jsonl`. Read its `iterations/<n>.coach.md`, accept at most the top 3 proposals, log each accepted change in `process-log.md`, and move the rest under the file's `## Backlog`. Retire the Coach afterwards. It may only propose `process.md` changes, never `agents/` or skills.
+- **Retro:** spawn the Token Coach (`squad-spawn token-coach coach-$SQUAD`), tell it the iteration number and that it reads only `squad-usage` and `usage-events.jsonl`. Read its `iterations/<n>.coach.md`, accept at most the top 3 proposals, log each accepted change in `process-log.md`, and move the rest under the file's `## Backlog`. Retire the Coach afterwards. It may only propose `process.md` changes, never `agents/` or skills.
 
 Lifetimes: you, BA and Team Lead stay for the whole run. Tech Lead and QA restart per scope. Developers get a fresh session per task.
+
+When a scope is done, ask the BA and Team Lead to archive its detail (`process.md` → Notes) before you retire the scope's other roles.
 
 ## Keeping the squad healthy
 
@@ -71,4 +73,4 @@ Check every time you get a message and at least between iterations:
 
 ## Your notes
 
-Keep `roles/$SQUAD_NAME.notes.md` current: scopes, open threads, what you learned about this squad. Update it before every check-in and whenever you'd lose something if this session restarted.
+Keep `roles/$SQUAD_NAME.notes.md` current under the rules in `process.md` → Notes. It is an index: scopes, the roster, goal and latest iteration file already hold the state, so write down only what isn't recorded there: judgement calls, the PO's preferences, follow-ups you owe. Update it before every check-in and whenever you'd lose something if this session restarted.

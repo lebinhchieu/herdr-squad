@@ -104,6 +104,12 @@ if [[ $dry == 1 ]]; then
   exit 0
 fi
 
+# Agents are addressed by bare name, so a second live agent with this name would be unreachable or misrouted.
+if herdr agent get "$name" >/dev/null 2>&1; then
+  echo "an agent named $name is already live; pick another name (include the squad name)" >&2
+  exit 1
+fi
+
 tab_json=$(herdr tab create --cwd "$cwd" --label "$name" --no-focus "${env_args[@]}")
 pane=$(jq -r '.result.root_pane.pane_id' <<<"$tab_json")
 tab=$(jq -r '.result.tab.tab_id' <<<"$tab_json")

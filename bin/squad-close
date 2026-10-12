@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Close a finished squad: retire its agents (Manager last), remove worktrees whose branch is already merged,
+# archive the squad folder to .claude/squads/_done/<squad>/ (evidence included), and report every branch.
+# Branches are never deleted: merging and deleting them is the PO's call.
+set -euo pipefail
+
+[[ $# -lt 1 || $1 == -h || $1 == --help ]] && { echo "Usage: squad-close <squad> [--into BRANCH] [--dry-run]"; exit 2; }
+squad=$1; shift
+into="" dry=0
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --into) into=$2; shift 2 ;;
+    --dry-run) dry=1; shift ;;
+    *) echo "unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+
+bin=$(dirname "$(readlink -f "$0")")
+if [[ -n ${SQUAD_DIR:-} && $(basename "$SQUAD_DIR") == "$squad" ]]; then
+  squad_dir=$SQUAD_DIR
+else
+  squad_dir=$(git rev-parse --show-toplevel)/.claude/squads/$squad
+fi
+[[ -f $squad_dir/process.md ]] || { echo "no squad folder at $squad_dir" >&2; exit 1; }
+squad_dir=$(readlink -f "$squad_dir")
+squads_root=$(dirname "$squad_dir")
+project_dir=$(dirname "$(dirname "$squads_root")")
+archive=$squads_root/_done/$squad
+# Checked first so a refusal leaves everything running.
+[[ ! -e $archive ]] || { echo "$archive already exists; move it away first" >&2; exit 1; }
+
+others=() managers=()
+while read -r agent role; do
+  [[ $role == manager ]] && managers+=("$agent") || others+=("$agent")
+done < <(awk -F'|' '/^\|/ { n++; if (n > 2) { gsub(/ /, "", $2); gsub(/ /, "", $3); print $2, tolower($3) } }' "$squad_dir/roster.md")
+
+retire() {
+  for a in "$@"; do
+    if [[ $dry == 1 ]]; then echo "would retire $a"
+    else "$bin/squad-retire" "$a" --no-notes >/dev/null 2>&1 && echo "retired $a" || echo "skipped $a (not live)"; fi
+  done
+}
+
+echo "== agents"
+retire "${others[@]}"
+
+echo "== branches"
+for wt in "$project_dir/.worktrees/$squad"/*/; do
+  [[ -d $wt ]] || continue
+  wt=${wt%/}; agent=$(basename "$wt"); branch=squad/$squad/$agent
+  repo=$(dirname "$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)")
+  target=${into:-$(git -C "$repo" symbolic-ref --short HEAD)}
+  if ! git -C "$repo" merge-base --is-ancestor "$branch" "$target"; then
+    echo "$branch: NOT merged into $target, kept"
+  elif [[ $dry == 1 ]]; then
+    echo "$branch: merged into $target, would remove worktree"
+  elif git -C "$repo" worktree remove "$wt" 2>/dev/null; then
+    echo "$branch: merged into $target, worktree removed"
+  else
+    echo "$branch: merged into $target, kept (uncommitted changes)"
+  fi
+done
+[[ $dry == 1 ]] || rmdir "$project_dir/.worktrees/$squad" 2>/dev/null || true
+
+echo "== folder"
+if [[ $dry == 1 ]]; then
+  echo "would move $squad_dir to $archive"
+else
+  mkdir -p "$squads_root/_done"
+  mv "$squad_dir" "$archive"
+  echo "archived to $archive"
+fi
+
+# Last, because the caller may be the Manager: closing its tab ends this script.
+echo "== manager"
+retire "${managers[@]}"
