@@ -9,11 +9,11 @@ disable-model-invocation: true
 **Result: a Manager session running in its own herdr tab, briefed with the goal.** You only start the Manager; it spawns the rest.
 
 1. Check `HERDR_ENV` is `1`. If not, tell the user to open herdr and run this from a pane there.
-2. Check `squad/goal.md` is filled (no `<...>` placeholders). If not, stop and point the user at `/squad:squad-init`.
+2. Pick the squad: the name the user gives, else the only folder in `.claude/squads/` (several and none named → ask). Check `.claude/squads/<squad>/goal.md` is filled (no `<...>` placeholders). If not, stop and point the user at `/squad:squad-init`.
 3. Run:
 
    ```bash
-   squad-spawn manager manager --prompt "Start of run. Read squad/goal.md and propose iteration 1 to the PO (me) before spawning anyone."
+   squad-spawn manager manager-<squad> --squad <squad> --prompt "Start of run. Read goal.md in your squad folder and propose iteration 1 to the PO (me) before spawning anyone."
    ```
 
    If the plugin is loaded with `--plugin-dir` rather than installed, set `SQUAD_PLUGIN_DIR=${CLAUDE_PLUGIN_ROOT}` for the command so the Manager and everyone it spawns load it too.
