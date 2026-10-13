@@ -135,7 +135,7 @@ Work bigger than one L scope is a goal with several scopes.
   - `shared/contracts/<name>.md`: a contract between scopes. The two Tech Leads agree it before either side builds on it, and one QA whitebox checks both sides against it before either scope counts as done.
 - **Stacked branches.** Only the PO merges, so a scope that needs an earlier scope's unmerged code builds on its passed branch:
   - A task that needs unmerged work is spawned with `--base <passed branch or commit>`.
-  - Each scope ends with **one integration task**: a Developer branches from the scope's base, merges the scope's passed task branches into its **own** branch, runs the full suite, and hands in like any task. That branch is what the next scope builds on and what the PO merges.
+  - Each scope ends with **one integration task**: a Developer branches from the scope's base, merges the scope's passed task branches into its **own** branch, runs the full suite, and hands in like any task. That branch is what the next scope builds on and what the PO merges. **A scope with one task has no integration task**: that task's passed branch is its integration branch.
   - Developers may run `git merge` inside their own branch; their settings still deny `git push`, `git rebase`, `git reset --hard` and checking out `main` or `dev`. Nothing is merged into the PO's branches or pushed.
 - **A lone scope has none of this.** It reads no `shared/` and builds on the project as the PO left it.
 
