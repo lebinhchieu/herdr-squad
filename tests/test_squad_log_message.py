@@ -30,7 +30,7 @@ class LogMessageTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def run_hook(self, data, squad_name="dev-settings-1", raw=None):
-        env = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD_")}
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
         if squad_name is not None:
             env.update(SQUAD_NAME=squad_name, SQUAD_DIR=str(self.squad))
         stdin = raw if raw is not None else json.dumps(data)
@@ -41,6 +41,37 @@ class LogMessageTest(unittest.TestCase):
         if not self.log.exists():
             return []
         return [json.loads(line) for line in self.log.read_text().splitlines()]
+
+    def run_hook_in(self, home_env, data=None):
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
+        env.update(SQUAD_NAME="dev-1", SQUAD_DIR=str(self.squad), **home_env)
+        return subprocess.run([str(SCRIPT)], input=json.dumps(data or payload()), text=True, env=env,
+                              capture_output=True, timeout=10)
+
+    def test_scope_agent_logs_into_its_scope_folder_with_that_scopes_iteration(self):
+        scope = self.squad / "scopes" / "sc1"
+        (scope / "iterations").mkdir(parents=True)
+        (scope / "iterations" / "3.md").write_text("x")
+        (self.squad / "iterations" / "9.md").write_text("x")
+        self.assertEqual(self.run_hook_in({"SCOPE_DIR": str(scope)}).returncode, 0)
+        [rec] = [json.loads(l) for l in (scope / "messages.jsonl").read_text().splitlines()]
+        self.assertEqual(rec["iteration"], 3)
+        self.assertFalse(self.log.exists())
+
+    def test_goal_manager_logs_into_the_goal_folder(self):
+        goal = self.squad / "goals" / "g1"
+        goal.mkdir(parents=True)
+        self.run_hook_in({"GOAL_DIR": str(goal)})
+        self.assertTrue((goal / "messages.jsonl").exists())
+        self.assertFalse(self.log.exists())
+
+    def test_scope_dir_wins_over_goal_dir(self):
+        scope, goal = self.squad / "scopes" / "sc1", self.squad / "goals" / "g1"
+        scope.mkdir(parents=True)
+        goal.mkdir(parents=True)
+        self.run_hook_in({"SCOPE_DIR": str(scope), "GOAL_DIR": str(goal)})
+        self.assertTrue((scope / "messages.jsonl").exists())
+        self.assertFalse((goal / "messages.jsonl").exists())
 
     def test_typed_message_is_logged_with_type_task_and_sender(self):
         (self.squad / "iterations" / "1.md").write_text("x")

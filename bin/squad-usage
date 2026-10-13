@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+"""Token usage per squad agent, read from Claude Code transcripts.
+
+  squad-usage [--squad-dir DIR]                 table for every roster.md row with a session id
+  squad-usage --check SESSION [--transcript F]  print the cost rule that fired (fresh|idle), or nothing
+  squad-usage --get NAME                        print "role<TAB>scope<TAB>session" of a roster row
+  squad-usage --set-session NAME SESSION [--role R --scope S]
+                                                record a session id in roster.md (adds the column)
+
+Env: SCOPE_DIR, else GOAL_DIR, else SQUAD_DIR: the folder holding roster.md. CLAUDE_CONFIG_DIR (default ~/.claude).
+"""
+import argparse
+import glob
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+CACHE_TTL_S = 3600           # the 1h cache lifetime
+EXPIRY_MIN_WRITE = 10_000    # a cache write this big after a gap counts as an expiry
+FRESH_PCT = 60               # process.md: fresh when context is over 60%
+IDLE_CTX = 100_000           # process.md: idle over 1h and context over ~100k
+WINDOW = 200_000
+WINDOW_1M = 1_000_000
+
+
+def config_dir():
+    return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+
+
+def find_transcript(session):
+    hits = glob.glob(str(config_dir() / "projects" / "*" / f"{session}.jsonl"))
+    return Path(hits[0]) if hits else None
+
+
+def parse_ts(s):
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def window_for(model):
+    return WINDOW_1M if model and "1m" in model.lower() else WINDOW
+
+
+def read_session(path):
+    """Fold a transcript into per-turn rows. A message spans several lines; the last one has the final usage."""
+    turns = {}
+    boundaries = summaries = 0
+    for line in Path(path).read_text().splitlines():
+        try:
+            o = json.loads(line)
+        except ValueError:
+            continue
+        if o.get("isSidechain"):
+            continue
+        if o.get("isCompactSummary"):
+            summaries += 1
+        elif o.get("type") == "system" and o.get("subtype") == "compact_boundary":
+            boundaries += 1
+        if o.get("type") != "assistant":
+            continue
+        m = o.get("message") or {}
+        u = m.get("usage")
+        if not u or m.get("model") == "<synthetic>":
+            continue
+        key = m.get("id") or o.get("uuid")
+        turns[key] = {
+            "ts": parse_ts(o["timestamp"]), "model": m.get("model"),
+            "effort": o.get("effort") or m.get("effort"),
+            "ctx": u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0) + u.get("cache_creation_input_tokens", 0),
+            "write": u.get("cache_creation_input_tokens", 0), "out": u.get("output_tokens", 0),
+        }
+    rows = sorted(turns.values(), key=lambda t: t["ts"])
+    # one compaction may leave both a boundary and a summary line
+    return rows, max(boundaries, summaries)
+
+
+def summarize(path):
+    rows, compactions = read_session(path)
+    if not rows:
+        return None
+    expiries = sum(1 for a, b in zip(rows, rows[1:])
+                   if (b["ts"] - a["ts"]).total_seconds() > CACHE_TTL_S and b["write"] >= EXPIRY_MIN_WRITE)
+    last = rows[-1]
+    return {"model": last["model"], "effort": last["effort"] or "-", "turns": len(rows),
+            "peak": max(t["ctx"] for t in rows), "last": last["ctx"], "out": sum(t["out"] for t in rows),
+            "expiries": expiries, "compactions": compactions, "last_ts": last["ts"],
+            "window": window_for(last["model"])}
+
+
+def check(s, now=None):
+    now = now or datetime.now(timezone.utc)
+    pct = 100 * s["last"] / s["window"]
+    if s["compactions"] or pct > FRESH_PCT:
+        return "fresh"
+    if (now - s["last_ts"]).total_seconds() > CACHE_TTL_S and s["last"] > IDLE_CTX:
+        return "idle"
+    return None
+
+
+def table_rows(text):
+    return [[c.strip() for c in l.strip().strip("|").split("|")] for l in text.splitlines() if l.startswith("|")]
+
+
+def roster_sessions(roster):
+    rows = table_rows(roster.read_text())
+    if not rows or "Session" not in rows[0]:
+        return []
+    si, ai = rows[0].index("Session"), rows[0].index("Agent")
+    return [(r[ai], r[si]) for r in rows[2:] if len(r) > si and r[si]]
+
+
+def roster_get(roster, name):
+    rows = table_rows(roster.read_text())
+    col = {h: i for i, h in enumerate(rows[0])} if rows else {}
+    for r in rows[2:]:
+        if r and r[0] == name:
+            cell = lambda h: r[col[h]] if h in col and len(r) > col[h] else ""
+            return cell("Role"), cell("Scope"), cell("Session")
+
+
+def set_session(roster, name, session, role="", scope=""):
+    lines = roster.read_text().splitlines() if roster.exists() else []
+    out, header_seen, width, done = [], False, 0, False
+    for l in lines:
+        if not l.startswith("|"):
+            out.append(l)
+            continue
+        cells = [c.strip() for c in l.strip().strip("|").split("|")]
+        if not header_seen:
+            header_seen = True
+            if "Session" not in cells:
+                cells.append("Session")
+            width, si = len(cells), cells.index("Session")
+        elif set(l) <= set("|-: "):
+            cells = ["---"] * width
+        else:
+            cells += [""] * (width - len(cells))
+            if cells[0] == name:
+                cells[si], done = session, True
+        out.append("| " + " | ".join(cells) + " |")
+    if not header_seen:
+        sys.exit(f"no table in {roster}")
+    if not done:
+        row = [name, role, scope, "", "live"] + [""] * (width - 5)
+        row[si] = session
+        out.append("| " + " | ".join(row) + " |")
+    roster.write_text("\n".join(out) + "\n")
+
+
+def fmt_k(n):
+    return f"{n / 1000:.0f}k"
+
+
+def report(squad_dir):
+    entries = roster_sessions(squad_dir / "roster.md")
+    if not entries:
+        sys.exit("no session ids in roster.md")
+    head = ("agent", "model/effort", "turns", "peak ctx", "last ctx", "out", "expiries", "compactions")
+    body = []
+    for name, sid in entries:
+        path = find_transcript(sid)
+        s = summarize(path) if path else None
+        if not s:
+            body.append((name, "no transcript", "-", "-", "-", "-", "-", "-"))
+            continue
+        pct = lambda n: f"{fmt_k(n)} ({100 * n / s['window']:.0f}%)"
+        body.append((name, f"{s['model']}/{s['effort']}", s["turns"], pct(s["peak"]), pct(s["last"]),
+                     fmt_k(s["out"]), s["expiries"], s["compactions"]))
+    widths = [max(len(str(r[i])) for r in [head] + body) for i in range(len(head))]
+    for r in [head] + body:
+        print("  ".join(str(c).ljust(w) for c, w in zip(r, widths)).rstrip())
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--squad-dir")
+    p.add_argument("--check", metavar="SESSION")
+    p.add_argument("--transcript")
+    p.add_argument("--get", metavar="NAME")
+    p.add_argument("--set-session", nargs=2, metavar=("NAME", "SESSION"))
+    p.add_argument("--role", default="")
+    p.add_argument("--scope", default="")
+    a = p.parse_args()
+    # SQUAD_DIR alone is the legacy flat layout
+    squad_dir = a.squad_dir or os.environ.get("SCOPE_DIR") or os.environ.get("GOAL_DIR") or os.environ.get("SQUAD_DIR")
+
+    if a.check:
+        path = Path(a.transcript) if a.transcript else find_transcript(a.check)
+        s = summarize(path) if path and path.exists() else None
+        rule = check(s) if s else None
+        if rule:
+            print(rule)
+        return
+    if not squad_dir:
+        sys.exit("set SQUAD_DIR or pass --squad-dir")
+    if a.get:
+        row = roster_get(Path(squad_dir) / "roster.md", a.get)
+        if not row:
+            sys.exit(f"{a.get} is not in roster.md")
+        print("\t".join(row))
+        return
+    if a.set_session:
+        set_session(Path(squad_dir) / "roster.md", *a.set_session, role=a.role, scope=a.scope)
+        return
+    report(Path(squad_dir))
+
+
+if __name__ == "__main__":
+    main()

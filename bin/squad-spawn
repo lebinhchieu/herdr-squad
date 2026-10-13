@@ -6,77 +6,154 @@ usage() {
   cat <<'EOF'
 Usage: squad-spawn <role> <agent-name> [options]
 
-Roles: manager ba team-lead tech-lead qa-whitebox qa-blackbox dev
+Roles: manager ba team-lead tech-lead qa-whitebox qa-blackbox dev token-coach
 Name:  lowercase, [a-z][a-z0-9_-]{0,31}, e.g. ba-settings, dev-settings-1
 
 Options:
-  --scope S        Scope label, shown in the tab and passed as SQUAD_SCOPE
+  --squad NAME     Squad to join: <project>/.claude/squads/NAME (default: $SQUAD,
+                   else the only squad there)
+  --scope S        Scope the agent works in. In a per-scope squad (it has a scopes/ folder) this is
+                   <squad>/scopes/S, which must exist; the agent gets SCOPE_DIR, and GOAL_DIR when
+                   S's scope.md names a goal. In a flat squad it is only a label (SQUAD_SCOPE).
+  --goal G         Per-scope squads: spawn the Manager of goal G (GOAL_DIR=<squad>/goals/G, no worktree)
   --repo DIR       Git repo to branch from; the agent works in its own worktree
-                   <project>/.worktrees/<agent-name> on branch squad/<agent-name>
+                   <project>/.worktrees/<squad>/<agent-name> on branch squad/<squad>/<agent-name>
+                   (per-scope squads: .worktrees/<squad>/<scope>/<agent> on squad/<squad>/<scope>/<agent>)
+  --base REF       With --repo: start the new branch from REF (a passed branch or commit) instead of the
+                   repo's HEAD, so a task can build on work that is passed but not yet merged
+  --worktree DIR   Start in this existing worktree instead of making one (squad-respawn uses it so a
+                   respawned Developer keeps its worktree wherever the old layout put it)
   --prompt TEXT    First message to send once the session is ready
   --model M        Model override (default: the role file's model, else yours)
+  --effort E       Effort override (low|medium|high|xhigh|max; default: the role file's effort)
   --dry-run        Print what would run, start nothing
 
 Env:
-  SQUAD_DIR         Squad folder (default: <git toplevel>/squad)
+  SQUAD             Squad name, same as --squad
+  SQUAD_DIR         Squad folder, overrides --squad (must be <project>/.claude/squads/<name>)
   SQUAD_PLUGIN_DIR  Load the plugin from this dir with --plugin-dir (when not installed)
 EOF
 }
 
 [[ $# -lt 2 || $1 == -h || $1 == --help ]] && { usage; exit 2; }
 role=$1 name=$2; shift 2
-scope="" repo="" prompt="" model="" dry=0
+squad=${SQUAD:-} scope="" goal="" repo="" base="" worktree="" prompt="" model="" effort="" dry=0
 while [[ $# -gt 0 ]]; do
   case $1 in
+    --squad) squad=$2; shift 2 ;;
     --scope) scope=$2; shift 2 ;;
+    --goal) goal=$2; shift 2 ;;
     --repo) repo=$2; shift 2 ;;
+    --base) base=$2; shift 2 ;;
+    --worktree) worktree=$2; shift 2 ;;
     --prompt) prompt=$2; shift 2 ;;
     --model) model=$2; shift 2 ;;
+    --effort) effort=$2; shift 2 ;;
     --dry-run) dry=1; shift ;;
     *) echo "unknown option: $1" >&2; usage; exit 2 ;;
   esac
 done
 
-case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev) ;;
+case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach) ;;
   *) echo "unknown role: $role" >&2; exit 2 ;; esac
+[[ -z $base || -n $repo ]] || { echo "--base needs --repo" >&2; exit 2; }
 [[ $name =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { echo "bad agent name: $name (herdr needs [a-z][a-z0-9_-]{0,31})" >&2; exit 2; }
 [[ ${HERDR_ENV:-} == 1 ]] || { echo "not inside a herdr pane (HERDR_ENV != 1)" >&2; exit 1; }
 
 plugin_root=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
-squad_dir=${SQUAD_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/squad}
+if [[ -n ${SQUAD_DIR:-} ]]; then
+  squad_dir=$SQUAD_DIR
+else
+  squads_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/squads
+  if [[ -z $squad ]]; then
+    found=("$squads_root"/*/process.md)
+    [[ ${#found[@]} == 1 && -f ${found[0]} ]] || { echo "pick a squad with --squad (found: $(ls "$squads_root" 2>/dev/null | xargs))" >&2; exit 2; }
+    squad=$(basename "$(dirname "${found[0]}")")
+  fi
+  squad_dir=$squads_root/$squad
+fi
 squad_dir=$(readlink -f "$squad_dir")
 [[ -f $squad_dir/process.md ]] || { echo "no squad folder at $squad_dir (run /squad:squad-init)" >&2; exit 1; }
-project_dir=$(dirname "$squad_dir")
+squad=$(basename "$squad_dir")
+project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
+
+# Per-scope squads keep each agent's roster, notes and logs in its scope folder (a goal Manager: its goal folder).
+# A flat squad (no scopes/ folder; legacy flat layout) keeps them all in the squad folder.
+home=$squad_dir scope_dir="" goal_dir=""
+if [[ -d $squad_dir/scopes ]]; then
+  [[ -z $scope || -z $goal ]] || { echo "pass --scope or --goal, not both" >&2; exit 2; }
+  if [[ -n $goal ]]; then
+    [[ -z $repo ]] || { echo "a goal Manager has no worktree: drop --repo" >&2; exit 2; }
+    goal_dir=$squad_dir/goals/$goal home=$goal_dir
+    [[ -d $goal_dir ]] || { echo "no goal folder at $goal_dir (run squad-start)" >&2; exit 1; }
+  else
+    [[ -n $scope ]] || { echo "this squad is per-scope: pass --scope or --goal" >&2; exit 2; }
+    scope_dir=$squad_dir/scopes/$scope home=$scope_dir
+    [[ -d $scope_dir ]] || { echo "no scope folder at $scope_dir (run squad-start)" >&2; exit 1; }
+    in_goal=$(sed -n 's/^goal:[[:space:]]*//p' "$scope_dir/scope.md" 2>/dev/null | head -1 | tr -d '[:space:]')
+    if [[ -n $in_goal ]]; then
+      goal_dir=$squad_dir/goals/$in_goal
+      [[ -d $goal_dir ]] || { echo "scope $scope names goal $in_goal, but $goal_dir does not exist" >&2; exit 1; }
+    fi
+  fi
+fi
 
 # Project-tuned permissions first, plugin defaults as fallback.
 settings=$squad_dir/settings/$role.json
 [[ -f $settings ]] || settings=$plugin_root/templates/squad/settings/$role.json
 
 cwd=$project_dir
-if [[ -n $repo ]]; then
+if [[ -n $worktree ]]; then
+  [[ -d $worktree ]] || { echo "no worktree at $worktree" >&2; exit 1; }
+  cwd=$(readlink -f "$worktree")
+elif [[ -n $repo ]]; then
   repo=$(readlink -f "$repo")
-  wt=$project_dir/.worktrees/$name
+  wt=$project_dir/.worktrees/$squad/$name branch=squad/$squad/$name
+  [[ -z $scope_dir ]] || { wt=$project_dir/.worktrees/$squad/$scope/$name branch=squad/$squad/$scope/$name; }
   if [[ ! -d $wt ]]; then
-    if [[ $dry == 1 ]]; then echo "would run: git -C $repo worktree add $wt -b squad/$name"
-    else git -C "$repo" worktree add "$wt" -b "squad/$name" >&2; fi
+    if [[ $dry == 1 ]]; then echo "would run: git -C $repo worktree add $wt -b $branch ${base}"
+    else git -C "$repo" worktree add "$wt" -b "$branch" ${base:+"$base"} >&2; fi
   fi
   cwd=$wt
 fi
 
-claude_args=(--agent "squad:$role" --name "$name" --permission-mode auto --settings "$settings")
+# Role defaults come from the role file's frontmatter; --model/--effort override them.
+role_file=$plugin_root/agents/$role.md
+fm() { awk -v k="$1:" 'NR==1&&$0!="---"{exit} NR>1&&$0=="---"{exit} $1==k{print $2; exit}' "$role_file"; }
+[[ -n $model ]] || model=$(fm model)
+[[ -n $effort ]] || effort=$(fm effort)
+
+# Known up front so roster.md can point at the transcript <config dir>/projects/<cwd>/<session>.jsonl.
+session=$(python3 -c 'import uuid; print(uuid.uuid4())')
+
+claude_args=(--agent "squad:$role" --name "$name" --session-id "$session" --permission-mode auto --settings "$settings")
 [[ -n $model ]] && claude_args+=(--model "$model")
+[[ -n $effort ]] && claude_args+=(--effort "$effort")
 [[ -n ${SQUAD_PLUGIN_DIR:-} ]] && claude_args+=(--plugin-dir "$SQUAD_PLUGIN_DIR")
 
-env_args=(--env "SQUAD_DIR=$squad_dir" --env "SQUAD_NAME=$name" --env "SQUAD_ROLE=$role" --env "SQUAD_SCOPE=$scope")
+# Without --workspace herdr uses the focused workspace, which may not be the caller's.
+ws_args=()
+[[ -z ${HERDR_WORKSPACE_ID:-} ]] || ws_args=(--workspace "$HERDR_WORKSPACE_ID")
+
+env_args=(--env "SQUAD=$squad" --env "SQUAD_DIR=$squad_dir" --env "SQUAD_NAME=$name" --env "SQUAD_ROLE=$role" --env "SQUAD_SCOPE=$scope")
+[[ -z $scope_dir ]] || env_args+=(--env "SCOPE_DIR=$scope_dir")
+[[ -z $goal_dir ]] || env_args+=(--env "GOAL_DIR=$goal_dir")
 [[ -n ${SQUAD_PLUGIN_DIR:-} ]] && env_args+=(--env "SQUAD_PLUGIN_DIR=$SQUAD_PLUGIN_DIR")
 
 if [[ $dry == 1 ]]; then
-  echo "would run: herdr tab create --cwd $cwd --label $name --no-focus ${env_args[*]}"
+  echo "would run: herdr tab create --cwd $cwd --label $name --no-focus ${ws_args[*]} ${env_args[*]}"
+  echo "would run: squad-usage --squad-dir $home --set-session $name $session --role $role --scope $scope"
   echo "would run: herdr agent start $name --kind claude --pane <pane> -- ${claude_args[*]}"
   exit 0
 fi
 
-tab_json=$(herdr tab create --cwd "$cwd" --label "$name" --no-focus "${env_args[@]}")
+# Agents are addressed by bare name, so a second live agent with this name would be unreachable or misrouted.
+if herdr agent get "$name" >/dev/null 2>&1; then
+  echo "an agent named $name is already live; pick another name (include the squad name)" >&2
+  exit 1
+fi
+
+tab_json=$(herdr tab create --cwd "$cwd" --label "$name" --no-focus "${ws_args[@]}" "${env_args[@]}")
 pane=$(jq -r '.result.root_pane.pane_id' <<<"$tab_json")
 tab=$(jq -r '.result.tab.tab_id' <<<"$tab_json")
 
@@ -87,7 +164,9 @@ herdr agent start "$name" --kind claude --pane "$pane" --timeout 120000 -- "${cl
   exit 1
 }
 
+"$plugin_root/bin/squad-usage" --squad-dir "$home" --set-session "$name" "$session" --role "$role" --scope "$scope"
+
 [[ -n $prompt ]] && herdr agent prompt "$name" "$prompt" >/dev/null
 
-jq -n --arg name "$name" --arg role "$role" --arg scope "$scope" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" \
-  '{name:$name, role:$role, scope:$scope, tab:$tab, pane:$pane, cwd:$cwd, status:"ready"}'
+jq -n --arg name "$name" --arg role "$role" --arg scope "$scope" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" --arg session "$session" \
+  '{name:$name, role:$role, scope:$scope, tab:$tab, pane:$pane, cwd:$cwd, session:$session, status:"ready"}'
