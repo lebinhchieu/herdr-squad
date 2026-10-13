@@ -15,8 +15,8 @@
   #board-text { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden;
     clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
   #board-text ul { margin: 0; padding: 0; list-style: none; }
-  /* BRD-16: sits at the left end of the bar's reserved right 360 px (BAR_RESERVED_RIGHT) */
-  #alerts-button { position: fixed; top: 22px; right: 258px; width: 112px; box-sizing: border-box;
+  /* BRD-16: sits left of the picker and the ↓ live button (BAR_RESERVED_RIGHT) */
+  #alerts-button { position: fixed; top: 22px; right: 320px; width: 112px; box-sizing: border-box;
     font: 700 13px system-ui, -apple-system, "Segoe UI", sans-serif; border: 0; border-radius: 8px;
     padding: 7px 0; cursor: pointer; background: #E8820E; color: #FFFFFF; }
 </style>
@@ -269,7 +269,7 @@ function computeLayout(current, width, height) {
 // The needs-you bar, the pod bands and the column header cards. The right 360 px of the bar are
 // kept free for the iteration picker and the live button (BRD-14), with the connection text at
 // the far right.
-const BAR_RESERVED_RIGHT = 360;
+const BAR_RESERVED_RIGHT = 440;
 const ITEM_GAP = 28;
 const ITEM_MIN_W = 90;
 
@@ -1034,7 +1034,7 @@ const PANEL_W = 360;
 const PANEL_TOP = 176;
 const PANEL_CLIP = 140;
 const PANEL_LAST = 3;
-const PANEL_TYPE_COLOUR = { ASK: P.blue, ANSWER: '#4A8FE0', BLOCKED: P.red, DECISION: P.yellow, HANDIN: P.purple,
+const PANEL_TYPE_COLOUR = { ASK: P.blue, ANSWER: ANSWER_BLUE, BLOCKED: P.red, DECISION: P.yellow, HANDIN: P.purple,
   PASS: P.green, FAIL: P.pink, STATUS: P.muted };
 const PANEL_NO_TOKEN = 'Jump needs the token: open the board from the URL squad-board printed (it ends in ?token=…).';
 const PANEL_RETIRED = 'This agent is retired: there is no pane to jump to.';

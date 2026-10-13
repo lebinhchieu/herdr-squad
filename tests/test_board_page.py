@@ -244,8 +244,8 @@ class PageFixtureTest(PageFixtureCase):
 
     def test_a_task_at_two_returns_and_the_other_states(self):
         st = self.srv.state()
-        # exactly 2 once BRD-18 (one return per FAIL fan-out) is merged; this branch is based before it
-        self.assertTrue(max(t["returns"] for t in st["tasks"]) >= 2)
+        self.assertEqual(max(t["returns"] for t in st["tasks"]), 2)  # one return per HANDIN (BRD-18)
+        self.assertEqual([t["state"] for t in st["tasks"] if t["returns"] == 2], ["returned"])
         self.assertEqual({t["state"] for t in st["tasks"]}, {"blocked", "building", "checking", "returned", "done"})
 
     def test_each_fail_of_the_returned_task_goes_to_three_recipients_within_a_second(self):

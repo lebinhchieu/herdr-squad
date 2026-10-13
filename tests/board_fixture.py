@@ -65,9 +65,15 @@ class Server:
         return json.loads(body)
 
     def stderr(self):
-        self._stderr_file.flush()
-        self._stderr_file.seek(0)
-        return self._stderr_file.read().decode("utf-8", "replace")
+        # pread leaves the shared file offset alone: a seek here would make the child overwrite earlier lines
+        fd = self._stderr_file.fileno()
+        chunks, offset = [], 0
+        while True:
+            chunk = os.pread(fd, 65536, offset)
+            if not chunk:
+                return b"".join(chunks).decode("utf-8", "replace")
+            chunks.append(chunk)
+            offset += len(chunk)
 
     def stop(self):
         if self.proc.poll() is None:

@@ -506,12 +506,25 @@ class PermissionTest(AlertsCase):
         self.assertEqual((self.title(), self.rec()["notes"], self.chimes(), self.errors()),
                          ("(2) squad board", [], 1, []))
 
+    def test_the_alerts_button_sits_left_of_the_bar_controls_at_every_width(self):
+        self.srv = self.fx.start()
+        for width in (1280, 1600, 1920):
+            self.browser.open(self.srv.base + "/", init=stubs(permission="default"), width=width)
+            boxes = self.browser.eval(  # the ↓ live button only shows while paused: force it, it is the widest case
+                "(() => { document.querySelector('#live-button').hidden = false;"
+                "const r = (s) => { const b = document.querySelector(s).getBoundingClientRect();"
+                "return [b.left, b.top, b.right, b.bottom]; };"
+                "return {alerts: r('#alerts-button'), controls: r('#bar-controls')}; })()")
+            alerts, controls = boxes["alerts"], boxes["controls"]
+            self.assertLess(alerts[2], controls[0], (width, boxes))
+            self.assertLessEqual(controls[2], width - 16, (width, boxes))
+
     def test_the_button_is_on_the_bar_and_not_in_the_hidden_text_mirror(self):
         self.start(permission="default")
         box = self.browser.eval("(() => { const r = document.querySelector('#alerts-button').getBoundingClientRect();"
                                 "return [r.left, r.top, r.right, r.bottom, !!document.querySelector('#board-text #alerts-button')]; })()")
         self.assertFalse(box[4])
-        self.assertTrue(box[0] >= 1280 - 16 - 360 and box[2] <= 1280 - 16 and 14 <= box[1] and box[3] <= 14 + 46, box)
+        self.assertTrue(box[0] >= 1280 - 16 - 440 and box[2] <= 1280 - 16 and 14 <= box[1] and box[3] <= 14 + 46, box)
         self.assertTrue(self.browser.eval(  # the button, not the canvas, is what a click at its middle reaches
             "(() => { const r = document.querySelector('#alerts-button').getBoundingClientRect();"
             "return document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2).id === 'alerts-button'; })()"))
