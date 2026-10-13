@@ -60,7 +60,8 @@ TOKEN_REFRESH_S = env_seconds("SQUAD_BOARD_TOKEN_REFRESH_S", 30)
 
 UNLISTED_POD = "(unlisted)"
 ITERATION_RE = re.compile(r"[0-9]{1,6}")
-STATUS_FOR_EVENT = {"working": "working", "blocked": "blocked", "idle": "idle", "done": "idle"}
+STATUS_FOR_EVENT = {"working": "working", "blocked": "blocked", "idle": "idle", "done": "idle",
+                    "waiting": "waiting"}
 
 
 class BadRequest(Exception):
@@ -183,7 +184,8 @@ def read_logs(squad_dir):
         agent = text_or_none(rec.get("agent"))
         if agent:
             activity.append({"ts": rec["ts"], "agent": agent, "status": text_or_none(rec.get("status")),
-                             "iteration": int_or_none(rec.get("iteration"))})
+                             "iteration": int_or_none(rec.get("iteration")),
+                             "detail": text_or_none(rec.get("detail"))})
     return messages, activity
 
 
@@ -196,7 +198,7 @@ def is_manager(role):
 def make_column(agent, role, pod, retired, status, notes):
     return {"agent": agent, "role": role, "pod": pod, "status": status, "retired": retired,
             "notes_path": "roles/%s.notes.md" % agent if agent in notes else None,
-            "working_s": 0, "blocked_s": 0, "wakes": 0,
+            "working_s": 0, "blocked_s": 0, "waiting_s": 0, "wakes": 0,
             "context_tokens": None, "tokens_in": None, "tokens_out": None, "model": None}
 
 
@@ -270,7 +272,7 @@ FOLD_GAP_S = 180    # D5: a longer quiet stretch between two visible rows folds 
 WAKE_WINDOW_S = 2   # D7: the hook can stamp `working` just before the message that woke the agent
 MICROS = 10 ** 6
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
-BAR_STATUSES = ("working", "blocked", "idle", "done")
+BAR_STATUSES = ("working", "blocked", "idle", "done", "waiting")
 
 
 def micros(ts):
@@ -284,8 +286,8 @@ def whole_seconds(start_us, end_us):
     return max(0, (end_us - start_us) // MICROS)
 
 
-def open_segment(bar):
-    seg = bar["blocked"][-1] if bar["blocked"] else None
+def open_segment(bar, kind="blocked"):
+    seg = bar[kind][-1] if bar[kind] else None
     return seg if seg is not None and seg["end_us"] is None else None
 
 
@@ -313,15 +315,17 @@ class TimelineBuilder:
         row, us, iteration = self.rows[row_index]
         bar = {"agent": agent, "start": row_index, "end": None, "start_ts": row["ts"], "end_ts": None,
                "start_us": us, "end_us": None, "self_start": self_start, "iteration": iteration,
-               "blocked": []}
+               "blocked": [], "waiting": []}
         self.open[agent] = bar
         self.bars.append(bar)
 
     def close_segment(self, bar, row_index):
-        seg = open_segment(bar)
-        if seg is not None:
-            row, us, _ = self.rows[row_index]
-            seg.update(end=row_index, end_ts=row["ts"], end_us=us)
+        """Closes the open blocked and the open waiting segment, whichever there is."""
+        for kind in ("blocked", "waiting"):
+            seg = open_segment(bar, kind)
+            if seg is not None:
+                row, us, _ = self.rows[row_index]
+                seg.update(end=row_index, end_ts=row["ts"], end_us=us)
 
     def message(self, rec, us):
         row = {"kind": "message", "ts": rec["ts"], "from": rec["from"], "to": rec["to"],
@@ -340,7 +344,7 @@ class TimelineBuilder:
             if agent in live_agents:
                 continue
             end_us, end_ts = self.last[agent]
-            for seg in bar["blocked"]:
+            for seg in bar["blocked"] + bar["waiting"]:
                 if seg["end_us"] is None:
                     seg.update(end_ts=end_ts, end_us=end_us)
             bar.update(end_ts=end_ts, end_us=end_us)
@@ -355,15 +359,31 @@ class TimelineBuilder:
             if bar is None:
                 if not woken_by_message:
                     self.start_bar(agent, self.add_row(row, rec, us), True)
-            elif open_segment(bar) is not None:
+            elif open_segment(bar) is not None or open_segment(bar, "waiting") is not None:
                 self.close_segment(bar, self.add_row(row, rec, us))
         elif status == "blocked":
             if bar is not None and open_segment(bar) is not None:
                 return
             index = self.add_row(row, rec, us)
+            if bar is not None:
+                self.close_segment(bar, index)  # blocked wins: a waiting segment ends here
             self.start_bar(agent, index, True)
             self.open[agent]["blocked"].append({"start": index, "end": None, "start_ts": rec["ts"],
                                                 "end_ts": None, "start_us": us, "end_us": None})
+        elif status == "waiting":
+            detail = rec.get("detail")
+            current = open_segment(bar, "waiting") if bar is not None else None
+            if current is not None and current["detail"] == detail:
+                return
+            if detail:
+                row["detail"] = detail
+            index = self.add_row(row, rec, us)
+            if bar is not None:
+                self.close_segment(bar, index)
+            self.start_bar(agent, index, True)
+            self.open[agent]["waiting"].append({"start": index, "end": None, "start_ts": rec["ts"],
+                                                "end_ts": None, "start_us": us, "end_us": None,
+                                                "detail": detail})
         elif bar is not None:
             row["duration_s"] = whole_seconds(bar["start_us"], us)
             index = self.add_row(row, rec, us)
@@ -416,16 +436,23 @@ def finish_bar(bar, ids, now_us):
     """A bar as the state shows it. A row that is not visible in this iteration becomes null;
     its timestamp stays, so the bar is closed, not open."""
     end_us = bar["end_us"] if bar["end_us"] is not None else now_us
-    segments = []
-    for seg in bar["blocked"]:
-        seg_end = seg["end_us"] if seg["end_us"] is not None else now_us
-        segments.append({"start_row": ids.get(seg["start"]), "end_row": ids.get(seg["end"]),
-                         "start_ts": seg["start_ts"], "end_ts": seg["end_ts"],
-                         "duration_s": whole_seconds(seg["start_us"], seg_end)})
+    def segments_of(kind):
+        shown = []
+        for seg in bar[kind]:
+            seg_end = seg["end_us"] if seg["end_us"] is not None else now_us
+            item = {"start_row": ids.get(seg["start"]), "end_row": ids.get(seg["end"]),
+                    "start_ts": seg["start_ts"], "end_ts": seg["end_ts"],
+                    "duration_s": whole_seconds(seg["start_us"], seg_end)}
+            if kind == "waiting":
+                item["detail"] = seg["detail"]
+            shown.append(item)
+        return shown
+
+    segments = segments_of("blocked")
     return {"agent": bar["agent"], "start_row": ids.get(bar["start"]), "end_row": ids.get(bar["end"]),
             "start_ts": bar["start_ts"], "end_ts": bar["end_ts"], "self_start": bar["self_start"],
             "open": bar["end_us"] is None, "duration_s": whole_seconds(bar["start_us"], end_us),
-            "blocked": segments}
+            "blocked": segments, "waiting": segments_of("waiting")}
 
 
 def derive_timeline(messages, activity, columns, now, selected_iteration, lowest_iteration=None,
@@ -438,13 +465,14 @@ def derive_timeline(messages, activity, columns, now, selected_iteration, lowest
     if live_agents is not None:
         builder.close_retired(live_agents)
     rows, ids = fold_rows(builder.rows, selected_iteration)
-    agents = dict((c["agent"], {"working_s": 0, "blocked_s": 0, "wakes": 0}) for c in columns)
+    agents = dict((c["agent"], {"working_s": 0, "blocked_s": 0, "waiting_s": 0, "wakes": 0}) for c in columns)
     bars = []
     for bar in builder.bars:
         shown = finish_bar(bar, ids, now_us)
-        totals = agents.setdefault(bar["agent"], {"working_s": 0, "blocked_s": 0, "wakes": 0})
+        totals = agents.setdefault(bar["agent"], {"working_s": 0, "blocked_s": 0, "waiting_s": 0, "wakes": 0})
         totals["working_s"] += shown["duration_s"]
         totals["blocked_s"] += sum(seg["duration_s"] for seg in shown["blocked"])
+        totals["waiting_s"] += sum(seg["duration_s"] for seg in shown["waiting"])
         totals["wakes"] += 0 if bar["self_start"] else 1
         if selected_iteration is None or bar["iteration"] == selected_iteration:
             bars.append(shown)
@@ -769,7 +797,7 @@ def build_state(squad_dir, now=None, selected_iteration=None, live=False):
     else:
         tokens = read_tokens(columns, session_map(), live_roots())
     for col in columns:
-        for key in ("working_s", "blocked_s", "wakes"):
+        for key in ("working_s", "blocked_s", "waiting_s", "wakes"):
             col[key] = timeline["agents"].get(col["agent"], {}).get(key, col[key])
         for key in ("context_tokens", "tokens_in", "tokens_out", "model"):
             col[key] = tokens.get(col["agent"], {}).get(key, col[key])
@@ -794,7 +822,14 @@ ROSTER_REREAD_S = env_seconds("SQUAD_BOARD_ROSTER_REREAD_S", 1)
 HERDR_SOCKET_TIMEOUT_S = 5
 MAX_FRAME_BYTES = 8 << 20  # a longer frame is dropped unread; a snapshot of a big squad is a few KB
 # What the board shows. herdr's `unknown` says nothing the timeline uses, so it is not recorded.
-RECORDED_STATUSES = ("working", "idle", "blocked", "done")
+RECORDED_STATUSES = ("working", "idle", "blocked", "done", "waiting")
+WAIT_POLL_S = env_seconds("SQUAD_BOARD_WAIT_POLL_S", 5)
+READ_ID = "squad-board:read"
+# Claude's mode line ends with what still runs in the background: `· ← 1 agent`, `· 2 monitors`,
+# `1 shell still running`. Order is the order of `detail` when several are there.
+BACKGROUND_PATTERNS = (("shell", re.compile(r"\b\d+ shells? still running")),
+                       ("monitor", re.compile(r"\b\d+ monitors?\b")),
+                       ("agent", re.compile(r"\u2190 \d+ agents?\b")))
 SNAPSHOT_ID = "squad-board:snapshot"
 SUBSCRIBE_ID = "squad-board:subscribe"
 
@@ -883,6 +918,29 @@ def herdr_snapshot(socket_path):
             and isinstance(a.get("pane_id"), str)]
 
 
+def parse_background(text):
+    """`shell`, `monitor` or `agent` when the last non-empty line of a pane's text says background
+    work runs, else None. Only that line counts: the same words in the conversation above are no
+    indicator."""
+    lines = [line for line in (text or "").splitlines() if line.strip()]
+    if not lines:
+        return None
+    return next((kind for kind, pattern in BACKGROUND_PATTERNS if pattern.search(lines[-1])), None)
+
+
+def herdr_read_text(socket_path, name):
+    """The last visible lines of an agent's pane (read-only), on a connection of its own."""
+    sock = herdr_connect(socket_path)
+    try:
+        result = herdr_call(sock, FrameReader(sock), READ_ID, "agent.read",
+                            {"target": name, "source": "visible", "lines": 3})
+    finally:
+        sock.close()
+    read = result.get("read")
+    text = read.get("text") if isinstance(read, dict) else None
+    return text if isinstance(text, str) else ""
+
+
 def herdr_subscribe(socket_path, pane_ids):
     """One status subscription per pane (herdr insists on a pane id) plus pane creation and closing. Returns
     `(socket, FrameReader)` once herdr has acknowledged, so a snapshot taken next misses nothing."""
@@ -932,8 +990,11 @@ class Recorder:
         self.reported = False    # the current outage already has its stderr line
         self.write_error = None  # the write error already printed, until a write succeeds
         self.delay = RECONNECT_BASE_S
+        self.lock = threading.RLock()  # the event loop and the poller both write; this orders them
+        self.last_recorded = {}        # agent -> (status, detail) of the last record written or seen at sync
 
     def run(self):
+        threading.Thread(target=self.poll_loop, name="wait-poller", daemon=True).start()
         while True:
             try:
                 self.session()
@@ -976,9 +1037,14 @@ class Recorder:
             self.subscribed = panes
         set_sessions(dict((name, sid) for name, _, _, sid in agents if sid))
         last = last_statuses(self.log_path)
-        for name, _, status, _ in agents:
-            if status in RECORDED_STATUSES and last.get(name) != status and self.rostered(name):
-                self.append(name, status)
+        with self.lock:
+            for name, state in last.items():
+                self.last_recorded[name] = (state, None)
+            for name, _, status, _ in agents:
+                # `waiting` is ours: only the poller clears it, so herdr's idle is no change to record
+                same = last.get(name) == status or (last.get(name) == "waiting" and status in ("idle", "done"))
+                if status in RECORDED_STATUSES and not same and self.rostered(name):
+                    self.append(name, status)
         # herdr sends no idle when a pane closes. Only a snapshot that listed an agent pane is proof
         # that the others are gone; an empty one may be a herdr that has not loaded yet.
         if agents:
@@ -1007,7 +1073,62 @@ class Recorder:
         if name is None:
             return self.sync()  # a pane we never saw: the snapshot says what it is, and records it
         if self.rostered(name):
+            if status in ("idle", "done"):
+                # read first: an idle that hides background work would end the bar, and waiting follow it
+                detail = self.background_of(name)
+                if detail:
+                    with self.lock:
+                        if self.last_recorded.get(name) != ("waiting", detail):
+                            self.append(name, "waiting", detail)
+                    return
             self.append(name, status)
+
+    def background_of(self, name):
+        """What runs in the background in `name`'s pane, or None (also when it cannot be read)."""
+        try:
+            return parse_background(herdr_read_text(self.socket_path, name))
+        except (OSError, RuntimeError, ValueError, ConnectionError):
+            return None
+
+    def poll_loop(self):
+        """Own thread, own connections: the event loop blocks on its socket with no timeout."""
+        delay, reported = RECONNECT_BASE_S, False
+        while True:
+            time.sleep(WAIT_POLL_S if not reported else delay)
+            try:
+                self.poll()
+            except Exception as e:  # herdr unreachable: back off, one stderr line per outage
+                if not reported:
+                    reported = True
+                    reason = " ".join(str(e).split())[:200] or type(e).__name__
+                    print("squad-board: herdr unavailable for the wait poll (%s); retrying" % reason,
+                          file=sys.stderr, flush=True)
+                delay = min(delay * 2, RECONNECT_CAP_S) if reported else delay
+            else:
+                delay, reported = RECONNECT_BASE_S, False
+
+    def poll(self):
+        """One tick: a snapshot, then one read per rostered pane herdr calls idle or done."""
+        for name, _, status, _ in herdr_snapshot(self.socket_path):
+            if status not in ("idle", "done") or not self.rostered(name):
+                continue
+            with self.lock:
+                before = self.last_recorded.get(name)
+            try:
+                text = herdr_read_text(self.socket_path, name)
+            except (OSError, RuntimeError, ValueError):
+                continue  # one unreadable pane writes nothing and stops nothing
+            detail = parse_background(text)
+            with self.lock:
+                if self.last_recorded.get(name) != before:
+                    continue  # the event loop wrote meanwhile: its record is newer than our read
+                if detail:
+                    if before == ("waiting", None):
+                        self.last_recorded[name] = ("waiting", detail)  # seen at sync, kind unknown: adopt it
+                    elif before != ("waiting", detail):
+                        self.append(name, "waiting", detail)
+                elif before is not None and before[0] == "waiting":
+                    self.append(name, "idle")
 
     def rostered(self, name):
         """E3. The roster is read again only for a name it lacks, and at most every ROSTER_REREAD_S."""
@@ -1018,10 +1139,12 @@ class Recorder:
                 self.roster = set(row["agent"] for row in read_squad(self.squad_dir)["roster"])
         return name in self.roster
 
-    def append(self, name, status):
+    def append(self, name, status, detail=None):
         """One record, one write, under the lock the hook's writer takes too (E5)."""
         record = {"ts": event_stamp(), "agent": name, "status": status,
                   "iteration": highest_iteration(self.squad_dir)}
+        if detail:
+            record["detail"] = detail
         line = (json.dumps(record) + "\n").encode("utf-8")
         try:
             fd = os.open(str(self.log_path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
@@ -1040,6 +1163,8 @@ class Recorder:
                 print("squad-board: cannot write activity.jsonl: %s" % reason, file=sys.stderr, flush=True)
         else:
             self.write_error = None
+            with self.lock:
+                self.last_recorded[name] = (status, detail)
 
 
 def start_recorder(squad_dir, socket_path):

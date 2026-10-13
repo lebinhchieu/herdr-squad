@@ -11,7 +11,7 @@ from board_fixture import BIN, Fixture
 
 TOP_KEYS = {"now", "iterations", "iteration", "selected_iteration", "pods", "columns", "rows",
             "bars", "tasks", "needs_you", "live"}
-COLUMN_KEYS = {"agent", "role", "pod", "status", "retired", "notes_path", "working_s", "blocked_s",
+COLUMN_KEYS = {"agent", "role", "pod", "status", "retired", "notes_path", "working_s", "blocked_s", "waiting_s",
                "wakes", "context_tokens", "tokens_in", "tokens_out", "model"}
 NOW = "2026-10-12T12:00:00Z"
 
@@ -50,7 +50,7 @@ class StateContractTest(BoardCase):
         col = self.column(self.state(), "dev-board-1")
         self.assertEqual(col, {
             "agent": "dev-board-1", "role": "Developer", "pod": "board", "status": "idle",
-            "retired": False, "notes_path": None, "working_s": 0, "blocked_s": 0, "wakes": 0,
+            "retired": False, "notes_path": None, "working_s": 0, "blocked_s": 0, "waiting_s": 0, "wakes": 0,
             "context_tokens": None, "tokens_in": None, "tokens_out": None, "model": None})
 
     def test_empty_log_gives_empty_row_bar_task_and_needs_you_lists(self):
