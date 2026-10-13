@@ -6,6 +6,8 @@
       Text starting with "goal:" is a goal: goals/<name>/ and a goal Manager.
   squad-start "<text>" --in-goal G --name N [--touches ...]
       A scope inside goal G: scopes/N/ with `goal: G`. No Manager; the goal Manager runs it.
+  squad-start --resume NAME
+      A new Manager for an existing scope or goal whose Manager is gone. Its files are not touched.
 
 The name is the first ticket id in the text (SEC-04 -> sec04), else a short slug; --name overrides it.
 --touches lists the repos or paths the work changes. If it overlaps an open scope's `touches:` the script lists
@@ -81,9 +83,41 @@ def render(template_dir, target, values):
         f.write_text(text)
 
 
+def resume(squad, a):
+    if a.text or a.in_goal or a.name:
+        die("--resume takes only the name of an existing scope or goal", 2)
+    for kind, base in (("goal", "goals"), ("scope", "scopes")):
+        target = squad / base / a.resume
+        if target.is_dir():
+            break
+    else:
+        die(f"no open scope or goal named {a.resume} in {squad}")
+    if kind == "scope":
+        m = re.search(r"(?m)^goal:[ \t]*(\S+)", (target / "scope.md").read_text()) if (target / "scope.md").exists() else None
+        if m:
+            die(f"scope {a.resume} belongs to goal {m.group(1)} and is run by that goal's Manager: squad-start --resume {m.group(1)}")
+    manager = f"{squad.name}-mgr-{a.resume}"
+    home_var = "GOAL_DIR" if kind == "goal" else "SCOPE_DIR"
+    prompt = (f"RESPAWN: you are {manager}, restarted for {kind} {a.resume}. Read $SQUAD_DIR/process.md, then your notes "
+              f"${home_var}/roles/{manager}.notes.md if it exists, then the brief and the roster, and continue where the files say.")
+    spawn = [str(PLUGIN / "bin" / "squad-spawn"), "manager", manager, "--goal" if kind == "goal" else "--scope", a.resume, "--prompt", prompt]
+    if a.dry_run:
+        print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
+        return
+    r = subprocess.run(spawn, env={**os.environ, "SQUAD_DIR": str(squad)}, capture_output=True, text=True)
+    if r.returncode != 0:
+        die(f"could not start the Manager:\n{r.stderr.strip()}")
+    try:
+        tab = json.loads(r.stdout).get("tab")
+    except ValueError:
+        tab = None
+    print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab}))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("text")
+    p.add_argument("text", nargs="?")
+    p.add_argument("--resume", metavar="NAME")
     p.add_argument("--name")
     p.add_argument("--touches", default="")
     p.add_argument("--in-goal")
@@ -100,6 +134,10 @@ def main():
             "Set up a new squad with /squad:squad-init" if (squad / "roster.md").exists()
             else f"{squad} has no scopes/ folder; run /squad:squad-init")
 
+    if a.resume:
+        return resume(squad, a)
+    if not a.text:
+        die("give the task as text, or --resume NAME", 2)
     m = re.match(r"\s*goal:\s*(.*)", a.text, re.I | re.S)
     if m and a.in_goal:
         die("a goal cannot be started inside a goal", 2)

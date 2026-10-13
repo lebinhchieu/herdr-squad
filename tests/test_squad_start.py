@@ -139,6 +139,37 @@ class StartTest(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertFalse((self.squad / "scopes" / "one").exists())
 
+    def test_resume_starts_a_new_manager_for_an_existing_scope_without_touching_its_files(self):
+        self.start("Fix it", "--name", "one", "--touches", "a")
+        sc = self.squad / "scopes" / "one"
+        (sc / "tasks" / "T-1.md").write_text("keep me")
+        self.log.unlink()
+        r = self.start("--resume", "one")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["manager"], "t-mgr-one")
+        self.assertEqual((sc / "tasks" / "T-1.md").read_text(), "keep me")
+        h = self.herdr()
+        self.assertIn(f"SCOPE_DIR={sc}", h)
+        prompt = next(l for l in h.splitlines() if l.startswith("agent prompt"))
+        self.assertIn("RESPAWN", prompt)
+        self.assertIn("roles/t-mgr-one.notes.md", prompt)
+
+    def test_resume_a_goal_uses_goal_dir(self):
+        self.start("goal: Rebuild", "--name", "g1", "--touches", "wpfe")
+        self.log.unlink()
+        r = self.start("--resume", "g1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"GOAL_DIR={self.squad / 'goals' / 'g1'}", self.herdr())
+
+    def test_resume_refuses_a_scope_that_belongs_to_a_goal_unknown_names_and_extra_text(self):
+        self.start("goal: Rebuild", "--name", "g1", "--touches", "wpfe")
+        self.start("Tabs", "--in-goal", "g1", "--name", "s1", "--touches", "wpfe/tabs", "--yes")
+        r = self.start("--resume", "s1")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("g1", r.stderr)
+        self.assertNotEqual(self.start("--resume", "nope").returncode, 0)
+        self.assertNotEqual(self.start("text", "--resume", "g1").returncode, 0)
+
     def test_dry_run_creates_nothing(self):
         r = self.start("x", "--name", "one", "--touches", "z", "--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
