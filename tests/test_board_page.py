@@ -398,6 +398,8 @@ class Browser:
     def open(self, url, **kw):
         self.call("open", url=url, **kw)
         self.wait(LIVE_JS)
+        # the state is in the mirror one frame before it is on the canvas
+        self.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
 
     def eval(self, js):
         return self.call("eval", js=js)
@@ -451,6 +453,24 @@ def colour_near(histogram, wanted, tolerance):
                if all(abs(int(hex_[i:i + 2], 16) - t) <= tolerance for i, t in zip((0, 2, 4), target)))
 
 
+# leftmost and rightmost x (CSS px) of the pixels within `tolerance` of a colour in a rectangle, or None
+EXTENT_JS = """((x0, y0, x1, y1, hex, tol) => {
+  const c = document.getElementById('board'), ctx = c.getContext('2d'), r = c.width / c.clientWidth;
+  const w = Math.round((x1 - x0) * r), h = Math.round((y1 - y0) * r);
+  const d = ctx.getImageData(Math.round(x0 * r), Math.round(y0 * r), w, h).data;
+  const want = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  let lo = null, hi = null;
+  for (let px = 0; px < w; px++) for (let py = 0; py < h; py++) {
+    const i = (py * w + px) * 4;
+    if ([0, 1, 2].every((k) => Math.abs(d[i + k] - want[k]) <= tol)) { if (lo === null) lo = px; hi = px; }
+  }
+  return lo === null ? null : [x0 + lo / r, x0 + (hi + 1) / r];
+})(%s)"""
+TEXT_WIDTH_JS = """(() => { const c = document.createElement('canvas').getContext('2d');
+  c.font = %s; return c.measureText(%s).width; })()"""
+FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif'
+
+
 class BrowserTestCase(PageFixtureCase):
     browser = None
 
@@ -476,6 +496,13 @@ class BrowserTestCase(PageFixtureCase):
 
     def pixels(self, x0, y0, x1, y1):
         return self.browser.eval(PIXELS_JS % ", ".join(str(v) for v in (x0, y0, x1, y1)))
+
+    def extent(self, x0, y0, x1, y1, colour, tolerance):
+        return self.browser.eval(EXTENT_JS % ", ".join([str(x0), str(y0), str(x1), str(y1),
+                                                         json.dumps(colour), str(tolerance)]))
+
+    def text_width(self, font, text):
+        return self.browser.eval(TEXT_WIDTH_JS % (json.dumps(font), json.dumps(text)))
 
     def small_server(self, developer_status="idle", waiting=False):
         """Two agents. By default nothing is working, blocked or waiting, so nothing animates."""
@@ -633,7 +660,7 @@ class PageTest(BrowserTestCase):
     def test_header_totals_are_compact_with_a_one_minute_floor_and_hours_as_h_mm(self):
         fx = Fixture()
         self.addCleanup(fx.close)
-        durations = {"dev-shop-1": 30, "dev-shop-2": 59 * 60 + 59, "dev-shop-3": 3600, "dev-shop-4": 7260,
+        durations = {"dev-shop-1": 1, "dev-shop-2": 59 * 60 + 59, "dev-shop-3": 3600, "dev-shop-4": 7260,
                      "dev-shop-5": 0}
         fx.roster([{"agent": "manager", "role": "Manager", "scope": "all"}] + [{"agent": a} for a in durations])
         fx.iteration(1, QUIET_CHECKIN)
@@ -772,9 +799,10 @@ class LookTest(BrowserTestCase):
     def test_a_blocked_total_paints_red_inside_the_card_and_other_cards_do_not(self):
         self.browser.open(self.url())
         left, width = self.card("dev-shop-3")
-        self.assertGreater(colour_near(self.pixels(left + width / 2, 128, left + width - 6, 143), "DB3B22", 25), 5)
+        # the digits at the right end, clear of the emoji, which brings its own colour
+        self.assertGreater(colour_near(self.pixels(left + width - 20, 128, left + width - 6, 143), "DB3B22", 25), 5)
         left, width = self.card("tech-shop")
-        self.assertEqual(colour_near(self.pixels(left + width / 2, 128, left + width - 6, 143), "DB3B22", 25), 0)
+        self.assertEqual(colour_near(self.pixels(left + width - 20, 128, left + width - 6, 143), "DB3B22", 25), 0)
 
     def test_working_and_blocked_cards_pulse_a_ring_and_idle_cards_have_none(self):
         self.browser.open(self.url())
@@ -820,13 +848,152 @@ class LookTest(BrowserTestCase):
         left, width = self.card("tech-shop")
         self.assertGreater(colour_near(self.pixels(left + 6, 128, left + 40, 143), "0C8A80", 40), 20)
         left, width = self.card("dev-auth-1")
-        self.assertGreater(colour_near(self.pixels(left + width - 20, 148, left + width - 4, 160), "A99C86", 40), 3)
+        self.assertGreater(colour_near(self.pixels(left + width - 20, 148, left + width - 4, 160), "A99C86", 12), 3)
+        left, width = self.card("tech-shop")  # a known count is the darker muted ink, not the idle grey
+        self.assertEqual(colour_near(self.pixels(left + width - 30, 148, left + width - 4, 160), "A99C86", 12), 0)
+        self.assertGreater(colour_near(self.pixels(left + width - 30, 148, left + width - 4, 160), "857A68", 12), 3)
 
     def test_the_page_is_not_dark(self):
         self.browser.open(self.url())
         histogram = self.pixels(0, 600, 1000, 700)
         dark = sum(c for hex_, c in histogram.items() if sum(int(hex_[i:i + 2], 16) for i in (0, 2, 4)) < 3 * 128)
         self.assertEqual(dark, 0)
+
+
+class CanvasDetailTest(BrowserTestCase):
+    """The rules behind the layout and the paint that no other test pins down."""
+
+    def test_a_retired_agent_is_a_stub_only_when_no_row_or_bar_involves_it(self):
+        fx = Fixture()
+        self.addCleanup(fx.close)
+        fx.roster([{"agent": "manager", "role": "Manager", "scope": "all"}, {"agent": "live-quiet"},
+                   {"agent": "gone-status", "status": "retired 2026-10-11"},
+                   {"agent": "gone-sender", "status": "retired 2026-10-11"},
+                   {"agent": "gone-receiver", "status": "retired 2026-10-11"},
+                   {"agent": "gone-nothing", "status": "retired 2026-10-11"}])
+        fx.iteration(1, QUIET_CHECKIN)
+        fx.activity(agent="manager", status="idle")
+        fx.activity(agent="gone-status", status="working")
+        fx.activity(agent="gone-status", status="idle")
+        fx.message(**{"from": "gone-sender", "to": "manager"})
+        fx.message(**{"from": "manager", "to": "gone-receiver"})
+        self.browser.open(self.url(fx.start(now=self.now)))
+        flags = {c["data"]["agent"]: c["data"]["collapsed"] for c in self.mirror()["columns"]}
+        self.assertEqual(flags, {"manager": "false", "live-quiet": "false", "gone-status": "false",
+                                 "gone-sender": "false", "gone-receiver": "false", "gone-nothing": "true"})
+
+    def test_pod_bands_meet_at_the_column_edge(self):
+        self.browser.open(self.url())
+        pods = self.srv.state()["pods"]
+        for index, colour in ((1, "0C8A80"), (2, "2A6DC0")):
+            x = self.card(pods[index]["agents"][0])[0] - 4 + 10  # ten px into the pod, past the previous band
+            blend = [round(base * 0.93 + int(colour[i:i + 2], 16) * 0.07)
+                     for base, i in ((0xFC, 0), (0xF8, 2), (0xF1, 4))]
+            hist = self.pixels(x, 700, x + 2, 702)
+            self.assertEqual(colour_near(hist, "%02X%02X%02X" % tuple(blend), 2), 4, index)
+
+    def test_the_mirror_lists_every_pod_with_its_size(self):
+        self.browser.open(self.url())
+        expected = [(p["name"] + (" \u00b7 " + p["size"] if p["size"] else ""), p["name"], p["size"] or "")
+                    for p in self.srv.state()["pods"]]
+        shown = [(n["text"], n["data"]["pod"], n["data"]["size"]) for n in self.mirror()["pods"]]
+        self.assertEqual(shown, expected)
+
+    def test_a_pod_label_is_upper_case_and_carries_the_size(self):
+        self.browser.open(self.url())
+        pod = self.srv.state()["pods"][1]
+        left = self.card(pod["agents"][0])[0] - 4 + 14
+        label = pod["name"].upper() + " \u00b7 " + pod["size"].upper()
+        wanted = self.text_width('800 11.5px ' + FONT, label)
+        found = self.extent(left - 2, 82, left + 200, 96, "0C8A80", 40)
+        self.assertAlmostEqual(found[1] - left, wanted, delta=3)
+
+    def test_the_tasks_card_is_titled(self):
+        self.browser.open(self.url())
+        self.assertGreater(colour_near(self.pixels(1066, 80, 1110, 100), "A99C86", 30), 20)
+
+    def test_a_rail_is_dashed(self):
+        self.browser.open(self.url())
+        left, width = self.card("tech-shop")
+        centre = left + width / 2
+        painted = colour_near(self.pixels(centre - 1, 300, centre + 1, 500), "D6CCBC", 20)
+        self.assertTrue(30 < painted < 150, painted)  # of 400 pixels: dashes, not a solid line
+
+    def test_the_mirror_is_in_the_page_flow_not_removed_from_it(self):
+        self.browser.open(self.url())
+        box = self.browser.eval("(() => { const m = document.getElementById('board-text');"
+                                " return [getComputedStyle(m).display, m.offsetWidth, m.offsetHeight]; })()")
+        self.assertEqual(box, ["block", 1, 1])
+
+    def test_a_waiting_item_pulses_a_halo_that_changes_over_time(self):
+        self.browser.open(self.url())
+        seen = set()
+        for _ in range(8):
+            seen.add(tuple(sorted(self.pixels(54, 36, 56, 38).items())))
+            self.browser.call("sleep", ms=250)
+        self.assertGreater(len(seen), 1)
+        self.assertEqual(colour_near(self.pixels(54, 36, 56, 38), "FFFDF9", 12), 0)
+        self.browser.open(self.url(self.quiet_server()))
+        self.assertEqual(colour_near(self.pixels(54, 36, 56, 38), "FFFDF9", 2), 4)
+
+    def test_many_changes_in_one_frame_ask_for_one_frame(self):
+        self.browser.open(self.url(self.quiet_server()))
+        self.browser.call("sleep", ms=500)
+        before = self.browser.eval("window.__raf")
+        self.browser.eval("for (let i = 0; i < 50; i++) window.dispatchEvent(new Event('resize'))")
+        self.browser.call("sleep", ms=300)
+        self.assertLessEqual(self.browser.eval("window.__raf") - before, 2)
+
+    def test_scrolling_sideways_redraws_a_quiet_page(self):
+        self.browser.open(self.url(self.quiet_server()), width=300)
+        # the first card's dot; the second column hides under the task card at this width
+        self.assertEqual(colour_near(self.pixels(32, 115, 34, 117), "A99C86", 6), 4)
+        self.browser.eval("window.scrollTo(50, 0)")
+        self.browser.wait("window.scrollX === 50")
+        self.browser.call("sleep", ms=200)
+        self.assertEqual(colour_near(self.pixels(32, 115, 34, 117), "A99C86", 6), 0)
+
+    def test_before_the_first_state_the_bar_says_loading_and_afterwards_what_is_waiting(self):
+        self.browser.call("open", url=self.url(), failFirst=2)
+        self.browser.wait(RECONNECTING_JS)
+        self.browser.call("sleep", ms=200)
+        loading = self.text_width('800 17px ' + FONT, "Loading\u2026")
+        found = self.extent(60, 22, 420, 50, "857A68", 40)
+        self.assertAlmostEqual(found[1] - 66, loading, delta=3)
+        self.browser.wait(LIVE_JS, timeout=15000)
+        self.browser.open(self.url(self.quiet_server()))
+        nothing = self.text_width('800 17px ' + FONT, "Nothing is waiting on you")
+        found = self.extent(60, 22, 420, 50, "857A68", 40)
+        self.assertAlmostEqual(found[1] - 66, nothing, delta=3)
+
+    def test_a_long_name_is_cut_inside_its_card(self):
+        self.browser.open(self.url())
+        for entry in self.mirror()["columns"]:
+            agent = entry["data"]["agent"]
+            if entry["data"]["collapsed"] == "true":
+                continue
+            left, width = self.card(agent)
+            gap = self.pixels(left + width + 1, 106, left + width + 4, 126)
+            self.assertEqual(colour_near(gap, "3E372E", 80), 0, agent)
+
+    def test_a_narrow_card_shrinks_both_totals_so_they_do_not_overlap(self):
+        fx = Fixture()
+        self.addCleanup(fx.close)
+        fx.roster([{"agent": "manager", "role": "Manager", "scope": "all"}, {"agent": "dev-shop-1"}])
+        fx.iteration(1, QUIET_CHECKIN)
+        fx.activity(agent="manager", status="idle", ts="2026-10-10T00:00:00.000Z")
+        for status, ts in (("working", "2026-10-10T00:00:00.000Z"), ("blocked", "2026-10-10T01:00:00.000Z"),
+                           ("idle", "2026-10-10T02:05:00.000Z")):
+            fx.activity(agent="dev-shop-1", status=status, ts=ts)
+        # 420 px: the second column is as narrow as it gets and still clear of the task card
+        self.browser.open(self.url(fx.start(now=self.now)), width=420)
+        text = self.mirror()["columns"][1]["text"]
+        self.assertIn("\u23f1 2h05", text)  # working counts the blocked hour too
+        self.assertIn("\u26d4 1h05", text)
+        left, width = 16 + 87 + 4, 87 - 8
+        teal = self.extent(left, 128, left + width, 143, "0C8A80", 40)
+        red = self.extent(left, 128, left + width, 143, "DB3B22", 40)
+        self.assertLess(teal[1], red[0])
 
 
 class SafetyTest(BrowserTestCase):
@@ -900,6 +1067,18 @@ class ReconnectTest(BrowserTestCase):
         self.fx.start(now=self.now, port=port)
         self.browser.wait(LIVE_JS, timeout=15000)
         self.assertEqual(self.mirror()["count"], "3")
+
+    def test_a_failed_stream_is_closed_so_the_browser_does_not_retry_on_its_own(self):
+        self.browser.open(self.url())
+        port = self.srv.port
+        before = len(self.browser.call("events")["requests"])
+        self.srv.stop()
+        self.browser.wait(RECONNECTING_JS)
+        self.browser.call("sleep", ms=5500)  # our attempts: +1 s and +3 s; the browser's own would be +3 s each
+        urls = [u.replace(self.srv.base, "") for u in self.browser.call("events")["requests"][before:]]
+        self.assertEqual(len([u for u in urls if u.startswith("/events")]), 2, urls)
+        self.fx.start(now=self.now, port=port)
+        self.browser.wait(LIVE_JS, timeout=15000)
 
     def test_a_state_request_that_fails_at_load_is_retried(self):
         self.browser.call("open", url=self.url(), failFirst=2)

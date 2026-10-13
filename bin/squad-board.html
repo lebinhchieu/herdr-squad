@@ -53,7 +53,6 @@ const EMPTY_STATE = { iterations: [], iteration: null, selected_iteration: null,
 let state = EMPTY_STATE;
 let loaded = false;
 let layout = null;
-let stream = null;
 let reconnecting = false;
 let retryMs = RETRY_FIRST_MS;
 let retryTimer = null;
@@ -90,9 +89,7 @@ async function loadState() {
 // EventSource would retry on its own every few seconds; the backoff and the visible
 // "reconnecting" state are ours, so a failed stream is closed and reopened here.
 function connectStream(iteration) {
-  if (stream) stream.close();
   const source = new EventSource('/events' + (iteration === null ? '' : '?iteration=' + iteration));
-  stream = source;
   source.addEventListener('state', (ev) => {
     retryMs = RETRY_FIRST_MS;
     setReconnecting(false);
@@ -100,7 +97,6 @@ function connectStream(iteration) {
   });
   source.onerror = () => {
     source.close();
-    stream = null;
     retryLater(() => connectStream(iteration));
   };
 }
@@ -113,7 +109,6 @@ function retryLater(attempt) {
 }
 
 function setReconnecting(on) {
-  if (reconnecting === on) return;
   reconnecting = on;
   renderConnection();
   scheduleDraw();
@@ -426,7 +421,7 @@ function drawTotals(ctx, from, to, y, col) {
   const blocked = col.blocked_s > 0 ? '\u26d4 ' + fmtTotal(col.blocked_s) : '';
   let size = 11;
   ctx.font = '700 ' + size + 'px ' + FONT;
-  while (size > 8.5 && ctx.measureText(working).width + ctx.measureText(blocked).width + 4 > to - from) {
+  while (size > 7 && ctx.measureText(working).width + ctx.measureText(blocked).width + 4 > to - from) {
     size -= 0.5;
     ctx.font = '700 ' + size + 'px ' + FONT;
   }
@@ -489,7 +484,8 @@ function updateFollow(previous, next) {
 }
 
 // --- section: picker ---
-// BRD-14: the iteration picker and the replay banner.
+// BRD-14: the iteration picker and the replay banner. Switching iteration reopens the stream:
+// connectStream keeps no handle yet, so BRD-14 keeps one and closes the old stream first.
 function setupPicker(current) {
 }
 
@@ -522,9 +518,9 @@ function item(text, attributes) {
 }
 
 function renderConnection() {
-  const status = reconnecting ? 'reconnecting' : loaded ? 'live' : 'loading';
+  const status = reconnecting ? 'reconnecting' : 'live';
   connectionLine.setAttribute('data-state', status);
-  connectionLine.textContent = status === 'reconnecting' ? 'Reconnecting…' : status === 'live' ? 'Connected' : 'Loading';
+  connectionLine.textContent = reconnecting ? 'Reconnecting…' : 'Connected';
 }
 
 function mirrorNeedsYou(current) {
@@ -557,6 +553,9 @@ function renderMirror(current) {
   mirrorColumns(current);
 }
 
+// paint the empty board at once, so an unreachable server shows "reconnecting" and not a blank page
+relayout();
+scheduleDraw();
 loadState();
 })();
 </script>
