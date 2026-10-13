@@ -826,11 +826,11 @@ MAX_FRAME_BYTES = 8 << 20  # a longer frame is dropped unread; a snapshot of a b
 RECORDED_STATUSES = ("working", "idle", "blocked", "done", "waiting")
 WAIT_POLL_S = env_seconds("SQUAD_BOARD_WAIT_POLL_S", 5)
 READ_ID = "squad-board:read"
-# Claude's mode line ends with what still runs in the background: `· ← 1 agent`, `· 2 monitors`,
-# `1 shell still running`. Order is the order of `detail` when several are there.
+# Claude's mode line ends with what still runs in the background: `· 2 monitors`,
+# `1 shell still running`. Order is the order of `detail` when several are there. `← N agents` is not
+# one of them: every live pane carries `← 1 agent` all the time, so it says nothing about waiting.
 BACKGROUND_PATTERNS = (("shell", re.compile(r"\b\d+ shells? still running")),
-                       ("monitor", re.compile(r"\b\d+ monitors?\b")),
-                       ("agent", re.compile(r"\u2190 \d+ agents?\b")))
+                       ("monitor", re.compile(r"\b\d+ monitors?\b")))
 SNAPSHOT_ID = "squad-board:snapshot"
 SUBSCRIBE_ID = "squad-board:subscribe"
 

@@ -424,20 +424,21 @@ class ParseBackgroundTest(unittest.TestCase):
         cls.parse = staticmethod(load_board().parse_background)
 
     def test_each_kind_of_background_work_is_found_on_the_mode_line(self):
-        for sample, kind in (("agent-1", "agent"), ("monitor-1", "monitor"), ("shell-1", "shell"),
-                             ("plural", "monitor"), ("blank-lines", "agent")):
+        for sample, kind in (("monitor-1", "monitor"), ("shell-1", "shell"),
+                             ("plural", "monitor"), ("blank-lines", "monitor")):
             with self.subTest(sample=sample):
                 self.assertEqual(self.parse(pane(sample)), kind)
 
     def test_no_indicator_when_the_line_has_none_or_the_words_are_above_it(self):
-        for sample in ("none", "working-no-indicator", "words-above", "empty"):
+        for sample in ("none", "agent-1", "working-no-indicator", "words-above", "empty"):
             with self.subTest(sample=sample):
                 self.assertIsNone(self.parse(pane(sample)))
         self.assertIsNone(self.parse(None))
 
-    def test_the_first_kind_in_the_order_shell_monitor_agent_wins(self):
+    def test_the_first_kind_in_the_order_shell_monitor_wins(self):
         self.assertEqual(self.parse("x\n  mode · ← 1 agent · 2 monitors · 1 shell still running\n"), "shell")
-        self.assertEqual(self.parse("x\n  mode · ← 1 agent · 2 monitors\n"), "monitor")
+        self.assertEqual(self.parse("x\n  mode · 2 monitors · ← 1 agent\n"), "monitor")
+        self.assertIsNone(self.parse("x\n  mode · ← 3 agents\n"))
 
 
 class WaitingPollTest(LiveCase):
@@ -465,12 +466,17 @@ class WaitingPollTest(LiveCase):
         self.assertEqual(self.waits(), [("waiting", "monitor")])
 
     def test_a_cleared_indicator_appends_one_idle(self):
-        self.begin(text=pane("agent-1"))
-        wait_until(lambda: self.waits() == [("waiting", "agent")], "the waiting record")
+        self.begin(text=pane("monitor-1"))
+        wait_until(lambda: self.waits() == [("waiting", "monitor")], "the waiting record")
         self.fake.set_text("manager", pane("none"))
         wait_until(lambda: len(self.waits()) == 2, "the idle record")
         self.ticks()
-        self.assertEqual(self.waits(), [("waiting", "agent"), ("idle", None)])
+        self.assertEqual(self.waits(), [("waiting", "monitor"), ("idle", None)])
+
+    def test_the_standing_agent_marker_alone_never_makes_an_idle_pane_waiting(self):
+        self.begin(text=pane("agent-1"))
+        self.ticks()
+        self.assertEqual(self.waits(), [])
 
     def test_a_working_pane_is_never_read(self):
         self.begin(status="working", text=pane("monitor-1"))
