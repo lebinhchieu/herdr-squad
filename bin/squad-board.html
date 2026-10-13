@@ -1222,6 +1222,7 @@ async function fetchFullText(msgId) {
     if (res.ok) entry = { state: 'ok', text: await res.text() };
   } catch (e) { /* the failed state says it */ }
   panelFull.set(msgId, entry);
+  if (entry.state === 'failed') panelExpanded.delete(msgId);  // the button reads show more again: one click retries
   scheduleDraw();
 }
 
@@ -1238,7 +1239,7 @@ function panelMessage(row, agent) {
   const open = panelExpanded.has(row.msg_id);
   panelEl('span', li, open && !row.text_clipped ? text : open && full && full.state === 'ok' ? full.text : row.text_clipped ? panelClip(text) + (text.length <= PANEL_CLIP ? '…' : '') : panelClip(text));
   if (open && full && full.state === 'loading') panelEl('span', li, ' loading…').style.color = P.muted;
-  if (open && full && full.state === 'failed') panelEl('span', li, ' full text not available').style.color = P.muted;
+  if (full && full.state === 'failed') panelEl('span', li, ' full text not available').style.color = P.muted;
   if (text.length > PANEL_CLIP || row.text_clipped) {
     const more = panelEl('button', li, open ? 'show less' : 'show more');
     more.type = 'button';

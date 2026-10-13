@@ -660,7 +660,8 @@ class UntrustedTextTest(PanelCase):
         shown = self.panel()["messages"][-1]
         self.assertNotIn("THE-END-OF-IT-20CHARS", shown)
         self.assertIn("A" * 100, shown)
-        self.assertIn("show less", shown)  # the button stays; a click on it shows the clip, the next one retries
+        self.assertIn("show more", shown)  # one click retries
+        self.assertNotIn("show less", shown)
 
     def test_the_whole_text_is_fetched_and_its_last_20_characters_show(self):
         self.fx.message(**{"from": "dev-shop-4", "to": "qaw-shop", "type": "HANDIN", "task": "CART-96",
