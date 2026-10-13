@@ -4,6 +4,8 @@ Every test runs the real `bin/squad-board` with no `--replay`, `SQUAD_DIR` on a 
 `HERDR_SOCKET_PATH` on a fake herdr (tests/fake_herdr.py). `HOME` is a temp dir, so nothing real is read.
 """
 import fcntl
+import importlib.machinery
+import importlib.util
 import json
 import os
 import re
@@ -28,7 +30,7 @@ NOW_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 STARTUP_RE = re.compile(r"^squad-board: http://127\.0\.0\.1:([0-9]+)/\?token=([A-Za-z0-9_-]{22})$")
 TOP_KEYS = {"now", "iterations", "iteration", "selected_iteration", "pods", "columns", "rows",
             "bars", "tasks", "needs_you", "live"}
-COLUMN_KEYS = {"agent", "role", "pod", "status", "retired", "notes_path", "working_s", "blocked_s",
+COLUMN_KEYS = {"agent", "role", "pod", "status", "retired", "notes_path", "working_s", "blocked_s", "waiting_s",
                "wakes", "context_tokens", "tokens_in", "tokens_out", "model"}
 OUTAGE = "herdr unavailable"
 MANAGER = {"agent": "manager", "role": "Manager", "scope": "all"}
@@ -395,6 +397,137 @@ class InitialSyncTest(LiveCase):
         self.fake.wait_ready(2)
         base = len(self.records())
         self.assertEqual(self.barrier(base), [("manager", "blocked", None)])
+
+
+PANES = Path(__file__).resolve().parent / "fixtures" / "board" / "panes"
+
+
+def load_board():
+    """bin/squad-board as a module, for its pure functions."""
+    sys.dont_write_bytecode = True  # no bin/__pycache__ next to the script
+    loader = importlib.machinery.SourceFileLoader("squad_board_under_test", str(BIN))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def pane(name):
+    return (PANES / (name + ".txt")).read_text()
+
+
+class ParseBackgroundTest(unittest.TestCase):
+    """BRD-29 AC 1: the samples in tests/fixtures/board/panes decide."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.parse = staticmethod(load_board().parse_background)
+
+    def test_each_kind_of_background_work_is_found_on_the_mode_line(self):
+        for sample, kind in (("monitor-1", "monitor"), ("shell-1", "shell"),
+                             ("plural", "monitor"), ("blank-lines", "monitor")):
+            with self.subTest(sample=sample):
+                self.assertEqual(self.parse(pane(sample)), kind)
+
+    def test_no_indicator_when_the_line_has_none_or_the_words_are_above_it(self):
+        for sample in ("none", "agent-1", "working-no-indicator", "words-above", "empty"):
+            with self.subTest(sample=sample):
+                self.assertIsNone(self.parse(pane(sample)))
+        self.assertIsNone(self.parse(None))
+
+    def test_the_first_kind_in_the_order_shell_monitor_wins(self):
+        self.assertEqual(self.parse("x\n  mode · ← 1 agent · 2 monitors · 1 shell still running\n"), "shell")
+        self.assertEqual(self.parse("x\n  mode · 2 monitors · ← 1 agent\n"), "monitor")
+        self.assertIsNone(self.parse("x\n  mode · ← 3 agents\n"))
+
+
+class WaitingPollTest(LiveCase):
+    """BRD-29: a poller turns `idle` plus a background indicator into `waiting`."""
+    POLL = {"SQUAD_BOARD_WAIT_POLL_S": "0.1"}
+
+    def begin(self, status="idle", text="", agents=("manager",), poll=True):
+        for name in agents:
+            self.add_agent(name, status=status)
+        for name in agents:
+            self.fake.set_text(name, text)
+        return self.start(env=self.POLL if poll else {"SQUAD_BOARD_WAIT_POLL_S": "3600"})
+
+    def waits(self):
+        return [(r["status"], r.get("detail")) for r in self.records() if r["agent"] == "manager"][1:]
+
+    def ticks(self, count=3):
+        reads = len(self.fake.reads)
+        wait_until(lambda: len(self.fake.reads) >= reads + count or self.fake.snapshots > 40, "poll ticks")
+
+    def test_a_tick_with_an_indicator_appends_one_waiting_and_a_second_tick_none(self):
+        self.begin(text=pane("monitor-1"))
+        wait_until(lambda: self.waits(), "the waiting record")
+        self.ticks()
+        self.assertEqual(self.waits(), [("waiting", "monitor")])
+
+    def test_a_cleared_indicator_appends_one_idle(self):
+        self.begin(text=pane("monitor-1"))
+        wait_until(lambda: self.waits() == [("waiting", "monitor")], "the waiting record")
+        self.fake.set_text("manager", pane("none"))
+        wait_until(lambda: len(self.waits()) == 2, "the idle record")
+        self.ticks()
+        self.assertEqual(self.waits(), [("waiting", "monitor"), ("idle", None)])
+
+    def test_the_standing_agent_marker_alone_never_makes_an_idle_pane_waiting(self):
+        self.begin(text=pane("agent-1"))
+        self.ticks()
+        self.assertEqual(self.waits(), [])
+
+    def test_a_working_pane_is_never_read(self):
+        self.begin(status="working", text=pane("monitor-1"))
+        time.sleep(0.6)
+        self.assertEqual(self.fake.reads, [])
+        self.assertEqual(self.waits(), [])
+
+    def test_an_idle_event_with_the_indicator_on_the_pane_appends_waiting_not_idle(self):
+        self.begin(status="working", text=pane("shell-1"), poll=False)
+        self.fake.set_text("manager", pane("shell-1"))
+        self.fake.emit_status(self.panes["manager"], "idle")
+        wait_until(lambda: self.waits(), "the record")
+        time.sleep(0.2)
+        self.assertEqual(self.waits(), [("waiting", "shell")])
+
+    def test_an_idle_event_without_an_indicator_appends_idle(self):
+        self.begin(status="working", text=pane("none"), poll=False)
+        self.fake.emit_status(self.panes["manager"], "idle")
+        wait_until(lambda: self.waits(), "the record")
+        self.assertEqual(self.waits(), [("idle", None)])
+
+    def test_a_restart_sync_with_last_waiting_and_herdr_idle_appends_nothing(self):
+        self.fx.activity(agent="manager", status="waiting", iteration=None)
+        self.add_agent("manager", status="idle", seed=False)
+        self.start(env={"SQUAD_BOARD_WAIT_POLL_S": "3600"})
+        self.fake.wait_ready()
+        time.sleep(0.3)
+        self.assertEqual([r["status"] for r in self.records()], ["waiting"])
+
+    def test_an_unrostered_pane_is_never_read_or_written(self):
+        self.begin(text=pane("none"), agents=("manager",))
+        self.add_agent("stranger", status="idle", rostered=False)
+        self.fake.set_text("stranger", pane("monitor-1"))
+        self.fake.emit_created(self.panes["stranger"])
+        time.sleep(0.6)
+        self.assertNotIn("stranger", self.fake.reads)
+        self.assertEqual([r["agent"] for r in self.records()], ["manager"])
+
+    def test_a_failed_read_writes_nothing_and_the_poller_goes_on(self):
+        self.begin(text=pane("monitor-1"), agents=("manager", "tech-board"))
+        self.fake.read_error.add("manager")
+        wait_until(lambda: [r for r in self.records() if r["agent"] == "tech-board" and r["status"] == "waiting"],
+                   "the other pane's waiting record")
+        self.assertEqual([r for r in self.records() if r["agent"] == "manager" and r["status"] == "waiting"], [])
+        self.fake.read_error.clear()
+        wait_until(lambda: self.waits(), "the record once the read works")
+
+    def test_the_interval_comes_from_the_environment(self):
+        self.begin(text=pane("none"), poll=False)  # 3600 s: after the start there is no tick
+        time.sleep(0.5)
+        self.assertEqual(self.fake.reads, [])
 
 
 class ClosedPaneTest(LiveCase):

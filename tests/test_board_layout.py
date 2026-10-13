@@ -21,12 +21,12 @@ NOW = "2026-10-12T12:00:00Z"
 TOP_KEYS = {"now", "iterations", "iteration", "selected_iteration", "pods", "columns", "rows", "bars",
             "tasks", "needs_you", "live"}
 POD_KEYS = {"name", "size", "agents"}
-COLUMN_KEYS = {"agent", "role", "pod", "status", "retired", "notes_path", "working_s", "blocked_s", "wakes",
+COLUMN_KEYS = {"agent", "role", "pod", "status", "retired", "notes_path", "working_s", "blocked_s", "waiting_s", "wakes",
                "context_tokens", "tokens_in", "tokens_out", "model"}
 ROW_KEYS = {"message": {"id", "kind", "ts", "from", "to", "type", "task", "text", "msg_id"},
-            "status": {"id", "kind", "ts", "agent", "status", "duration_s"},
+            "status": {"id", "kind", "ts", "agent", "status", "duration_s", "detail"},
             "gap": {"id", "kind", "ts", "seconds", "from_ts", "to_ts"}}
-BAR_KEYS = {"agent", "start_row", "end_row", "start_ts", "end_ts", "self_start", "open", "duration_s", "blocked"}
+BAR_KEYS = {"agent", "start_row", "end_row", "start_ts", "end_ts", "self_start", "open", "duration_s", "blocked", "waiting"}
 SEGMENT_KEYS = {"start_row", "end_row", "start_ts", "end_ts", "duration_s"}
 TASK_KEYS = {"id", "state", "returns", "last_ts", "last_type"}
 NEEDS_KEYS = {"id", "kind", "text", "agent", "since"}

@@ -55,6 +55,9 @@ class FakeHerdr:
         self.log = []            # ("snapshot",) and ("subscribe", [subscription, ...]) in arrival order
         self.odd_agents = []     # raw entries added to the snapshot's agents[], as given
         self.stray = b""         # raw bytes sent ahead of every reply: frames that are not that reply
+        self.pane_text = {}      # agent name -> what `agent.read` returns for it ("" when not set)
+        self.reads = []          # names `agent.read` was asked for, in order
+        self.read_error = set()  # names whose `agent.read` gets an error reply
         self.ready_marks = 0     # snapshots that came after a subscribe: the recorder's sync is done
         self._since_subscribe = False
         self._lock = threading.Condition()
@@ -68,6 +71,10 @@ class FakeHerdr:
         with self._lock:
             self.rows.append({"name": name, "pane_id": pane_id, "status": status, "session": session})
         return pane_id
+
+    def set_text(self, name, text):
+        with self._lock:
+            self.pane_text[name] = text
 
     def set_status(self, pane_id, status):
         """Change what the next snapshot says, without an event (a change nobody was told about)."""
@@ -246,6 +253,19 @@ class FakeHerdr:
                 self._lock.notify_all()
             self._send(stream, self.stray + json.dumps({"id": req_id, "result": {"type": "subscription_started"}}).encode() + b"\n")
             return True
+        if method == "agent.read":
+            params = request.get("params", {})
+            name = params.get("target")
+            with self._lock:
+                self.reads.append(name)
+                text = self.pane_text.get(name, "")
+                failing = name in self.read_error
+            if failing:
+                conn.sendall(self._error(req_id, "agent not readable"))
+                return False
+            read = {"pane_id": "wA:p0", "source": params.get("source"), "text": text, "truncated": True}
+            conn.sendall(json.dumps({"id": req_id, "result": {"type": "agent_read", "read": read}}).encode() + b"\n")
+            return False
         conn.sendall(self._error(req_id, "unknown method"))
         return False
 

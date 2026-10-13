@@ -1,0 +1,3 @@
+  squad-board(squad-board-spec *) 🧠 40% 🔥 4m57s 🎯 99% ⏳ 5m ⏰ 41% 📅 90% ⏳ 06:00 2h 42m
+  🤖 Sonnet 5.5 ⚡ High 🧵 👤 user 🔖 manager
+  ⏵⏵ auto mode on · 1 monitor · ← 1 agent

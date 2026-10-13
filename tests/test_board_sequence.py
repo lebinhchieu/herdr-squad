@@ -226,7 +226,7 @@ class MirrorTest(SequenceCase):
                 "agent": bar["agent"], "startRow": str(bar["start_row"]),
                 "endRow": "" if bar["end_row"] is None else str(bar["end_row"]),
                 "selfStart": mirror_value(bar["self_start"]), "open": mirror_value(bar["open"]),
-                "blockedSegments": str(len(bar["blocked"]))})
+                "blockedSegments": str(len(bar["blocked"])), "waitingSegments": str(len(bar["waiting"]))})
             text = ("⏱ " if bar["open"] else "") + duration(bar["duration_s"])
             self.assertEqual(mirrored["text"], ("⟲ " if bar["self_start"] else "") + text)
         self.assertTrue([b for b in shown if b["text"].startswith("⟲")])
@@ -417,7 +417,7 @@ class BarTest(SequenceCase):
     def test_a_bar_that_starts_and_ends_on_one_row_is_still_drawn(self):
         patch = """
           state.bars.push({agent: 'tech-shop', start_row: 5, end_row: 5, start_ts: state.now, end_ts: state.now,
-                           self_start: false, open: false, duration_s: 0, blocked: []});
+                           self_start: false, open: false, duration_s: 0, waiting: [], blocked: []});
           return state;"""
         self.browser.call("openPatched", url=self.url(), patch=patch)
         self.browser.wait(page.LIVE_JS)
@@ -459,7 +459,7 @@ class OpenBarTest(SequenceCase):
         bar = [b for b in self.srv.state()["bars"] if b["open"] and b["blocked"]][0]
         x = self.cx(bar["agent"])
         y = 180 + 30 * (len(self.srv.state()["rows"]) - 1) + 15 + 15 + 2 - self.browser.eval("window.scrollY")
-        self.assertGreater(page.colour_near(self.pixels(x - 5, y - 5, x + 5, y + 5), "DB3B22", 60), 5)  # blocked: red dot
+        self.assertGreater(page.colour_near(self.pixels(x - 5, y - 5, x + 5, y + 5), "DB3B22", 60), 5)  # waiting: [], blocked: red dot
 
     def test_the_pill_sits_right_of_the_rail_and_flips_left_only_where_the_tasks_card_is_in_the_way(self):
         self.browser.open(self.url())
@@ -757,10 +757,10 @@ class WindowTest(SequenceCase):
       state.bars = [];
       for (let i = 10; i < %d - 8; i += 10) {
         state.bars.push({agent: 'tech-shop', start_row: i, end_row: i + 4, start_ts: '2026-10-12T10:00:00.000Z',
-                         end_ts: '2026-10-12T10:00:01.000Z', self_start: false, open: false, duration_s: 4, blocked: []});
+                         end_ts: '2026-10-12T10:00:01.000Z', self_start: false, open: false, duration_s: 4, waiting: [], blocked: []});
       }
       state.bars.push({agent: 'manager', start_row: 0, end_row: null, start_ts: '2026-10-12T10:00:00.000Z', end_ts: null,
-                     self_start: true, open: true, duration_s: 10, blocked: [{start_row: 3, end_row: null,
+                     self_start: true, open: true, duration_s: 10, waiting: [], blocked: [{start_row: 3, end_row: null,
                      start_ts: '2026-10-12T10:00:00.000Z', end_ts: null, duration_s: 5}]});
       return state;"""
 
@@ -890,7 +890,7 @@ class EdgeTest(SequenceCase):
                          task: 'T-G', text: 'x', msg_id: 'ghost-1'};
           state.rows.push(ghost, {id: ghost.id + 1, kind: 'status', ts: state.now, agent: 'ghost', status: 'working'});
           state.bars.push({agent: 'ghost', start_row: 0, end_row: null, start_ts: state.now, end_ts: null,
-                           self_start: true, open: true, duration_s: 1, blocked: []});
+                           self_start: true, open: true, duration_s: 1, waiting: [], blocked: []});
           return state;"""
         self.browser.call("openPatched", url=self.url(), patch=patch)
         self.browser.wait(page.LIVE_JS)
@@ -901,7 +901,7 @@ class EdgeTest(SequenceCase):
     def test_bar_rows_outside_the_row_list_are_clamped(self):
         patch = """
           state.bars.push({agent: 'manager', start_row: -4, end_row: 99999, start_ts: state.now, end_ts: state.now,
-                           self_start: false, open: false, duration_s: 3, blocked: [{start_row: 99998, end_row: 99999,
+                           self_start: false, open: false, duration_s: 3, waiting: [], blocked: [{start_row: 99998, end_row: 99999,
                            start_ts: state.now, end_ts: state.now, duration_s: 1}]});
           return state;"""
         self.browser.call("openPatched", url=self.url(), patch=patch)

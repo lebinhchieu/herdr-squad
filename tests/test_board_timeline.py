@@ -571,5 +571,80 @@ class RetiredAgentTest(TimelineCase):
                 self.assertEqual(self.column(st, "dev-board-3")["retired"], retired)
 
 
+class WaitingTest(TimelineCase):
+    """BRD-29: `waiting` is a segment inside the bar, not an end of it."""
+
+    def wait_rec(self, t, agent="dev-board-3", detail="monitor"):
+        return self.fx.activity(ts=ts(t), agent=agent, status="waiting", detail=detail, iteration=1)
+
+    def only_bar(self, st, agent="dev-board-3"):
+        (bar,) = self.bars_of(st, agent)
+        return bar
+
+    def test_working_waiting_working_idle_is_one_bar_with_one_segment(self):
+        self.act(10, "dev-board-3", "working")
+        self.wait_rec(40)
+        self.act(100, "dev-board-3", "working")
+        self.act(130, "dev-board-3", "idle")
+        st = self.state()
+        bar = self.only_bar(st)
+        (seg,) = bar["waiting"]
+        self.assertEqual((bar["open"], bar["duration_s"], seg["duration_s"], seg["detail"]), (False, 120, 60, "monitor"))
+        self.assertEqual((seg["start_ts"], seg["end_ts"]), (ts(40), ts(100)))
+        col = self.column(st, "dev-board-3")
+        self.assertEqual((col["working_s"], col["waiting_s"], col["blocked_s"]), (60, 60, 0))  # 120 s of bar, 60 s of it waiting
+
+    def test_waiting_then_idle_ends_the_bar_and_the_segment_there(self):
+        self.act(10, "dev-board-3", "working")
+        self.wait_rec(40, detail="shell")
+        self.act(70, "dev-board-3", "idle")
+        bar = self.only_bar(self.state())
+        self.assertEqual((bar["open"], bar["end_ts"], bar["waiting"][0]["end_ts"]), (False, ts(70), ts(70)))
+
+    def test_blocked_during_a_waiting_segment_closes_it_and_opens_the_blocked_one(self):
+        self.act(10, "dev-board-3", "working")
+        self.wait_rec(40)
+        self.act(70, "dev-board-3", "blocked")
+        bar = self.only_bar(self.state(now=200))
+        self.assertEqual((bar["waiting"][0]["end_ts"], bar["blocked"][0]["start_ts"], bar["blocked"][0]["end_ts"]),
+                         (ts(70), ts(70), None))
+
+    def test_waiting_with_no_open_bar_starts_a_self_started_bar(self):
+        self.wait_rec(40)
+        bar = self.only_bar(self.state(now=100))
+        self.assertEqual((bar["self_start"], bar["start_ts"], bar["open"], bar["waiting"][0]["start_ts"]),
+                         (True, ts(40), True, ts(40)))
+
+    def test_repeated_waiting_with_the_same_detail_adds_no_segment_a_new_detail_does(self):
+        self.act(10, "dev-board-3", "working")
+        self.wait_rec(40)
+        self.wait_rec(50)
+        self.wait_rec(60, detail="shell")
+        bar = self.only_bar(self.state(now=100))
+        self.assertEqual([(s["detail"], s["start_ts"], s["end_ts"]) for s in bar["waiting"]],
+                         [("monitor", ts(40), ts(60)), ("shell", ts(60), None)])
+        self.assertEqual(len([r for r in self.state(now=100)["rows"] if r.get("status") == "waiting"]), 2)
+
+    def test_an_open_waiting_segment_runs_to_now(self):
+        self.act(10, "dev-board-3", "working")
+        self.wait_rec(40)
+        st = self.state(now=140)
+        self.assertEqual(self.column(st, "dev-board-3")["waiting_s"], 100)
+        self.assertEqual(self.column(st, "dev-board-3")["status"], "waiting")
+
+    def test_a_retired_agents_open_waiting_segment_closes_with_its_bar(self):
+        self.fx.roster([MANAGER, TECH, {"agent": "dev-board-3", "role": "Developer", "status": "retired 2026-10-12"}])
+        self.act(10, "dev-board-3", "working")
+        self.wait_rec(40)
+        self.msg(70, frm="dev-board-3", to="tech-board")
+        st = self.state(now=500)
+        seg = self.only_bar(st)["waiting"][0]
+        self.assertEqual((seg["end_ts"], seg["duration_s"]), (ts(70), 30))
+
+    def test_a_waiting_manager_is_not_idle(self):
+        self.act(10, "manager", "waiting")
+        self.assertEqual(self.column(self.state(), "manager")["status"], "waiting")
+
+
 if __name__ == "__main__":
     unittest.main()

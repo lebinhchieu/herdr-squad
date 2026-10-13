@@ -43,6 +43,7 @@
       "notes_path": "roles/manager.notes.md",
       "working_s": 290,
       "blocked_s": 0,
+      "waiting_s": 0,
       "wakes": 0,
       "context_tokens": 8000,
       "tokens_in": 14500,
@@ -58,6 +59,7 @@
       "notes_path": "roles/tech-board.notes.md",
       "working_s": 260,
       "blocked_s": 0,
+      "waiting_s": 0,
       "wakes": 6,
       "context_tokens": null,
       "tokens_in": null,
@@ -73,6 +75,7 @@
       "notes_path": null,
       "working_s": 455,
       "blocked_s": 0,
+      "waiting_s": 0,
       "wakes": 3,
       "context_tokens": null,
       "tokens_in": null,
@@ -88,6 +91,7 @@
       "notes_path": null,
       "working_s": 2475,
       "blocked_s": 1080,
+      "waiting_s": 0,
       "wakes": 2,
       "context_tokens": 3400,
       "tokens_in": 9450,
@@ -103,6 +107,7 @@
       "notes_path": null,
       "working_s": 1274,
       "blocked_s": 42,
+      "waiting_s": 0,
       "wakes": 1,
       "context_tokens": null,
       "tokens_in": null,
@@ -118,6 +123,7 @@
       "notes_path": null,
       "working_s": 164,
       "blocked_s": 0,
+      "waiting_s": 0,
       "wakes": 3,
       "context_tokens": null,
       "tokens_in": null,
@@ -133,6 +139,7 @@
       "notes_path": null,
       "working_s": 1730,
       "blocked_s": 0,
+      "waiting_s": 0,
       "wakes": 1,
       "context_tokens": null,
       "tokens_in": null,
@@ -400,7 +407,8 @@
       "self_start": true,
       "open": false,
       "duration_s": 50,
-      "blocked": []
+      "blocked": [],
+      "waiting": []
     },
     {
       "agent": "tech-board",
@@ -411,7 +419,8 @@
       "self_start": false,
       "open": false,
       "duration_s": 50,
-      "blocked": []
+      "blocked": [],
+      "waiting": []
     },
     {
       "agent": "dev-board-1",
@@ -422,7 +431,8 @@
       "self_start": false,
       "open": false,
       "duration_s": 735,
-      "blocked": []
+      "blocked": [],
+      "waiting": []
     },
     {
       "agent": "dev-board-2",
@@ -441,7 +451,8 @@
           "end_ts": "2026-03-02T09:02:42.000Z",
           "duration_s": 42
         }
-      ]
+      ],
+      "waiting": []
     },
     {
       "agent": "tech-board",
@@ -452,7 +463,8 @@
       "self_start": false,
       "open": false,
       "duration_s": 45,
-      "blocked": []
+      "blocked": [],
+      "waiting": []
     },
     {
       "agent": "qaw-board",
@@ -463,7 +475,8 @@
       "self_start": false,
       "open": false,
       "duration_s": 180,
-      "blocked": []
+      "blocked": [],
+      "waiting": []
     },
     {
       "agent": "qaw-board",
@@ -474,7 +487,8 @@
       "self_start": false,
       "open": false,
       "duration_s": 165,
-      "blocked": []
+      "blocked": [],
+      "waiting": []
     },
     {
       "agent": "qaw-board",
@@ -485,7 +499,8 @@
       "self_start": false,
       "open": false,
       "duration_s": 110,
-      "blocked": []
+      "blocked": [],
+      "waiting": []
     },
     {
       "agent": "manager",
@@ -496,7 +511,8 @@
       "self_start": true,
       "open": false,
       "duration_s": 100,
-      "blocked": []
+      "blocked": [],
+      "waiting": []
     },
     {
       "agent": "tech-board",
@@ -507,7 +523,8 @@
       "self_start": false,
       "open": false,
       "duration_s": 30,
-      "blocked": []
+      "blocked": [],
+      "waiting": []
     }
   ],
   "tasks": [

@@ -18,7 +18,7 @@ ROW_KEYS = {
     "gap": {"id", "kind", "ts", "seconds", "from_ts", "to_ts"},
 }
 BAR_KEYS = {"agent", "start_row", "end_row", "start_ts", "end_ts", "self_start", "open", "duration_s",
-            "blocked"}
+            "blocked", "waiting"}
 SEGMENT_KEYS = {"start_row", "end_row", "start_ts", "end_ts", "duration_s"}
 TASK_KEYS = {"id", "state", "returns", "last_ts", "last_type"}
 NEEDS_KEYS = {"id", "kind", "text", "agent", "since"}

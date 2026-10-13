@@ -182,7 +182,7 @@ function frame(ts) {
 document.addEventListener('visibilitychange', scheduleDraw);
 
 function wantsFrames(current) {
-  return headerAnimating(current) || current.bars.some((b) => b.open);
+  return headerAnimating(current) || current.bars.some((b) => b.open && !waitingNow(b));
 }
 
 function draw(ts) {
@@ -321,7 +321,13 @@ function fitName(ctx, name, maxWidth) {
 }
 
 function statusColour(status) {
-  return status === 'blocked' ? P.red : status === 'working' ? P.teal : P.idle;
+  return status === 'blocked' ? P.red : status === 'working' ? P.teal : status === 'waiting' ? P.yellow : P.idle;
+}
+
+// BRD-29: an agent waiting on background work is steady, not active: nothing pulses for it.
+function waitingNow(bar) {
+  const seg = bar.waiting[bar.waiting.length - 1];
+  return seg !== undefined && (seg.end_row === null || seg.end_row === undefined) && seg.end_ts === null;
 }
 
 function pulse(ts, period) {
@@ -329,7 +335,7 @@ function pulse(ts, period) {
 }
 
 function headerAnimating(current) {
-  return current.needs_you.length > 0 || current.columns.some((c) => c.status !== 'idle');
+  return current.needs_you.length > 0 || current.columns.some((c) => c.status !== 'idle' && c.status !== 'waiting');
 }
 
 function drawNeedsYou(ctx, view) {
@@ -436,7 +442,7 @@ function drawHeaderCard(ctx, cl, view) {
   ctx.beginPath();
   ctx.arc(left + 13, HEADER_Y + 16, 5, 0, 7);
   ctx.fill();
-  if (col.status !== 'idle') {
+  if (col.status !== 'idle' && col.status !== 'waiting') {
     ctx.strokeStyle = tint(colour, 0.4 + 0.4 * pulse(view.ts, 240));
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -495,7 +501,7 @@ const CLIP_TOP = ROWS_Y - 6;
 let arrivalState = null;
 let seenMessages = new Set();
 let drawIn = new Map();      // message key -> rAF time its arrow started drawing (stamped at arrival; dropped 400 ms later, drawn or not)
-let hatchPattern = null;
+let hatchPatterns = {};
 let clockAnchor = { state: null, at: Date.now() };
 
 // E19: `12s`, `4m 05s`, `1h 02m`.
@@ -516,7 +522,7 @@ function messageLabel(row) {
 }
 
 function statusText(row) {
-  return row.status + (typeof row.duration_s === 'number' ? ' · ' + fmtDuration(row.duration_s) : '');
+  return row.status + (row.detail ? ' · ' + row.detail : '') + (typeof row.duration_s === 'number' ? ' · ' + fmtDuration(row.duration_s) : '');
 }
 
 function messageKey(row) {
@@ -569,20 +575,21 @@ function dropFinishedArrows(ts) {
   drawIn.forEach((start, key) => { if (ts - start >= DRAW_IN_MS) drawIn.delete(key); });
 }
 
-function hatch(view) {
+function hatch(view, base) {
+  let hatchPattern = hatchPatterns[base];
   if (!hatchPattern) {
     const tile = document.createElement('canvas');
     tile.width = tile.height = 8;
     const g = tile.getContext('2d');
-    g.fillStyle = tint(P.red, 0.13);
+    g.fillStyle = tint(base, 0.13);
     g.fillRect(0, 0, 8, 8);
-    g.strokeStyle = tint(P.red, 0.6);
+    g.strokeStyle = tint(base, 0.6);
     g.lineWidth = 2.2;
     g.beginPath();
     g.moveTo(-2, 10);
     g.lineTo(10, -2);
     g.stroke();
-    hatchPattern = canvas.getContext('2d').createPattern(tile, 'repeat');
+    hatchPattern = hatchPatterns[base] = canvas.getContext('2d').createPattern(tile, 'repeat');
   }
   // the rows scroll, the canvas does not: keep the stripes on their rows
   hatchPattern.setTransform(new DOMMatrix().translateSelf(0, -view.scrollY));
@@ -623,20 +630,20 @@ function drawBar(ctx, view, bar, range) {
   ctx.fill();
   ctx.stroke();
   let blockedNow = false;
-  bar.blocked.forEach((seg) => {
+  [[bar.waiting, P.yellow], [bar.blocked, P.red]].forEach(([segments, colour]) => segments.forEach((seg) => {
     const segOpen = seg.end_row === null || seg.end_row === undefined;
-    if (segOpen) blockedNow = true;
+    if (segOpen && colour === P.red) blockedNow = true;
     const s = Math.min(Math.max(seg.start_row, 0), count - 1);
     const e = segOpen ? yEnd : rowCentre(Math.min(Math.max(seg.end_row, s), count - 1), view.scrollY) + 4;
     const y1 = Math.max(rowCentre(s, view.scrollY) - 4, CLIP_TOP - 20);
     const y2 = Math.min(e, top);
     if (y2 < y1) return;
-    ctx.fillStyle = hatch(view);
-    ctx.strokeStyle = P.red;
+    ctx.fillStyle = hatch(view, colour);
+    ctx.strokeStyle = colour;
     roundRect(ctx, x - BAR_HALF, y1, BAR_HALF * 2, Math.max(8, y2 - y1), 4);
     ctx.fill();
     ctx.stroke();
-  });
+  }));
   if (bar.self_start && start >= range.first - 1) {
     setText(ctx, '700 12px ' + FONT, P.teal, 'right');
     ctx.fillText('⟲', x - BAR_HALF - 4, rowCentre(start, view.scrollY) + 4);
@@ -646,6 +653,13 @@ function drawBar(ctx, view, bar, range) {
 }
 
 function drawOpenEnd(ctx, view, bar, x, y, blocked) {
+  if (waitingNow(bar) && !blocked) {  // steady dot, no running clock: a waiting squad draws nothing new
+    ctx.fillStyle = P.yellow;
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, 7);
+    ctx.fill();
+    return;
+  }
   ctx.globalAlpha = 0.5 + 0.5 * Math.sin(view.ts / 250);
   ctx.fillStyle = blocked ? P.red : P.teal;
   ctx.beginPath();
@@ -1055,6 +1069,7 @@ const PANEL_MONITOR = [
   ['tokens-out', 'tokens out', (c) => fmtTokens(c.tokens_out)],
   ['working', 'working, total', (c) => panelDuration(c.working_s)],
   ['blocked', 'blocked, total', (c) => panelDuration(c.blocked_s)],
+  ['waiting', 'waiting', (c) => panelDuration(c.waiting_s)],
   ['wakes', 'times woken', (c) => String(c.wakes)],
 ];
 
@@ -1131,8 +1146,9 @@ panelStatus.id = 'panel-status';
 panelEl('h3', panelBox, 'MONITOR');
 const panelMonitor = panelEl('dl', panelBox);
 panelMonitor.id = 'panel-monitor';
+const panelTerms = [];
 const panelValues = PANEL_MONITOR.map((spec) => {
-  panelEl('dt', panelMonitor, spec[1]);
+  panelTerms.push(panelEl('dt', panelMonitor, spec[1]));
   const dd = panelEl('dd', panelMonitor);
   dd.setAttribute('data-field', spec[0]);
   return dd;
@@ -1253,6 +1269,9 @@ function drawPanel(ctx, view) {
   panelStatus.style.color = statusColour(col.status);
   PANEL_MONITOR.forEach((spec, i) => panelSet(panelValues[i], spec[2](col)));
   panelValues[PANEL_MONITOR.findIndex((spec) => spec[0] === 'blocked')].style.color = col.blocked_s > 0 ? P.red : '';
+  const waitingAt = PANEL_MONITOR.findIndex((spec) => spec[0] === 'waiting');
+  panelTerms[waitingAt].hidden = panelValues[waitingAt].hidden = !(col.waiting_s > 0);  // only when there is some
+  panelValues[waitingAt].style.color = P.yellow;
   renderPanelMessages(view.state, col.agent);
   const note = col.retired ? PANEL_RETIRED : !panelToken ? PANEL_NO_TOKEN : '';
   const mine = panelJump.agent === col.agent && panelJump.text !== '';
@@ -1447,6 +1466,7 @@ function mirrorColumns(current) {
   columnList.replaceChildren(...current.columns.map((c) => {
     const parts = [c.agent, c.role, c.status, '⏱ ' + fmtTotal(c.working_s)];
     if (c.blocked_s > 0) parts.push('⛔ ' + fmtTotal(c.blocked_s));
+    if (c.waiting_s > 0) parts.push('⏳ ' + fmtTotal(c.waiting_s));
     parts.push(fmtTokens(c.context_tokens));
     return item(parts.join(' · '), { agent: c.agent, status: c.status, retired: c.retired,
       collapsed: stubs.has(c.agent) });
@@ -1466,7 +1486,7 @@ function mirrorBar(b) {
   const text = b.open ? '\u23f1 ' + fmtDuration(b.duration_s) : fmtDuration(b.duration_s);
   return item((b.self_start ? '\u27f2 ' : '') + text, { agent: b.agent, 'start-row': b.start_row,
     'end-row': b.end_row === null ? '' : b.end_row, 'self-start': b.self_start, open: b.open,
-    'blocked-segments': b.blocked.length });
+    'blocked-segments': b.blocked.length, 'waiting-segments': b.waiting.length });
 }
 
 function mirrorTasks(current) {
