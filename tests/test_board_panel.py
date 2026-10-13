@@ -646,6 +646,35 @@ class UntrustedTextTest(PanelCase):
         self.driver.call("clickSelector", selector="#panel-messages li:last-child .panel-more")
         self.driver.wait("document.querySelector('#panel-messages li:last-child').textContent.length < 250")
 
+    def test_a_failing_route_shows_the_clip_and_full_text_not_available(self):
+        self.fx.message(**{"from": "dev-shop-4", "to": "qaw-shop", "type": "HANDIN", "task": "CART-97",
+                           "text": "A" * 300 + "THE-END-OF-IT-20CHARS", "iteration": 3,
+                           "msg_id": "long-message-1", "ts": "2026-10-12T11:16:00.000Z"})
+        self.start()
+        self.open(token=False)  # no token on the page: /message answers 403
+        self.click_header("qaw-shop")
+        self.driver.wait(OPEN_JS)
+        self.driver.call("clickSelector", selector="#panel-messages li:last-child .panel-more")
+        self.driver.wait("document.querySelector('#panel-messages li:last-child').textContent"
+                         ".includes('full text not available')")
+        shown = self.panel()["messages"][-1]
+        self.assertNotIn("THE-END-OF-IT-20CHARS", shown)
+        self.assertIn("A" * 100, shown)
+        self.assertIn("show less", shown)  # the button stays; a click on it shows the clip, the next one retries
+
+    def test_the_whole_text_is_fetched_and_its_last_20_characters_show(self):
+        self.fx.message(**{"from": "dev-shop-4", "to": "qaw-shop", "type": "HANDIN", "task": "CART-96",
+                           "text": "A" * 300 + "THE-END-OF-IT-20CHARS", "iteration": 3,
+                           "msg_id": "long-message-2", "ts": "2026-10-12T11:16:00.000Z"})
+        self.start()
+        self.open()
+        self.click_header("qaw-shop")
+        self.driver.wait(OPEN_JS)
+        self.assertNotIn("THE-END-OF-IT-20CHARS", self.panel()["messages"][-1])
+        self.driver.call("clickSelector", selector="#panel-messages li:last-child .panel-more")
+        self.driver.wait("document.querySelector('#panel-messages li:last-child').textContent"
+                         ".includes('THE-END-OF-IT-20CHARS')")
+
     def test_an_expanded_message_stays_expanded_across_updates(self):
         self.long_message()
         self.start()

@@ -31,6 +31,9 @@ JUMP_PREFIX = "/jump/"
 JUMP_NAME_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}")
 NOTES_PREFIX = "/notes/"
 NOTES_MAX_BYTES = 1 << 20
+MESSAGE_PREFIX = "/message/"
+MESSAGE_ID_RE = re.compile(r"[0-9A-Za-z-]{8,64}")
+ROW_TEXT_CLIP = 140  # the panel's own clip: the page shows the same until the user asks for more
 HERDR_TIMEOUT_S = 5
 # Timings of the event stream and the handler socket. The environment overrides exist so tests need
 # not wait 15 s; they are read once at startup:
@@ -435,6 +438,11 @@ class TimelineBuilder:
     def message(self, rec, us):
         row = {"kind": "message", "ts": rec["ts"], "from": rec["from"], "to": rec["to"],
                "type": rec["type"], "task": rec["task"], "text": rec["text"], "msg_id": rec["msg_id"]}
+        # a message the route could not fetch again (no id, or one it refuses) is never clipped
+        if (rec["msg_id"] and MESSAGE_ID_RE.fullmatch(rec["msg_id"]) and rec["text"] is not None
+                and len(rec["text"]) > ROW_TEXT_CLIP):
+            row["text"] = rec["text"][:ROW_TEXT_CLIP]
+            row["text_clipped"] = True
         index = self.add_row(row, rec, us)
         for agent, self_start in ((rec["from"], True), (rec["to"], False)):
             if agent and is_agent_name(agent):
@@ -1608,6 +1616,21 @@ def handle_notes(handler):
     send_notes(handler, 200, data.decode("utf-8", errors="replace").encode("utf-8"))
 
 
+def handle_message(handler):
+    """GET /message/<msg_id>?token=...: the full text of one message as plain text. Check order: token,
+    id, lookup; the id is looked up in the logs, never joined into a path."""
+    if not notes_token_ok(handler):
+        return send_notes(handler, 403, b"forbidden")
+    msg_id = handler.path.partition("?")[0][len(MESSAGE_PREFIX):]
+    if not MESSAGE_ID_RE.fullmatch(msg_id):
+        return send_notes(handler, 400, b"bad message id")
+    messages, _ = read_logs(read_squad(handler.server.replay_dir)["homes"])
+    found = next((m for m in messages if m["msg_id"] == msg_id), None)
+    if found is None or found["text"] is None:
+        return send_notes(handler, 404, b"not found")
+    send_notes(handler, 200, found["text"].encode("utf-8", errors="replace"))
+
+
 def handle_jump(handler):
     """POST /jump/<name>: focus a roster agent's herdr pane. Check order: token, name, roster, so a
     refused token never reveals who is on the roster. Nothing is run until all three pass."""
@@ -1647,6 +1670,8 @@ class BoardHandler(BaseHTTPRequestHandler):
             send_json(self, 405, {"error": "method not allowed"})
         elif path.startswith(NOTES_PREFIX):
             handle_notes(self)
+        elif path.startswith(MESSAGE_PREFIX):
+            handle_message(self)
         elif path == "/":
             handle_root(self)
         elif path == "/state":
@@ -1662,7 +1687,7 @@ class BoardHandler(BaseHTTPRequestHandler):
         path = self.path.partition("?")[0]
         if path.startswith(JUMP_PREFIX):
             handle_jump(self)
-        elif path.startswith(NOTES_PREFIX):
+        elif path.startswith(NOTES_PREFIX) or path.startswith(MESSAGE_PREFIX):
             send_json(self, 405, {"error": "method not allowed"})
         else:
             send_json(self, 404, {"error": "not found"})

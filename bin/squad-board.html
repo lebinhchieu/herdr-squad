@@ -1080,6 +1080,8 @@ let panelJump = { agent: null, busy: false, ok: false, text: '' };
 let panelMessagesKey = '';
 let panelShownAgent = null;
 const panelExpanded = new Set();
+// Full texts of clipped messages, fetched on "show more": msg_id -> { state: 'loading' | 'failed' | 'ok', text }.
+const panelFull = new Map();
 
 // E19 durations: 12s, 4m 05s, 1h 02m.
 function panelDuration(seconds) {
@@ -1212,6 +1214,17 @@ function panelClip(text) {
   return text.slice(0, cut) + '…';
 }
 
+async function fetchFullText(msgId) {
+  panelFull.set(msgId, { state: 'loading', text: '' });
+  let entry = { state: 'failed', text: '' };
+  try {
+    const res = await fetch('/message/' + encodeURIComponent(msgId) + '?token=' + encodeURIComponent(panelToken));
+    if (res.ok) entry = { state: 'ok', text: await res.text() };
+  } catch (e) { /* the failed state says it */ }
+  panelFull.set(msgId, entry);
+  scheduleDraw();
+}
+
 function panelMessage(row, agent) {
   const li = document.createElement('li');
   const type = row.type || 'msg';
@@ -1221,14 +1234,19 @@ function panelMessage(row, agent) {
   const peer = row.from === agent ? '→ ' + (row.to || '—') : '← ' + (row.from || '—');
   panelEl('span', li, ' ' + peer + (row.task ? ' ' + row.task : '') + ' ');
   const text = String(row.text === null || row.text === undefined ? '' : row.text);
+  const full = row.text_clipped ? panelFull.get(row.msg_id) : undefined;
   const open = panelExpanded.has(row.msg_id);
-  panelEl('span', li, open ? text : panelClip(text));
-  if (text.length > PANEL_CLIP) {
+  panelEl('span', li, open && !row.text_clipped ? text : open && full && full.state === 'ok' ? full.text : row.text_clipped ? panelClip(text) + (text.length <= PANEL_CLIP ? '…' : '') : panelClip(text));
+  if (open && full && full.state === 'loading') panelEl('span', li, ' loading…').style.color = P.muted;
+  if (open && full && full.state === 'failed') panelEl('span', li, ' full text not available').style.color = P.muted;
+  if (text.length > PANEL_CLIP || row.text_clipped) {
     const more = panelEl('button', li, open ? 'show less' : 'show more');
     more.type = 'button';
     more.className = 'panel-more';
     more.addEventListener('click', () => {
-      if (panelExpanded.has(row.msg_id)) panelExpanded.delete(row.msg_id); else panelExpanded.add(row.msg_id);
+      if (panelExpanded.has(row.msg_id)) { panelExpanded.delete(row.msg_id); scheduleDraw(); return; }
+      panelExpanded.add(row.msg_id);
+      if (row.text_clipped && !(full && (full.state === 'ok' || full.state === 'loading'))) fetchFullText(row.msg_id);
       scheduleDraw();
     });
   }
@@ -1241,7 +1259,7 @@ function renderPanelMessages(current, agent) {
   const rows = current.rows.filter((r) => r.kind === 'message' && (r.from === agent || r.to === agent))
     .slice(-PANEL_LAST);
   // row ids shift when a message lands earlier in the log; only what is shown counts
-  const key = JSON.stringify(rows.map((r) => [r.msg_id, r.from, r.to, r.type, r.task, r.text, panelExpanded.has(r.msg_id)]));
+  const key = JSON.stringify(rows.map((r) => [r.msg_id, r.from, r.to, r.type, r.task, r.text, panelExpanded.has(r.msg_id), (panelFull.get(r.msg_id) || {}).state]));
   if (key === panelMessagesKey) return;
   panelMessagesKey = key;
   panelMessages.replaceChildren(...rows.map((r) => panelMessage(r, agent)));
