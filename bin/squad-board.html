@@ -15,10 +15,16 @@
   #board-text { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden;
     clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
   #board-text ul { margin: 0; padding: 0; list-style: none; }
+  /* BRD-16: sits at the left end of the bar's reserved right 360 px (BAR_RESERVED_RIGHT) */
+  #alerts-button { position: fixed; top: 22px; right: 258px; width: 112px; box-sizing: border-box;
+    font: 700 13px system-ui, -apple-system, "Segoe UI", sans-serif; border: 0; border-radius: 8px;
+    padding: 7px 0; cursor: pointer; background: #E8820E; color: #FFFFFF; }
 </style>
 </head>
 <body>
 <div id="stage"><canvas id="board" aria-hidden="true"></canvas></div>
+<!-- section: alerts -->
+<button id="alerts-button" type="button" hidden>Enable alerts</button>
 
 <!-- section: mirror -->
 <div id="board-text">
@@ -1250,9 +1256,143 @@ function onHeaderClick(agent) {
 }
 
 // --- section: alerts ---
-// BRD-16: notification, chime and tab title for needs-you items that appear while the page is open.
-function checkAlerts(current) {
+// E23: a needs-you id not in the seen set fires a notification and one soft chime. Items in the first
+// state count as seen. Every browser API is optional: a missing, denied or failing one is silent.
+const SEEN_KEY = 'squad-board.seen:' + location.origin;
+const SEEN_KEEP = 200;
+const CHIME_PEAK = 0.06;
+const CHIME_ATTACK = 0.02;
+const CHIME_NOTES = [{ hz: 660, at: 0, length: 0.18 }, { hz: 880, at: 0.2, length: 0.28 }];
+const alertsButton = document.getElementById('alerts-button');
+
+let seen = null;  // announced ids, oldest first; null until the first state
+let audioContext = null;
+let decision = null;  // what our own permission request answered
+let asked = false;
+
+function loadSeen() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(SEEN_KEY));
+    return Array.isArray(stored) ? stored : [];
+  } catch (e) {
+    return [];
+  }
 }
+
+function saveSeen() {
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
+  } catch (e) {
+    // storage is unusable (private mode, quota): the set lives in memory for this page only
+  }
+}
+
+function notificationPermission() {
+  try {
+    return window.Notification ? window.Notification.permission : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function alertsDenied() {
+  return decision === 'denied' || notificationPermission() === 'denied';
+}
+
+function notify(entry) {
+  try {
+    new window.Notification('Squad needs you', { body: entry.text, tag: entry.id });
+  } catch (e) {
+    // no Notification, or the constructor refused
+  }
+}
+
+// The context is made on a user gesture, or lazily at the first chime; a browser that has had no
+// gesture leaves it suspended, and a suspended or closed context stays silent.
+function audio() {
+  if (!audioContext) {
+    try {
+      audioContext = new window.AudioContext();
+    } catch (e) {
+      return null;
+    }
+  }
+  return audioContext;
+}
+
+function unlockAudio() {
+  try {
+    const ctx = audio();
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+  } catch (e) {
+    // resume is best effort
+  }
+}
+
+function chime() {
+  try {
+    const ctx = audio();
+    if (!ctx || ctx.state === 'suspended' || ctx.state === 'closed') return;
+    const start = ctx.currentTime;
+    CHIME_NOTES.forEach((note) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const from = start + note.at;
+      osc.type = 'sine';
+      osc.frequency.value = note.hz;
+      gain.gain.setValueAtTime(0, from);
+      gain.gain.linearRampToValueAtTime(CHIME_PEAK, from + CHIME_ATTACK);
+      gain.gain.linearRampToValueAtTime(0, from + note.length);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(from);
+      osc.stop(from + note.length);
+    });
+  } catch (e) {
+    // a failed context is silent
+  }
+}
+
+function renderAlertsButton() {
+  alertsButton.hidden = asked || notificationPermission() !== 'default';
+}
+
+// The only place permission is requested. A dismissed prompt ("default") leaves the button for a retry.
+async function enableAlerts() {
+  unlockAudio();
+  let result = null;
+  try {
+    result = await window.Notification.requestPermission();
+  } catch (e) {
+    // rejected or unavailable: treated as decided, so the button does not nag
+  }
+  if (result === 'granted' || result === 'denied') decision = result;
+  asked = result !== 'default';
+  renderAlertsButton();
+}
+
+function checkAlerts(current) {
+  const items = current.needs_you;
+  document.title = items.length ? '(' + items.length + ') squad board' : 'squad board';
+  const first = seen === null;
+  if (first) seen = loadSeen();
+  const known = new Set(seen);
+  const fresh = items.filter((n) => !known.has(n.id));
+  const before = seen.length;
+  const waiting = new Set(items.map((n) => n.id));
+  const all = seen.concat(fresh.map((n) => n.id));
+  const cut = all.length - SEEN_KEEP;
+  seen = all.filter((id, i) => i >= cut || waiting.has(id));
+  if (fresh.length || seen.length !== before) saveSeen();
+  if (first || !fresh.length || alertsDenied()) return;
+  fresh.forEach(notify);
+  chime();
+}
+
+alertsButton.addEventListener('click', enableAlerts);
+window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
+renderAlertsButton();
 
 // --- section: mirror ---
 // E17: a DOM copy of what the canvas shows, built with textContent only. The page tests and
