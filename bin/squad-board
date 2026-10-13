@@ -666,7 +666,7 @@ def latest_ts(messages, activity):
     return max(stamps, key=parse_ts) if stamps else None
 
 
-def build_state(squad_dir, now=None, selected_iteration=None):
+def build_state(squad_dir, now=None, selected_iteration=None, live=False):
     """The whole board state from files alone. Raises BadRequest for an unknown iteration."""
     squad = read_squad(squad_dir)
     messages, activity = read_logs(squad_dir)
@@ -692,7 +692,7 @@ def build_state(squad_dir, now=None, selected_iteration=None):
             "columns": columns, "rows": timeline["rows"], "bars": timeline["bars"],
             "tasks": derive_tasks(messages, activity, selected_iteration),
             "needs_you": derive_needs_you(squad, columns, activity),
-            "live": False}  # replay mode; the live mode of iteration 2 reports True
+            "live": live}
 
 
 # --- section: recorder ---
@@ -1025,11 +1025,9 @@ def handle_state(handler):
     live = handler.server.live
     try:
         state = build_state(handler.server.replay_dir, wall_clock() if live else handler.server.now,
-                            query_iteration(handler))
+                            query_iteration(handler), live)
     except BadRequest as e:
         return send_json(handler, 400, {"error": str(e)})
-    if live:
-        state["live"] = True
     send_json(handler, 200, state)
 
 
@@ -1054,9 +1052,10 @@ class StateWatcher:
     """One thread looks at the squad files; a state is built once per change and iteration, however
     many streams are open. Streams wait on `changed` and never touch the files themselves."""
 
-    def __init__(self, squad_dir, now):
+    def __init__(self, squad_dir, now, live=False):
         self.squad_dir = squad_dir
         self.now = now
+        self.live = live
         self.changed = threading.Condition()
         self.version = 0
         self.signature = watched_signature(squad_dir)
@@ -1086,7 +1085,7 @@ class StateWatcher:
         self.refresh()
         with self.changed:
             if selected not in self.built:
-                state = build_state(self.squad_dir, self.now, selected)
+                state = build_state(self.squad_dir, wall_clock() if self.live else self.now, selected, self.live)
                 # `now` is left out of the comparison: a clock tick alone is not a change
                 self.built[selected] = ({k: v for k, v in state.items() if k != "now"}, json.dumps(state))
             state, data = self.built[selected]
@@ -1347,6 +1346,7 @@ def main(argv=None):
             return die("ports %d..%d are all busy" % (args.port, min(args.port + PORT_TRIES, 65535)), 1)
         return die("cannot bind port %d: %s" % (args.port, e.strerror), 1)
     server.live = live
+    server.watcher.live = live
     print("squad-board: http://127.0.0.1:%d/?token=%s" % (server.server_address[1], server.token), flush=True)
     try:  # the recorder starts inside it: a Ctrl-C right after its thread starts must still end quietly
         if live:

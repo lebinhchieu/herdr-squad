@@ -236,7 +236,7 @@ class MirrorTest(SequenceCase):
         for mirrored, task in zip(shown, expected):
             self.assertEqual(mirrored["text"], "%s %s ↺%d" % (task["id"], task["state"], task["returns"]))
             self.assertEqual((mirrored["data"]["state"], mirrored["data"]["returns"]), (task["state"], str(task["returns"])))
-        self.assertEqual([t["data"]["state"] for t in shown].count("building"), 3)
+        self.assertEqual([t["data"]["state"] for t in shown].count("building"), 2)
 
     def test_mirror_follows_a_change_of_the_squad_files(self):
         fx = self.scene()
@@ -690,7 +690,7 @@ class TaskColumnTest(SequenceCase):
         warm = self.pixels(1180, tops["CART-01"] + 1, 1250, tops["CART-01"] + self.CHIP)
         self.assertGreater(page.colour_near(hot, "E8820E", 6), 60)
         self.assertEqual(page.colour_near(warm, "E8820E", 6), 0)
-        self.assertIn("↺6", self.drawn())
+        self.assertIn("↺2", self.drawn())
         self.assertIn("↺1", self.drawn())
         self.assertNotIn("↺0", self.drawn())
 

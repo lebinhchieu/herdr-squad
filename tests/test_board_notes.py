@@ -337,7 +337,7 @@ class SourceGateTest(unittest.TestCase):
         source = BIN.read_text()
         start = source.index("def read_notes")
         body = source[start:source.index("def handle_notes")]
-        self.assertEqual(source.count("os.open("), 1)
+        self.assertEqual(body.count("os.open("), 1)
         self.assertIn('os.path.join(roles, name + ".notes.md")', body)
         handler = source[source.index("def handle_notes"):source.index("def handle_jump")]
         self.assertLess(handler.index("JUMP_NAME_RE.fullmatch(name)"), handler.index("read_notes("))

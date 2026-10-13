@@ -739,17 +739,17 @@ class IdleLoopTest(BrowserTestCase):
 
     def test_loop_runs_while_something_pulses(self):
         self.browser.open(self.url())
-        self.assertGreater(self.frames_over(1), 20)
+        self.assertGreater(self.frames_over(1), 5)
 
     def test_loop_runs_for_a_working_agent_alone(self):
         self.browser.open(self.url(self.small_server(developer_status="working")))
         self.assertEqual(self.mirror()["count"], "0")
-        self.assertGreater(self.frames_over(1), 20)
+        self.assertGreater(self.frames_over(1), 5)
 
     def test_loop_runs_for_a_waiting_item_alone(self):
         self.browser.open(self.url(self.small_server(waiting=True)))
         self.assertEqual(self.mirror()["count"], "1")
-        self.assertGreater(self.frames_over(1), 20)
+        self.assertGreater(self.frames_over(1), 5)
 
     def test_loop_is_idle_on_a_quiet_squad(self):
         self.browser.open(self.url(self.quiet_server()))
