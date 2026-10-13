@@ -233,7 +233,8 @@ class SubscriptionTest(LiveCase):
         status_subs = [s for s in subs if s["type"] == "pane.agent_status_changed"]
         self.assertEqual(sorted(s["pane_id"] for s in status_subs), sorted(self.panes.values()))
         self.assertEqual([s for s in subs if s["type"] == "pane.created"], [{"type": "pane.created"}])
-        self.assertEqual(len(subs), 3)
+        self.assertEqual([s for s in subs if s["type"] == "pane.closed"], [{"type": "pane.closed"}])
+        self.assertEqual(len(subs), 4)
 
     def test_snapshot_is_taken_on_its_own_connection_and_after_subscribing(self):
         # herdr resets a subscribed connection that sends another request
@@ -392,6 +393,76 @@ class InitialSyncTest(LiveCase):
         self.start()
         self.fake.drop()
         self.fake.wait_ready(2)
+        base = len(self.records())
+        self.assertEqual(self.barrier(base), [("manager", "blocked", None)])
+
+
+class ClosedPaneTest(LiveCase):
+    """BRD-28 (b): herdr sends no idle when a pane closes, so the snapshot decides and `done` is written."""
+
+    def close_pane(self, name, emit=True):
+        pane = self.panes[name]
+        self.fake.rows[:] = [r for r in self.fake.rows if r["pane_id"] != pane]
+        if emit:
+            self.fake.send_raw(json.dumps({"event": "pane.closed", "data": {"pane_id": pane}}).encode() + b"\n")
+
+    def test_sync_writes_done_for_a_rostered_agent_missing_from_the_snapshot(self):
+        self.add_agent("manager")
+        self.fx.activity(agent="dev-board-10", status="working", iteration=None)
+        self.start()
+        wait_until(lambda: len(self.records()) == 3, "the done record")
+        self.assertEqual(self.new_records(2), [("dev-board-10", "done", None)])
+
+    def test_missing_agent_whose_last_status_is_done_or_with_no_record_gets_nothing(self):
+        self.add_agent("manager")
+        self.fx.activity(agent="dev-board-10", status="done", iteration=None)
+        self.start()
+        base = len(self.records())
+        self.assertEqual(self.barrier(base), [("manager", "working", None)])
+        self.assertEqual(base, 2)  # the seed and the done; tech-board has no record and got none
+
+    def test_a_pane_that_disappears_gets_one_done_and_a_second_sync_adds_none(self):
+        self.add_agent("manager")
+        self.add_agent("tech-board", status="working")
+        self.start()
+        base = len(self.records())
+        snapshots = self.fake.snapshots
+        self.close_pane("tech-board")
+        wait_until(lambda: len(self.records()) > base, "the done record")
+        self.assertEqual(self.new_records(base), [("tech-board", "done", None)])
+        self.fake.emit_created("wA:pZZ")  # another sync
+        wait_until(lambda: self.fake.snapshots > snapshots + 1, "a second sync")
+        self.barrier(base)
+        self.assertEqual([r for r in self.new_records(base) if r[0] == "tech-board"], [("tech-board", "done", None)])
+
+    def test_the_pane_closed_event_triggers_the_resync(self):
+        self.add_agent("manager")
+        self.add_agent("tech-board", status="working")
+        self.start()
+        base, snapshots = len(self.records()), self.fake.snapshots
+        self.close_pane("tech-board", emit=False)
+        self.assertEqual(self.fake.snapshots, snapshots)
+        self.fake.send_raw(b'{"event": "pane.closed", "data": {"pane_id": "wA:p2"}}\n')
+        wait_until(lambda: len(self.records()) > base, "the done record")
+        self.assertEqual(self.new_records(base), [("tech-board", "done", None)])
+
+    def test_an_empty_snapshot_writes_nothing(self):
+        self.add_agent("manager", status="working")
+        self.add_agent("tech-board", status="working")
+        self.start()
+        base = len(self.records())
+        self.fake.rows[:] = []
+        self.fake.send_raw(b'{"event": "pane.closed", "data": {"pane_id": "wA:p1"}}\n')
+        snapshots = self.fake.snapshots
+        wait_until(lambda: self.fake.snapshots > snapshots, "the sync")
+        time.sleep(0.2)
+        self.assertEqual(len(self.records()), base)
+
+    def test_an_agent_that_is_not_on_the_roster_is_never_written(self):
+        self.add_agent("manager")
+        self.add_agent("stranger", status="working", rostered=False)
+        self.fx.activity(agent="stranger", status="working", iteration=None)
+        self.start()
         base = len(self.records())
         self.assertEqual(self.barrier(base), [("manager", "blocked", None)])
 

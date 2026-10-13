@@ -495,5 +495,81 @@ class RobustnessTest(TimelineCase):
         self.assertGreaterEqual(len(st["rows"]), 5000)
 
 
+class RetiredAgentTest(TimelineCase):
+    """BRD-28 (a), (c), (d): a bar of an agent that is not live ends at its last event."""
+    RETIRED = {"agent": "dev-board-3", "role": "Developer", "status": "retired 2026-10-12 (done)"}
+
+    def setUp(self):
+        super().setUp()
+        self.fx.roster([MANAGER, TECH, self.RETIRED])
+
+    def only_bar(self, st, agent="dev-board-3"):
+        (bar,) = self.bars_of(st, agent)
+        return bar
+
+    def test_a_retired_agent_with_one_working_record_gets_a_closed_bar_of_zero_seconds(self):
+        self.act(10, "dev-board-3", "working")
+        bar = self.only_bar(self.state())
+        self.assertEqual((bar["open"], bar["end_ts"], bar["duration_s"]), (False, ts(10), 0))
+
+    def test_the_bar_ends_at_the_last_message_in_or_out(self):
+        self.act(10, "dev-board-3", "working")
+        self.msg(40, frm="dev-board-3", to="tech-board")
+        self.msg(70, frm="tech-board", to="dev-board-3")
+        st = self.state()
+        bar = self.only_bar(st)
+        self.assertEqual((bar["open"], bar["end_ts"], bar["duration_s"]), (False, ts(70), 60))
+        self.assertEqual(self.column(st, "dev-board-3")["working_s"], 60)
+
+    def test_a_live_agent_with_the_same_records_stays_open_until_now(self):
+        self.fx.roster([MANAGER, TECH, dict(self.RETIRED, status="live (respawned 2026-10-14)")])
+        self.act(10, "dev-board-3", "working")
+        self.msg(40, frm="dev-board-3", to="tech-board")
+        st = self.state(now=300)
+        bar = self.only_bar(st)
+        self.assertEqual((bar["open"], bar["end_ts"], bar["duration_s"]), (True, None, 290))
+
+    def test_an_agent_only_seen_in_the_log_is_closed_at_its_last_event(self):
+        self.msg(10, frm="dev-all-9", to="tech-board")
+        self.msg(50, frm="tech-board", to="dev-all-9")
+        bar = self.only_bar(self.state(), "dev-all-9")
+        self.assertEqual((bar["open"], bar["end_ts"], bar["duration_s"]), (False, ts(50), 40))
+
+    def test_an_open_blocked_segment_closes_at_the_same_instant(self):
+        self.act(10, "dev-board-3", "working")
+        self.act(20, "dev-board-3", "blocked")
+        self.msg(60, frm="dev-board-3", to="tech-board")
+        st = self.state()
+        bar = self.only_bar(st)
+        (seg,) = bar["blocked"]
+        self.assertEqual((bar["end_ts"], seg["end_ts"], seg["duration_s"]), (ts(60), ts(60), 40))
+        self.assertEqual(self.column(st, "dev-board-3")["blocked_s"], 40)
+
+    def test_a_late_message_to_a_retired_agent_extends_the_bar_and_does_not_reopen_it(self):
+        self.act(10, "dev-board-3", "working")
+        self.act(20, "dev-board-3", "idle")
+        self.msg(100, frm="manager", to="dev-board-3")
+        bars = self.bars_of(self.state(now=300), "dev-board-3")
+        self.assertEqual([(b["start_ts"], b["end_ts"], b["open"]) for b in bars],
+                         [(ts(10), ts(20), False), (ts(100), ts(100), False)])
+
+    def test_a_cross_session_address_is_no_column_and_no_bar_but_its_row_stays(self):
+        sock = "uds:/run/user/1000/cc-socks/1.sock"
+        self.msg(10, frm="tech-board", to=sock)
+        st = self.state()
+        self.assertNotIn(sock, [c["agent"] for c in st["columns"]])
+        self.assertEqual([b["agent"] for b in st["bars"]], ["tech-board"])
+        self.assertEqual([r["to"] for r in st["rows"]], [sock])
+        self.assertEqual(self.only_bar(st, "tech-board")["open"], True)
+
+    def test_the_roster_status_cell_decides_live_by_its_first_word(self):
+        for status, retired in (("live", False), ("Live", False), ("live (respawned 2026-10-14 x)", False),
+                                ("retired 2026-10-12 (done)", True), ("gone 2026-10-12", True), ("", True)):
+            with self.subTest(status=status):
+                self.fx.roster([MANAGER, TECH, dict(self.RETIRED, status=status)])
+                st = self.state()
+                self.assertEqual(self.column(st, "dev-board-3")["retired"], retired)
+
+
 if __name__ == "__main__":
     unittest.main()

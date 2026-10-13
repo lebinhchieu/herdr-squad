@@ -390,7 +390,8 @@ class RobustnessTest(BoardCase):
         with open(self.fx.root / "messages.jsonl", "ab") as f:
             f.write('{"ts":"2026-10-12T10:30:00.000Z","from":"a\u2028b","to":"manager"}\n'.encode("utf-8"))
         srv = self.start()
-        self.assertIn("a\u2028b", [c["agent"] for c in srv.state()["columns"]])
+        # BRD-28: such a name is no agent (no column), but the line was read whole: its row is there
+        self.assertIn("a\u2028b", [r.get("from") for r in srv.state()["rows"]])
         self.assert_clean(srv)
 
     def test_deeply_nested_json_line_is_skipped(self):
