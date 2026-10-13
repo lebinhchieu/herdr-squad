@@ -155,6 +155,11 @@ class FileTest(NotesCase):
         self.assertEqual(r.status, 404)
         self.assertNotIn(b"CANARY", r.body)
 
+    def test_a_symlink_that_stays_inside_roles_is_served(self):
+        os.symlink("dev-board-1.notes.md", str(self.fx.root / "roles" / "linked.notes.md"))
+        r = self.notes("linked")
+        self.assertEqual((r.status, r.body), (200, NOTES.encode("utf-8")))
+
     def test_a_symlinked_roles_folder_is_judged_by_its_real_path(self):
         real = self.fx.root / "elsewhere"
         real.mkdir()
@@ -218,6 +223,25 @@ class FileTest(NotesCase):
         (self.fx.root / "roles" / "big.notes.md").write_bytes(b"")
         r = self.notes("big")
         self.assertEqual((r.status, r.body), (200, b""))
+
+
+class DescriptorTest(NotesCase):
+    @unittest.skipUnless(os.path.isdir("/proc/self/fd"), "counts the server's open descriptors through /proc")
+    def test_every_kind_of_request_closes_what_it_opened(self):
+        (self.fx.root / "roles" / "dirnamed.notes.md").mkdir()
+        os.mkfifo(str(self.fx.root / "roles" / "piped.notes.md"))
+        (self.fx.root / "roles" / "big.notes.md").write_bytes(b"x" * (2 << 20))
+
+        def open_fds():
+            return len(os.listdir("/proc/%d/fd" % self.srv.proc.pid))
+
+        for name in ("dev-board-1", "dirnamed", "piped", "big", "no-file"):  # a warm-up of each path
+            self.notes(name)
+        before = open_fds()
+        for _ in range(20):
+            for name in ("dev-board-1", "dirnamed", "piped", "big", "no-file"):
+                self.notes(name)
+        self.assertEqual(open_fds(), before)
 
 
 class HostAndMethodTest(NotesCase):

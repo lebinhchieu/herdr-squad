@@ -905,13 +905,8 @@ def read_notes(squad_dir, name):
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             return None
-        data = b""
-        while len(data) < NOTES_MAX_BYTES:
-            chunk = os.read(fd, NOTES_MAX_BYTES - len(data))
-            if not chunk:
-                break
-            data += chunk
-        return data
+        with os.fdopen(fd, "rb", closefd=False) as f:
+            return f.read(NOTES_MAX_BYTES)
     except OSError:
         return None
     finally:

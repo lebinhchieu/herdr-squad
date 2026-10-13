@@ -168,7 +168,8 @@ function draw(ts) {
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   ctx.fillStyle = P.bg;
   ctx.fillRect(0, 0, layout.width, layout.height);
-  const view = { state: state, layout: layout, ts: ts, scrollX: window.scrollX, scrollY: window.scrollY };
+  const view = { state: state, layout: layout, ts: ts, scrollX: window.scrollX, scrollY: window.scrollY,
+    selected: panelAgent };
   drawNeedsYou(ctx, view);
   // the columns scroll sideways; the bar and the task card stay put
   ctx.save();
@@ -403,8 +404,9 @@ function drawHeaderCard(ctx, cl, view) {
   roundRect(ctx, left, HEADER_Y, width, HEADER_H, 11);
   ctx.fill();
   shadowed(ctx, false);
-  ctx.strokeStyle = blocked ? P.red : P.line;
-  ctx.lineWidth = blocked ? 2 : 1.5;
+  const selected = view.selected === col.agent;
+  ctx.strokeStyle = selected ? P.mango : blocked ? P.red : P.line;
+  ctx.lineWidth = selected ? 2.5 : blocked ? 2 : 1.5;
   ctx.stroke();
   ctx.fillStyle = colour;
   ctx.beginPath();
@@ -500,11 +502,234 @@ function setupPicker(current) {
 }
 
 // --- section: panel ---
-// BRD-15: the side panel, Jump to pane and the notes link.
+// BRD-15: the side panel, Jump to pane (E24) and the notes link (E14). The panel is a DOM card over the
+// sequence, not canvas pixels, so its button and link are real controls and its text is the mirror
+// (#side-panel and the hooks inside it). drawPanel runs on every draw and brings the card up to date
+// in place, so a state update neither flickers nor moves its scroll position. All text is set with
+// textContent (E18).
+const PANEL_W = 360;
+const PANEL_TOP = 176;
+const PANEL_CLIP = 140;
+const PANEL_LAST = 3;
+const PANEL_TYPE_COLOUR = { ASK: P.blue, ANSWER: '#4A8FE0', BLOCKED: P.red, DECISION: P.yellow, HANDIN: P.purple,
+  PASS: P.green, FAIL: P.pink, STATUS: P.muted };
+const PANEL_NO_TOKEN = 'Jump needs the token: open the board from the URL squad-board printed (it ends in ?token=…).';
+const PANEL_RETIRED = 'This agent is retired: there is no pane to jump to.';
+const PANEL_MONITOR = [
+  ['context', 'context tokens', (c) => fmtTokens(c.context_tokens)],
+  ['tokens-in', 'tokens in', (c) => fmtTokens(c.tokens_in)],
+  ['tokens-out', 'tokens out', (c) => fmtTokens(c.tokens_out)],
+  ['working', 'working, total', (c) => panelDuration(c.working_s)],
+  ['blocked', 'blocked, total', (c) => panelDuration(c.blocked_s)],
+  ['wakes', 'times woken', (c) => String(c.wakes)],
+];
+
+// The token the server printed in the URL; the board's one write action (jump) and the notes link need it.
+const panelToken = new URLSearchParams(window.location.search).get('token') || '';
+let panelAgent = null;
+let panelJump = { agent: null, busy: false, ok: false, text: '' };
+let panelMessagesKey = '';
+let panelShownAgent = null;
+const panelExpanded = new Set();
+
+// E19 durations: 12s, 4m 05s, 1h 02m.
+function panelDuration(seconds) {
+  if (seconds >= 3600) {
+    return Math.floor(seconds / 3600) + 'h ' + String(Math.floor((seconds % 3600) / 60)).padStart(2, '0') + 'm';
+  }
+  if (seconds >= 60) return Math.floor(seconds / 60) + 'm ' + String(seconds % 60).padStart(2, '0') + 's';
+  return seconds + 's';
+}
+
+function panelEl(tag, parent, text) {
+  const el = document.createElement(tag);
+  if (text !== undefined) el.textContent = text;
+  parent.appendChild(el);
+  return el;
+}
+
+function panelSet(el, text) {
+  if (el.textContent !== text) el.textContent = text;
+}
+
+const panelStyle = document.createElement('style');
+panelStyle.textContent = [
+  '#side-panel { position: fixed; top: ' + PANEL_TOP + 'px; right: ' + SIDE_W + 'px; width: ' + PANEL_W + 'px;',
+  '  box-sizing: border-box; max-height: calc(100vh - ' + (PANEL_TOP + MARGIN) + 'px); overflow-y: auto;',
+  '  padding: 16px; z-index: 2; background: ' + P.card + '; color: ' + P.ink + '; border: 2px solid ' + P.mango + ';',
+  '  border-radius: 14px; box-shadow: 0 5px 16px ' + tint(P.ink, 0.13) + '; font: 12.5px ' + FONT + '; }',
+  '#panel-close { position: absolute; top: 8px; right: 10px; border: 0; background: none; cursor: pointer;',
+  '  font: 700 18px ' + FONT + '; color: ' + P.muted + '; }',
+  '#panel-name { margin: 0; padding-right: 28px; font: 800 16px ' + FONT + '; overflow-wrap: anywhere; }',
+  '#panel-sub { margin: 4px 0 0; font-weight: 600; color: ' + P.muted + '; overflow-wrap: anywhere; }',
+  '#panel-status { margin: 10px 0 0; font-size: 13px; font-weight: 700; }',
+  '#side-panel h3 { margin: 16px 0 8px; font: 800 11px ' + FONT + '; letter-spacing: 0.04em; color: ' + P.idle + '; }',
+  '#panel-monitor { display: grid; grid-template-columns: 1fr auto; row-gap: 4px; margin: 0; }',
+  '#panel-monitor dd { margin: 0; text-align: right; font-weight: 700; }',
+  '#panel-messages { margin: 0; padding: 0; list-style: none; }',
+  '#panel-messages li { margin-bottom: 8px; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }',
+  '.panel-type { font-weight: 700; }',
+  '.panel-more { border: 0; background: none; padding: 0 0 0 6px; cursor: pointer; color: ' + P.mangoDark + ';',
+  '  font: 600 12px ' + FONT + '; }',
+  '#panel-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }',
+  '#jump-button { border: 0; border-radius: 8px; padding: 6px 16px; cursor: pointer; background: ' + P.mango + ';',
+  '  color: #FFFFFF; font: 700 12.5px ' + FONT + '; }',
+  '#jump-button:disabled { opacity: 0.45; cursor: not-allowed; }',
+  '#notes-link { color: ' + P.mangoDark + '; font-weight: 600; text-decoration: none; }',
+  '#jump-result { margin: 8px 0 0; min-height: 1em; color: ' + P.muted + '; overflow-wrap: anywhere; }',
+].join('\n');
+document.head.appendChild(panelStyle);
+
+const panelBox = document.createElement('aside');
+panelBox.id = 'side-panel';
+panelBox.hidden = true;
+panelBox.setAttribute('aria-label', 'Agent panel');
+const panelClose = panelEl('button', panelBox, '×');
+panelClose.id = 'panel-close';
+panelClose.type = 'button';
+panelClose.setAttribute('aria-label', 'Close panel');
+const panelName = panelEl('h2', panelBox);
+panelName.id = 'panel-name';
+const panelSub = panelEl('p', panelBox);
+panelSub.id = 'panel-sub';
+const panelStatus = panelEl('p', panelBox);
+panelStatus.id = 'panel-status';
+panelEl('h3', panelBox, 'MONITOR');
+const panelMonitor = panelEl('dl', panelBox);
+panelMonitor.id = 'panel-monitor';
+const panelValues = PANEL_MONITOR.map((spec) => {
+  panelEl('dt', panelMonitor, spec[1]);
+  const dd = panelEl('dd', panelMonitor);
+  dd.setAttribute('data-field', spec[0]);
+  return dd;
+});
+panelEl('h3', panelBox, 'LAST MESSAGES');
+const panelMessages = panelEl('ul', panelBox);
+panelMessages.id = 'panel-messages';
+const panelActions = panelEl('div', panelBox);
+panelActions.id = 'panel-actions';
+const jumpButton = panelEl('button', panelActions, 'Jump to pane ↗');
+jumpButton.id = 'jump-button';
+jumpButton.type = 'button';
+const notesLink = panelEl('a', panelActions, 'notes.md ↗');
+notesLink.id = 'notes-link';
+notesLink.target = '_blank';
+notesLink.rel = 'noopener noreferrer';
+const jumpResult = panelEl('p', panelBox);
+jumpResult.id = 'jump-result';
+jumpResult.setAttribute('role', 'status');
+document.body.appendChild(panelBox);
+
+function closePanel() {
+  if (panelAgent === null) return;
+  panelAgent = null;
+  scheduleDraw();
+}
+
+panelClose.addEventListener('click', closePanel);
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closePanel(); });
+jumpButton.addEventListener('click', panelJumpClick);
+
+async function panelJumpClick() {
+  const agent = panelAgent;
+  if (agent === null || panelJump.busy) return;
+  panelJump = { agent: agent, busy: true, ok: true, text: 'Jumping…' };
+  scheduleDraw();
+  let ok = false;
+  let text;
+  try {
+    const res = await fetch('/jump/' + encodeURIComponent(agent),
+      { method: 'POST', headers: { 'X-Board-Token': panelToken } });
+    ok = res.ok;
+    if (ok) {
+      text = 'Jumped';
+    } else {
+      let detail = '';
+      try { detail = String((await res.json()).error || ''); } catch (e) { /* the status alone says enough */ }
+      text = res.status + (detail ? ' ' + detail : '');
+    }
+  } catch (e) {
+    text = 'Jump failed: the board did not answer';
+  }
+  panelJump = { agent: agent, busy: false, ok: ok, text: text };
+  scheduleDraw();
+}
+
+function panelClip(text) {
+  if (text.length <= PANEL_CLIP) return text;
+  const cut = text.charCodeAt(PANEL_CLIP - 1) >= 0xd800 && text.charCodeAt(PANEL_CLIP - 1) <= 0xdbff
+    ? PANEL_CLIP - 1 : PANEL_CLIP;  // never cut a surrogate pair in half
+  return text.slice(0, cut) + '…';
+}
+
+function panelMessage(row, agent) {
+  const li = document.createElement('li');
+  const type = row.type || 'msg';
+  const typeEl = panelEl('span', li, type);
+  typeEl.className = 'panel-type';
+  typeEl.style.color = Object.prototype.hasOwnProperty.call(PANEL_TYPE_COLOUR, type) ? PANEL_TYPE_COLOUR[type] : P.muted;
+  const peer = row.from === agent ? '→ ' + (row.to || '—') : '← ' + (row.from || '—');
+  panelEl('span', li, ' ' + peer + (row.task ? ' ' + row.task : '') + ' ');
+  const text = String(row.text === null || row.text === undefined ? '' : row.text);
+  const open = panelExpanded.has(row.msg_id);
+  panelEl('span', li, open ? text : panelClip(text));
+  if (text.length > PANEL_CLIP) {
+    const more = panelEl('button', li, open ? 'show less' : 'show more');
+    more.type = 'button';
+    more.className = 'panel-more';
+    more.addEventListener('click', () => {
+      if (panelExpanded.has(row.msg_id)) panelExpanded.delete(row.msg_id); else panelExpanded.add(row.msg_id);
+      scheduleDraw();
+    });
+  }
+  return li;
+}
+
+// The last PANEL_LAST messages the agent sent or received in the viewed iteration. The card is rebuilt
+// only when they (or an expanded flag) changed, so a state update with the same messages touches nothing.
+function renderPanelMessages(current, agent) {
+  const rows = current.rows.filter((r) => r.kind === 'message' && (r.from === agent || r.to === agent))
+    .slice(-PANEL_LAST);
+  // row ids shift when a message lands earlier in the log; only what is shown counts
+  const key = JSON.stringify(rows.map((r) => [r.msg_id, r.from, r.to, r.type, r.task, r.text, panelExpanded.has(r.msg_id)]));
+  if (key === panelMessagesKey) return;
+  panelMessagesKey = key;
+  panelMessages.replaceChildren(...rows.map((r) => panelMessage(r, agent)));
+}
+
 function drawPanel(ctx, view) {
+  const col = panelAgent === null ? null : view.state.columns.find((c) => c.agent === panelAgent);
+  if (panelAgent !== null && !col) closePanel();  // the agent left the viewed state
+  panelBox.hidden = !col;
+  if (!col) {
+    panelBox.removeAttribute('data-agent');
+    panelShownAgent = null;
+    return;
+  }
+  if (panelShownAgent !== col.agent) {
+    panelShownAgent = col.agent;
+    panelBox.setAttribute('data-agent', col.agent);
+    panelBox.scrollTop = 0;
+    notesLink.setAttribute('href', '/notes/' + encodeURIComponent(col.agent)
+      + (panelToken ? '?token=' + encodeURIComponent(panelToken) : ''));
+  }
+  panelSet(panelName, col.agent);
+  panelSet(panelSub, [col.role || '—', 'pod ' + col.pod, col.model || '—'].join(' · '));
+  panelSet(panelStatus, 'status: ' + col.status + (col.retired ? ' · retired' : ''));
+  panelStatus.style.color = statusColour(col.status);
+  PANEL_MONITOR.forEach((spec, i) => panelSet(panelValues[i], spec[2](col)));
+  panelValues[PANEL_MONITOR.findIndex((spec) => spec[0] === 'blocked')].style.color = col.blocked_s > 0 ? P.red : '';
+  renderPanelMessages(view.state, col.agent);
+  const note = col.retired ? PANEL_RETIRED : !panelToken ? PANEL_NO_TOKEN : '';
+  const mine = panelJump.agent === col.agent && panelJump.text !== '';
+  jumpButton.disabled = panelJump.busy || col.retired || !panelToken;
+  panelSet(jumpResult, mine ? panelJump.text : note);
+  jumpResult.style.color = mine && !panelJump.ok ? P.red : '';
 }
 
 function onHeaderClick(agent) {
+  panelAgent = panelAgent === agent ? null : agent;
+  scheduleDraw();
 }
 
 // --- section: alerts ---
