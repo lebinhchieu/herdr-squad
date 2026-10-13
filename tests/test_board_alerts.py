@@ -506,18 +506,24 @@ class PermissionTest(AlertsCase):
         self.assertEqual((self.title(), self.rec()["notes"], self.chimes(), self.errors()),
                          ("(2) squad board", [], 1, []))
 
-    def test_the_alerts_button_sits_left_of_the_bar_controls_at_every_width(self):
+    def test_the_alerts_button_sits_left_of_the_bar_controls_at_every_width_and_count(self):
+        # BRD-17 AC 9: `↓ live · N` grows with N; the picker (and so the whole controls box) must clear
+        # the alerts button for 0, 2, 10 and 1000 new rows, and the rest state with no live button
         self.srv = self.fx.start()
         for width in (1280, 1600, 1920):
             self.browser.open(self.srv.base + "/", init=stubs(permission="default"), width=width)
-            boxes = self.browser.eval(  # the ↓ live button only shows while paused: force it, it is the widest case
-                "(() => { document.querySelector('#live-button').hidden = false;"
-                "const r = (s) => { const b = document.querySelector(s).getBoundingClientRect();"
-                "return [b.left, b.top, b.right, b.bottom]; };"
-                "return {alerts: r('#alerts-button'), controls: r('#bar-controls')}; })()")
-            alerts, controls = boxes["alerts"], boxes["controls"]
-            self.assertLess(alerts[2], controls[0], (width, boxes))
-            self.assertLessEqual(controls[2], width - 16, (width, boxes))
+            for label in (None, "↓ live", "↓ live · 2", "↓ live · 10", "↓ live · 1000"):
+                boxes = self.browser.eval(
+                    "(() => { const b = document.querySelector('#live-button'); const label = %s;"
+                    "b.hidden = label === null; if (label !== null) b.textContent = label;"
+                    "const r = (s) => { const x = document.querySelector(s).getBoundingClientRect();"
+                    "return [x.left, x.top, x.right, x.bottom]; };"
+                    "return {alerts: r('#alerts-button'), picker: r('#iteration-picker'),"
+                    "controls: r('#bar-controls')}; })()" % json.dumps(label))
+                alerts, picker, controls = boxes["alerts"], boxes["picker"], boxes["controls"]
+                self.assertLessEqual(alerts[2] + 8, picker[0], (width, label, boxes))
+                self.assertLessEqual(alerts[2], controls[0], (width, label, boxes))
+                self.assertLessEqual(controls[2], width - 16, (width, label, boxes))
 
     def test_the_button_is_on_the_bar_and_not_in_the_hidden_text_mirror(self):
         self.start(permission="default")

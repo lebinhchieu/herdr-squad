@@ -15,8 +15,11 @@
   #board-text { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden;
     clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
   #board-text ul { margin: 0; padding: 0; list-style: none; }
-  /* BRD-16: sits left of the picker and the ↓ live button (BAR_RESERVED_RIGHT) */
-  #alerts-button { position: fixed; top: 22px; right: 320px; width: 112px; box-sizing: border-box;
+  /* BRD-17 AC 9: one right-anchored row; the controls grow leftward and push the alerts button with
+     them, so `↓ live · N` never overlaps it (BAR_RESERVED_RIGHT) */
+  #top-right { position: fixed; top: 16px; right: 140px; z-index: 2; display: flex; gap: 12px;
+    align-items: center; }
+  #alerts-button { width: 112px; box-sizing: border-box;
     font: 700 13px system-ui, -apple-system, "Segoe UI", sans-serif; border: 0; border-radius: 8px;
     padding: 7px 0; cursor: pointer; background: #E8820E; color: #FFFFFF; }
 </style>
@@ -24,7 +27,7 @@
 <body>
 <div id="stage"><canvas id="board" aria-hidden="true"></canvas></div>
 <!-- section: alerts -->
-<button id="alerts-button" type="button" hidden>Enable alerts</button>
+<div id="top-right"><button id="alerts-button" type="button" hidden>Enable alerts</button></div>
 
 <!-- section: mirror -->
 <div id="board-text">
@@ -874,13 +877,13 @@ const liveButton = document.createElement('button');
 liveButton.id = 'live-button';
 liveButton.type = 'button';
 controls.append(liveButton);
-document.body.append(controls);
+document.getElementById('top-right').append(controls);
 const liveState = document.createElement('p');
 liveState.id = 'live-state';
 document.getElementById('board-text').append(liveState);
 const controlStyle = document.createElement('style');
 controlStyle.textContent =
-  '#bar-controls { position: fixed; top: 16px; right: 140px; z-index: 2; display: flex; gap: 8px; ' +
+  '#bar-controls { position: relative; display: flex; gap: 8px; ' +
   'align-items: center; font: 600 12.5px ' + FONT + '; }' +
   '#iteration-picker, #live-button { height: 24px; box-sizing: border-box; border-radius: 8px; ' +
   'font: inherit; cursor: pointer; }' +
