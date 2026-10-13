@@ -36,7 +36,7 @@ A lone scope sees nothing of other scopes. The scopes of a goal share only `goal
 | Path | What it is |
 |---|---|
 | `agents/*.md` | The 8 role definitions, started as **top-level sessions** with `claude --agent squad:<role>` (not as subagents) |
-| `bin/squad-start` | Makes a scope or goal folder and brief, checks that the work doesn't overlap an open scope (`--touches`), starts a fresh Manager. `--in-goal G` adds a scope to a goal; `--resume NAME` restarts a Manager |
+| `bin/squad-start` | Makes a scope or goal folder and brief, checks that the work doesn't overlap an open scope (`--touches`), starts a fresh Manager. `--in-goal G` adds a scope to a goal; `--resume NAME` restarts a Manager; `--model M` and `--effort E` set the Manager's model and effort |
 | `bin/squad-spawn` | Opens a herdr tab, makes a git worktree for Developers (`.worktrees/<squad>/<scope>/<agent>`, branch `squad/<squad>/<scope>/<agent>`; `--base` starts it from a passed branch), starts `claude --agent squad:<role> --name <agent> --permission-mode auto --settings <role settings>` |
 | `bin/squad-close` | `--scope S` retires a scope's agents, removes merged worktrees and moves the folder to `scopes/_done/`. `--goal G` does the same for a goal and refuses while a scope is open or its shared decisions were never promoted. With neither it archives the whole squad. Every branch is reported; none is deleted |
 | `bin/squad-respawn` | Replaces an agent's session with a fresh one from its notes; keeps its name, scope and worktree |

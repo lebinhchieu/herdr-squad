@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """Start a task or a goal in a per-scope squad: make its folder and brief, then start a fresh Manager.
 
-  squad-start "<text>" [--touches A,B] [--name N] [--squad S] [--yes] [--dry-run]
+  squad-start "<text>" [--touches A,B] [--name N] [--squad S] [--model M] [--effort E] [--yes] [--dry-run]
       Plain text is a lone task: scopes/<name>/ and a Manager <squad>-mgr-<name> that lives with the scope.
       Text starting with "goal:" is a goal: goals/<name>/ and a goal Manager.
   squad-start "<text>" --in-goal G --name N [--touches ...]
       A scope inside goal G: scopes/N/ with `goal: G`. No Manager; the goal Manager runs it.
-  squad-start --resume NAME
+  squad-start --resume NAME [--model M] [--effort E]
       A new Manager for an existing scope or goal whose Manager is gone. Its files are not touched.
 
 The name is the first ticket id in the text (SEC-04 -> sec04), else a short slug; --name overrides it.
 --touches lists the repos or paths the work changes. If it overlaps an open scope's `touches:` the script lists
 the overlaps and exits 3 without creating anything; the PO decides, and --yes goes ahead.
+--model and --effort set the Manager's model and effort (default: those in agents/manager.md); it does not change the roles the Manager spawns.
 Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
 """
 import argparse
@@ -101,6 +102,10 @@ def resume(squad, a):
     prompt = (f"RESPAWN: you are {manager}, restarted for {kind} {a.resume}. Read $SQUAD_DIR/process.md, then your notes "
               f"${home_var}/roles/{manager}.notes.md if it exists, then the brief and the roster, and continue where the files say.")
     spawn = [str(PLUGIN / "bin" / "squad-spawn"), "manager", manager, "--goal" if kind == "goal" else "--scope", a.resume, "--prompt", prompt]
+    if a.model:
+        spawn += ["--model", a.model]
+    if a.effort:
+        spawn += ["--effort", a.effort]
     if a.dry_run:
         print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
         return
@@ -122,6 +127,8 @@ def main():
     p.add_argument("--touches", default="")
     p.add_argument("--in-goal")
     p.add_argument("--squad")
+    p.add_argument("--model")
+    p.add_argument("--effort")
     p.add_argument("--yes", action="store_true")
     p.add_argument("--dry-run", action="store_true")
     a = p.parse_args()
@@ -172,6 +179,10 @@ def main():
                 "$SCOPE_DIR/scope.md (the PO's brief), do your start-of-session routine, size the scope")
         prompt = f"Start of run. Your {kind} is {name}: read {what}, and propose the plan to the PO (me) before spawning anyone."
     spawn = [str(PLUGIN / "bin" / "squad-spawn"), "manager", manager or "", flag, name, "--prompt", prompt or ""]
+    if a.model:
+        spawn += ["--model", a.model]
+    if a.effort:
+        spawn += ["--effort", a.effort]
 
     if a.dry_run:
         print(f"would create {target} from templates/{kind}")

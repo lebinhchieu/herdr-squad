@@ -59,6 +59,13 @@ class StartTest(unittest.TestCase):
         self.assertIn("scope.md", next(l for l in h.splitlines() if l.startswith("agent prompt")))
         self.assertIn("| t-mgr-sec04 | manager | sec04 |", (sc / "roster.md").read_text())
 
+    def test_model_flag_sets_the_managers_model_else_the_role_default_applies(self):
+        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a", "--model", "sonnet", "--effort", "high").returncode, 0)
+        self.assertRegex(self.herdr(), r"--model sonnet --effort high\b")
+        self.log.unlink()
+        self.assertEqual(self.start("Task two", "--name", "two", "--touches", "b").returncode, 0)
+        self.assertRegex(self.herdr(), r"--model opus\b")
+
     def test_name_comes_from_a_ticket_id_else_a_short_slug_and_can_be_overridden(self):
         self.assertEqual(json.loads(self.start("Regroup the settings tabs", "--touches", "x").stdout)["name"], "regroup-settings")
         self.assertEqual(json.loads(self.start("Anything", "--name", "mine", "--touches", "y").stdout)["name"], "mine")
