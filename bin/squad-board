@@ -304,18 +304,28 @@ class TimelineBuilder:
         self.bars = []   # every bar, in start order
         self.open = {}   # agent -> its open bar
         self.last = {}   # agent -> (µs, ts) of its last message or status record
+        self.last_row = {}         # agent -> index of the last row that names it: where its bar ends
+        self.last_status_us = {}   # agent -> µs of its last status record, for the D7 wake window
 
     def add_row(self, row, rec, us):
         self.rows.append((row, us, rec["iteration"] if rec["iteration"] is not None else self.lowest))
         return len(self.rows) - 1
 
+    def add_agent_row(self, agent, row, rec, us):
+        index = self.add_row(row, rec, us)
+        self.last_row[agent] = index
+        return index
+
     def start_bar(self, agent, row_index, self_start):
         if agent in self.open:
             return
         row, us, iteration = self.rows[row_index]
+        # recorded: a status record backs the bar, so only a status record may end it (D7: the hook's
+        # `working` stamp can come just before the message that opens the bar)
+        recorded = us - self.last_status_us.get(agent, -10 ** 18) <= WAKE_WINDOW_S * MICROS
         bar = {"agent": agent, "start": row_index, "end": None, "start_ts": row["ts"], "end_ts": None,
                "start_us": us, "end_us": None, "self_start": self_start, "iteration": iteration,
-               "blocked": [], "waiting": []}
+               "blocked": [], "waiting": [], "recorded": recorded}
         self.open[agent] = bar
         self.bars.append(bar)
 
@@ -331,40 +341,59 @@ class TimelineBuilder:
         row = {"kind": "message", "ts": rec["ts"], "from": rec["from"], "to": rec["to"],
                "type": rec["type"], "task": rec["task"], "text": rec["text"], "msg_id": rec["msg_id"]}
         index = self.add_row(row, rec, us)
-        if rec["from"] and is_agent_name(rec["from"]):
-            self.last[rec["from"]] = (us, rec["ts"])
-            self.start_bar(rec["from"], index, True)
-        if rec["to"] and is_agent_name(rec["to"]):
-            self.last[rec["to"]] = (us, rec["ts"])
-            self.start_bar(rec["to"], index, False)
+        for agent, self_start in ((rec["from"], True), (rec["to"], False)):
+            if agent and is_agent_name(agent):
+                self.cut_unrecorded(agent, us)
+                self.last[agent] = (us, rec["ts"])
+                self.last_row[agent] = index
+                self.start_bar(agent, index, self_start)
+
+    def end_at_last_event(self, agent):
+        """Ends the agent's open bar, and any open segment of it, at its last event and last row."""
+        bar = self.open.pop(agent)
+        end_us, end_ts = self.last[agent]
+        end_row = self.last_row[agent]
+        for seg in bar["blocked"] + bar["waiting"]:
+            if seg["end_us"] is None:
+                seg.update(end=end_row, end_ts=end_ts, end_us=end_us)
+        bar.update(end=end_row, end_ts=end_ts, end_us=end_us)
+
+    def cut_unrecorded(self, agent, us):
+        """A bar no status record backs ends at the agent's last event once a quiet stretch longer
+        than FOLD_GAP_S follows it: the closing `idle` may be days away (the recorder only runs
+        while the board runs)."""
+        bar = self.open.get(agent)
+        if bar is not None and not bar["recorded"] and us - self.last[agent][0] > FOLD_GAP_S * MICROS:
+            self.end_at_last_event(agent)
 
     def close_retired(self, live_agents):
         """A bar still open for an agent that is not live ends at that agent's last event."""
-        for agent, bar in list(self.open.items()):
-            if agent in live_agents:
-                continue
-            end_us, end_ts = self.last[agent]
-            for seg in bar["blocked"] + bar["waiting"]:
-                if seg["end_us"] is None:
-                    seg.update(end_ts=end_ts, end_us=end_us)
-            bar.update(end_ts=end_ts, end_us=end_us)
-            del self.open[agent]
+        for agent in [a for a in self.open if a not in live_agents]:
+            self.end_at_last_event(agent)
+
+    def close_stale(self, now_us):
+        for agent in list(self.open):
+            self.cut_unrecorded(agent, now_us)
 
     def status(self, rec, us, woken_by_message):
         agent, status = rec["agent"], rec["status"]
+        self.cut_unrecorded(agent, us)
         self.last[agent] = (us, rec["ts"])
+        self.last_status_us[agent] = us
         bar = self.open.get(agent)
+        if bar is not None:
+            bar["recorded"] = True
         row = {"kind": "status", "ts": rec["ts"], "agent": agent, "status": status}
         if status == "working":
             if bar is None:
                 if not woken_by_message:
-                    self.start_bar(agent, self.add_row(row, rec, us), True)
+                    self.start_bar(agent, self.add_agent_row(agent, row, rec, us), True)
             elif open_segment(bar) is not None or open_segment(bar, "waiting") is not None:
-                self.close_segment(bar, self.add_row(row, rec, us))
+                self.close_segment(bar, self.add_agent_row(agent, row, rec, us))
         elif status == "blocked":
             if bar is not None and open_segment(bar) is not None:
                 return
-            index = self.add_row(row, rec, us)
+            index = self.add_agent_row(agent, row, rec, us)
             if bar is not None:
                 self.close_segment(bar, index)  # blocked wins: a waiting segment ends here
             self.start_bar(agent, index, True)
@@ -377,7 +406,7 @@ class TimelineBuilder:
                 return
             if detail:
                 row["detail"] = detail
-            index = self.add_row(row, rec, us)
+            index = self.add_agent_row(agent, row, rec, us)
             if bar is not None:
                 self.close_segment(bar, index)
             self.start_bar(agent, index, True)
@@ -386,13 +415,13 @@ class TimelineBuilder:
                                                 "detail": detail})
         elif bar is not None:
             row["duration_s"] = whole_seconds(bar["start_us"], us)
-            index = self.add_row(row, rec, us)
+            index = self.add_agent_row(agent, row, rec, us)
             self.close_segment(bar, index)
             bar.update(end=index, end_ts=rec["ts"], end_us=us)
             del self.open[agent]
 
 
-def replay_records(messages, activity, lowest_iteration):
+def replay_records(messages, activity, lowest_iteration, now_us=None):
     """Feed messages and status events to a TimelineBuilder in time order (message first on a tie)."""
     events = [(micros(m["ts"]), 0, i, m) for i, m in enumerate(messages)]
     events += [(micros(a["ts"]), 1, i, a) for i, a in enumerate(activity) if a["status"] in BAR_STATUSES]
@@ -413,6 +442,8 @@ def replay_records(messages, activity, lowest_iteration):
                 seen[agent] += 1
             woken = seen[agent] < len(times) and times[seen[agent]] - us <= WAKE_WINDOW_S * MICROS
         builder.status(rec, us, woken)
+    if now_us is not None:
+        builder.close_stale(now_us)
     return builder
 
 
@@ -461,7 +492,7 @@ def derive_timeline(messages, activity, columns, now, selected_iteration, lowest
     iteration. A record without an iteration counts as `lowest_iteration`. A bar of an agent outside
     `live_agents` ends at its last event; `None` means every agent is live."""
     now_us = micros(now)
-    builder = replay_records(messages, activity, lowest_iteration)
+    builder = replay_records(messages, activity, lowest_iteration, now_us)
     if live_agents is not None:
         builder.close_retired(live_agents)
     rows, ids = fold_rows(builder.rows, selected_iteration)

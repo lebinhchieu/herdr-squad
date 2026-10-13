@@ -1,8 +1,12 @@
 """Seam A, BRD-02: rows, folded gaps, activation bars, durations and totals in GET /state."""
 import json
+import os
+import shutil
 import time
 import unittest
 from datetime import datetime, timedelta, timezone
+
+from pathlib import Path
 
 from board_fixture import Fixture
 
@@ -74,7 +78,7 @@ class RowOrderTest(TimelineCase):
 class BarStartTest(TimelineCase):
     def test_message_starts_receiver_bar_and_sender_bar(self):
         self.msg(1)
-        st = self.state()
+        st = self.state(now=100)  # BRD-31: a message-only bar is cut once `now` is over FOLD_GAP_S past it
         tb, mgr = self.bars_of(st, "tech-board")[0], self.bars_of(st, "manager")[0]
         self.assertEqual((tb["start_row"], tb["start_ts"], tb["self_start"], tb["open"]),
                          (0, ts(1), False, True))
@@ -556,7 +560,7 @@ class RetiredAgentTest(TimelineCase):
     def test_a_cross_session_address_is_no_column_and_no_bar_but_its_row_stays(self):
         sock = "uds:/run/user/1000/cc-socks/1.sock"
         self.msg(10, frm="tech-board", to=sock)
-        st = self.state()
+        st = self.state(now=100)
         self.assertNotIn(sock, [c["agent"] for c in st["columns"]])
         self.assertEqual([b["agent"] for b in st["bars"]], ["tech-board"])
         self.assertEqual([r["to"] for r in st["rows"]], [sock])
@@ -648,3 +652,131 @@ class WaitingTest(TimelineCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClosedBarEndRowTest(TimelineCase):
+    """BRD-31 AC 0: a bar that is not open has the row of its last event as `end_row`."""
+
+    def test_a_retired_agents_bar_ends_at_its_last_row_and_its_open_segments_too(self):
+        self.act(10, "dev-board-3", "working")
+        self.act(20, "dev-board-3", "blocked")
+        self.msg(30, frm="manager", to="tech-board")
+        self.msg(500, frm="manager", to="tech-board")
+        self.fx.roster([MANAGER, TECH])  # dev-board-3 is retired
+        st = self.state(now=900)
+        bar = self.only_bar(st, "dev-board-3")
+        seg = bar["blocked"][0]
+        self.assertEqual((bar["open"], bar["start_row"], bar["end_row"]), (False, 0, 1))
+        self.assertEqual((seg["start_row"], seg["end_row"]), (1, 1))
+
+    def test_no_closed_bar_lacks_an_end_row_and_rows_nest(self):
+        self.act(10, "dev-board-3", "working")
+        self.msg(20)
+        self.msg(30, frm="tech-board", to="manager")
+        self.msg(40, frm="manager", to="dev-board-3")
+        self.act(50, "dev-board-3", "blocked")
+        self.msg(2000)
+        self.fx.roster([MANAGER, TECH])
+        for st in (self.state(now=5000),):
+            self.assertTrue(st["bars"])
+            for bar in st["bars"]:
+                if not bar["open"]:
+                    self.assertIsNotNone(bar["end_row"], bar)
+                    self.assertLessEqual(bar["start_row"], bar["end_row"])
+                for seg in bar["blocked"] + bar["waiting"]:
+                    self.assertGreaterEqual(seg["start_row"], bar["start_row"])
+                    if seg["end_row"] is not None and bar["end_row"] is not None:
+                        self.assertLessEqual(seg["end_row"], bar["end_row"])
+
+    def only_bar(self, st, agent):
+        (bar,) = self.bars_of(st, agent)
+        return bar
+
+
+class BurstCutTest(TimelineCase):
+    """BRD-31: a bar no status record backs ends at the agent's last event before a long silence."""
+
+    def tech_bars(self, st):
+        return [(b["start_ts"], b["end_ts"], b["open"], b["end_row"], b["duration_s"])
+                for b in self.bars_of(st, "tech-board")]
+
+    def test_a_burst_then_an_hour_of_silence_gives_two_bars_each_ending_at_its_last_message(self):
+        self.msg(10)
+        self.msg(20)
+        self.msg(3700)
+        st = self.state(now=3710)
+        self.assertEqual(self.tech_bars(st), [(ts(10), ts(20), False, 1, 10), (ts(3700), None, True, None, 10)])
+
+    def test_the_gap_boundary_is_fold_gap_s_exactly(self):
+        self.msg(10)
+        self.msg(190)
+        self.assertEqual(len(self.bars_of(self.state(now=200), "tech-board")), 1)
+        self.fx.message(ts=ts(371), **{"from": "manager", "to": "tech-board", "iteration": 1})
+        self.assertEqual(len(self.bars_of(self.state(now=380), "tech-board")), 2)
+
+    def test_a_bar_with_a_status_record_inside_runs_through_the_silence_to_its_idle(self):
+        self.msg(10)
+        self.act(15, "tech-board", "working")
+        self.act(3600, "tech-board", "idle")
+        (bar,) = self.bars_of(self.state(now=3700), "tech-board")
+        self.assertEqual((bar["end_ts"], bar["duration_s"], bar["open"]), (ts(3600), 3590, False))
+
+    def test_a_working_stamp_just_before_the_message_backs_the_bar(self):
+        self.act(9, "tech-board", "working")
+        self.msg(10)
+        self.msg(1300)
+        (bar,) = self.bars_of(self.state(now=1310), "tech-board")
+        self.assertEqual((bar["start_ts"], bar["open"]), (ts(10), True))
+
+    def test_an_idle_days_later_changes_nothing_on_an_unrecorded_bar(self):
+        self.msg(10)
+        self.msg(20)
+        self.act(3 * 86400, "tech-board", "idle")
+        (bar,) = self.bars_of(self.state(now=3 * 86400 + 5), "tech-board")
+        self.assertEqual((bar["end_ts"], bar["end_row"], bar["open"], bar["duration_s"]), (ts(20), 1, False, 10))
+
+    def test_a_live_agents_stale_bar_is_cut_at_now_and_a_fresh_one_stays_open(self):
+        self.msg(10)
+        self.assertEqual(self.bars_of(self.state(now=190), "tech-board")[0]["open"], True)
+        (bar,) = self.bars_of(self.state(now=191), "tech-board")
+        self.assertEqual((bar["open"], bar["end_ts"], bar["duration_s"], bar["end_row"]), (False, ts(10), 0, 0))
+
+    def test_working_s_is_the_sum_of_the_burst_spans(self):
+        for t in (10, 30, 5000, 5100):
+            self.msg(t)
+        self.assertEqual(self.column(self.state(now=9000), "tech-board")["working_s"], 20 + 100)
+
+
+class ClosedBarShapeTest(unittest.TestCase):
+    """BRD-31 AC 0: `/state` over whole fixtures and a copy of this squad's own folder."""
+    FIXTURES = Path(__file__).resolve().parent / "fixtures" / "board"
+
+    def check(self, source, now=None):
+        fx = Fixture()
+        self.addCleanup(fx.close)
+        shutil.copytree(str(source), str(fx.root), dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("evidence", "worktrees", "replay", ".git"))
+        st = fx.start(now=now).state()
+        closed = [b for b in st["bars"] if not b["open"]]
+        self.assertTrue(st["bars"], source)
+        for b in closed:
+            self.assertIsNotNone(b["end_row"], (source, b))
+            self.assertLessEqual(b["start_row"], b["end_row"], (source, b))
+        for b in st["bars"]:
+            for seg in b["blocked"] + b["waiting"]:
+                self.assertGreaterEqual(seg["start_row"], b["start_row"], (source, b))
+                if seg["end_row"] is not None and b["end_row"] is not None:
+                    self.assertLessEqual(seg["end_row"], b["end_row"], (source, b))
+        return st
+
+    def test_the_committed_fixtures_have_no_closed_bar_without_an_end_row(self):
+        for name in ("page", "waiting", "demo"):
+            now = (self.FIXTURES / name / "now.txt")
+            self.check(self.FIXTURES / name, now.read_text().strip() if now.is_file() else None)
+
+    def test_a_copy_of_this_squad_folder_has_none_either(self):
+        squad = os.environ.get("SQUAD_DIR")
+        if not squad or not (Path(squad) / "activity.jsonl").is_file():
+            self.skipTest("no squad folder in SQUAD_DIR")
+        st = self.check(Path(squad), "2099-01-01T00:00:00Z")
+        self.assertTrue(any(not b["open"] for b in st["bars"]))

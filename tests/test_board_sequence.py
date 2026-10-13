@@ -486,7 +486,7 @@ class OpenBarTest(SequenceCase):
         self.assertEqual(self.browser.eval("window.__raf") - before, 0)
 
     def test_the_loop_runs_while_a_bar_is_open(self):
-        srv = self.scene(close=False).start(now="2026-10-12T11:00:00Z")
+        srv = self.scene(close=False).start(now="2026-10-12T10:01:00Z")
         self.browser.open(self.url(srv))
         self.browser.call("sleep", ms=500)
         before = self.browser.eval("window.__raf")

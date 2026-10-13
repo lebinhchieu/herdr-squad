@@ -1209,6 +1209,32 @@ class ReconnectTest(BrowserTestCase):
 WAITING_FIXTURE = PAGE_FIXTURE.parent / "waiting"
 
 
+class ClosedBarPageTest(BrowserTestCase):
+    """BRD-31 AC 0: a retired agent's bar ends at its last row, it does not run down to the bottom."""
+
+    def test_a_closed_bar_is_drawn_down_to_its_end_row_and_not_further(self):
+        fx = Fixture()
+        self.addCleanup(fx.close)
+        fx.roster([{"agent": "manager", "role": "Manager", "scope": "all"}, {"agent": "dev-shop-1"},
+                   {"agent": "gone-1", "status": "retired 2026-10-11"}])
+        fx.iteration(1, QUIET_CHECKIN)
+        fx.activity(agent="manager", status="idle")
+        fx.message(**{"from": "gone-1", "to": "manager"})
+        fx.message(**{"from": "manager", "to": "gone-1"})
+        for _ in range(14):
+            fx.message(**{"from": "manager", "to": "dev-shop-1"})
+        srv = fx.start(now=self.now)
+        (bar,) = [b for b in srv.state()["bars"] if b["agent"] == "gone-1"]
+        self.assertEqual((bar["open"], bar["start_row"], bar["end_row"]), (False, 0, 1))
+        self.browser.open(self.url(srv))
+        left, width = self.card("gone-1")
+        x0, x1 = left + width / 2 - 10, left + width / 2 + 10
+        y_end = 180 + 1 * 30 + 15 + 4  # ROWS_Y + row * ROW_H + ROW_H / 2 + 4: the bar's bottom edge
+        teal = lambda y0, y1: colour_near(self.pixels(x0, y0, x1, y1), "0C8A80", 40)
+        self.assertGreater(teal(y_end - 40, y_end - 2), 0)
+        self.assertEqual(teal(y_end + 6, y_end + 120), 0)
+
+
 class WaitingPageTest(BrowserTestCase):
     """BRD-29: fixtures/board/waiting. dev-wait-1 worked, waited 4m 05s on a monitor, worked, went idle;
     dev-wait-2 has been waiting on a shell since 09:07 (now is 09:10)."""
