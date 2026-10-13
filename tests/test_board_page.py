@@ -882,6 +882,36 @@ class CanvasDetailTest(BrowserTestCase):
         self.assertEqual(flags, {"manager": "false", "live-quiet": "false", "gone-status": "false",
                                  "gone-sender": "false", "gone-receiver": "false", "gone-nothing": "true"})
 
+    def cut(self, name, width):
+        """The page's own fitName, lifted from its source: the page keeps its functions private."""
+        source = PAGE_FILE.read_text(encoding="utf-8")
+        helpers = "".join(re.search(r"^function %s\(.*?^}\n" % fn, source, re.S | re.M).group(0)
+                          for fn in ("fit", "fitName"))
+        return self.browser.eval(
+            "(() => { %s const c = document.createElement('canvas').getContext('2d');"
+            " c.font = '700 11.5px ' + %s; return fitName(c, %s, %s); })()"
+            % (helpers, json.dumps(FONT), json.dumps(name), width))
+
+    def test_a_numbered_name_is_cut_in_the_middle_and_keeps_its_number(self):
+        self.browser.open(self.url())
+        font = "700 11.5px " + FONT
+        for name in ("dev-board-10", "dev-board-11", "dev-board-12"):
+            width = self.text_width(font, "dev-bo\u2026-1X") + 4
+            shown = self.cut(name, width)
+            self.assertTrue(shown.startswith("dev-") and shown.endswith("\u2026" + name[-3:]), shown)
+            self.assertEqual(shown.count("\u2026"), 1)
+            self.assertLessEqual(self.text_width(font, shown), width)
+        self.assertEqual(self.cut("dev-board-10", 500), "dev-board-10")
+
+    def test_a_name_without_a_number_is_cut_at_the_end(self):
+        self.browser.open(self.url())
+        font = "700 11.5px " + FONT
+        width = self.text_width(font, "qa-whitebo\u2026") + 1
+        shown = self.cut("qa-whiteboard", width)
+        self.assertTrue(shown.startswith("qa-white") and shown.endswith("\u2026"), shown)
+        self.assertLessEqual(self.text_width(font, shown), width)
+        self.assertEqual(self.cut("qa-whiteboard", 500), "qa-whiteboard")
+
     def test_pod_bands_meet_at_the_column_edge(self):
         self.browser.open(self.url())
         pods = self.srv.state()["pods"]

@@ -285,6 +285,16 @@ function fit(ctx, text, maxWidth) {
   return text.slice(0, cut) + '…';
 }
 
+// A numbered name (dev-board-10) is cut in the middle so the number stays: dev-bo…-10.
+function fitName(ctx, name, maxWidth) {
+  const suffix = /-\d+$/.exec(name);
+  if (!suffix || ctx.measureText(name).width <= maxWidth) return fit(ctx, name, maxWidth);
+  const tail = '…' + suffix[0];
+  let cut = name.length - suffix[0].length;
+  while (cut > 0 && ctx.measureText(name.slice(0, cut) + tail).width > maxWidth) cut--;
+  return name.slice(0, cut) + tail;
+}
+
 function statusColour(status) {
   return status === 'blocked' ? P.red : status === 'working' ? P.teal : P.idle;
 }
@@ -378,7 +388,7 @@ function drawStub(ctx, cl) {
   ctx.translate(cl.cx + 4, HEADER_Y + HEADER_H - 6);
   ctx.rotate(-Math.PI / 2);
   setText(ctx, '600 10px ' + FONT, P.idle);
-  ctx.fillText(fit(ctx, cl.col.agent, HEADER_H - 10), 0, 0);
+  ctx.fillText(fitName(ctx, cl.col.agent, HEADER_H - 10), 0, 0);
   ctx.restore();
 }
 
@@ -408,7 +418,7 @@ function drawHeaderCard(ctx, cl, view) {
     ctx.stroke();
   }
   setText(ctx, '700 11.5px ' + FONT, P.ink);
-  ctx.fillText(fit(ctx, col.agent, width - 30), left + 25, HEADER_Y + 20);
+  ctx.fillText(fitName(ctx, col.agent, width - 30), left + 25, HEADER_Y + 20);
   drawTotals(ctx, left + 6, left + width - 6, HEADER_Y + 39, col);
   setText(ctx, '700 10.5px ' + FONT, col.context_tokens === null ? P.idle : P.muted, 'right');
   ctx.fillText(fmtTokens(col.context_tokens), left + width - 6, HEADER_Y + 56);
