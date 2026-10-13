@@ -4,6 +4,8 @@ Every test runs the real `bin/squad-board --replay` on a temp squad folder with
 `roles/<name>.notes.md` files and talks to it over a raw socket.
 """
 import os
+import socket
+import time
 import unittest
 from urllib.parse import quote
 
@@ -235,13 +237,42 @@ class DescriptorTest(NotesCase):
         def open_fds():
             return len(os.listdir("/proc/%d/fd" % self.srv.proc.pid))
 
+        def settled():
+            # the client sees EOF at the server's shutdown, a moment before the socket closes
+            last, deadline = open_fds(), time.monotonic() + 2
+            while time.monotonic() < deadline:
+                time.sleep(0.05)
+                now = open_fds()
+                if now == last:
+                    return now
+                last = now
+            return last
+
         for name in ("dev-board-1", "dirnamed", "piped", "big", "no-file"):  # a warm-up of each path
             self.notes(name)
-        before = open_fds()
+        before = settled()
         for _ in range(20):
             for name in ("dev-board-1", "dirnamed", "piped", "big", "no-file"):
                 self.notes(name)
-        self.assertEqual(open_fds(), before)
+        self.assertEqual(settled(), before)
+
+
+class MalformedRequestTest(NotesCase):
+    def test_a_space_in_the_target_does_not_echo_the_token_back(self):
+        sock = socket.create_connection(("127.0.0.1", self.srv.port), timeout=15)
+        try:
+            sock.sendall(("GET /notes/dev board?token=%s HTTP/1.1\r\nHost: 127.0.0.1:%d\r\n\r\n"
+                          % (self.srv.token, self.srv.port)).encode())
+            reply = b""
+            while True:
+                chunk = sock.recv(65536)
+                if not chunk:
+                    break
+                reply += chunk
+        finally:
+            sock.close()
+        self.assertTrue(reply.startswith(b"HTTP/1.0 400") or reply.startswith(b"HTTP/1.1 400"), reply[:40])
+        self.assertNotIn(self.srv.token.encode(), reply)
 
 
 class HostAndMethodTest(NotesCase):

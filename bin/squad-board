@@ -996,8 +996,9 @@ class BoardHandler(BaseHTTPRequestHandler):
     do_HEAD = do_OPTIONS = do_PUT = do_PATCH = do_DELETE = method_not_allowed
 
     def send_error(self, code, message=None, explain=None):
-        # the stock error page is HTML without our headers
-        send_json(self, code, {"error": message or self.responses.get(code, ("error",))[0]})
+        # the stock error page is HTML without our headers; `message` is dropped because for a
+        # malformed request line it echoes the client's text, which can carry the token
+        send_json(self, code, {"error": self.responses.get(code, ("error",))[0]})
 
     def log_message(self, format, *args):
         # a request line on stderr would break the "silent when healthy" contract
