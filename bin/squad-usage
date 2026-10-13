@@ -182,6 +182,7 @@ def main():
     p.add_argument("--role", default="")
     p.add_argument("--scope", default="")
     a = p.parse_args()
+    # SQUAD_DIR alone is the legacy flat layout
     squad_dir = a.squad_dir or os.environ.get("SCOPE_DIR") or os.environ.get("GOAL_DIR") or os.environ.get("SQUAD_DIR")
 
     if a.check:

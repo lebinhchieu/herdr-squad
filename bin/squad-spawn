@@ -19,6 +19,8 @@ Options:
   --repo DIR       Git repo to branch from; the agent works in its own worktree
                    <project>/.worktrees/<squad>/<agent-name> on branch squad/<squad>/<agent-name>
                    (per-scope squads: .worktrees/<squad>/<scope>/<agent> on squad/<squad>/<scope>/<agent>)
+  --base REF       With --repo: start the new branch from REF (a passed branch or commit) instead of the
+                   repo's HEAD, so a task can build on work that is passed but not yet merged
   --worktree DIR   Start in this existing worktree instead of making one (squad-respawn uses it so a
                    respawned Developer keeps its worktree wherever the old layout put it)
   --prompt TEXT    First message to send once the session is ready
@@ -35,13 +37,14 @@ EOF
 
 [[ $# -lt 2 || $1 == -h || $1 == --help ]] && { usage; exit 2; }
 role=$1 name=$2; shift 2
-squad=${SQUAD:-} scope="" goal="" repo="" worktree="" prompt="" model="" effort="" dry=0
+squad=${SQUAD:-} scope="" goal="" repo="" base="" worktree="" prompt="" model="" effort="" dry=0
 while [[ $# -gt 0 ]]; do
   case $1 in
     --squad) squad=$2; shift 2 ;;
     --scope) scope=$2; shift 2 ;;
     --goal) goal=$2; shift 2 ;;
     --repo) repo=$2; shift 2 ;;
+    --base) base=$2; shift 2 ;;
     --worktree) worktree=$2; shift 2 ;;
     --prompt) prompt=$2; shift 2 ;;
     --model) model=$2; shift 2 ;;
@@ -53,6 +56,7 @@ done
 
 case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach) ;;
   *) echo "unknown role: $role" >&2; exit 2 ;; esac
+[[ -z $base || -n $repo ]] || { echo "--base needs --repo" >&2; exit 2; }
 [[ $name =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { echo "bad agent name: $name (herdr needs [a-z][a-z0-9_-]{0,31})" >&2; exit 2; }
 [[ ${HERDR_ENV:-} == 1 ]] || { echo "not inside a herdr pane (HERDR_ENV != 1)" >&2; exit 1; }
 
@@ -74,7 +78,7 @@ squad=$(basename "$squad_dir")
 project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
 
 # Per-scope squads keep each agent's roster, notes and logs in its scope folder (a goal Manager: its goal folder).
-# A flat squad (no scopes/ folder) keeps them all in the squad folder.
+# A flat squad (no scopes/ folder; legacy flat layout) keeps them all in the squad folder.
 home=$squad_dir scope_dir="" goal_dir=""
 if [[ -d $squad_dir/scopes ]]; then
   [[ -z $scope || -z $goal ]] || { echo "pass --scope or --goal, not both" >&2; exit 2; }
@@ -107,8 +111,8 @@ elif [[ -n $repo ]]; then
   wt=$project_dir/.worktrees/$squad/$name branch=squad/$squad/$name
   [[ -z $scope_dir ]] || { wt=$project_dir/.worktrees/$squad/$scope/$name branch=squad/$squad/$scope/$name; }
   if [[ ! -d $wt ]]; then
-    if [[ $dry == 1 ]]; then echo "would run: git -C $repo worktree add $wt -b $branch"
-    else git -C "$repo" worktree add "$wt" -b "$branch" >&2; fi
+    if [[ $dry == 1 ]]; then echo "would run: git -C $repo worktree add $wt -b $branch ${base}"
+    else git -C "$repo" worktree add "$wt" -b "$branch" ${base:+"$base"} >&2; fi
   fi
   cwd=$wt
 fi

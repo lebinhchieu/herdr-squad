@@ -161,6 +161,41 @@ class SpawnScopedTest(unittest.TestCase):
         self.assertIn(f"worktree add {wt} -b squad/t/sc1/t-dev-sc1-1", r.stdout)
         self.assertIn(f"--cwd {wt}", r.stdout)
 
+    def test_base_makes_the_new_branch_start_from_a_passed_branch_or_commit(self):
+        repo = self.root / "code"
+        repo.mkdir()
+        r = self.run_spawn("dev", "t-dev-sc1-2", "--scope", "sc1", "--repo", str(repo), "--base", "squad/t/sc1/t-dev-sc1-1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        wt = self.root / ".worktrees" / "t" / "sc1" / "t-dev-sc1-2"
+        self.assertIn(f"worktree add {wt} -b squad/t/sc1/t-dev-sc1-2 squad/t/sc1/t-dev-sc1-1", r.stdout)
+
+    def test_real_spawn_with_base_branches_from_the_passed_commit_not_from_head(self):
+        repo = self.root / "code"
+        repo.mkdir()
+        g = lambda *a: subprocess.run(["git", *a], cwd=repo, check=True, capture_output=True, text=True,
+                                      env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                                           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}).stdout.strip()
+        g("init", "-q", "-b", "main")
+        g("commit", "-q", "--allow-empty", "-m", "init")
+        g("branch", "passed")
+        g("checkout", "-q", "passed")
+        g("commit", "-q", "--allow-empty", "-m", "passed work")
+        g("checkout", "-q", "main")
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "herdr").write_text(FAKE_HERDR)
+        (bin_dir / "herdr").chmod(0o755)
+        self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(self.root / "h.log"))
+        r = subprocess.run([str(SCRIPT), "dev", "t-dev-sc1-2", "--scope", "sc1", "--repo", str(repo), "--base", "passed"],
+                           env=self.env, text=True, capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        wt = self.root / ".worktrees" / "t" / "sc1" / "t-dev-sc1-2"
+        self.assertEqual(g("-C", str(wt), "rev-parse", "HEAD"), g("rev-parse", "passed"))
+        self.assertNotEqual(g("rev-parse", "main"), g("rev-parse", "passed"))
+
+    def test_base_needs_repo(self):
+        self.assertNotEqual(self.run_spawn("dev", "t-dev-sc1-2", "--scope", "sc1", "--base", "main").returncode, 0)
+
     def test_worktree_flag_reuses_an_existing_worktree_wherever_it_is(self):
         old = self.root / ".worktrees" / "dev-board-1"
         old.mkdir(parents=True)

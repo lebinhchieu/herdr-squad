@@ -48,6 +48,18 @@ class TemplateLayersTest(unittest.TestCase):
         for cmd in ("squad-start", "squad-spawn", "squad-retire", "squad-respawn", "squad-close", "squad-usage"):
             self.assertIn(f"Bash({cmd}:*)", allow)
 
+    def test_only_developers_may_merge_and_never_into_the_integration_branches(self):
+        for role in ROLES:
+            perms = json.loads((T / "squad/settings" / f"{role}.json").read_text())["permissions"]
+            if role == "dev":
+                self.assertIn("Bash(git merge:*)", perms["allow"])
+                self.assertNotIn("Bash(git merge:*)", perms["deny"])
+                for cmd in ("git push", "git rebase", "git reset --hard", "git checkout main", "git checkout dev"):
+                    self.assertIn(f"Bash({cmd}:*)", perms["deny"], cmd)
+            elif "deny" in perms:
+                self.assertIn("Bash(git merge:*)", perms["deny"], role)
+                self.assertNotIn("Bash(git merge:*)", perms.get("allow", []), role)
+
     def test_token_coach_may_write_only_its_own_proposal_files(self):
         perms = json.loads((T / "squad/settings/token-coach.json").read_text())["permissions"]
         self.assertIn("Write(/.claude/squads/*/scopes/*/iterations/*.coach.md)", perms["allow"])

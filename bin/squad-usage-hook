@@ -6,7 +6,7 @@
 set -uo pipefail
 
 [[ -n ${SQUAD_NAME:-} && -n ${SQUAD_DIR:-} && -d ${SQUAD_DIR:-} && ${SQUAD_ROLE:-} != manager ]] || exit 0
-home=${SCOPE_DIR:-${GOAL_DIR:-$SQUAD_DIR}}
+home=${SCOPE_DIR:-${GOAL_DIR:-$SQUAD_DIR}}  # legacy flat layout: SQUAD_DIR
 [[ -d $home ]] || exit 0
 input=$(cat) || exit 0
 

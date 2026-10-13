@@ -12,7 +12,7 @@ bin=$(dirname "$(readlink -f "$0")")
 # The folder holding this agent's roster and notes: its scope, else its goal, else (flat squad) the squad.
 if [[ -n ${SCOPE_DIR:-} ]]; then home=$SCOPE_DIR home_var=SCOPE_DIR
 elif [[ -n ${GOAL_DIR:-} ]]; then home=$GOAL_DIR home_var=GOAL_DIR
-else home=${SQUAD_DIR:-} home_var=SQUAD_DIR; fi
+else home=${SQUAD_DIR:-} home_var=SQUAD_DIR; fi  # legacy flat layout
 [[ -n ${SQUAD_DIR:-} && -f $home/roster.md ]] || { echo "SQUAD_DIR is not set, or $home_var has no roster.md" >&2; exit 1; }
 squad_dir=$(readlink -f "$SQUAD_DIR")
 
@@ -25,8 +25,7 @@ role=$(tr 'A-Z ' 'a-z-' <<<"$role")
 
 project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
 squad=$(basename "$squad_dir")
-# A Developer keeps its worktree, branch and uncommitted work. Newest layout first, then the older flat ones
-# (squad-board still uses them).
+# A Developer keeps its worktree, branch and uncommitted work. Newest layout first, then the legacy flat layouts.
 wt_args=()
 candidates=("$project_dir/.worktrees/$squad/$name" "$project_dir/.worktrees/$name")
 [[ -z $scope ]] || candidates=("$project_dir/.worktrees/$squad/$scope/$name" "${candidates[@]}")

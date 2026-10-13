@@ -54,7 +54,7 @@ elif [[ -n $scope && $layout == scoped ]]; then
   [[ -d $src ]] || { echo "no scope folder at $src" >&2; exit 1; }
   rosters=("$src/roster.md")
 elif [[ -n $scope ]]; then
-  mode=label   # flat squad: Scope is only a column in roster.md
+  mode=label   # legacy flat layout: Scope is only a column in roster.md
   rosters=("$squad_dir/roster.md")
 else
   dst=$squads_root/_done/$squad
@@ -91,7 +91,7 @@ for i in "${!agents[@]}"; do
 done
 [[ $mode != label || ${#others[@]} -gt 0 ]] || { echo "no agents with scope $scope in roster.md" >&2; exit 1; }
 
-# Worktrees to tidy, newest layout first; the older flat layouts (squad-board) are found by agent name.
+# Worktrees to tidy, newest layout first; the legacy flat layouts are found by agent name.
 add_wt() { [[ -d $1 ]] && wts+=("$1") || true; }
 case $mode in
   squad)
