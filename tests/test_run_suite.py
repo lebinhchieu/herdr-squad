@@ -71,6 +71,20 @@ class RunSuiteTest(unittest.TestCase):
         self.assertIn("===== test_bad =====", done.stdout)
         self.assertIn("boom", done.stdout)
 
+    def test_a_browser_file_that_fails_once_is_rerun_alone_and_named_but_a_real_failure_stays_red(self):
+        flaky = ("import os, unittest\n# playwright\nMARK = %r\nclass T(unittest.TestCase):\n"
+                 "    def test_a(self):\n        first = not os.path.exists(MARK)\n        open(MARK, 'w').close()\n"
+                 "        self.assertFalse(first, 'first try')\n") % str(self.dir / "mark")
+        self.stub("test_flaky.py", flaky)
+        done = self.run_runner()
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertIn("test_flaky (passed on retry; first run failed)", done.stdout)
+        self.assertIn("first try", done.stdout)  # the first failure is printed, not hidden
+        self.stub("test_hard.py", FAIL + "# playwright\n")
+        done = self.run_runner("--retries", "2")
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("FAILED (files=1: test_hard)", done.stdout)
+
     def test_a_file_with_no_ran_line_counts_as_fail(self):
         self.stub("test_silent.py", NO_RAN)
         done = self.run_runner()

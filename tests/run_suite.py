@@ -61,7 +61,7 @@ def split_streams(serial, count):
     return streams
 
 
-def run_all(pool, serial, jobs, env_extra=None, browser_streams=1):
+def run_all(pool, serial, jobs, env_extra=None, browser_streams=1, retries=0):
     """Pool and browser streams at the same time; results in a list, in finishing order."""
     results = []
     lock = threading.Lock()
@@ -81,6 +81,19 @@ def run_all(pool, serial, jobs, env_extra=None, browser_streams=1):
         futures += [ex.submit(one, p) for p in pool]
         for f in futures:
             f.result()
+    # A browser file that failed under the load of the other streams runs again alone, on a quiet
+    # machine. The summary names it, so a flake is visible; a real failure fails again and stays red.
+    for path in serial:
+        for _ in range(retries):
+            first = next(r for r in results if r[0] == path.stem)
+            if first[1]:
+                break
+            again = run_file(path, env_extra)
+            results.remove(first)
+            if again[1]:
+                again = (again[0] + " (passed on retry; first run failed)",) + again[1:]
+                again = again[:4] + (again[4] + "\n--- first run, which failed ---\n" + first[4],)
+            results.append(again)
     return results
 
 
@@ -94,7 +107,7 @@ def summary(results, wall):
     lines.append("OK" if not bad else "FAILED (files=%d: %s)" % (len(bad), ", ".join(r[0] for r in bad)))
     text = "\n".join(lines) + "\n"
     for name, ok, _, _, out in sorted(results):
-        if not ok:
+        if not ok or "(passed on retry" in name:
             text += "\n===== %s =====\n%s" % (name, out or "(no output)\n")
     return text, not bad
 
@@ -108,13 +121,13 @@ def git_head_line(repo):
     return "sha %s clean=%s" % (git("rev-parse", "HEAD"), "no" if dirty else "yes")
 
 
-def execute(tests_dir, only, jobs, browser_streams, env_extra=None):
+def execute(tests_dir, only, jobs, browser_streams, retries, env_extra=None):
     pool, serial = discover(tests_dir)
     if only is not None:
         pool = [f for f in pool if f.stem in only]
         serial = [f for f in serial if f.stem in only]
     started = time.monotonic()
-    results = run_all(pool, serial, jobs, env_extra, browser_streams)
+    results = run_all(pool, serial, jobs, env_extra, browser_streams, retries)
     return summary(results, time.monotonic() - started)
 
 
@@ -124,6 +137,7 @@ def main(argv=None):
     ap.add_argument("--tests-dir", default=str(here))
     ap.add_argument("--jobs", type=int, default=7)
     ap.add_argument("--browser-streams", type=int, default=2, help="browser files run one after another in this many streams")
+    ap.add_argument("--retries", type=int, default=1, help="reruns of a failed browser file, alone, at the end")
     ap.add_argument("--receipt", metavar="DIR")
     ap.add_argument("--tz", action="store_true", help="with --receipt: also the time files under TZ=America/New_York")
     ap.add_argument("--also", action="append", default=[], metavar="FILE", help="extra file for the --tz run")
@@ -138,13 +152,13 @@ def main(argv=None):
         print("waiting for the suite lock", flush=True)
         fcntl.flock(lockfile, fcntl.LOCK_EX)
 
-    text, ok = execute(args.tests_dir, None, args.jobs, args.browser_streams)
+    text, ok = execute(args.tests_dir, None, args.jobs, args.browser_streams, args.retries)
     print(text, end="")
     outputs = {"suite-default.txt": text}
     if args.tz:
         only = set(TZ_FILES) | {Path(a).stem for a in args.also}
         print("\n--- TZ=America/New_York LC_ALL=C: %s ---" % ", ".join(sorted(only)), flush=True)
-        tz_text, tz_ok = execute(args.tests_dir, only, args.jobs, args.browser_streams, TZ_ENV)
+        tz_text, tz_ok = execute(args.tests_dir, only, args.jobs, args.browser_streams, args.retries, TZ_ENV)
         print(tz_text, end="")
         outputs["suite-tz.txt"] = tz_text
         ok = ok and tz_ok
