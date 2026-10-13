@@ -59,6 +59,7 @@ let layout = null;
 let reconnecting = false;
 let retryMs = RETRY_FIRST_MS;
 let retryTimer = null;
+let stream = null;
 let frameQueued = false;
 
 function tint(hex, alpha) {
@@ -93,6 +94,7 @@ async function loadState() {
 // "reconnecting" state are ours, so a failed stream is closed and reopened here.
 function connectStream(iteration) {
   const source = new EventSource('/events' + (iteration === null ? '' : '?iteration=' + iteration));
+  stream = source;
   source.addEventListener('state', (ev) => {
     retryMs = RETRY_FIRST_MS;
     setReconnecting(false);
@@ -100,7 +102,7 @@ function connectStream(iteration) {
   });
   source.onerror = () => {
     source.close();
-    retryLater(() => connectStream(iteration));
+    retryLater(() => { if (stream === source) connectStream(iteration); });
   };
 }
 
@@ -838,15 +840,183 @@ function drawTasks(ctx, view) {
 }
 
 // --- section: follow ---
-// BRD-14: following the bottom, pausing on scroll up, the "live" button.
-function updateFollow(previous, next) {
+// E21: following = within 40 px of the bottom. New rows keep the bottom in view while following;
+// a user scroll up pauses, and the "↓ live" button counts the rows that arrived since. Only wheel,
+// scroll keys and a scrollbar drag are the user: a scroll the page causes itself (resize, a state
+// that changes the height, the picker) never changes the mode.
+const FOLLOW_EDGE = 40;
+const USER_SCROLL_MS = 400;
+const SCROLL_KEYS = new Set(['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown', ' ']);
+let following = true;
+let newRows = 0;
+let userScrollUntil = 0;
+let draggingScrollbar = false;
+
+// The picker, the live button and the replay banner are DOM controls over the right end of the
+// needs-you bar (the part header keeps free); the picker section adds its own.
+const controls = document.createElement('div');
+controls.id = 'bar-controls';
+const liveButton = document.createElement('button');
+liveButton.id = 'live-button';
+liveButton.type = 'button';
+controls.append(liveButton);
+document.body.append(controls);
+const liveState = document.createElement('p');
+liveState.id = 'live-state';
+document.getElementById('board-text').append(liveState);
+const controlStyle = document.createElement('style');
+controlStyle.textContent =
+  '#bar-controls { position: fixed; top: 16px; right: 140px; z-index: 2; display: flex; gap: 8px; ' +
+  'align-items: center; font: 600 12.5px ' + FONT + '; }' +
+  '#iteration-picker, #live-button { height: 24px; box-sizing: border-box; border-radius: 8px; ' +
+  'font: inherit; cursor: pointer; }' +
+  '#iteration-picker { width: 100px; padding: 0 4px; border: 1.5px solid ' + P.line + '; background: ' +
+  P.card + '; color: ' + P.ink + '; }' +
+  '#live-button { padding: 0 10px; border: 0; background: ' + P.mango + '; color: #FFFFFF; font-weight: 800; }' +
+  '#live-button[hidden] { display: none; }' +
+  '#replay-banner { position: absolute; top: 26px; right: 0; height: 16px; padding: 0 8px; ' +
+  'border-radius: 8px; background: ' + tint(P.mango, 0.14) + '; color: ' + P.mangoDark + '; ' +
+  'font: 800 10.5px/16px ' + FONT + '; white-space: nowrap; }';
+document.head.append(controlStyle);
+
+function isReplay(current) {
+  return current.selected_iteration !== current.iteration;
 }
 
-// --- section: picker ---
-// BRD-14: the iteration picker and the replay banner. Switching iteration reopens the stream:
-// connectStream keeps no handle yet, so BRD-14 keeps one and closes the old stream first.
-function setupPicker(current) {
+function distanceFromBottom() {
+  const root = document.documentElement;
+  return root.scrollHeight - root.clientHeight - window.scrollY;
 }
+
+function pinBottom() {
+  window.scrollTo(0, document.documentElement.scrollHeight);
+}
+
+function updateFollow(previous, next) {
+  const switched = previous.selected_iteration !== next.selected_iteration;
+  if (isReplay(next)) following = false;
+  else if (switched) following = true;
+  if (switched) newRows = 0;
+  else if (!following) newRows += Math.max(0, next.rows.length - previous.rows.length);
+  // the page height changes in relayout(), which runs right after this
+  queueMicrotask(() => { if (following) pinBottom(); });
+  renderFollow();
+}
+
+function renderFollow() {
+  liveState.setAttribute('data-following', String(following));
+  liveState.textContent = following ? 'Live' : 'Paused';
+  liveButton.hidden = following;
+  liveButton.setAttribute('data-new-rows', String(newRows));
+  liveButton.textContent = newRows > 0 ? '↓ live · ' + newRows : '↓ live';
+}
+
+function armUserScroll() {
+  userScrollUntil = performance.now() + USER_SCROLL_MS;
+}
+
+function onUserScroll() {
+  following = distanceFromBottom() <= FOLLOW_EDGE && !isReplay(state);
+  if (following) newRows = 0;
+  renderFollow();
+}
+
+window.addEventListener('wheel', armUserScroll, { passive: true });
+window.addEventListener('keydown', (ev) => {
+  if (SCROLL_KEYS.has(ev.key) && ev.target.tagName !== 'SELECT') armUserScroll();
+});
+// a click right of the page is on the scrollbar; the drag lasts until the button is let go
+window.addEventListener('mousedown', (ev) => {
+  if (ev.clientX >= document.documentElement.clientWidth) draggingScrollbar = true;
+});
+window.addEventListener('mouseup', () => { draggingScrollbar = false; });
+window.addEventListener('mousemove', (ev) => { if (ev.buttons === 0) draggingScrollbar = false; });
+window.addEventListener('scroll', () => {
+  if (draggingScrollbar || performance.now() < userScrollUntil) onUserScroll();
+});
+window.addEventListener('resize', () => { if (following) pinBottom(); });
+
+liveButton.addEventListener('click', () => {
+  if (isReplay(state)) {
+    selectIteration(state.iteration);
+    return;
+  }
+  following = true;
+  newRows = 0;
+  pinBottom();
+  renderFollow();
+});
+
+// --- section: picker ---
+// E22: a <select> of state.iterations. Choosing one loads /state?iteration=N and then reopens the
+// stream with the same N; only the newest choice counts, so a slow older answer is dropped.
+const picker = document.createElement('select');
+picker.id = 'iteration-picker';
+picker.setAttribute('aria-label', 'Iteration');
+controls.prepend(picker);
+let pickerOptions = '';
+let banner = null;
+let choice = 0;
+
+function closeStream() {
+  if (stream) stream.close();
+  stream = null;
+}
+
+function setupPicker(current) {
+  const key = current.iterations.join(',');
+  if (key !== pickerOptions) {
+    pickerOptions = key;
+    picker.replaceChildren(...current.iterations.map((n) => {
+      const option = document.createElement('option');
+      option.value = String(n);
+      option.textContent = 'Iteration ' + n;
+      return option;
+    }));
+  }
+  picker.value = String(current.selected_iteration);
+  renderBanner(current);
+}
+
+function renderBanner(current) {
+  if (!isReplay(current)) {
+    if (banner) banner.remove();
+    banner = null;
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'replay-banner';
+    controls.append(banner);
+  }
+  banner.textContent = 'Replay of iteration ' + current.selected_iteration;
+}
+
+function selectIteration(n) {
+  if (!state.iterations.includes(n)) {
+    picker.value = String(state.selected_iteration);
+    return;
+  }
+  const mine = ++choice;
+  closeStream();
+  picker.value = String(n);
+  loadIteration(n, mine);
+}
+
+async function loadIteration(n, mine) {
+  try {
+    const res = await fetch('/state?iteration=' + n, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const next = await res.json();
+    if (mine !== choice) return;
+    applyState(next);
+    connectStream(n);
+  } catch (e) {
+    if (mine === choice) retryLater(() => loadIteration(n, mine));
+  }
+}
+
+picker.addEventListener('change', () => selectIteration(Number(picker.value)));
 
 // --- section: panel ---
 // BRD-15: the side panel, Jump to pane (E24) and the notes link (E14). The panel is a DOM card over the
