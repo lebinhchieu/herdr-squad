@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+"""Start a task or a goal in a per-scope squad: make its folder and brief, then start a fresh Manager.
+
+  squad-start "<text>" [--touches A,B] [--name N] [--squad S] [--model M] [--effort E] [--yes] [--dry-run]
+      Plain text is a lone task: scopes/<name>/ and a Manager <squad>-mgr-<name> that lives with the scope.
+      Text starting with "goal:" is a goal: goals/<name>/ and a goal Manager.
+  squad-start "<text>" --in-goal G --name N [--touches ...]
+      A scope inside goal G: scopes/N/ with `goal: G`. No Manager; the goal Manager runs it.
+  squad-start --resume NAME [--model M] [--effort E]
+      A new Manager for an existing scope or goal whose Manager is gone. Its files are not touched.
+
+The name is the first ticket id in the text (SEC-04 -> sec04), else a short slug; --name overrides it.
+--touches lists the repos or paths the work changes. If it overlaps an open scope's `touches:` the script lists
+the overlaps and exits 3 without creating anything; the PO decides, and --yes goes ahead.
+--model and --effort set the Manager's model and effort (default: those in agents/manager.md); it does not change the roles the Manager spawns.
+Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
+"""
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+PLUGIN = Path(__file__).resolve().parent.parent
+STOP = {"the", "a", "an", "of", "to", "for", "and", "in", "on", "with", "from"}
+NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+MAX_AGENT = 32  # herdr's limit on an agent name
+
+
+def die(msg, code=1):
+    print(msg, file=sys.stderr)
+    sys.exit(code)
+
+
+def squad_dir(name):
+    if os.environ.get("SQUAD_DIR"):
+        return Path(os.environ["SQUAD_DIR"]).resolve()
+    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip() or os.getcwd()
+    root = Path(top) / ".claude" / "squads"
+    if name:
+        return (root / name).resolve()
+    found = [p.parent for p in root.glob("*/process.md")]
+    if len(found) != 1:
+        die(f"pick a squad with --squad (found: {' '.join(p.name for p in found)})", 2)
+    return found[0].resolve()
+
+
+def open_board(squad):
+    """The board URL, or None: a board that cannot start never stops the Manager (squad-board-start is idempotent)."""
+    r = subprocess.run([str(PLUGIN / "bin" / "squad-board-start")], env={**os.environ, "SQUAD_DIR": str(squad)},
+                       capture_output=True, text=True)
+    url = r.stdout.strip()
+    if r.returncode == 0 and url:
+        return url
+    reason = (r.stderr.strip().splitlines() or ["no reason given"])[-1]
+    print(f"board not started: {reason}; run /squad:squad-board", file=sys.stderr)
+    return None
+
+
+def derive_name(text):
+    ticket = re.search(r"\b[A-Z][A-Z0-9]*-\d+\b", text)
+    if ticket:
+        return re.sub(r"[^a-z0-9]", "", ticket.group(0).lower())
+    words = [w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOP] or [""]
+    name = words[0][:16]
+    for w in words[1:]:
+        if len(name) + 1 + len(w) > 16:
+            break
+        name += "-" + w
+    return name
+
+
+def tokens(s):
+    return [t.rstrip("/") for t in re.split(r"[,\s]+", s) if t]
+
+
+def overlaps(a, b):
+    return a == b or a.startswith(b + "/") or b.startswith(a + "/")
+
+
+def open_scope_touches(squad):
+    for f in sorted((squad / "scopes").glob("*/scope.md")):
+        m = re.search(r"(?m)^touches:[ \t]*(.*)$", f.read_text())
+        yield f.parent.name, tokens(m.group(1)) if m else []
+
+
+def render(template_dir, target, values):
+    shutil.copytree(template_dir, target)
+    for f in target.glob("*.md"):
+        text = f.read_text()
+        for k, v in values.items():
+            text = text.replace("{{" + k + "}}", v)
+        f.write_text(text)
+
+
+def resume(squad, a):
+    if a.text or a.in_goal or a.name:
+        die("--resume takes only the name of an existing scope or goal", 2)
+    for kind, base in (("goal", "goals"), ("scope", "scopes")):
+        target = squad / base / a.resume
+        if target.is_dir():
+            break
+    else:
+        die(f"no open scope or goal named {a.resume} in {squad}")
+    if kind == "scope":
+        m = re.search(r"(?m)^goal:[ \t]*(\S+)", (target / "scope.md").read_text()) if (target / "scope.md").exists() else None
+        if m:
+            die(f"scope {a.resume} belongs to goal {m.group(1)} and is run by that goal's Manager: squad-start --resume {m.group(1)}")
+    manager = f"{squad.name}-mgr-{a.resume}"
+    home_var = "GOAL_DIR" if kind == "goal" else "SCOPE_DIR"
+    prompt = (f"RESPAWN: you are {manager}, restarted for {kind} {a.resume}. Read $SQUAD_DIR/process.md, then your notes "
+              f"${home_var}/roles/{manager}.notes.md if it exists, then the brief and the roster, and continue where the files say.")
+    spawn = [str(PLUGIN / "bin" / "squad-spawn"), "manager", manager, "--goal" if kind == "goal" else "--scope", a.resume, "--prompt", prompt]
+    if a.model:
+        spawn += ["--model", a.model]
+    if a.effort:
+        spawn += ["--effort", a.effort]
+    if a.dry_run:
+        print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
+        return
+    r = subprocess.run(spawn, env={**os.environ, "SQUAD_DIR": str(squad)}, capture_output=True, text=True)
+    if r.returncode != 0:
+        die(f"could not start the Manager:\n{r.stderr.strip()}")
+    try:
+        tab = json.loads(r.stdout).get("tab")
+    except ValueError:
+        tab = None
+    print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab, "board": open_board(squad)}))
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("text", nargs="?")
+    p.add_argument("--resume", metavar="NAME")
+    p.add_argument("--name")
+    p.add_argument("--touches", default="")
+    p.add_argument("--in-goal")
+    p.add_argument("--squad")
+    p.add_argument("--model")
+    p.add_argument("--effort")
+    p.add_argument("--yes", action="store_true")
+    p.add_argument("--dry-run", action="store_true")
+    a = p.parse_args()
+
+    squad = squad_dir(a.squad)
+    if not (squad / "process.md").is_file():
+        die(f"no squad folder at {squad} (run /squad:squad-init)")
+    if not (squad / "scopes").is_dir():
+        die(f"{squad.name} uses the flat layout (no scopes/ folder); squad-start would convert it, so it refuses. "
+            "Set up a new squad with /squad:squad-init" if (squad / "roster.md").exists()
+            else f"{squad} has no scopes/ folder; run /squad:squad-init")
+
+    if a.resume:
+        return resume(squad, a)
+    if not a.text:
+        die("give the task as text, or --resume NAME", 2)
+    m = re.match(r"\s*goal:\s*(.*)", a.text, re.I | re.S)
+    if m and a.in_goal:
+        die("a goal cannot be started inside a goal", 2)
+    kind = "goal" if m else "scope"
+    brief = (m.group(1) if m else a.text).strip()
+    name = a.name or derive_name(brief)
+    if not NAME_RE.match(name):
+        die(f"cannot make a name from {brief[:40]!r}; pass --name (lowercase letters, digits, dashes, starting with a letter)", 2)
+    manager = None if a.in_goal else f"{squad.name}-mgr-{name}"
+    if manager and len(manager) > MAX_AGENT:
+        die(f"Manager name {manager} is {len(manager)} characters, over herdr's {MAX_AGENT}; pass a shorter --name", 2)
+
+    for rel in (f"scopes/{name}", f"goals/{name}", f"scopes/_done/{name}", f"goals/_done/{name}"):
+        if (squad / rel).exists():
+            die(f"{name} already exists as {rel}; scopes and goals share one namespace, pass another --name")
+    if a.in_goal and not (squad / "goals" / a.in_goal).is_dir():
+        die(f"no goal {a.in_goal} in {squad}/goals")
+
+    mine = tokens(a.touches)
+    hits = [(s, t, x) for s, ts in open_scope_touches(squad) for t in ts for x in mine if overlaps(t, x)]
+    if hits and not a.yes:
+        for s, t, x in hits:
+            print(f"overlap: open scope {s} touches {t}, and {name} would touch {x}", file=sys.stderr)
+        die("two scopes editing the same files only collide at merge; run again with --yes to go ahead", 3)
+
+    target = squad / ("goals" if kind == "goal" else "scopes") / name
+    flag = "--goal" if kind == "goal" else "--scope"
+    prompt = None
+    if manager:
+        what = ("$GOAL_DIR/goal.md (the PO's brief), do your start-of-session routine, split it into scopes with their order "
+                "and dependencies in goal.md" if kind == "goal" else
+                "$SCOPE_DIR/scope.md (the PO's brief), do your start-of-session routine, size the scope")
+        prompt = f"Start of run. Your {kind} is {name}: read {what}, and propose the plan to the PO (me) before spawning anyone."
+    spawn = [str(PLUGIN / "bin" / "squad-spawn"), "manager", manager or "", flag, name, "--prompt", prompt or ""]
+    if a.model:
+        spawn += ["--model", a.model]
+    if a.effort:
+        spawn += ["--effort", a.effort]
+
+    if a.dry_run:
+        print(f"would create {target} from templates/{kind}")
+        if manager:
+            print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
+        return
+
+    render(PLUGIN / "templates" / kind, target, {"name": name, "brief": brief, "goal": a.in_goal or "", "touches": ", ".join(mine)})
+    for d in (("shared/summaries", "shared/contracts", "roles") if kind == "goal" else ("tasks", "evidence", "roles", "iterations")):
+        (target / d).mkdir(parents=True, exist_ok=True)
+
+    tab = None
+    if manager:
+        r = subprocess.run(spawn, env={**os.environ, "SQUAD_DIR": str(squad)}, capture_output=True, text=True)
+        if r.returncode != 0:
+            shutil.rmtree(target, ignore_errors=True)
+            die(f"could not start the Manager, so {target.name} was not created:\n{r.stderr.strip()}")
+        try:
+            tab = json.loads(r.stdout).get("tab")
+        except ValueError:
+            pass
+    print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab, "board": open_board(squad)}))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Replace a squad agent's session with a fresh one: same name, role, scope and worktree, the role's
+# default model. The new session starts from roles/<agent>.notes.md. roster.md gets the new session id.
+# Safe to run from the agent's own pane: the old pane is closed last.
+set -euo pipefail
+
+[[ $# -lt 1 || $1 == -h || $1 == --help ]] && { echo "Usage: squad-respawn <agent-name> [--dry-run]"; exit 2; }
+name=$1 dry=0
+[[ ${2:-} == --dry-run ]] && dry=1
+
+bin=$(dirname "$(readlink -f "$0")")
+# The folder holding this agent's roster and notes: its scope, else its goal, else (flat squad) the squad.
+if [[ -n ${SCOPE_DIR:-} ]]; then home=$SCOPE_DIR home_var=SCOPE_DIR
+elif [[ -n ${GOAL_DIR:-} ]]; then home=$GOAL_DIR home_var=GOAL_DIR
+else home=${SQUAD_DIR:-} home_var=SQUAD_DIR; fi  # legacy flat layout
+[[ -n ${SQUAD_DIR:-} && -f $home/roster.md ]] || { echo "SQUAD_DIR is not set, or $home_var has no roster.md" >&2; exit 1; }
+squad_dir=$(readlink -f "$SQUAD_DIR")
+
+# Split by hand: `read` with a tab IFS collapses an empty scope (the Manager has none) and shifts the columns.
+row=$("$bin/squad-usage" --squad-dir "$home" --get "$name")
+role=${row%%$'\t'*}
+rest=${row#*$'\t'}
+scope=${rest%%$'\t'*}
+role=$(tr 'A-Z ' 'a-z-' <<<"$role")
+
+project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
+squad=$(basename "$squad_dir")
+# A Developer keeps its worktree, branch and uncommitted work. Newest layout first, then the legacy flat layouts.
+wt_args=()
+candidates=("$project_dir/.worktrees/$squad/$name" "$project_dir/.worktrees/$name")
+[[ -z $scope ]] || candidates=("$project_dir/.worktrees/$squad/$scope/$name" "${candidates[@]}")
+for c in "${candidates[@]}"; do
+  [[ -d $c ]] && { wt_args=(--worktree "$c"); break; }
+done
+
+scope_args=(--scope "$scope")
+[[ $home_var == GOAL_DIR ]] && scope_args=(--goal "$(basename "$GOAL_DIR")")
+
+prompt="RESPAWN: you are $name, restarted fresh. Read \$SQUAD_DIR/process.md, then your notes \$$home_var/roles/$name.notes.md, and continue from them."
+spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" --prompt "$prompt")
+
+notes=$home/roles/$name.notes.md
+if [[ -f $notes ]] && (( $(wc -l <"$notes") > 100 )); then
+  echo "warning: $name's notes are $(wc -l <"$notes") lines (cap ~80, see process.md → Notes); the new session reads all of it, so trim it" >&2
+fi
+
+if [[ $dry == 1 ]]; then
+  echo "would run: herdr agent rename $name $name-prev"
+  echo "would run: ${spawn[*]}"
+  echo "would run: herdr pane close <old pane of $name>"
+  exit 0
+fi
+
+# The pane, not the tab: other agents may share the tab, and closing a tab kills them all.
+old_pane=$(herdr agent get "$name" | jq -r '.result.agent.pane_id // .result.pane_id // empty')
+[[ -n $old_pane ]] || { echo "no live agent named $name" >&2; exit 1; }
+
+herdr agent rename "$name" "$name-prev" >/dev/null
+SQUAD_DIR=$squad_dir "${spawn[@]}" || { herdr agent rename "$name-prev" "$name" >/dev/null; exit 1; }
+herdr pane close "$old_pane" >/dev/null

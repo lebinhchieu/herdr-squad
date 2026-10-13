@@ -19,6 +19,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import namedtuple
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -107,28 +108,96 @@ def read_first_table(path):
     return table["rows"] if table else []
 
 
-def read_squad(squad_dir):
-    """Roster, scopes, escalations, iteration texts and notes files of a squad folder."""
+# A home is a folder with its own roster, escalations, logs, iterations and roles (design: Iteration 3).
+# `name` is None for the flat layout's squad folder; `kind` is flat, goal or scope.
+Home = namedtuple("Home", "name path kind")
+HOME_NAME_RE = re.compile(r"[a-z][a-z0-9-]*")  # also keeps `_done` and anything odd out
+MANAGER_POD = "all"
+
+
+def real_dir(path):
+    """A directory that is not a symlink: a link could lead out of the squad folder."""
+    return path.is_dir() and not path.is_symlink()
+
+
+def is_scoped(squad_dir):
+    """L1: a `scopes/` folder means the per-scope layout; a stale root `roster.md` is then ignored."""
+    return real_dir(Path(squad_dir) / "scopes")
+
+
+def find_homes(squad_dir):
+    """L2: the squad folder itself (flat), or `goals/<g>/` then `scopes/<s>/`, each sorted. The names
+    come from a listing filtered by HOME_NAME_RE, never from a file's content."""
     d = Path(squad_dir)
-    roster, seen = [], set()
-    for row in read_first_table(d / "roster.md"):
-        agent, role = row.get("agent", ""), row.get("role", "")
-        scope = strip_parenthetical(row.get("scope", ""))
-        if agent and role and scope and agent not in seen:
-            seen.add(agent)
-            roster.append({"agent": agent, "role": role, "scope": scope, "status": row.get("status", "")})
-    scopes = [{"scope": strip_parenthetical(r.get("scope", "")),
-               "size": strip_parenthetical(r.get("size", "")) or None}
-              for r in read_first_table(d / "scopes.md")]
-    iterations = {}
-    for p in (d / "iterations").glob("*.md"):
+    if not is_scoped(d):
+        return [Home(None, d, "flat")]
+    homes = []
+    for container, kind in (("goals", "goal"), ("scopes", "scope")):
+        folder = d / container
+        try:
+            names = sorted(os.listdir(str(folder))) if real_dir(folder) else []
+        except OSError:
+            names = []
+        homes += [Home(n, folder / n, kind) for n in names
+                  if HOME_NAME_RE.fullmatch(n) and real_dir(folder / n)]
+    return homes
+
+
+def read_scope_size(scope_md):
+    """L4: the `size:` line of scope.md, one trailing `(...)` stripped; None when empty or missing."""
+    for line in read_text(scope_md).splitlines():
+        match = re.match(r"size:(.*)", line.strip(), re.I)
+        if match:
+            return strip_parenthetical(clean_cell(match.group(1))) or None
+    return None
+
+
+def read_iterations(home):
+    found = {}
+    for p in (home.path / "iterations").glob("*.md"):
         if ITERATION_RE.fullmatch(p.stem) and p.is_file():
-            iterations[int(p.stem)] = read_text(p)
-    # Matching against real file names keeps untrusted agent names out of any path.
-    suffix = ".notes.md"
-    notes = set(p.name[:-len(suffix)] for p in (d / "roles").glob("*" + suffix) if p.is_file())
-    return {"roster": roster, "scopes": scopes, "escalations": read_first_table(d / "escalations.md"),
-            "iterations": iterations, "notes": notes}
+            found[int(p.stem)] = read_text(p)
+    return found
+
+
+def read_squad(squad_dir):
+    """Roster, scopes, escalations, iteration texts and notes files of a squad folder, over all its homes.
+    A roster row carries its `home`; the key never reaches the state."""
+    d = Path(squad_dir)
+    scoped = is_scoped(d)
+    homes = find_homes(d)
+    roster, seen, scopes, escalations, iterations, home_iterations, notes = [], set(), [], [], {}, {}, {}
+    for home in homes:
+        kept = set()
+        for row in read_first_table(home.path / "roster.md"):
+            agent, role = row.get("agent", ""), row.get("role", "")
+            scope = strip_parenthetical(row.get("scope", ""))
+            if scoped:  # L3: the folder names the pod; the Scope cell can be empty (goal Manager, coach)
+                scope = MANAGER_POD if is_manager(role) else home.name
+            if agent and role and scope and agent not in seen:
+                seen.add(agent)
+                kept.add(agent)
+                roster.append({"agent": agent, "role": role, "scope": scope, "status": row.get("status", ""),
+                               "home": home})
+        if not scoped:
+            scopes = [{"scope": strip_parenthetical(r.get("scope", "")),
+                       "size": strip_parenthetical(r.get("size", "")) or None}
+                      for r in read_first_table(home.path / "scopes.md")]
+        elif home.kind == "scope":
+            scopes.append({"scope": home.name, "size": read_scope_size(home.path / "scope.md")})
+        escalations.append((home, read_first_table(home.path / "escalations.md")))
+        home_iterations[home] = read_iterations(home)
+        for number, text in home_iterations[home].items():
+            iterations.setdefault(number, text)
+        # Matching against real file names keeps untrusted agent names out of any path. In the per-scope
+        # layout a notes file counts only for a roster agent of its own home (L10).
+        suffix = ".notes.md"
+        for p in (home.path / "roles").glob("*" + suffix):
+            name = p.name[:-len(suffix)]
+            if p.is_file() and (not scoped or name in kept):
+                notes.setdefault(name, (home.path / "roles" / p.name).relative_to(d).as_posix())
+    return {"roster": roster, "scopes": scopes, "escalations": escalations, "iterations": iterations,
+            "home_iterations": home_iterations, "notes": notes, "homes": homes, "scoped": scoped}
 
 
 # --- section: log reader ---
@@ -165,28 +234,46 @@ def int_or_none(value):
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def read_logs(squad_dir):
-    """`(messages, activity)` from the two logs. Bad lines are skipped, wrong types become None."""
-    d = Path(squad_dir)
-    messages, seen = [], set()
-    for rec in read_jsonl(d / "messages.jsonl"):
-        msg_id = text_or_none(rec.get("msg_id"))
-        if msg_id is not None:
-            if msg_id in seen:
-                continue
-            seen.add(msg_id)
-        messages.append({"ts": rec["ts"], "msg_id": msg_id, "from": text_or_none(rec.get("from")),
-                         "to": text_or_none(rec.get("to")), "type": text_or_none(rec.get("type")),
-                         "task": text_or_none(rec.get("task")), "text": text_or_none(rec.get("text")),
-                         "iteration": int_or_none(rec.get("iteration"))})
-    activity = []
-    for rec in read_jsonl(d / "activity.jsonl"):
-        agent = text_or_none(rec.get("agent"))
-        if agent:
-            activity.append({"ts": rec["ts"], "agent": agent, "status": text_or_none(rec.get("status")),
-                             "iteration": int_or_none(rec.get("iteration")),
-                             "detail": text_or_none(rec.get("detail"))})
+def read_logs(homes):
+    """`(messages, activity)` from the two logs of every home, in home order (L7). Bad lines are skipped,
+    wrong types become None. Each record carries its `home`; one `msg_id` counts once, first wins."""
+    messages, activity, seen = [], [], set()
+    for home in homes:
+        for rec in read_jsonl(home.path / "messages.jsonl"):
+            msg_id = text_or_none(rec.get("msg_id"))
+            if msg_id is not None:
+                if msg_id in seen:
+                    continue
+                seen.add(msg_id)
+            messages.append({"ts": rec["ts"], "msg_id": msg_id, "from": text_or_none(rec.get("from")),
+                             "to": text_or_none(rec.get("to")), "type": text_or_none(rec.get("type")),
+                             "task": text_or_none(rec.get("task")), "text": text_or_none(rec.get("text")),
+                             "iteration": int_or_none(rec.get("iteration")), "home": home})
+        for rec in read_jsonl(home.path / "activity.jsonl"):
+            agent = text_or_none(rec.get("agent"))
+            if agent:
+                activity.append({"ts": rec["ts"], "agent": agent, "status": text_or_none(rec.get("status")),
+                                 "iteration": int_or_none(rec.get("iteration")),
+                                 "detail": text_or_none(rec.get("detail")), "home": home})
     return messages, activity
+
+
+def retag_iterations(records, home_iterations, selected):
+    """L8, per-scope layout: iteration numbers mean different things per scope, so the filter is per home.
+    A record without a tag counts as its home's lowest iteration (as the flat layout counts it as the
+    lowest). Default view (`selected` None): a home's current iteration shows as the squad's current one.
+    Explicit N: a home without iteration files (a goal) shows in whichever N is asked."""
+    squad_current = max((max(n) for n in home_iterations.values() if n), default=None)
+    for rec in records:
+        numbers = home_iterations.get(rec["home"], {})
+        lowest, current = (min(numbers), max(numbers)) if numbers else (None, None)
+        if rec["iteration"] is None:
+            rec["iteration"] = lowest
+        if selected is None:
+            if rec["iteration"] == current:
+                rec["iteration"] = squad_current
+        elif not numbers:
+            rec["iteration"] = selected
 
 
 # --- section: columns ---
@@ -197,7 +284,7 @@ def is_manager(role):
 
 def make_column(agent, role, pod, retired, status, notes):
     return {"agent": agent, "role": role, "pod": pod, "status": status, "retired": retired,
-            "notes_path": "roles/%s.notes.md" % agent if agent in notes else None,
+            "notes_path": notes.get(agent),
             "working_s": 0, "blocked_s": 0, "waiting_s": 0, "wakes": 0,
             "context_tokens": None, "tokens_in": None, "tokens_out": None, "model": None}
 
@@ -224,6 +311,14 @@ def roster_live(status):
     return status.strip().lower().startswith("live")
 
 
+def pod_of_unlisted(name, pods):
+    """L6: the pod whose name stands in the agent's name between `-` boundaries (a scope slug can hold a
+    dash). Several fit: the earliest position, then the longest pod name."""
+    padded = "-%s-" % name
+    fits = [(padded.find("-%s-" % pod), -len(pod), pod) for pod in pods if "-%s-" % pod in padded]
+    return min(fits)[2] if fits else UNLISTED_POD
+
+
 def build_columns(squad, messages, activity):
     """One column per agent: Manager first, pods by first appearance, roster order inside a pod."""
     statuses = latest_statuses(activity)
@@ -237,7 +332,7 @@ def build_columns(squad, messages, activity):
             r["agent"], r["role"], r["scope"], not roster_live(r["status"]),
             statuses.get(r["agent"], "idle"), squad["notes"]))
 
-    # An agent seen only in a log joins the end of the pod named by its first matching name part.
+    # An agent seen only in a log joins the end of the pod named in its name (pod_of_unlisted).
     # The Manager's pod is no target: `dev-all-1` is not one of the Manager's team.
     manager_pod = manager["scope"] if manager else None
     known = set(r["agent"] for r in ordered)
@@ -247,7 +342,7 @@ def build_columns(squad, messages, activity):
         if name in known:
             continue
         known.add(name)
-        pod = next((part for part in name.split("-") if part in pods and part != manager_pod), UNLISTED_POD)
+        pod = pod_of_unlisted(name, [p for p in pods if p != manager_pod])
         pods.setdefault(pod, []).append(make_column(
             name, None, pod, False, statuses.get(name, "idle"), squad["notes"]))
     return [col for pod in pods.values() for col in pod]
@@ -602,27 +697,36 @@ def derive_needs_you(squad, columns, activity):
             items.append({"id": "blocked:%s:%s" % (col["agent"], since), "kind": "blocked",
                           "text": "%s is blocked" % col["agent"], "agent": col["agent"], "since": since})
 
-    rows = squad["escalations"]
-    numbers = [r.get("#", "") for r in rows]
-    for i, row in enumerate(rows, 1):
-        # a blank row has an empty Answer too, but without a number or question it is no escalation
-        if row.get("answer") or not (row.get("#") or row.get("question")):
-            continue
-        number = numbers[i - 1] if numbers[i - 1] and numbers.count(numbers[i - 1]) == 1 else i
-        items.append({"id": "escalation:%s" % number, "kind": "escalation",
-                      "text": row.get("question", ""), "agent": None, "since": None})
+    for home, rows in squad["escalations"]:
+        numbers = [r.get("#", "") for r in rows]
+        for i, row in enumerate(rows, 1):
+            # a blank row has an empty Answer too, but without a number or question it is no escalation
+            if row.get("answer") or not (row.get("#") or row.get("question")):
+                continue
+            number = numbers[i - 1] if numbers[i - 1] and numbers.count(numbers[i - 1]) == 1 else i
+            # L9: per-scope, two scopes can both have a row #1, so the id and the text name the home
+            label = home.name or ""
+            items.append({"id": "escalation:%s%s" % (label + ":" if label else "", number),
+                          "kind": "escalation", "text": (label + ": " if label else "") + row.get("question", ""),
+                          "agent": None, "since": None})
 
-    manager = next((r["agent"] for r in squad["roster"] if is_manager(r["role"])), None)
-    manager_col = next((c for c in columns if c["agent"] == manager), None)
-    since = latest_event_ts(activity, manager, tuple(STATUS_FOR_EVENT))
-    if manager_col and not manager_col["retired"] and since and manager_col["status"] == "idle" \
-            and squad["iterations"]:
-        current = max(squad["iterations"])
-        filled = po_checkin_filled(squad["iterations"][current])
-        if filled is not None and not any(filled.values()):
-            items.append({"id": "manager_idle:%d" % current, "kind": "manager_idle",
-                          "text": "Manager is idle and the PO check-in of iteration %d is empty" % current,
-                          "agent": manager, "since": since})
+    # Flat: the first Manager only, as before. Per-scope: each Manager against its own home's check-in.
+    managers = [r for r in squad["roster"] if is_manager(r["role"])]
+    for manager in managers if squad["scoped"] else managers[:1]:
+        manager_col = next((c for c in columns if c["agent"] == manager["agent"]), None)
+        since = latest_event_ts(activity, manager["agent"], tuple(STATUS_FOR_EVENT))
+        iterations = squad["home_iterations"].get(manager["home"], {})
+        if manager_col and not manager_col["retired"] and since and manager_col["status"] == "idle" \
+                and iterations:
+            current = max(iterations)
+            filled = po_checkin_filled(iterations[current])
+            if filled is not None and not any(filled.values()):
+                label = manager["home"].name or ""
+                items.append({"id": "manager_idle:%s%d" % (label + ":" if label else "", current),
+                              "kind": "manager_idle",
+                              "text": "%sManager is idle and the PO check-in of iteration %d is empty" % (
+                                  label + ": " if label else "", current),
+                              "agent": manager["agent"], "since": since})
     return items
 
 
@@ -810,14 +914,17 @@ def build_state(squad_dir, now=None, selected_iteration=None, live=False):
     """The whole board state from files alone. Raises BadRequest for an unknown iteration.
     Live mode reads tokens through the live agent -> session id map; replay through `replay/herdr.json`."""
     squad = read_squad(squad_dir)
-    messages, activity = read_logs(squad_dir)
+    messages, activity = read_logs(squad["homes"])
     iterations = sorted(squad["iterations"])
     iteration = iterations[-1] if iterations else None
+    requested = selected_iteration
     if selected_iteration is None:
         selected_iteration = iteration
     elif selected_iteration not in squad["iterations"]:
         raise BadRequest("unknown iteration %d" % selected_iteration)
     now = now or latest_ts(messages, activity) or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if squad["scoped"]:
+        retag_iterations(messages + activity, squad["home_iterations"], requested)
 
     columns = build_columns(squad, messages, activity)
     timeline = derive_timeline(messages, activity, columns, now, selected_iteration,
@@ -1012,12 +1119,11 @@ def last_statuses(log_path):
 class Recorder:
     def __init__(self, squad_dir, socket_path):
         self.squad_dir = Path(squad_dir)
-        self.log_path = self.squad_dir / "activity.jsonl"
         self.socket_path = socket_path
         self.names = {}          # pane id -> agent name, from the latest snapshot
         self.subscribed = set()  # pane ids the open subscription covers
         self.stream = None       # (socket, FrameReader) of the open subscription
-        self.roster = set()
+        self.roster = {}         # agent name -> its Home (the roster row's folder)
         self.roster_read = None  # monotonic time of the last roster read
         self.reported = False    # the current outage already has its stderr line
         self.write_error = None  # the write error already printed, until a write succeeds
@@ -1068,7 +1174,9 @@ class Recorder:
             self.stream = herdr_subscribe(self.socket_path, panes)
             self.subscribed = panes
         set_sessions(dict((name, sid) for name, _, _, sid in agents if sid))
-        last = last_statuses(self.log_path)
+        last = {}  # agent names are unique across homes, so one dict merges every home's log
+        for home in find_homes(self.squad_dir):
+            last.update(last_statuses(home.path / "activity.jsonl"))
         with self.lock:
             for name, state in last.items():
                 self.last_recorded[name] = (state, None)
@@ -1168,18 +1276,22 @@ class Recorder:
             now = time.monotonic()
             if self.roster_read is None or now - self.roster_read >= ROSTER_REREAD_S:
                 self.roster_read = now
-                self.roster = set(row["agent"] for row in read_squad(self.squad_dir)["roster"])
+                self.roster = dict((row["agent"], row["home"]) for row in read_squad(self.squad_dir)["roster"])
         return name in self.roster
 
     def append(self, name, status, detail=None):
-        """One record, one write, under the lock the hook's writer takes too (E5)."""
+        """One record, one write, under the lock the hook's writer takes too (E5). It goes to the log of the
+        agent's own home (L13), tagged with that home's highest iteration; an agent in no roster gets none."""
+        home = self.roster.get(name)
+        if home is None:
+            return
         record = {"ts": event_stamp(), "agent": name, "status": status,
-                  "iteration": highest_iteration(self.squad_dir)}
+                  "iteration": highest_iteration(home.path)}
         if detail:
             record["detail"] = detail
         line = (json.dumps(record) + "\n").encode("utf-8")
         try:
-            fd = os.open(str(self.log_path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+            fd = os.open(str(home.path / "activity.jsonl"), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX)
                 os.write(fd, line)
@@ -1299,11 +1411,16 @@ def handle_state(handler):
 
 def watched_signature(squad_dir):
     """What the squad files look like right now. The inode is part of it, so an editor that writes a
-    temp file and renames it over the original is seen even when size and mtime come out equal."""
-    root = Path(squad_dir)
-    paths = [root / name for name in ("messages.jsonl", "activity.jsonl", "escalations.md", "roster.md", "scopes.md")]
-    paths += sorted(root.glob("iterations/*.md")) + sorted(root.glob("roles/*.notes.md"))
-    signature = []
+    temp file and renames it over the original is seen even when size and mtime come out equal. The
+    list of homes is part of it (L12): a new or closed scope changes the pods."""
+    homes = find_homes(squad_dir)
+    signature = [("homes", tuple((h.kind, h.name) for h in homes))]
+    paths = []
+    for home in homes:
+        names = ["messages.jsonl", "activity.jsonl", "escalations.md", "roster.md"]
+        names += {"flat": ["scopes.md"], "scope": ["scope.md"], "goal": []}[home.kind]
+        paths += [home.path / name for name in names]
+        paths += sorted(home.path.glob("iterations/*.md")) + sorted(home.path.glob("roles/*.notes.md"))
     for path in paths:
         try:
             info = path.stat()
@@ -1449,12 +1566,12 @@ def notes_token_ok(handler):
     return len(values) == 1 and hmac.compare_digest(values[0].encode("utf-8"), handler.server.token.encode("utf-8"))
 
 
-def read_notes(squad_dir, name):
-    """The first NOTES_MAX_BYTES of `<squad>/roles/<name>.notes.md` as bytes, or None. `name` is
-    already validated. The real path must stay inside the real roles folder, so a symlink leading
+def read_notes(home_dir, name):
+    """The first NOTES_MAX_BYTES of `<home>/roles/<name>.notes.md` as bytes, or None. `name` is
+    already validated and `home_dir` comes from the roster row (L10), never from the request. The real path must stay inside the real roles folder, so a symlink leading
     out is refused; the open is non-blocking and re-checked on the descriptor, so a file swapped for
     a pipe after the check cannot hang the handler."""
-    roles = os.path.realpath(os.path.join(squad_dir, "roles"))
+    roles = os.path.realpath(os.path.join(home_dir, "roles"))
     real = os.path.realpath(os.path.join(roles, name + ".notes.md"))
     if os.path.dirname(real) != roles:
         return None
@@ -1482,9 +1599,10 @@ def handle_notes(handler):
     if not JUMP_NAME_RE.fullmatch(name):
         return send_notes(handler, 400, b"bad agent name")
     # a retired agent stays: its notes outlive it
-    if name not in [r["agent"] for r in read_squad(handler.server.replay_dir)["roster"]]:
+    row = next((r for r in read_squad(handler.server.replay_dir)["roster"] if r["agent"] == name), None)
+    if row is None:
         return send_notes(handler, 404, b"not found")
-    data = read_notes(handler.server.replay_dir, name)
+    data = read_notes(row["home"].path, name)
     if data is None:
         return send_notes(handler, 404, b"not found")
     send_notes(handler, 200, data.decode("utf-8", errors="replace").encode("utf-8"))

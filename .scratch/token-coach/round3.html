@@ -1,0 +1,149 @@
+<title>Token Coach Round 3</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: answer line, then a 3-lane timeline of one threshold crossing (left, sticky) beside question cards (right). Single light look by choice (mango-parrot light). */
+:root{
+  --bg:#FCF8F1;--panel:#F4ECDD;--line:#E7DBC8;--ink:#3E372E;--muted:#857A68;
+  --mango:#E8820E;--teal:#0C8A80;--red:#DB3B22;--blue:#2A6DC0;--purple:#9A40CF;--green:#368A1E;--yellow:#9E7A00;--slate:#5E6B78;
+  --display:"Fraunces",Georgia,serif;--body:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);padding-block:20px 40px;padding-inline:max(16px,3vw)}
+h1{font:600 28px/1.2 var(--display);margin:0;text-wrap:balance}
+h2{font:600 18px/1.3 var(--display);margin:0 0 10px}
+.lede{max-width:72ch;color:var(--muted);margin:6px 0 0}
+.tag{font:600 11px var(--mono);letter-spacing:.04em;padding:1px 6px;border-radius:4px;white-space:nowrap}
+.v{color:var(--green);background:#368A1E18}.i{color:var(--yellow);background:#9E7A0018}
+.grid{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:28px;margin-top:20px;align-items:start}
+@media (max-width:960px){.grid{grid-template-columns:1fr}}
+.sticky{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+.lanes{overflow-x:auto}
+.tl{display:grid;grid-template-columns:110px repeat(3,minmax(150px,1fr));gap:6px 10px;min-width:560px}
+.lh{font:600 12px var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:4px 8px;border-radius:6px;background:var(--panel);text-align:center}
+.lh.agent{color:var(--purple)}.lh.script{color:var(--teal)}.lh.mgr{color:var(--mango)}
+.when{font:12px var(--mono);color:var(--muted);padding-top:9px}
+.step{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;font-size:13.5px;position:relative}
+.step small{display:block;color:var(--muted);font-size:12px}
+.step.agent{border-left:4px solid var(--purple)}.step.script{border-left:4px solid var(--teal)}.step.mgr{border-left:4px solid var(--mango)}.step.store{border-left:4px solid var(--slate)}
+.gap{border:0;background:none}
+.sep{grid-column:1/-1;border-top:1px dashed var(--line);margin:4px 0;font:11px var(--mono);color:var(--muted);padding-top:4px}
+.pin{display:inline-grid;place-items:center;width:24px;height:22px;border-radius:11px;background:var(--mango);color:#fff;font:600 11px var(--mono);cursor:pointer;border:0;vertical-align:middle}
+.step .pin{position:absolute;right:-8px;top:-9px}
+.pin.on{outline:3px solid #E8820E66}
+.q{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;background:var(--bg)}
+.q.on{box-shadow:0 0 0 2px var(--mango)}
+.q h3{font:600 15px var(--body);margin:0 0 4px;display:flex;gap:8px;align-items:center}
+.q p{margin:4px 0 8px;max-width:70ch}
+.opts{display:grid;gap:6px}
+.opts label{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:6px;padding:7px 9px;cursor:pointer}
+.opts label:has(input:checked){border-color:var(--mango);background:#E8820E10}
+.opts input{margin-top:3px;accent-color:var(--mango)}
+.rec{font:600 10.5px var(--mono);color:var(--mango);margin-left:4px}
+.ev{font:12px var(--mono);color:var(--muted);margin-top:6px}
+.push{border-left:3px solid var(--red);padding:4px 10px;margin:6px 0 8px;font-size:13.5px;background:#DB3B220D}
+textarea{width:100%;box-sizing:border-box;font:13px var(--body);border:1px solid var(--line);border-radius:6px;padding:6px;background:#fff;color:var(--ink);margin-top:6px}
+.copy{border:2px solid var(--mango);border-radius:10px;padding:14px}
+pre{font:13px/1.5 var(--mono);background:var(--panel);padding:10px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;margin:8px 0}
+button.cta{font:600 14px var(--body);background:var(--mango);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.settled{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.settled span{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:2px 10px;background:var(--panel)}
+.settled span::before{content:"✓ ";color:var(--green)}
+footer{margin-top:28px;font:12px/1.6 var(--mono);color:var(--muted);white-space:pre-wrap;border-top:1px solid var(--line);padding-top:12px;overflow-x:auto}
+</style>
+
+<h1>Token Coach, round 3: what happens when an agent crosses a threshold</h1>
+<p class="lede">The recommended path: a script checks each agent after its own turn, the agent fixes itself by the rule, and nothing reaches the Manager until the retro. Four choices decide that path; each is pinned on the step it changes.</p>
+<div class="settled"><span>R2 Q1 session id in roster.md</span><span>R2 Q2 retro + threshold</span><span>R2 Q3 no cap</span><span>R2 Q4 thresholds 50/60%, idle 1h &amp; 100k</span><span>R2 Q5 bin/squad-usage, Python</span></div>
+
+<div class="grid">
+<section class="sticky" aria-label="Timeline">
+  <h2>One crossing, from turn end to retro</h2>
+  <div class="lanes"><div class="tl">
+    <div></div><div class="lh agent">Agent (e.g. dev-1)</div><div class="lh script">Scripts &amp; hook</div><div class="lh mgr">Coach → Manager</div>
+
+    <div class="when">turn ends</div>
+    <div class="step agent">Finishes a turn; context now 124k of 200k = 62%</div>
+    <div class="step script">Hook runs <code>squad-usage --check</code> on this session only<small>0 LLM tokens <span class="tag i">hook event not verified</span></small><button class="pin" data-q="1">Q1</button></div>
+    <div class="gap"></div>
+
+    <div class="when">+0s</div>
+    <div class="gap"></div>
+    <div class="step script">Rule 1 fires: &gt;60% → "write notes, restart fresh"<small>also appends to <code>usage-events.jsonl</code></small><button class="pin" data-q="2">Q2</button></div>
+    <div class="gap"></div>
+
+    <div class="when">next turn</div>
+    <div class="step agent">Writes <code>roles/dev-1.notes.md</code>, calls <code>squad-respawn dev-1</code></div>
+    <div class="step script">squad-respawn closes the old pane, starts dev-1 again, prompt points at its notes<small>new script <span class="tag i">proposed</span></small><button class="pin" data-q="4">Q4</button></div>
+    <div class="gap"></div>
+
+    <div class="when">+1 min</div>
+    <div class="step agent">New dev-1 session at ~20k context, continues the task</div>
+    <div class="step store">roster.md gets the new session id</div>
+    <div class="gap"></div>
+
+    <div class="sep">… rest of the iteration, Manager not involved …</div>
+
+    <div class="when">retro</div>
+    <div class="gap"></div>
+    <div class="step script">squad-usage table + usage-events.jsonl</div>
+    <div class="step mgr">Coach ranks every proposal by saving; Manager decides top 3, rest → backlog<button class="pin" data-q="3">Q3</button></div>
+  </div></div>
+  <p class="ev">Verified this session: transcripts hold model, effort, timestamp and token usage incl. 1h cache writes · squad-spawn passes --name (bin/squad-spawn:83) · retro step at templates/squad/process.md:112</p>
+</section>
+
+<section aria-label="Questions">
+  <div class="q" id="q1"><h3><span class="pin">Q1</span> What checks the thresholds mid-iteration</h3>
+    <div class="opts">
+      <label><input type="radio" name="q1" value="hook" checked> <span>(a) A hook on each agent runs the check on its own session after every turn <span class="rec">REC</span></span></label>
+      <label><input type="radio" name="q1" value="manager"> <span>(b) Manager runs squad-usage from time to time</span></label>
+      <label><input type="radio" name="q1" value="cron"> <span>(c) Cron runs it on a timer</span></label>
+    </div>
+    <p class="ev">(a) costs no LLM tokens and fires the moment the numbers change. (b) puts load back on the Manager.</p>
+    <textarea id="n1" rows="1" placeholder="Note (optional)"></textarea></div>
+
+  <div class="q" id="q2"><h3><span class="pin">Q2</span> What happens when a threshold is crossed</h3>
+    <div class="push">Your R2 pick "retro + threshold" stays, but the mid-iteration part is the agent following a rule, not a Coach session. A live Coach is the watcher you rejected.</div>
+    <div class="opts">
+      <label><input type="radio" name="q2" value="self+log" checked> <span>(c) Agent applies the rule itself, the event is logged for the retro <span class="rec">REC</span></span></label>
+      <label><input type="radio" name="q2" value="self"> <span>(a) Agent applies the rule, nothing logged</span></label>
+      <label><input type="radio" name="q2" value="coach"> <span>(b) Hook asks Manager to spawn the Coach now (say what it should catch)</span></label>
+    </div>
+    <textarea id="n2" rows="1" placeholder="Note (optional)"></textarea></div>
+
+  <div class="q" id="q3"><h3><span class="pin">Q3</span> No cap, but ranked</h3>
+    <div class="push">Uncapped proposals all landing on the Manager is the overload and the "too many things" effect you named in round 1.</div>
+    <div class="opts">
+      <label><input type="radio" name="q3" value="rank-top3" checked> <span>Coach ranks all; Manager decides top 3; rest → backlog in the same file <span class="rec">REC</span></span></label>
+      <label><input type="radio" name="q3" value="all"> <span>Manager decides every proposal</span></label>
+    </div>
+    <textarea id="n3" rows="1" placeholder="Note (optional)"></textarea></div>
+
+  <div class="q" id="q4"><h3><span class="pin">Q4</span> Who restarts an agent fresh from notes</h3>
+    <div class="opts">
+      <label><input type="radio" name="q4" value="self-respawn" checked> <span>(b) Agent calls <code>squad-respawn &lt;self&gt;</code> <span class="rec">REC</span></span></label>
+      <label><input type="radio" name="q4" value="ask-manager"> <span>(a) Agent asks Manager, Manager re-runs squad-spawn</span></label>
+    </div>
+    <p class="ev">(a) turns every context reset into a Manager decision. Dev keeps its worktree either way <span class="tag i">inferred</span>.</p>
+    <textarea id="n4" rows="1" placeholder="Note (optional)"></textarea></div>
+
+  <div class="copy"><h2>Your answers</h2>
+    <pre id="out"></pre>
+    <button class="cta" id="copyBtn">Copy answers</button> <span id="copied" class="ev"></span></div>
+</section>
+</div>
+
+<footer>Reader:     the user (PO) → decide round 3
+Question:   What happens, step by step, when an agent crosses a token threshold mid-iteration?
+Dimension:  Time
+Form:       3-lane timeline with pinned questions, not a pipeline box graph: the choices are about who acts when</footer>
+
+<script>
+const out=document.getElementById('out');
+function render(){const l=[];for(let i=1;i<=4;i++){const v=document.querySelector(`input[name=q${i}]:checked`)?.value||'-';const n=document.getElementById('n'+i).value.trim();l.push(`R3 Q${i}: ${v}${n?' | '+n:''}`);}out.textContent=l.join('\n');}
+document.addEventListener('input',render);render();
+document.getElementById('copyBtn').addEventListener('click',()=>{const c=document.getElementById('copied');navigator.clipboard.writeText(out.textContent).then(()=>c.textContent='Copied').catch(()=>{const r=document.createRange();r.selectNodeContents(out);const s=getSelection();s.removeAllRanges();s.addRange(r);c.textContent='Selected, press Ctrl+C';});});
+function mark(n){document.querySelectorAll('.q').forEach(q=>q.classList.toggle('on',q.id==='q'+n));document.querySelectorAll('.step .pin').forEach(p=>p.classList.toggle('on',p.dataset.q===String(n)));}
+document.querySelectorAll('.step .pin').forEach(p=>p.addEventListener('click',()=>{mark(p.dataset.q);document.getElementById('q'+p.dataset.q).scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});}));
+document.querySelectorAll('.q').forEach(q=>q.addEventListener('mouseenter',()=>mark(q.id.slice(1))));
+</script>

@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Stop hook: when a cost rule fires for this squad session, tell the agent and log the event
+# to usage-events.jsonl in the agent's own folder ($SCOPE_DIR, else $GOAL_DIR, else $SQUAD_DIR). No LLM call. Each rule fires once per session, so a
+# session that ignores it is not nagged every turn. The Manager (talks to the PO) is exempt.
+# Exit 2 + stderr is how a Stop hook hands text back to the agent.
+set -uo pipefail
+
+[[ -n ${SQUAD_NAME:-} && -n ${SQUAD_DIR:-} && -d ${SQUAD_DIR:-} && ${SQUAD_ROLE:-} != manager ]] || exit 0
+home=${SCOPE_DIR:-${GOAL_DIR:-$SQUAD_DIR}}  # legacy flat layout: SQUAD_DIR
+[[ -d $home ]] || exit 0
+input=$(cat) || exit 0
+
+[[ $(jq -r '.stop_hook_active // false' <<<"$input" 2>/dev/null) == true ]] && exit 0
+session=$(jq -r '.session_id // empty' <<<"$input" 2>/dev/null)
+[[ -n $session ]] || exit 0
+
+args=(--check "$session")
+transcript=$(jq -r '.transcript_path // empty' <<<"$input" 2>/dev/null)
+[[ -n $transcript ]] && args+=(--transcript "$transcript")
+rule=$("$(dirname "$(readlink -f "$0")")/squad-usage" "${args[@]}" 2>/dev/null) || exit 0
+[[ -n $rule ]] || exit 0
+
+log=$home/usage-events.jsonl
+if [[ -f $log ]] && jq -e --arg s "$session" --arg r "$rule" 'select(.session == $s and .rule == $r)' "$log" >/dev/null 2>&1; then
+  exit 0
+fi
+
+case $rule in
+  fresh) why="your context is over 60% or was compacted" ;;
+  idle)  why="you were idle over 1h with over ~100k of context, so the cache is gone" ;;
+  *)     exit 0 ;;
+esac
+action="write roles/$SQUAD_NAME.notes.md, then run: squad-respawn $SQUAD_NAME"
+
+record=$(jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg agent "$SQUAD_NAME" --arg role "${SQUAD_ROLE:-}" \
+  --arg session "$session" --arg rule "$rule" --arg action "$action" \
+  '{ts:$ts, agent:$agent, role:$role, session:$session, rule:$rule, action:$action}') || exit 0
+{ flock 9 2>/dev/null; printf '%s\n' "$record" >&9; } 9>>"$log" || exit 0
+
+echo "Cost rule '$rule' fired: $why. Finish the step you are on, then $action" >&2
+exit 2

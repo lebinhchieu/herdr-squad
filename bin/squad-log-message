@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# PostToolUse hook for SendMessage: append one record to $SQUAD_DIR/messages.jsonl for squad-board.
+# PostToolUse hook for SendMessage: append one record to messages.jsonl for squad-board, in the agent's own
+# folder: $SCOPE_DIR, else $GOAL_DIR (a goal Manager), else $SQUAD_DIR (a flat squad).
 # Always exits 0, so a logging problem never interrupts the agent.
 set -uo pipefail
 
 [[ -n ${SQUAD_NAME:-} && -n ${SQUAD_DIR:-} && -d ${SQUAD_DIR:-} ]] || exit 0
+home=${SCOPE_DIR:-${GOAL_DIR:-$SQUAD_DIR}}  # legacy flat layout: SQUAD_DIR
+[[ -d $home ]] || exit 0
 input=$(cat) || exit 0
 
 max=-1
-for f in "$SQUAD_DIR"/iterations/*.md; do
+for f in "$home"/iterations/*.md; do
   n=$(basename "$f" .md)
   [[ $n =~ ^[0-9]+$ ]] && (( 10#$n > max )) && max=$((10#$n))
 done
@@ -25,7 +28,7 @@ record=$(jq -c --arg from "$SQUAD_NAME" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%
      text: $text, iteration: $iteration}' <<<"$input" 2>/dev/null) || exit 0
 [[ -n $record ]] || exit 0
 
-log=$SQUAD_DIR/messages.jsonl
+log=$home/messages.jsonl
 # Records can exceed PIPE_BUF, so lock instead of relying on atomic O_APPEND writes.
 { flock 9 2>/dev/null; printf '%s\n' "$record" >&9; } 9>>"$log" || true
 exit 0

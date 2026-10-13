@@ -20,6 +20,10 @@ BIN = Path(__file__).resolve().parent.parent / "bin" / "squad-board"
 STARTUP_DEADLINE_S = 10
 
 
+def _join(home, name):
+    return "%s/%s" % (home, name) if home else name
+
+
 def _cells(row, keys):
     return " | ".join(str(row[k]) for k in keys)
 
@@ -129,7 +133,7 @@ class Fixture:
 
     # --- squad markdown ----------------------------------------------------
 
-    def roster(self, rows):
+    def roster(self, rows, home=""):
         """rows: dicts with agent, role, scope, owns, status. Cells are written as given."""
         keys = ("agent", "role", "scope", "owns", "status")
         out = ["# Roster", "", "| Agent | Role | Scope | Owns | Status |", "|---|---|---|---|---|"]
@@ -137,7 +141,7 @@ class Fixture:
             r = {"role": "Developer", "scope": "board", "owns": "x", "status": "live"}
             r.update(row)
             out.append("| " + _cells(r, keys) + " |")
-        self.write("roster.md", "\n".join(out) + "\n")
+        self.write(_join(home, "roster.md"), "\n".join(out) + "\n")
 
     def scopes(self, rows, size_log=None):
         """rows: dicts with scope, size, signals, risk, confirmed, pod.
@@ -155,7 +159,7 @@ class Fixture:
         out += size_log or []
         self.write("scopes.md", "\n".join(out) + "\n")
 
-    def escalations(self, rows):
+    def escalations(self, rows, home=""):
         keys = ("num", "date", "question", "options", "rec", "blocks", "answer")
         out = ["# Escalations", "",
                "| # | Date | Question | Options | Manager's recommendation | Blocks | Answer |",
@@ -165,27 +169,27 @@ class Fixture:
                  "rec": "A", "blocks": "nothing", "answer": ""}
             r.update(row)
             out.append("| " + _cells(r, keys) + " |")
-        self.write("escalations.md", "\n".join(out) + "\n")
+        self.write(_join(home, "escalations.md"), "\n".join(out) + "\n")
 
-    def iteration(self, n, text=None):
+    def iteration(self, n, text=None, home=""):
         if text is None:
             text = ("# Iteration %s\n\n## PO check-in\n- **Done (with evidence):**\n- **Next:**\n"
                     "- **Decisions from the PO:**\n" % n)
-        self.write("iterations/%s.md" % n, text)
+        self.write(_join(home, "iterations/%s.md" % n), text)
 
     # --- logs ----------------------------------------------------------------
 
-    def message(self, **fields):
+    def message(self, _home="", **fields):
         rec = {"ts": self._next_ts(), "msg_id": "m-%d" % (self._seq), "from": "manager",
                "to": "tech-board", "type": None, "task": None, "text": "hello", "iteration": 1}
         rec.update(fields)
-        self.append_jsonl("messages.jsonl", rec)
+        self.append_jsonl(_join(_home, "messages.jsonl"), rec)
         return rec
 
-    def activity(self, **fields):
+    def activity(self, _home="", **fields):
         rec = {"ts": self._next_ts(), "agent": "manager", "status": "working", "iteration": 1}
         rec.update(fields)
-        self.append_jsonl("activity.jsonl", rec)
+        self.append_jsonl(_join(_home, "activity.jsonl"), rec)
         return rec
 
     # --- replay-only inputs --------------------------------------------------
@@ -235,3 +239,31 @@ class Fixture:
                     proc.poll(), buf, stderr_file.read().decode("utf-8", "replace")))
             buf += chunk
         return buf.split(b"\n", 1)[0].decode("utf-8")
+
+
+def make_scoped(stale_root_roster=False):
+    """A per-scope squad (`scopes/`, `goals/`) in a temp dir, as `squad-start` lays it out:
+    goal `g` (goal Manager `g-mgr`, coach `g-coach` with an empty Scope cell) owning scopes `a` and `b`,
+    a lone scope `c` with its Manager, and closed scopes under `_done/` that must stay hidden.
+    Scope `a` has iterations 1 and 2, `b` has 1, `c` none; `g` has none. Returns the Fixture."""
+    fx = Fixture()
+    mgr = {"role": "Manager", "scope": ""}
+    for home, rows, size in (
+            ("goals/g", [dict(mgr, agent="g-mgr"), {"agent": "g-coach", "role": "Token Coach", "scope": ""}], None),
+            ("scopes/a", [{"agent": "x-dev-a", "scope": "a"}, {"agent": "x-qaw-a", "role": "QA whitebox", "scope": "a"}],
+             "S + QA whitebox (exception)"),
+            ("scopes/b", [{"agent": "x-dev-b", "scope": "b"}], "M"),
+            ("scopes/c", [dict(mgr, agent="c-mgr"), {"agent": "c-dev", "scope": "c"}], ""),
+            ("scopes/_done/x", [{"agent": "gone-dev", "scope": "x"}], "S"),
+            ("goals/_done/y", [dict(mgr, agent="gone-mgr")], None)):
+        fx.roster(rows, home=home)
+        fx.escalations([], home=home)
+        if home.startswith("scopes/"):
+            fx.write(home + "/scope.md", "# Scope: %s\n\n**brief**\n\ngoal: g\ntouches: x\nsize: %s\n" % (
+                home.rsplit("/", 1)[1], size))
+    fx.iteration(1, home="scopes/a")
+    fx.iteration(2, home="scopes/a")
+    fx.iteration(1, home="scopes/b")
+    if stale_root_roster:
+        fx.roster([{"agent": "stale-root", "scope": "stale"}])
+    return fx

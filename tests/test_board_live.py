@@ -404,14 +404,9 @@ class RefreshTest(LiveTokenCase):
         self.assertIsNotNone(stream.state_where(tokens_in("a", 110), 4))
 
     def test_the_default_interval_is_long(self):
-        # no SQUAD_BOARD_TOKEN_REFRESH_S: a growing transcript must not reach the stream within seconds
-        self.start(env=dict(FAST_POLL, SQUAD_BOARD_TOKEN_REFRESH_S=None))
-        self.wait_loaded()
-        stream = self.stream()
-        self.assertIsNotNone(stream.state(5))
-        self.restart_the_timer(stream)
-        self.grow_by()
-        self.assertIsNone(stream.state_where(tokens_in("a", 110), 3), "a rebuild long before 30 s")
+        # the 3 s tests above cover the timer through the knob; watching 3 s of silence only tested this number
+        source = BIN.read_text(encoding="utf-8")
+        self.assertRegex(source, r'(?m)^TOKEN_REFRESH_S = env_seconds\("SQUAD_BOARD_TOKEN_REFRESH_S", 30\)$')
 
     def test_an_unchanged_transcript_causes_no_event(self):
         stream = self.start_streaming("1")

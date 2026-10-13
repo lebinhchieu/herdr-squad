@@ -5,6 +5,11 @@
         "matcher": "SendMessage",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-log-message\"" }]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-usage-hook\"" }]
+      }
     ]
   }
 }
