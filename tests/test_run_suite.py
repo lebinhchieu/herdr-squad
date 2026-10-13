@@ -80,6 +80,7 @@ class RunSuiteTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stdout)
         self.assertIn("test_flaky (passed on retry; first run failed)", done.stdout)
         self.assertIn("first try", done.stdout)  # the first failure is printed, not hidden
+        self.assertRegex(done.stdout, r"Ran 1 tests in \d+\.\d+s\n\nOK\n$")  # and the tail is still the OK tail
         self.stub("test_hard.py", FAIL + "# playwright\n")
         done = self.run_runner("--retries", "2")
         self.assertEqual(done.returncode, 1)

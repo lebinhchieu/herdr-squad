@@ -98,17 +98,19 @@ def run_all(pool, serial, jobs, env_extra=None, browser_streams=1, retries=0):
 
 
 def summary(results, wall):
+    """File list, then the output of failed and retried files, then the totals: the text always ends
+    with `Ran N tests in S s` and `OK` (or `FAILED ...`), which is what the receipt readers look at."""
     lines = []
     for name, ok, n, secs, _ in sorted(results):
         lines.append("%-4s %4d tests %7.1fs  %s" % ("OK" if ok else "FAIL", n, secs, name))
-    total = sum(r[2] for r in results)
-    bad = [r for r in results if not r[1]]
-    lines += ["", "-" * 70, "Ran %d tests in %.3fs" % (total, wall), ""]
-    lines.append("OK" if not bad else "FAILED (files=%d: %s)" % (len(bad), ", ".join(r[0] for r in bad)))
     text = "\n".join(lines) + "\n"
     for name, ok, _, _, out in sorted(results):
         if not ok or "(passed on retry" in name:
             text += "\n===== %s =====\n%s" % (name, out or "(no output)\n")
+    total = sum(r[2] for r in results)
+    bad = [r for r in results if not r[1]]
+    text += "\n" + "-" * 70 + "\nRan %d tests in %.3fs\n\n" % (total, wall)
+    text += ("OK" if not bad else "FAILED (files=%d: %s)" % (len(bad), ", ".join(r[0] for r in bad))) + "\n"
     return text, not bad
 
 
