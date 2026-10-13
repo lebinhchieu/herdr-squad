@@ -151,6 +151,266 @@ class LoopTest(TaskCase):
         self.assertEqual((t["state"], t["returns"]), ("done", 2))
 
 
+class ReturnCountTest(TaskCase):
+    """`returns` counts HANDIN->FAIL rounds: a FAIL counts only after a HANDIN, or as the first FAIL."""
+
+    def qa_fail(self, sender="qaw-board", to="dev-board-1", **kw):
+        return self.msg("FAIL", sender=sender, to=to, **kw)
+
+    def returns(self):
+        return self.task()["returns"]
+
+    def test_fan_out_to_three_recipients_is_one_return(self):
+        self.msg("HANDIN")
+        for to in ("dev-board-1", "manager", "tech-board"):
+            self.qa_fail(to=to)
+        t = self.task()
+        self.assertEqual((t["state"], t["returns"]), ("returned", 1))
+
+    def test_fan_out_with_a_gap_of_two_seconds_is_one_return(self):
+        self.msg("HANDIN", ts="2026-10-12T10:00:00.000Z")
+        self.qa_fail(to="dev-board-1", ts="2026-10-12T10:00:10.000Z")
+        self.qa_fail(to="manager", ts="2026-10-12T10:00:12.200Z")
+        self.assertEqual(self.returns(), 1)
+
+    def test_two_qas_failing_one_handin_is_one_return(self):
+        self.msg("HANDIN")
+        self.qa_fail(sender="qaw-board")
+        self.qa_fail(sender="qab-board")
+        self.assertEqual(self.returns(), 1)
+
+    def test_first_fail_without_handin_counts_one(self):
+        self.qa_fail()
+        t = self.task()
+        self.assertEqual((t["state"], t["returns"]), ("returned", 1))
+
+    def test_second_fail_without_handin_in_between_is_not_counted(self):
+        self.qa_fail()
+        self.qa_fail()
+        self.assertEqual(self.returns(), 1)
+
+    def test_fail_handin_fail_is_two(self):
+        self.qa_fail()
+        self.msg("HANDIN")
+        self.qa_fail()
+        self.assertEqual(self.returns(), 2)
+
+    def test_fail_handin_fail_fail_is_two(self):
+        self.qa_fail()
+        self.msg("HANDIN")
+        self.qa_fail()
+        self.qa_fail(to="manager")
+        self.assertEqual(self.returns(), 2)
+
+    def test_fail_status_fail_is_one(self):
+        self.qa_fail()
+        self.msg("STATUS")
+        self.qa_fail()
+        self.assertEqual(self.returns(), 1)
+
+    def test_fail_blocked_fail_is_one(self):
+        self.qa_fail()
+        self.msg("BLOCKED")
+        self.qa_fail()
+        self.assertEqual(self.returns(), 1)
+
+    def test_fail_decision_fail_is_one(self):
+        self.qa_fail()
+        self.msg("DECISION", sender="tech-board", to="dev-board-1")
+        self.qa_fail()
+        self.assertEqual(self.returns(), 1)
+
+    def test_fan_out_interrupted_by_another_agents_status_is_one(self):
+        self.msg("HANDIN")
+        self.qa_fail(to="dev-board-1")
+        self.msg("STATUS", sender="tech-board", to="manager")
+        self.qa_fail(to="manager")
+        t = self.task()
+        self.assertEqual((t["state"], t["returns"]), ("returned", 1))
+
+    def test_every_fail_leaves_the_state_returned(self):
+        self.qa_fail()
+        self.msg("HANDIN")
+        self.qa_fail()
+        self.qa_fail(to="manager")
+        self.assertEqual(self.task()["state"], "returned")
+
+    def test_loop_one_second_apart_counts_each_round(self):
+        for t, s, r in (("HANDIN", "dev-board-1", "qaw-board"), ("FAIL", "qaw-board", "dev-board-1"),
+                        ("HANDIN", "dev-board-1", "qaw-board"), ("FAIL", "qaw-board", "dev-board-1"),
+                        ("HANDIN", "dev-board-1", "qaw-board"), ("PASS", "qaw-board", "dev-board-1")):
+            self.msg(t, sender=s, to=r)
+        t = self.task()
+        self.assertEqual((t["state"], t["returns"]), ("done", 2))
+
+    def test_handin_fail_handin_fail_one_second_apart_is_two(self):
+        for t in ("HANDIN", "FAIL", "HANDIN", "FAIL"):
+            self.msg(t)
+        self.assertEqual(self.returns(), 2)
+
+    def test_counter_is_per_task(self):
+        self.qa_fail(task="BRD-03")
+        self.qa_fail(task="BRD-04")
+        self.assertEqual((self.task("BRD-03")["returns"], self.task("BRD-04")["returns"]), (1, 1))
+
+    def test_handin_of_another_task_does_not_re_arm(self):
+        self.qa_fail(task="BRD-03")
+        self.msg("HANDIN", task="BRD-04")
+        self.qa_fail(task="BRD-03")
+        self.assertEqual(self.task("BRD-03")["returns"], 1)
+
+    def test_pass_does_not_re_arm(self):
+        self.msg("HANDIN")
+        self.qa_fail()
+        self.msg("PASS", sender="qaw-board", to="dev-board-1")
+        self.qa_fail()
+        t = self.task()
+        self.assertEqual((t["state"], t["returns"]), ("returned", 1))
+
+    def test_fail_then_developer_status_goes_back_to_building(self):
+        self.qa_fail()
+        self.msg("STATUS", sender="dev-board-1", to="tech-board")
+        t = self.task()
+        self.assertEqual((t["state"], t["returns"]), ("building", 1))
+
+    def test_blocked_then_another_agents_status_goes_to_building(self):
+        self.msg("BLOCKED")
+        self.msg("STATUS", sender="tech-board", to="manager")
+        self.assertEqual(self.task()["state"], "building")
+
+    def test_counting_follows_ts_not_log_order(self):
+        rows = [("HANDIN", "dev-board-1", "qaw-board", 1), ("FAIL", "qaw-board", "dev-board-1", 2),
+                ("FAIL", "qaw-board", "manager", 3), ("HANDIN", "dev-board-1", "qaw-board", 4),
+                ("FAIL", "qaw-board", "dev-board-1", 5), ("FAIL", "qaw-board", "manager", 6),
+                ("PASS", "qaw-board", "dev-board-1", 7)]
+        for type_, sender, to, sec in (rows[6], rows[4], rows[1], rows[3], rows[5], rows[0], rows[2]):
+            self.fx.append_jsonl("messages.jsonl", {
+                "ts": "2026-10-12T10:00:0%d.000Z" % sec, "msg_id": "m%d" % sec, "from": sender,
+                "to": to, "type": type_, "task": "BRD-03", "text": type_, "iteration": 1})
+        t = self.task()
+        self.assertEqual((t["state"], t["returns"]), ("done", 2))
+
+
+class DoneStickyTest(TaskCase):
+    def setUp(self):
+        super().setUp()
+        self.msg("HANDIN")
+        self.msg("PASS", sender="qaw-board", to="dev-board-1")
+
+    def assert_done_and_follows(self, rec):
+        t = self.task()
+        self.assertEqual((t["state"], t["returns"], t["last_ts"], t["last_type"]),
+                         ("done", 0, rec["ts"], rec["type"]))
+
+    def test_status_naming_the_pass_leaves_done(self):
+        self.assert_done_and_follows(self.msg(
+            "STATUS", text="STATUS BRD-03: PASS from qaw-board", to="manager"))
+
+    def test_decision_naming_the_pass_leaves_done(self):
+        self.assert_done_and_follows(self.msg(
+            "DECISION", sender="tech-board", to="manager", text="DECISION BRD-03: PASS by qaw-board"))
+
+    def test_ask_leaves_done(self):
+        self.assert_done_and_follows(self.msg("ASK"))
+
+    def test_answer_leaves_done(self):
+        self.assert_done_and_follows(self.msg("ANSWER", sender="tech-board", to="dev-board-1"))
+
+    def test_repeated_pass_stays_done(self):
+        self.assert_done_and_follows(self.msg("PASS", sender="qaw-board", to="manager"))
+
+    def test_handin_reopens_to_checking(self):
+        rec = self.msg("HANDIN")
+        t = self.task()
+        self.assertEqual((t["state"], t["last_ts"], t["last_type"]), ("checking", rec["ts"], "HANDIN"))
+
+    def test_fail_reopens_to_returned_and_counts(self):
+        rec = self.msg("FAIL", sender="qaw-board", to="dev-board-1")
+        t = self.task()
+        self.assertEqual((t["state"], t["returns"], t["last_ts"], t["last_type"]),
+                         ("returned", 1, rec["ts"], "FAIL"))
+
+    def test_blocked_reopens_to_blocked(self):
+        rec = self.msg("BLOCKED")
+        t = self.task()
+        self.assertEqual((t["state"], t["last_ts"], t["last_type"]), ("blocked", rec["ts"], "BLOCKED"))
+
+    def test_blocked_after_done_unblocks_at_the_senders_next_working_event(self):
+        self.msg("BLOCKED")
+        self.fx.activity(agent="dev-board-1", status="working")
+        self.assertEqual(self.task()["state"], "building")
+
+    def test_working_event_of_another_agent_leaves_blocked_after_done(self):
+        self.msg("BLOCKED")
+        self.fx.activity(agent="tech-board", status="working")
+        self.assertEqual(self.task()["state"], "blocked")
+
+    def test_working_event_leaves_a_done_task_done(self):
+        self.fx.activity(agent="dev-board-1", status="working")
+        self.assertEqual(self.task()["state"], "done")
+
+    def test_done_is_per_task(self):
+        self.msg("STATUS", task="BRD-04")
+        self.msg("STATUS", task="BRD-04")
+        self.assertEqual((self.task("BRD-03")["state"], self.task("BRD-04")["state"]), ("done", "building"))
+
+    def test_sticky_rules_follow_ts_not_log_order(self):
+        # written STATUS first, but stamped after the PASS; the PASS is stamped after the HANDIN
+        for sec, type_, sender in ((9, "STATUS", "dev-board-1"), (5, "PASS", "qaw-board"),
+                                   (1, "HANDIN", "dev-board-1")):
+            self.fx.append_jsonl("messages.jsonl", {
+                "ts": "2026-10-12T11:00:0%d.000Z" % sec, "msg_id": "x%d" % sec, "from": sender,
+                "to": "tech-board", "type": type_, "task": "BRD-07", "text": type_, "iteration": 1})
+        self.assertEqual(self.task("BRD-07")["state"], "done")
+
+
+class RealPatternTest(TaskCase):
+    """A small log in the shapes of the live message log, with made-up names and ids."""
+
+    DEV_A, DEV_B, DEV_C = "dev-x-1", "dev-x-2", "dev-x-3"
+    QA, LEAD, MGR = "qa-x", "lead-x", "mgr-x"
+
+    def write(self, rows):
+        for n, (clock, sender, to, type_, task, text) in enumerate(rows):
+            self.fx.append_jsonl("messages.jsonl", {
+                "ts": "2026-10-12T09:%sZ" % clock, "msg_id": "r%02d" % n, "from": sender,
+                "to": to, "type": type_, "task": task, "text": text, "iteration": 1})
+
+    def test_replay_gives_the_hand_written_states_and_counts(self):
+        dev, qa, lead, mgr = self.DEV_A, self.QA, self.LEAD, self.MGR
+        self.write([
+            # T-1: HANDIN, a FAIL to three recipients 0.2 s apart, the fix, then PASS to three
+            ("00:00.000", dev, qa, "HANDIN", "T-1", "HANDIN T-1: commit aaa"),
+            ("01:00.100", qa, dev, "FAIL", "T-1", "FAIL T-1 round 1"),
+            ("01:00.300", qa, mgr, "FAIL", "T-1", "FAIL T-1 round 1"),
+            ("01:00.500", qa, lead, "FAIL", "T-1", "FAIL T-1 round 1"),
+            ("01:20.000", lead, dev, "DECISION", "T-1", "DECISION T-1: fix both"),
+            ("02:00.000", dev, qa, "HANDIN", "T-1", "HANDIN T-1: commit bbb"),
+            ("03:00.100", qa, dev, "PASS", "T-1", "PASS T-1 at bbb"),
+            ("03:00.250", qa, mgr, "PASS", "T-1", "PASS T-1 at bbb"),
+            ("03:00.400", qa, lead, "PASS", "T-1", "PASS T-1 at bbb"),
+            ("03:05.000", dev, mgr, "STATUS", "T-1", "STATUS T-1: PASS from qa-x at bbb"),
+            ("03:07.000", lead, mgr, "DECISION", "T-1", "DECISION T-1: PASS by qa-x at bbb"),
+            # T-2: a FAIL to two recipients 2.2 s apart, then a PASS and a second PASS 8 minutes later
+            ("04:00.000", self.DEV_B, qa, "HANDIN", "T-2", "HANDIN T-2: commit ccc"),
+            ("05:00.000", qa, self.DEV_B, "FAIL", "T-2", "FAIL T-2"),
+            ("05:02.200", qa, mgr, "FAIL", "T-2", "FAIL T-2"),
+            ("06:00.000", self.DEV_B, qa, "HANDIN", "T-2", "HANDIN T-2: commit ddd"),
+            ("07:00.000", qa, self.DEV_B, "PASS", "T-2", "PASS T-2"),
+            ("15:00.000", qa, mgr, "PASS", "T-2", "PASS T-2 (again)"),
+            # T-3: failed, then the Developer reports work again
+            ("08:00.000", self.DEV_C, qa, "HANDIN", "T-3", "HANDIN T-3: commit eee"),
+            ("09:00.000", qa, self.DEV_C, "FAIL", "T-3", "FAIL T-3"),
+            ("09:00.200", qa, mgr, "FAIL", "T-3", "FAIL T-3"),
+            ("09:30.000", self.DEV_C, lead, "STATUS", "T-3", "STATUS T-3: fixing"),
+        ])
+        expected = {"T-1": ("done", 1), "T-2": ("done", 1), "T-3": ("building", 1)}
+        got = {t["id"]: (t["state"], t["returns"]) for t in self.tasks()}
+        self.assertEqual(got, expected)
+        self.assertEqual(self.task("T-1")["last_type"], "DECISION")
+        self.assertEqual(self.task("T-2")["last_ts"], "2026-10-12T09:15:00.000Z")
+
+
 class BlockedBackToBuildingTest(TaskCase):
     def test_working_event_of_the_blocked_sender_returns_to_building(self):
         self.msg("BLOCKED")
@@ -246,6 +506,18 @@ class IterationFilterTest(TaskCase):
         self.fx.activity(agent="dev-board-1", status="working", iteration=2)
         self.assertEqual(self.task(iteration=1)["state"], "blocked")
         self.assertEqual(self.task(iteration=2)["state"], "building")
+
+    def test_return_count_and_state_follow_the_filtered_messages(self):
+        self.msg("HANDIN", iteration=1)
+        for to in ("dev-board-1", "manager", "tech-board"):
+            self.msg("FAIL", sender="qaw-board", to=to, iteration=1)
+        self.msg("HANDIN", iteration=1)
+        self.msg("PASS", sender="qaw-board", to="dev-board-1", iteration=1)
+        self.msg("HANDIN", iteration=2)
+        self.msg("FAIL", sender="qaw-board", to="dev-board-1", iteration=2)
+        first, second = self.task(iteration=1), self.task(iteration=2)
+        self.assertEqual((first["state"], first["returns"]), ("done", 1))
+        self.assertEqual((second["state"], second["returns"]), ("returned", 2))
 
     def test_needs_you_is_identical_for_both_queries(self):
         self.fx.escalations([{"answer": ""}])

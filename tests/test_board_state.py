@@ -53,7 +53,7 @@ class StateContractTest(BoardCase):
             "retired": False, "notes_path": None, "working_s": 0, "blocked_s": 0, "wakes": 0,
             "context_tokens": None, "tokens_in": None, "tokens_out": None, "model": None})
 
-    def test_stub_sections_give_empty_lists(self):
+    def test_empty_log_gives_empty_row_bar_task_and_needs_you_lists(self):
         self.fx.roster([MANAGER])
         st = self.state()
         for key in ("rows", "bars", "tasks", "needs_you"):
