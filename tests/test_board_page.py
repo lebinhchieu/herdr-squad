@@ -849,8 +849,8 @@ class LookTest(BrowserTestCase):
         self.assertGreater(colour_near(self.pixels(left + 6, 128, left + 40, 143), "0C8A80", 40), 20)
         left, width = self.card("dev-auth-1")
         self.assertGreater(colour_near(self.pixels(left + width - 20, 148, left + width - 4, 160), "A99C86", 12), 3)
+        self.assertEqual(colour_near(self.pixels(left + width - 20, 148, left + width - 4, 160), "857A68", 12), 0)
         left, width = self.card("tech-shop")  # a known count is the darker muted ink, not the idle grey
-        self.assertEqual(colour_near(self.pixels(left + width - 30, 148, left + width - 4, 160), "A99C86", 12), 0)
         self.assertGreater(colour_near(self.pixels(left + width - 30, 148, left + width - 4, 160), "857A68", 12), 3)
 
     def test_the_page_is_not_dark(self):
