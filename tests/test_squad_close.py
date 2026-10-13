@@ -10,7 +10,7 @@ FAKE_HERDR = """#!/usr/bin/env bash
 echo "$@" >> "$HERDR_LOG"
 case "$1 $2" in
   "agent get") [[ " ${DEAD:-} " == *" $3 "* ]] && { echo '{"error":{"code":"agent_not_found"}}'; exit 1; }
-               echo "{\\"result\\":{\\"agent\\":{\\"tab_id\\":\\"t-$3\\"}}}" ;;
+               echo "{\\"result\\":{\\"agent\\":{\\"pane_id\\":\\"p-$3\\"}}}" ;;
 esac
 exit 0
 """
@@ -77,9 +77,9 @@ class CloseTest(unittest.TestCase):
         self.assertIn("squad/t/t-dev-x-1", git("branch", "--list", "squad/t/*", cwd=self.root))  # branches are never deleted
 
         log = self.log.read_text().splitlines()
-        closed = [l for l in log if l.startswith("tab close")]
-        self.assertEqual(closed, ["tab close t-t-ba-x", "tab close t-t-dev-x-1", "tab close t-manager-t"])  # dead agent skipped, Manager last
-        self.assertEqual(log[-1], "tab close t-manager-t")
+        closed = [l for l in log if l.startswith("pane close")]
+        self.assertEqual(closed, ["pane close p-t-ba-x", "pane close p-t-dev-x-1", "pane close p-manager-t"])  # dead agent skipped, Manager last
+        self.assertEqual(log[-1], "pane close p-manager-t")
         self.assertFalse(any(l.startswith("agent prompt") for l in log))  # nothing to save for a closed goal
 
     def _add_scope_y_dev(self):
@@ -100,8 +100,8 @@ class CloseTest(unittest.TestCase):
         self.assertTrue(y_wt.exists())                         # other scope untouched
         self.assertNotIn("t-dev-y-1", r.stdout)
 
-        closed = [l for l in self.log.read_text().splitlines() if l.startswith("tab close")]
-        self.assertEqual(closed, ["tab close t-t-ba-x", "tab close t-t-dev-x-1"])
+        closed = [l for l in self.log.read_text().splitlines() if l.startswith("pane close")]
+        self.assertEqual(closed, ["pane close p-t-ba-x", "pane close p-t-dev-x-1"])
 
         roster = (self.squad / "roster.md").read_text()
         for gone in ("t-ba-x", "t-dev-x-1", "t-dev-x-2"):
@@ -132,7 +132,7 @@ class CloseTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue(self.squad.exists())
         self.assertTrue(self.wts["t-dev-x-1"].exists())
-        self.assertFalse(self.log.exists() and "tab close" in self.log.read_text())
+        self.assertFalse(self.log.exists() and "pane close" in self.log.read_text())
         self.assertIn("would", r.stdout)
 
     def test_refuses_to_overwrite_an_existing_archive(self):
@@ -197,7 +197,7 @@ class ScopedCloseTest(unittest.TestCase):
                               text=True, capture_output=True, timeout=30)
 
     def closed_tabs(self):
-        return [l for l in self.log.read_text().splitlines() if l.startswith("tab close")] if self.log.exists() else []
+        return [l for l in self.log.read_text().splitlines() if l.startswith("pane close")] if self.log.exists() else []
 
     def test_scope_close_moves_the_folder_and_tidies_only_that_scopes_worktrees(self):
         r = self.close("--scope", "sc1")
@@ -210,7 +210,7 @@ class ScopedCloseTest(unittest.TestCase):
         self.assertIn("squad/t/sc1/t-dev-sc1-1: merged into main, worktree removed", r.stdout)
         self.assertIn("squad/t/sc1/t-dev-sc1-2: NOT merged into main, kept", r.stdout)
         self.assertNotIn("sc2", r.stdout)
-        self.assertEqual(self.closed_tabs(), ["tab close t-t-dev-sc1-1", "tab close t-t-mgr-sc1"])  # the scope's Manager last
+        self.assertEqual(self.closed_tabs(), ["pane close p-t-dev-sc1-1", "pane close p-t-mgr-sc1"])  # the scope's Manager last
         self.assertTrue((self.squad / "scopes/sc2").exists())
         self.assertIn("squad/t/sc1/t-dev-sc1-1", git("branch", "--list", "squad/t/sc1/*", cwd=self.root))  # branches kept
 
@@ -256,7 +256,7 @@ class ScopedCloseTest(unittest.TestCase):
         r = self.close("--goal", "g1")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse((self.squad / "goals/g1").exists())
-        self.assertEqual(self.closed_tabs(), ["tab close t-t-mgr-g1"])
+        self.assertEqual(self.closed_tabs(), ["pane close p-t-mgr-g1"])
 
     def test_squad_close_covers_every_scope_and_goal_roster_and_nested_worktrees(self):
         (self.squad / "goals/g1/shared/decisions.md").write_text("# D\n\n- fact\n")
@@ -264,8 +264,8 @@ class ScopedCloseTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue((self.root / ".claude/squads/_done/t/scopes/sc1/evidence/proof.md").exists())
         tabs = self.closed_tabs()
-        self.assertEqual(set(tabs), {"tab close t-t-dev-sc1-1", "tab close t-t-dev-sc2-1", "tab close t-t-mgr-sc1", "tab close t-t-mgr-g1"})
-        self.assertEqual(tabs[-2:].count("tab close t-t-mgr-sc1") + tabs[-2:].count("tab close t-t-mgr-g1"), 2)  # Managers last
+        self.assertEqual(set(tabs), {"pane close p-t-dev-sc1-1", "pane close p-t-dev-sc2-1", "pane close p-t-mgr-sc1", "pane close p-t-mgr-g1"})
+        self.assertEqual(tabs[-2:].count("pane close p-t-mgr-sc1") + tabs[-2:].count("pane close p-t-mgr-g1"), 2)  # Managers last
         self.assertIn("squad/t/sc1/t-dev-sc1-2: NOT merged into main, kept", r.stdout)
         self.assertIn("WARNING: goal g1 has unpromoted decisions", r.stdout)
 

@@ -45,7 +45,7 @@ squad-spawn <role> <agent-name> --scope <scope> [--repo DIR [--base REF]] [--pro
 - Names: `<squad>-<role-short>-<scope>[-n]` (`ba`, `tl`, `tech`, `qaw`, `qab`, `dev`, `coach`), lowercase, at most 32 characters, e.g. `bill-ba-invoices`, `bill-dev-invoices-1`. The squad prefix keeps names unique across squads, because agents are addressed by bare name; `squad-spawn` refuses a name that is already live.
 - **Developers always get `--repo <code repo>`** so they work in their own git worktree `.worktrees/<squad>/<scope>/<agent>` on branch `squad/<squad>/<scope>/<agent>`. Take the repo from the task's `repos` and `project.md`. **`--base <passed branch or commit>`** starts the branch from work that is passed but not merged (stacked branches, `process.md` → Inside a goal).
 - **The first prompt is the agent's only briefing.** Include: its scope and folder, what it owns, the files to read first (the brief, and in a goal `goal.md` and `shared/`), and who it works with by name.
-- Retire with `squad-retire <agent-name>`: it asks the agent to save its notes, then closes its tab. Developers retire after their task is done; their branch stays for the PO.
+- Retire with `squad-retire <agent-name>`: it asks the agent to save its notes, then closes its pane. Developers retire after their task is done; their branch stays for the PO.
 
 ## Running a goal (goal Manager)
 
@@ -55,11 +55,11 @@ squad-spawn <role> <agent-name> --scope <scope> [--repo DIR [--base REF]] [--pro
 - **When a scope's work is passed**, before its pod is retired: the Tech Lead writes `shared/summaries/<scope>.md` and appends the scope's goal-wide decisions to `shared/decisions.md`. Keep that file under 80 lines.
 - **Close the scope:** with the PO's confirmation at an iteration check-in, update the `goal.md` table, run `squad-close <squad> --scope <scope>`, then update your notes and `squad-respawn $SQUAD_NAME` (you reset after every scope close).
 - **Last scope:** add the promotion task (`process.md` → Promotion). When it passes, add the line `promoted: <date> <commit>` to `goal.md`.
-- **Close the goal:** run the Token Coach (Retro), tell the PO which branches are unmerged, and run `squad-close <squad> --goal <goal>` last. It retires you and closes your tab.
+- **Close the goal:** run the Token Coach (Retro), tell the PO which branches are unmerged, and run `squad-close <squad> --goal <goal>` last. It retires you and closes your pane.
 
 ## Closing a scope (scope Manager)
 
-When both checkers have passed every task and the PO confirms at the check-in: make sure the promotion task passed (`process.md` → Promotion), run the Token Coach if the size calls for it, tell the PO which branches are still unmerged, then run `squad-close <squad> --scope <scope>` as your **last action**. It retires the pod, removes merged worktrees, moves the folder to `scopes/_done/` and closes your tab. After it you are gone, so say everything first.
+When both checkers have passed every task and the PO confirms at the check-in: make sure the promotion task passed (`process.md` → Promotion), run the Token Coach if the size calls for it, tell the PO which branches are still unmerged, then run `squad-close <squad> --scope <scope>` as your **last action**. It retires the pod, removes merged worktrees, moves the folder to `scopes/_done/` and closes your pane. After it you are gone, so say everything first.
 
 ## Keeping the squad healthy
 

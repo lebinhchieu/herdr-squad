@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Replace a squad agent's session with a fresh one: same name, role, scope and worktree, the role's
 # default model. The new session starts from roles/<agent>.notes.md. roster.md gets the new session id.
-# Safe to run from the agent's own pane: the old tab is closed last.
+# Safe to run from the agent's own pane: the old pane is closed last.
 set -euo pipefail
 
 [[ $# -lt 1 || $1 == -h || $1 == --help ]] && { echo "Usage: squad-respawn <agent-name> [--dry-run]"; exit 2; }
@@ -47,13 +47,14 @@ fi
 if [[ $dry == 1 ]]; then
   echo "would run: herdr agent rename $name $name-prev"
   echo "would run: ${spawn[*]}"
-  echo "would run: herdr tab close <old tab of $name>"
+  echo "would run: herdr pane close <old pane of $name>"
   exit 0
 fi
 
-old_tab=$(herdr agent get "$name" | jq -r '.result.agent.tab_id // .result.tab_id // empty')
-[[ -n $old_tab ]] || { echo "no live agent named $name" >&2; exit 1; }
+# The pane, not the tab: other agents may share the tab, and closing a tab kills them all.
+old_pane=$(herdr agent get "$name" | jq -r '.result.agent.pane_id // .result.pane_id // empty')
+[[ -n $old_pane ]] || { echo "no live agent named $name" >&2; exit 1; }
 
 herdr agent rename "$name" "$name-prev" >/dev/null
 SQUAD_DIR=$squad_dir "${spawn[@]}" || { herdr agent rename "$name-prev" "$name" >/dev/null; exit 1; }
-herdr tab close "$old_tab" >/dev/null
+herdr pane close "$old_pane" >/dev/null

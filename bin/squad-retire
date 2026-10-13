@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# Ask a squad agent to save its notes, then close its herdr tab. Worktree and branch are kept.
+# Ask a squad agent to save its notes, then close its herdr pane. Worktree and branch are kept.
 set -euo pipefail
 
 [[ $# -lt 1 || $1 == -h || $1 == --help ]] && { echo "Usage: squad-retire <agent-name> [--no-notes]"; exit 2; }
 name=$1; notes=1
 [[ ${2:-} == --no-notes ]] && notes=0
 
-tab=$(herdr agent get "$name" | jq -r '.result.agent.tab_id // .result.tab_id // empty')
-[[ -n $tab ]] || { echo "no live agent named $name" >&2; exit 1; }
+# The pane, not the tab: the PO may have merged other agents into this tab, and closing a tab kills them all.
+pane=$(herdr agent get "$name" | jq -r '.result.agent.pane_id // .result.pane_id // empty')
+[[ -n $pane ]] || { echo "no live agent named $name" >&2; exit 1; }
 
 if [[ $notes == 1 ]]; then
   herdr agent prompt "$name" "RETIRE: update your notes file roles/$name.notes.md (in \$SCOPE_DIR; \$GOAL_DIR for a goal Manager; \$SQUAD_DIR in a flat squad) with anything a successor needs, then reply DONE." \
     --wait --timeout 300000 >/dev/null || echo "warning: $name did not settle; closing anyway" >&2
 fi
 
-herdr tab close "$tab" >/dev/null
-jq -n --arg name "$name" --arg tab "$tab" '{name:$name, tab:$tab, status:"retired"}'
+herdr pane close "$pane" >/dev/null
+jq -n --arg name "$name" --arg pane "$pane" '{name:$name, pane:$pane, status:"retired"}'

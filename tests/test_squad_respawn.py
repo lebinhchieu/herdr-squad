@@ -1,4 +1,4 @@
-"""squad-respawn: same name, role, scope and worktree; new session id in roster.md; old tab closed last."""
+"""squad-respawn: same name, role, scope and worktree; new session id in roster.md; old pane closed last."""
 import os
 import re
 import subprocess
@@ -12,7 +12,7 @@ echo "$@" >> "$HERDR_LOG"
 case "$1 $2" in
   "agent get")
     if grep -q "^agent rename $3 " "$HERDR_LOG"; then echo '{"error":{"code":"agent_not_found"}}'; exit 1; fi
-    echo '{"result":{"agent":{"tab_id":"t-old"}}}' ;;
+    echo '{"result":{"agent":{"pane_id":"p-old"}}}' ;;
   "tab create") echo '{"result":{"root_pane":{"pane_id":"p-new"},"tab":{"tab_id":"t-new"}}}' ;;
 esac
 exit 0
@@ -66,7 +66,7 @@ class RespawnTest(unittest.TestCase):
         log = self.log.read_text().splitlines()
         self.assertIn(f"tab create --cwd {wt} --label dev-1 --no-focus", " ".join(log))
         self.assertTrue(any(l.startswith("agent rename dev-1 dev-1-prev") for l in log))
-        self.assertEqual(log[-1], "tab close t-old")  # old tab goes last
+        self.assertEqual(log[-1], "pane close p-old")  # old pane goes last
         start = next(l for l in log if l.startswith("agent start dev-1"))
         self.assertIn("--agent squad:dev", start)
         self.assertIn("--model sonnet --effort medium", start)  # the role's defaults
@@ -100,7 +100,7 @@ class RespawnTest(unittest.TestCase):
         self.assertIn(f"tab create --cwd {self.root} --label manager-t", " ".join(log))
         self.assertIn("SQUAD_SCOPE=", " ".join(log))
         self.assertNotIn("SQUAD_SCOPE=old-sid", " ".join(log))  # an empty scope must not shift the columns
-        self.assertEqual(log[-1], "tab close t-old")
+        self.assertEqual(log[-1], "pane close p-old")
         prompt = next(l for l in log if l.startswith("agent prompt"))
         self.assertIn("roles/manager-t.notes.md", prompt)
 

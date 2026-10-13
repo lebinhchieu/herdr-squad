@@ -40,7 +40,7 @@ A lone scope sees nothing of other scopes. The scopes of a goal share only `goal
 | `bin/squad-spawn` | Opens a herdr tab, makes a git worktree for Developers (`.worktrees/<squad>/<scope>/<agent>`, branch `squad/<squad>/<scope>/<agent>`; `--base` starts it from a passed branch), starts `claude --agent squad:<role> --name <agent> --permission-mode auto --settings <role settings>` |
 | `bin/squad-close` | `--scope S` retires a scope's agents, removes merged worktrees and moves the folder to `scopes/_done/`. `--goal G` does the same for a goal and refuses while a scope is open or its shared decisions were never promoted. With neither it archives the whole squad. Every branch is reported; none is deleted |
 | `bin/squad-respawn` | Replaces an agent's session with a fresh one from its notes; keeps its name, scope and worktree |
-| `bin/squad-retire` | Asks an agent to save its notes, then closes its tab (worktree and branch are kept) |
+| `bin/squad-retire` | Asks an agent to save its notes, then closes its pane (worktree and branch are kept) |
 | `bin/squad-usage` and the Stop hook | Token usage per agent, and the cost rules that tell an agent to start fresh |
 | `skills/squad-init`, `skills/squad-start` | The two commands you run |
 | `templates/squad/` | The standing layer: `process.md`, `project.md`, `process-log.md`, per-role `settings/*.json` |
