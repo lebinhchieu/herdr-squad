@@ -663,6 +663,27 @@ class UntrustedTextTest(PanelCase):
         self.assertIn("show more", shown)  # one click retries
         self.assertNotIn("show less", shown)
 
+    def test_one_click_retries_after_a_failed_fetch(self):
+        self.fx.message(**{"from": "dev-shop-4", "to": "qaw-shop", "type": "HANDIN", "task": "CART-95",
+                           "text": "A" * 300 + "THE-END-OF-IT-20CHARS", "iteration": 3,
+                           "msg_id": "long-message-3", "ts": "2026-10-12T11:16:00.000Z"})
+        self.start()
+        self.open()
+        self.click_header("qaw-shop")
+        self.driver.wait(OPEN_JS)
+        # the route fails once, then works: the page's own fetch is wrapped, nothing server-side changes
+        self.driver.eval("(() => { const f = window.fetch; let n = 0; "
+                         "window.fetch = (...a) => (String(a[0]).startsWith('/message/') && n++ === 0 "
+                         "? Promise.reject(new Error('down')) : f(...a)); })()")
+        self.driver.call("clickSelector", selector="#panel-messages li:last-child .panel-more")
+        self.driver.wait("document.querySelector('#panel-messages li:last-child').textContent"
+                         ".includes('full text not available')")
+        self.assertIn("show more", self.panel()["messages"][-1])
+        self.driver.call("clickSelector", selector="#panel-messages li:last-child .panel-more")
+        self.driver.wait("document.querySelector('#panel-messages li:last-child').textContent"
+                         ".includes('THE-END-OF-IT-20CHARS')")
+        self.assertNotIn("full text not available", self.panel()["messages"][-1])
+
     def test_the_whole_text_is_fetched_and_its_last_20_characters_show(self):
         self.fx.message(**{"from": "dev-shop-4", "to": "qaw-shop", "type": "HANDIN", "task": "CART-96",
                            "text": "A" * 300 + "THE-END-OF-IT-20CHARS", "iteration": 3,
