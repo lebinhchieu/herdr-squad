@@ -404,6 +404,7 @@ PANES = Path(__file__).resolve().parent / "fixtures" / "board" / "panes"
 
 def load_board():
     """bin/squad-board as a module, for its pure functions."""
+    sys.dont_write_bytecode = True  # no bin/__pycache__ next to the script
     loader = importlib.machinery.SourceFileLoader("squad_board_under_test", str(BIN))
     spec = importlib.util.spec_from_loader(loader.name, loader)
     module = importlib.util.module_from_spec(spec)
