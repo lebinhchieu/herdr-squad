@@ -7,11 +7,13 @@ Design: .scratch/squad-board/design.md. Sections below follow its layout.
 """
 import argparse
 import errno
+import fcntl
 import hmac
 import json
 import os
 import re
 import secrets
+import socket
 import subprocess
 import sys
 import threading
@@ -682,6 +684,257 @@ def build_state(squad_dir, now=None, selected_iteration=None):
             "live": False}  # replay mode; the live mode of iteration 2 reports True
 
 
+# --- section: recorder ---
+
+# The activity recorder (design-iteration-2 E2 to E6): herdr's socket in, activity.jsonl out.
+# Environment overrides exist so tests need not wait; they are read once at startup:
+#   SQUAD_BOARD_RECONNECT_S      first wait before reconnecting to herdr (default 1)
+#   SQUAD_BOARD_RECONNECT_CAP_S  the wait doubles each time up to this (default 30)
+#   SQUAD_BOARD_ROSTER_REREAD_S  shortest time between two roster re-reads (default 1)
+RECONNECT_BASE_S = env_seconds("SQUAD_BOARD_RECONNECT_S", 1)
+RECONNECT_CAP_S = env_seconds("SQUAD_BOARD_RECONNECT_CAP_S", 30)
+ROSTER_REREAD_S = env_seconds("SQUAD_BOARD_ROSTER_REREAD_S", 1)
+HERDR_SOCKET_TIMEOUT_S = 5
+MAX_FRAME_BYTES = 8 << 20  # a longer frame is dropped unread; a snapshot of a big squad is a few KB
+# What the board shows. herdr's `unknown` says nothing the timeline uses, so it is not recorded.
+RECORDED_STATUSES = ("working", "idle", "blocked", "done")
+SNAPSHOT_ID = "squad-board:snapshot"
+SUBSCRIBE_ID = "squad-board:subscribe"
+
+
+def herdr_socket_path():
+    return os.environ.get("HERDR_SOCKET_PATH") or os.path.expanduser("~/.config/herdr/herdr.sock")
+
+
+class FrameReader:
+    """Newline-delimited frames from a socket. A frame over MAX_FRAME_BYTES is dropped, never held."""
+
+    def __init__(self, sock):
+        self.sock = sock
+        self.buf = bytearray()
+        self.dropping = False  # inside an over-long frame: discard up to its newline
+
+    def next(self):
+        """The next frame's bytes. Raises ConnectionError at end of stream, socket.timeout when the
+        socket's timeout runs out."""
+        while True:
+            end = self.buf.find(b"\n")
+            if end >= 0:
+                frame = bytes(self.buf[:end])
+                del self.buf[:end + 1]
+                if self.dropping:
+                    self.dropping = False
+                    continue
+                return frame
+            if len(self.buf) > MAX_FRAME_BYTES:
+                self.buf.clear()
+                self.dropping = True
+            chunk = self.sock.recv(65536)
+            if not chunk:
+                raise ConnectionError("herdr closed the connection")
+            if self.dropping and b"\n" not in chunk:
+                continue
+            self.buf += chunk
+
+
+def herdr_connect(socket_path):
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.settimeout(HERDR_SOCKET_TIMEOUT_S)
+    try:
+        sock.connect(socket_path)
+    except BaseException:
+        sock.close()
+        raise
+    return sock
+
+
+def herdr_call(sock, reader, request_id, method, params):
+    """Send one request, return its reply's `result`. Frames with another id (events) are skipped."""
+    sock.sendall((json.dumps({"id": request_id, "method": method, "params": params}) + "\n").encode("utf-8"))
+    while True:
+        try:
+            frame = json.loads(reader.next())
+        except (ValueError, RecursionError):
+            continue
+        if not isinstance(frame, dict) or frame.get("id") != request_id:
+            continue
+        if "error" in frame:
+            raise RuntimeError("herdr refused %s: %s" % (method, frame["error"]))
+        return frame["result"] if isinstance(frame.get("result"), dict) else {}
+
+
+def herdr_snapshot(socket_path):
+    """`[(name, pane_id, agent_status)]` of every agent pane. It has a connection of its own: herdr
+    resets one that has subscribed and then sends another request."""
+    sock = herdr_connect(socket_path)
+    try:
+        result = herdr_call(sock, FrameReader(sock), SNAPSHOT_ID, "session.snapshot", {})
+    finally:
+        sock.close()
+    snapshot = result.get("snapshot")
+    agents = snapshot.get("agents") if isinstance(snapshot, dict) else None
+    return [(a["name"], a["pane_id"], a.get("agent_status")) for a in agents or []
+            if isinstance(a, dict) and isinstance(a.get("name"), str) and a["name"]
+            and isinstance(a.get("pane_id"), str)]
+
+
+def herdr_subscribe(socket_path, pane_ids):
+    """One status subscription per pane (herdr insists on a pane id) plus pane creation. Returns
+    `(socket, FrameReader)` once herdr has acknowledged, so a snapshot taken next misses nothing."""
+    sock = herdr_connect(socket_path)
+    try:
+        reader = FrameReader(sock)
+        subscriptions = [{"type": "pane.agent_status_changed", "pane_id": p} for p in sorted(pane_ids)]
+        subscriptions.append({"type": "pane.created"})
+        herdr_call(sock, reader, SUBSCRIBE_ID, "events.subscribe", {"subscriptions": subscriptions})
+        sock.settimeout(None)  # events come when they come
+    except BaseException:
+        sock.close()
+        raise
+    return sock, reader
+
+
+def event_stamp():
+    now = datetime.now(timezone.utc)
+    return now.strftime("%Y-%m-%dT%H:%M:%S.") + "%03dZ" % (now.microsecond // 1000)
+
+
+def highest_iteration(squad_dir):
+    numbers = [int(p.stem) for p in (Path(squad_dir) / "iterations").glob("*.md")
+               if ITERATION_RE.fullmatch(p.stem) and p.is_file()]
+    return max(numbers) if numbers else None
+
+
+def last_statuses(log_path):
+    """agent -> status of its last record in the log."""
+    last = {}
+    for rec in read_jsonl(log_path):
+        if isinstance(rec.get("agent"), str):
+            last[rec["agent"]] = rec.get("status")
+    return last
+
+
+class Recorder:
+    def __init__(self, squad_dir, socket_path):
+        self.squad_dir = Path(squad_dir)
+        self.log_path = self.squad_dir / "activity.jsonl"
+        self.socket_path = socket_path
+        self.names = {}          # pane id -> agent name, from the latest snapshot
+        self.subscribed = set()  # pane ids the open subscription covers
+        self.stream = None       # (socket, FrameReader) of the open subscription
+        self.roster = set()
+        self.roster_read = None  # monotonic time of the last roster read
+        self.reported = False    # the current outage already has its stderr line
+        self.write_error = None  # the write error already printed, until a write succeeds
+        self.delay = RECONNECT_BASE_S
+
+    def run(self):
+        while True:
+            try:
+                self.session()
+            except Exception as e:  # herdr gone, refused, or odd: wait, then start over
+                self.close_stream()
+                self.report(e)
+                time.sleep(self.delay)
+                self.delay = min(self.delay * 2, RECONNECT_CAP_S)
+
+    def report(self, error):
+        if not self.reported:
+            self.reported = True
+            reason = " ".join(str(error).split())[:200] or type(error).__name__
+            print("squad-board: herdr unavailable (%s); retrying" % reason, file=sys.stderr, flush=True)
+
+    def close_stream(self):
+        if self.stream is not None:
+            self.stream[0].close()
+        self.stream = None
+
+    def session(self):
+        """Sync, then handle events until the connection fails (which raises)."""
+        self.sync()
+        self.reported = False
+        self.delay = RECONNECT_BASE_S
+        while True:
+            self.handle(self.stream[1].next())
+
+    def sync(self):
+        """Snapshot; if the agent panes differ from the subscribed ones, subscribe afresh and
+        snapshot again (so nothing between the two is missed); then write what the log lacks (E4)."""
+        while True:
+            agents = herdr_snapshot(self.socket_path)
+            panes = set(pane for _, pane, _ in agents)
+            self.names = dict((pane, name) for name, pane, _ in agents)
+            if self.stream is not None and panes == self.subscribed:
+                break
+            self.close_stream()
+            self.stream = herdr_subscribe(self.socket_path, panes)
+            self.subscribed = panes
+        last = last_statuses(self.log_path)
+        for name, _, status in agents:
+            if status in RECORDED_STATUSES and last.get(name) != status and self.rostered(name):
+                self.append(name, status)
+
+    def handle(self, frame):
+        try:
+            message = json.loads(frame)
+        except (ValueError, RecursionError):
+            return
+        if not isinstance(message, dict):
+            return
+        event, data = message.get("event"), message.get("data")
+        if event == "pane.created":
+            return self.sync()
+        if event != "pane.agent_status_changed" or not isinstance(data, dict):
+            return
+        pane, status = data.get("pane_id"), data.get("agent_status")
+        if not isinstance(pane, str) or status not in RECORDED_STATUSES:
+            return
+        name = self.names.get(pane)
+        if name is None:
+            return self.sync()  # a pane we never saw: the snapshot says what it is, and records it
+        if self.rostered(name):
+            self.append(name, status)
+
+    def rostered(self, name):
+        """E3. The roster is read again only for a name it lacks, and at most every ROSTER_REREAD_S."""
+        if name not in self.roster:
+            now = time.monotonic()
+            if self.roster_read is None or now - self.roster_read >= ROSTER_REREAD_S:
+                self.roster_read = now
+                self.roster = set(row["agent"] for row in read_squad(self.squad_dir)["roster"])
+        return name in self.roster
+
+    def append(self, name, status):
+        """One record, one write, under the lock the hook's writer takes too (E5)."""
+        record = {"ts": event_stamp(), "agent": name, "status": status,
+                  "iteration": highest_iteration(self.squad_dir)}
+        line = (json.dumps(record) + "\n").encode("utf-8")
+        try:
+            fd = os.open(str(self.log_path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX)
+                os.write(fd, line)
+            finally:
+                os.close(fd)  # closing also releases the lock
+        except OSError as e:
+            # Not a herdr outage: the record is lost, the connection is fine, so no backoff. It prints when
+            # the reason differs from the last one printed, and a good write resets that, so a log that
+            # stays unwritable does not print once per event.
+            reason = " ".join(str(e).split())[:200]
+            if reason != self.write_error:
+                self.write_error = reason
+                print("squad-board: cannot write activity.jsonl: %s" % reason, file=sys.stderr, flush=True)
+        else:
+            self.write_error = None
+
+
+def start_recorder(squad_dir, socket_path):
+    """Run the recorder on a daemon thread, so it never keeps the process alive."""
+    thread = threading.Thread(target=Recorder(squad_dir, socket_path).run, name="recorder", daemon=True)
+    thread.start()
+    return thread
+
+
 # --- section: http ---
 
 # The page sits next to the real script file, so a symlink in a bin/ folder still finds it.
@@ -753,11 +1006,19 @@ def query_iteration(handler):
     return int(values[0])
 
 
+def wall_clock():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def handle_state(handler):
+    live = handler.server.live
     try:
-        state = build_state(handler.server.replay_dir, handler.server.now, query_iteration(handler))
+        state = build_state(handler.server.replay_dir, wall_clock() if live else handler.server.now,
+                            query_iteration(handler))
     except BadRequest as e:
         return send_json(handler, 400, {"error": str(e)})
+    if live:
+        state["live"] = True
     send_json(handler, 200, state)
 
 
@@ -938,6 +1199,7 @@ class BoardHandler(BaseHTTPRequestHandler):
 
 class BoardServer(ThreadingHTTPServer):
     daemon_threads = True
+    live = False  # live mode: wall-clock `now`, and the recorder is running
 
 
 def make_server(replay_dir, now, port):
@@ -963,28 +1225,55 @@ def die(message, code):
     return code
 
 
+def find_squad_dir():
+    """E1: $SQUAD_DIR, else <git toplevel>/squad, else ./squad. None when there is none to use."""
+    if os.environ.get("SQUAD_DIR"):
+        return os.environ["SQUAD_DIR"]
+    try:
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
+                             stdin=subprocess.DEVNULL, timeout=HERDR_TIMEOUT_S).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        top = ""
+    for candidate in ([os.path.join(top, "squad")] if top else []) + ["squad"]:
+        if os.path.isdir(candidate):
+            return candidate
+    return None
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="squad-board", description="Live board of the squad.")
-    parser.add_argument("--replay", metavar="DIR", help="read this squad folder (required for now)")
+    parser.add_argument("--replay", metavar="DIR", help="read this squad folder; without it the board is live")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="0 lets the OS pick")
-    parser.add_argument("--now", metavar="ISO", help="fixed time for replay, e.g. 2026-10-12T12:00:00Z")
+    parser.add_argument("--now", metavar="ISO", help="fixed time for --replay, e.g. 2026-10-12T12:00:00Z")
     args = parser.parse_args(argv)
-    if args.replay is None:
-        return die("--replay DIR is required: live mode arrives in iteration 2", 2)
-    if not Path(args.replay).is_dir():
-        return die("not a directory: %s" % args.replay, 2)
+    live = args.replay is None
+    if live:
+        if args.now is not None:
+            return die("--now needs --replay (live mode uses the wall clock)", 2)
+        squad_dir = find_squad_dir()
+        if squad_dir is None:
+            return die("no squad folder: set SQUAD_DIR, or run where <git toplevel>/squad or ./squad exists", 2)
+        if not Path(squad_dir).is_dir():
+            return die("not a squad folder: %s" % squad_dir, 2)
+    else:
+        squad_dir = args.replay
+        if not Path(squad_dir).is_dir():
+            return die("not a directory: %s" % squad_dir, 2)
     if args.now is not None and parse_ts(args.now) is None:
         return die("--now must be an ISO time with a zone, e.g. 2026-10-12T12:00:00Z", 2)
     if not 0 <= args.port <= 65535:
         return die("--port must be 0..65535", 2)
     try:
-        server = make_server(args.replay, args.now, args.port)
+        server = make_server(squad_dir, args.now, args.port)
     except OSError as e:
         if e.errno == errno.EADDRINUSE and args.port:
             return die("ports %d..%d are all busy" % (args.port, min(args.port + PORT_TRIES, 65535)), 1)
         return die("cannot bind port %d: %s" % (args.port, e.strerror), 1)
+    server.live = live
     print("squad-board: http://127.0.0.1:%d/?token=%s" % (server.server_address[1], server.token), flush=True)
-    try:
+    try:  # the recorder starts inside it: a Ctrl-C right after its thread starts must still end quietly
+        if live:
+            start_recorder(squad_dir, herdr_socket_path())
         server.serve_forever()
     except KeyboardInterrupt:
         pass

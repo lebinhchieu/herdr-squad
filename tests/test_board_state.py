@@ -1,8 +1,10 @@
 """Seam A, BRD-01: squad-board in replay mode, GET /state from squad files and logs."""
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 
 from board_fixture import BIN, Fixture
@@ -470,10 +472,15 @@ class CommandLineTest(unittest.TestCase):
         return subprocess.run([sys.executable, str(BIN)] + list(args), capture_output=True,
                               text=True, timeout=10)
 
-    def test_replay_flag_is_required(self):
-        res = self.run_cli()
+    def test_live_mode_without_a_squad_folder_exits_2_with_a_message(self):
+        # no --replay means live mode (BRD-10): it needs $SQUAD_DIR or a squad folder to read
+        with tempfile.TemporaryDirectory() as empty:
+            env = {k: v for k, v in os.environ.items() if k != "SQUAD_DIR"}
+            env["GIT_CEILING_DIRECTORIES"] = empty
+            res = subprocess.run([sys.executable, str(BIN)], capture_output=True, text=True, timeout=10,
+                                 cwd=empty, env=env)
         self.assertEqual(res.returncode, 2)
-        self.assertIn("live mode arrives in iteration 2", res.stderr)
+        self.assertIn("squad folder", res.stderr)
 
     def test_replay_dir_must_exist(self):
         res = self.run_cli("--replay", "/nonexistent-board-dir")
