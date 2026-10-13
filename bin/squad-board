@@ -33,6 +33,7 @@ HERDR_TIMEOUT_S = 5
 #   SQUAD_BOARD_POLL_S             how often the watcher looks at the squad files (default 0.5)
 #   SQUAD_BOARD_KEEPALIVE_S        quiet time before a ": keepalive" comment line (default 15)
 #   SQUAD_BOARD_REQUEST_TIMEOUT_S  longest a handler socket read or write may block (default 10)
+#   SQUAD_BOARD_TOKEN_REFRESH_S    live mode: shortest time between two rebuilds for a growing transcript (default 30)
 MAX_ENV_SECONDS = 86400
 
 
@@ -52,6 +53,7 @@ def env_seconds(name, default):
 POLL_S = env_seconds("SQUAD_BOARD_POLL_S", 0.5)
 KEEPALIVE_S = env_seconds("SQUAD_BOARD_KEEPALIVE_S", 15)
 REQUEST_TIMEOUT_S = env_seconds("SQUAD_BOARD_REQUEST_TIMEOUT_S", 10)
+TOKEN_REFRESH_S = env_seconds("SQUAD_BOARD_TOKEN_REFRESH_S", 30)
 
 UNLISTED_POD = "(unlisted)"
 ITERATION_RE = re.compile(r"[0-9]{1,6}")
@@ -628,24 +630,72 @@ def read_sessions(replay):
     return sessions
 
 
-def find_transcript(replay, session_id):
-    """Real path of the transcript under any `replay/claude*` root; symlinked roots count once."""
-    root = os.path.realpath(replay)
-    found = set(os.path.realpath(p) for p in replay.glob("claude*/projects/*/%s.jsonl" % session_id))
-    return min((p for p in found if inside(p, root)), default=None)
+# Live mode's session map: the recorder's latest herdr snapshot, `{agent: session id}`. The recorder
+# thread writes it and the HTTP threads read it, so `_sessions_lock` guards it.
+_sessions = {}
+_sessions_lock = threading.Lock()
 
 
-def read_tokens(columns, replay_root):
-    """Token figures per agent that has a readable transcript; the others are left out (null)."""
-    replay = Path(replay_root) / "replay"
-    sessions = read_sessions(replay)
+def set_sessions(sessions):
+    with _sessions_lock:
+        _sessions.clear()
+        _sessions.update(sessions)
+
+
+def session_map():
+    with _sessions_lock:
+        return dict(_sessions)
+
+
+def replay_roots(replay):
+    """`(root, container)` pairs: every `replay/claude*` folder. A transcript's real path must stay
+    inside the replay folder, so a symlink leading out of it is refused."""
+    contain = os.path.realpath(replay)
+    return [(root, contain) for root in sorted(replay.glob("claude*"))]
+
+
+def live_roots():
+    """Every `~/.claude*` folder, each its own container: `~/.claude-b` may be a symlink to another disk,
+    but a transcript inside it must not point out of it."""
+    return [(root, os.path.realpath(root)) for root in sorted(Path(os.path.expanduser("~")).glob(".claude*"))
+            if root.is_dir()]
+
+
+def find_transcript(roots, session_id):
+    """Real path of the transcript under any root; one file reached through two roots counts once."""
+    found = set()
+    for root, contain in roots:
+        for path in root.glob("projects/*/%s.jsonl" % session_id):
+            real = os.path.realpath(path)
+            if inside(real, contain):
+                found.add(real)
+    return min(found, default=None)
+
+
+def read_tokens(columns, sessions, roots):
+    """Token figures per agent that has a readable transcript; the others are left out (null).
+    Replay and live differ only in `sessions` (agent -> session id) and `roots` (see above)."""
     tokens = {}
     for col in columns:
-        path = find_transcript(replay, sessions[col["agent"]]) if col["agent"] in sessions else None
+        path = find_transcript(roots, sessions[col["agent"]]) if col["agent"] in sessions else None
         found = transcript_figures(path) if path else None
         if found:
             tokens[col["agent"]] = found
     return tokens
+
+
+def transcript_signature():
+    """What the transcripts of the known live sessions look like right now, for the watcher."""
+    roots = live_roots()
+    signature = []
+    for sid in sorted(set(session_map().values())):
+        path = find_transcript(roots, sid)
+        try:
+            info = os.stat(path) if path else None
+        except OSError:
+            info = None
+        signature.append((sid, info and (info.st_size, info.st_mtime_ns, info.st_ino)))
+    return tuple(signature)
 
 
 # --- section: state ---
@@ -655,8 +705,9 @@ def latest_ts(messages, activity):
     return max(stamps, key=parse_ts) if stamps else None
 
 
-def build_state(squad_dir, now=None, selected_iteration=None):
-    """The whole board state from files alone. Raises BadRequest for an unknown iteration."""
+def build_state(squad_dir, now=None, selected_iteration=None, sessions=None):
+    """The whole board state from files alone. Raises BadRequest for an unknown iteration.
+    `sessions` is live mode's agent -> session id map; None means replay (`replay/herdr.json`)."""
     squad = read_squad(squad_dir)
     messages, activity = read_logs(squad_dir)
     iterations = sorted(squad["iterations"])
@@ -670,7 +721,11 @@ def build_state(squad_dir, now=None, selected_iteration=None):
     columns = build_columns(squad, messages, activity)
     timeline = derive_timeline(messages, activity, columns, now, selected_iteration,
                                iterations[0] if iterations else None)
-    tokens = read_tokens(columns, squad_dir)
+    if sessions is None:
+        replay = Path(squad_dir) / "replay"
+        tokens = read_tokens(columns, read_sessions(replay), replay_roots(replay))
+    else:
+        tokens = read_tokens(columns, sessions, live_roots())
     for col in columns:
         for key in ("working_s", "blocked_s", "wakes"):
             col[key] = timeline["agents"].get(col["agent"], {}).get(key, col[key])
@@ -762,9 +817,17 @@ def herdr_call(sock, reader, request_id, method, params):
         return frame["result"] if isinstance(frame.get("result"), dict) else {}
 
 
+def session_id(agent):
+    """`agent_session.value` of a snapshot entry when it is a valid session id."""
+    session = agent.get("agent_session")
+    value = session.get("value") if isinstance(session, dict) else None
+    return value if isinstance(value, str) and SESSION_ID_RE.fullmatch(value) else None
+
+
 def herdr_snapshot(socket_path):
-    """`[(name, pane_id, agent_status)]` of every agent pane. It has a connection of its own: herdr
-    resets one that has subscribed and then sends another request."""
+    """`[(name, pane_id, agent_status, session_id)]` of every agent pane; the session id is None unless it
+    is a valid one. It has a connection of its own: herdr resets one that has subscribed and then sends
+    another request."""
     sock = herdr_connect(socket_path)
     try:
         result = herdr_call(sock, FrameReader(sock), SNAPSHOT_ID, "session.snapshot", {})
@@ -772,7 +835,7 @@ def herdr_snapshot(socket_path):
         sock.close()
     snapshot = result.get("snapshot")
     agents = snapshot.get("agents") if isinstance(snapshot, dict) else None
-    return [(a["name"], a["pane_id"], a.get("agent_status")) for a in agents or []
+    return [(a["name"], a["pane_id"], a.get("agent_status"), session_id(a)) for a in agents or []
             if isinstance(a, dict) and isinstance(a.get("name"), str) and a["name"]
             and isinstance(a.get("pane_id"), str)]
 
@@ -861,15 +924,16 @@ class Recorder:
         snapshot again (so nothing between the two is missed); then write what the log lacks (E4)."""
         while True:
             agents = herdr_snapshot(self.socket_path)
-            panes = set(pane for _, pane, _ in agents)
-            self.names = dict((pane, name) for name, pane, _ in agents)
+            panes = set(pane for _, pane, _, _ in agents)
+            self.names = dict((pane, name) for name, pane, _, _ in agents)
             if self.stream is not None and panes == self.subscribed:
                 break
             self.close_stream()
             self.stream = herdr_subscribe(self.socket_path, panes)
             self.subscribed = panes
+        set_sessions(dict((name, sid) for name, _, _, sid in agents if sid))
         last = last_statuses(self.log_path)
-        for name, _, status in agents:
+        for name, _, status, _ in agents:
             if status in RECORDED_STATUSES and last.get(name) != status and self.rostered(name):
                 self.append(name, status)
 
@@ -996,16 +1060,22 @@ def wall_clock():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def stamp_live(state):
+    """Live mode's `now` and `live` flag. Every state that leaves the server is stamped as it leaves,
+    so a cached one never shows the time of its build."""
+    state["now"] = wall_clock()
+    state["live"] = True
+    return state
+
+
 def handle_state(handler):
     live = handler.server.live
     try:
         state = build_state(handler.server.replay_dir, wall_clock() if live else handler.server.now,
-                            query_iteration(handler))
+                            query_iteration(handler), session_map() if live else None)
     except BadRequest as e:
         return send_json(handler, 400, {"error": str(e)})
-    if live:
-        state["live"] = True
-    send_json(handler, 200, state)
+    send_json(handler, 200, stamp_live(state) if live else state)
 
 
 def watched_signature(squad_dir):
@@ -1029,23 +1099,39 @@ class StateWatcher:
     """One thread looks at the squad files; a state is built once per change and iteration, however
     many streams are open. Streams wait on `changed` and never touch the files themselves."""
 
-    def __init__(self, squad_dir, now):
+    def __init__(self, squad_dir, now, live=False):
         self.squad_dir = squad_dir
         self.now = now
+        self.live = live
         self.changed = threading.Condition()
         self.version = 0
         self.signature = watched_signature(squad_dir)
-        self.built = {}  # selected iteration -> (state without `now`, its JSON), for this version
+        # live only: a growing transcript is not a squad file, so it is looked at on a timer, and only
+        # while an agent works (the only time one grows). `working` and `transcripts` (what the
+        # transcripts looked like) are as of the last state built.
+        self.working = False
+        self.transcripts = ()
+        self.transcripts_due = time.monotonic() + TOKEN_REFRESH_S
+        # selected iteration -> (state without `now`, its JSON or None in live mode), for this version
+        self.built = {}
         threading.Thread(target=self.watch, daemon=True).start()
+
+    def bump(self):
+        self.version += 1
+        self.built = {}
+        self.transcripts_due = time.monotonic() + TOKEN_REFRESH_S  # the rebuild reads them too
+        self.changed.notify_all()
 
     def refresh(self):
         with self.changed:
             signature = watched_signature(self.squad_dir)
             if signature != self.signature:
                 self.signature = signature
-                self.version += 1
-                self.built = {}
-                self.changed.notify_all()
+                self.bump()
+            elif self.live and self.working and time.monotonic() >= self.transcripts_due:
+                self.transcripts_due = time.monotonic() + TOKEN_REFRESH_S
+                if transcript_signature() != self.transcripts:
+                    self.bump()
 
     def watch(self):
         while True:
@@ -1061,9 +1147,15 @@ class StateWatcher:
         self.refresh()
         with self.changed:
             if selected not in self.built:
-                state = build_state(self.squad_dir, self.now, selected)
-                # `now` is left out of the comparison: a clock tick alone is not a change
-                self.built[selected] = ({k: v for k, v in state.items() if k != "now"}, json.dumps(state))
+                if self.live:  # taken before the build, so a growth in between is caught next time
+                    self.transcripts = transcript_signature()
+                state = build_state(self.squad_dir, wall_clock() if self.live else self.now, selected,
+                                    session_map() if self.live else None)
+                self.working = any(c["status"] == "working" for c in state["columns"])
+                # `now` is left out of the comparison: a clock tick alone is not a change. In live mode
+                # no JSON is kept: each send re-stamps the state (`event_data`).
+                self.built[selected] = ({k: v for k, v in state.items() if k != "now"},
+                                        None if self.live else json.dumps(state))
             state, data = self.built[selected]
             return self.version, state, data
 
@@ -1072,6 +1164,11 @@ class StateWatcher:
         with self.changed:
             self.changed.wait_for(lambda: self.version != version, timeout)
             return self.version
+
+
+def event_data(watcher, state, data):
+    """The JSON of one `state` event. In live mode the cached state is stamped again, without a rebuild."""
+    return json.dumps(stamp_live(dict(state))) if watcher.live else data
 
 
 def handle_events(handler):
@@ -1089,7 +1186,7 @@ def handle_events(handler):
     handler.end_headers()
     handler.close_connection = True
     try:
-        handler.wfile.write(("event: state\ndata: %s\n\n" % data).encode("utf-8"))
+        handler.wfile.write(("event: state\ndata: %s\n\n" % event_data(watcher, state, data)).encode("utf-8"))
         last_write = time.monotonic()
         while True:
             quiet = time.monotonic() - last_write
@@ -1108,7 +1205,7 @@ def handle_events(handler):
                 continue
             if new_state != state:
                 state = new_state
-                handler.wfile.write(("event: state\ndata: %s\n\n" % data).encode("utf-8"))
+                handler.wfile.write(("event: state\ndata: %s\n\n" % event_data(watcher, state, data)).encode("utf-8"))
                 last_write = time.monotonic()
     except OSError:
         pass  # the client went away, or stopped reading for longer than REQUEST_TIMEOUT_S
@@ -1188,7 +1285,7 @@ class BoardServer(ThreadingHTTPServer):
     live = False  # live mode: wall-clock `now`, and the recorder is running
 
 
-def make_server(replay_dir, now, port):
+def make_server(replay_dir, now, port, live=False):
     """Bind `port` on loopback, or the next free one of the following PORT_TRIES (not for port 0).
     Raises OSError when the port cannot be bound; the last EADDRINUSE when all are busy."""
     last = min(port + PORT_TRIES, 65535) if port else 0
@@ -1202,7 +1299,8 @@ def make_server(replay_dir, now, port):
         server.replay_dir = replay_dir
         server.now = now
         server.token = secrets.token_urlsafe(16)
-        server.watcher = StateWatcher(replay_dir, now)
+        server.live = live
+        server.watcher = StateWatcher(replay_dir, now, live)
         return server
 
 
@@ -1250,12 +1348,11 @@ def main(argv=None):
     if not 0 <= args.port <= 65535:
         return die("--port must be 0..65535", 2)
     try:
-        server = make_server(squad_dir, args.now, args.port)
+        server = make_server(squad_dir, args.now, args.port, live)
     except OSError as e:
         if e.errno == errno.EADDRINUSE and args.port:
             return die("ports %d..%d are all busy" % (args.port, min(args.port + PORT_TRIES, 65535)), 1)
         return die("cannot bind port %d: %s" % (args.port, e.strerror), 1)
-    server.live = live
     print("squad-board: http://127.0.0.1:%d/?token=%s" % (server.server_address[1], server.token), flush=True)
     try:  # the recorder starts inside it: a Ctrl-C right after its thread starts must still end quietly
         if live:
