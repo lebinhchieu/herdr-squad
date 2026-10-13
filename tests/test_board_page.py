@@ -908,6 +908,12 @@ class CanvasDetailTest(BrowserTestCase):
         found = self.extent(left - 2, 82, left + 200, 96, "0C8A80", 40)
         self.assertAlmostEqual(found[1] - left, wanted, delta=3)
 
+    def test_a_stub_carries_the_agent_name_sideways(self):
+        self.browser.open(self.url())
+        left, width = self.card("dev-shop-0")
+        centre = left + width / 2
+        self.assertGreater(colour_near(self.pixels(centre + 1, 104, centre + 9, 160), "A99C86", 30), 20)
+
     def test_the_tasks_card_is_titled(self):
         self.browser.open(self.url())
         self.assertGreater(colour_near(self.pixels(1066, 80, 1110, 100), "A99C86", 30), 20)
