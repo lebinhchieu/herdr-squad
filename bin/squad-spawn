@@ -131,13 +131,17 @@ claude_args=(--agent "squad:$role" --name "$name" --session-id "$session" --perm
 [[ -n $effort ]] && claude_args+=(--effort "$effort")
 [[ -n ${SQUAD_PLUGIN_DIR:-} ]] && claude_args+=(--plugin-dir "$SQUAD_PLUGIN_DIR")
 
+# Without --workspace herdr uses the focused workspace, which may not be the caller's.
+ws_args=()
+[[ -z ${HERDR_WORKSPACE_ID:-} ]] || ws_args=(--workspace "$HERDR_WORKSPACE_ID")
+
 env_args=(--env "SQUAD=$squad" --env "SQUAD_DIR=$squad_dir" --env "SQUAD_NAME=$name" --env "SQUAD_ROLE=$role" --env "SQUAD_SCOPE=$scope")
 [[ -z $scope_dir ]] || env_args+=(--env "SCOPE_DIR=$scope_dir")
 [[ -z $goal_dir ]] || env_args+=(--env "GOAL_DIR=$goal_dir")
 [[ -n ${SQUAD_PLUGIN_DIR:-} ]] && env_args+=(--env "SQUAD_PLUGIN_DIR=$SQUAD_PLUGIN_DIR")
 
 if [[ $dry == 1 ]]; then
-  echo "would run: herdr tab create --cwd $cwd --label $name --no-focus ${env_args[*]}"
+  echo "would run: herdr tab create --cwd $cwd --label $name --no-focus ${ws_args[*]} ${env_args[*]}"
   echo "would run: squad-usage --squad-dir $home --set-session $name $session --role $role --scope $scope"
   echo "would run: herdr agent start $name --kind claude --pane <pane> -- ${claude_args[*]}"
   exit 0
@@ -149,7 +153,7 @@ if herdr agent get "$name" >/dev/null 2>&1; then
   exit 1
 fi
 
-tab_json=$(herdr tab create --cwd "$cwd" --label "$name" --no-focus "${env_args[@]}")
+tab_json=$(herdr tab create --cwd "$cwd" --label "$name" --no-focus "${ws_args[@]}" "${env_args[@]}")
 pane=$(jq -r '.result.root_pane.pane_id' <<<"$tab_json")
 tab=$(jq -r '.result.tab.tab_id' <<<"$tab_json")
 

@@ -96,6 +96,15 @@ class SpawnDryRunTest(unittest.TestCase):
                            text=True, capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0, r.stderr)
 
+    def test_new_tab_is_created_in_the_callers_workspace(self):
+        self._fake_herdr(live="")
+        self.env.update(HERDR_WORKSPACE_ID="wK")
+        r = subprocess.run([str(SCRIPT), "ba", "bill-ba-invoices"], env=self.env,
+                           text=True, capture_output=True, timeout=10)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        tab_create = next(l for l in self.log.read_text().splitlines() if l.startswith("tab create"))
+        self.assertIn("--workspace wK", tab_create)
+
     def test_every_role_has_settings_that_parse(self):
         settings = SCRIPT.parent.parent / "templates" / "squad" / "settings"
         for role in TABLE:
