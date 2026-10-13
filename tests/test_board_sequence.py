@@ -561,6 +561,22 @@ class AnimationTest(SequenceCase):
         done = next(t for t, n in seen if n >= 0.97 * top)
         self.assertTrue(250 <= done - started <= 900, (started, done, seen))
 
+    def test_an_arrow_that_arrives_off_screen_does_not_keep_the_loop_running(self):
+        fx = self.scene()
+        for _ in range(60):
+            fx.message(**{"from": "manager", "to": "dev-a", "type": "ASK", "task": "T-7"})
+        fx.activity(agent="manager", status="idle")
+        fx.activity(agent="dev-a", status="idle")
+        srv = fx.start()
+        self.browser.open(self.url(srv))
+        self.browser.eval("window.scrollTo(0, 0)")
+        rows = self.append_arrow(fx)
+        self.browser.wait("document.querySelectorAll('#rows li').length >= %d" % (rows + 3), timeout=8000)
+        self.browser.call("sleep", ms=1500)
+        before = self.browser.eval("window.__raf")
+        self.browser.call("sleep", ms=2500)
+        self.assertEqual(self.browser.eval("window.__raf") - before, 0)
+
     def test_the_loop_stops_after_the_draw_in(self):
         fx, srv = self.appended()
         self.browser.open(self.url(srv))

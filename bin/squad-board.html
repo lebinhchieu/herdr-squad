@@ -471,7 +471,7 @@ const CLIP_TOP = ROWS_Y - 6;
 
 let arrivalState = null;
 let seenMessages = new Set();
-let drawIn = new Map();      // message key -> rAF time its arrow started drawing (null until first drawn)
+let drawIn = new Map();      // message key -> rAF time its arrow started drawing (stamped at arrival; dropped 400 ms later, drawn or not)
 let hatchPattern = null;
 let clockAnchor = { state: null, at: Date.now() };
 
@@ -520,7 +520,7 @@ function openSeconds(bar, current) {
 
 // A message that arrives after the first render draws itself in; the first render, a reload and an
 // iteration switch show everything drawn already.
-function noteArrivals(current) {
+function noteArrivals(current, ts) {
   if (current === arrivalState || !loaded) return;
   const switched = arrivalState === null || arrivalState.selected_iteration !== current.selected_iteration;
   arrivalState = current;
@@ -533,18 +533,17 @@ function noteArrivals(current) {
     const key = messageKey(row);
     if (seenMessages.has(key)) return;
     seenMessages.add(key);
-    if (!switched) drawIn.set(key, null);
+    if (!switched) drawIn.set(key, ts);
   });
 }
 
 function drawProgress(key, ts) {
   if (!drawIn.has(key)) return 1;
-  if (drawIn.get(key) === null) drawIn.set(key, ts);
   return Math.min(1, Math.max(0, (ts - drawIn.get(key)) / DRAW_IN_MS));
 }
 
 function dropFinishedArrows(ts) {
-  drawIn.forEach((start, key) => { if (start !== null && ts - start >= DRAW_IN_MS) drawIn.delete(key); });
+  drawIn.forEach((start, key) => { if (ts - start >= DRAW_IN_MS) drawIn.delete(key); });
 }
 
 function hatch(view) {
@@ -728,7 +727,7 @@ function drawArrow(ctx, view, row, y, ts) {
 
 function drawSequence(ctx, view) {
   drawRails(ctx, view);
-  noteArrivals(view.state);
+  noteArrivals(view.state, view.ts);
   const rows = view.state.rows;
   if (!rows.length) return;
   dropFinishedArrows(view.ts);
