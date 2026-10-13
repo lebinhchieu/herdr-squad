@@ -1,0 +1,552 @@
+{
+  "now": "2026-03-02T10:30:00Z",
+  "iterations": [
+    1,
+    2
+  ],
+  "iteration": 2,
+  "selected_iteration": 1,
+  "pods": [
+    {
+      "name": "all",
+      "size": null,
+      "agents": [
+        "manager"
+      ]
+    },
+    {
+      "name": "board",
+      "size": "S + QA whitebox",
+      "agents": [
+        "tech-board",
+        "qaw-board",
+        "dev-board-1",
+        "dev-board-2"
+      ]
+    },
+    {
+      "name": "shop",
+      "size": "M",
+      "agents": [
+        "tech-shop",
+        "dev-shop-1"
+      ]
+    }
+  ],
+  "columns": [
+    {
+      "agent": "manager",
+      "role": "Manager",
+      "pod": "all",
+      "status": "idle",
+      "retired": false,
+      "notes_path": "roles/manager.notes.md",
+      "working_s": 290,
+      "blocked_s": 0,
+      "wakes": 0,
+      "context_tokens": 8000,
+      "tokens_in": 14500,
+      "tokens_out": 650,
+      "model": "demo-model-large"
+    },
+    {
+      "agent": "tech-board",
+      "role": "Tech Lead",
+      "pod": "board",
+      "status": "idle",
+      "retired": false,
+      "notes_path": "roles/tech-board.notes.md",
+      "working_s": 260,
+      "blocked_s": 0,
+      "wakes": 6,
+      "context_tokens": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "model": null
+    },
+    {
+      "agent": "qaw-board",
+      "role": "QA whitebox",
+      "pod": "board",
+      "status": "idle",
+      "retired": false,
+      "notes_path": null,
+      "working_s": 455,
+      "blocked_s": 0,
+      "wakes": 3,
+      "context_tokens": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "model": null
+    },
+    {
+      "agent": "dev-board-1",
+      "role": "Developer",
+      "pod": "board",
+      "status": "blocked",
+      "retired": false,
+      "notes_path": null,
+      "working_s": 2475,
+      "blocked_s": 1080,
+      "wakes": 2,
+      "context_tokens": 3400,
+      "tokens_in": 9450,
+      "tokens_out": 1170,
+      "model": "demo-model-small"
+    },
+    {
+      "agent": "dev-board-2",
+      "role": "Developer",
+      "pod": "board",
+      "status": "idle",
+      "retired": true,
+      "notes_path": null,
+      "working_s": 1274,
+      "blocked_s": 42,
+      "wakes": 1,
+      "context_tokens": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "model": null
+    },
+    {
+      "agent": "tech-shop",
+      "role": "Tech Lead",
+      "pod": "shop",
+      "status": "idle",
+      "retired": false,
+      "notes_path": null,
+      "working_s": 164,
+      "blocked_s": 0,
+      "wakes": 3,
+      "context_tokens": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "model": null
+    },
+    {
+      "agent": "dev-shop-1",
+      "role": "Developer",
+      "pod": "shop",
+      "status": "working",
+      "retired": false,
+      "notes_path": null,
+      "working_s": 1730,
+      "blocked_s": 0,
+      "wakes": 1,
+      "context_tokens": null,
+      "tokens_in": null,
+      "tokens_out": null,
+      "model": null
+    }
+  ],
+  "rows": [
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:00:00.000Z",
+      "agent": "manager",
+      "status": "working",
+      "id": 0
+    },
+    {
+      "kind": "message",
+      "ts": "2026-03-02T09:00:20.000Z",
+      "from": "manager",
+      "to": "tech-board",
+      "type": "DECISION",
+      "task": "BRD-01",
+      "text": "Build the roster parser first; keep the table cells verbatim.",
+      "msg_id": "00000000-0000-4000-8000-000000000001",
+      "id": 1
+    },
+    {
+      "kind": "message",
+      "ts": "2026-03-02T09:00:45.000Z",
+      "from": "tech-board",
+      "to": "dev-board-1",
+      "type": "DECISION",
+      "task": "BRD-01",
+      "text": "Parse the roster table. Test it with bold cells.",
+      "msg_id": "00000000-0000-4000-8000-000000000002",
+      "id": 2
+    },
+    {
+      "kind": "message",
+      "ts": "2026-03-02T09:00:46.000Z",
+      "from": "tech-board",
+      "to": "dev-board-2",
+      "type": "DECISION",
+      "task": "BRD-02",
+      "text": "Read the escalations table and report the unanswered rows.",
+      "msg_id": "00000000-0000-4000-8000-000000000003",
+      "id": 3
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:00:50.000Z",
+      "agent": "manager",
+      "status": "idle",
+      "duration_s": 50,
+      "id": 4
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:01:10.000Z",
+      "agent": "tech-board",
+      "status": "idle",
+      "duration_s": 50,
+      "id": 5
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:02:00.000Z",
+      "agent": "dev-board-2",
+      "status": "blocked",
+      "id": 6
+    },
+    {
+      "kind": "message",
+      "ts": "2026-03-02T09:02:05.000Z",
+      "from": "dev-board-2",
+      "to": "tech-board",
+      "type": "BLOCKED",
+      "task": "BRD-02",
+      "text": "BLOCKED BRD-02: I need the column order of the escalations table.",
+      "msg_id": "00000000-0000-4000-8000-000000000004",
+      "id": 7
+    },
+    {
+      "kind": "message",
+      "ts": "2026-03-02T09:02:40.000Z",
+      "from": "tech-board",
+      "to": "dev-board-2",
+      "type": "ANSWER",
+      "task": "BRD-02",
+      "text": "ANSWER BRD-02: number, date, question, options, recommendation, blocks, answer.",
+      "msg_id": "00000000-0000-4000-8000-000000000005",
+      "id": 8
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:02:42.000Z",
+      "agent": "dev-board-2",
+      "status": "working",
+      "id": 9
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:02:50.000Z",
+      "agent": "tech-board",
+      "status": "idle",
+      "duration_s": 45,
+      "id": 10
+    },
+    {
+      "kind": "message",
+      "ts": "2026-03-02T09:05:30.000Z",
+      "from": "dev-board-1",
+      "to": "qaw-board",
+      "type": "HANDIN",
+      "task": "BRD-01",
+      "text": "HANDIN BRD-01: branch squad/dev-board-1, commit a1b2c3d.",
+      "msg_id": "00000000-0000-4000-8000-000000000006",
+      "id": 11
+    },
+    {
+      "kind": "message",
+      "ts": "2026-03-02T09:08:10.000Z",
+      "from": "qaw-board",
+      "to": "dev-board-1",
+      "type": "FAIL",
+      "task": "BRD-01",
+      "text": "FAIL BRD-01: one header cell loses its bold markers.",
+      "msg_id": "00000000-0000-4000-8000-000000000007",
+      "id": 12
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:08:30.000Z",
+      "agent": "qaw-board",
+      "status": "idle",
+      "duration_s": 180,
+      "id": 13
+    },
+    {
+      "kind": "message",
+      "ts": "2026-03-02T09:10:00.000Z",
+      "from": "dev-board-1",
+      "to": "qaw-board",
+      "type": "HANDIN",
+      "task": "BRD-01",
+      "text": "HANDIN BRD-01: commit d4e5f6a, header case fixed and tested.",
+      "msg_id": "00000000-0000-4000-8000-000000000008",
+      "id": 14
+    },
+    {
+      "kind": "message",
+      "ts": "2026-03-02T09:12:20.000Z",
+      "from": "qaw-board",
+      "to": "dev-board-1",
+      "type": "PASS",
+      "task": "BRD-01",
+      "text": "PASS BRD-01: all checks green.",
+      "msg_id": "00000000-0000-4000-8000-000000000009",
+      "id": 15
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:12:45.000Z",
+      "agent": "qaw-board",
+      "status": "idle",
+      "duration_s": 165,
+      "id": 16
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:13:00.000Z",
+      "agent": "dev-board-1",
+      "status": "idle",
+      "duration_s": 735,
+      "id": 17
+    },
+    {
+      "id": 18,
+      "kind": "gap",
+      "ts": "2026-03-02T09:13:00.000Z",
+      "seconds": 420,
+      "from_ts": "2026-03-02T09:13:00.000Z",
+      "to_ts": "2026-03-02T09:20:00.000Z"
+    },
+    {
+      "kind": "message",
+      "ts": "2026-03-02T09:20:00.000Z",
+      "from": "dev-board-2",
+      "to": "qaw-board",
+      "type": "HANDIN",
+      "task": "BRD-02",
+      "text": "HANDIN BRD-02: branch squad/dev-board-2, commit 3f9c2ab.",
+      "msg_id": "00000000-0000-4000-8000-000000000010",
+      "id": 19
+    },
+    {
+      "kind": "message",
+      "ts": "2026-03-02T09:21:30.000Z",
+      "from": "qaw-board",
+      "to": "dev-board-2",
+      "type": "PASS",
+      "task": "BRD-02",
+      "text": "PASS BRD-02: unanswered rows are reported correctly.",
+      "msg_id": "00000000-0000-4000-8000-000000000011",
+      "id": 20
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:21:50.000Z",
+      "agent": "qaw-board",
+      "status": "idle",
+      "duration_s": 110,
+      "id": 21
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:22:00.000Z",
+      "agent": "dev-board-2",
+      "status": "idle",
+      "duration_s": 1274,
+      "id": 22
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:25:00.000Z",
+      "agent": "manager",
+      "status": "working",
+      "id": 23
+    },
+    {
+      "kind": "message",
+      "ts": "2026-03-02T09:26:00.000Z",
+      "from": "manager",
+      "to": "tech-board",
+      "type": null,
+      "task": null,
+      "text": "Iteration 1 is closed. Start iteration 2 with the canvas page.",
+      "msg_id": "00000000-0000-4000-8000-000000000012",
+      "id": 24
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:26:30.000Z",
+      "agent": "tech-board",
+      "status": "idle",
+      "duration_s": 30,
+      "id": 25
+    },
+    {
+      "kind": "status",
+      "ts": "2026-03-02T09:26:40.000Z",
+      "agent": "manager",
+      "status": "idle",
+      "duration_s": 100,
+      "id": 26
+    }
+  ],
+  "bars": [
+    {
+      "agent": "manager",
+      "start_row": 0,
+      "end_row": 4,
+      "start_ts": "2026-03-02T09:00:00.000Z",
+      "end_ts": "2026-03-02T09:00:50.000Z",
+      "self_start": true,
+      "open": false,
+      "duration_s": 50,
+      "blocked": []
+    },
+    {
+      "agent": "tech-board",
+      "start_row": 1,
+      "end_row": 5,
+      "start_ts": "2026-03-02T09:00:20.000Z",
+      "end_ts": "2026-03-02T09:01:10.000Z",
+      "self_start": false,
+      "open": false,
+      "duration_s": 50,
+      "blocked": []
+    },
+    {
+      "agent": "dev-board-1",
+      "start_row": 2,
+      "end_row": 17,
+      "start_ts": "2026-03-02T09:00:45.000Z",
+      "end_ts": "2026-03-02T09:13:00.000Z",
+      "self_start": false,
+      "open": false,
+      "duration_s": 735,
+      "blocked": []
+    },
+    {
+      "agent": "dev-board-2",
+      "start_row": 3,
+      "end_row": 22,
+      "start_ts": "2026-03-02T09:00:46.000Z",
+      "end_ts": "2026-03-02T09:22:00.000Z",
+      "self_start": false,
+      "open": false,
+      "duration_s": 1274,
+      "blocked": [
+        {
+          "start_row": 6,
+          "end_row": 9,
+          "start_ts": "2026-03-02T09:02:00.000Z",
+          "end_ts": "2026-03-02T09:02:42.000Z",
+          "duration_s": 42
+        }
+      ]
+    },
+    {
+      "agent": "tech-board",
+      "start_row": 7,
+      "end_row": 10,
+      "start_ts": "2026-03-02T09:02:05.000Z",
+      "end_ts": "2026-03-02T09:02:50.000Z",
+      "self_start": false,
+      "open": false,
+      "duration_s": 45,
+      "blocked": []
+    },
+    {
+      "agent": "qaw-board",
+      "start_row": 11,
+      "end_row": 13,
+      "start_ts": "2026-03-02T09:05:30.000Z",
+      "end_ts": "2026-03-02T09:08:30.000Z",
+      "self_start": false,
+      "open": false,
+      "duration_s": 180,
+      "blocked": []
+    },
+    {
+      "agent": "qaw-board",
+      "start_row": 14,
+      "end_row": 16,
+      "start_ts": "2026-03-02T09:10:00.000Z",
+      "end_ts": "2026-03-02T09:12:45.000Z",
+      "self_start": false,
+      "open": false,
+      "duration_s": 165,
+      "blocked": []
+    },
+    {
+      "agent": "qaw-board",
+      "start_row": 19,
+      "end_row": 21,
+      "start_ts": "2026-03-02T09:20:00.000Z",
+      "end_ts": "2026-03-02T09:21:50.000Z",
+      "self_start": false,
+      "open": false,
+      "duration_s": 110,
+      "blocked": []
+    },
+    {
+      "agent": "manager",
+      "start_row": 23,
+      "end_row": 26,
+      "start_ts": "2026-03-02T09:25:00.000Z",
+      "end_ts": "2026-03-02T09:26:40.000Z",
+      "self_start": true,
+      "open": false,
+      "duration_s": 100,
+      "blocked": []
+    },
+    {
+      "agent": "tech-board",
+      "start_row": 24,
+      "end_row": 25,
+      "start_ts": "2026-03-02T09:26:00.000Z",
+      "end_ts": "2026-03-02T09:26:30.000Z",
+      "self_start": false,
+      "open": false,
+      "duration_s": 30,
+      "blocked": []
+    }
+  ],
+  "tasks": [
+    {
+      "id": "BRD-01",
+      "state": "done",
+      "returns": 1,
+      "last_ts": "2026-03-02T09:12:20.000Z",
+      "last_type": "PASS"
+    },
+    {
+      "id": "BRD-02",
+      "state": "done",
+      "returns": 0,
+      "last_ts": "2026-03-02T09:21:30.000Z",
+      "last_type": "PASS"
+    }
+  ],
+  "needs_you": [
+    {
+      "id": "blocked:dev-board-1:2026-03-02T10:12:00.000Z",
+      "kind": "blocked",
+      "text": "dev-board-1 is blocked",
+      "agent": "dev-board-1",
+      "since": "2026-03-02T10:12:00.000Z"
+    },
+    {
+      "id": "escalation:2",
+      "kind": "escalation",
+      "text": "Should the shop cart apply discounts in this run?",
+      "agent": null,
+      "since": null
+    },
+    {
+      "id": "manager_idle:2",
+      "kind": "manager_idle",
+      "text": "Manager is idle and the PO check-in of iteration 2 is empty",
+      "agent": "manager",
+      "since": "2026-03-02T10:28:00.000Z"
+    }
+  ]
+}
