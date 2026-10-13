@@ -592,7 +592,7 @@ class WaitingTest(TimelineCase):
         self.assertEqual((bar["open"], bar["duration_s"], seg["duration_s"], seg["detail"]), (False, 120, 60, "monitor"))
         self.assertEqual((seg["start_ts"], seg["end_ts"]), (ts(40), ts(100)))
         col = self.column(st, "dev-board-3")
-        self.assertEqual((col["working_s"], col["waiting_s"], col["blocked_s"]), (120, 60, 0))
+        self.assertEqual((col["working_s"], col["waiting_s"], col["blocked_s"]), (60, 60, 0))  # 120 s of bar, 60 s of it waiting
 
     def test_waiting_then_idle_ends_the_bar_and_the_segment_there(self):
         self.act(10, "dev-board-3", "working")

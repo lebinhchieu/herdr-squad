@@ -340,6 +340,7 @@ const ops = {
     }
   },
   async move({ x, y }) { await page.mouse.move(x, y); },
+  async click({ x, y }) { await page.mouse.click(x, y); },
   async viewport({ width, height }) { await page.setViewportSize({ width, height }); },
   async sleep({ ms }) { await page.waitForTimeout(ms); },
   async events() { return events; },
@@ -1203,6 +1204,79 @@ class ReconnectTest(BrowserTestCase):
         self.browser.wait(RECONNECTING_JS)
         self.browser.wait(LIVE_JS, timeout=15000)
         self.assertEqual(self.mirror()["count"], "3")
+
+
+WAITING_FIXTURE = PAGE_FIXTURE.parent / "waiting"
+
+
+class WaitingPageTest(BrowserTestCase):
+    """BRD-29: fixtures/board/waiting. dev-wait-1 worked, waited 4m 05s on a monitor, worked, went idle;
+    dev-wait-2 has been waiting on a shell since 09:07 (now is 09:10)."""
+
+    def setUp(self):
+        self.fx = Fixture()
+        self.addCleanup(self.fx.close)
+        shutil.copytree(str(WAITING_FIXTURE), str(self.fx.root), dirs_exist_ok=True)
+        self.now = (WAITING_FIXTURE / "now.txt").read_text().strip()
+        self.srv = self.fx.start(now=self.now)
+
+    def click_header(self, agent):
+        left, width = self.card(agent)
+        self.browser.call("click", x=left + width / 2, y=133)
+
+    def amber(self, agent):
+        left, width = self.card(agent)
+        cx = left + width / 2
+        return colour_near(self.pixels(cx - 8, 190, cx + 8, 790), "9E7A00", 12)
+
+    def test_the_state_says_waiting_and_the_totals_split(self):
+        st = self.srv.state()
+        cols = {c["agent"]: c for c in st["columns"]}
+        self.assertEqual((cols["dev-wait-2"]["status"], cols["dev-wait-1"]["status"]), ("waiting", "idle"))
+        self.assertEqual((cols["dev-wait-1"]["working_s"], cols["dev-wait-1"]["waiting_s"]), (480 - 10 - 245, 245))
+        self.assertEqual(cols["dev-wait-2"]["waiting_s"], 180)
+
+    def test_the_header_dot_of_a_waiting_agent_is_amber_and_a_quiet_one_is_not(self):
+        self.browser.open(self.url())
+        left, _ = self.card("dev-wait-2")
+        self.assertEqual(colour_near(self.pixels(left + 12, 115, left + 14, 117), "9E7A00", 6), 4)
+        left, _ = self.card("dev-wait-1")
+        self.assertEqual(colour_near(self.pixels(left + 12, 115, left + 14, 117), "9E7A00", 6), 0)
+
+    def test_the_bar_has_amber_where_the_agent_waited_and_none_for_a_quiet_column(self):
+        self.browser.open(self.url())
+        self.assertGreater(self.amber("dev-wait-1"), 20)
+        self.assertGreater(self.amber("dev-wait-2"), 20)
+        self.assertEqual(self.amber("manager"), 0)
+
+    def test_the_mirror_carries_status_detail_and_the_waiting_total(self):
+        self.browser.open(self.url())
+        m = self.mirror()
+        mirrored = {c["data"]["agent"]: c for c in m["columns"]}
+        self.assertEqual(mirrored["dev-wait-2"]["data"]["status"], "waiting")
+        self.assertIn("⏳ 3m", mirrored["dev-wait-2"]["text"])
+        st = self.srv.state()
+        self.assertIn("⏱ 3m · ⏳ 4m", mirrored["dev-wait-1"]["text"])  # 470 s of bar, 245 of them waiting: 225 s work
+        texts = self.browser.eval("[...document.querySelectorAll('#rows li')].map((l) => l.textContent)")
+        self.assertIn("waiting · monitor", [t for t in texts if t.startswith("waiting")])
+
+    def test_the_panel_shows_the_waiting_line_only_when_there_was_waiting(self):
+        self.browser.open(self.url())
+        self.click_header("dev-wait-1")
+        self.browser.wait("document.querySelector('#side-panel') && !document.querySelector('#side-panel').hidden")
+        field = "document.querySelector('#side-panel [data-field=waiting]')"
+        self.assertEqual(self.browser.eval(field + ".textContent"), "4m 05s")
+        self.assertFalse(self.browser.eval(field + ".hidden"))
+        self.click_header("manager")
+        self.browser.wait("document.querySelector('#side-panel').dataset.agent === 'manager'")
+        self.assertTrue(self.browser.eval(field + ".hidden"))
+
+    def test_a_squad_that_only_waits_draws_no_frames(self):
+        self.browser.open(self.url())
+        self.browser.call("sleep", ms=700)
+        before = self.browser.eval("window.__raf")
+        self.browser.call("sleep", ms=2000)
+        self.assertEqual(self.browser.eval("window.__raf") - before, 0)
 
 
 if __name__ == "__main__":

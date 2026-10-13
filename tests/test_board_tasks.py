@@ -696,6 +696,11 @@ class ManagerIdleTest(TaskCase):
         self.fx.activity(agent="manager", status="working")
         self.assertEqual(self.ids(), [])
 
+    def test_not_raised_when_manager_is_waiting_on_background_work(self):
+        self.fx.iteration(1)
+        self.fx.activity(agent="manager", status="waiting", detail="monitor")
+        self.assertEqual(self.ids(), [])
+
     def test_not_raised_when_manager_is_blocked(self):
         self.fx.iteration(1)
         self.fx.activity(agent="manager", status="blocked")

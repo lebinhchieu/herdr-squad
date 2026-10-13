@@ -470,7 +470,8 @@ def derive_timeline(messages, activity, columns, now, selected_iteration, lowest
     for bar in builder.bars:
         shown = finish_bar(bar, ids, now_us)
         totals = agents.setdefault(bar["agent"], {"working_s": 0, "blocked_s": 0, "waiting_s": 0, "wakes": 0})
-        totals["working_s"] += shown["duration_s"]
+        waited = sum(seg["duration_s"] for seg in shown["waiting"])
+        totals["working_s"] += shown["duration_s"] - waited  # a waiting agent is not working
         totals["blocked_s"] += sum(seg["duration_s"] for seg in shown["blocked"])
         totals["waiting_s"] += sum(seg["duration_s"] for seg in shown["waiting"])
         totals["wakes"] += 0 if bar["self_start"] else 1
