@@ -411,7 +411,8 @@ class Browser:
         # the state is in the mirror one frame before it is on the canvas
         self.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
         if self.at_top:
-            self.eval("window.scrollTo(0, 0)")
+            # a wheel first: the follow pauses, so a later state frame cannot pin the bottom again
+            self.eval("window.dispatchEvent(new Event('wheel')); window.scrollTo(0, 0)")
             self.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
 
     def eval(self, js):
