@@ -340,7 +340,7 @@ const ops = {
     }
   },
   async move({ x, y }) { await page.mouse.move(x, y); },
-  async click({ x, y }) { await page.mouse.click(x, y); },
+  async clickAt({ x, y }) { await page.mouse.click(x, y); },
   async viewport({ width, height }) { await page.setViewportSize({ width, height }); },
   async sleep({ ms }) { await page.waitForTimeout(ms); },
   async events() { return events; },
@@ -1222,7 +1222,7 @@ class WaitingPageTest(BrowserTestCase):
 
     def click_header(self, agent):
         left, width = self.card(agent)
-        self.browser.call("click", x=left + width / 2, y=133)
+        self.browser.call("clickAt", x=left + width / 2, y=133)
 
     def amber(self, agent):
         left, width = self.card(agent)
