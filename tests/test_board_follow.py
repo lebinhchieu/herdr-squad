@@ -94,6 +94,8 @@ PROGRAMMATIC_SCROLL_TO_JS = "window.scrollTo(0, %d)"
 
 
 class FollowBrowser(page.Browser):
+    at_top = False  # the follow tests start where a live page starts: at the bottom
+
     def __init__(self, core, chrome):
         env = dict(os.environ, PLAYWRIGHT_CORE=core)
         self.script = tempfile.NamedTemporaryFile("w", suffix=".js", delete=False)
@@ -655,7 +657,9 @@ class PickerTest(FollowCase):
         self.sleep(300)
         s = self.status()
         self.assertEqual((s["picker"], s["banner"]), ("3", None))
-        self.assertEqual(self.browser.eval("[localStorage.length, sessionStorage.length]"), [0, 0])
+        # the picked iteration is not stored; the alerts' list of seen items (BRD-16) is the one key allowed
+        self.assertEqual(self.browser.eval("[Object.keys(localStorage).map((k) => k.split(':')[0]), sessionStorage.length]"),
+                         [["squad-board.seen"], 0])
 
     def test_history_survives_closing_and_reopening_the_page(self):
         self.open()

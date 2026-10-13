@@ -384,6 +384,10 @@ def find_chrome():
 class Browser:
     """One headless Chromium, driven line by line through DRIVER_JS."""
 
+    # A page on the current iteration follows the bottom (BRD-14) and loads scrolled down; the
+    # canvas tests sample fixed viewport coordinates, so they start at the top.
+    at_top = True
+
     def __init__(self, core, chrome):
         env = dict(os.environ, PLAYWRIGHT_CORE=core)
         self.script = tempfile.NamedTemporaryFile("w", suffix=".js", delete=False)
@@ -406,6 +410,9 @@ class Browser:
         self.wait(LIVE_JS)
         # the state is in the mirror one frame before it is on the canvas
         self.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
+        if self.at_top:
+            self.eval("window.scrollTo(0, 0)")
+            self.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
 
     def eval(self, js):
         return self.call("eval", js=js)
@@ -811,7 +818,7 @@ class LookTest(BrowserTestCase):
 
     def test_the_needs_you_items_are_separated_by_thin_rules(self):
         self.browser.open(self.url())
-        for x0, x1, rule in ((419, 428, True), (641, 650, True), (210, 220, False)):
+        for x0, x1, rule in ((403, 412, True), (601, 610, True), (210, 220, False)):
             found = colour_near(self.pixels(x0, 26, x1, 48), "D6CCBC", 12)
             self.assertEqual(found > 20, rule, (x0, found))
 

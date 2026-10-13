@@ -83,12 +83,11 @@ CALLS_JS = """new Promise((done) => {
     });
   }
   window.dispatchEvent(new Event('resize'));
+  // BRD-27: frames come at the ambient rate, so count the calls of one draw, not per frame
   requestAnimationFrame(() => requestAnimationFrame(() => {
     window.__calls = 0;
-    const frames = 5; let seen = 0;
-    const step = () => { if (++seen < frames) requestAnimationFrame(step); else done(window.__calls / frames); };
     window.dispatchEvent(new Event('resize'));
-    requestAnimationFrame(step);
+    requestAnimationFrame(() => done(window.__calls));
   }));
 })"""
 
@@ -139,6 +138,13 @@ class SequenceCase(page.BrowserTestCase):
     def cx(self, agent):
         left, width = self.card(agent)
         return left + width / 2
+
+    def stay_at_top(self):
+        """A live page follows the bottom (BRD-14) and pins it again on every resize. These tests sample
+        or scroll the page themselves, so a wheel and a scroll to the top pause the follow first."""
+        self.browser.eval("window.dispatchEvent(new Event('wheel')); window.scrollTo(0, 0)")
+        self.browser.call("sleep", ms=500)  # past the page's 400 ms "this is the user" window
+        self.browser.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
 
     def scroll_to_bottom(self):
         self.scroll_to(self.browser.eval("document.documentElement.scrollHeight - innerHeight"))
@@ -416,6 +422,7 @@ class BarTest(SequenceCase):
         self.browser.call("openPatched", url=self.url(), patch=patch)
         self.browser.wait(page.LIVE_JS)
         self.browser.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
+        self.stay_at_top()
         x = self.cx("tech-shop")
         y = self.arrow_y(5)
         found = self.pixels(x - 8, y - 8, x + 8, y + 8)
@@ -762,6 +769,7 @@ class WindowTest(SequenceCase):
         self.browser.wait(page.LIVE_JS)
         self.browser.wait("document.querySelectorAll('#rows li').length === %d" % count)
         self.browser.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
+        self.stay_at_top()
 
     def calls(self):
         return self.browser.eval(CALLS_JS)

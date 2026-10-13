@@ -531,7 +531,7 @@ class StampTest(LiveTokenCase):
         time.sleep(0.3)
         self.assertIsNone(stream.state(2.5), "an event for a rebuild that changed nothing")
 
-    def test_replay_mode_streams_the_fixed_now_and_no_live_flag(self):
+    def test_replay_mode_streams_the_fixed_now_and_live_false(self):
         fx = Fixture()
         self.addCleanup(fx.close)
         fx.roster([{"agent": "manager", "role": "Manager", "scope": "all"}])
@@ -542,7 +542,7 @@ class StampTest(LiveTokenCase):
         self.addCleanup(stream.close)
         state = stream.state(5)
         self.assertEqual(state["now"], "2026-10-12T12:00:00Z")
-        self.assertNotIn("live", state)
+        self.assertIs(state["live"], False)
         self.assertEqual(state, server.state())
 
 
