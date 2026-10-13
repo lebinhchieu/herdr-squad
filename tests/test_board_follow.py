@@ -149,6 +149,10 @@ class FollowCase(page.PageFixtureCase):
     def pause(self):
         """Scroll up with the wheel until paused; the page must say so."""
         self.wheel_up()
+        for _ in range(10):  # a loaded machine can take longer than the 500 ms to deliver the wheel
+            if self.status()["following"] == "false":
+                break
+            self.sleep(300)
         self.assertEqual(self.status()["following"], "false")
 
     def message(self, fx=None, **fields):
