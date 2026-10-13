@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Squad terms</title>
+<style>
+:root{--bg:#FCF8F1;--panel:#F4ECDD;--bd:#E7DBC8;--ink:#3E372E;--mute:#857A68;
+--mango:#E8820E;--teal:#0C8A80;--red:#DB3B22;--blue:#2A6DC0;--purple:#9A40CF;--green:#368A1E;--pink:#CE1D6C;--yellow:#9E7A00}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+header{padding:18px 28px 14px;border-bottom:1px solid var(--bd)}
+h1{margin:0 0 6px;font-size:22px}
+.answer{max-width:900px;font-size:16px}
+.answer b{color:var(--mango)}
+.ctx{color:var(--mute);font-size:13px;margin-top:6px;max-width:900px}
+main{display:grid;grid-template-columns:minmax(0,1fr);gap:22px;padding:20px 28px}
+@media(min-width:1000px){main{grid-template-columns:440px minmax(0,1fr)}}
+.diagram{position:sticky;top:12px;align-self:start;background:var(--panel);border:1px solid var(--bd);border-radius:12px;padding:14px;font-size:13px}
+@media(max-width:999px){.diagram{position:static}}
+.diagram h2{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+.n{border:1.5px solid var(--c,var(--bd));background:#fff;border-radius:8px;padding:3px 8px;display:inline-block;margin:2px 3px 2px 0;cursor:pointer;color:var(--ink);font-weight:600;font-size:12.5px}
+.n.hl,.n:hover{background:var(--c);color:#fff}
+.box{border:1.5px dashed var(--c,var(--mute));border-radius:10px;padding:8px;margin:8px 0;background:rgba(255,255,255,.55);cursor:pointer}
+.box.hl,.box:hover{border-style:solid;background:#fff}
+.box>.lbl{font-size:11.5px;color:var(--c,var(--mute));font-weight:700;margin-bottom:4px}
+.lbl small{color:var(--mute);font-weight:400}
+.arrow{color:var(--mute);font-size:12px;margin:4px 0 4px 6px}
+.iter{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:6px;font-size:12px}
+.iter span{background:#fff;border:1px solid var(--bd);border-radius:6px;padding:2px 6px}
+.legend{margin-top:10px;font-size:11.5px;color:var(--mute);display:flex;flex-wrap:wrap;gap:4px 10px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+section{margin-bottom:26px}
+section>h2{font-size:17px;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+section>p{margin:0 0 10px;color:var(--mute);font-size:13px;max-width:70ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px}
+.card{background:#fff;border:1px solid var(--bd);border-left:4px solid var(--c,var(--bd));border-radius:8px;padding:10px 12px}
+.card.hl{box-shadow:0 0 0 2px var(--c);background:#fffdf8}
+.card h3{margin:0 0 3px;font-size:15px}
+.card p{margin:0 0 4px;max-width:70ch}
+.card details{font-size:13px;color:var(--ink)}
+.card summary{cursor:pointer;color:var(--mute);font-size:12px}
+.src{font:11.5px ui-monospace,monospace;color:var(--mute);margin-top:4px}
+.v{font-size:10.5px;border-radius:9px;padding:0 6px;margin-left:6px;vertical-align:1px;color:#fff;background:var(--green)}
+.v.i{background:var(--yellow)}
+table{border-collapse:collapse;width:100%;font-size:13px;background:#fff;border:1px solid var(--bd);border-radius:8px}
+td,th{border-bottom:1px solid var(--bd);padding:5px 8px;text-align:left;vertical-align:top}
+th{background:var(--panel);font-size:12px}
+code{font:12.5px ui-monospace,monospace;background:var(--panel);padding:0 4px;border-radius:4px}
+.wrap{overflow-x:auto}
+.warn{background:#fff6e6;border:1px solid var(--mango);border-radius:8px;padding:10px 12px}
+.warn li{margin:4px 0}
+.ask{background:#fff;border:1.5px solid var(--mango);border-radius:10px;padding:12px 14px}
+.ask label{display:block;border:1px solid var(--bd);border-radius:8px;padding:6px 10px;margin:6px 0;cursor:pointer}
+.ask label:has(input:checked){border-color:var(--mango);background:#fff6e6}
+textarea{width:100%;min-height:70px;border:1px solid var(--bd);border-radius:8px;padding:8px;font:13px ui-monospace,monospace;background:var(--bg);color:var(--ink)}
+button{background:var(--mango);color:#fff;border:0;border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer}
+footer{padding:14px 28px 30px;border-top:1px solid var(--bd);color:var(--mute);font:12.5px ui-monospace,monospace;white-space:pre-wrap}
+</style></head><body>
+<header>
+  <h1>Squad terms</h1>
+  <div class="answer">A <b>squad</b> is a team of Claude Code sessions. It works on <b>one goal</b>. You are the <b>PO</b>. The <b>Manager</b> starts the other roles, and each role has one job. Click a box on the left to see its term.</div>
+  <div class="ctx">Context: the squad plugin lets one Manager session run many role sessions. They talk by messages. They keep every lasting fact in files. There is no <code>CONTEXT.md</code> yet, so these terms come from <code>README.md</code>, <code>agents/*.md</code> and <code>templates/squad/process.md</code>.</div>
+</header>
+
+<main>
+<aside class="diagram" aria-label="How the terms nest">
+  <h2>What contains what</h2>
+  <span class="n" data-t="po" style="--c:var(--mango)">PO (you)</span>
+  <span class="arrow">↓ sets goal · confirms sizes · gets check-in</span>
+  <div class="box" data-t="squad" style="--c:var(--ink)">
+    <div class="lbl">Squad <small>· one goal · folder .claude/squads/&lt;squad&gt;/</small></div>
+    <span class="n" data-t="manager" style="--c:var(--purple)">Manager</span>
+    <span class="n" data-t="tokencoach" style="--c:var(--pink)">Token Coach <small>(retro)</small></span>
+    <div class="box" data-t="pod" style="--c:var(--blue)">
+      <div class="lbl">Pod <small>· delivers Scope A ·</small> <span data-t="size" style="color:var(--mango)">size L</span></div>
+      <span class="n" data-t="ba" style="--c:var(--blue)">BA</span>
+      <span class="n" data-t="teamlead" style="--c:var(--blue)">Team Lead</span>
+      <span class="n" data-t="techlead" style="--c:var(--blue)">Tech Lead</span>
+      <span class="n" data-t="qaw" style="--c:var(--teal)">QA whitebox</span>
+      <span class="n" data-t="qab" style="--c:var(--teal)">QA blackbox</span>
+      <span class="n" data-t="dev" style="--c:var(--green)">Developer ×n</span>
+    </div>
+    <div class="box" data-t="pod" style="--c:var(--blue)">
+      <div class="lbl">Pod <small>· delivers Scope B ·</small> <span data-t="size" style="color:var(--mango)">size S</span></div>
+      <span class="n" data-t="techlead" style="--c:var(--blue)">Tech Lead</span>
+      <span class="n" data-t="dev" style="--c:var(--green)">Developer</span>
+    </div>
+    <span class="n" data-t="files" style="--c:var(--mute)">files: process · roster · scopes</span>
+    <span class="n" data-t="contract" style="--c:var(--yellow)">Contract (XL)</span>
+  </div>
+  <div class="iter" data-t="iteration">
+    <b>Iteration</b><span>goal check</span>→<span>plan</span>→<span>build + verify</span>→<span>retro</span>→<span>check-in</span>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--mango)"></i>needs you</span><span><i style="background:var(--purple)"></i>runs the squad</span>
+    <span><i style="background:var(--blue)"></i>plans / owns need</span><span><i style="background:var(--teal)"></i>checks</span>
+    <span><i style="background:var(--green)"></i>builds</span><span><i style="background:var(--pink)"></i>cost</span>
+  </div>
+</aside>
+
+<div id="content"></div>
+</main>
+
+<main style="padding-top:0">
+<div style="grid-column:1/-1;max-width:1100px">
+<section>
+  <h2>Careful: words that look alike</h2>
+  <p>These pairs cause mistakes. The repo uses each word, but no file sets them apart.</p>
+  <div class="warn"><ul>
+    <li><b><code>HANDIN</code> and <code>## Handover</code>.</b> <code>HANDIN</code> is a message: a Developer gives a finished task to QA. <code>## Handover</code> is a plan section: the Tech Lead writes it when a scope moves up in size. <span class="v">verified</span> <span class="src">process.md:78, process.md:59</span></li>
+    <li><b>Squad, scope, pod.</b> A squad has one goal. A scope is one part of that goal. A pod is the roles that deliver one scope. <span class="v">verified</span> <span class="src">process.md:28</span></li>
+    <li><b>Role, agent, session.</b> A role is a job (<code>agents/ba.md</code>). An agent is one live copy with a name (a row in <code>roster.md</code>). A session is the Claude Code process behind it. <span class="v i">inferred</span> <span class="src">from how README.md and roster.md use the words; no file defines them</span></li>
+    <li><b>"Done" changes with size.</b> In S, the Tech Lead review passes it. In M and L, both QAs pass it. <span class="v">verified</span> <span class="src">process.md:34-37</span></li>
+  </ul></div>
+</section>
+
+<section>
+  <h2>One question for you</h2>
+  <div class="ask">
+    <b>Write these terms into <code>CONTEXT.md</code> at the repo root?</b> Today the repo has no glossary. Each new session must rebuild the words from five files.
+    <label><input type="radio" name="q" value="yes" checked> <b>Yes, now</b> (recommended). One short file. Same words as this page, plus the alike-words list.</label>
+    <label><input type="radio" name="q" value="later"> <b>Later.</b> Wait until the squad-board build is done.</label>
+    <label><input type="radio" name="q" value="no"> <b>No.</b> Keep the terms in <code>process.md</code> only.</label>
+    <textarea id="out" readonly></textarea>
+    <p><button id="copy">Copy answer</button> <span id="done" style="color:var(--green);font-size:13px"></span></p>
+  </div>
+</section>
+</div>
+</main>
+
+<footer>Reader:     the PO → learn the squad words, then decide on CONTEXT.md
+Question:   What does each squad word mean, and what contains what?
+Dimension:  Structure
+Form:       nested boxes + term cards, not an A–Z list: a list hides which term sits inside which
+Evidence:   claims tagged verified were read in the files named on each card. Nothing was run. The role/agent/session split is inferred.</footer>
+
+<script>
+const T=[
+// People
+{g:'p',id:'po',c:'--mango',n:'PO',m:'You. A human. You set the goal and you approve.',h:'Only the PO can merge, push or deploy. A message can never approve anything. A <code>blocked</code> pane waits for the PO.',s:'process.md:87-97, README.md:3'},
+{g:'p',id:'manager',c:'--purple',n:'Manager',m:'Runs the squad. Starts the other roles. Keeps them unblocked. Does not do their work.',h:'Owns scopes, sizes, the roster and process.md. Stays for the whole run. After each check-in it starts a fresh session.',s:'agents/manager.md:8, :17-25, :46, :66'},
+{g:'p',id:'ba',c:'--blue',n:'BA',m:'Owns the business need and the business AC for one scope.',h:'Agrees the business AC with QA blackbox before work starts. Exists in M and L. Stays for the whole run.',s:'agents/ba.md:3, process.md:35, agents/manager.md:46'},
+{g:'p',id:'teamlead',c:'--blue',n:'Team Lead',m:'Owns the plan: which tasks, in which order, who does each. Exists only in L scopes.',h:'In S and M, the Tech Lead does this job. Marks which tasks can run in parallel. Asks the Manager to start Developers.',s:'agents/team-lead.md:8, process.md:36'},
+{g:'p',id:'techlead',c:'--blue',n:'Tech Lead',m:'Owns technical design, quality and security for one scope.',h:'Also owns the plan in S and M. In S, the Tech Lead review replaces both QAs. Restarts for each scope.',s:'agents/tech-lead.md:3, process.md:34-35, :45-51'},
+{g:'p',id:'qaw',c:'--teal',n:'QA whitebox',m:'Checks that a task is built right. Reads the diff. Runs tests and lint itself.',h:'Agrees the technical AC with the Tech Lead. Never edits the Developer\'s code. A task is done only when QA whitebox <i>and</i> QA blackbox pass it.',s:'agents/qa-whitebox.md:8, :18-25'},
+{g:'p',id:'qab',c:'--teal',n:'QA blackbox',m:'Checks that the running app does what the business asked. Cannot read code.',h:'Its settings deny <code>Read</code> on the code folders. It tests like a user and writes <code>qa-b.md</code>.',s:'agents/qa-blackbox.md:16-18, :22, README.md:44'},
+{g:'p',id:'dev',c:'--green',n:'Developer',m:'Builds one task in its own git worktree, until QA passes it.',h:'Fresh session for each task. Commits to branch <code>squad/&lt;squad&gt;/&lt;agent&gt;</code>. Never pushes or merges. Many Developers can run at once, up to the cap in <code>goal.md</code>.',s:'agents/dev.md:18-28, agents/manager.md:23'},
+{g:'p',id:'tokencoach',c:'--pink',n:'Token Coach',m:'Comes at the retro. Finds wasted tokens. Proposes changes to process.md.',h:'Reads only the usage table and <code>usage-events.jsonl</code>. Writes <code>iterations/&lt;n&gt;.coach.md</code>. Changes nothing itself. The Manager accepts at most 3 proposals.',s:'agents/token-coach.md:8, process.md:115'},
+// Structure
+{g:'s',id:'squad',c:'--ink',n:'Squad',m:'One team for one goal. Its folder is <code>.claude/squads/&lt;squad&gt;/</code>.',h:'Several squads can run side by side. Agent names start with the squad name so they stay unique.',s:'README.md:3, process.md:28'},
+{g:'s',id:'scope',c:'--blue',n:'Scope',m:'One part of the goal: a feature area, an epic or a group of tickets.',h:'The Manager splits the goal into scopes. Each scope gets a size.',s:'agents/manager.md:19'},
+{g:'s',id:'pod',c:'--blue',n:'Pod',m:'The group of role sessions that delivers one scope.',h:'A squad can hold several pods. A pod contains only the roles its scope size needs.',s:'process.md:28'},
+{g:'s',id:'size',c:'--mango',n:'Size: S, M, L, XL',m:'How many roles a scope gets. The Manager proposes it. You confirm it.',h:'<b>S</b> Tech Lead + Developers. <b>M</b> + BA, both QAs. <b>L</b> + Team Lead. <b>XL</b> several pods. When unsure, size up. Move down only at an iteration boundary, with your OK. Up needs no OK.',s:'process.md:30-40, :55-60'},
+{g:'s',id:'risk',c:'--red',n:'Risk flag',m:'A sign that forces a scope to size M or more.',h:'DB migration or data change. Breaking API or contract change. Security or permissions. Anything another team sees.',s:'process.md:40'},
+{g:'s',id:'contract',c:'--yellow',n:'Contract',m:'XL only. An agreement between two scopes: an API, an event or a status model.',h:'Both Tech Leads write <code>contracts/&lt;name&gt;.md</code>. One QA whitebox checks both sides. The Manager settles disputes.',s:'process.md:62-66'},
+// Work
+{g:'w',id:'iteration',c:'--mango',n:'Iteration',m:'One work cycle: goal check, plan, build and verify, retro, check-in.',h:'At the <b>goal check</b> you and the Manager agree the goal and the sizes. At the <b>check-in</b> the Manager shows what is done, open escalations and proposed role changes.',s:'process.md:110-116'},
+{g:'w',id:'task',c:'--green',n:'Task',m:'One piece of work for one Developer.',h:'States: <code>ready → building → (blocked ↔ building) → handed in → checking → done | returned</code>. A returned task stays with the same Developer. After 3 returns the Manager steps in.',s:'process.md:101-107'},
+{g:'w',id:'ac',c:'--teal',n:'AC (acceptance criteria)',m:'The rules a task must pass. Two kinds: business AC and technical AC.',h:'<b>Business AC:</b> BA and QA blackbox agree them as Given/When/Then. <b>Technical AC:</b> Tech Lead and QA whitebox agree them (tests, lint, security).',s:'agents/qa-blackbox.md:22, agents/qa-whitebox.md:18'},
+{g:'w',id:'evidence',c:'--teal',n:'Evidence',m:'Proof that a task works. A file, not a message.',h:'<code>qa-w.md</code>, <code>qa-b.md</code> (M, L), <code>dev-evidence.md</code> and <code>tl-review.md</code> (S). Default folder: <code>$SQUAD_DIR/evidence/&lt;task&gt;/</code>.',s:'process.md:108'},
+{g:'w',id:'handover',c:'--blue',n:'Handover',m:'A plan section. The Tech Lead writes it when a scope moves up in size.',h:'Says what was decided, what was built and what is open. Work already built goes through the new size\'s checks before it counts as done.',s:'process.md:59'},
+{g:'w',id:'escalation',c:'--mango',n:'Escalation',m:'A question that waits for the PO.',h:'The Manager writes it to <code>escalations.md</code> first: question, options, recommendation. Then tells you. Unless it blocks the squad now, it waits for the check-in.',s:'agents/manager.md:63, process.md:18'},
+// Files
+{g:'f',id:'files',c:'--mute',n:'Squad files',m:'Files hold the truth. Messages only point at them.',h:'A decision that lives only in a message is lost when a session restarts. See the table below.',s:'process.md:5-9'},
+// Runtime
+{g:'r',id:'session',c:'--purple',n:'Top-level session',m:'Each role is its own Claude Code session, started with <code>claude --agent squad:&lt;role&gt;</code>. Not a subagent.',h:'<code>squad-spawn</code> opens a herdr tab for it. Role names: <code>ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, dev, token-coach</code>.',s:'README.md:24, bin/squad-spawn:2'},
+{g:'r',id:'worktree',c:'--green',n:'Worktree and branch',m:'A Developer\'s own copy of the repo, so two Developers never touch the same files.',h:'Path <code>&lt;project&gt;/.worktrees/&lt;squad&gt;/&lt;agent&gt;</code>. Branch <code>squad/&lt;squad&gt;/&lt;agent&gt;</code>. The branch stays after the Developer retires. You merge it.',s:'bin/squad-spawn:17, :77'},
+{g:'r',id:'blocked',c:'--red',n:'Blocked pane',m:'A pane that shows a permission prompt or a question. Only you can answer it.',h:'The Manager tells you which pane and why. Messages between sessions cannot approve a permission.',s:'agents/manager.md:55, README.md:45'},
+{g:'r',id:'cost',c:'--pink',n:'Cost rules',m:'Keep sessions small and fresh, because tokens are spent on context.',h:'<b>Reuse</b> under 50% context. <b>Fresh</b> over 60%, after a compaction, or on a new scope. <b>Idle</b> over 1 hour with over ~100k context: fresh. A Stop hook tells you which rule fired.',s:'process.md:118-126'},
+{g:'r',id:'notes',c:'--mute',n:'Notes',m:'<code>roles/&lt;agent&gt;.notes.md</code>. An agent\'s memory: a snapshot of now, under 80 lines.',h:'Rewrite it on every save. Never append. A fresh session reads all of it at start. Fixed sections: Now, Open threads, Decisions that bind later work, Pointers.',s:'process.md:128-136'},
+{g:'r',id:'lifecycle',c:'--purple',n:'respawn · retire · close',m:'Three commands. <code>squad-respawn</code> starts a fresh session with the same name. <code>squad-retire</code> saves notes, then closes the tab. <code>squad-close</code> ends the squad.',h:'<code>squad-close</code> retires the Manager last, removes worktrees whose branch is merged, and archives the folder to <code>.claude/squads/_done/</code>. It never deletes a branch.',s:'bin/squad-respawn:2-3, bin/squad-close:2, README.md:26-27'},
+];
+const G=[
+ ['p','People','Eight roles and the human. A role is a job. Size decides which roles exist.'],
+ ['s','Structure','What contains what. Read these before the rest.'],
+ ['w','Work','How a goal turns into done work.'],
+ ['m','Messages','Start every message with its type. Short. Point at files, do not paste them.'],
+ ['f','Files','The squad folder. Durable things go in files first.'],
+ ['r','Runtime','Sessions, branches and cost.'],
+];
+const MSG=[['ASK','Ask the owner of a topic','ASK bill-ba-invoices: does BR-014 apply to read-only users?'],['ANSWER','Reply to an ASK','ANSWER: yes, see project.md#reqs'],['DECISION','Announce a decision already written to a file','DECISION: tab order fixed, logged D12'],['BLOCKED','Say you cannot continue, and on what','BLOCKED SET-01: AC-033 contradicts spec §4'],['HANDIN','Give a task to QA','HANDIN SET-01: branch squad/…, commit abc123'],['PASS / FAIL','QA verdict. FAIL points at findings','FAIL SET-01: 2 findings in qa-b.md'],['STATUS','Answer the Manager\'s health check','STATUS: building SET-01, 60%, no blockers']];
+const FILES=[['goal.md','PO','Goal of this run, limits, budget, Developer cap'],['project.md','Manager','Where each kind of truth lives in this project'],['roster.md','Manager','Every live agent: name, role, scope, what it owns'],['process.md','Manager','The shared rules (this protocol)'],['scopes.md','Manager','Each scope\'s size, signals, your confirmation'],['escalations.md','Manager','Questions waiting on the PO'],['iterations/&lt;n&gt;.md','Manager','Goal, plan, retro and check-in of one iteration'],['tasks/&lt;id&gt;.md','Plan owner','Task state, when the project has no ticket files']];
+const el=document.getElementById('content');
+let html='';
+for(const [g,title,desc] of G){
+  html+=`<section><h2>${title}</h2><p>${desc}</p>`;
+  if(g==='m'){
+    html+=`<div class="wrap"><table><tr><th>Type</th><th>Use it to</th><th>Example</th></tr>${MSG.map(r=>`<tr><td><code>${r[0]}</code></td><td>${r[1]}</td><td><code>${r[2]}</code></td></tr>`).join('')}</table></div>
+    <p style="margin-top:8px"><b>Two-round rule:</b> two agents who disagree after 2 exchanges go to the topic owner. <span class="v">verified</span> <span class="src">process.md:68-84</span></p>`;
+  } else {
+    html+=`<div class="grid">${T.filter(t=>t.g===g).map(t=>`<div class="card" id="t-${t.id}" data-t="${t.id}" style="--c:var(${t.c})"><h3>${t.n}<span class="v">verified</span></h3><p>${t.m}</p><details><summary>How it works</summary>${t.h}</details><div class="src">${t.s}</div></div>`).join('')}</div>`;
+    if(g==='f') html+=`<div class="wrap" style="margin-top:10px"><table><tr><th>File</th><th>Owner</th><th>Holds</th></tr>${FILES.map(r=>`<tr><td><code>${r[0]}</code></td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')}</table></div><div class="src" style="margin-top:4px">process.md:11-24</div>`;
+  }
+  html+='</section>';
+}
+el.innerHTML=html;
+// link diagram <-> cards
+const alias={};
+const hl=(id,on)=>document.querySelectorAll(`[data-t="${id}"]`).forEach(e=>e.classList.toggle('hl',on));
+document.addEventListener('mouseover',e=>{const x=e.target.closest('[data-t]');if(x)hl(x.dataset.t,true)});
+document.addEventListener('mouseout',e=>{const x=e.target.closest('[data-t]');if(x)hl(x.dataset.t,false)});
+document.querySelector('.diagram').addEventListener('click',e=>{const x=e.target.closest('[data-t]');const c=x&&document.getElementById('t-'+x.dataset.t);if(c){c.scrollIntoView({behavior:'smooth',block:'center'});c.querySelector('details').open=true}});
+// copy box
+const out=document.getElementById('out');
+const txt={yes:'Q1 CONTEXT.md: Yes, now. Write the squad terms and the alike-words list to CONTEXT.md.',later:'Q1 CONTEXT.md: Later, after the squad-board build.',no:'Q1 CONTEXT.md: No. Keep terms in process.md only.'};
+const upd=()=>out.value=txt[document.querySelector('input[name=q]:checked').value];
+document.querySelectorAll('input[name=q]').forEach(r=>r.onchange=upd);upd();
+document.getElementById('copy').onclick=()=>{navigator.clipboard.writeText(out.value);document.getElementById('done').textContent='Copied'};
+</script>
+</body></html>
