@@ -59,6 +59,7 @@ class FakeHerdr:
         self._since_subscribe = False
         self._lock = threading.Condition()
         self._listener = None
+        self._acceptor = None
         self._streams = []       # [conn, send lock, pane ids, wants pane.created]
 
     # --- what the tests set up ------------------------------------------------------
@@ -130,7 +131,8 @@ class FakeHerdr:
         listener.bind(self.path)
         listener.listen(8)
         self._listener = listener
-        threading.Thread(target=self._accept, args=(listener,), daemon=True).start()
+        self._acceptor = threading.Thread(target=self._accept, args=(listener,), daemon=True)
+        self._acceptor.start()
 
     def drop(self):
         """Cut every subscribed connection, as if herdr restarted; the socket keeps listening."""
@@ -142,6 +144,14 @@ class FakeHerdr:
     def stop(self):
         listener, self._listener = self._listener, None
         if listener is not None:
+            # Wake the accepting thread and wait for it before closing: a thread that is only about to
+            # call accept() on the closed descriptor could otherwise get a connection meant for the
+            # next test's listener, which is given the same descriptor number.
+            try:
+                listener.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            self._acceptor.join(2)
             listener.close()
             if os.path.exists(self.path):
                 os.unlink(self.path)

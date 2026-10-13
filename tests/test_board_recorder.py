@@ -207,6 +207,22 @@ class RecordTest(LiveCase):
         self.assertNotIn("\n\n", text)
 
 
+    def test_the_milliseconds_are_the_real_ones(self):
+        # the digits after the dot must be this moment's, not any three digits: ten events, each stamped
+        # inside the window between "before the event was sent" and "after its record was seen"
+        self.add_agent("manager")
+        self.start()
+        for i in range(10):
+            count = len(self.records())
+            before = datetime.now(timezone.utc)
+            before = before.replace(microsecond=before.microsecond // 1000 * 1000)  # a stamp is floored to ms
+            self.fake.emit_status(self.panes["manager"], ("working", "blocked", "idle")[i % 3])
+            wait_until(lambda: len(self.records()) > count, "the record")
+            after = datetime.now(timezone.utc)
+            stamp = datetime.fromisoformat(self.records()[-1]["ts"][:-1] + "+00:00")
+            self.assertTrue(before <= stamp <= after, (i, before, stamp, after))
+
+
 class SubscriptionTest(LiveCase):
     def test_one_status_subscription_per_agent_pane_plus_pane_created(self):
         self.add_agent("manager")
@@ -474,6 +490,35 @@ class ReconnectTest(LiveCase):
         self.assertEqual(len(self.outage_lines()), 1)
 
 
+    def test_a_herdr_that_accepts_and_never_answers_is_an_outage_not_a_hang(self):
+        class Silent(FakeHerdr):
+            """Takes the connection and the request, and says nothing."""
+            release = threading.Event()
+
+            def _serve(self, conn):
+                self.release.wait(30)
+                conn.close()
+
+        healthy = self.fake
+        self.add_agent("manager", status="working", seed=False)       # healthy has the pane
+        silent = Silent(self.tmp / "h.sock")
+        self.addCleanup(silent.release.set)
+        self.addCleanup(silent.stop)
+        self.fake = silent
+        self.start(wait=False)
+        self.fake = healthy
+        wait_until(self.outage_lines, "the outage line after the request timeout", timeout=12)
+        time.sleep(0.4)
+        self.assertEqual(len(self.outage_lines()), 1)
+        self.assertNotIn("Traceback", self.srv.stderr())
+        self.assertEqual(self.srv.get("/state")[0], 200)
+        silent.release.set()
+        silent.stop()
+        healthy.start()
+        wait_until(lambda: len(self.records()) == 1, "the record from the healthy herdr", timeout=12)
+        self.assertEqual(self.new_records(0), [("manager", "working", None)])
+
+
 class Closing(FakeHerdr):
     """Accepts every connection and hangs up at once, counting them."""
     accepted = 0
@@ -590,6 +635,35 @@ class RobustTest(LiveCase):
         self.assertEqual(panes, [self.panes["manager"]])
         self.assertNotIn(OUTAGE, self.srv.stderr())
         self.assertEqual(len(self.records()), 1)  # the seeded one; nothing for the odd entries
+
+    def test_a_deeply_nested_frame_ahead_of_a_reply_is_skipped(self):
+        self.fake.stray = b"[" * 100000 + b"\n"                      # past the recursion limit
+        self.start()
+        self.assertNotIn(OUTAGE, self.srv.stderr())
+        self.assertNotIn("Traceback", self.srv.stderr())
+        base = len(self.records())
+        self.assertEqual(self.barrier(base), [("manager", "working", None)])
+        self.assertEqual(len(self.fake.subscribes), 1)
+
+    def test_replies_of_the_wrong_shape_mean_no_agents_not_a_crash(self):
+        for result in ([1], "text", 5, {"snapshot": "x"}, {"snapshot": [1, 2]}, {"snapshot": {"agents": "x"}}):
+            with self.subTest(result=result):
+                class Odd(FakeHerdr):
+                    def _answer(self, conn, line):
+                        request = json.loads(line)
+                        conn.sendall(json.dumps({"id": request["id"], "result": result}).encode() + b"\n")
+                        return False
+                tmp = Path(tempfile.mkdtemp(prefix="board-odd-"))
+                self.addCleanup(lambda: subprocess.run(["rm", "-rf", str(tmp)]))
+                self.fake = Odd(tmp / "odd.sock")
+                self.addCleanup(self.fake.stop)
+                self.start(wait=False)
+                time.sleep(0.6)
+                self.assertNotIn(OUTAGE, self.srv.stderr())
+                self.assertNotIn("Traceback", self.srv.stderr())
+                self.assertEqual(self.srv.get("/state")[0], 200)
+                self.assertEqual(len(self.lines()), 1)            # only the seeded one
+                self.srv.close()
 
     def test_one_megabyte_lines_are_survived(self):
         self.start()
@@ -717,6 +791,24 @@ class AppendSafetyTest(LiveCase):
         writer.join()
         wait_until(lambda: len(self.records()) >= base + 10, "ten records")
         self.assertEqual(path.read_text().split("\n")[:-1], written)
+
+
+    def test_an_unwritable_log_is_its_own_line_and_not_a_herdr_outage(self):
+        self.add_agent("manager")
+        (self.fx.root / "activity.jsonl").unlink()
+        (self.fx.root / "activity.jsonl").mkdir()                 # a directory where the log should be
+        self.start()
+        subscribes = len(self.fake.subscribes)
+        for status in ("working", "blocked", "idle"):
+            self.fake.emit_status(self.panes["manager"], status)
+        wait_until(lambda: "cannot write activity.jsonl" in self.srv.stderr(), "the write error line")
+        time.sleep(0.3)
+        err = self.srv.stderr()
+        self.assertEqual(err.count("cannot write activity.jsonl"), 1)   # same error, one line
+        self.assertNotIn(OUTAGE, err)
+        self.assertNotIn("Traceback", err)
+        self.assertEqual(len(self.fake.subscribes), subscribes)        # no reconnect, no backoff
+        self.assertEqual(self.fake.open_streams, 1)
 
 
 class SecurityTest(LiveCase):

@@ -824,6 +824,7 @@ class Recorder:
         self.roster = set()
         self.roster_read = None  # monotonic time of the last roster read
         self.reported = False    # the current outage already has its stderr line
+        self.write_error = None  # the write error already printed, until a write succeeds
         self.delay = RECONNECT_BASE_S
 
     def run(self):
@@ -907,12 +908,22 @@ class Recorder:
         record = {"ts": event_stamp(), "agent": name, "status": status,
                   "iteration": highest_iteration(self.squad_dir)}
         line = (json.dumps(record) + "\n").encode("utf-8")
-        fd = os.open(str(self.log_path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
-            os.write(fd, line)
-        finally:
-            os.close(fd)  # closing also releases the lock
+            fd = os.open(str(self.log_path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX)
+                os.write(fd, line)
+            finally:
+                os.close(fd)  # closing also releases the lock
+        except OSError as e:
+            # Not a herdr outage: the record is lost, the connection is fine, so no backoff. One line per
+            # distinct error, so a log that stays unwritable does not print once per event.
+            reason = " ".join(str(e).split())[:200]
+            if reason != self.write_error:
+                self.write_error = reason
+                print("squad-board: cannot write activity.jsonl: %s" % reason, file=sys.stderr, flush=True)
+        else:
+            self.write_error = None
 
 
 def start_recorder(squad_dir, socket_path):
