@@ -916,8 +916,9 @@ class Recorder:
             finally:
                 os.close(fd)  # closing also releases the lock
         except OSError as e:
-            # Not a herdr outage: the record is lost, the connection is fine, so no backoff. One line per
-            # distinct error, so a log that stays unwritable does not print once per event.
+            # Not a herdr outage: the record is lost, the connection is fine, so no backoff. It prints when
+            # the reason differs from the last one printed, and a good write resets that, so a log that
+            # stays unwritable does not print once per event.
             reason = " ".join(str(e).split())[:200]
             if reason != self.write_error:
                 self.write_error = reason

@@ -795,20 +795,37 @@ class AppendSafetyTest(LiveCase):
 
     def test_an_unwritable_log_is_its_own_line_and_not_a_herdr_outage(self):
         self.add_agent("manager")
-        (self.fx.root / "activity.jsonl").unlink()
-        (self.fx.root / "activity.jsonl").mkdir()                 # a directory where the log should be
+        log = self.fx.root / "activity.jsonl"
+        log.unlink()
+        log.mkdir()                                               # a directory where the log should be
         self.start()
         subscribes = len(self.fake.subscribes)
+        pane = self.panes["manager"]
+
+        def write_lines():
+            return [ln for ln in self.srv.stderr().splitlines() if "cannot write activity.jsonl" in ln]
+
         for status in ("working", "blocked", "idle"):
-            self.fake.emit_status(self.panes["manager"], status)
-        wait_until(lambda: "cannot write activity.jsonl" in self.srv.stderr(), "the write error line")
+            self.fake.emit_status(pane, status)
+        wait_until(write_lines, "the write error line")
         time.sleep(0.3)
-        err = self.srv.stderr()
-        self.assertEqual(err.count("cannot write activity.jsonl"), 1)   # same error, one line
-        self.assertNotIn(OUTAGE, err)
-        self.assertNotIn("Traceback", err)
-        self.assertEqual(len(self.fake.subscribes), subscribes)        # no reconnect, no backoff
+        self.assertEqual(len(write_lines()), 1)                   # same error, one line
+        self.assertIn("Is a directory", write_lines()[0])         # with the reason the OS gave
+        self.assertNotIn(OUTAGE, self.srv.stderr())
+        self.assertNotIn("Traceback", self.srv.stderr())
+        self.assertEqual(len(self.fake.subscribes), subscribes)   # no reconnect, no backoff
         self.assertEqual(self.fake.open_streams, 1)
+
+        log.rmdir()                                               # fixed: records flow again
+        self.fake.emit_status(pane, "working")
+        wait_until(lambda: len(self.records()) == 1, "a record once the log is writable")
+        self.assertEqual(len(write_lines()), 1)
+
+        log.unlink()
+        log.mkdir()                                               # broken again: the line comes back
+        self.fake.emit_status(pane, "blocked")
+        wait_until(lambda: len(write_lines()) == 2, "the line for the second failure")
+        self.assertIn("Is a directory", write_lines()[1])
 
 
 class SecurityTest(LiveCase):
