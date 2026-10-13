@@ -737,24 +737,48 @@ class IdleLoopTest(BrowserTestCase):
         self.browser.call("sleep", ms=int(seconds * 1000))
         return self.browser.eval("window.__raf") - before
 
+    def assert_ambient_rate(self, frames):
+        # BRD-27: pulses redraw about 5 times a second (AMBIENT_MS 200); alive (> 4 in 2 s) and capped (<= 26, load slack)
+        self.assertGreater(frames, 4)
+        self.assertLessEqual(frames, 26)
+
+    def set_hidden(self, hidden):
+        self.browser.eval("""(() => {
+          Object.defineProperty(document, 'hidden', {value: %s, configurable: true});
+          Object.defineProperty(document, 'visibilityState', {value: '%s', configurable: true});
+          document.dispatchEvent(new Event('visibilitychange'));
+        })()""" % ("true" if hidden else "false", "hidden" if hidden else "visible"))
+
     def test_loop_runs_while_something_pulses(self):
         self.browser.open(self.url())
-        self.assertGreater(self.frames_over(1), 5)
+        self.assert_ambient_rate(self.frames_over(2))
 
     def test_loop_runs_for_a_working_agent_alone(self):
         self.browser.open(self.url(self.small_server(developer_status="working")))
         self.assertEqual(self.mirror()["count"], "0")
-        self.assertGreater(self.frames_over(1), 5)
+        self.assert_ambient_rate(self.frames_over(2))
 
     def test_loop_runs_for_a_waiting_item_alone(self):
         self.browser.open(self.url(self.small_server(waiting=True)))
         self.assertEqual(self.mirror()["count"], "1")
-        self.assertGreater(self.frames_over(1), 5)
+        self.assert_ambient_rate(self.frames_over(2))
 
     def test_loop_is_idle_on_a_quiet_squad(self):
         self.browser.open(self.url(self.quiet_server()))
         self.assertEqual(self.mirror()["count"], "0")
         self.assertEqual(self.frames_over(2), 0)
+
+    def test_loop_is_idle_while_the_tab_is_hidden_and_resumes_when_it_shows(self):
+        self.browser.open(self.url(self.small_server(developer_status="working")))
+        self.set_hidden(True)
+        self.assertEqual(self.frames_over(1.5), 0)
+        self.set_hidden(False)
+        before = self.browser.eval("window.__raf")
+        self.browser.call("sleep", ms=1000)
+        self.assertGreater(self.browser.eval("window.__raf") - before, 0)
+        # the repaint shows the working agent's teal dot (small_server: manager, then dev-shop-1)
+        left, _ = self.card("dev-shop-1")
+        self.assertEqual(colour_near(self.pixels(left + 12, 115, left + 14, 117), "0C8A80", 6), 4)
 
 
 class LookTest(BrowserTestCase):

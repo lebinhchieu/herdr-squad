@@ -155,9 +155,14 @@ function relayout() {
   stage.style.height = layout.stageHeight + 'px';
 }
 
-// E16: frames are drawn on demand and keep coming only while something animates.
+// E16: frames are drawn on demand. Motion (an arrow drawing in) keeps full-rate frames coming;
+// ambient animation (header pulses, an open bar's timer) redraws at most every AMBIENT_MS, so an
+// open tab on a busy squad does not repaint the whole canvas at 60 fps for nothing.
+const AMBIENT_MS = 200;
+let ambientTimer = 0;
+
 function scheduleDraw() {
-  if (frameQueued) return;
+  if (frameQueued || document.hidden) return;
   frameQueued = true;
   requestAnimationFrame(frame);
 }
@@ -165,11 +170,16 @@ function scheduleDraw() {
 function frame(ts) {
   frameQueued = false;
   draw(ts);
-  if (wantsFrames(state)) scheduleDraw();
+  if (drawIn.size) scheduleDraw();
+  else if (wantsFrames(state) && !document.hidden && !ambientTimer) {
+    ambientTimer = setTimeout(() => { ambientTimer = 0; scheduleDraw(); }, AMBIENT_MS);
+  }
 }
 
+document.addEventListener('visibilitychange', scheduleDraw);
+
 function wantsFrames(current) {
-  return headerAnimating(current);
+  return headerAnimating(current) || current.bars.some((b) => b.open);
 }
 
 function draw(ts) {
@@ -755,8 +765,6 @@ function drawSequence(ctx, view) {
     else if (row.kind === 'message') drawArrow(ctx, view, row, y, view.ts);
   }
   ctx.restore();
-  // E16: ask for the next frame only while an arrow draws in or a timer runs
-  if (drawIn.size || view.state.bars.some((b) => b.open)) scheduleDraw();
 }
 
 // --- section: tasks ---

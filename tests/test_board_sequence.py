@@ -484,7 +484,9 @@ class OpenBarTest(SequenceCase):
         self.browser.call("sleep", ms=500)
         before = self.browser.eval("window.__raf")
         self.browser.call("sleep", ms=1000)
-        self.assertGreater(self.browser.eval("window.__raf") - before, 8)  # headless software painting is slow
+        frames = self.browser.eval("window.__raf") - before
+        self.assertGreater(frames, 2)  # BRD-27: an open bar's timer redraws about 5 times a second
+        self.assertLessEqual(frames, 14)
 
 
 DRAW_IN_JS = """new Promise((done) => {
