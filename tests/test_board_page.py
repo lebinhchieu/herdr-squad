@@ -312,6 +312,12 @@ function reset(width, height, dpr) {
       window.__raf = 0;
       const original = window.requestAnimationFrame.bind(window);
       window.requestAnimationFrame = (cb) => { window.__raf++; return original(cb); };
+      window.__drawn = new Set();  // every string the canvas was asked to paint
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        window.__drawn.add(String(text));
+        return fillText.call(this, text, ...rest);
+      };
     });
   });
 }
@@ -881,6 +887,49 @@ class CanvasDetailTest(BrowserTestCase):
         flags = {c["data"]["agent"]: c["data"]["collapsed"] for c in self.mirror()["columns"]}
         self.assertEqual(flags, {"manager": "false", "live-quiet": "false", "gone-status": "false",
                                  "gone-sender": "false", "gone-receiver": "false", "gone-nothing": "true"})
+
+    def drawn(self):
+        return self.browser.eval("Array.from(window.__drawn)")
+
+    def test_the_bar_says_how_many_items_did_not_fit(self):
+        fx = Fixture()
+        self.addCleanup(fx.close)
+        fx.roster([{"agent": "manager", "role": "Manager", "scope": "all"}])
+        fx.iteration(1, QUIET_CHECKIN)
+        fx.activity(agent="manager", status="idle")
+        fx.escalations([{"question": "A question long enough to take its share %d?" % i} for i in range(8)])
+        self.browser.open(self.url(fx.start(now=self.now)))
+        drawn = self.drawn()
+        more = [t for t in drawn if re.fullmatch(r"\+\d+ more", t)]
+        shown = [t for t in drawn if t.startswith("A question")]
+        self.assertEqual(len(more), 1, drawn)
+        self.assertEqual(more[0], "+%d more" % (8 - len(shown)), drawn)
+
+    def test_a_lowercase_manager_role_still_gets_the_unlabelled_mango_pod(self):
+        fx = Fixture()
+        self.addCleanup(fx.close)
+        fx.roster([{"agent": "manager", "role": "manager", "scope": "all"}, {"agent": "dev-shop-1"}])
+        fx.iteration(1, QUIET_CHECKIN)
+        fx.activity(agent="manager", status="idle")
+        fx.activity(agent="dev-shop-1", status="idle")
+        self.browser.open(self.url(fx.start(now=self.now)))
+        self.assertNotIn("ALL", self.drawn())
+
+    def test_the_page_draws_numbered_names_cut_in_the_middle_in_cards_and_stubs(self):
+        fx = Fixture()
+        self.addCleanup(fx.close)
+        names = ["dev-board-%d" % n for n in range(10, 13)] + ["dev-%d" % n for n in range(1, 9)]
+        fx.roster([{"agent": "manager", "role": "Manager", "scope": "all"}] + [{"agent": n} for n in names]
+                  + [{"agent": "retired-dev-board-13", "status": "retired 2026-10-11"}])
+        fx.iteration(1, QUIET_CHECKIN)
+        fx.activity(agent="manager", status="idle")
+        for n in names:
+            fx.activity(agent=n, status="idle")
+        self.browser.open(self.url(fx.start(now=self.now)))
+        drawn = self.drawn()
+        for suffix in ("-10", "-11", "-12", "-13"):
+            cut = [t for t in drawn if t.endswith("\u2026" + suffix)]
+            self.assertTrue(cut, (suffix, drawn))
 
     def cut(self, name, width):
         """The page's own fitName, lifted from its source: the page keeps its functions private."""

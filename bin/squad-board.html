@@ -242,7 +242,7 @@ function computeLayout(current, width, height) {
   let next = 0;
   const pods = current.pods.map((pod) => {
     const members = pod.agents.map((a) => byAgent[a]);
-    const isManager = members.some((m) => m.col.role === 'Manager');
+    const isManager = members.some((m) => (m.col.role || '').toLowerCase() === 'manager');
     const left = Math.min.apply(null, members.map((m) => m.x));
     const right = Math.max.apply(null, members.map((m) => m.x + m.w));
     const colour = isManager ? P.mango : POD_COLOURS[next++ % POD_COLOURS.length];
