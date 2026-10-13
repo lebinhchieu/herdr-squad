@@ -12,6 +12,7 @@ import json
 import os
 import re
 import secrets
+import stat
 import subprocess
 import sys
 import threading
@@ -25,6 +26,8 @@ DEFAULT_PORT = 7420
 PORT_TRIES = 20  # busy port P: try P+1..P+20 (design D4)
 JUMP_PREFIX = "/jump/"
 JUMP_NAME_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}")
+NOTES_PREFIX = "/notes/"
+NOTES_MAX_BYTES = 1 << 20
 HERDR_TIMEOUT_S = 5
 # Timings of the event stream and the handler socket. The environment overrides exist so tests need
 # not wait 15 s; they are read once at startup:
@@ -867,6 +870,71 @@ def handle_events(handler):
         pass  # the client went away, or stopped reading for longer than REQUEST_TIMEOUT_S
 
 
+# design-iteration-2 "Notes route" step 8: the text is shown, never run, never framed, never cached
+NOTES_HEADERS = (
+    ("X-Content-Type-Options", "nosniff"),
+    ("Content-Security-Policy", "sandbox; default-src 'none'"),
+    ("Referrer-Policy", "no-referrer"),
+    ("Content-Disposition", "inline"),
+)
+
+
+def send_notes(handler, status, text):
+    send(handler, status, "text/plain; charset=utf-8", text, NOTES_HEADERS)
+
+
+def notes_token_ok(handler):
+    """The `token` query value: exactly one, compared as UTF-8 bytes (a link cannot send a header)."""
+    values = parse_qs(handler.path.partition("?")[2], keep_blank_values=True).get("token") or []
+    return len(values) == 1 and hmac.compare_digest(values[0].encode("utf-8"), handler.server.token.encode("utf-8"))
+
+
+def read_notes(squad_dir, name):
+    """The first NOTES_MAX_BYTES of `<squad>/roles/<name>.notes.md` as bytes, or None. `name` is
+    already validated. The real path must stay inside the real roles folder, so a symlink leading
+    out is refused; the open is non-blocking and re-checked on the descriptor, so a file swapped for
+    a pipe after the check cannot hang the handler."""
+    roles = os.path.realpath(os.path.join(squad_dir, "roles"))
+    real = os.path.realpath(os.path.join(roles, name + ".notes.md"))
+    if os.path.dirname(real) != roles:
+        return None
+    try:
+        fd = os.open(real, os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0))
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        data = b""
+        while len(data) < NOTES_MAX_BYTES:
+            chunk = os.read(fd, NOTES_MAX_BYTES - len(data))
+            if not chunk:
+                break
+            data += chunk
+        return data
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+
+
+def handle_notes(handler):
+    """GET /notes/<name>?token=...: an agent's notes file as plain text. Check order: token, name,
+    roster, file, so a refused token never reveals who is on the roster."""
+    if not notes_token_ok(handler):
+        return send_notes(handler, 403, b"forbidden")
+    name = handler.path.partition("?")[0][len(NOTES_PREFIX):]
+    if not JUMP_NAME_RE.fullmatch(name):
+        return send_notes(handler, 400, b"bad agent name")
+    # a retired agent stays: its notes outlive it
+    if name not in [r["agent"] for r in read_squad(handler.server.replay_dir)["roster"]]:
+        return send_notes(handler, 404, b"not found")
+    data = read_notes(handler.server.replay_dir, name)
+    if data is None:
+        return send_notes(handler, 404, b"not found")
+    send_notes(handler, 200, data.decode("utf-8", errors="replace").encode("utf-8"))
+
+
 def handle_jump(handler):
     """POST /jump/<name>: focus a roster agent's herdr pane. Check order: token, name, roster, so a
     refused token never reveals who is on the roster. Nothing is run until all three pass."""
@@ -904,6 +972,8 @@ class BoardHandler(BaseHTTPRequestHandler):
         path = self.path.partition("?")[0]
         if path.startswith(JUMP_PREFIX):
             send_json(self, 405, {"error": "method not allowed"})
+        elif path.startswith(NOTES_PREFIX):
+            handle_notes(self)
         elif path == "/":
             handle_root(self)
         elif path == "/state":
@@ -916,8 +986,11 @@ class BoardHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not check_request(self):
             return
-        if self.path.partition("?")[0].startswith(JUMP_PREFIX):
+        path = self.path.partition("?")[0]
+        if path.startswith(JUMP_PREFIX):
             handle_jump(self)
+        elif path.startswith(NOTES_PREFIX):
+            send_json(self, 405, {"error": "method not allowed"})
         else:
             send_json(self, 404, {"error": "not found"})
 
