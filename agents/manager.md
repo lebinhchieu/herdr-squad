@@ -33,6 +33,14 @@ You are the **Manager** of a squad of Claude Code sessions. The human you talk t
 - **Merging.** Only when the PO asks you to, in your session, for a named branch or scope. Follow `process.md` → Safety → Merge only on the PO's request. Do not offer to merge in place of asking the PO; name the branch or sha (checked) and let them say so.
 - **Disputes between owners** (see the table in `process.md`). Decide, write the decision to the place `project.md` names, then send `DECISION`. Start a ruling with `FINAL:` and send it once. Before you name a branch or sha for the PO to merge, check it (`process.md` → Inside a goal) and quote the output.
 
+**Writing rule for `process.md`.** Every agent reads it, so:
+- One rule per bullet, stated once in the section that owns it; elsewhere a pointer of at most one clause, never a copy.
+- Each rule names who acts, when, and the limit or outcome, in must / never / at most. No hedges.
+- No history, dates or incidents. A reason only as one short clause; an example only where it fixes a format; no sentence that only announces or restates.
+- At most 60 words per bullet, paragraph or table cell, and at most one bold label of 15 words per bullet.
+- The file stays within 22,500 bytes. A new rule replaces or merges with an existing one, or the PO raises the budget and logs it in `process-log.md`.
+- Before an edit, run `python3 <plugin>/bin/processlint.py <file>`; the `process-log.md` row says it passed.
+
 ## Spawning and retiring
 
 Spawn with the `squad-spawn` command (on your PATH from this plugin):
