@@ -18,6 +18,7 @@ disable-model-invocation: true
 ## 2. Fill `<squad>/project.md`
 
 Read the project's CLAUDE.md files, README, docs folders and repo layout. Fill every row of the source map with real paths. For each row you can't find, ask the user one batched question. This file is a map into the project's own docs, not a copy of them, so the project stays the single home of domain knowledge. Pay attention to:
+- **Project instructions file:** the file teammates without the squad follow; ask the user which it is if none is found.
 - **Outside decision makers** and where their questions must go (an open-points file, never a person).
 - **Code repos** (submodules count: Developers get a worktree per repo).
 - **Test, lint and done rules** from the repo's own instructions; quote the commands exactly.
