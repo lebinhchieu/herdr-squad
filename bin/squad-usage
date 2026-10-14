@@ -19,10 +19,8 @@ from pathlib import Path
 
 CACHE_TTL_S = 3600           # the 1h cache lifetime
 EXPIRY_MIN_WRITE = 10_000    # a cache write this big after a gap counts as an expiry
-FRESH_PCT = 60               # process.md: fresh when context is over 60%
-IDLE_CTX = 100_000           # process.md: idle over 1h and context over ~100k
-WINDOW = 200_000
-WINDOW_1M = 1_000_000
+FRESH_CTX = 120_000          # process.md: fresh when context is over 120k
+IDLE_CTX = 100_000           # process.md: idle over 1h and context over 100k
 
 
 def config_dir():
@@ -36,10 +34,6 @@ def find_transcript(session):
 
 def parse_ts(s):
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
-
-
-def window_for(model):
-    return WINDOW_1M if model and "1m" in model.lower() else WINDOW
 
 
 def read_session(path):
@@ -84,14 +78,12 @@ def summarize(path):
     last = rows[-1]
     return {"model": last["model"], "effort": last["effort"] or "-", "turns": len(rows),
             "peak": max(t["ctx"] for t in rows), "last": last["ctx"], "out": sum(t["out"] for t in rows),
-            "expiries": expiries, "compactions": compactions, "last_ts": last["ts"],
-            "window": window_for(last["model"])}
+            "expiries": expiries, "compactions": compactions, "last_ts": last["ts"]}
 
 
 def check(s, now=None):
     now = now or datetime.now(timezone.utc)
-    pct = 100 * s["last"] / s["window"]
-    if s["compactions"] or pct > FRESH_PCT:
+    if s["compactions"] or s["last"] > FRESH_CTX:
         return "fresh"
     if (now - s["last_ts"]).total_seconds() > CACHE_TTL_S and s["last"] > IDLE_CTX:
         return "idle"
@@ -164,8 +156,7 @@ def report(squad_dir):
         if not s:
             body.append((name, "no transcript", "-", "-", "-", "-", "-", "-"))
             continue
-        pct = lambda n: f"{fmt_k(n)} ({100 * n / s['window']:.0f}%)"
-        body.append((name, f"{s['model']}/{s['effort']}", s["turns"], pct(s["peak"]), pct(s["last"]),
+        body.append((name, f"{s['model']}/{s['effort']}", s["turns"], fmt_k(s["peak"]), fmt_k(s["last"]),
                      fmt_k(s["out"]), s["expiries"], s["compactions"]))
     widths = [max(len(str(r[i])) for r in [head] + body) for i in range(len(head))]
     for r in [head] + body:

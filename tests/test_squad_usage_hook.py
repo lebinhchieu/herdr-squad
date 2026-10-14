@@ -43,7 +43,7 @@ class HookTest(unittest.TestCase):
         return subprocess.run([str(SCRIPT)], input=json.dumps(data), text=True, env=env,
                               capture_output=True, timeout=10)
 
-    def test_fixture_over_60_percent_gives_fresh_message_and_event(self):
+    def test_fixture_over_120k_gives_fresh_message_and_event(self):
         self.transcript("sid-1", 130_000)
         r = self.run_hook()
         self.assertEqual(r.returncode, 2)

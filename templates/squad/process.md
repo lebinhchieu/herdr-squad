@@ -217,7 +217,7 @@ Send with `SendMessage` to the agent name in your scope's `roster.md`. **Start e
 - **Done = the scope size's rule** (see Sizes). A Developer's own checks are required but never enough.
 - **A UI ticket with a `Design:` line does not leave `ready` until its design is `Status: final`.**
 - **A returned task stays with the same Developer** and the same task file.
-- **No time wasted between steps.** (1) QA does not pre-write test points before the Developer starts (the Tech Lead's AC are the bar). (2) The next ticket starts on the last sha that passed QA whitebox, without waiting for QA blackbox, when it touches different files; a blackbox return is merged in afterwards. (3) A Developer is not retired while tickets of the same area are queued: it takes the next one (retire at context 60% or at the end of the area, per Cost rules), so there is no respawn and re-read per ticket.
+- **No time wasted between steps.** (1) QA does not pre-write test points before the Developer starts (the Tech Lead's AC are the bar). (2) The next ticket starts on the last sha that passed QA whitebox, without waiting for QA blackbox, when it touches different files; a blackbox return is merged in afterwards. (3) A Developer is not retired while tickets of the same area are queued: it takes the next one (retire at context 120k or at the end of the area, per Cost rules), so there is no respawn and re-read per ticket.
 - **Verify against the real thing.** Code that parses another tool's output (pane text, logs, an API) needs two real samples, including the constant or idle case, before a pattern is trusted; QA whitebox runs it once, read-only, against live data. A ticket that changes a payload is checked on its field shape (every row has the fields the consumer reads, every closed item has its end), not only on totals.
 - **QA mode (`qa:` line in `scope.md`): `full` (default) or `light`.** In `light`, QA runs the suite, skims the diff and PASSes: a task returns only for wrong behaviour, a spec-rule defect, a failing suite or a security finding. Test-strength gaps (a surviving mutant, an untested edge path) go in `qa-w.md` as "follow-up" and the Tech Lead batches them into one last, droppable ticket.
 - **3 returns on one task → the Manager steps in** and decides whether the task, the AC or the Developer is the problem.
@@ -237,11 +237,11 @@ A scope runs one or more iterations; each has its file `iterations/<n>.md` in th
 
 ## Cost rules
 
-**Tokens are spent on context, so keep sessions small and fresh. A Stop hook (`squad-usage --check`) tells you when rule 2 or 3 fires; it logs to `usage-events.jsonl` in your folder.**
+**Tokens are spent on context, so keep sessions small and fresh. A Stop hook (`squad-usage --check`) tells you when rule 2 or 3 fires; it logs to `usage-events.jsonl` in your folder. Limits are absolute tokens, never a percent of the window: a turn costs what it reads, so 120k is the same limit on a 200k and on a 1M model.**
 
-1. **Reuse** a session while it stays on the same task and context is under 50%.
-2. **Fresh** when context is over 60%, after a compaction, or on a new task: write `roles/<you>.notes.md` in your folder, then `squad-respawn <you>`. **The Manager is not exempt:** after every DONE, every PO message and at least every 25 turns it reads its own row of `squad-usage`; at 60%, after a compaction or after a cache expiry it writes its notes and runs `squad-respawn` at the next quiet moment, not only after a check-in or a scope close.
-3. **Idle** over 1h (the cache lifetime) with context over ~100k: fresh from notes.
+1. **Reuse** a session while it stays on the same task and context is at most 120k.
+2. **Fresh** when context is over 120k, after a compaction, or on a new task: write `roles/<you>.notes.md` in your folder, then `squad-respawn <you>`. **The Manager is not exempt:** after every DONE, every PO message and at least every 25 turns it reads its own row of `squad-usage`; over 120k, after a compaction or after a cache expiry it writes its notes and runs `squad-respawn` at the next quiet moment, not only after a check-in or a scope close.
+3. **Idle** over 1h (the cache lifetime) with context over 100k: fresh from notes.
 4. **Step-up** one notch of model or effort only on failure or escalation, for that task only.
 5. **Messages point at files.** The Manager reads summaries, never transcripts.
 

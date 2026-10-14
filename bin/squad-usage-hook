@@ -26,8 +26,8 @@ if [[ -f $log ]] && jq -e --arg s "$session" --arg r "$rule" 'select(.session ==
 fi
 
 case $rule in
-  fresh) why="your context is over 60% or was compacted" ;;
-  idle)  why="you were idle over 1h with over ~100k of context, so the cache is gone" ;;
+  fresh) why="your context is over 120k or was compacted" ;;
+  idle)  why="you were idle over 1h with over 100k of context, so the cache is gone" ;;
   *)     exit 0 ;;
 esac
 action="write roles/$SQUAD_NAME.notes.md, then run: squad-respawn $SQUAD_NAME"

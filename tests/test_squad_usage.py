@@ -76,12 +76,11 @@ class UsageTest(unittest.TestCase):
         r = self.run_cli("--squad-dir", str(self.squad))
         self.assertEqual(r.returncode, 0, r.stderr)
         row = next(l for l in r.stdout.splitlines() if l.startswith("dev-1")).split()
-        # turns=3, peak=70002 -> 70k (35%), last=70002, out=80+100+70=250 -> 0k, 0 expiries, 0 compactions
+        # turns=3, peak=70002 -> 70k, last=70002, out=80+100+70=250 -> 0k, 0 expiries, 0 compactions
         self.assertEqual(row[1], "claude-sonnet-5-5/medium")
         self.assertEqual(row[2], "3")
-        self.assertEqual(row[3:5], ["70k", "(35%)"])
-        self.assertEqual(row[5:7], ["70k", "(35%)"])
-        self.assertEqual(row[7:], ["0k", "0", "0"])
+        self.assertEqual(row[3:5], ["70k", "70k"])
+        self.assertEqual(row[5:], ["0k", "0", "0"])
         self.assertNotIn("manager", r.stdout)
 
     def test_cache_expiry_needs_gap_and_big_write(self):
@@ -103,9 +102,9 @@ class UsageTest(unittest.TestCase):
         (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n| dev-1 | sid-1 |\n")
         self.assertEqual(self.run_cli("--squad-dir", str(self.squad)).stdout.splitlines()[1].split()[-1], "1")
 
-    def test_check_fresh_over_60_percent(self):
-        self.transcript("hot", [turn(0, "a", ctx=(2, 100_000, 21_000), base=NOW)])    # 60.5%
-        self.transcript("ok", [turn(0, "a", ctx=(2, 100_000, 19_000), base=NOW)])     # 59.5%
+    def test_check_fresh_over_120k(self):
+        self.transcript("hot", [turn(0, "a", ctx=(2, 100_000, 21_000), base=NOW)])    # 121k
+        self.transcript("ok", [turn(0, "a", ctx=(2, 100_000, 19_000), base=NOW)])     # 119k
         self.assertEqual(self.run_cli("--check", "hot").stdout.strip(), "fresh")
         self.assertEqual(self.run_cli("--check", "ok").stdout, "")
 
@@ -122,9 +121,9 @@ class UsageTest(unittest.TestCase):
         r = self.run_cli("--check", "nope")
         self.assertEqual((r.returncode, r.stdout), (0, ""))
 
-    def test_one_million_window_for_1m_models(self):
-        self.transcript("big", [turn(0, "a", ctx=(2, 300_000, 0), model="claude-opus-5-5[1m]", base=NOW)])
-        self.assertEqual(self.run_cli("--check", "big").stdout, "")
+    def test_the_limit_is_the_same_on_a_1m_model(self):
+        self.transcript("big", [turn(0, "a", ctx=(2, 130_000, 0), model="claude-opus-5-5[1m]", base=NOW)])
+        self.assertEqual(self.run_cli("--check", "big").stdout.strip(), "fresh")
 
     def test_check_with_explicit_transcript(self):
         p = Path(self.tmp.name) / "elsewhere.jsonl"
