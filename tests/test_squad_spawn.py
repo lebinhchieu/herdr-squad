@@ -295,6 +295,21 @@ class SpawnLabelTest(unittest.TestCase):
         self.assertIn("--env SQUAD_NAME=t-tech-sc1", create)
         self.assertNotIn("t-tech-sc1 ·", create)
 
+    def test_refused_spawn_of_a_live_name_keeps_its_stored_label(self):
+        self.spawn("tech-lead", "t-tech-sc1", "--title", "plan")
+        store = self.squad / "scopes" / "sc1" / "labels" / "t-tech-sc1.json"
+        before = store.read_text()
+        self.env["LIVE"] = "t-tech-sc1"
+        calls = self.log.read_text()
+        for extra in (["--title", "OTHER"], []):
+            r = subprocess.run([str(SCRIPT), "tech-lead", "t-tech-sc1", "--scope", "sc1", *extra],
+                               env=self.env, text=True, capture_output=True, timeout=20)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("already live", r.stderr)
+            self.assertEqual(store.read_text(), before)
+        self.assertEqual(self.calls("tab rename"), [])
+        self.assertNotIn("tab create", self.log.read_text()[len(calls):])
+
     def test_no_title_means_no_separator_and_a_manager_has_the_crab(self):
         self.spawn("manager", "t-mgr-sc1")
         self.assertIn("--label 🦀 Manager --no-focus", self.calls("tab create")[0])
