@@ -36,8 +36,16 @@ done
 scope_args=(--scope "$scope")
 [[ $home_var == GOAL_DIR ]] && scope_args=(--goal "$(basename "$GOAL_DIR")")
 
+# The tab label comes back with the stored title; the stored number is kept by squad-label --init.
+title=$(PYTHONPATH=$bin python3 -c '
+import sys, squadlabel as sl
+e = sl.read_entry(sys.argv[1], sys.argv[2])
+print(e["title"] if e else "")' "$home" "$name" 2>/dev/null || true)
+title_args=()
+[[ -z $title ]] || title_args=(--title "$title")
+
 prompt="RESPAWN: you are $name, restarted fresh. Read \$SQUAD_DIR/process.md, then your notes \$$home_var/roles/$name.notes.md, and continue from them."
-spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" --prompt "$prompt")
+spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" "${title_args[@]}" --prompt "$prompt")
 
 notes=$home/roles/$name.notes.md
 if [[ -f $notes ]] && (( $(wc -l <"$notes") > 100 )); then

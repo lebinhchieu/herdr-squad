@@ -23,6 +23,9 @@ Options:
                    repo's HEAD, so a task can build on work that is passed but not yet merged
   --worktree DIR   Start in this existing worktree instead of making one (squad-respawn uses it so a
                    respawned Developer keeps its worktree wherever the old layout put it)
+  --title TEXT     Task text shown after the role in the tab label (default: blank). The label is
+                   "<emoji> <Role>[ n][ · title]", built and numbered by squad-label --init; the agent's
+                   address name (env, herdr agent, roster) is unchanged.
   --prompt TEXT    First message to send once the session is ready
   --model M        Model override (default: the role file's model, else yours)
   --effort E       Effort override (low|medium|high|xhigh|max; default: the role file's effort)
@@ -37,7 +40,7 @@ EOF
 
 [[ $# -lt 2 || $1 == -h || $1 == --help ]] && { usage; exit 2; }
 role=$1 name=$2; shift 2
-squad=${SQUAD:-} scope="" goal="" repo="" base="" worktree="" prompt="" model="" effort="" dry=0
+squad=${SQUAD:-} scope="" goal="" repo="" base="" worktree="" prompt="" title="" model="" effort="" dry=0
 while [[ $# -gt 0 ]]; do
   case $1 in
     --squad) squad=$2; shift 2 ;;
@@ -47,6 +50,7 @@ while [[ $# -gt 0 ]]; do
     --base) base=$2; shift 2 ;;
     --worktree) worktree=$2; shift 2 ;;
     --prompt) prompt=$2; shift 2 ;;
+    --title) title=$2; shift 2 ;;
     --model) model=$2; shift 2 ;;
     --effort) effort=$2; shift 2 ;;
     --dry-run) dry=1; shift ;;
@@ -144,8 +148,28 @@ env_args=(--env "SQUAD=$squad" --env "SQUAD_DIR=$squad_dir" --env "SQUAD_NAME=$n
 [[ -z $goal_dir ]] || env_args+=(--env "GOAL_DIR=$goal_dir")
 [[ -n ${SQUAD_PLUGIN_DIR:-} ]] && env_args+=(--env "SQUAD_PLUGIN_DIR=$SQUAD_PLUGIN_DIR")
 
+# The tab label. squad-label --init numbers the agent among its live peers and stores role/number/title in
+# <home>/labels/, the same folder the agent later reads through its own SCOPE_DIR/GOAL_DIR/SQUAD_DIR, so the
+# caller's inherited dirs are dropped. A label must never stop an agent from starting: on failure the label is the name.
+if [[ -n $scope_dir ]]; then home_var=SCOPE_DIR; elif [[ -n $goal_dir ]]; then home_var=GOAL_DIR; else home_var=SQUAD_DIR; fi
+label_env=(env -u SCOPE_DIR -u GOAL_DIR -u SQUAD_DIR "$home_var=$home")
 if [[ $dry == 1 ]]; then
-  echo "would run: herdr tab create --cwd $cwd --label $name --no-focus ${ws_args[*]} ${env_args[*]}"
+  # --init writes the store, so a dry run builds the label read-only from the stored entry (number kept, if any).
+  label=$(PYTHONPATH=$plugin_root/bin python3 -c '
+import sys, squadlabel as sl
+home, name, role, title = sys.argv[1:5]
+e = sl.read_entry(home, name)
+print(sl.build_label(role, e["number"] if e and e["role"] == role else None, title))' "$home" "$name" "$role" "$title") || label=$name
+else
+  label=$("${label_env[@]}" "$plugin_root/bin/squad-label" --init --agent "$name" --role "$role" --title "$title") || label=""
+  if [[ -z $label ]]; then
+    echo "warning: squad-label --init failed; the tab of $name is labelled $name" >&2
+    label=$name
+  fi
+fi
+
+if [[ $dry == 1 ]]; then
+  echo "would run: herdr tab create --cwd $cwd --label $label --no-focus ${ws_args[*]} ${env_args[*]}"
   echo "would run: squad-usage --squad-dir $home --set-session $name $session --role $role --scope $scope"
   echo "would run: herdr agent start $name --kind claude --pane <pane> -- ${claude_args[*]}"
   exit 0
@@ -157,7 +181,7 @@ if herdr agent get "$name" >/dev/null 2>&1; then
   exit 1
 fi
 
-tab_json=$(herdr tab create --cwd "$cwd" --label "$name" --no-focus "${ws_args[@]}" "${env_args[@]}")
+tab_json=$(herdr tab create --cwd "$cwd" --label "$label" --no-focus "${ws_args[@]}" "${env_args[@]}")
 pane=$(jq -r '.result.root_pane.pane_id' <<<"$tab_json")
 tab=$(jq -r '.result.tab.tab_id' <<<"$tab_json")
 
