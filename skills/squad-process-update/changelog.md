@@ -18,7 +18,7 @@
 ```
 - new:
 ```
-- **Long suites: run once, read the receipt.** A suite over ~2 minutes runs once per task. `project.md` names the runner; it locks only its browser files and skips phases the diff cannot affect.
+- **Long suites: run once, read the receipt.** A suite over ~2 minutes runs once per task. `project.md` may name the runner; it locks only its browser files and skips phases the diff cannot affect.
   - The Developer runs the full suite once, on the final sha after every fix, in the background, waits for its completion notice (never `pgrep -f` or `pkill -f`) and saves a receipt: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the suite's OK line. While building, only touched files.
   - QA checks the receipt (same sha as the `HANDIN`, clean tree, OK, its skipped-phase lines), then runs only targeted tests for the diff's files and reads the diff. It runs the full suite only when the receipt is missing or its sha differs, integration tasks included. Targeted runs are free.
 ```
