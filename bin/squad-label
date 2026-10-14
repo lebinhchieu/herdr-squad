@@ -3,9 +3,12 @@
 
   squad-label "<text>"                     set the caller's task text ("" clears it) and rename its tab
   squad-label --agent NAME "<text>"        the same for another agent (Manager only)
-  squad-label --init --agent NAME --role R [--title T]
-                                           squad-spawn: number NAME among live peers, store it, rename the
-                                           peers that got a number, print NAME's label
+  squad-label --init --home DIR --agent NAME --role R [--title T]
+                                           squad-spawn: number NAME among live peers, store it in DIR (the
+                                           caller's env is ignored), rename the peers that got a number,
+                                           print NAME's label
+  squad-label --get-title --home DIR --agent NAME
+                                           squad-respawn: print NAME's stored title (empty if none)
 
 Env: SQUAD_NAME, SQUAD_ROLE, SCOPE_DIR (else GOAL_DIR, else SQUAD_DIR: the folder holding labels/),
 HERDR_ENV (1 = inside herdr; otherwise only the store is updated).
@@ -78,13 +81,22 @@ def main():
     ap.add_argument("--init", action="store_true")
     ap.add_argument("--role")
     ap.add_argument("--title", default="")
+    ap.add_argument("--home")
+    ap.add_argument("--get-title", action="store_true")
     a = ap.parse_args()
     caller = os.environ.get("SQUAD_NAME")
 
+    if a.get_title:
+        if not (a.home and a.agent):
+            ap.error("--get-title needs --home and --agent")
+        e = sl.read_entry(a.home, a.agent)
+        print(e["title"] if e else "")
+        return 0
+
     if a.init:
-        if not (a.agent and a.role):
-            ap.error("--init needs --agent and --role")
-        home = own_home()
+        if not (a.home and a.agent and a.role):
+            ap.error("--init needs --home, --agent and --role")
+        home = a.home
         try:
             number, changed = sl.assign_number(home, a.agent, a.role, live_names())
             sl.write_entry(home, a.agent, a.role, number, sl.clean_title(a.title))

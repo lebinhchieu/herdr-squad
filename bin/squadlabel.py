@@ -81,8 +81,10 @@ def assign_number(home, agent, role, live_names):
         e = read_entry(home, name)
         if e and e["role"] == role:
             peers[name] = e
+    mine = read_entry(home, agent)
+    kept = mine["number"] if mine and mine["role"] == role else None  # numbers never move, even when the peer left
     if not peers:
-        return None, []
+        return kept, []
     used = {e["number"] for e in peers.values() if e["number"] is not None}
     changed = []
     for name, e in peers.items():
@@ -91,7 +93,4 @@ def assign_number(home, agent, role, live_names):
             used.add(n)
             write_entry(home, name, role, n, e["title"])
             changed.append((name, n))
-    mine = read_entry(home, agent)
-    if mine and mine["number"] is not None:
-        return mine["number"], changed
-    return max(used) + 1, changed
+    return (kept if kept is not None else max(used) + 1), changed
