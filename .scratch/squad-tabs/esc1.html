@@ -1,0 +1,80 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>squad-tabs, escalation 1: toast path</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{--bg:#FCF8F1;--panel:#F4ECDD;--line:#E7DBC8;--ink:#3E372E;--muted:#857A68;--mango:#E8820E;--teal:#0C8A80;--red:#DB3B22;--blue:#2A6DC0;--purple:#9A40CF;--green:#368A1E;--yellow:#9E7A00;
+--display:"Fraunces",Georgia,serif;--body:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace;color-scheme:light}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);padding-block:20px 40px;padding-inline:max(16px,3vw);margin:0}
+h1{font:600 28px/1.2 var(--display);margin:0}h2{font:600 18px/1.3 var(--display);margin:0 0 10px}
+.lede{max-width:78ch;color:var(--muted);margin:6px 0 0}
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:28px;margin-top:18px;align-items:start}
+@media (max-width:960px){.grid{grid-template-columns:1fr}}
+.sticky{position:sticky;top:12px}@media (max-width:960px){.sticky{position:static}}
+.strip{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.strip .hd{font:600 12px var(--mono);background:var(--panel);padding:6px 10px;color:var(--muted);display:flex;justify-content:space-between}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;padding:8px;background:#fff}
+.tab{font:12.5px var(--mono);border:1px solid var(--line);border-radius:5px 5px 0 0;padding:4px 8px;white-space:nowrap}
+.tab.bad{background:#DB3B2210;border-color:#DB3B2255}.tab.good{background:#368A1E10;border-color:#368A1E55}
+.ws{font:600 12px var(--mono);padding:4px 10px;border-bottom:1px dashed var(--line);background:#fff}
+.mk{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--mango);color:#fff;font:600 10.5px var(--mono);margin-left:5px;vertical-align:middle;padding:0 3px}
+.code{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.code .hd{font:600 12px var(--mono);background:var(--panel);padding:6px 10px;color:var(--muted)}
+.code pre{margin:0;padding:6px 0;font:12px/1.6 var(--mono);overflow-x:auto;background:var(--bg)}
+.ln{display:block;padding:0 10px;white-space:pre}.ln .n{color:var(--muted);display:inline-block;width:3ch;margin-right:8px;text-align:right}.ln.hl{background:#E8820E1F}
+.note{font-size:13px;color:var(--ink);margin:-4px 0 12px;padding-left:10px;border-left:3px solid var(--line)}
+.tag{font:600 10.5px var(--mono);padding:1px 6px;border-radius:4px;white-space:nowrap}.v{color:var(--green);background:#368A1E18}.i{color:var(--yellow);background:#9E7A0018}
+.q{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.q h3{font:600 15px var(--body);margin:0 0 4px;display:flex;gap:8px;align-items:center}
+.q p{margin:4px 0 8px;max-width:72ch;font-size:14px}
+.pin{display:inline-grid;place-items:center;min-width:24px;height:22px;border-radius:11px;background:var(--mango);color:#fff;font:600 11px var(--mono);padding:0 4px}
+.opts{display:grid;gap:6px}.opts label{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:6px;padding:7px 9px;cursor:pointer;font-size:14px}
+.opts label:has(input:checked){border-color:var(--mango);background:#E8820E10}.opts input{margin-top:3px;accent-color:var(--mango)}
+.rec{font:600 10.5px var(--mono);color:var(--mango);margin-left:4px}
+textarea{width:100%;box-sizing:border-box;font:13px var(--body);border:1px solid var(--line);border-radius:6px;padding:6px;background:#fff;color:var(--ink);margin-top:6px}
+.copy{border:2px solid var(--mango);border-radius:10px;padding:14px}.copy pre{font:13px/1.5 var(--mono);background:var(--panel);padding:10px;border-radius:6px;white-space:pre-wrap;margin:8px 0}
+button.cta{font:600 14px var(--body);background:var(--mango);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.settled{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.settled span{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:2px 10px;background:var(--panel)}.settled span::before{content:"default ✓ ";color:var(--green);font:600 11px var(--mono)}
+footer{margin-top:28px;font:12px/1.6 var(--mono);color:var(--muted);white-space:pre-wrap;border-top:1px solid var(--line);padding-top:12px;overflow-x:auto}
+</style>
+
+<style>.cmp td,.cmp th{vertical-align:top;font-size:13.5px}.cmp td:first-child{font:600 12px var(--mono);color:var(--muted);white-space:nowrap}.ok{color:var(--green)}.no{color:var(--red)}.warn{color:var(--yellow)}table{border-collapse:collapse;width:100%}.tw{overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:12px}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}th{font:600 11.5px var(--mono);text-transform:uppercase;color:var(--muted);background:var(--panel)}th.recc{color:var(--mango)}</style>
+<style>.cmp td,.cmp th{vertical-align:top;font-size:13.5px}.cmp td:first-child{font:600 12px var(--mono);color:var(--muted);white-space:nowrap}.ok{color:var(--green)}.no{color:var(--red)}.warn{color:var(--yellow)}table{border-collapse:collapse;width:100%}.tw{overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:12px}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}th{font:600 11.5px var(--mono);text-transform:uppercase;color:var(--muted);background:var(--panel)}th.recc{color:var(--mango)}</style>
+<h1>Escalation 1: “herdr toast off” also silences our hook</h1>
+<p class="lede">I got D11 wrong in round 2. With herdr’s toast set to <code>"off"</code>, <code>herdr notification show</code> shows nothing too, so the hook can’t send through herdr. The Tech Lead proved it in a throwaway herdr session; your server and config weren’t touched. I recommend one short spike: try A, then C, keep the first that works, and fall back to B if both fail. Tab labels and the workspace name (T1, T2, T3, T5) aren’t affected and go ahead now.</p>
+<div class="grid"><section class="sticky" aria-label="Finding and routes">
+<h2>The finding</h2>
+<div class="code"><div class="hd">evidence/design/toast-off-finding.md · live test, HERDR_CONFIG_PATH=/tmp/hcfg</div><pre>
+<span class="ln"><span class="n">$</span>herdr notification show "off-test"   # delivery = "off"</span>
+<span class="ln hl"><span class="n">→</span>{"reason":"disabled","shown":false}<span class="mk">1</span></span></pre></div>
+<p class="note">The docs line I relied on, “notification show uses the configured [ui.toast] delivery”, already said this; I read it the wrong way round. <span class="tag v">verified: TL live test + herdr cli-reference.mdx</span></p>
+<h2>The routes</h2>
+<div class="tw"><table class="cmp"><thead><tr><th></th><th class="recc">A · OSC to WezTerm</th><th class="recc">C · Windows toast</th><th>B · leave herdr on</th></tr></thead><tbody>
+<tr><td>how</td><td>Hook writes the same escape code herdr’s <code>terminal</code> mode sends, straight to the herdr client’s terminal</td><td>Hook calls Windows PowerShell’s built-in toast via WSL</td><td>No hook; herdr config untouched</td></tr>
+<tr><td>install</td><td class="ok">None</td><td class="ok">None: <code>/mnt/c/…/powershell.exe</code> exists, WSL interop on</td><td class="ok">None</td></tr>
+<tr><td>squad noise</td><td class="ok">Only Manager waits / blocked</td><td class="ok">Only Manager waits / blocked</td><td class="no">Every worker turn-end, as today</td></tr>
+<tr><td>looks like</td><td class="ok">Today’s WezTerm toast</td><td class="warn">Toast from “Windows PowerShell”; ~1 s to appear</td><td class="ok">Today’s</td></tr>
+<tr><td>risk</td><td class="warn">Finds the client tty from the process list; hacky. <span class="tag i">not verified</span></td><td class="warn">Slower; Windows may group or hide them. <span class="tag i">not verified</span></td><td class="ok">None</td></tr>
+</tbody></table></div>
+<p class="note">Both A and C apply D9 (skip the active tab) and D10 (title and body) in the hook itself. Your non-squad sessions keep toasting through the same path. <span class="tag i">inferred</span></p>
+</section><section aria-label="Decide">
+<div class="q"><h3><span class="pin">1</span>Which way forward?</h3><p>The spike runs only in the throwaway <code>squad-tabs-test</code> workspace. Your herdr line still changes only in T6, behind your permission prompt.</p><div class="opts">
+<label><input type="radio" name="q1" value="spike A then C, fallback B" checked><span>Spike A, then C; the Tech Lead keeps the first that works; both fail → B<span class="rec">REC</span></span></label>
+<label><input type="radio" name="q1" value="A only, fallback B"><span>A only; fail → B</span></label>
+<label><input type="radio" name="q1" value="C only, fallback B"><span>C only; fail → B</span></label>
+<label><input type="radio" name="q1" value="B now"><span>B now: ship labels and workspace only; revisit toasts later</span></label>
+</div><textarea id="n1" rows="1" placeholder="Note (optional)"></textarea></div>
+<div class="q"><h3><span class="pin">i</span>Also for you (no answer needed now)</h3><p>The BA filled ten corners the decisions left open (B1–B10, bottom of <code>.scratch/squad-tabs/spec.md</code>), e.g. numbers never shift when a Dev retires, a blank <code>squad-label</code> clears the task text, and an old <code>board</code> tab is reused. They come to the check-in as defaults you can overrule.</p></div>
+<div class="copy"><h2>Your answer</h2><pre id="out"></pre><button class="cta" id="copyBtn">Copy answer</button> <span id="copied" style="font:12px var(--mono);color:var(--muted)"></span></div>
+</section></div>
+<footer>Reader:     the PO → pick the toast route so T4/T6 can be planned
+Question:   With herdr's toast off silencing the hook too, which route gets the agreed toasts to the desktop?
+Dimension:  Comparison
+Form:       finding excerpt + criteria x route table + one question, not a prose list of options
+Source:     $SCOPE_DIR/evidence/design/toast-off-finding.md; escalations.md #1; ls /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe</footer>
+<script>
+const out=document.getElementById('out');
+function render(){const l=[];for(let i=1;i<=1;i++){const v=document.querySelector(`input[name=q${i}]:checked`).value;const n=document.getElementById('n'+i).value.trim();l.push(`E1 Q${i}: ${v}${n?' | '+n:''}`);}out.textContent=l.join('\n');}
+document.addEventListener('input',render);document.addEventListener('change',render);render();
+document.getElementById('copyBtn').addEventListener('click',()=>{const c=document.getElementById('copied');navigator.clipboard.writeText(out.textContent).then(()=>c.textContent='Copied').catch(()=>{const r=document.createRange();r.selectNodeContents(out);const s=getSelection();s.removeAllRanges();s.addRange(r);c.textContent='Selected, press Ctrl+C';});});
+</script>
