@@ -20,5 +20,6 @@ Runs in the Manager's session on the PO's word. The PO never edits a file by han
 ## Rules
 
 - The skill adds no prose of its own to `process.md`: the combined file holds plugin text, the squad's own text and the version line.
+- The writing rule is the Writing rule in `agents/manager.md`; it arrives with the plugin update, not with this migration. Copy no rule text here. `apply` prints lint findings as a warning only.
 - Log rows and changelog `why` are one line each.
 - Any refusal (exit 2) is reported to the PO in its own words; do not work around it.
