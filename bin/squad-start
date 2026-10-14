@@ -25,6 +25,8 @@ import sys
 from pathlib import Path
 
 PLUGIN = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PLUGIN / "bin"))
+import squadprocess  # noqa: E402
 STOP = {"the", "a", "an", "of", "to", "for", "and", "in", "on", "with", "from"}
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 MAX_AGENT = 32  # herdr's limit on an agent name
@@ -46,6 +48,18 @@ def squad_dir(name):
     if len(found) != 1:
         die(f"pick a squad with --squad (found: {' '.join(p.name for p in found)})", 2)
     return found[0].resolve()
+
+
+def process_update(squad):
+    """The one-line warning when the squad's process.md is not current, else None. Warns, never stops the start."""
+    try:
+        msg = squadprocess.check(squad, PLUGIN)["message"]
+    except Exception:  # a bad file or template must not block a start
+        print("process version not checked; run `squad-process check` for the reason", file=sys.stderr)
+        return None
+    if msg:
+        print(f"process update: {msg}", file=sys.stderr)
+    return msg or None
 
 
 def open_board(squad):
@@ -111,7 +125,7 @@ def render(template_dir, target, values):
         f.write_text(text)
 
 
-def resume(squad, a):
+def resume(squad, a, update):
     if a.text or a.in_goal or a.name:
         die("--resume takes only the name of an existing scope or goal", 2)
     for kind, base in (("goal", "goals"), ("scope", "scopes")):
@@ -144,7 +158,7 @@ def resume(squad, a):
     except ValueError:
         tab = None
     name_workspace(a.resume)
-    print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab, "board": open_board(squad)}))
+    print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab, "board": open_board(squad), "process_update": update}))
 
 
 def main():
@@ -169,8 +183,9 @@ def main():
             "Set up a new squad with /squad:squad-init" if (squad / "roster.md").exists()
             else f"{squad} has no scopes/ folder; run /squad:squad-init")
 
+    update = process_update(squad)
     if a.resume:
-        return resume(squad, a)
+        return resume(squad, a, update)
     if not a.text:
         die("give the task as text, or --resume NAME", 2)
     m = re.match(r"\s*goal:\s*(.*)", a.text, re.I | re.S)
@@ -234,7 +249,7 @@ def main():
             pass
     if manager:
         name_workspace(name)
-    print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab, "board": open_board(squad)}))
+    print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab, "board": open_board(squad), "process_update": update}))
 
 
 if __name__ == "__main__":

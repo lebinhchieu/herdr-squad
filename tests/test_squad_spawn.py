@@ -358,6 +358,71 @@ class SpawnLabelTest(unittest.TestCase):
         self.assertFalse((self.squad / "scopes" / "sc1" / "labels").exists())
 
 
+def toy_plugin(root, version):
+    """A copy of the plugin whose template process.md is `version` (None: no version line)."""
+    plugin = Path(root) / "plugin"
+    shutil.rmtree(plugin, ignore_errors=True)
+    shutil.copytree(BIN_DIR, plugin / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+    os.symlink(BIN_DIR.parent / "agents", plugin / "agents")
+    shutil.copytree(BIN_DIR.parent / "templates", plugin / "templates")
+    (plugin / "templates" / "squad" / "process.md").write_text(
+        "# T\n" + (f"\nprocess-version: {version}\n" if version else ""))
+    return plugin
+
+
+class SpawnProcessUpdateTest(unittest.TestCase):
+    """The Manager's first prompt carries the process-update sentence; nobody else's does; nothing blocks."""
+    setUp, tearDown, calls = SpawnLabelTest.setUp, SpawnLabelTest.tearDown, SpawnLabelTest.calls
+
+    def spawn_from(self, plugin_version, squad_text, role="manager", name="t-mgr-sc1", *args):
+        plugin = toy_plugin(self.root, plugin_version)
+        (self.squad / "process.md").write_text(squad_text)
+        r = subprocess.run([str(plugin / "bin" / "squad-spawn"), role, name, "--scope", "sc1", *args], env=self.env,
+                           text=True, capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return (self.calls("agent prompt") or [""])[0]
+
+    def test_behind_manager_gets_the_sentence_after_its_own_prompt(self):
+        p = self.spawn_from(2, "process-version: 1\n", "manager", "t-mgr-sc1", "--prompt", "Start of run.")
+        self.assertTrue(p.startswith("agent prompt t-mgr-sc1 Start of run. Process update: "), p)
+        for s in ("version 1", "is 2", "migrate the process", "Tell the PO in your first message", "Do not migrate unless the PO says so"):
+            self.assertIn(s, p)
+
+    def test_empty_prompt_becomes_the_sentence(self):
+        p = self.spawn_from(2, "# T\n")
+        self.assertTrue(p.startswith("agent prompt t-mgr-sc1 Process update: "), p)
+        self.assertIn("treated as version 1", p)
+
+    def test_other_roles_get_nothing(self):
+        p = self.spawn_from(2, "process-version: 1\n", "dev", "t-dev-sc1-1", "--prompt", "Do RP-1.")
+        self.assertEqual(p, "agent prompt t-dev-sc1-1 Do RP-1.")
+
+    def test_current_manager_prompt_is_unchanged_and_without_prompt_none_is_sent(self):
+        self.assertEqual(self.spawn_from(2, "process-version: 2\n", "manager", "t-mgr-sc1", "--prompt", "Go."),
+                         "agent prompt t-mgr-sc1 Go.")
+        self.log.unlink()
+        self.assertEqual(self.spawn_from(2, "process-version: 2\n", "manager", "t-mgr-sc2"), "")
+
+    def test_a_failing_check_or_a_template_without_the_line_never_stops_the_spawn(self):
+        self.assertEqual(self.spawn_from(None, "process-version: 1\n", "manager", "t-mgr-sc1", "--prompt", "Go."),
+                         "agent prompt t-mgr-sc1 Go.")
+        self.log.unlink()
+        plugin = self.root / "plugin"
+        (plugin / "bin" / "squad-process").write_text("#!/bin/sh\nexit 1\n")
+        r = subprocess.run([str(plugin / "bin" / "squad-spawn"), "manager", "t-mgr-sc1", "--scope", "sc1", "--prompt", "Go."],
+                           env=self.env, text=True, capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.calls("agent prompt")[0], "agent prompt t-mgr-sc1 Go.")
+
+    def test_dry_run_is_unchanged(self):
+        plugin = toy_plugin(self.root, 2)
+        (self.squad / "process.md").write_text("process-version: 1\n")
+        r = subprocess.run([str(plugin / "bin" / "squad-spawn"), "manager", "t-mgr-sc1", "--scope", "sc1", "--dry-run"],
+                           env=self.env, text=True, capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("Process update", r.stdout + r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
 
