@@ -54,7 +54,7 @@ class StartTest(unittest.TestCase):
             self.assertTrue((sc / d).is_dir(), d)
         self.assertTrue((sc / "escalations.md").exists())
         h = self.herdr()
-        self.assertIn("--label t-mgr-sec04", h)
+        self.assertIn("--label 🦀 Manager", h)
         self.assertIn(f"SCOPE_DIR={sc}", h)
         self.assertIn("scope.md", next(l for l in h.splitlines() if l.startswith("agent prompt")))
         self.assertIn("| t-mgr-sec04 | manager | sec04 |", (sc / "roster.md").read_text())
@@ -294,7 +294,7 @@ class BoardTest(unittest.TestCase):
         r = self.start("Task one", "--name", "one", "--touches", "a")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)["board"], "http://127.0.0.1:7420/?token=abc_DEF-1")
-        self.assertIn("--label board", self.herdr())
+        self.assertIn("--label 📋 Board", self.herdr())
 
     def test_a_board_that_fails_leaves_the_manager_running(self):
         self.env["FAKE_BOARD"] = "down"
@@ -306,7 +306,7 @@ class BoardTest(unittest.TestCase):
         self.assertIn("board not started:", r.stderr)
         self.assertIn("run /squad:squad-board", r.stderr)
         self.assertTrue((self.squad / "scopes" / "one" / "scope.md").exists())
-        self.assertIn("--label t-mgr-one", self.herdr())
+        self.assertIn("--label 🦀 Manager", self.herdr())
 
     def test_dry_run_starts_no_board(self):
         r = self.start("Task one", "--name", "one", "--touches", "a", "--dry-run")
