@@ -11,6 +11,7 @@ import time
 import unittest
 from pathlib import Path
 
+sys.dont_write_bytecode = True  # the extensionless script would leave bin/__pycache__/*.pyc
 SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-notify"
 _loader = importlib.machinery.SourceFileLoader("squad_notify", str(SCRIPT))
 _spec = importlib.util.spec_from_loader("squad_notify", _loader)
