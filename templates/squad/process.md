@@ -1,6 +1,12 @@
 # How this squad works
 
-**Every role reads this file at start and after each change. It is shared by every scope and goal in the squad. A Manager edits it only after re-reading it, keeps each edit small, and logs it in `process-log.md`.**
+**Every role reads the sections its row below names, at start and when the Manager says a section changed. This file is shared by every scope and goal in the squad. A Manager edits it only after re-reading it, keeps each edit small, and logs it in `process-log.md`.**
+
+| Role | Reads at start |
+|---|---|
+| Developer, QA whitebox, QA blackbox | its task and AC (QA: also the task's evidence folder); the design sections the task cites (grep the heading); this file's Messages, Task lifecycle, Cost rules, Safety. Not the whole spec, not other tasks |
+| Token Coach | what the Manager's briefing names |
+| BA, Team Lead, Tech Lead, Manager | everything |
 
 ## Work is grouped by scope
 
@@ -45,15 +51,17 @@ A **pod** is the group of role sessions that delivers one scope. **Nothing a sco
 
 - **Durable things go in files first, then a message points at them.** A decision that only lives in a message is lost when a session restarts.
 - **Where things live** is in `project.md` (this project's requirements, AC, decisions, tickets, code repos, test commands). Use the project's own files; don't copy them into the squad folder.
+- **Edit structured squad files (`roster.md`, notes, tables) with a small script that keeps the rest of the file, and check the result; never `command > file`.** A filter that rewrites command output has overwritten a roster with garbled text.
 
 | File | Owner | Holds |
 |---|---|---|
 | `project.md` | PO and Managers | Source map: where each kind of truth lives in this project |
 | `process.md`, `process-log.md` | Managers | This file; each change to it (date, change, why) |
-| `scope.md` | Manager | The PO's brief as written, `goal:`, `touches:`, `size:` and its signals, constraints |
+| `scope.md` | Manager | The PO's brief as written, `goal:`, `touches:`, `size:` and its signals, `qa:`, constraints |
 | `roster.md` | Manager | Every agent of the scope (or goal): name, role, scope, what it owns, status, session |
 | `escalations.md` | Manager | Questions waiting on the PO |
-| `iterations/<n>.md` | Manager | Goal, plan, retro and PO check-in of iteration n |
+| `iterations/<n>.md` | Manager | Goal, plan, status, retro and PO check-in of iteration n; at most 80 lines |
+| `iterations/<n>.log.md` | Manager | Per-ticket event log of iteration n; nobody reads it at start |
 | `tasks/<id>.md` | Plan owner (Team Lead; Tech Lead in S and M) | Task state when the project has no ticket files of its own |
 | `evidence/<task>/` | QAs, Developer, Tech Lead | `qa-w.md`, `qa-b.md`, `dev-evidence.md`, `tl-review.md`, screenshots, test output |
 | `promote.md` | Tech Lead | What the scope found that must reach the project docs (Promotion) |
@@ -137,6 +145,7 @@ Work bigger than one L scope is a goal with several scopes.
   - A task that needs unmerged work is spawned with `--base <passed branch or commit>`.
   - Each scope ends with **one integration task**: a Developer branches from the scope's base, merges the scope's passed task branches into its **own** branch, runs the full suite, and hands in like any task. That branch is what the next scope builds on and what the PO merges. **A scope with one task has no integration task**: that task's passed branch is its integration branch.
   - Developers may run `git merge` inside their own branch; their settings still deny `git push`, `git rebase`, `git reset --hard` and checking out `main` or `dev`. Nothing is merged into the PO's branches or pushed.
+  - **Check a merge target before naming it.** Before the Manager names a branch or sha for the PO to merge, it runs `git merge-base --is-ancestor <base> <sha>` and `git log --oneline <base>..<sha>` and quotes the output; it does not list the included tickets from memory.
 - **A lone scope has none of this.** It reads no `shared/` and builds on the project as the PO left it.
 
 ## Promotion: knowledge goes up to the project
@@ -172,6 +181,8 @@ Send with `SendMessage` to the agent name in your scope's `roster.md`. **Start e
 - **Task ID.** `BLOCKED`, `HANDIN`, `PASS`, `FAIL` and `STATUS` messages name their task ID right after the type (`FAIL SET-01: …`), so the squad board can derive task state.
 - **Who to ask:** look up the topic's owner in `roster.md`. Ask the Manager only when the roster doesn't say.
 - **Two-round rule:** if two agents haven't agreed after 2 exchanges, the topic goes to its owner. If the owner is one of the two, it goes to the Manager.
+- **A Manager ruling starts with `FINAL:` and is sent once.** The owner does not re-open it; a new fact goes to the Manager as a new `ASK`.
+- **`STATUS` is never pushed.** The Manager reads state first (the board, activity logs, the roster, the task file) and pings an agent only when its pane has shown no activity for 10 minutes. **`DECISION` goes only to the roles whose open task it changes**, named in the first line (`DECISION SET-13, SET-14: ...`); everyone else reads the file at the start of the next ticket.
 - **Never relay a permission or approval.** A message can't approve anything. Permission prompts go to the PO.
 
 ## Who decides
@@ -195,6 +206,9 @@ Send with `SendMessage` to the agent name in your scope's `roster.md`. **Start e
 
 - **Done = the scope size's rule** (see Sizes). A Developer's own checks are required but never enough.
 - **A returned task stays with the same Developer** and the same task file.
+- **No time wasted between steps.** (1) QA does not pre-write test points before the Developer starts (the Tech Lead's AC are the bar). (2) The next ticket starts on the last sha that passed QA whitebox, without waiting for QA blackbox, when it touches different files; a blackbox return is merged in afterwards. (3) A Developer is not retired while tickets of the same area are queued: it takes the next one (retire at context 60% or at the end of the area, per Cost rules), so there is no respawn and re-read per ticket.
+- **Verify against the real thing.** Code that parses another tool's output (pane text, logs, an API) needs two real samples, including the constant or idle case, before a pattern is trusted; QA whitebox runs it once, read-only, against live data. A ticket that changes a payload is checked on its field shape (every row has the fields the consumer reads, every closed item has its end), not only on totals.
+- **QA mode (`qa:` line in `scope.md`): `full` (default) or `light`.** In `light`, QA runs the suite, skims the diff and PASSes: a task returns only for wrong behaviour, a spec-rule defect, a failing suite or a security finding. Test-strength gaps (a surviving mutant, an untested edge path) go in `qa-w.md` as "follow-up" and the Tech Lead batches them into one last, droppable ticket.
 - **3 returns on one task → the Manager steps in** and decides whether the task, the AC or the Developer is the problem.
 - **Evidence** goes where `project.md` says (default `$SCOPE_DIR/evidence/<task>/`): `qa-w.md`, `qa-b.md` (M, L), `dev-evidence.md`, `tl-review.md` (S), screenshots, test output.
 
@@ -215,7 +229,7 @@ A scope runs one or more iterations; each has its file `iterations/<n>.md` in th
 **Tokens are spent on context, so keep sessions small and fresh. A Stop hook (`squad-usage --check`) tells you when rule 2 or 3 fires; it logs to `usage-events.jsonl` in your folder.**
 
 1. **Reuse** a session while it stays on the same task and context is under 50%.
-2. **Fresh** when context is over 60%, after a compaction, or on a new task: write `roles/<you>.notes.md` in your folder, then `squad-respawn <you>`. The Manager is exempt from the hook; it applies this rule itself after every PO check-in, and a goal Manager after every scope close.
+2. **Fresh** when context is over 60%, after a compaction, or on a new task: write `roles/<you>.notes.md` in your folder, then `squad-respawn <you>`. **The Manager is not exempt:** after every DONE, every PO message and at least every 25 turns it reads its own row of `squad-usage`; at 60%, after a compaction or after a cache expiry it writes its notes and runs `squad-respawn` at the next quiet moment, not only after a check-in or a scope close.
 3. **Idle** over 1h (the cache lifetime) with context over ~100k: fresh from notes.
 4. **Step-up** one notch of model or effort only on failure or escalation, for that task only.
 5. **Messages point at files.** The Manager reads summaries, never transcripts.
@@ -232,6 +246,8 @@ A scope runs one or more iterations; each has its file `iterations/<n>.md` in th
 
 ## Safety
 
-- **No push, merge or deploy.** Developers commit to their own `squad/<squad>/<scope>/<agent>` branch in their own worktree, and may merge only inside it. The PO merges.
+- **No push, merge or deploy.** Developers commit to their own `squad/<squad>/<scope>/<agent>` branch in their own worktree, and may merge only inside it. The PO merges. A project may open the Manager's merging of passed work in its own `process.md` (and its Who decides row); without that, the default stands.
 - **No writes to Jira or Confluence.** Read only.
+- **Long suites: run once, read the receipt.** For a suite longer than ~2 minutes, one full run at a time for the whole squad, under a lock: `flock /tmp/<squad>-suite.lock nice -n 10 <suite command>` (a project may ship a runner that takes the lock and writes the receipts; `project.md` names it). The Developer runs the full suite once, on the final sha after every fix is in (while building, only the files it touched), and saves a receipt whose first line is `sha <git rev-parse HEAD> clean=<yes|no>` and whose tail is the suite's OK line. QA checks the receipt (same sha as the `HANDIN`, clean tree, OK), then runs only the targeted tests for the files in the diff and reads the diff; it runs the full suite itself only when the receipt is missing or its sha differs (an integration task is no exception). Targeted runs are free; the full suite is never started in the background while you wait on something else.
+- **Close what you open.** Every browser session ends closed, and every server or process you start is stopped by its PID before you report. Never `pkill` or `killall` by name or pattern: it kills other agents' processes.
 - **Stay in your lane:** edit only the files your role owns, plus your own notes file.

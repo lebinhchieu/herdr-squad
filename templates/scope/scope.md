@@ -5,6 +5,7 @@
 goal: {{goal}}
 touches: {{touches}}
 size:
+qa: full
 
 ## Constraints
 - **Developer cap:** 3 (the default in `process.md`)
