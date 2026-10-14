@@ -18,6 +18,11 @@ ALLOWED_STALE = {"templates/scope/iterations/TEMPLATE.md": ["iterations/TEMPLATE
 
 
 class InstructionsTest(unittest.TestCase):
+    def test_manager_and_dev_know_the_label_rule(self):
+        manager = (ROOT / "agents/manager.md").read_text()
+        self.assertIn("--title", manager)
+        self.assertIn("squad-label --agent", manager)
+        self.assertIn("squad-label", (ROOT / "agents/dev.md").read_text())
     def test_no_file_refers_to_something_that_was_removed(self):
         for f in INSTRUCTIONS:
             rel = str(f.relative_to(ROOT))
