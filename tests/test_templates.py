@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 T = Path(__file__).resolve().parent.parent / "templates"
-ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "dev", "token-coach")
+ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "dev", "token-coach", "designer")
 
 
 def files(d):
@@ -66,6 +66,16 @@ class TemplateLayersTest(unittest.TestCase):
         self.assertIn("Write(/.claude/squads/*/goals/*/coach/*.coach.md)", perms["allow"])
         for level in ("*/*.md", "*/scopes/*/*.md", "*/goals/*/*.md"):
             self.assertIn(f"Write(/.claude/squads/{level})", perms["deny"])
+
+    def test_designer_may_write_only_ui_design_files(self):
+        perms = json.loads((T / "squad/settings/designer.json").read_text())["permissions"]
+        writes = [p for p in perms["allow"] if p.startswith(("Write(", "Edit("))]
+        self.assertEqual(sorted(writes), ["Edit(/.claude/squads/*/scopes/*/ui-design/**)",
+                                          "Write(/.claude/squads/*/scopes/*/ui-design/**)"])
+        for level in ("*/*.md", "*/scopes/*/*.md", "*/goals/*/*.md", "*/settings/**"):
+            self.assertIn(f"Write(/.claude/squads/{level})", perms["deny"])
+        self.assertIn("Bash(squad-respawn:*)", perms["allow"])
+        self.assertFalse([p for p in perms["deny"] if p.startswith("Read(")])
 
 
 if __name__ == "__main__":
