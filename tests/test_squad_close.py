@@ -44,6 +44,7 @@ class CloseTest(unittest.TestCase):
                 git("commit", "-q", "--allow-empty", "-m", "work", cwd=wt)
             if mode == "dirty":
                 (wt / "wip.txt").write_text("uncommitted")
+                git("add", "wip.txt", cwd=wt)  # staged: a tracked change blocks removal; a plain untracked file does not
             self.wts[n] = wt
         fake = self.root / "fakebin"
         fake.mkdir()
@@ -286,3 +287,84 @@ class ScopedCloseTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WorktreeFinderTest(unittest.TestCase):
+    """Worktrees are found by branch from `git worktree list`, not by folder: .worktrees/<name> works too."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        git("init", "-q", "-b", "main", cwd=self.root)
+        git("commit", "-q", "--allow-empty", "-m", "init", cwd=self.root)
+        self.squad = self.root / ".claude" / "squads" / "t"
+        self.squad.mkdir(parents=True)
+        (self.squad / "process.md").write_text("x")
+        (self.squad / "roster.md").write_text(HEAD + "| dev-a | dev | x | t | live | s1 |\n")
+        self.wts = {}
+        for name, branch in (("dev-a", "squad/dev-a"),          # old layout: .worktrees/<name>, branch squad/<name>
+                             ("dev-b", "squad/t/x/dev-b"),      # nested, scope layout
+                             ("dev-c", "squad/dev-c"),          # unmerged
+                             ("dev-d", "squad/dev-d"),          # tracked change
+                             ("dev-e", "squad/other/dev-e"),    # another squad's, not in the roster
+                             ("hand", "feature/hand")):         # not a squad branch
+            wt = self.root / ".worktrees" / name
+            git("worktree", "add", "-q", str(wt), "-b", branch, cwd=self.root)
+            self.wts[name] = wt
+        git("commit", "-q", "--allow-empty", "-m", "work", cwd=self.wts["dev-c"])
+        (self.wts["dev-d"] / "README").write_text("x")
+        git("add", "README", cwd=self.wts["dev-d"])
+        (self.wts["dev-a"] / "__pycache__").mkdir()
+        (self.wts["dev-a"] / "__pycache__" / "m.pyc").write_text("c")
+        (self.wts["dev-a"] / "agent.pid").write_text("1")
+        with (self.squad / "roster.md").open("a") as f:
+            f.write("| dev-b | dev | x | t | live | s2 |\n| dev-c | dev | y | t | live | s3 |\n| dev-d | dev | y | t | live | s4 |\n")
+        fake = self.root / "fakebin"
+        fake.mkdir()
+        (fake / "herdr").write_text(FAKE_HERDR)
+        (fake / "herdr").chmod(0o755)
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.root / "h.log"),
+                        PATH=f"{fake}:{os.environ['PATH']}")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def close(self, *args):
+        return subprocess.run([str(BIN / "squad-close"), "t", *args], env=self.env, cwd=self.root,
+                              text=True, capture_output=True, timeout=30)
+
+    def test_removes_merged_clean_worktrees_in_any_folder_and_lists_untracked(self):
+        r = self.close("--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("squad/dev-a: merged into main, would remove worktree; untracked files would go with it: "
+                      "__pycache__/, agent.pid", r.stdout)
+        self.assertTrue(self.wts["dev-a"].exists())  # dry run changes nothing
+
+        r = self.close()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("squad/dev-a: merged into main, worktree removed; untracked files removed with it: __pycache__/, agent.pid", r.stdout)
+        self.assertIn("squad/t/x/dev-b: merged into main, worktree removed", r.stdout)
+        self.assertFalse(self.wts["dev-a"].exists())
+        self.assertFalse(self.wts["dev-b"].exists())
+        self.assertIn("squad/dev-c: NOT merged into main, kept", r.stdout)
+        self.assertIn("squad/dev-d: merged into main, kept (uncommitted changes)", r.stdout)
+        for kept in ("dev-c", "dev-d", "dev-e", "hand"):
+            self.assertTrue(self.wts[kept].exists(), kept)
+        self.assertNotIn("feature/hand", r.stdout)
+        self.assertNotIn("squad/other/dev-e", r.stdout)
+        self.assertIn("squad/dev-a", git("branch", "--list", "squad/dev-a", cwd=self.root))  # branches stay
+
+    def test_target_is_the_branch_of_the_main_worktree(self):
+        git("checkout", "-q", "-b", "release", cwd=self.root)
+        git("commit", "-q", "--allow-empty", "-m", "on release", cwd=self.root)
+        r = self.close("--dry-run")
+        self.assertIn("squad/dev-a: merged into release, would remove worktree", r.stdout)
+
+    def test_scope_mode_takes_the_scope_branches_and_roster_names(self):
+        (self.squad / "scopes" / "x").mkdir(parents=True)
+        (self.squad / "scopes" / "x" / "roster.md").write_text(HEAD + "| dev-b | dev | x | t | live | s2 |\n")
+        r = self.close("--scope", "x")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(self.wts["dev-b"].exists())
+        self.assertTrue(self.wts["dev-a"].exists())  # not a worktree of this scope
