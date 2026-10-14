@@ -16,6 +16,7 @@ EXCEPTIONS = []
 
 # design §9; {N} is the byte budget
 RULE = """**Writing rule for `process.md`.** Every agent reads it, so:
+- **Decide a rule's level first.** A rule a teammate without the squad must also follow (the project's code, tools, test commands, conventions) goes into the instructions file `project.md` names, through a task the PO merges, never into `process.md`. `process.md` holds only how the squad works, true for any project.
 - One rule per bullet, stated once in the section that owns it; elsewhere a pointer of at most one clause, never a copy.
 - Each rule names who acts, when, and the limit or outcome, in must / never / at most. No hedges.
 - No history, dates or incidents. A reason only as one short clause; an example only where it fixes a format; no sentence that only announces or restates.
@@ -43,6 +44,12 @@ class ProcessWritingTest(unittest.TestCase):
     def test_manager_holds_the_rule_verbatim_modulo_n(self):
         n = manager_budget()
         self.assertIn(RULE.replace("{N}", f"{n:,}"), MANAGER.read_text())
+
+    def test_level_bullet_is_first_in_manager_and_rule(self):
+        first = "- **Decide a rule's level first.**"
+        for text in (MANAGER.read_text(), RULE):
+            block = text.split("Every agent reads it, so:\n", 1)[1]
+            self.assertTrue(block.startswith(first), text[:80])
 
     def test_rule_block_lints_clean_as_text(self):
         block = RULE.replace("{N}", f"{manager_budget():,}")

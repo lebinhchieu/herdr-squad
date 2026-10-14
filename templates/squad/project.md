@@ -4,7 +4,7 @@
 
 | What | Where |
 |---|---|
-| Project instructions | <CLAUDE.md files to read first> |
+| Project instructions | <the instructions file(s) every teammate follows, e.g. CLAUDE.md / AGENTS.md; team-level rules go here, through a PO-merged task> |
 | Requirements | <spec / ticket / Confluence export paths> |
 | Business AC | <where business AC live> |
 | Technical AC / done rules | <conventions, definition of done> |
