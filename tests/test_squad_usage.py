@@ -117,6 +117,18 @@ class UsageTest(unittest.TestCase):
         self.assertEqual(self.run_cli("--check", "big").stdout.strip(), "idle")
         self.assertEqual(self.run_cli("--check", "small").stdout, "")
 
+    def test_check_idle_after_a_gap_that_expired_the_cache(self):
+        # what the Stop hook sees: the turn that just ended came after a >1h gap and re-wrote the cache
+        self.transcript("big", [turn(0, "a", ctx=(2, 100_000, 0), base=NOW - timedelta(hours=3)),
+                                turn(0, "b", ctx=(2, 0, 110_000), base=NOW)])
+        self.transcript("small", [turn(0, "a", ctx=(2, 40_000, 0), base=NOW - timedelta(hours=3)),
+                                  turn(0, "b", ctx=(2, 0, 50_000), base=NOW)])
+        self.transcript("survived", [turn(0, "a", ctx=(2, 100_000, 0), base=NOW - timedelta(hours=3)),
+                                     turn(0, "b", ctx=(2, 110_000, 500), base=NOW)])
+        self.assertEqual(self.run_cli("--check", "big").stdout.strip(), "idle")
+        self.assertEqual(self.run_cli("--check", "small").stdout, "")
+        self.assertEqual(self.run_cli("--check", "survived").stdout, "")
+
     def test_check_unknown_session_prints_nothing(self):
         r = self.run_cli("--check", "nope")
         self.assertEqual((r.returncode, r.stdout), (0, ""))

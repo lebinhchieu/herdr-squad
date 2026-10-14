@@ -69,23 +69,29 @@ def read_session(path):
     return rows, max(boundaries, summaries)
 
 
+def is_expiry(a, b):
+    return (b["ts"] - a["ts"]).total_seconds() > CACHE_TTL_S and b["write"] >= EXPIRY_MIN_WRITE
+
+
 def summarize(path):
     rows, compactions = read_session(path)
     if not rows:
         return None
-    expiries = sum(1 for a, b in zip(rows, rows[1:])
-                   if (b["ts"] - a["ts"]).total_seconds() > CACHE_TTL_S and b["write"] >= EXPIRY_MIN_WRITE)
+    expiries = sum(is_expiry(a, b) for a, b in zip(rows, rows[1:]))
     last = rows[-1]
     return {"model": last["model"], "effort": last["effort"] or "-", "turns": len(rows),
             "peak": max(t["ctx"] for t in rows), "last": last["ctx"], "out": sum(t["out"] for t in rows),
-            "expiries": expiries, "compactions": compactions, "last_ts": last["ts"]}
+            "expiries": expiries, "compactions": compactions, "last_ts": last["ts"],
+            "just_expired": len(rows) > 1 and is_expiry(rows[-2], last)}
 
 
 def check(s, now=None):
     now = now or datetime.now(timezone.utc)
     if s["compactions"] or s["last"] > FRESH_CTX:
         return "fresh"
-    if (now - s["last_ts"]).total_seconds() > CACHE_TTL_S and s["last"] > IDLE_CTX:
+    # The Stop hook runs right after a turn, so "now - last_ts" is ~0 there: the gap shows in the last two turns.
+    idle = (now - s["last_ts"]).total_seconds() > CACHE_TTL_S or s["just_expired"]
+    if idle and s["last"] > IDLE_CTX:
         return "idle"
     return None
 
