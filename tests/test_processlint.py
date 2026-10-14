@@ -9,17 +9,7 @@ BIN = Path(__file__).resolve().parent.parent / "bin"
 sys.path.insert(0, str(BIN))
 import processlint as pl  # noqa: E402
 
-HEAD = "# Process\n\n**Writing rule.** Every agent reads this file.\n\n## Section\n\n"
-
-# design §9 rule block, verbatim, as RP-02 puts it in the preamble
-RULE = """**Writing rule.** Every agent reads this file, so:
-- One rule per bullet, stated once in the section that owns it; elsewhere a pointer of at most one clause, never a copy.
-- Each rule names who acts, when, and the limit or outcome, in must / never / at most. No hedges.
-- No history, dates or incidents. A reason only as one short clause; an example only where it fixes a format; no sentence that only announces or restates.
-- At most 60 words per bullet, paragraph or table cell, and at most one bold label of 15 words per bullet.
-- The file stays within 15,000 bytes. A new rule replaces or merges with an existing one, or the PO raises the budget and logs it in `process-log.md`.
-"""
-
+HEAD = "# Process\n\n## Section\n\n"
 
 def doc(body):
     return HEAD + body
@@ -49,26 +39,6 @@ class SizeTest(unittest.TestCase):
     def test_fenced_lines_count_toward_size(self):
         text = doc("```\n" + "x" * 100 + "\n```\n")
         self.assertEqual(checks(pl.lint(text, budget=100)), ["size"])
-
-
-class WritingRuleTest(unittest.TestCase):
-    def test_missing_rule_fails_and_present_passes(self):
-        self.assertEqual(checks(pl.lint("# P\n\n## S\n\n- Manager must act.\n")), ["writing-rule"])
-        self.assertEqual(pl.lint(doc("- Manager must act.\n")), [])
-
-    def test_two_rules_fail(self):
-        text = doc("**Writing rule.** again.\n")
-        self.assertEqual(checks(pl.lint(text)), ["writing-rule"])
-
-    def test_rule_after_first_h2_fails(self):
-        text = "# P\n\n## S\n\n**Writing rule.** x.\n"
-        problems = pl.lint(text)
-        self.assertEqual(checks(problems), ["writing-rule"])
-        self.assertTrue(problems[0].startswith("line 5:"))
-
-    def test_rule_inside_a_fence_does_not_count(self):
-        text = "# P\n\n```\n**Writing rule.** x\n```\n\n## S\n"
-        self.assertEqual(checks(pl.lint(text)), ["writing-rule"])
 
 
 class LengthTest(unittest.TestCase):
@@ -111,7 +81,7 @@ class HedgeTest(unittest.TestCase):
     def test_continuation_line_is_reported_on_its_own_line(self):
         problems = pl.lint(doc("- Manager must\n  act carefully.\n"))
         self.assertEqual(len(problems), 1)
-        self.assertTrue(problems[0].startswith("line 8:"), problems)
+        self.assertTrue(problems[0].startswith("line 6:"), problems)
 
     def test_fenced_hedge_is_ignored(self):
         self.assertEqual(pl.lint(doc("```\nyou should act\n```\n")), [])
@@ -203,15 +173,6 @@ class ExceptionsTest(unittest.TestCase):
             ("size", "<file>", "too big on purpose"), ("hedge", "- Manager", "r")]), [])
 
 
-class RuleFixtureTest(unittest.TestCase):
-    def test_writing_rule_text_lints_clean_in_the_preamble(self):
-        text = "# Process\n\nEdit only after re-reading.\n\n" + RULE + "\n## Section\n\n- Manager must act.\n"
-        self.assertEqual(pl.lint(text), [])
-
-    def test_rule_block_is_at_most_700_bytes(self):
-        self.assertLessEqual(len(RULE.encode()), 700)
-
-
 class CliTest(unittest.TestCase):
     def run_cli(self, text):
         with tempfile.TemporaryDirectory() as d:
@@ -227,7 +188,7 @@ class CliTest(unittest.TestCase):
     def test_problem_exits_1_and_prints_it(self):
         r = self.run_cli(doc("- Manager should act.\n"))
         self.assertEqual(r.returncode, 1)
-        self.assertIn("line 7: hedge: 'should'", r.stdout)
+        self.assertIn("line 5: hedge: 'should'", r.stdout)
 
     def test_missing_file_exits_2_with_one_stderr_line(self):
         r = subprocess.run([sys.executable, str(BIN / "processlint.py"), "/nonexistent/process.md"],

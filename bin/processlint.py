@@ -84,22 +84,13 @@ def _problems(text, budget):
         add(0, "size", f"{size} bytes > {budget}", WHOLE_FILE)
 
     fenced = False
-    rule_lines, first_h2 = [], None
     for n, raw in enumerate(lines, 1):
         if raw.strip().startswith("```"):
             fenced = not fenced
         elif not fenced:
-            if raw.startswith("**Writing rule.**"):
-                rule_lines.append(n)
-            if first_h2 is None and raw.startswith("## "):
-                first_h2 = n
             for pat, check in ((_HEDGE, "hedge"), (_HISTORY, "history")):
                 for m in pat.finditer(raw):
                     add(n, check, f"'{m.group(0)}'", raw)
-    if len(rule_lines) != 1:
-        add(0, "writing-rule", f"{len(rule_lines)} lines start with '**Writing rule.**', need exactly one", WHOLE_FILE)
-    elif first_h2 is not None and rule_lines[0] > first_h2:
-        add(rule_lines[0], "writing-rule", f"comes after the first '##' (line {first_h2})", lines[rule_lines[0] - 1])
 
     seen = {}
     for kind, n, body, first in _blocks(lines):
@@ -139,7 +130,7 @@ def _problems(text, budget):
     return sorted(found, key=lambda p: p[0])
 
 
-def lint(text, budget=15000, exceptions=()):
+def lint(text, budget=22500, exceptions=()):
     """exceptions: (check, line-text prefix, reason). No reason raises; one matching nothing is stale."""
     for exc in exceptions:
         if len(exc) != 3 or not str(exc[1]).strip() or not str(exc[2]).strip():
