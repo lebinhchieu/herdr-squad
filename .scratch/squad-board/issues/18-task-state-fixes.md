@@ -1,5 +1,5 @@
-Status: ready-for-agent
-State: ready
+Status: resolved
+State: done (PASS; in the iteration-2 line merged at 7f0b436)
 Task ID: BRD-18
 Blocked by: 09 (branch from BRD-09's passed sha 5e005ec)
 Files touched: `bin/squad-board` (only `derive_tasks`), `tests/test_board_tasks.py`, `tests/test_board_state.py` (rename one stale test name)

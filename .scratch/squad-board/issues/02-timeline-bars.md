@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 State: done
 Task ID: BRD-02
 Blocked by: 01

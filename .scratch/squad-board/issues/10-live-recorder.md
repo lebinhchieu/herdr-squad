@@ -1,5 +1,5 @@
-Status: ready-for-agent
-State: ready
+Status: resolved
+State: done (PASS; in the iteration-2 line merged at 7f0b436)
 Task ID: BRD-10
 Blocked by: 09 (branch from BRD-09's passed sha; the demo fixture of 08 is not used)
 Files touched: `bin/squad-board` (new `recorder` section; the live branch of `main`; the one `--replay`-required test in `tests/test_board_state.py` that live mode makes obsolete), `tests/fake_herdr.py` (new), `tests/test_board_recorder.py` (new)

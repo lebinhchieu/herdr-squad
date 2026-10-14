@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 State: done
 Task ID: BRD-08
 Blocked by: 09 (stacked: branch from BRD-09's passed sha, so the fixture runs against the merged server; this branch is the one the PO merges)

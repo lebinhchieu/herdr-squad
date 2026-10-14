@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 State: done
 Task ID: BRD-09
 Blocked by: 01, 02, 03, 04, 05, 06, 07 (06 already contains 05; 08 is not included, it stacks on this ticket)

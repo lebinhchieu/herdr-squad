@@ -185,6 +185,33 @@ Each ticket's `### QA whitebox additions` stands as written; these are the point
 | 10 | 05 | F2: a Seam A test with a listening occupant that sets SO_REUSEADDR and SO_REUSEPORT; the server must pick another port. No grep-gate addition. F3: a query string on `/jump/<name>` is ignored (same as every route); a test pins 200 and the argv. Exotic verbs (`BREW`, `TRACE`, `CONNECT`) may answer 501 before the Host check: no data or action behind it, so row 3 holds for the verbs the handler defines. No Sec-Fetch-Site check: the token plus the absent CORS headers cover it. A handler socket timeout is decided in BRD-06 (it touches the same code as the slow-client point). |
 | 7 | 07 | Q1 and Q2 are superseded by the widened AC1 (rule line plus the one STATUS example line). Already PASSed. |
 
+## Iteration 3: layout adapter (BRD-19, written 2026-10-13)
+
+**The board reads two squad layouts through one adapter and keeps the `/state` key list unchanged.** Plugin sources: `CONTEXT.md`, `templates/`, `bin/squad-start`, `bin/squad-spawn`, `bin/squad-close`, `bin/squad-log-message`.
+
+**Idea: a squad is a list of homes.** A home is a folder with its own `roster.md`, `escalations.md`, `messages.jsonl`, `activity.jsonl`, `iterations/` and `roles/`. Flat layout: one home, the squad folder (plus `scopes.md`). Per-scope layout: one home per open goal and per open scope. Every reader loops over homes; the rest of the server (timeline, tasks, columns, http) is unchanged except the points in the table.
+
+| # | Decision | Value |
+|---|---|---|
+| L1 | Detect | `<squad>/scopes/` is a directory → per-scope layout (the test `squad-start` uses), else flat. In per-scope layout the flat files at the squad root (`roster.md` and so on) are ignored. |
+| L2 | Homes | Per-scope: `goals/<g>/` sorted, then `scopes/<s>/` sorted. Only real directories (symlinks skipped) whose name matches `^[a-z][a-z0-9-]*$`, so `_done` and anything odd are never read. A scope or goal moved to `_done/` disappears at the next poll. A home's missing file counts as empty. |
+| L3 | Pod of an agent | Per-scope: a roster row with Role `Manager` (a goal Manager, a lone scope's Manager) → pod `all`, as in the flat layout. Any other row → pod = the folder name of its home; the roster's Scope cell is ignored (the goal Manager's and a coach's row can have it empty). The adapter writes this into the row's `scope`, so `build_columns` and `build_pods` keep their code. A scope named `all` would merge with the Managers' pod: known, accepted. |
+| L4 | Size | Pod size = the `size:` line of `scopes/<s>/scope.md` with one trailing `(...)` stripped; empty or missing → null. Goal pods and `all` have size null. Flat: from `scopes.md` as before. |
+| L5 | Pod order | `all` first, then pods by first appearance, as now. Home order (L2) makes it alphabetical by scope name. A new scope can land in the middle and shift later columns once (spec story 14 holds inside a pod, not across scopes). Accepted. |
+| L6 | Unknown agent in a log | Joins the pod whose name appears in the agent's name between `-` boundaries (`-<pod>-` inside `-<name>-`); several matches: earliest position in the name, then longest pod name; the Manager pod never matches; none → `(unlisted)`. Needed because a scope slug can hold a dash (`my-scope`). For one-word pods this is the same as the flat rule. |
+| L7 | Logs | `messages.jsonl` and `activity.jsonl` of every home, concatenated in home order; `msg_id` dedupe stays global, first wins. Each record carries its home name internally (never in `/state`). The hook and the recorder both write into the agent's own home, so a closed scope's records leave the board with it. |
+| L8 | Iterations | `iterations` = the union of numbers over all homes; `iteration` = the highest. Numbers mean different things per scope, so the filter is per home: `cur(home)` = the highest iteration file of that home, null if none. **Retag, per-scope layout only, after reading the logs and before the timeline:** default view (no `?iteration`): a record whose tag equals `cur(home)` (null equals null) gets tag = `iteration`; explicit `?iteration=N`: a record of a home with `cur` null gets tag = N, every other tag stays. Effect: the live view shows each scope's own current iteration and a goal home (it has no `iterations/`) always; an explicit N shows the records tagged N. A single scope behaves exactly like the flat layout. |
+| L9 | Escalations and needs-you | Escalation rows of every home. Per-scope ids: `escalation:<home>:<#>` and the text is `<home>: <question>`; flat ids and text stay as they are. Blocked items are unchanged. **Manager idle:** checked per Manager row against the iterations of its own home; per-scope id `manager_idle:<home>:<n>`, text names the home; a home without iteration files (a goal Manager) gives no item (known gap, no check-in file to read). |
+| L10 | Notes | `notes_path` = the file's path relative to the squad folder (`scopes/<s>/roles/<agent>.notes.md`; flat unchanged, `roles/<agent>.notes.md`). The notes route (BRD-15) resolves `<home of the roster row>/roles/<name>.notes.md`, with the same realpath containment inside that home's `roles/`; the home comes from the roster row, never from the request. |
+| L11 | Jump | Unchanged: the roster is the union of all homes. |
+| L12 | Watcher | The signature covers the same files per home plus each scope's `scope.md`, and the set of homes itself, so a new or closed scope triggers an update. |
+| L13 | Recorder | An activity record goes to `<home of the agent's roster row>/activity.jsonl`; the iteration tag is that home's highest iteration file (null if none). The roster filter (E3) reads all homes. |
+| L14 | Tokens, replay | Unchanged: `replay/` stays under the squad folder in both layouts. |
+
+**What is not read:** `usage-events.jsonl`, `tasks/`, `evidence/`, `promote.md`, `shared/`, `process.md`. Nothing is written except by the recorder.
+
+**Migration, compatibility, deploy:** none. The flat layout keeps working untouched, so this squad can migrate to per-scope before or after the board learns it. Deploy: the PO merges the branch. The live run in iteration 3 reads this squad after its migration.
+
 ## Notes for iteration 2
 
 - **Recorder timestamps:** the live activity recorder must stamp `YYYY-MM-DDTHH:MM:SS.mmmZ` (3 fraction digits), because `fromisoformat` on Python 3.9/3.10 accepts only 3 or 6 digits.

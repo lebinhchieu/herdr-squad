@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 State: done
 Task ID: BRD-06
 Blocked by: 05 (stacked: branch from BRD-05's passed sha, so `check_request` and the http section are real)

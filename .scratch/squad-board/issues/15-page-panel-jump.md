@@ -1,5 +1,5 @@
-Status: ready-for-agent
-State: ready
+Status: resolved
+State: done (PASS; in the iteration-2 line merged at 7f0b436)
 Task ID: BRD-15
 Blocked by: 12
 Files touched: `bin/squad-board.html` (sections `panel` and its mirror part, plus `drawHeaderCard` in the `header` section for the selected-header mango outline: `view.selected`, 2.5 px stroke, as in round 6), `bin/squad-board` (`http` section only: new `handle_notes` and one route line in `do_GET`), `tests/test_board_notes.py` (new). Reviewer: qaw-board-2 (security).
