@@ -4,6 +4,8 @@
 #
 #   squad-close <squad> --scope S   per-scope squad: retire S's agents (its Manager last), remove worktrees whose
 #                                   branch is merged and clean, move scopes/S to scopes/_done/S.
+#                                   Worktrees are found by branch (`git worktree list`), wherever they sit; untracked
+#                                   files (caches, pid files) do not block removal and are listed.
 #                                   flat squad (legacy): retire the agents whose Scope column is S and drop their
 #                                   roster rows; the squad stays.
 #   squad-close <squad> --goal G    retire the goal Manager, move goals/G to goals/_done/G. Refuses while a scope of
@@ -42,8 +44,8 @@ project_dir=$(dirname "$(dirname "$squads_root")")
 wt_root=$project_dir/.worktrees/$squad
 layout=flat; [[ -d $squad_dir/scopes ]] && layout=scoped
 
-# What this run closes: the roster files to read, the folder to archive, the worktrees to tidy.
-rosters=() src="" dst="" mode=squad wts=()
+# What this run closes: the roster files to read, the folder to archive.
+rosters=() src="" dst="" mode=squad
 if [[ -n $goal ]]; then
   [[ $layout == scoped ]] || { echo "--goal needs a per-scope squad" >&2; exit 1; }
   mode=goal src=$squad_dir/goals/$goal dst=$squad_dir/goals/_done/$goal
@@ -91,23 +93,33 @@ for i in "${!agents[@]}"; do
 done
 [[ $mode != label || ${#others[@]} -gt 0 ]] || { echo "no agents with scope $scope in roster.md" >&2; exit 1; }
 
-# Worktrees to tidy, newest layout first; the legacy flat layouts are found by agent name.
-add_wt() { [[ -d $1 ]] && wts+=("$1") || true; }
-case $mode in
-  squad)
-    if [[ -d $wt_root ]]; then
-      while read -r d; do wts+=("$d"); done < <(find "$wt_root" -maxdepth 3 -name .git -printf '%h\n' | sort)
-    fi
-    for a in "${agents[@]}"; do add_wt "$project_dir/.worktrees/$a"; done ;;
-  scope)
-    if [[ -d $wt_root/$scope ]]; then
-      while read -r d; do wts+=("$d"); done < <(find "$wt_root/$scope" -maxdepth 2 -name .git -printf '%h\n' | sort)
-    fi ;;
-  label)
-    for a in "${others[@]}"; do
-      if [[ -d $wt_root/$a ]]; then add_wt "$wt_root/$a"; else add_wt "$project_dir/.worktrees/$a"; fi
-    done ;;
-esac
+# Worktrees to tidy: `git worktree list --porcelain` entries (the main worktree excluded) whose branch is one of this
+# squad's: squad/<squad>/..., or a squad/... branch ending in the name of an agent being closed (the older
+# .worktrees/<agent> layout). Found by branch, never by folder.
+in_scope() {  # branch $1 belongs to what this run closes
+  local tail=${1##*/}
+  case $mode in
+    label) [[ $1 == squad/* && " ${others[*]} " == *" $tail "* ]] ;;
+    scope) [[ $1 == squad/$squad/$scope/* ]] || { [[ $1 == squad/* ]] && [[ " ${agents[*]} " == *" $tail "* ]]; } ;;
+    *) [[ $1 == squad/$squad/* ]] || { [[ $1 == squad/* ]] && [[ " ${agents[*]} " == *" $tail "* ]]; } ;;
+  esac
+}
+main_branch="" wt_paths=() wt_branches=()
+if [[ $mode != goal ]]; then
+  first=1 path="" branch=""
+  while IFS= read -r line; do
+    case $line in
+      "worktree "*) path=${line#worktree }; branch="" ;;
+      "branch refs/heads/"*) branch=${line#branch refs/heads/} ;;
+      "")
+        if [[ -n $path ]]; then
+          if [[ $first == 1 ]]; then main_branch=$branch
+          elif [[ -n $branch ]] && in_scope "$branch"; then wt_paths+=("$path"); wt_branches+=("$branch"); fi
+          first=0 path=""
+        fi ;;
+    esac
+  done < <(git -C "$project_dir" worktree list --porcelain; echo)
+fi
 
 retire() {
   for a in "$@"; do
@@ -121,18 +133,24 @@ retire "${others[@]}"
 
 if [[ $mode != goal ]]; then
   echo "== branches"
-  for wt in "${wts[@]}"; do
-    branch=$(git -C "$wt" symbolic-ref --short HEAD 2>/dev/null || echo "squad/$squad/$(basename "$wt")")
-    repo=$(dirname "$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir)")
-    target=${into:-$(git -C "$repo" symbolic-ref --short HEAD)}
-    if ! git -C "$repo" merge-base --is-ancestor "$branch" "$target"; then
+  target=${into:-$main_branch}
+  for i in "${!wt_paths[@]}"; do
+    wt=${wt_paths[i]} branch=${wt_branches[i]}
+    [[ -n $target ]] || { echo "$branch: the main worktree has no branch; pass --into BRANCH" >&2; exit 1; }
+    status=$(git -C "$wt" status --porcelain)
+    tracked=$(grep -v '^?? ' <<<"$status" || true)
+    untracked=$(sed -n 's/^?? //p' <<<"$status" | head -5 | paste -sd, - | sed 's/,/, /g')
+    [[ -z $untracked ]] || untracked="; untracked files $([[ $dry == 1 ]] && echo "would go" || echo "removed") with it: $untracked"
+    if ! git -C "$project_dir" merge-base --is-ancestor "$branch" "$target"; then
       echo "$branch: NOT merged into $target, kept"
-    elif [[ $dry == 1 ]]; then
-      echo "$branch: merged into $target, would remove worktree"
-    elif git -C "$repo" worktree remove "$wt" 2>/dev/null; then
-      echo "$branch: merged into $target, worktree removed"
-    else
+    elif [[ -n $tracked ]]; then
       echo "$branch: merged into $target, kept (uncommitted changes)"
+    elif [[ $dry == 1 ]]; then
+      echo "$branch: merged into $target, would remove worktree$untracked"
+    elif git -C "$project_dir" worktree remove --force "$wt" 2>/dev/null; then
+      echo "$branch: merged into $target, worktree removed$untracked"
+    else
+      echo "$branch: merged into $target, kept (could not remove, locked?)"
     fi
   done
   if [[ $dry == 0 && -d $wt_root ]]; then
