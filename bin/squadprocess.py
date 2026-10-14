@@ -224,3 +224,251 @@ def read_changelog(path):
     if not versions:
         raise ProcessError(f"changelog {path}: no `## v<N>` heading found")
     return items
+
+
+# ---- plan / compose / apply (design §4-§6) ----------------------------------------------------
+
+import datetime  # noqa: E402
+import difflib  # noqa: E402
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+
+SKILL_DIR = Path("skills", "squad-process-update")
+LOG_HEADER = ("# Process log\n\n**Every change to `process.md`, newest first.**\n\n"
+              "| Date | Change | Why |\n|---|---|---|\n")
+
+
+def _snapshot(plugin_root, n):
+    path = Path(plugin_root) / SKILL_DIR / "history" / f"process-v{n}.md"
+    return _read(path, f"the snapshot of version {n}")
+
+
+def _drop_version_lines(text):
+    """The squad's own text without any process-version line (valid or malformed), fence-aware."""
+    return "\n".join(ln for ln, fenced in _fence_flags(text.splitlines()) if fenced or not _LINE.match(ln))
+
+
+def _udiff(a, b, la, lb):
+    return "".join(difflib.unified_diff((a or "").splitlines(True), (b or "").splitlines(True), la, lb)) \
+        or "(no difference)\n"
+
+
+def plan(squad_dir, plugin_root=DEFAULT_PLUGIN_ROOT):
+    """Read-only. Raises ProcessError when it must refuse (ahead, flat layout, no file, missing snapshot)."""
+    squad_dir = Path(squad_dir)
+    if not (squad_dir / "scopes").is_dir():
+        raise ProcessError(f"{squad_dir} has no scopes/ folder (an older layout): run `squad-migrate` first")
+    v, stamp = squad_version(squad_dir)
+    p = plugin_version(plugin_root)
+    if v > p:
+        raise ProcessError(f"process.md is version {v}, newer than this plugin's {p}: update the plugin")
+    if v == p:
+        return {"squad": v, "plugin": p, "state": "current", "stamp": stamp, "items": [], "sections": []}
+    changelog = Path(plugin_root) / SKILL_DIR / "changelog.md"
+    items = sorted((i for i in read_changelog(changelog) if v < i.version <= p), key=lambda i: i.version)
+    s_all = dict(sections(_drop_version_lines(_read(squad_dir / "process.md", "process.md"))))
+    o_all = dict(sections(_snapshot(plugin_root, v)))
+    n_list = sections(_snapshot(plugin_root, p))
+    n_all = dict(n_list)
+    heads = [h for h, _ in n_list]
+    heads += [h for h in list(o_all) + list(s_all) if h not in heads]
+    rows = []
+    for h in dict.fromkeys(heads):
+        s, o, n = s_all.get(h), o_all.get(h), n_all.get(h)
+        if s == n:
+            state = "already"
+        elif o is None and n is None:
+            state = "local-section"
+        elif o == n:
+            state = "local"
+        elif o is None and s is None:
+            state = "added"
+        elif s == o:
+            state = "removed" if n is None else "clean"
+        else:
+            state = "conflict"
+        row = {"heading": h, "state": state, "squad": s, "old": o, "new": n}
+        if state == "conflict":
+            row["squad_vs_old"] = _udiff(o, s, "plugin v%d" % v, "squad")
+            row["old_vs_new"] = _udiff(o, n, "plugin v%d" % v, "plugin v%d" % p)
+        rows.append(row)
+    return {"squad": v, "plugin": p, "state": "behind", "stamp": stamp,
+            "items": [{"version": i.version, "title": i.title, "sections": i.sections, "change": i.change,
+                       "why": i.why, **({"manual": i.manual} if i.manual else {})} for i in items],
+            "sections": rows}
+
+
+def format_plan(pl):
+    if pl["state"] == "current":
+        return "process.md is up to date."
+    out = [f"process.md is version {pl['squad']}; the plugin's is {pl['plugin']}. Nothing is written until you confirm.",
+           "", "Changelog items:"]
+    for i in pl["items"]:
+        secs = i["sections"] if i["sections"] == "all" else "; ".join(i["sections"])
+        out.append(f"- v{i['version']} {i['title']} [{secs}] {i['change']}: {i['why']}"
+                   + (f" (MANUAL: {i['manual']})" if "manual" in i else ""))
+    out += ["", "Sections:"]
+    for r in pl["sections"]:
+        out.append(f"  {r['state']:13} {r['heading'] or '(preamble)'}")
+        if r["state"] == "conflict":
+            out += ["    what the squad changed (squad vs old):", _indent(r["squad_vs_old"]),
+                    "    what the plugin changed (old vs new):", _indent(r["old_vs_new"])]
+    return "\n".join(out)
+
+
+def _indent(text):
+    return "\n".join("      " + ln for ln in text.rstrip("\n").splitlines())
+
+
+def _decide(row, resolve):
+    """(body|None, how). A conflict without a resolution raises."""
+    st = row["state"]
+    if st != "conflict":
+        return (row["squad"] if st in ("already", "local", "local-section") else
+                row["new"] if st in ("clean", "added") else None), st
+    how = resolve.get(row["heading"])
+    if how is None:
+        raise ProcessError(f"conflict in {row['heading']!r}: say --resolve \"{row['heading']}=ours|theirs|file:<path>\"")
+    if how == "ours":
+        return row["squad"], "ours"
+    if how == "theirs":
+        return row["new"], "theirs"
+    if how.startswith("file:"):
+        return _read(how[5:], "the replacement wording").strip("\n"), "own wording"
+    raise ProcessError(f"cannot resolve {row['heading']!r} with {how!r}: use ours, theirs or file:<path>")
+
+
+def _render(blocks, version):
+    parts = []
+    for i, (h, body) in enumerate(blocks):
+        lines = [h] if h else []
+        if i == 0 and h.startswith("# "):
+            lines += ["", f"process-version: {version}"]
+        if body:
+            lines += ["", body] if lines else [body]
+        parts.append("\n".join(lines))
+    return "\n\n".join(parts) + "\n"
+
+
+def compose(squad_dir, plugin_root, out, resolve=None):
+    """Write the combined file to `out` (not inside the squad folder); return its text."""
+    squad_dir, out = Path(squad_dir).resolve(), Path(out).resolve()
+    if out == squad_dir or squad_dir in out.parents:
+        raise ProcessError(f"--out {out} is inside the squad folder: pick a path outside it")
+    pl = plan(squad_dir, plugin_root)
+    if pl["state"] == "current":
+        raise ProcessError("process.md is up to date: nothing to compose")
+    resolve = dict(resolve or {})
+    unknown = set(resolve) - {r["heading"] for r in pl["sections"] if r["state"] == "conflict"}
+    if unknown:
+        raise ProcessError(f"--resolve names a heading that is not a conflict: {', '.join(sorted(unknown))}")
+    rows = {r["heading"]: r for r in pl["sections"]}
+    decided = {h: _decide(r, resolve) for h, r in rows.items()}
+    s_order = [h for h, _ in sections(_drop_version_lines(_read(squad_dir / "process.md", "process.md")))]
+    n_order = [h for h, _ in sections(_snapshot(plugin_root, pl["plugin"]))]
+    blocks = [[h, decided[h][0]] for h in s_order if decided[h][0] is not None]
+    for k, h in enumerate(n_order):
+        if h in s_order or decided[h][0] is None:
+            continue
+        at = 0
+        for prev in reversed(n_order[:k]):
+            idx = next((j for j, b in enumerate(blocks) if b[0] == prev), None)
+            if idx is not None:
+                at = idx + 1
+                break
+        blocks.insert(at, [h, decided[h][0]])
+    text = _render(blocks, pl["plugin"])
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    return text
+
+
+def _validate(file_text, pl, items_removed):
+    if not file_text.strip():
+        raise ProcessError("FILE is empty")
+    n, status = parse_version(file_text)
+    if status != "ok":
+        raise ProcessError(f"FILE needs exactly one `process-version: {pl['plugin']}` line ({status})")
+    if n != pl["plugin"]:
+        raise ProcessError(f"FILE says version {n}; the plugin's is {pl['plugin']}")
+    have = {h for h, _ in sections(file_text)}
+    missing = [r["heading"] for r in pl["sections"]
+               if r["new"] is not None and r["heading"] not in have and r["heading"] not in items_removed]
+    if missing:
+        raise ProcessError("FILE lacks headings of the new version: " + ", ".join(repr(m) for m in missing))
+
+
+def _backup_path(squad_dir, today):
+    backups = squad_dir.parent.parent / "squad-backups"
+    path, n = backups / f"{squad_dir.name}-process-{today}.md", 1
+    while path.exists():
+        n += 1
+        path = backups / f"{squad_dir.name}-process-{today}-{n}.md"
+    return path
+
+
+def _atomic_write(path, text):
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        if path.exists():
+            shutil.copymode(path, tmp)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def _log_rows(pl, chosen, today):
+    rows = [f"| {today} | v{pl['plugin']} conflict {h}: kept {how} | the PO chose |" for h, how in chosen]
+    for i in sorted(pl["items"], key=lambda i: -i["version"]):
+        secs = i["sections"] if i["sections"] == "all" else "; ".join(i["sections"])
+        rows.append(f"| {today} | v{i['version']} {i['title']}: {secs} | {i['why']} |")
+    return rows
+
+
+def _insert_log(old, rows):
+    lines = (old or LOG_HEADER).splitlines()
+    at = next((k + 1 for k, ln in enumerate(lines) if re.fullmatch(r"\|[ \-|:]+\|", ln.strip())), None)
+    if at is None:
+        lines += ["", *LOG_HEADER.splitlines()[-2:]]
+        at = len(lines)
+    return "\n".join(lines[:at] + rows + lines[at:]) + "\n"
+
+
+def apply(squad_dir, plugin_root, file, yes=False, today=None):
+    """Validate FILE; without `yes` return the diff and write nothing. Returns a dict for the CLI to print."""
+    from processlint import lint
+    squad_dir, today = Path(squad_dir).resolve(), str(today or datetime.date.today())
+    pl = plan(squad_dir, plugin_root)
+    if pl["state"] == "current":
+        return {"applied": False, "message": "process.md is up to date: nothing to do."}
+    text = _read(file, "FILE")
+    removed = {s for i in pl["items"] if i["change"] == "remove" and i["sections"] != "all" for s in i["sections"]}
+    _validate(text, pl, removed)
+    current = _read(squad_dir / "process.md", "process.md")
+    new_s = dict(sections(text))
+    chosen = []
+    for r in pl["sections"]:
+        if r["state"] == "conflict":
+            got = new_s.get(r["heading"])
+            chosen.append((r["heading"], "ours" if got == r["squad"] else "theirs" if got == r["new"]
+                           else "own wording"))
+    changed = [h for h, b in new_s.items() if b != dict(sections(_drop_version_lines(current))).get(h)]
+    changed += [r["heading"] for r in pl["sections"] if r["squad"] is not None and r["heading"] not in new_s]
+    res = {"applied": False, "changed": changed, "warnings": [f"WARNING lint: {w}" for w in lint(text)],
+           "diff": _udiff(current, text, "process.md (now)", "process.md (proposed)")}
+    if not yes:
+        res["message"] = "NOT APPLIED (add --yes after the PO confirms)."
+        return res
+    backup = _backup_path(squad_dir, today)
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(squad_dir / "process.md", backup)
+    _atomic_write(squad_dir / "process.md", text)
+    log = squad_dir / "process-log.md"
+    rows = _log_rows(pl, chosen, today)
+    _atomic_write(log, _insert_log(log.read_text(encoding="utf-8") if log.exists() else "", rows))
+    r = check(squad_dir, plugin_root)
+    res.update(applied=True, backup=str(backup), log_rows=rows, message=r["message"] or "process.md is current.")
+    return res
