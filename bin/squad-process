@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+"""Squad process version tool.
+
+  squad-process version [--json]        squad version, plugin version, state, stamp
+  squad-process check [--quiet] [--json]  one-line warning when the squad's process.md is not current
+
+Both take --squad-dir D (default $SQUAD_DIR) and --plugin-root R. Exit 0 always for these two:
+a bad file is reported, never a failure of the caller.
+"""
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadprocess as sp  # noqa: E402
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="squad-process", description=__doc__.split("\n")[0])
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    for name in ("version", "check"):
+        p = sub.add_parser(name)
+        p.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
+        p.add_argument("--plugin-root", default=str(sp.DEFAULT_PLUGIN_ROOT))
+        p.add_argument("--json", action="store_true")
+        if name == "check":
+            p.add_argument("--quiet", action="store_true", help="print nothing when current and stamped")
+    a = ap.parse_args(argv)
+    if not a.squad_dir:
+        print("squad-process: no --squad-dir and $SQUAD_DIR is not set", file=sys.stderr)
+        return 0
+    try:
+        r = sp.check(a.squad_dir, a.plugin_root)
+    except sp.ProcessError as e:
+        print(f"squad-process: {e}", file=sys.stderr)
+        return 0
+    if a.json:
+        print(json.dumps(r))
+    elif a.cmd == "version":
+        print(f"squad {r['squad']} ({r['stamp']}), plugin {r['plugin']}, {r['state']}")
+    elif r["message"] or not a.quiet:
+        print(r["message"] or "process.md is current.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
