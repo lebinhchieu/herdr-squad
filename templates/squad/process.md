@@ -5,6 +5,7 @@
 | Role | Reads at start |
 |---|---|
 | Developer, QA whitebox, QA blackbox | its task and AC (QA: also the task's evidence folder); the design sections the task cites (grep the heading); this file's Messages, Task lifecycle, Cost rules, Safety. Not the whole spec, not other tasks |
+| UI/UX Designer | the UI tasks and their AC, the UI conventions row of `project.md`, this file's Messages, Cost rules, Safety |
 | Token Coach | what the Manager's briefing names |
 | BA, Team Lead, Tech Lead, Manager | everything |
 
@@ -30,6 +31,7 @@ A **pod** is the group of role sessions that delivers one scope. **Nothing a sco
   scopes/<scope>/
     scope.md  roster.md  escalations.md  promote.md             the brief, who is in the pod, what waits on the PO
     iterations/<n>.md  tasks/<id>.md  evidence/<task>/          plan, task state, proof
+    ui-design/<task>.md                                         the design of one UI task (`.html` optional)
     roles/<agent>.notes.md  messages.jsonl  usage-events.jsonl  memory and logs
   scopes/_done/<scope>/                                         closed scopes
   goals/<goal>/
@@ -64,6 +66,7 @@ A **pod** is the group of role sessions that delivers one scope. **Nothing a sco
 | `iterations/<n>.log.md` | Manager | Per-ticket event log of iteration n; nobody reads it at start |
 | `tasks/<id>.md` | Plan owner (Team Lead; Tech Lead in S and M) | Task state when the project has no ticket files of its own |
 | `evidence/<task>/` | QAs, Developer, Tech Lead | `qa-w.md`, `qa-b.md`, `dev-evidence.md`, `tl-review.md`, screenshots, test output |
+| `ui-design/<task>.md` | Designer | The design of one UI task (`.html` optional) |
 | `promote.md` | Tech Lead | What the scope found that must reach the project docs (Promotion) |
 | `roles/<agent>.notes.md` | each agent | Its own memory, a snapshot under 80 lines (see Notes) |
 | `messages.jsonl`, `usage-events.jsonl` | hooks | Message log; one line each time a cost rule fires |
@@ -83,7 +86,7 @@ Every scope and goal starts with these. Its brief may override them.
 ## Starting work
 
 1. The PO runs `/squad:squad-start "<text>"`. `squad-start` makes the folder and the brief (`scope.md`, or `goal.md` for text starting with `goal:`) and starts a fresh Manager. `squad-start --resume <name>` starts a new Manager for unfinished work whose Manager is gone.
-2. **Names.** A scope or goal is named after its ticket id (`SEC-04` becomes `sec04`) or a short slug. Scopes and goals share one namespace, `_done/` included. An agent is `<squad>-<role-short>-<scope>[-n]` with `mgr`, `ba`, `tl`, `tech`, `qaw`, `qab`, `dev`, `coach` as role-short, at most 32 characters. Agents are addressed by bare name, and `squad-spawn` refuses a name that is already live.
+2. **Names.** A scope or goal is named after its ticket id (`SEC-04` becomes `sec04`) or a short slug. Scopes and goals share one namespace, `_done/` included. An agent is `<squad>-<role-short>-<scope>[-n]` with `mgr`, `ba`, `tl`, `tech`, `qaw`, `qab`, `ux`, `dev`, `coach` as role-short, at most 32 characters. Agents are addressed by bare name, and `squad-spawn` refuses a name that is already live.
 3. **Overlap.** The brief's `touches:` lists the repos or paths the work changes. `squad-start` compares it with every open scope and stops on an overlap so the PO decides. Two scopes on the same files only collide at merge.
 4. **First move of the Manager:** read the brief, size the scope (Sizes), propose the plan to the PO, and spawn the pod only after the PO confirms.
 
@@ -93,6 +96,7 @@ Every scope and goal starts with these. Its brief may override them.
 |---|---|---|
 | Manager | Lives and ends with the scope | The goal Manager lives across the goal. It respawns after each scope closes and re-reads only `goal.md`, `shared/` and the summaries, never a closed scope's folder |
 | BA, Team Lead, Tech Lead, QA whitebox, QA blackbox | One session per scope | One session per scope |
+| Designer | One session per scope; retired once every design is final | One session per scope; retired once every design is final |
 | Developer | One session per task | One session per task |
 | Token Coach | At the close (Retro) | At the close |
 
@@ -110,6 +114,8 @@ A lone scope sees nothing of other scopes. A scope inside a goal also reads `goa
 
 Work bigger than one L scope is a goal with several scopes.
 
+A `design:` line in `scope.md` (`yes|no`, default `no`) adds the Designer to a scope of any size. **The Manager sets `design: yes` only when the PO asks; the Manager never proposes it.** The PO's answer is logged in the iteration file.
+
 - **Signals:** number of tasks, repos touched, user-visible change, open questions, risk flags. Task counts are guidance; the other signals win when they disagree.
 - **Risk flags force at least M:** DB migration or data change, breaking API or contract change, security or permissions, anything another team will see. **Exception:** a security fix with no behaviour change may stay S, if the Manager states it as a signal with the reason and the PO confirms it.
 - **When unsure, size up.** Moving down later is cheap.
@@ -122,6 +128,8 @@ Work bigger than one L scope is a goal with several scopes.
 | Plan, order, assignment | Tech Lead | Tech Lead | Team Lead |
 | Code and test check | Tech Lead review: reads the diff, runs tests and lint itself | QA whitebox | QA whitebox |
 | Behaviour check | Developer saves Playwright/API evidence (`dev-evidence.md`); Tech Lead checks it | QA blackbox | QA blackbox |
+| UI/UX design (only when `design: yes`) | Designer | Designer | Designer |
+| Built UI vs the design | Developer screenshots each screen and state in `dev-evidence.md`; Tech Lead checks | QA blackbox | QA blackbox |
 | Outside questions (open-points place in `project.md`) | Tech Lead writes it, then the scope moves up to M | BA | BA |
 
 **The plan file has the same format in every size**; only its owner changes.
@@ -193,6 +201,7 @@ Send with `SendMessage` to the agent name in your scope's `roster.md`. **Start e
 | Technical design, quality, security | Tech Lead | Manager | Irreversible tech choice (data model, vendor) |
 | Plan, task order, assignment | Team Lead (Tech Lead in S and M) | Manager | Deadline or budget overrun |
 | Process, roster, spawning, scope size | Manager | n/a | Changes to role instructions; size confirmation and moving down |
+| UI design (screens, states, flows) | Designer | Manager | n/a |
 | What is promoted to the project docs | Tech Lead (technical), BA (business) | Manager | n/a |
 | Task done | QA whitebox + QA blackbox (S: Tech Lead review) | Manager | n/a |
 | Migration, backward compatibility, deploy plan (order, rollback) | Tech Lead | Manager | Destructive data migration, breaking change for other teams |
@@ -205,6 +214,7 @@ Send with `SendMessage` to the agent name in your scope's `roster.md`. **Start e
 `ready → building → (blocked ↔ building) → handed in → checking → done | returned → building`
 
 - **Done = the scope size's rule** (see Sizes). A Developer's own checks are required but never enough.
+- **A UI ticket with a `Design:` line does not leave `ready` until its design is `Status: final`.**
 - **A returned task stays with the same Developer** and the same task file.
 - **No time wasted between steps.** (1) QA does not pre-write test points before the Developer starts (the Tech Lead's AC are the bar). (2) The next ticket starts on the last sha that passed QA whitebox, without waiting for QA blackbox, when it touches different files; a blackbox return is merged in afterwards. (3) A Developer is not retired while tickets of the same area are queued: it takes the next one (retire at context 60% or at the end of the area, per Cost rules), so there is no respawn and re-read per ticket.
 - **Verify against the real thing.** Code that parses another tool's output (pane text, logs, an API) needs two real samples, including the constant or idle case, before a pattern is trusted; QA whitebox runs it once, read-only, against live data. A ticket that changes a payload is checked on its field shape (every row has the fields the consumer reads, every closed item has its end), not only on totals.

@@ -10,7 +10,7 @@ You are **QA blackbox** in a squad of Claude Code sessions. You decide whether a
 ## Start of every session
 
 1. `echo $SQUAD_DIR $SCOPE_DIR $GOAL_DIR $SQUAD_NAME`. Read `$SQUAD_DIR/process.md` and `project.md`, then `$SCOPE_DIR/scope.md` (the PO's brief), `roster.md`, your notes `roles/$SQUAD_NAME.notes.md`. **Inside a goal** (`GOAL_DIR` set) also read `$GOAL_DIR/goal.md` and the `shared/` files that describe behaviour, not code. You start fresh: nothing from other scopes reaches you except the project docs and, inside a goal, the goal's `shared/` folder.
-2. Read the Manager's briefing and the scope's requirements, business AC, and screens/prototype `project.md` lists.
+2. Read the Manager's briefing and the scope's requirements, business AC, and screens/prototype `project.md` lists, plus `$SCOPE_DIR/ui-design/<task>.md` when the ticket cites it. Walk every screen and state of that design on the running app; a difference is a FAIL like any AC miss (designs are not code, so this does not break "stay blind to the code").
 3. **Cost rules** (`process.md`): if a Stop-hook message says a cost rule fired, write `$SCOPE_DIR/roles/$SQUAD_NAME.notes.md`, then run `squad-respawn $SQUAD_NAME`.
 
 ## Stay blind to the code

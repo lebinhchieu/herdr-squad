@@ -1,6 +1,6 @@
 # squad: a self-managing Claude Code dev team
 
-**You are the PO. For each task or goal you give it, a fresh Manager session spawns and runs a team of Claude Code sessions (BA, Team Lead, Tech Lead, QA whitebox, QA blackbox, Developers), each in its own herdr tab. They talk through Claude Code's built-in cross-session messaging and keep everything durable in a folder in your project. Work is grouped by scope: a scope starts fresh, shares nothing with other scopes, and its lasting knowledge goes into your project's own docs.**
+**You are the PO. For each task or goal you give it, a fresh Manager session spawns and runs a team of Claude Code sessions (BA, Team Lead, Tech Lead, QA whitebox, QA blackbox, Developers, and an optional UI/UX Designer (only when the PO sets `design: yes`)), each in its own herdr tab. They talk through Claude Code's built-in cross-session messaging and keep everything durable in a folder in your project. Work is grouped by scope: a scope starts fresh, shares nothing with other scopes, and its lasting knowledge goes into your project's own docs.**
 
 ## Quick start
 
@@ -18,7 +18,7 @@ claude --plugin-dir ~/workspace/squad
 /squad:squad-start "goal: rebuild the settings page"      # several scopes under one goal Manager
 ```
 
-`squad-start` makes the scope (or goal) folder and brief and starts a fresh Manager in its own herdr tab; you talk to it there. The Manager sizes the work (**S**: Tech Lead + Developers; **M**: + BA and both QAs; **L**: + Team Lead), proposes a plan, spawns only the roles that size needs, and checks in with you at the end of each iteration. Several scopes can run side by side, each in its own tab. A Manager that is gone can be restarted with `squad-start --resume <name>`.
+`squad-start` makes the scope (or goal) folder and brief and starts a fresh Manager in its own herdr tab; you talk to it there. The Manager sizes the work (**S**: Tech Lead + Developers; **M**: + BA and both QAs; **L**: + Team Lead), proposes a plan, spawns only the roles that size needs, and checks in with you at the end of each iteration. Several scopes can run side by side, each in its own tab. A Manager that is gone can be restarted with `squad-start --resume <name>`. The Designer delivers a design before build (screens, states, flows, optional HTML prototype) and no post-build check; the built UI is checked against it by the Developer's screenshots (S) or QA blackbox (M, L).
 
 ## The layers
 
@@ -35,7 +35,7 @@ A lone scope sees nothing of other scopes. The scopes of a goal share only `goal
 
 | Path | What it is |
 |---|---|
-| `agents/*.md` | The 8 role definitions, started as **top-level sessions** with `claude --agent squad:<role>` (not as subagents) |
+| `agents/*.md` | The 9 role definitions, started as **top-level sessions** with `claude --agent squad:<role>` (not as subagents) |
 | `bin/squad-start` | Makes a scope or goal folder and brief, checks that the work doesn't overlap an open scope (`--touches`), starts a fresh Manager. `--in-goal G` adds a scope to a goal; `--resume NAME` restarts a Manager; `--model M` and `--effort E` set the Manager's model and effort |
 | `bin/squad-spawn` | Opens a herdr tab, makes a git worktree for Developers (`.worktrees/<squad>/<scope>/<agent>`, branch `squad/<squad>/<scope>/<agent>`; `--base` starts it from a passed branch), starts `claude --agent squad:<role> --name <agent> --permission-mode auto --settings <role settings>` |
 | `bin/squad-close` | `--scope S` retires a scope's agents, removes merged, clean worktrees (found by branch `squad/...`, wherever they sit) and moves the folder to `scopes/_done/`. `--goal G` does the same for a goal and refuses while a scope is open or its shared decisions were never promoted. With neither it archives the whole squad. Every branch is reported; none is deleted |

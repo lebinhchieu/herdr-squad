@@ -71,6 +71,13 @@ class InstructionsTest(unittest.TestCase):
                       "promoted:", "Never read or write another scope's folder"):
             self.assertIn(token, text)
 
+    def test_the_designer_is_wired_into_process_manager_and_scope_template(self):
+        process = (ROOT / "templates/squad/process.md").read_text()
+        for token in ("design: yes", "ui-design/", "`ux`"):
+            self.assertIn(token, process)
+        self.assertIn("\ndesign: no\n", (ROOT / "templates/scope/scope.md").read_text())
+        self.assertIn("`designer`", (ROOT / "agents/manager.md").read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

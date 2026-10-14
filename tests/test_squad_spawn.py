@@ -11,7 +11,7 @@ SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-spawn"
 TABLE = {"manager": ("opus", "medium"), "tech-lead": ("sonnet", "high"), "ba": ("sonnet", "high"),
          "team-lead": ("sonnet", "medium"), "dev": ("sonnet", "medium"),
          "qa-whitebox": ("sonnet", "high"), "qa-blackbox": ("sonnet", "high"),
-         "token-coach": ("sonnet", "medium")}
+         "token-coach": ("sonnet", "medium"), "designer": ("sonnet", "high")}
 UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 FAKE_HERDR = """#!/usr/bin/env bash
 echo "$@" >> "$HERDR_LOG"
@@ -248,3 +248,45 @@ class SpawnScopedTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SpawnDesignerTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.squad = scoped_squad(self.tmp.name)
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def spawn(self, *args):
+        return subprocess.run([str(SCRIPT), "designer", "d-sc1", "--scope", "sc1", *args], env=self.env,
+                              text=True, capture_output=True, timeout=10)
+
+    def test_design_yes_spawns_a_sonnet_high_designer_with_its_own_settings(self):
+        (self.squad / "scopes/sc1/scope.md").write_text("# Scope\n\ndesign: Yes\n")
+        r = self.spawn("--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("--agent squad:designer", r.stdout)
+        self.assertRegex(r.stdout, r"--model sonnet --effort high\b")
+        self.assertRegex(r.stdout, r"--settings \S*settings/designer\.json")
+
+    def test_without_design_yes_it_refuses_and_starts_nothing(self):
+        scope_md = self.squad / "scopes/sc1/scope.md"
+        bin_dir = Path(self.tmp.name) / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "herdr").write_text(FAKE_HERDR)
+        (bin_dir / "herdr").chmod(0o755)
+        log = Path(self.tmp.name) / "herdr.log"
+        self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(log))
+        for body in ("# Scope\n\ndesign: no\n", "# Scope\n\ntouches:\n", None):
+            for extra in (("--dry-run",), ()):
+                with self.subTest(body=body, extra=extra):
+                    scope_md.unlink(missing_ok=True)
+                    if body is not None:
+                        scope_md.write_text(body)
+                    r = self.spawn(*extra)
+                    self.assertEqual(r.returncode, 1)
+                    self.assertIn("scope sc1 has no 'design: yes' in scope.md; only the PO turns the designer on", r.stderr)
+                    self.assertFalse(log.exists())

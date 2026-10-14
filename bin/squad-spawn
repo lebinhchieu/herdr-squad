@@ -6,7 +6,7 @@ usage() {
   cat <<'EOF'
 Usage: squad-spawn <role> <agent-name> [options]
 
-Roles: manager ba team-lead tech-lead qa-whitebox qa-blackbox dev token-coach
+Roles: manager ba team-lead tech-lead qa-whitebox qa-blackbox dev token-coach designer
 Name:  lowercase, [a-z][a-z0-9_-]{0,31}, e.g. ba-settings, dev-settings-1
 
 Options:
@@ -54,7 +54,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach) ;;
+case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer) ;;
   *) echo "unknown role: $role" >&2; exit 2 ;; esac
 [[ -z $base || -n $repo ]] || { echo "--base needs --repo" >&2; exit 2; }
 [[ $name =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { echo "bad agent name: $name (herdr needs [a-z][a-z0-9_-]{0,31})" >&2; exit 2; }
@@ -90,6 +90,10 @@ if [[ -d $squad_dir/scopes ]]; then
     [[ -n $scope ]] || { echo "this squad is per-scope: pass --scope or --goal" >&2; exit 2; }
     scope_dir=$squad_dir/scopes/$scope home=$scope_dir
     [[ -d $scope_dir ]] || { echo "no scope folder at $scope_dir (run squad-start)" >&2; exit 1; }
+    if [[ $role == designer ]] && ! grep -qiE '^design:[[:space:]]*yes[[:space:]]*$' "$scope_dir/scope.md" 2>/dev/null; then
+      echo "scope $scope has no 'design: yes' in scope.md; only the PO turns the designer on" >&2
+      exit 1
+    fi
     in_goal=$(sed -n 's/^goal:[[:space:]]*//p' "$scope_dir/scope.md" 2>/dev/null | head -1 | tr -d '[:space:]')
     if [[ -n $in_goal ]]; then
       goal_dir=$squad_dir/goals/$in_goal

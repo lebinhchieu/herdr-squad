@@ -40,9 +40,10 @@ Spawn with the `squad-spawn` command (on your PATH from this plugin):
 squad-spawn <role> <agent-name> --scope <scope> [--repo DIR [--base REF]] [--prompt "first message"]
 ```
 
-- Roles: `ba`, `team-lead`, `tech-lead`, `qa-whitebox`, `qa-blackbox`, `dev`, `token-coach`. The scope is yours (`$SQUAD_SCOPE`), or the scope you are running inside the goal.
+- Roles: `ba`, `team-lead`, `tech-lead`, `qa-whitebox`, `qa-blackbox`, `designer`, `dev`, `token-coach`. The scope is yours (`$SQUAD_SCOPE`), or the scope you are running inside the goal.
 - **Tell every agent its scope's size in the first prompt**, so it knows which duties it carries (`process.md` → Sizes).
-- Names: `<squad>-<role-short>-<scope>[-n]` (`ba`, `tl`, `tech`, `qaw`, `qab`, `dev`, `coach`), lowercase, at most 32 characters, e.g. `bill-ba-invoices`, `bill-dev-invoices-1`. The squad prefix keeps names unique across squads, because agents are addressed by bare name; `squad-spawn` refuses a name that is already live.
+- Names: `<squad>-<role-short>-<scope>[-n]` (`ba`, `tl`, `tech`, `qaw`, `qab`, `ux`, `dev`, `coach`), lowercase, at most 32 characters, e.g. `bill-ba-invoices`, `bill-dev-invoices-1`. The squad prefix keeps names unique across squads, because agents are addressed by bare name; `squad-spawn` refuses a name that is already live.
+- **Designer: only when `scope.md` has `design: yes`, and never suggest it to the PO.** Spawn it after the Tech Lead's plan names the UI tasks and before their Developers; retire it per the Lifetimes row in `process.md`.
 - **Developers always get `--repo <code repo>`** so they work in their own git worktree `.worktrees/<squad>/<scope>/<agent>` on branch `squad/<squad>/<scope>/<agent>`. Take the repo from the task's `repos` and `project.md`. **`--base <passed branch or commit>`** starts the branch from work that is passed but not merged (stacked branches, `process.md` → Inside a goal).
 - **The first prompt is the agent's only briefing.** Include: its scope and folder, what it owns, the files to read first (the brief, and in a goal `goal.md` and `shared/`), and who it works with by name.
 - Retire with `squad-retire <agent-name>`: it asks the agent to save its notes, then closes its pane. Developers retire after their task is done; their branch stays for the PO.
