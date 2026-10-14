@@ -259,9 +259,8 @@ A Stop hook (`squad-usage --check`) tells you when rule 2 or 3 fires and logs it
   - **Conflict or failure:** `git merge --abort`, then tell the PO the files in conflict. The Manager never resolves a conflict and never uses `--force`, `rebase`, `reset --hard` or `push`.
   - **After:** quote `git log --oneline -1` and the result to the PO; note it in the iteration file.
 - **No writes to Jira or Confluence.** Read only.
-- **Long suites: run once, read the receipt.** A suite over ~2 minutes runs one full run at a time per squad, under a lock: `flock /tmp/<squad>-suite.lock nice -n 10 <suite command>`. `project.md` may name a runner that takes the lock and writes receipts.
-  - The Developer runs the full suite once, on the final sha after every fix (while building, only touched files), and saves a receipt: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the suite's OK line.
-  - QA checks the receipt (same sha as the `HANDIN`, clean tree, OK), then runs only targeted tests for the diff's files and reads the diff. It runs the full suite only when the receipt is missing or its sha differs, integration tasks included.
-  - Targeted runs are free; never start the full suite in the background while waiting on something else.
+- **Long suites: run once, read the receipt.** A suite over ~2 minutes runs once per task. `project.md` names the runner; it locks only its browser files and skips phases the diff cannot affect.
+  - The Developer runs the full suite once, on the final sha, in the background, waits for its completion notice (never `pgrep -f` or `pkill -f`) and saves a receipt: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the suite's OK line. While building, only touched files.
+  - QA checks the receipt (same sha as the `HANDIN`, clean tree, OK, its skipped-phase lines), then runs only targeted tests for the diff's files and reads the diff. It runs the full suite only when the receipt is missing or its sha differs, integration tasks included.
 - **Close what you open.** Before you report, end every browser session and stop every server or process you started, by PID. Never `pkill` or `killall` by name or pattern.
 - **Stay in your lane:** edit only the files your role owns, plus your own notes file.
