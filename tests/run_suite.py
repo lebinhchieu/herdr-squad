@@ -21,6 +21,7 @@ from pathlib import Path
 
 LOCK = os.environ.get("SQUAD_SUITE_LOCK", "/tmp/squad-suite.lock")  # the override is for test_run_suite only
 TZ_FILES = ("test_board_timeline", "test_board_state", "test_board_tokens", "test_board_recorder")
+AGENT_ENV = ("SQUAD_DIR", "SCOPE_DIR", "GOAL_DIR", "SQUAD_NAME", "SQUAD_ROLE", "SQUAD_SCOPE")  # an agent's own squad folders; tests must never see them
 TZ_ENV = {"TZ": "America/New_York", "LC_ALL": "C"}
 RAN_RE = re.compile(r"^Ran (\d+) tests? in ", re.M)
 
@@ -38,7 +39,8 @@ def discover(tests_dir):
 
 def run_file(path, env_extra=None):
     """Run one file; returns (name, ok, n_tests, seconds, output)."""
-    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")  # the repo has had .pyc files committed
+    env = {k: v for k, v in os.environ.items() if k not in AGENT_ENV}
+    env["PYTHONDONTWRITEBYTECODE"] = "1"  # the repo has had .pyc files committed
     env.update(env_extra or {})
     started = time.monotonic()
     done = subprocess.run([sys.executable, "-m", "unittest", "-q", path.stem], cwd=str(path.parent),

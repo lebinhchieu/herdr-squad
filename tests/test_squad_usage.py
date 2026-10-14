@@ -48,7 +48,7 @@ class UsageTest(unittest.TestCase):
         self.proj.mkdir(parents=True)
         self.squad = root / "squad"
         self.squad.mkdir()
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "CLAUDE_CONFIG_DIR"))}
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR", "CLAUDE_CONFIG_DIR"))}
         self.env["CLAUDE_CONFIG_DIR"] = str(self.cfg)
 
     def tearDown(self):

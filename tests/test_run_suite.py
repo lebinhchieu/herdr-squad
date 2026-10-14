@@ -138,3 +138,35 @@ class RunSuiteTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AgentEnvTest(unittest.TestCase):
+    """RP-08: a test run never sees or writes the agent's own squad folders."""
+
+    def agent_env(self, tmp):
+        return dict(os.environ, **{n: str(tmp) for n in run_suite.AGENT_ENV})
+
+    def test_child_env_drops_the_six_agent_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "test_env.py").write_text(
+                "import os, unittest\nclass T(unittest.TestCase):\n    def test_a(self):\n"
+                "        self.assertEqual([n for n in %r if n in os.environ], [])\n" % (run_suite.AGENT_ENV,))
+            old = os.environ.copy()
+            os.environ.update(self.agent_env(tmp))
+            try:
+                ok = run_suite.run_file(Path(tmp) / "test_env.py")[1]
+            finally:
+                os.environ.clear()
+                os.environ.update(old)
+            self.assertTrue(ok)
+        self.assertEqual(set(run_suite.AGENT_ENV), {"SQUAD_DIR", "SCOPE_DIR", "GOAL_DIR", "SQUAD_NAME", "SQUAD_ROLE", "SQUAD_SCOPE"})
+
+    def test_squad_usage_leaves_a_live_roster_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            roster = Path(tmp) / "roster.md"
+            roster.write_text("| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n| dev-1 | dev | s | x | live | s1 |\n")
+            before = roster.read_bytes()
+            r = subprocess.run([sys.executable, "-m", "unittest", "-q", "test_squad_usage"], cwd=str(Path(__file__).parent),
+                               env=self.agent_env(tmp), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+            self.assertEqual(r.returncode, 0, r.stdout)
+            self.assertEqual(roster.read_bytes(), before)
