@@ -416,9 +416,28 @@ class Browser:
         # the state is in the mirror one frame before it is on the canvas
         self.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
         if self.at_top:
-            # a wheel first: the follow pauses, so a later state frame cannot pin the bottom again
-            self.eval("window.dispatchEvent(new Event('wheel')); window.scrollTo(0, 0)")
-            self.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
+            self.pause_follow()
+
+    def pause_follow(self, timeout_ms=8000):
+        """Scroll to the top as the user does (a wheel, then a scroll), so the follow pauses and a later state
+        frame cannot pin the bottom again. A state update can pin the bottom between the scrollTo and its
+        scroll event, which then finds the page at the bottom and leaves the follow on; so the gesture is
+        repeated until the page itself says it is paused and is at the top."""
+        state = self.eval("""(async () => {
+          const frames = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+          const read = () => ({following: document.getElementById('live-state').dataset.following, scrollY: window.scrollY});
+          const end = performance.now() + %d;
+          let now;
+          do {
+            window.dispatchEvent(new Event('wheel'));
+            window.scrollTo(0, 0);
+            await frames();
+            now = read();
+          } while (!(now.following === 'false' && now.scrollY === 0) && performance.now() < end);
+          return now;
+        })()""" % timeout_ms)
+        if state != {"following": "false", "scrollY": 0}:
+            raise AssertionError("the page did not pause its follow and stay at the top within %d ms: %r" % (timeout_ms, state))
 
     def eval(self, js):
         return self.call("eval", js=js)
