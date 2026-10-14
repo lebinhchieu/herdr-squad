@@ -13,7 +13,7 @@
       (squad-close --scope would otherwise retire the Manager).
 
 Both refuse when the target already exists. Before changing anything the squad folder is copied to
-<squad folder>.bak-<date> next to it (-2, -3 ... if that exists; --no-backup skips it). --dry-run prints every step and changes nothing.
+<project>/.claude/squad-backups/<squad>-<date> (-2, -3 ... if that exists; --no-backup skips it). --dry-run prints every step and changes nothing.
 Roster files are rewritten by this script keeping every other row, and the result is checked at the end.
 Env: SQUAD_DIR (else <git root>/.claude/squads/<squad>).
 """
@@ -275,19 +275,20 @@ def main():
     else:
         notes, extra = plan_scope_to_goal(squad, a.scope_to_goal, a.goal, plan)
 
-    backup = squad.with_name(squad.name + ".bak-" + datetime.date.today().isoformat())
+    # outside .claude/squads/, so squad auto-detect never sees the backup's process.md as a second squad
+    backups = squad.parent.parent / "squad-backups"
+    backup = backups / f"{squad.name}-{datetime.date.today()}"
     n = 1
     while backup.exists():  # a second migration on the same day must not overwrite or refuse
         n += 1
-        backup = squad.with_name(f"{squad.name}.bak-{datetime.date.today()}-{n}")
+        backup = backups / f"{squad.name}-{datetime.date.today()}-{n}"
     if a.no_backup:
         print("no backup (--no-backup)")
     else:
         print(("would copy " if a.dry_run else "copying ") + f"{squad} -> {backup}")
         if not a.dry_run:
+            backups.mkdir(exist_ok=True)
             shutil.copytree(squad, backup, symlinks=True)
-            print(f"WARNING: the backup holds a process.md, so tools that list .claude/squads/*/process.md see two squads: "
-                  f"delete {backup.name} once you have checked the result")
 
     try:
         plan.run(a.dry_run)

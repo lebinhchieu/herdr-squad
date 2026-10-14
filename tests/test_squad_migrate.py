@@ -26,7 +26,7 @@ class Base(unittest.TestCase):
         self.squad.mkdir(parents=True)
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
         self.env.update(SQUAD_DIR=str(self.squad), PYTHONDONTWRITEBYTECODE="1")
-        self.backup = self.squads / f"t.bak-{datetime.date.today()}"
+        self.backup = self.root / ".claude" / "squad-backups" / f"t-{datetime.date.today()}"
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -89,6 +89,8 @@ class ToPerScopeTest(Base):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.tree(self.backup), before)
         self.assertEqual((self.backup / "roster.md").read_text(), ROSTER)
+        self.assertEqual(sorted(p.name for p in self.squads.iterdir()), ["t"])  # auto-detect sees one squad
+        self.assertNotIn("WARNING", r.stdout)
 
     def test_dry_run_prints_every_move_and_changes_nothing(self):
         self.make_flat()
@@ -97,6 +99,7 @@ class ToPerScopeTest(Base):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.tree(), before)
         self.assertFalse(self.backup.exists())
+        self.assertIn(f"would copy {self.squad} -> {self.backup}", r.stdout)
         for f in ("roster.md", "escalations.md", "messages.jsonl", "activity.jsonl", "usage-events.jsonl", "iterations", "roles",
                   "evidence", "contracts", "work"):
             self.assertIn(f"would move   {f} -> scopes/board/{f}", r.stdout)
@@ -117,12 +120,12 @@ class ToPerScopeTest(Base):
 
     def test_an_existing_backup_is_never_overwritten(self):
         self.make_flat()
-        self.backup.mkdir()
+        self.backup.mkdir(parents=True)
         (self.backup / "keep").write_text("old backup")
         r = self.migrate("--to", "per-scope", "--scope", "board")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual((self.backup / "keep").read_text(), "old backup")
-        self.assertEqual((self.squads / f"t.bak-{datetime.date.today()}-2" / "roster.md").read_text(), ROSTER)
+        self.assertEqual((self.backup.parent / f"t-{datetime.date.today()}-2" / "roster.md").read_text(), ROSTER)
 
     def test_no_backup_flag_makes_none(self):
         self.make_flat()
