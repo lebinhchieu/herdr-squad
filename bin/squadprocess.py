@@ -140,6 +140,7 @@ def read_changelog(path):
     """Items, newest version first as written. Anything it cannot parse raises ProcessError (never silent)."""
     lines = _read(path, "the changelog").splitlines()
     items, ver, date, snap, cur, i = [], None, None, None, None, 0
+    versions = []
 
     def bad(msg):
         raise ProcessError(f"changelog {path} line {i + 1}: {msg}")
@@ -167,6 +168,10 @@ def read_changelog(path):
                           f["change"], f["why"], kinds["old"][0], kinds["old"][1],
                           kinds["new"][0], kinds["new"][1], f.get("manual", "")))
 
+    def check_items():
+        if ver is not None and not any(it.version == ver for it in items):
+            raise ProcessError(f"changelog {path}: v{ver} has no items")
+
     while i < len(lines):
         line = lines[i]
         if not line.strip() or line.startswith("# "):
@@ -175,7 +180,9 @@ def read_changelog(path):
         m = _VERSION_HEAD.match(line)
         if m:
             finish()
+            check_items()
             cur, ver, date, snap = None, int(m.group(1)), m.group(2).strip(), None
+            versions.append(ver)
             i += 1
             continue
         if line.startswith("### "):
@@ -213,4 +220,7 @@ def read_changelog(path):
                 bad(f"duplicate `{key}:` in item {cur['title']!r}")
             cur["f"][key] = val if "\n" in val else val.strip()
     finish()
+    check_items()
+    if not versions:
+        raise ProcessError(f"changelog {path}: no `## v<N>` heading found")
     return items

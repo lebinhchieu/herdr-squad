@@ -158,6 +158,16 @@ class ChangelogTest(unittest.TestCase):
                          "- sections: all\n- change: reword\n- why: w\n- old: snapshot\n- new: snapshot\n")
             self.assertEqual(sp.read_changelog(p)[0].sections, "all")
 
+    def test_empty_or_itemless_changelog_fails(self):
+        for text in ("", "# Changelog\n", "## v2 — 2026-10-14\n- snapshot: s.md\n",
+                     "## v3 — 2026-10-15\n- snapshot: s.md\n\n## v2 — 2026-10-14\n- snapshot: s.md\n\n### T\n"
+                     "- sections: all\n- change: reword\n- why: w\n- old: -\n- new: -\n"):
+            with tempfile.TemporaryDirectory() as t:
+                p = Path(t) / "c.md"
+                p.write_text(text)
+                with self.assertRaises(sp.ProcessError, msg=text):
+                    sp.read_changelog(p)
+
     def test_broken_changelogs_fail_loudly(self):
         with self.assertRaises(sp.ProcessError):
             sp.read_changelog(FIX / "changelog-broken.md")
