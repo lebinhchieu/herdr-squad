@@ -1,6 +1,7 @@
 """squad-respawn: same name, role, scope and worktree; new session id in roster.md; old pane closed last."""
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -65,7 +66,7 @@ class RespawnTest(unittest.TestCase):
 
         log = self.log.read_text().splitlines()
         self.assertIn(f"tab create --cwd {wt} --label 🤖 Dev --no-focus", " ".join(log))
-        self.assertTrue(any(l.startswith("agent rename dev-1 dev-1-prev") for l in log))
+        self.assertTrue(any(re.fullmatch(r"agent rename dev-1 prev-\d+", l) for l in log))
         self.assertEqual(log[-1], "pane close p-old")  # old pane goes last
         start = next(l for l in log if l.startswith("agent start dev-1"))
         self.assertIn("--agent squad:dev", start)
@@ -117,6 +118,31 @@ class RespawnTest(unittest.TestCase):
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn(" · ", next(l for l in self.log.read_text().splitlines() if l.startswith("tab create")))
+
+    def test_every_rename_argument_is_a_valid_herdr_name_even_for_a_32_character_agent(self):
+        name = "squad-board-dev-squad-tabs-2xxxxx"[:32]
+        (self.squad / "roster.md").write_text(
+            "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
+            f"| {name} | Dev | settings | task | live | old-sid |\n")
+        r = subprocess.run([str(BIN / "squad-respawn"), name], env=self.env, text=True, capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        renames = [l.split()[2:] for l in self.log.read_text().splitlines() if l.startswith("agent rename")]
+        self.assertTrue(renames)
+        for arg in (a for pair in renames for a in pair):
+            self.assertRegex(arg, r"^[a-z][a-z0-9_-]{0,31}$")
+
+    def test_a_failing_spawn_renames_the_old_agent_back(self):
+        stub = self.root / "plugin"
+        (stub / "bin").mkdir(parents=True)
+        for f in ("squad-respawn", "squad-usage", "squad-label", "squadlabel.py"):
+            shutil.copy(BIN / f, stub / "bin" / f)
+        (stub / "bin" / "squad-spawn").write_text("#!/bin/sh\nexit 1\n")
+        (stub / "bin" / "squad-spawn").chmod(0o755)
+        r = subprocess.run([str(stub / "bin" / "squad-respawn"), "dev-1"], env=self.env, text=True, capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 1)
+        renames = [l.split() for l in self.log.read_text().splitlines() if l.startswith("agent rename")]
+        self.assertEqual(renames[1][2:], [renames[0][3], "dev-1"])
+        self.assertNotIn("pane close", self.log.read_text())
 
     def test_warns_when_notes_are_over_100_lines(self):
         (self.squad / "roles").mkdir()

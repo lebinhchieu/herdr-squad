@@ -49,8 +49,11 @@ if [[ -f $notes ]] && (( $(wc -l <"$notes") > 100 )); then
   echo "warning: $name's notes are $(wc -l <"$notes") lines (cap ~80, see process.md → Notes); the new session reads all of it, so trim it" >&2
 fi
 
+# Not "$name-prev": a name over 27 characters would break herdr's 32-character limit.
+prev=prev-$$
+
 if [[ $dry == 1 ]]; then
-  echo "would run: herdr agent rename $name $name-prev"
+  echo "would run: herdr agent rename $name $prev"
   echo "would run: ${spawn[*]}"
   echo "would run: herdr pane close <old pane of $name>"
   exit 0
@@ -60,6 +63,6 @@ fi
 old_pane=$(herdr agent get "$name" | jq -r '.result.agent.pane_id // .result.pane_id // empty')
 [[ -n $old_pane ]] || { echo "no live agent named $name" >&2; exit 1; }
 
-herdr agent rename "$name" "$name-prev" >/dev/null
-SQUAD_DIR=$squad_dir "${spawn[@]}" || { herdr agent rename "$name-prev" "$name" >/dev/null; exit 1; }
+herdr agent rename "$name" "$prev" >/dev/null
+SQUAD_DIR=$squad_dir "${spawn[@]}" || { herdr agent rename "$prev" "$name" >/dev/null; exit 1; }
 herdr pane close "$old_pane" >/dev/null
