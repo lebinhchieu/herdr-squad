@@ -25,6 +25,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
 
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # squadlabel.py sits next to the real script
+import squadlabel  # noqa: E402
+
 DEFAULT_PORT = 7420
 PORT_TRIES = 20  # busy port P: try P+1..P+20 (design D4)
 JUMP_PREFIX = "/jump/"
@@ -170,6 +173,7 @@ def read_squad(squad_dir):
     scoped = is_scoped(d)
     homes = find_homes(d)
     roster, seen, scopes, escalations, iterations, home_iterations, notes = [], set(), [], [], {}, {}, {}
+    labels = {}
     for home in homes:
         kept = set()
         for row in read_first_table(home.path / "roster.md"):
@@ -199,7 +203,12 @@ def read_squad(squad_dir):
             name = p.name[:-len(suffix)]
             if p.is_file() and (not scoped or name in kept):
                 notes.setdefault(name, (home.path / "roles" / p.name).relative_to(d).as_posix())
-    return {"roster": roster, "scopes": scopes, "escalations": escalations, "iterations": iterations,
+        # The label store: one file per agent, same ownership rule as the notes files.
+        for p in (home.path / "labels").glob("*.json"):
+            entry = squadlabel.read_entry(home.path, p.stem) if p.is_file() else None
+            if entry and (not scoped or p.stem in kept):
+                labels.setdefault(p.stem, entry)
+    return {"labels": labels, "roster": roster, "scopes": scopes, "escalations": escalations, "iterations": iterations,
             "home_iterations": home_iterations, "notes": notes, "homes": homes, "scoped": scoped}
 
 
@@ -285,8 +294,23 @@ def is_manager(role):
     return (role or "").lower() == "manager"
 
 
-def make_column(agent, role, pod, retired, status, notes):
-    return {"agent": agent, "role": role, "pod": pod, "status": status, "retired": retired,
+def role_id(role):
+    return (role or "").strip().lower().replace(" ", "-")
+
+
+def display_label(row, stored, same_role):
+    """The label the page shows. Stored entry first; else from the roster role (B8), numbered only when
+    several roster rows of that role share the pod; no role at all: the address name."""
+    if stored:
+        return squadlabel.build_label(stored["role"], stored["number"], stored["title"])
+    if row["role"]:
+        number = same_role.index(row["agent"]) + 1 if len(same_role) > 1 else None
+        return squadlabel.build_label(role_id(row["role"]), number)
+    return row["agent"]
+
+
+def make_column(agent, role, pod, retired, status, notes, label):
+    return {"agent": agent, "label": label, "role": role, "pod": pod, "status": status, "retired": retired,
             "notes_path": notes.get(agent),
             "working_s": 0, "blocked_s": 0, "waiting_s": 0, "wakes": 0,
             "context_tokens": None, "tokens_in": None, "tokens_out": None, "model": None}
@@ -331,9 +355,11 @@ def build_columns(squad, messages, activity):
 
     pods = {}
     for r in ordered:
+        same_role = [o["agent"] for o in roster if o["scope"] == r["scope"] and o["home"] == r["home"] and role_id(o["role"]) == role_id(r["role"])]
         pods.setdefault(r["scope"], []).append(make_column(
             r["agent"], r["role"], r["scope"], not roster_live(r["status"]),
-            statuses.get(r["agent"], "idle"), squad["notes"]))
+            statuses.get(r["agent"], "idle"), squad["notes"],
+            display_label(r, squad["labels"].get(r["agent"]), same_role)))
 
     # An agent seen only in a log joins the end of the pod named in its name (pod_of_unlisted).
     # The Manager's pod is no target: `dev-all-1` is not one of the Manager's team.
@@ -347,7 +373,7 @@ def build_columns(squad, messages, activity):
         known.add(name)
         pod = pod_of_unlisted(name, [p for p in pods if p != manager_pod])
         pods.setdefault(pod, []).append(make_column(
-            name, None, pod, False, statuses.get(name, "idle"), squad["notes"]))
+            name, None, pod, False, statuses.get(name, "idle"), squad["notes"], name))
     return [col for pod in pods.values() for col in pod]
 
 
@@ -703,7 +729,7 @@ def derive_needs_you(squad, columns, activity):
         if col["status"] == "blocked" and not col["retired"]:
             since = latest_event_ts(activity, col["agent"], ("blocked",))
             items.append({"id": "blocked:%s:%s" % (col["agent"], since), "kind": "blocked",
-                          "text": "%s is blocked" % col["agent"], "agent": col["agent"], "since": since})
+                          "text": "%s is blocked" % col["label"], "agent": col["agent"], "since": since})
 
     for home, rows in squad["escalations"]:
         numbers = [r.get("#", "") for r in rows]
@@ -1429,6 +1455,7 @@ def watched_signature(squad_dir):
         names += {"flat": ["scopes.md"], "scope": ["scope.md"], "goal": []}[home.kind]
         paths += [home.path / name for name in names]
         paths += sorted(home.path.glob("iterations/*.md")) + sorted(home.path.glob("roles/*.notes.md"))
+        paths += sorted(home.path.glob("labels/*.json"))
     for path in paths:
         try:
             info = path.stat()

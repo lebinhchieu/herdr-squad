@@ -184,7 +184,7 @@ class NewItemTest(AlertsCase):
         self.wait_count(1)
         rec = self.rec()
         item = srv.state()["needs_you"][0]
-        self.assertEqual(rec["notes"], [{"title": "Squad needs you", "body": "dev-a-1 is blocked", "tag": item["id"]}])
+        self.assertEqual(rec["notes"], [{"title": "Squad needs you", "body": "🤖 Developer 1 is blocked", "tag": item["id"]}])
         self.assertEqual(self.chimes(rec), 1)
         self.assertEqual(self.title(), "(1) squad board")
         self.assertEqual(self.errors(), [])
@@ -235,7 +235,7 @@ class NewItemTest(AlertsCase):
         self.block("dev-b-2")
         self.wait_count(1)
         rec = self.rec()
-        self.assertEqual([n["body"] for n in rec["notes"]], ["dev-a-1 is blocked", "dev-b-2 is blocked"])
+        self.assertEqual([n["body"] for n in rec["notes"]], ["🤖 Developer 1 is blocked", "🤖 Developer 2 is blocked"])
         self.assertEqual(self.chimes(rec), 2)
 
     def test_the_same_id_coming_back_does_not_notify_again_and_a_new_one_does(self):
@@ -286,7 +286,7 @@ class NewItemTest(AlertsCase):
         self.block("dev-a-1")
         self.wait_count(1)
         rec = self.rec()
-        self.assertEqual([n["body"] for n in rec["notes"]], ["dev-a-1 is blocked"])
+        self.assertEqual([n["body"] for n in rec["notes"]], ["🤖 Developer 1 is blocked"])
         self.assertEqual(self.chimes(rec), 1)
 
     def test_no_request_leaves_the_server_and_none_is_for_sound(self):
@@ -327,7 +327,7 @@ class NoRepeatTest(AlertsCase):
         self.assertEqual(self.rec()["notes"], [])  # the new page, the same id: nothing again
         self.block("dev-b-2")
         self.wait_count(2)
-        self.assertEqual([n["body"] for n in self.rec()["notes"]], ["dev-b-2 is blocked"])
+        self.assertEqual([n["body"] for n in self.rec()["notes"]], ["🤖 Developer 2 is blocked"])
 
     def test_unrelated_events_and_a_stream_reconnect_do_not_fire_again(self):
         self.start()
@@ -342,7 +342,7 @@ class NoRepeatTest(AlertsCase):
         self.fx.message(**{"from": "manager", "to": "dev-c-3", "type": "ASK", "text": "go"})
         self.browser.wait("document.querySelector('#columns li[data-agent=dev-c-3]').dataset.status === 'working'")
         rec = self.rec()
-        self.assertEqual(([n["body"] for n in rec["notes"]], self.chimes(rec)), (["dev-a-1 is blocked"], 1))
+        self.assertEqual(([n["body"] for n in rec["notes"]], self.chimes(rec)), (["🤖 Developer 1 is blocked"], 1))
 
     def test_an_item_that_appeared_while_the_server_was_away_notifies_once_on_return(self):
         self.start()
@@ -352,7 +352,7 @@ class NoRepeatTest(AlertsCase):
         self.block("dev-a-1")
         self.fx.start(port=port)
         self.wait_count(1)
-        self.assertEqual([n["body"] for n in self.rec()["notes"]], ["dev-a-1 is blocked"])
+        self.assertEqual([n["body"] for n in self.rec()["notes"]], ["🤖 Developer 1 is blocked"])
 
     def test_the_set_is_pruned_to_the_current_ids_plus_the_last_200_in_order(self):
         self.fx.escalations([{"question": "Ship it?"}])
@@ -391,7 +391,7 @@ class StorageTest(AlertsCase):
         self.assertEqual(self.title(), "(1) squad board")
         self.block("dev-a-1")
         self.wait_count(2)
-        self.assertEqual([n["body"] for n in self.rec()["notes"]], ["dev-a-1 is blocked"])
+        self.assertEqual([n["body"] for n in self.rec()["notes"]], ["🤖 Developer 1 is blocked"])
         self.assertEqual(self.errors(), [])
 
     def test_corrupt_json_counts_as_empty(self):
