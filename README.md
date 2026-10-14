@@ -57,7 +57,7 @@ A live page showing each agent's state, messages and activity as a sequence of b
 - Bars grow from when the recorder first runs; nothing is drawn for time before that.
 - Needs Python 3, herdr, `jq` and `git`.
 - `messages.jsonl` and `activity.jsonl` hold message text and are git-ignored by `squad-init`.
-- The user guide is [docs/squad-board-guide.md](docs/squad-board-guide.md); the design is in `.scratch/squad-board/spec.md`.
+- The user guide is [docs/squad-board-guide.html](docs/squad-board-guide.html); the design is in `.scratch/squad-board/spec.md`.
 
 ## Requirements
 

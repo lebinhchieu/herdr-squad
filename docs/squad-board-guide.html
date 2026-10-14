@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Squad board: user guide</title>
+<style>
+  /* Mango Parrot light palette, the same values the board page draws with (bin/squad-board.html, const P). */
+  :root {
+    --bg: #FCF8F1; --panel: #F4ECDD; --card: #FFFDF9; --border: #E7DBC8; --ink: #3E372E; --muted: #857A68;
+    --idle: #A99C86; --mango: #E8820E; --mango-dark: #CE7000;
+    --teal: #0C8A80; --red: #DB3B22; --blue: #2A6DC0; --purple: #9A40CF; --green: #368A1E; --pink: #CE1D6C;
+    --yellow: #9E7A00; --answer: #4A8FE0;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; color: var(--ink); background: var(--bg); line-height: 1.55; font-size: 16px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 56rem; margin: 0 auto; padding: 24px 20px 64px; }
+  h1 { font-size: 1.9rem; margin: 0 0 16px; }
+  h2 { font-size: 1.4rem; margin: 40px 0 12px; padding-top: 16px; border-top: 2px solid var(--border); }
+  h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+  p, ul, ol { margin: 0 0 12px; }
+  ul { padding-left: 1.3rem; }
+  li { margin-bottom: 6px; }
+  a { color: var(--blue); }
+  code { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px;
+    font: 0.9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+  pre { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+    overflow-x: auto; margin: 0 0 12px; }
+  pre code { background: none; border: 0; padding: 0; overflow-wrap: normal; }
+  .callout { border: 1px solid var(--border); border-left: 6px solid var(--teal); background: var(--panel);
+    border-radius: 8px; padding: 12px 16px; margin: 0 0 16px; }
+  .callout > :last-child { margin-bottom: 0; }
+  .callout .label { display: block; font-weight: 700; margin-bottom: 4px; }
+  .callout.start { border-left-color: var(--mango); font-size: 1.05rem; }
+  .callout.warn { border-left-color: var(--red); }
+  .callout.note { border-left-color: var(--blue); }
+  .tablewrap { overflow-x: auto; margin: 0 0 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  th { background: var(--panel); white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { min-width: 9rem; }
+  figure { margin: 0 0 20px; }
+  figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+  figcaption { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
+  nav.toc { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin: 0 0 16px; }
+  nav.toc strong { display: block; margin-bottom: 4px; }
+  nav.toc ol { margin: 0; padding-left: 1.3rem; columns: 2 14rem; }
+  nav.toc li { margin: 0; }
+  .muted { color: var(--muted); }
+  /* legend swatches: same colours the board draws */
+  .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 10px; margin: 0 0 16px; padding: 0; list-style: none; }
+  .legend li { display: flex; align-items: center; gap: 10px; margin: 0; background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; }
+  .sw { flex: none; width: 44px; height: 18px; border-radius: 4px; background: var(--c); }
+  .sw.dot { width: 18px; border-radius: 50%; }
+  .sw.hatch { background:
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 60%, transparent) 0 2px, color-mix(in srgb, var(--c) 13%, transparent) 2px 6px); border: 1px solid var(--c); }
+  .sw.ring { background: transparent; border: 2px solid var(--c); }
+  .chip { display: inline-block; font-weight: 700; font-size: 0.8rem; color: #fff; background: var(--c);
+    border-radius: 999px; padding: 1px 10px; margin: 0 4px 4px 0; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+  .pill { display: inline-block; background: var(--mango); color: #fff; font-weight: 700; border-radius: 999px; padding: 0 10px; }
+  @media (max-width: 520px) {
+    main { padding: 16px 14px 48px; }
+    h1 { font-size: 1.5rem; }
+    th { white-space: normal; }
+    td:first-child { min-width: 0; }
+    nav.toc ol { columns: 1; }
+  }
+</style>
+</head>
+<body>
+<main>
+<h1>Squad board: user guide</h1>
+
+<div class="callout start">
+  <span class="label">What it is, and how to start it</span>
+  <p>The squad board is a live page that shows what your squad is doing: who works, who waits, who is blocked on you, and which messages fly between agents.</p>
+  <p><strong>Start it with one command, from a herdr pane at your project root: <code>/squad:squad-board</code></strong> (it also opens by itself when you run <code>/squad:squad-start</code>).</p>
+  <p>It prints one URL ending in <code>?token=…</code>; open it in your browser. The URL has the form <code>http://127.0.0.1:7420/?token=…</code>, and the port may differ (see section 2).</p>
+</div>
+
+<nav class="toc" aria-label="Contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#shows">What the board shows</a></li>
+    <li><a href="#start">Start, stop, restart</a></li>
+    <li><a href="#reading">Reading the page</a></li>
+    <li><a href="#problems">Common problems</a></li>
+    <li><a href="#limits">Known limits</a></li>
+  </ol>
+</nav>
+
+<figure>
+  <img src="img/squad-board-overview.png" alt="The board in replay mode on the demo data: needs-you bar on top, agents as columns, one bar per working stretch, tasks on the right.">
+  <figcaption>The board in replay mode on the demo data: needs-you bar on top, agents as columns, one bar per working stretch, tasks on the right. The demo data was opened with <code>--replay</code>. Timers on open bars keep counting.</figcaption>
+</figure>
+
+<h2 id="shows">1. What the board shows</h2>
+<p>The board answers three questions without reading any pane: <strong>does anything need me, who is busy, what is the state of each task.</strong></p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Part</th><th>Where</th><th>What it tells you</th></tr></thead>
+<tbody>
+<tr><td><strong>Needs-you bar</strong></td><td>top</td><td>What waits on you: a blocked agent, an escalation with no answer, an idle Manager whose PO check-in is empty. Empty reads "Nothing is waiting on you".</td></tr>
+<tr><td><strong>Agent columns</strong></td><td>centre, grouped in pods</td><td>One column per rostered agent. The header card has the status dot, name, total working time, total blocked time, and context tokens.</td></tr>
+<tr><td><strong>Sequence</strong></td><td>under the headers</td><td>Time runs downward. Arrows are messages, bars are working stretches, small diamonds are status changes.</td></tr>
+<tr><td><strong>Tasks card</strong></td><td>right</td><td>Every task seen in messages, grouped by state.</td></tr>
+<tr><td><strong>Side panel</strong></td><td>opens over the sequence</td><td>Click an agent's header card: its numbers, its last three messages, a Jump button and a link to its notes.</td></tr>
+<tr><td><strong>Iteration picker</strong></td><td>top right</td><td>Look at an earlier iteration. The newest is live.</td></tr>
+</tbody></table></div>
+
+<div class="callout note">
+  <span class="label">Why bars, and why messages</span>
+  A bar starts where a message woke the agent (or at a <code>working</code> record when nothing woke it), so cause and effect line up. A bar ends when the agent goes idle.
+</div>
+
+<h3>Needs-you alerts</h3>
+<ul>
+  <li><strong>Enable alerts</strong> (<span class="pill">orange button</span>, top) asks the browser for notification permission once. After that, each <em>new</em> needs-you item shows a "Squad needs you" notification and a soft two-note chime. Items already there when you open the page do not ring.</li>
+  <li>The tab title shows the count: <code>(2) squad board</code>.</li>
+  <li>A blocked agent is also outlined in red in its header.</li>
+</ul>
+
+<h3>Follow live and the iteration picker</h3>
+<ul>
+  <li>At the bottom of the page the board <strong>follows</strong>: new rows scroll into view by themselves.</li>
+  <li>Scroll up and it <strong>pauses</strong>. A <code>↓ live · N</code> button appears; N counts the rows that arrived meanwhile. Click it to jump back and follow again.</li>
+  <li>The picker lists <code>Iteration N</code>. Choosing an older one shows a <strong>Replay of iteration N</strong> banner and stops following; <code>↓ live</code> takes you back to the newest.</li>
+</ul>
+
+<h2 id="start">2. Start, stop, restart</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>You want</th><th>Do this</th></tr></thead>
+<tbody>
+<tr><td>Open the board (or find its URL again)</td><td><code>/squad:squad-board</code>, or <code>squad-board-start [--squad NAME]</code></td></tr>
+<tr><td>Restart it (page will not load, URL lost, board died)</td><td><code>/squad:squad-board restart</code>, or <code>squad-board-start --restart</code></td></tr>
+<tr><td>Stop it</td><td>Close its herdr tab (the one labelled <code>board</code>), or press Ctrl-C in that tab</td></tr>
+</tbody></table></div>
+
+<ul>
+  <li><code>squad-board-start</code> runs <code>bin/squad-board</code> in a herdr tab labelled <code>board</code>, waits up to 10 s for its URL line, and prints it. A second call finds the running tab and prints its URL; it never starts a second board.</li>
+  <li><strong>One board per herdr workspace.</strong></li>
+  <li>The board listens on <strong>127.0.0.1 only</strong>, port <strong>7420</strong>. If that port is busy it tries 7421 to 7440, and the URL it prints shows the port it got.</li>
+  <li>The <strong>token</strong> at the end of the URL is needed for the three actions that do something: <strong>Jump to pane</strong>, <strong>notes.md</strong>, and <strong>show more</strong> on a long message. Without it the page still draws, and the panel says "Jump needs the token". Always open the full printed URL.</li>
+  <li>Needs: Python 3, herdr, <code>jq</code>, <code>git</code>, and <code>HERDR_ENV=1</code> (a herdr pane).</li>
+</ul>
+
+<h3>Two folder layouts</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>Layout</th><th>How to tell</th><th>What the board does</th></tr></thead>
+<tbody>
+<tr><td><strong>Per-scope</strong> (current)</td><td><code>scopes/&lt;scope&gt;/</code> and <code>goals/&lt;goal&gt;/</code> under the squad folder</td><td>Reads every scope and goal. Each scope's Manager is checked against its own check-in. Agent names are unique across scopes, so one board shows them all.</td></tr>
+<tr><td><strong>Flat</strong> (legacy)</td><td><code>roster.md</code> at the top of the squad folder, no <code>scopes/</code></td><td>Reads it as before.</td></tr>
+</tbody></table></div>
+
+<h3>Replay mode: look at a copy of a squad</h3>
+<pre><code>cp -r .claude/squads/&lt;squad&gt; /tmp/squad-copy
+bin/squad-board --replay /tmp/squad-copy --now 2026-10-14T12:00:00Z --port 0</code></pre>
+<p>Replay serves a folder as it is: no recorder, no live pane status, and <code>--now</code> fixes the clock (an ISO time with a zone) so a page can be reproduced. <code>--port 0</code> lets the system pick a free port. Use a <strong>copy</strong>: the demo and test data live in <code>tests/fixtures/board/</code>. Without <code>--replay</code> the board needs a real squad folder (<code>SQUAD_DIR</code>, or <code>&lt;git root&gt;/squad</code>).</p>
+
+<h2 id="reading">3. Reading the page</h2>
+<p>Colours come from the page's Mango Parrot light palette. The legend below uses the same colours as the board's segments.</p>
+
+<ul class="legend" aria-label="Legend: the board's segments">
+  <li style="--c: var(--teal)"><span class="sw"></span><span><strong>Working</strong> <span class="muted">teal</span></span></li>
+  <li style="--c: var(--yellow)"><span class="sw hatch"></span><span><strong>Waiting</strong> <span class="muted">yellow, hatched</span></span></li>
+  <li style="--c: var(--red)"><span class="sw hatch"></span><span><strong>Blocked</strong> <span class="muted">red, hatched</span></span></li>
+  <li style="--c: var(--idle)"><span class="sw dot"></span><span><strong>Idle</strong> <span class="muted">grey</span></span></li>
+  <li style="--c: var(--mango)"><span class="sw ring"></span><span><strong>Needs you / open panel</strong> <span class="muted">orange</span></span></li>
+</ul>
+
+<h3>Header cards and pods</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>You see</th><th>It means</th></tr></thead>
+<tbody>
+<tr><td><strong>Grey dot</strong> (idle)</td><td>Not working.</td></tr>
+<tr><td><strong>Teal dot</strong>, pulsing ring</td><td>Working.</td></tr>
+<tr><td><strong>Red dot</strong>, pulsing ring, red outline</td><td>Blocked, probably on you.</td></tr>
+<tr><td><strong>Yellow dot</strong>, still</td><td>Waiting on background work (a shell or monitor it started).</td></tr>
+<tr><td><strong>Orange outline</strong></td><td>The agent whose panel is open.</td></tr>
+<tr><td>⏱ teal figure</td><td>Total working time (blocked time included).</td></tr>
+<tr><td>⛔ red figure</td><td>Total blocked time; shown only when above zero.</td></tr>
+<tr><td>Right-hand number</td><td>Context tokens now; <code>—</code> when unknown.</td></tr>
+<tr><td>Thin rotated name</td><td>A retired agent with nothing in this iteration, folded to a stub.</td></tr>
+<tr><td>Pod band</td><td>Orange and unlabelled is the Manager's pod; the others take teal, blue, purple, pink, green, yellow in turn, labelled with the pod name and size.</td></tr>
+</tbody></table></div>
+<p>Totals read <code>7m</code>, <code>1h05</code>. A long name keeps its number: <code>dev-bo…-10</code>.</p>
+
+<h3>Bars</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>You see</th><th>It means</th></tr></thead>
+<tbody>
+<tr><td><strong>Teal bar</strong></td><td>The agent was working.</td></tr>
+<tr><td><strong>Red hatched part</strong></td><td>Blocked in that stretch.</td></tr>
+<tr><td><strong>Yellow hatched part</strong></td><td>Waiting on a background shell or monitor. Not idle, not active.</td></tr>
+<tr><td>⟲ left of the bar</td><td>Self-started: no message woke it (for example you typed to the Manager).</td></tr>
+<tr><td><strong>Pulsing dot + <code>⏱ 4m 05s</code> pill</strong></td><td>Open bar: still working, with a live timer.</td></tr>
+<tr><td><strong>Steady yellow dot, no timer</strong></td><td>Open and waiting.</td></tr>
+<tr><td><code>◆ idle · 1m 20s</code></td><td>The bar ended; that is how long it ran.</td></tr>
+<tr><td><code>⋯ 7 min quiet</code> band</td><td>A quiet stretch of over 3 minutes between two rows, folded to one line.</td></tr>
+</tbody></table></div>
+
+<h3>Arrows</h3>
+<p>An arrow runs from sender to receiver; its label is the message type and the task. The colour is the type:</p>
+<div class="swatches">
+  <span class="chip" style="--c: var(--blue)">ASK</span>
+  <span class="chip" style="--c: var(--answer)">ANSWER</span>
+  <span class="chip" style="--c: var(--yellow)">DECISION</span>
+  <span class="chip" style="--c: var(--purple)">HANDIN</span>
+  <span class="chip" style="--c: var(--green)">PASS</span>
+  <span class="chip" style="--c: var(--pink)">FAIL</span>
+  <span class="chip" style="--c: var(--muted)">STATUS</span>
+  <span class="chip" style="--c: var(--red)">BLOCKED</span>
+</div>
+<p>ASK is blue, ANSWER a lighter blue, DECISION amber, HANDIN purple, PASS green, FAIL pink, STATUS grey, BLOCKED red. An arrow whose two ends are the same column loops out to the right.</p>
+
+<h3>Tasks card</h3>
+<p>Tasks are grouped <strong>blocked, building, checking, returned, done</strong> and take their state from message types:</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Message</th><th>Task state</th></tr></thead>
+<tbody>
+<tr><td>DECISION or STATUS</td><td>building</td></tr>
+<tr><td>HANDIN</td><td>checking</td></tr>
+<tr><td>FAIL</td><td>returned</td></tr>
+<tr><td>PASS</td><td>done</td></tr>
+<tr><td>BLOCKED</td><td>blocked</td></tr>
+</tbody></table></div>
+<p>ASK and ANSWER only make a task appear (as building) when they name it first. <code>↺2</code> on a chip counts how often it came back; at 2 or more the chip gets an orange outline and pill. A late STATUS does not reopen a done task; HANDIN, FAIL and BLOCKED do. Too many tasks end in <code>+N more</code>.</p>
+
+<h3>The side panel</h3>
+<figure>
+  <img src="img/squad-board-panel.png" alt="The side panel of a blocked agent: status, monitor numbers, last three messages, Jump and notes.">
+  <figcaption>The side panel of a blocked agent: status, monitor numbers, last three messages, Jump and notes.</figcaption>
+</figure>
+<p>Click a header card to open it; click again, press Esc, or click ×. It shows status, role, pod and model; <strong>MONITOR</strong> (context tokens, tokens in and out, working total, blocked total, times woken, and a <code>waiting</code> total only when above zero); and the <strong>last three messages</strong> the agent sent or received in the viewed iteration.</p>
+<p><strong>Long messages.</strong> The page carries only the first <strong>140 characters</strong> of a message, ending in <code>…</code>, with a <strong>show more</strong> button. Show more fetches the full text (needs the token); <strong>show less</strong> folds it back. If the fetch fails it says "full text not available" and the button reads show more again, so one click retries.</p>
+<p><strong>Jump to pane ↗</strong> focuses that agent's herdr pane. It is disabled for retired agents and without the token. <strong>notes.md ↗</strong> opens the agent's notes file.</p>
+
+<h3>The waiting state</h3>
+<figure>
+  <img src="img/squad-board-waiting.png" alt="Two agents waiting: a yellow hatched part of the bar, labelled &quot;waiting · monitor&quot; and &quot;waiting · shell&quot;.">
+  <figcaption>Two agents waiting: a yellow hatched part of the bar, labelled "waiting · monitor" and "waiting · shell".</figcaption>
+</figure>
+<p>An agent is <strong>waiting</strong> when herdr calls it idle but the last line of its pane says a shell or monitor still runs (<code>N shells still running</code>, <code>N monitors</code>). The label shows which. Only that last line counts, so those words in the conversation do nothing. <code>← N agent</code> is in every pane and is ignored.</p>
+
+<h2 id="problems">4. Common problems</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Problem</th><th>Why, and the fix</th></tr></thead>
+<tbody>
+<tr><td><strong>No agents on the board</strong></td><td>The columns come from <code>roster.md</code>. Check that the agents are on it; the page reads the squad folder you started it for. In a per-scope squad each scope has its own roster. Restart with <code>--squad NAME</code> if you have several squads.</td></tr>
+<tr><td><strong>The page says "reconnecting…" or will not load</strong></td><td>The board process is gone or stuck. Run <code>/squad:squad-board restart</code>.</td></tr>
+<tr><td><strong>Board died, but <code>squad-board-start</code> prints the same old URL</strong></td><td>A known gap (BRD-21): a reused <code>board</code> tab whose board died still prints the old URL. Use <code>--restart</code>.</td></tr>
+<tr><td><strong>"ports 7420..7440 are all busy"</strong></td><td>Something else holds the whole range. Free a port, or run <code>bin/squad-board --port N</code> yourself.</td></tr>
+<tr><td><strong><code>squad-board-start</code> says it is not inside herdr</strong></td><td><code>HERDR_ENV</code> is not <code>1</code>. Open herdr and run it from a pane there.</td></tr>
+<tr><td><strong>"Jump needs the token"</strong></td><td>You opened the page without <code>?token=…</code>. Use the printed URL, or ask for it again with <code>/squad:squad-board</code>.</td></tr>
+<tr><td><strong>An agent shows idle when it is busy</strong></td><td>Status comes from herdr. A shell or monitor started in the pane shows as waiting, not working. A long silent tool run records nothing while the recorder is down (see section 5).</td></tr>
+<tr><td><strong>An agent shows waiting when it is not</strong></td><td>Only the last pane line counts. If it still says <code>N monitors</code>, the agent has a monitor running. Stop it in its pane.</td></tr>
+<tr><td><strong>A bar looks far too long</strong></td><td>The closing record was never written, because the recorder only runs while the board runs. A bar no status record backs is cut after 3 minutes of silence, but a bar that <em>is</em> backed can read hours long across a board restart (BRD-21). Treat it as unknown time, not work.</td></tr>
+<tr><td><strong>Bars are missing before the board opened</strong></td><td>They grow from when the recorder first ran. Nothing is drawn for earlier time.</td></tr>
+<tr><td><strong>A needs-you item does not go away</strong></td><td>Blocked clears when the agent works again. An escalation clears when its Answer cell in <code>escalations.md</code> is filled. The idle-Manager item clears when the PO check-in of the open iteration has text.</td></tr>
+</tbody></table></div>
+
+<h2 id="limits">5. Known limits</h2>
+<div class="callout warn">
+  <span class="label">The recorder runs only while the board runs.</span>
+  The board writes the status records (<code>activity.jsonl</code>) itself. While it is down, nothing is recorded, and <code>messages.jsonl</code> from the message hook keeps filling. Keep the board open while the squad works.
+</div>
+<ul>
+  <li><strong>Many columns do not fit.</strong> Each column keeps at least 84 px, so with many agents (about 13 or more on a normal screen) the page scrolls sideways, and the Tasks card does not stay in view (BRD-26, backlog).</li>
+  <li><strong>Pixel tests are flaky under load.</strong> Some page tests (<code>test_board_sequence</code> and others) fail now and then when the machine is busy and pass alone (BRD-21 items 19 and 26).</li>
+  <li><strong>One board per herdr workspace.</strong></li>
+  <li><strong>The waiting state sees only a shell or monitor</strong> in the pane's last line.</li>
+  <li><strong>The logs hold message text</strong> and are git-ignored by <code>squad-init</code> (<code>*.jsonl</code>).</li>
+  <li><strong>The board never changes your squad.</strong> The only write action is Jump, which focuses a pane.</li>
+  <li>Cosmetic: a waiting label can cross a neighbour's pill (BRD-21 item 23).</li>
+</ul>
+</main>
+</body>
+</html>
