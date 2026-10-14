@@ -62,7 +62,7 @@ Your folder is `$SCOPE_DIR` (`$GOAL_DIR` for the goal Manager); your roster, not
 
 ## Defaults
 
-Its brief may override these.
+Every scope and goal starts with these; its brief may override them.
 
 - **Developer cap:** 3 at once, counted across all scopes of a goal; the Manager queues the rest.
 - **Budget:** the Manager checks in with the PO at each iteration's end and after 3 returns on one task.
@@ -74,7 +74,7 @@ Its brief may override these.
 2. **Names.** A scope or goal is named after its ticket id (`SEC-04` becomes `sec04`) or a short slug; scopes and goals share one namespace, `_done/` included.
 3. An agent is `<squad>-<role-short>-<scope>[-n]`, at most 32 characters; role-short is `mgr`, `ba`, `tl`, `tech`, `qaw`, `qab`, `ux`, `dev` or `coach`. Address agents by bare name; `squad-spawn` refuses a live name.
 4. **Overlap.** `touches:` lists the repos or paths the work changes. `squad-start` compares it with every open scope and stops on an overlap for the PO.
-5. The Manager reads the brief, sizes the scope (Sizes), proposes the plan, and spawns the pod after the PO confirms.
+5. The Manager reads the brief, sizes the scope (Sizes), proposes the plan, and spawns the pod only after the PO confirms.
 
 ## Lifetimes: every scope starts fresh
 
@@ -130,7 +130,7 @@ The plan file has the same format in every size; only its owner changes.
 - `goal.md` orders the scopes with their dependencies. The goal Manager makes each scope with `squad-start "<text>" --in-goal <goal> --name <scope> --touches <paths>` (its `scope.md` says `goal: <goal>`) and spawns its pod with `squad-spawn <role> <name> --scope <scope>`.
 - Independent scopes may run at once (cap: Defaults).
 - **Shared, and nothing more:** `shared/decisions.md`: one `- ` bullet per whole-goal decision or domain fact, under 80 lines, kept by the goal Manager.
-- `shared/summaries/<scope>.md`: one page per closed scope: outcome, passed branch and commit, open items, pointers.
+- `shared/summaries/<scope>.md`: one page per closed scope: outcome, passed branch and commit, open items, pointers; no decisions or domain facts.
 - `shared/contracts/<name>.md`: both Tech Leads agree it before either builds; one QA whitebox checks both sides against it before either scope is done.
 - **Stacked branches.** Nothing merges until the PO asks, so a scope that needs an earlier scope's unmerged code builds on its passed branch:
   - The Manager spawns a task that needs unmerged work with `--base <passed branch or commit>`.
@@ -155,7 +155,7 @@ A task, reviewed and merged like any other, writes what must outlive a scope or 
 - `squad-close` retires the scope's agents (its Manager last), removes worktrees whose branch is merged and clean, reports every branch (never deletes one) and moves the folder to `scopes/_done/`; the Manager tells the PO which are unmerged.
 - **In a goal,** the Tech Lead writes the scope's summary and appends its decisions to `shared/decisions.md` before the pod is retired; the goal Manager updates the `goal.md` table, runs `squad-close --scope` and respawns itself.
 - **Goal:** closes once every scope is closed and the promotion passed. `squad-close <squad> --goal <goal>` retires the goal Manager and moves the folder to `goals/_done/`; it refuses while a scope is open.
-- **Squad:** `squad-close <squad>` archives everything to `.claude/squads/_done/<squad>/`.
+- **Squad:** `squad-close <squad>` archives everything, evidence included, to `.claude/squads/_done/<squad>/`.
 
 ## Messages
 
@@ -206,7 +206,7 @@ Questions for an outside decision maker `project.md` names go to the place it sa
 - QA never pre-writes test points before the Developer starts; the Tech Lead's AC are the bar.
 - The next ticket starts on the last sha that passed QA whitebox, without waiting for QA blackbox, when it touches different files; a blackbox return is merged in afterwards.
 - A Developer with queued tickets in its area takes the next, and retires per Cost rules.
-- **Verify against the real thing:** code that parses another tool's output (pane text, logs, an API) needs two real samples, including the idle case, before a pattern is trusted; QA whitebox runs it once, read-only, on live data.
+- **Verify against the real thing:** code that parses another tool's output (pane text, logs, an API) needs two real samples, including the constant or idle case, before a pattern is trusted; QA whitebox runs it once, read-only, on live data.
 - A ticket that changes a payload is checked on its field shape (every row has the fields the consumer reads, every closed item has its end), not only on totals.
 - **QA mode** (`qa:` in `scope.md`): `full` (default) or `light`. In `light`, QA runs the suite, skims the diff and PASSes; a task returns only for wrong behaviour, a spec-rule defect, a failing suite or a security finding.
 - In `light`, test-strength gaps go in `qa-w.md` as "follow-up"; the Tech Lead batches them into one last, droppable ticket.
@@ -262,6 +262,6 @@ A Stop hook (`squad-usage --check`) tells you when rule 2 or 3 fires and logs it
 - **Long suites: run once, read the receipt.** A suite over ~2 minutes runs one full run at a time per squad, under a lock: `flock /tmp/<squad>-suite.lock nice -n 10 <suite command>`. `project.md` may name a runner that takes the lock and writes receipts.
   - The Developer runs the full suite once, on the final sha after every fix (while building, only touched files), and saves a receipt: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the suite's OK line.
   - QA checks the receipt (same sha as the `HANDIN`, clean tree, OK), then runs only targeted tests for the diff's files and reads the diff. It runs the full suite only when the receipt is missing or its sha differs, integration tasks included.
-  - Targeted runs are free; never run the full suite in the background.
+  - Targeted runs are free; never start the full suite in the background while waiting on something else.
 - **Close what you open.** Before you report, end every browser session and stop every server or process you started, by PID. Never `pkill` or `killall` by name or pattern.
 - **Stay in your lane:** edit only the files your role owns, plus your own notes file.
