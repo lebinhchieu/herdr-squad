@@ -114,6 +114,12 @@ class AssignNumberTest(unittest.TestCase):
         self.add("d2", number=2)  # Dev 1 retired
         self.assertEqual(sl.assign_number(self.home, "d3", "dev", {"d2"}), (3, []))
 
+    def test_respawn_keeps_its_number_when_the_peer_has_left(self):
+        self.add("d2", number=2)
+        self.assertEqual(sl.assign_number(self.home, "d2", "dev", {"d2"}), (2, []))
+        self.add("d3")
+        self.assertEqual(sl.assign_number(self.home, "d3", "dev", {"d2", "d3"}), (3, []))
+
     def test_respawn_keeps_its_number(self):
         self.add("d1", number=1)
         self.add("d2", number=2)

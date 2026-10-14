@@ -116,6 +116,13 @@ class LabelCliTest(unittest.TestCase):
         self.assertEqual(self.calls()[0], "agent list")
         self.assertEqual(sl.read_entry(self.scope, "dev-2")["number"], 2)
 
+    def test_init_respawn_of_dev2_after_dev1_left_keeps_2(self):
+        sl.write_entry(self.scope, "dev-1", "dev", 1, "")
+        sl.write_entry(self.scope, "dev-2", "dev", 2, "")
+        r = self.run_cli("--init", "--agent", "dev-2", "--role", "dev", "--title", "B", SCOPE_DIR=str(self.scope), LIVE="dev-2")
+        self.assertEqual(r.stdout, "🤖 Dev 2 · B\n")
+        self.assertEqual(sl.read_entry(self.scope, "dev-2")["number"], 2)
+
     def test_init_first_agent_has_no_number_and_no_tab_call(self):
         r = self.run_cli("--init", "--agent", "dev-1", "--role", "dev", SCOPE_DIR=str(self.scope))
         self.assertEqual(r.stdout, "🤖 Dev\n")
