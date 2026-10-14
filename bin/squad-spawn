@@ -149,19 +149,12 @@ env_args=(--env "SQUAD=$squad" --env "SQUAD_DIR=$squad_dir" --env "SQUAD_NAME=$n
 [[ -n ${SQUAD_PLUGIN_DIR:-} ]] && env_args+=(--env "SQUAD_PLUGIN_DIR=$SQUAD_PLUGIN_DIR")
 
 # The tab label. squad-label --init numbers the agent among its live peers and stores role/number/title in
-# <home>/labels/, the same folder the agent later reads through its own SCOPE_DIR/GOAL_DIR/SQUAD_DIR, so the
-# caller's inherited dirs are dropped. A label must never stop an agent from starting: on failure the label is the name.
-if [[ -n $scope_dir ]]; then home_var=SCOPE_DIR; elif [[ -n $goal_dir ]]; then home_var=GOAL_DIR; else home_var=SQUAD_DIR; fi
-label_env=(env -u SCOPE_DIR -u GOAL_DIR -u SQUAD_DIR "$home_var=$home")
+# <home>/labels/, the folder the agent later reads through its own SCOPE_DIR/GOAL_DIR/SQUAD_DIR.
+# A label must never stop an agent from starting: on failure the label is the name.
 if [[ $dry == 1 ]]; then
-  # --init writes the store, so a dry run builds the label read-only from the stored entry (number kept, if any).
-  label=$(PYTHONPATH=$plugin_root/bin python3 -c '
-import sys, squadlabel as sl
-home, name, role, title = sys.argv[1:5]
-e = sl.read_entry(home, name)
-print(sl.build_label(role, e["number"] if e and e["role"] == role else None, title))' "$home" "$name" "$role" "$title") || label=$name
+  label=$("$plugin_root/bin/squad-label" --init --dry-run --home "$home" --agent "$name" --role "$role" --title "$title") || label=$name
 else
-  label=$("${label_env[@]}" "$plugin_root/bin/squad-label" --init --agent "$name" --role "$role" --title "$title") || label=""
+  label=$("$plugin_root/bin/squad-label" --init --home "$home" --agent "$name" --role "$role" --title "$title") || label=""
   if [[ -z $label ]]; then
     echo "warning: squad-label --init failed; the tab of $name is labelled $name" >&2
     label=$name

@@ -7,6 +7,7 @@
                                            squad-spawn: number NAME among live peers, store it in DIR (the
                                            caller's env is ignored), rename the peers that got a number,
                                            print NAME's label
+  squad-label --init --dry-run ...         the same, but print the label only: no store file, no rename
   squad-label --get-title --home DIR --agent NAME
                                            squad-respawn: print NAME's stored title (empty if none)
 
@@ -16,8 +17,10 @@ HERDR_ENV (1 = inside herdr; otherwise only the store is updated).
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
@@ -82,6 +85,7 @@ def main():
     ap.add_argument("--role")
     ap.add_argument("--title", default="")
     ap.add_argument("--home")
+    ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--get-title", action="store_true")
     a = ap.parse_args()
     caller = os.environ.get("SQUAD_NAME")
@@ -97,6 +101,18 @@ def main():
         if not (a.home and a.agent and a.role):
             ap.error("--init needs --home, --agent and --role")
         home = a.home
+        if a.dry_run:  # assign_number stores peers' new numbers, so number on a throwaway copy of the store
+            tmp = tempfile.mkdtemp(prefix="squad-label-")
+            try:
+                if Path(home, "labels").is_dir():
+                    shutil.copytree(Path(home, "labels"), Path(tmp, "labels"))
+                number, _ = sl.assign_number(tmp, a.agent, a.role, live_names())
+            except ValueError as e:
+                sys.exit(f"squad-label: {e}")
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
+            print(sl.build_label(a.role, number, a.title))
+            return 0
         try:
             number, changed = sl.assign_number(home, a.agent, a.role, live_names())
             sl.write_entry(home, a.agent, a.role, number, sl.clean_title(a.title))

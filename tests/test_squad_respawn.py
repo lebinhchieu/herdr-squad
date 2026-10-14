@@ -64,7 +64,7 @@ class RespawnTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
 
         log = self.log.read_text().splitlines()
-        self.assertIn(f"tab create --cwd {wt} --label dev-1 --no-focus", " ".join(log))
+        self.assertIn(f"tab create --cwd {wt} --label 🤖 Dev --no-focus", " ".join(log))
         self.assertTrue(any(l.startswith("agent rename dev-1 dev-1-prev") for l in log))
         self.assertEqual(log[-1], "pane close p-old")  # old pane goes last
         start = next(l for l in log if l.startswith("agent start dev-1"))
@@ -83,7 +83,7 @@ class RespawnTest(unittest.TestCase):
     def test_agent_without_worktree_respawns_in_project_dir(self):
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"tab create --cwd {self.root} --label dev-1", self.log.read_text())
+        self.assertIn(f"tab create --cwd {self.root} --label 🤖 Dev", self.log.read_text())
 
     def test_manager_row_as_written_by_squad_spawn_respawns_with_role_and_notes(self):
         # squad-start spawns manager-t; squad-spawn --set-session adds this row (empty scope, empty Owns).
@@ -97,12 +97,26 @@ class RespawnTest(unittest.TestCase):
         self.assertIn("--agent squad:manager", start)
         sid = re.search(r"--session-id (\S+)", start).group(1)
         self.assertIn(f"| manager-t | manager |  |  | live | {sid} |", (self.squad / "roster.md").read_text())
-        self.assertIn(f"tab create --cwd {self.root} --label manager-t", " ".join(log))
+        self.assertIn(f"tab create --cwd {self.root} --label 🦀 Manager", " ".join(log))
         self.assertIn("SQUAD_SCOPE=", " ".join(log))
         self.assertNotIn("SQUAD_SCOPE=old-sid", " ".join(log))  # an empty scope must not shift the columns
         self.assertEqual(log[-1], "pane close p-old")
         prompt = next(l for l in log if l.startswith("agent prompt"))
         self.assertIn("roles/manager-t.notes.md", prompt)
+
+    def test_respawn_brings_back_the_title_and_the_number(self):
+        init = subprocess.run([str(BIN / "squad-label"), "--init", "--home", str(self.squad), "--agent", "dev-1",
+                               "--role", "dev", "--title", "plan"], env=self.env, text=True, capture_output=True)
+        self.assertEqual(init.returncode, 0, init.stderr)
+        self.log.write_text("")
+        r = self.respawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("--label 🤖 Dev · plan --no-focus", self.log.read_text())
+
+    def test_an_agent_with_no_stored_entry_respawns_with_a_label_without_title(self):
+        r = self.respawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn(" · ", next(l for l in self.log.read_text().splitlines() if l.startswith("tab create")))
 
     def test_warns_when_notes_are_over_100_lines(self):
         (self.squad / "roles").mkdir()
@@ -139,7 +153,7 @@ class RespawnTest(unittest.TestCase):
         r = subprocess.run([str(BIN / "squad-respawn"), "t-dev-sc1-1"], env=self.env, text=True, capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         log = self.log.read_text().splitlines()
-        self.assertIn(f"tab create --cwd {wt} --label t-dev-sc1-1 --no-focus", " ".join(log))
+        self.assertIn(f"tab create --cwd {wt} --label 🤖 Dev --no-focus", " ".join(log))
         self.assertIn(f"SCOPE_DIR={sc}", " ".join(log))
         self.assertFalse(any("worktree add" in l for l in log))
         sid = re.search(r"--session-id (\S+)", next(l for l in log if l.startswith("agent start"))).group(1)
@@ -168,7 +182,7 @@ class RespawnTest(unittest.TestCase):
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
         log = self.log.read_text()
-        self.assertIn(f"tab create --cwd {wt} --label dev-1", log)
+        self.assertIn(f"tab create --cwd {wt} --label 🤖 Dev", log)
         self.assertNotIn("worktree add", log)
 
     def test_unknown_agent_fails(self):
