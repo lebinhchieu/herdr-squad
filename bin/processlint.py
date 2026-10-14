@@ -9,6 +9,7 @@ import sys
 MAX_WORDS = 60
 MAX_BOLD_WORDS = 15
 MIN_DUP_WORDS = 8
+WHOLE_FILE = "<file>"  # the line text an exception prefix matches for a problem on no single line
 
 _BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
 _BOLD = re.compile(r"\*\*(.+?)\*\*")
@@ -80,7 +81,7 @@ def _problems(text, budget):
 
     size = len(text.encode("utf-8"))
     if size > budget:
-        add(0, "size", f"{size} bytes > {budget}")
+        add(0, "size", f"{size} bytes > {budget}", WHOLE_FILE)
 
     fenced = False
     rule_lines, first_h2 = [], None
@@ -96,7 +97,7 @@ def _problems(text, budget):
                 for m in pat.finditer(raw):
                     add(n, check, f"'{m.group(0)}'", raw)
     if len(rule_lines) != 1:
-        add(0, "writing-rule", f"{len(rule_lines)} lines start with '**Writing rule.**', need exactly one")
+        add(0, "writing-rule", f"{len(rule_lines)} lines start with '**Writing rule.**', need exactly one", WHOLE_FILE)
     elif first_h2 is not None and rule_lines[0] > first_h2:
         add(rule_lines[0], "writing-rule", f"comes after the first '##' (line {first_h2})", lines[rule_lines[0] - 1])
 
@@ -141,8 +142,8 @@ def _problems(text, budget):
 def lint(text, budget=15000, exceptions=()):
     """exceptions: (check, line-text prefix, reason). No reason raises; one matching nothing is stale."""
     for exc in exceptions:
-        if len(exc) != 3 or not str(exc[2]).strip():
-            raise ValueError(f"exception {exc!r} needs a reason: (check, line-text prefix, reason)")
+        if len(exc) != 3 or not str(exc[1]).strip() or not str(exc[2]).strip():
+            raise ValueError(f"exception {exc!r} needs a prefix and a reason: (check, line-text prefix, reason)")
     problems = _problems(text, budget)
     used = set()
     kept = []
@@ -161,8 +162,13 @@ def main(argv):
     if len(argv) != 2:
         print("usage: processlint.py FILE", file=sys.stderr)
         return 2
-    with open(argv[1], encoding="utf-8") as f:
-        out = lint(f.read())
+    try:
+        with open(argv[1], encoding="utf-8") as f:
+            text = f.read()
+    except (OSError, UnicodeDecodeError) as e:
+        print(f"processlint: cannot read {argv[1]}: {e}", file=sys.stderr)
+        return 2
+    out = lint(text)
     for line in out:
         print(line)
     return 1 if out else 0

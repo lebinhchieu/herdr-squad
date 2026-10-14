@@ -189,7 +189,8 @@ class ExceptionsTest(unittest.TestCase):
         self.assertEqual(sorted(checks(out)), ["hedge", "stale-exception"])
 
     def test_missing_or_blank_reason_raises(self):
-        for exc in (("hedge", "- Manager", ""), ("hedge", "- Manager", "  "), ("hedge", "- Manager")):
+        for exc in (("hedge", "- Manager", ""), ("hedge", "- Manager", "  "), ("hedge", "- Manager"),
+                    ("length", "", "x"), ("length", "  ", "x")):
             with self.subTest(exc=exc), self.assertRaises(ValueError):
                 pl.lint(self.BAD, exceptions=[exc])
 
@@ -197,9 +198,9 @@ class ExceptionsTest(unittest.TestCase):
         out = pl.lint(doc("- Manager must act.\n"), exceptions=[("hedge", "- Gone", "was needed once")])
         self.assertEqual(checks(out), ["stale-exception"])
 
-    def test_size_exception_matches_the_empty_prefix(self):
+    def test_size_exception_matches_the_whole_file_marker(self):
         self.assertEqual(pl.lint(self.BAD, budget=1, exceptions=[
-            ("size", "", "too big on purpose"), ("hedge", "- Manager", "r")]), [])
+            ("size", "<file>", "too big on purpose"), ("hedge", "- Manager", "r")]), [])
 
 
 class RuleFixtureTest(unittest.TestCase):
@@ -227,6 +228,12 @@ class CliTest(unittest.TestCase):
         r = self.run_cli(doc("- Manager should act.\n"))
         self.assertEqual(r.returncode, 1)
         self.assertIn("line 7: hedge: 'should'", r.stdout)
+
+    def test_missing_file_exits_2_with_one_stderr_line(self):
+        r = subprocess.run([sys.executable, str(BIN / "processlint.py"), "/nonexistent/process.md"],
+                           capture_output=True, text=True)
+        self.assertEqual((r.returncode, r.stdout), (2, ""))
+        self.assertEqual(len(r.stderr.strip().splitlines()), 1)
 
     def test_no_argument_exits_2(self):
         r = subprocess.run([sys.executable, str(BIN / "processlint.py")], capture_output=True, text=True)
