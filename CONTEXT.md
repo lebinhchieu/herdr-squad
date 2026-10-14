@@ -146,9 +146,38 @@ _Avoid_: submit, handoff
 A question that waits for the PO, written down by the Manager with options and a recommendation.
 _Avoid_: blocker (a blocked agent waits on anything; an escalation waits on the PO)
 
+## Squad board
+
+The local page that shows a squad live (`bin/squad-board`, `bin/squad-board.html`, guide `docs/squad-board-guide.html`). Sources: `docs/adr/`, `.scratch/squad-board/`.
+
+**Home**:
+A folder with its own roster, escalations, logs, `iterations/` and `roles/`: `goals/<g>/` or `scopes/<s>/` in a per-scope squad, the squad folder itself in a flat one. The board reads every home and merges them.
+_Avoid_: folder, workspace
+
+**Bar**:
+One working stretch of one agent, drawn on the sequence. `working_s` is the bar minus its waiting parts (blocked time stays in it).
+_Avoid_: session, span
+
+**Status**:
+An agent's state, one of `working`, `idle`, `blocked`, `waiting`. `waiting` is an idle agent whose last pane line shows a background shell or monitor.
+_Avoid_: state (that is the task's word)
+
+**Needs-you**:
+The list of what waits on the PO: a blocked agent, an unanswered escalation, an idle Manager with an empty check-in.
+
+**Recorder**:
+The thread that polls idle and done panes on the herdr socket and writes `activity.jsonl`. It runs only while the board runs.
+
+**Replay**:
+Serving a copy of a squad folder at a fixed `--now` instead of live data. Tests and QA use it.
+
+**Receipt**:
+The proof of one full test run on the final sha: `suite-default.txt` and `suite-tz.txt` in the ticket's evidence folder, made by `tests/run_suite.py --receipt`.
+
 ## Relationships
 
 - A **Squad** holds many **Scopes** and **Goals** over time, each with its own folder and fresh **Manager** (a **Goal** has one **goal Manager** for all its **Scopes**).
 - A **Pod** delivers exactly one **Scope**; the **Scope**'s **Size** decides which **Roles** the **Pod** has.
 - A **Scope** is split into **Tasks**; one **Developer** builds one **Task**.
 - A **Task** is **Done** only when the checkers its **Size** names pass it.
+- A **Home** belongs to one **Goal** or **Scope**; a **Bar** is drawn in the **Home** its start row came from.
