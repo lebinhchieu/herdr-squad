@@ -60,6 +60,21 @@ def open_board(squad):
     return None
 
 
+def name_workspace(name):
+    """Name the caller's herdr workspace after the goal or lone scope; a refusal never stops the start."""
+    ws = os.environ.get("HERDR_WORKSPACE_ID")
+    if os.environ.get("HERDR_ENV") != "1" or not ws:
+        return
+    try:
+        r = subprocess.run(["herdr", "workspace", "rename", ws, name], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        print(f"workspace not renamed: {e}", file=sys.stderr)
+        return
+    if r.returncode != 0:
+        reason = (r.stderr.strip().splitlines() or ["no reason given"])[-1]
+        print(f"workspace not renamed: {reason}", file=sys.stderr)
+
+
 def derive_name(text):
     ticket = re.search(r"\b[A-Z][A-Z0-9]*-\d+\b", text)
     if ticket:
@@ -128,6 +143,7 @@ def resume(squad, a):
         tab = json.loads(r.stdout).get("tab")
     except ValueError:
         tab = None
+    name_workspace(a.resume)
     print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab, "board": open_board(squad)}))
 
 
@@ -216,6 +232,8 @@ def main():
             tab = json.loads(r.stdout).get("tab")
         except ValueError:
             pass
+    if manager:
+        name_workspace(name)
     print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab, "board": open_board(squad)}))
 
 
