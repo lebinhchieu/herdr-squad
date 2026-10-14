@@ -14,6 +14,7 @@
 | Evidence | <evidence folder, default $SCOPE_DIR/evidence/> |
 | Code repos | <repo paths; Developers get a worktree of these> |
 | Test and lint commands | <per repo> |
+| UI conventions / design system | <style guide, component folder, palette file; or none> |
 | Running app | <how QA blackbox reaches it: URL, dev server, login> |
 
 ## Outside decision makers
