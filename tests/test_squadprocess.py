@@ -212,8 +212,9 @@ class CliTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertIn("squad-process:", r.stderr)
         self.assertNotIn("Traceback", r.stderr)
-        r = self.run_cli("process-version: 1\n", "version", plugin="nope")
+        r = self.run_cli("# T\n", "version", plugin="nope")
         self.assertEqual(r.returncode, 0)
+        self.assertIn("squad 1 (unstamped), plugin unknown", r.stdout)
         self.assertIn("squad-process:", r.stderr)
         self.assertNotIn("Traceback", r.stderr)
 

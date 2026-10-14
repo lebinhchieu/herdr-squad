@@ -34,6 +34,12 @@ def main(argv=None):
         r = sp.check(a.squad_dir, a.plugin_root)
     except sp.ProcessError as e:
         print(f"squad-process: {e}", file=sys.stderr)
+        if a.cmd == "version":  # the squad half is still known
+            try:
+                n, stamp = sp.squad_version(a.squad_dir)
+                print(f"squad {n} ({stamp}), plugin unknown")
+            except sp.ProcessError:
+                pass
         return 0
     if a.json:
         print(json.dumps(r))
