@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""Squad process version tool.
+
+  squad-process version [--json]        squad version, plugin version, state, stamp
+  squad-process check [--quiet] [--json]  one-line warning when the squad's process.md is not current
+
+  squad-process plan [--json]            read-only: changelog items, section states, conflicts
+  squad-process compose --out FILE [--resolve "<heading>=ours|theirs|file:<path>" ...]
+  squad-process apply --file FILE [--yes] without --yes: diff, "NOT APPLIED"; with it: backup, write, log
+
+version and check take --squad-dir D (default $SQUAD_DIR) and --plugin-root R. Exit 0 always for these two:
+a bad file is reported, never a failure of the caller. plan, compose and apply exit 2 when they refuse.
+"""
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadprocess as sp  # noqa: E402
+
+
+def _resolutions(args, conflicts):
+    """["## H=ours", ...] -> {heading: how}; the heading is matched against the known conflicts, so '=' in it is fine."""
+    out = {}
+    for arg in args:
+        for h in conflicts:
+            if arg.startswith(h + "="):
+                out[h] = arg[len(h) + 1:]
+                break
+        else:
+            raise sp.ProcessError(f"--resolve {arg!r}: not '<conflict heading>=ours|theirs|file:<path>'")
+    return out
+
+
+def _mutating(a):
+    if not a.squad_dir:
+        print("squad-process: no --squad-dir and $SQUAD_DIR is not set", file=sys.stderr)
+        return 2
+    try:
+        if a.cmd == "plan":
+            pl = sp.plan(a.squad_dir, a.plugin_root)
+            print(json.dumps(pl, indent=1) if a.json else sp.format_plan(pl))
+        elif a.cmd == "compose":
+            pl = sp.plan(a.squad_dir, a.plugin_root)
+            conflicts = [r["heading"] for r in pl["sections"] if r["state"] == "conflict"]
+            sp.compose(a.squad_dir, a.plugin_root, a.out, _resolutions(a.resolve, conflicts))
+            print(f"composed {a.out}; check it with: squad-process apply --file {a.out}")
+        else:
+            r = sp.apply(a.squad_dir, a.plugin_root, a.file, a.yes)
+            if "diff" in r:
+                print(r["diff"].rstrip("\n"))
+                print("changed sections: " + ("; ".join(r["changed"]) or "none"))
+                for w in r["warnings"]:
+                    print(w)
+            if r.get("backup"):
+                print(f"backup: {r['backup']}")
+                print("log rows:\n" + "\n".join(r["log_rows"]))
+            print(r["message"])
+    except sp.ProcessError as e:
+        print(f"squad-process: {e}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="squad-process", description=__doc__.split("\n")[0])
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    for name in ("version", "check"):
+        p = sub.add_parser(name)
+        p.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
+        p.add_argument("--plugin-root", default=str(sp.DEFAULT_PLUGIN_ROOT))
+        p.add_argument("--json", action="store_true")
+        if name == "check":
+            p.add_argument("--quiet", action="store_true", help="print nothing when current and stamped")
+    pl = sub.add_parser("plan")
+    co = sub.add_parser("compose")
+    ap_ = sub.add_parser("apply")
+    for p in (pl, co, ap_):
+        p.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
+        p.add_argument("--plugin-root", default=str(sp.DEFAULT_PLUGIN_ROOT))
+    pl.add_argument("--json", action="store_true")
+    co.add_argument("--out", required=True)
+    co.add_argument("--resolve", action="append", default=[])
+    ap_.add_argument("--file", required=True)
+    ap_.add_argument("--yes", action="store_true")
+    a = ap.parse_args(argv)
+    if a.cmd in ("plan", "compose", "apply"):
+        return _mutating(a)
+    if not a.squad_dir:
+        print("squad-process: no --squad-dir and $SQUAD_DIR is not set", file=sys.stderr)
+        return 0
+    try:
+        r = sp.check(a.squad_dir, a.plugin_root)
+    except sp.ProcessError as e:
+        print(f"squad-process: {e}", file=sys.stderr)
+        if a.cmd == "version":  # the squad half is still known
+            try:
+                n, stamp = sp.squad_version(a.squad_dir)
+                print(f"squad {n} ({stamp}), plugin unknown")
+            except sp.ProcessError:
+                pass
+        return 0
+    if a.json:
+        print(json.dumps(r))
+    elif a.cmd == "version":
+        print(f"squad {r['squad']} ({r['stamp']}), plugin {r['plugin']}, {r['state']}")
+    elif r["message"] or not a.quiet:
+        print(r["message"] or "process.md is current.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

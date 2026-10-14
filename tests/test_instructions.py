@@ -23,6 +23,13 @@ class InstructionsTest(unittest.TestCase):
         self.assertIn("--title", manager)
         self.assertIn("squad-label --agent", manager)
         self.assertIn("squad-label", (ROOT / "agents/dev.md").read_text())
+    def test_project_instructions_row_names_the_team_file(self):
+        rows = [r for r in (ROOT / "templates/squad/project.md").read_text().splitlines()
+                if r.startswith("| Project instructions |")]
+        self.assertEqual(len(rows), 1)
+        self.assertIn("AGENTS.md", rows[0])
+        self.assertIn("Project instructions", (ROOT / "skills/squad-init/SKILL.md").read_text())
+
     def test_no_file_refers_to_something_that_was_removed(self):
         for f in INSTRUCTIONS:
             rel = str(f.relative_to(ROOT))

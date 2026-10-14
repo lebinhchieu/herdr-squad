@@ -12,12 +12,13 @@ disable-model-invocation: true
 
 - Project root = `git rev-parse --show-toplevel` (or the directory the user names).
 - Squad name = the name the user gives, else ask for one (short, lowercase, e.g. `billing`). It becomes part of every agent name, which herdr limits to 32 characters, so keep it under 10.
-- If `<root>/.claude/squads/<squad>/` already exists, stop and ask whether to refresh only the missing files. Never touch its `scopes/` or `goals/`.
-- Copy everything from `${CLAUDE_PLUGIN_ROOT}/templates/squad/` to `<root>/.claude/squads/<squad>/`, then create the empty folders `scopes/` and `goals/` there. The `scopes/` folder is what marks a squad as per-scope.
+- If `<root>/.claude/squads/<squad>/` already exists, stop and ask whether to refresh only the missing files. Never touch its `scopes/` or `goals/`, and never overwrite its `process.md`: if its `process-version:` is behind the plugin's, tell the user to run `/squad:squad-process-update`.
+- Copy everything from `${CLAUDE_PLUGIN_ROOT}/templates/squad/` to `<root>/.claude/squads/<squad>/`, then create the empty folders `scopes/` and `goals/` there. The `scopes/` folder is what marks a squad as per-scope. Then check that the copied `process.md` has a `process-version:` line (it comes from the template); if not, stop and tell the user the plugin template is broken.
 
 ## 2. Fill `<squad>/project.md`
 
 Read the project's CLAUDE.md files, README, docs folders and repo layout. Fill every row of the source map with real paths. For each row you can't find, ask the user one batched question. This file is a map into the project's own docs, not a copy of them, so the project stays the single home of domain knowledge. Pay attention to:
+- **Project instructions file:** the file teammates without the squad follow; ask the user which it is if none is found.
 - **Outside decision makers** and where their questions must go (an open-points file, never a person).
 - **Code repos** (submodules count: Developers get a worktree per repo).
 - **Test, lint and done rules** from the repo's own instructions; quote the commands exactly.

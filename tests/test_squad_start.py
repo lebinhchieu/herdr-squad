@@ -1,6 +1,7 @@
 """squad-start: text in, scope or goal folder + brief + fresh Manager out."""
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -324,6 +325,93 @@ class BoardTest(unittest.TestCase):
         r = self.start("Part", "--in-goal", "g1", "--name", "p1", "--touches", "a")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)["board"], "http://127.0.0.1:7420/?token=abc_DEF-1")
+
+
+ROOT = SCRIPT.parent.parent
+
+
+class ProcessUpdateTest(unittest.TestCase):
+    """squad-start warns (stderr and `process_update` in the JSON) when process.md is not current; it never blocks."""
+
+    def setUp(self):
+        StartTest.setUp(self)
+
+    tearDown = StartTest.tearDown
+    herdr = StartTest.herdr
+
+    def plugin(self, version):
+        plugin = Path(self.tmp.name) / "plugin"
+        shutil.rmtree(plugin, ignore_errors=True)
+        shutil.copytree(ROOT / "bin", plugin / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+        os.symlink(ROOT / "agents", plugin / "agents")
+        shutil.copytree(ROOT / "templates", plugin / "templates")
+        (plugin / "templates" / "squad" / "process.md").write_text(
+            "# T\n" + (f"\nprocess-version: {version}\n" if version else ""))
+        return plugin / "bin" / "squad-start"
+
+    def run_start(self, plugin_version, squad_text, *args):
+        (self.squad / "process.md").write_text(squad_text)
+        return subprocess.run([str(self.plugin(plugin_version)), *args], env=self.env, text=True,
+                              capture_output=True, timeout=30)
+
+    def test_each_state_gives_its_one_line_and_the_json_key(self):
+        for squad_text, plugin_v, words in (
+                ("process-version: 1\n", 2, ("version 1", "is 2", "migrate the process", "/squad:squad-process-update")),
+                ("# T\n", 2, ("no process-version line", "treated as version 1")),
+                ("process-version: 1.2\n", 2, ("malformed", "treated as version 1")),
+                ("process-version: 3\n", 2, ("newer than this plugin's 2", "update the plugin"))):
+            with self.subTest(squad_text=squad_text):
+                name = f"s{abs(hash(squad_text)) % 10**6}"
+                r = self.run_start(plugin_v, squad_text, "Task", "--name", name, "--touches", name)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                msg = json.loads(r.stdout)["process_update"]
+                line = next(l for l in r.stderr.splitlines() if l.startswith("process update: "))
+                self.assertEqual(line, "process update: " + msg)
+                for w in words:
+                    self.assertIn(w, msg)
+
+    def test_current_squad_is_silent_and_the_key_is_null(self):
+        r = self.run_start(2, "process-version: 2\n", "Task", "--name", "one", "--touches", "a")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIsNone(json.loads(r.stdout)["process_update"])
+        self.assertNotIn("process update", r.stderr)
+
+    def test_dry_run_and_resume_warn_too(self):
+        r = self.run_start(2, "process-version: 1\n", "x", "--name", "one", "--touches", "z", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("process update: ", r.stderr)
+        self.assertFalse((self.squad / "scopes" / "one").exists())
+        self.run_start(2, "process-version: 2\n", "Task", "--name", "one", "--touches", "a")
+        r = self.run_start(2, "process-version: 1\n", "--resume", "one")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("process update: ", r.stderr)
+        self.assertIn("migrate the process", json.loads(r.stdout)["process_update"])
+
+    def test_a_template_without_the_line_or_a_missing_squad_file_never_stops_the_start(self):
+        r = self.run_start(None, "process-version: 1\n", "Task", "--name", "one", "--touches", "a")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIsNone(json.loads(r.stdout)["process_update"])
+        self.assertIn("process version not checked", r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
+    def test_the_warning_changes_no_file(self):
+        (self.squad / "process.md").write_text("process-version: 1\n")
+        self.run_start(2, "process-version: 1\n", "x", "--name", "one", "--touches", "z", "--dry-run")
+        self.assertEqual((self.squad / "process.md").read_text(), "process-version: 1\n")
+        self.assertEqual(sorted(p.name for p in self.squad.iterdir()), ["goals", "process.md", "scopes"])
+
+
+class InstructionsTest(unittest.TestCase):
+    def test_squad_init_names_the_stamp_check_and_never_overwrites_process_md(self):
+        text = (ROOT / "skills" / "squad-init" / "SKILL.md").read_text()
+        self.assertIn("`process-version:` line", text)
+        self.assertIn("never overwrite its `process.md`", text)
+        self.assertIn("/squad:squad-process-update", text)
+
+    def test_squad_start_skill_tells_the_user_and_never_runs_the_update_unasked(self):
+        text = (ROOT / "skills" / "squad-start" / "SKILL.md").read_text()
+        self.assertIn("`process_update`", text)
+        self.assertIn("Never run it unasked", text)
 
 
 if __name__ == "__main__":

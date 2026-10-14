@@ -78,6 +78,18 @@ _Avoid_: red flag
 An agreement between two scopes of one goal, such as an API, an event or a status model, kept in the goal's `shared/contracts/`.
 _Avoid_: interface, spec
 
+**Process version**:
+The integer on the line `process-version: <N>` in a squad's `process.md`. A squad without the line is version 1. The plugin's template carries the current version; a squad is *behind* when its number is lower.
+_Avoid_: schema version, template version
+
+**Process changelog**:
+The plugin's list of changes to the `process.md` template, one `##` per version and one `###` item per change (sections, kind, why, old and new wording), next to a pristine copy of every released version. The update reads it.
+_Avoid_: release notes
+
+**Process update**:
+The skill `/squad:squad-process-update`. It shows the PO what a squad's `process.md` would become (the plugin's changes combined with the squad's own edits), and writes it only after the PO confirms the whole result.
+_Avoid_: migration (that word is `squad-migrate`, for folder layouts)
+
 ## Goals and knowledge
 
 **Request**:

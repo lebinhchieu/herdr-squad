@@ -106,6 +106,15 @@ if [[ -d $squad_dir/scopes ]]; then
   fi
 fi
 
+# The Manager hears about a process.md that is behind through its first prompt. Never stops the spawn.
+if [[ $role == manager ]]; then
+  notice=$("$plugin_root/bin/squad-process" check --squad-dir "$squad_dir" --quiet 2>/dev/null) || notice=""
+  if [[ -n $notice ]]; then
+    notice="Process update: $notice Tell the PO in your first message. Do not migrate unless the PO says so."
+    prompt=${prompt:+$prompt }$notice
+  fi
+fi
+
 # Project-tuned permissions first, plugin defaults as fallback.
 settings=$squad_dir/settings/$role.json
 [[ -f $settings ]] || settings=$plugin_root/templates/squad/settings/$role.json

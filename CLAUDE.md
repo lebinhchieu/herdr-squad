@@ -40,3 +40,10 @@ Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root.
 - Before exploring, read `CONTEXT.md` and any ADRs in `docs/adr/` that touch the area you're working in. If they don't exist, carry on and don't mention it. `/domain-modeling` creates them when terms or decisions get settled.
 - Use the glossary's terms in issue titles, test names and proposals. A concept missing from the glossary is either invented language or a real gap; note the gap for `/domain-modeling`.
 - If your output contradicts an ADR, say so explicitly instead of overriding it.
+
+## Running tests
+
+- Runner: `python3 tests/run_suite.py --receipt <dir> --if-changed <task base>`. Integration and promotion tasks and the sha the PO merges use `--tz` instead: nothing skipped.
+- Start it in the background and wait as in the Suites bullet of `agents/dev.md`. Never `pgrep -f` or `pkill -f run_suite`: it kills other agents' runs.
+- Commit every fix before a run; never kill and restart one.
+- Interim, until scope board-flakes closes: if `test_board_sequence` and `test_board_page` are the only failures, a solo pass of each, saved next to the receipt, counts as green.
