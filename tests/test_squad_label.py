@@ -110,7 +110,7 @@ class LabelCliTest(unittest.TestCase):
 
     def test_init_renames_newly_numbered_peer_and_prints_only_new_label(self):
         sl.write_entry(self.scope, "dev-1", "dev", None, "TAB-01")
-        r = self.run_cli("--init", "--agent", "dev-2", "--role", "dev", "--title", "TAB-02", SCOPE_DIR=str(self.scope))
+        r = self.run_cli("--init", "--home", str(self.scope), "--agent", "dev-2", "--role", "dev", "--title", "TAB-02")
         self.assertEqual((r.returncode, r.stdout), (0, "🤖 Dev 2 · TAB-02\n"), r.stderr)
         self.assertEqual(self.calls()[1:], ["agent get dev-1", "tab rename tab-dev-1 🤖 Dev 1 · TAB-01"])
         self.assertEqual(self.calls()[0], "agent list")
@@ -119,12 +119,35 @@ class LabelCliTest(unittest.TestCase):
     def test_init_respawn_of_dev2_after_dev1_left_keeps_2(self):
         sl.write_entry(self.scope, "dev-1", "dev", 1, "")
         sl.write_entry(self.scope, "dev-2", "dev", 2, "")
-        r = self.run_cli("--init", "--agent", "dev-2", "--role", "dev", "--title", "B", SCOPE_DIR=str(self.scope), LIVE="dev-2")
+        r = self.run_cli("--init", "--home", str(self.scope), "--agent", "dev-2", "--role", "dev", "--title", "B", LIVE="dev-2")
         self.assertEqual(r.stdout, "🤖 Dev 2 · B\n")
         self.assertEqual(sl.read_entry(self.scope, "dev-2")["number"], 2)
 
-    def test_init_first_agent_has_no_number_and_no_tab_call(self):
+    def test_init_uses_only_its_home_and_ignores_env(self):
+        r = self.run_cli("--init", "--home", str(self.goal), "--agent", "mgr", "--role", "manager",
+                         SCOPE_DIR=str(self.scope), GOAL_DIR="/nonexistent")
+        self.assertEqual(r.stdout, "🦀 Manager\n")
+        self.assertIsNotNone(sl.read_entry(self.goal, "mgr"))
+        self.assertIsNone(sl.read_entry(self.scope, "mgr"))
+        # the goal Manager with only GOAL_DIR relabels itself and the entry is found
+        r = self.run_cli("waiting", SQUAD_NAME="mgr", SQUAD_ROLE="manager", GOAL_DIR=str(self.goal))
+        self.assertEqual(r.stdout.strip(), "🦀 Manager · waiting")
+
+    def test_init_without_home_exits_2(self):
         r = self.run_cli("--init", "--agent", "dev-1", "--role", "dev", SCOPE_DIR=str(self.scope))
+        self.assertEqual(r.returncode, 2)
+        self.assertIsNone(sl.read_entry(self.scope, "dev-1"))
+
+    def test_get_title(self):
+        sl.write_entry(self.scope, "dev-1", "dev", 1, "TAB-04 board")
+        r = self.run_cli("--get-title", "--home", str(self.scope), "--agent", "dev-1")
+        self.assertEqual((r.returncode, r.stdout), (0, "TAB-04 board\n"))
+        r = self.run_cli("--get-title", "--home", str(self.scope), "--agent", "dev-9")
+        self.assertEqual((r.returncode, r.stdout), (0, "\n"))
+        self.assertEqual(self.calls(), [])
+
+    def test_init_first_agent_has_no_number_and_no_tab_call(self):
+        r = self.run_cli("--init", "--home", str(self.scope), "--agent", "dev-1", "--role", "dev")
         self.assertEqual(r.stdout, "🤖 Dev\n")
         self.assertEqual(self.calls(), ["agent list"])
 
@@ -133,7 +156,7 @@ class LabelCliTest(unittest.TestCase):
         env = self.as_dev(HERDR_ENV="0")
         r = self.run_cli("quiet", **env)
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "🤖 Dev · quiet"))
-        r = self.run_cli("--init", "--agent", "dev-3", "--role", "dev", **env)
+        r = self.run_cli("--init", "--home", str(self.scope), "--agent", "dev-3", "--role", "dev", **env)
         self.assertEqual(r.returncode, 0)
         self.assertEqual(self.calls(), [])
 
@@ -145,7 +168,7 @@ class LabelCliTest(unittest.TestCase):
         self.assertEqual(sl.read_entry(self.scope, "dev-2")["title"], "t")
 
     def test_bad_agent_name_is_refused(self):
-        r = self.run_cli("--agent", "../x", "t", SQUAD_NAME="mgr", SQUAD_ROLE="manager", SCOPE_DIR=str(self.scope))
+        r = self.run_cli("--agent", "../x", "t", SQUAD_NAME="mgr", SQUAD_ROLE="manager")
         self.assertNotEqual(r.returncode, 0)
         self.assertFalse((self.scope.parent / "x.json").exists())
 
