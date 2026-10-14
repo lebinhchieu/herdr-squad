@@ -36,16 +36,24 @@ done
 scope_args=(--scope "$scope")
 [[ $home_var == GOAL_DIR ]] && scope_args=(--goal "$(basename "$GOAL_DIR")")
 
+# The tab label comes back with the stored title; the stored number is kept by squad-label --init.
+title=$("$bin/squad-label" --get-title --home "$home" --agent "$name" 2>/dev/null || true)
+title_args=()
+[[ -z $title ]] || title_args=(--title "$title")
+
 prompt="RESPAWN: you are $name, restarted fresh. Read \$SQUAD_DIR/process.md, then your notes \$$home_var/roles/$name.notes.md, and continue from them."
-spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" --prompt "$prompt")
+spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" "${title_args[@]}" --prompt "$prompt")
 
 notes=$home/roles/$name.notes.md
 if [[ -f $notes ]] && (( $(wc -l <"$notes") > 100 )); then
   echo "warning: $name's notes are $(wc -l <"$notes") lines (cap ~80, see process.md → Notes); the new session reads all of it, so trim it" >&2
 fi
 
+# Not "$name-prev": a name over 27 characters would break herdr's 32-character limit.
+prev=prev-$$
+
 if [[ $dry == 1 ]]; then
-  echo "would run: herdr agent rename $name $name-prev"
+  echo "would run: herdr agent rename $name $prev"
   echo "would run: ${spawn[*]}"
   echo "would run: herdr pane close <old pane of $name>"
   exit 0
@@ -55,6 +63,6 @@ fi
 old_pane=$(herdr agent get "$name" | jq -r '.result.agent.pane_id // .result.pane_id // empty')
 [[ -n $old_pane ]] || { echo "no live agent named $name" >&2; exit 1; }
 
-herdr agent rename "$name" "$name-prev" >/dev/null
-SQUAD_DIR=$squad_dir "${spawn[@]}" || { herdr agent rename "$name-prev" "$name" >/dev/null; exit 1; }
+herdr agent rename "$name" "$prev" >/dev/null
+SQUAD_DIR=$squad_dir "${spawn[@]}" || { herdr agent rename "$prev" "$name" >/dev/null; exit 1; }
 herdr pane close "$old_pane" >/dev/null

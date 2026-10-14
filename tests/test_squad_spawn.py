@@ -2,12 +2,14 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-spawn"
+BIN_DIR = SCRIPT.parent
 TABLE = {"manager": ("opus", "medium"), "tech-lead": ("sonnet", "high"), "ba": ("sonnet", "high"),
          "team-lead": ("sonnet", "medium"), "dev": ("sonnet", "medium"),
          "qa-whitebox": ("sonnet", "high"), "qa-blackbox": ("sonnet", "high"),
@@ -244,6 +246,116 @@ class SpawnScopedTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("| t-tech-sc1 | tech-lead | sc1 |", (self.squad / "scopes" / "sc1" / "roster.md").read_text())
         self.assertNotIn("t-tech-sc1", (self.squad / "scopes" / "sc2" / "roster.md").read_text())
+
+
+LABEL_HERDR = """#!/usr/bin/env bash
+echo "$@" >> "$HERDR_LOG"
+case "$1 $2" in
+  "agent get") [[ " ${LIVE:-} " == *" $3 "* ]] && { echo '{"result":{"agent":{"tab_id":"t-'$3'"}}}'; exit 0; }
+               echo '{"error":{"code":"agent_not_found"}}'; exit 1 ;;
+  "agent list") jq -nc --arg l "${LIVE:-}" '{result:{agents:($l|split(" ")|map(select(.!=""))|map({name:.}))}}' ;;
+  "tab create") echo '{"result":{"root_pane":{"pane_id":"p1"},"tab":{"tab_id":"t-new"}}}' ;;
+esac
+exit 0
+"""
+
+
+class SpawnLabelTest(unittest.TestCase):
+    """The tab label is "<emoji> <Role>[ n][ · title]"; the address name stays as it is."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.squad = scoped_squad(self.root)
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "herdr").write_text(LABEL_HERDR)
+        (bin_dir / "herdr").chmod(0o755)
+        self.log = self.root / "herdr.log"
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log),
+                        PATH=f"{bin_dir}:{os.environ['PATH']}")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def spawn(self, role, name, *args, scope="sc1"):
+        where = ("--goal", scope) if role == "manager" and scope.startswith("g") else ("--scope", scope)
+        r = subprocess.run([str(SCRIPT), role, name, *where, *args], env=self.env, text=True, capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r
+
+    def calls(self, prefix):
+        return [l for l in self.log.read_text().splitlines() if l.startswith(prefix)]
+
+    def test_title_goes_after_the_role_and_the_env_keeps_the_address_name(self):
+        self.spawn("tech-lead", "t-tech-sc1", "--title", "plan")
+        (create,) = self.calls("tab create")
+        self.assertIn("--label 🤖 Tech Lead · plan --no-focus", create)
+        self.assertIn("--env SQUAD_NAME=t-tech-sc1", create)
+        self.assertNotIn("t-tech-sc1 ·", create)
+
+    def test_refused_spawn_of_a_live_name_keeps_its_stored_label(self):
+        self.spawn("tech-lead", "t-tech-sc1", "--title", "plan")
+        store = self.squad / "scopes" / "sc1" / "labels" / "t-tech-sc1.json"
+        before = store.read_text()
+        self.env["LIVE"] = "t-tech-sc1"
+        calls = self.log.read_text()
+        for extra in (["--title", "OTHER"], []):
+            r = subprocess.run([str(SCRIPT), "tech-lead", "t-tech-sc1", "--scope", "sc1", *extra],
+                               env=self.env, text=True, capture_output=True, timeout=20)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("already live", r.stderr)
+            self.assertEqual(store.read_text(), before)
+        self.assertEqual(self.calls("tab rename"), [])
+        self.assertNotIn("tab create", self.log.read_text()[len(calls):])
+
+    def test_no_title_means_no_separator_and_a_manager_has_the_crab(self):
+        self.spawn("manager", "t-mgr-sc1")
+        self.assertIn("--label 🦀 Manager --no-focus", self.calls("tab create")[0])
+        self.assertNotIn(" · ", self.calls("tab create")[0])
+
+    def test_a_goal_manager_stores_its_label_in_the_goal_folder(self):
+        self.spawn("manager", "t-mgr-g1", scope="g1")
+        self.assertTrue((self.squad / "goals" / "g1" / "labels" / "t-mgr-g1.json").is_file())
+
+    def test_a_second_live_dev_renames_the_first_and_gets_number_two(self):
+        self.spawn("dev", "t-dev-sc1-1")
+        self.env["LIVE"] = "t-dev-sc1-1"
+        self.spawn("dev", "t-dev-sc1-2")
+        self.assertIn("tab rename t-t-dev-sc1-1 🤖 Dev 1", self.log.read_text())
+        self.assertIn("--label 🤖 Dev 2 --no-focus", self.calls("tab create")[1])
+
+    def test_the_label_never_holds_the_squad_or_scope_name(self):
+        self.spawn("qa-whitebox", "t-qaw-sc1")
+        self.assertNotIn("sc1", self.calls("tab create")[0].split("--env")[0])
+
+    def test_a_title_with_spaces_quotes_or_a_substitution_is_data(self):
+        self.spawn("ba", "t-ba-sc1", "--title", "it's $(touch pwned) `x`")
+        self.assertIn("--label 🤖 BA · it's $(touch pwned) `x` --no-focus", self.calls("tab create")[0])
+        self.assertFalse((self.root / "pwned").exists())
+
+    def test_a_failing_squad_label_still_starts_the_agent_with_the_name_and_a_warning(self):
+        stub = self.root / "plugin"
+        (stub / "bin").mkdir(parents=True)
+        for f in ("squad-spawn", "squad-usage", "squadlabel.py"):  # copies: squad-spawn finds its plugin via the real path
+            shutil.copy(BIN_DIR / f, stub / "bin" / f)
+        os.symlink(BIN_DIR.parent / "agents", stub / "agents")
+        os.symlink(BIN_DIR.parent / "templates", stub / "templates")
+        (stub / "bin" / "squad-label").write_text("#!/bin/sh\nexit 1\n")
+        (stub / "bin" / "squad-label").chmod(0o755)
+        r = subprocess.run([str(stub / "bin" / "squad-spawn"), "ba", "t-ba-sc1", "--scope", "sc1"], env=self.env,
+                           text=True, capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("warning", r.stderr)
+        self.assertIn("--label t-ba-sc1 --no-focus", self.calls("tab create")[0])
+
+    def test_dry_run_prints_the_label_and_writes_no_store_file(self):
+        r = subprocess.run([str(SCRIPT), "dev", "t-dev-sc1-1", "--scope", "sc1", "--title", "x", "--dry-run"],
+                           env=self.env, text=True, capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("--label 🤖 Dev · x --no-focus", r.stdout)
+        self.assertFalse((self.squad / "scopes" / "sc1" / "labels").exists())
 
 
 if __name__ == "__main__":

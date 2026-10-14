@@ -133,6 +133,19 @@ class LabelCliTest(unittest.TestCase):
         r = self.run_cli("waiting", SQUAD_NAME="mgr", SQUAD_ROLE="manager", GOAL_DIR=str(self.goal))
         self.assertEqual(r.stdout.strip(), "🦀 Manager · waiting")
 
+    def test_init_dry_run_prints_the_label_and_writes_and_renames_nothing(self):
+        sl.write_entry(self.scope, "dev-1", "dev", None, "TAB-01")
+        before = (self.scope / "labels" / "dev-1.json").read_text()
+        r = self.run_cli("--init", "--dry-run", "--home", str(self.goal), "--agent", "mgr", "--role", "manager")
+        self.assertEqual((r.returncode, r.stdout), (0, "🦀 Manager\n"), r.stderr)
+        self.assertFalse((self.goal / "labels").exists())
+        r = self.run_cli("--init", "--dry-run", "--home", str(self.scope), "--agent", "dev-2", "--role", "dev",
+                         "--title", "T", LIVE="dev-1")
+        self.assertEqual(r.stdout, "🤖 Dev 2 · T\n")
+        self.assertEqual((self.scope / "labels" / "dev-1.json").read_text(), before)
+        self.assertFalse((self.scope / "labels" / "dev-2.json").exists())
+        self.assertFalse([c for c in self.calls() if c.startswith("tab rename")])
+
     def test_init_without_home_exits_2(self):
         r = self.run_cli("--init", "--agent", "dev-1", "--role", "dev", SCOPE_DIR=str(self.scope))
         self.assertEqual(r.returncode, 2)

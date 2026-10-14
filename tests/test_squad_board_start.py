@@ -40,6 +40,11 @@ elif a[:2] == ["tab", "create"]:
     state["panes"].append({"pane_id": "%s:p%d" % (ws, state["n"]), "tab_id": tab["tab_id"], "workspace_id": ws})
     save()
     out({"tab": tab, "root_pane": {"pane_id": "%s:p%d" % (ws, state["n"])}})
+elif a[:2] == ["tab", "rename"]:
+    for t in state["tabs"]:
+        if t["tab_id"] == a[2]:
+            t["label"] = a[3]
+    save()
 elif a[:2] == ["tab", "close"]:
     state["tabs"] = [t for t in state["tabs"] if t["tab_id"] != a[2]]
     state["panes"] = [p for p in state["panes"] if p["tab_id"] != a[2]]
@@ -102,8 +107,8 @@ class BoardStartTest(unittest.TestCase):
         return subprocess.run([str(SCRIPT), *args], env=env or self.env, text=True, capture_output=True,
                               timeout=60, cwd=self.root / "proj")
 
-    def boards(self, ws="wA"):
-        return [t for t in self.state()["tabs"] if t["label"] == "board" and t["workspace_id"] == ws]
+    def boards(self, ws="wA", label="📋 Board"):
+        return [t for t in self.state()["tabs"] if t["label"] == label and t["workspace_id"] == ws]
 
     def test_not_found_starts_one_board_tab_and_prints_only_the_url(self):
         r = self.run_it()
@@ -157,7 +162,7 @@ class BoardStartTest(unittest.TestCase):
         self.assertFalse((self.fake / "calls.log").exists())
 
     def test_only_the_callers_workspace_counts(self):
-        self.set_state({"n": 1, "runs": [], "tabs": [{"label": "board", "tab_id": "wB:t1", "workspace_id": "wB"}],
+        self.set_state({"n": 1, "runs": [], "tabs": [{"label": "📋 Board", "tab_id": "wB:t1", "workspace_id": "wB"}],
                         "panes": [{"pane_id": "wB:p1", "tab_id": "wB:t1", "workspace_id": "wB"}]})
         (self.fake / "screen-wB:p1").write_text("squad-board: http://127.0.0.1:7421/?token=other\n")
         r = self.run_it()
@@ -168,14 +173,52 @@ class BoardStartTest(unittest.TestCase):
 
     def test_a_caller_workspace_with_its_own_board_reuses_it_not_the_other(self):
         self.set_state({"n": 2, "runs": [], "tabs": [
-            {"label": "board", "tab_id": "wB:t1", "workspace_id": "wB"},
-            {"label": "board", "tab_id": "wA:t2", "workspace_id": "wA"}],
+            {"label": "📋 Board", "tab_id": "wB:t1", "workspace_id": "wB"},
+            {"label": "📋 Board", "tab_id": "wA:t2", "workspace_id": "wA"}],
             "panes": [{"pane_id": "wB:p1", "tab_id": "wB:t1", "workspace_id": "wB"},
                       {"pane_id": "wA:p2", "tab_id": "wA:t2", "workspace_id": "wA"}]})
         (self.fake / "screen-wB:p1").write_text("squad-board: http://127.0.0.1:7421/?token=other\n")
         (self.fake / "screen-wA:p2").write_text("squad-board: http://127.0.0.1:7420/?token=mine\n")
         r = self.run_it()
         self.assertEqual((r.returncode, r.stdout), (0, "http://127.0.0.1:7420/?token=mine\n"))
+
+    def seed(self, *labels):
+        tabs = [{"label": l, "tab_id": f"wA:t{i}", "workspace_id": "wA"} for i, l in enumerate(labels, 1)]
+        panes = [{"pane_id": f"wA:p{i}", "tab_id": f"wA:t{i}", "workspace_id": "wA"} for i in range(1, len(labels) + 1)]
+        self.set_state({"n": len(labels), "runs": [], "tabs": tabs, "panes": panes})
+        for i, l in enumerate(labels, 1):
+            (self.fake / f"screen-wA:p{i}").write_text(f"squad-board: http://127.0.0.1:742{i}/?token=t{i}\n")
+
+    def test_a_new_tab_is_labelled_with_the_emoji_and_found_by_it(self):
+        self.run_it()
+        self.assertIn("--label 📋 Board", (self.fake / "calls.log").read_text())
+        self.assertEqual(len(self.boards()), 1)
+
+    def test_a_legacy_board_tab_is_reused_and_renamed_once_without_a_second_tab(self):
+        self.seed("board")
+        r = self.run_it()
+        self.assertEqual((r.returncode, r.stdout), (0, "http://127.0.0.1:7421/?token=t1\n"))
+        calls = (self.fake / "calls.log").read_text()
+        self.assertNotIn("tab create", calls)
+        self.assertEqual(calls.count("tab rename wA:t1 📋 Board"), 1)
+        self.assertEqual((len(self.boards()), len(self.boards(label="board"))), (1, 0))
+        self.run_it()
+        self.assertEqual((self.fake / "calls.log").read_text().count("tab rename"), 1)
+
+    def test_with_both_labels_present_the_new_one_is_reused(self):
+        self.seed("board", "📋 Board")
+        r = self.run_it()
+        self.assertEqual(r.stdout, "http://127.0.0.1:7422/?token=t2\n")
+        self.assertNotIn("tab rename", (self.fake / "calls.log").read_text())
+
+    def test_restart_closes_a_legacy_tab_and_opens_the_new_label(self):
+        self.seed("board")
+        r = self.run_it("--restart")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        calls = (self.fake / "calls.log").read_text()
+        self.assertIn("tab close wA:t1", calls)
+        self.assertIn("--label 📋 Board", calls)
+        self.assertNotIn("tab rename", calls)
 
     def test_the_token_is_not_written_to_a_file_or_the_call_log(self):
         r = self.run_it()
