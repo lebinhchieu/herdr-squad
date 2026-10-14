@@ -422,10 +422,13 @@ class Browser:
         """Scroll to the top as the user does (a wheel, then a scroll), so the follow pauses and a later state
         frame cannot pin the bottom again. A state update can pin the bottom between the scrollTo and its
         scroll event, which then finds the page at the bottom and leaves the follow on; so the gesture is
-        repeated until the page itself says it is paused and is at the top."""
+        repeated until the page itself says it is paused and is at the top. A page with nothing to scroll never
+        pauses (it is "at the bottom" at the top), and pinning it moves nothing, so that counts as settled."""
         state = self.eval("""(async () => {
           const frames = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
-          const read = () => ({following: document.getElementById('live-state').dataset.following, scrollY: window.scrollY});
+          const root = document.documentElement;
+          const read = () => ({following: document.getElementById('live-state').dataset.following, scrollY: window.scrollY,
+                               overflow: root.scrollHeight - root.clientHeight});
           const end = performance.now() + %d;
           let now;
           do {
@@ -433,10 +436,10 @@ class Browser:
             window.scrollTo(0, 0);
             await frames();
             now = read();
-          } while (!(now.following === 'false' && now.scrollY === 0) && performance.now() < end);
+          } while (!(now.scrollY === 0 && (now.following === 'false' || now.overflow <= 0)) && performance.now() < end);
           return now;
         })()""" % timeout_ms)
-        if state != {"following": "false", "scrollY": 0}:
+        if not (state["scrollY"] == 0 and (state["following"] == "false" or state["overflow"] <= 0)):
             raise AssertionError("the page did not pause its follow and stay at the top within %d ms: %r" % (timeout_ms, state))
 
     def eval(self, js):
