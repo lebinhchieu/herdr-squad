@@ -83,7 +83,7 @@ The integer on the line `process-version: <N>` in a squad's `process.md`. A squa
 _Avoid_: schema version, template version
 
 **Process changelog**:
-The plugin's list of changes to the `process.md` template, one `##` per version and one `###` item per change (sections, kind, why, old and new wording), next to a pristine copy of every released version. The migration reads it.
+The plugin's list of changes to the `process.md` template, one `##` per version and one `###` item per change (sections, kind, why, old and new wording), next to a pristine copy of every released version. The update reads it.
 _Avoid_: release notes
 
 **Process update**:

@@ -9,4 +9,4 @@ Status: accepted (refine-process)
 **Consequences:**
 - A new rule replaces or merges with an existing one, or the PO raises the budget (the figure is in the Manager file and the `processlint` default; a test pins them equal); exceptions are listed in `tests/test_process_writing.py` with a reason. The rule reaches squads by plugin update, not by the process migration.
 - A rule stated twice in `process.md` counts as one rule: merging duplicates is allowed. Removing a rule that appears once, moving it out of the file, or changing a number or an owner is a PO decision via the Manager.
-- The `process.md` byte budget is 22,500 B (PO decisions, iterations/1.md esc 5 and 6; process.md was 27,745 B, now 22,358 B at 02087fa).
+- The `process.md` byte budget is 22,500 B, set by the PO; the template was 27,745 B before the trim.
