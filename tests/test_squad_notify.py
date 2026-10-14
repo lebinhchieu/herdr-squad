@@ -49,6 +49,37 @@ class DecideTest(unittest.TestCase):
                 self.assertEqual(sn.decide(event, ntype, env, sub), want)
 
 
+FIX = Path(__file__).resolve().parent / "fixtures" / "squad-notify"
+
+
+def real(name):
+    return json.loads((FIX / name).read_text())
+
+
+class RealPayloadTest(unittest.TestCase):
+    """Payloads captured from a live Claude session (evidence/TAB-05/samples)."""
+
+    def body(self, name, env):
+        p = real(name)
+        return sn.decide(p["hook_event_name"], p.get("notification_type", ""), env, bool(p.get("agent_id")))
+
+    def test_permission_prompt(self):
+        self.assertEqual(real("notification-permission_prompt.json")["notification_type"], "permission_prompt")
+        self.assertEqual(self.body("notification-permission_prompt.json", sq("dev")), "Permission prompt")
+        self.assertEqual(self.body("notification-permission_prompt.json", IN), "Needs input")
+
+    def test_stop(self):
+        self.assertNotIn("agent_id", real("stop.json"))
+        self.assertEqual(self.body("stop.json", sq("manager")), "Waiting for you")
+        self.assertEqual(self.body("stop.json", IN), "Done")
+
+    def test_subagent_stop_is_its_own_event_and_silent(self):
+        p = real("subagent-stop.json")
+        self.assertEqual((p["hook_event_name"], bool(p["agent_id"])), ("SubagentStop", True))
+        for env in (IN, sq("manager"), sq("dev")):
+            self.assertIsNone(self.body("subagent-stop.json", env))
+
+
 class DeliveryTest(unittest.TestCase):
     def test_osc_exact_and_stripped(self):
         self.assertEqual(sn.osc("a · b", "Done"), "\x1b]777;notify;a · b;Done\x1b\\".encode())
