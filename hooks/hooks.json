@@ -9,6 +9,15 @@
     "Stop": [
       {
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-usage-hook\"" }]
+      },
+      {
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-notify\"", "async": true, "timeout": 5 }]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt|elicitation_dialog",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-notify\"", "async": true, "timeout": 5 }]
       }
     ]
   }
