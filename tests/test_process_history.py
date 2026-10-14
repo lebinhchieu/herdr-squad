@@ -49,9 +49,9 @@ class RealHistoryTest(unittest.TestCase):
                 with self.subTest(v=it.version, section=h):
                     self.assertIn(h, old if it.change == "remove" else new)
             if it.new_kind == "text":
-                self.assertIn(it.new_text.strip(), "\n".join(new.get(h, "") for h in heads) or snapshot(it.version))
+                self.assertIn(it.new.strip(), "\n".join(new.get(h, "") for h in heads) or snapshot(it.version))
             if it.old_kind == "text":
-                self.assertIn(it.old_text.strip(), snapshot(it.version - 1))
+                self.assertIn(it.old.strip(), snapshot(it.version - 1))
 
     def test_current_snapshot_is_the_template(self):
         self.assertEqual(snapshot(self.P), TEMPLATE.read_text())
