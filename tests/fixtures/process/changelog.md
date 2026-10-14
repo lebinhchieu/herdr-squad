@@ -4,7 +4,7 @@
 - snapshot: history/process-v2.md
 
 ### Tighten A
-- sections: A
+- sections: ## A
 - change: reword
 - why: shorter
 - old:
@@ -14,7 +14,7 @@ old text
 - new: snapshot
 
 ### Add B
-- sections: B, C
+- sections: ## B; ### C, with comma
 - change: add
 - why: new rule
 - old: -
@@ -25,7 +25,7 @@ old text
 ```
 
 ### Drop D
-- sections: D
+- sections: ## D
 - change: remove
 - why: gone
 - old: snapshot

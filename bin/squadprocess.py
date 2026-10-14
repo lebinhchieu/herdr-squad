@@ -120,7 +120,7 @@ class Item:
     date: str
     snapshot: str
     title: str
-    sections: object  # "all" or list of exact headings
+    sections: object  # "all" or list of full heading lines, `;`-separated in the file
     change: str
     why: str
     old_kind: str = "none"  # "text" (fenced, exact wording) | "snapshot" | "none" (`-`)
@@ -163,7 +163,7 @@ def read_changelog(path):
         if extra:
             bad(f"item {cur['title']!r}: unknown field(s) {', '.join(sorted(extra))}")
         items.append(Item(cur["version"], cur["date"], cur["snapshot"], cur["title"],
-                          "all" if sec == "all" else [s.strip() for s in sec.split(",") if s.strip()],
+                          "all" if sec == "all" else [s.strip() for s in sec.split(";") if s.strip()],
                           f["change"], f["why"], kinds["old"][0], kinds["old"][1],
                           kinds["new"][0], kinds["new"][1], f.get("manual", "")))
 

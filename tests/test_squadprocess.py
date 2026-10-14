@@ -144,9 +144,9 @@ class ChangelogTest(unittest.TestCase):
     def test_toy_changelog(self):
         a, b, d = sp.read_changelog(FIX / "changelog.md")
         self.assertEqual((a.version, a.date, a.snapshot, a.title), (2, "2026-10-14", "history/process-v2.md", "Tighten A"))
-        self.assertEqual((a.sections, a.change, a.why), (["A"], "reword", "shorter"))
+        self.assertEqual((a.sections, a.change, a.why), (["## A"], "reword", "shorter"))
         self.assertEqual((a.old_kind, a.old, a.new_kind), ("text", "old text", "snapshot"))
-        self.assertEqual(b.sections, ["B", "C"])
+        self.assertEqual(b.sections, ["## B", "### C, with comma"])
         self.assertEqual((b.old_kind, b.new_kind, b.new), ("none", "text", "## B\n### not a heading here"))
         self.assertEqual((d.old_kind, d.new_kind, d.manual), ("snapshot", "none", "delete section D by hand"))
         self.assertEqual(a.manual, "")
