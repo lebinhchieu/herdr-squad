@@ -310,9 +310,9 @@ function fit(ctx, text, maxWidth) {
   return text.slice(0, cut) + '…';
 }
 
-// A numbered name (dev-board-10) is cut in the middle so the number stays: dev-bo…-10.
+// A numbered name (dev-board-10, 🤖 Developer 10) is cut in the middle so the number stays: dev-bo…-10.
 function fitName(ctx, name, maxWidth) {
-  const suffix = /-\d+$/.exec(name);
+  const suffix = /[- ]\d+$/.exec(name);
   if (!suffix || ctx.measureText(name).width <= maxWidth) return fit(ctx, name, maxWidth);
   const tail = '…' + suffix[0];
   let cut = name.length - suffix[0].length;
@@ -419,7 +419,7 @@ function drawStub(ctx, cl) {
   ctx.translate(cl.cx + 4, HEADER_Y + HEADER_H - 6);
   ctx.rotate(-Math.PI / 2);
   setText(ctx, '600 10px ' + FONT, P.idle);
-  ctx.fillText(fitName(ctx, cl.col.agent, HEADER_H - 10), 0, 0);
+  ctx.fillText(fitName(ctx, cl.col.label, HEADER_H - 10), 0, 0);
   ctx.restore();
 }
 
@@ -450,7 +450,7 @@ function drawHeaderCard(ctx, cl, view) {
     ctx.stroke();
   }
   setText(ctx, '700 11.5px ' + FONT, P.ink);
-  ctx.fillText(fitName(ctx, col.agent, width - 30), left + 25, HEADER_Y + 20);
+  ctx.fillText(fitName(ctx, col.label, width - 30), left + 25, HEADER_Y + 20);
   drawTotals(ctx, left + 6, left + width - 6, HEADER_Y + 39, col);
   setText(ctx, '700 10.5px ' + FONT, col.context_tokens === null ? P.idle : P.muted, 'right');
   ctx.fillText(fmtTokens(col.context_tokens), left + width - 6, HEADER_Y + 56);
@@ -484,7 +484,7 @@ function headerAt(x, y) {
 
 function headerTitle(agent) {
   const col = layout.byAgent[agent].col;
-  return col.agent + ' · ' + col.role + ' · ' + col.status;
+  return col.label + ' · ' + col.role + ' · ' + col.status;
 }
 
 // --- section: sequence ---
@@ -1112,6 +1112,7 @@ panelStyle.textContent = [
   '#panel-close { position: absolute; top: 8px; right: 10px; border: 0; background: none; cursor: pointer;',
   '  font: 700 18px ' + FONT + '; color: ' + P.muted + '; }',
   '#panel-name { margin: 0; padding-right: 28px; font: 800 16px ' + FONT + '; overflow-wrap: anywhere; }',
+  '#panel-address { margin: 2px 0 0; font: 600 11px ' + FONT + '; color: ' + P.muted + '; overflow-wrap: anywhere; }',
   '#panel-sub { margin: 4px 0 0; font-weight: 600; color: ' + P.muted + '; overflow-wrap: anywhere; }',
   '#panel-status { margin: 10px 0 0; font-size: 13px; font-weight: 700; }',
   '#side-panel h3 { margin: 16px 0 8px; font: 800 11px ' + FONT + '; letter-spacing: 0.04em; color: ' + P.idle + '; }',
@@ -1141,6 +1142,8 @@ panelClose.type = 'button';
 panelClose.setAttribute('aria-label', 'Close panel');
 const panelName = panelEl('h2', panelBox);
 panelName.id = 'panel-name';
+const panelAddress = panelEl('p', panelBox);
+panelAddress.id = 'panel-address';
 const panelSub = panelEl('p', panelBox);
 panelSub.id = 'panel-sub';
 const panelStatus = panelEl('p', panelBox);
@@ -1282,7 +1285,8 @@ function drawPanel(ctx, view) {
     notesLink.setAttribute('href', '/notes/' + encodeURIComponent(col.agent)
       + (panelToken ? '?token=' + encodeURIComponent(panelToken) : ''));
   }
-  panelSet(panelName, col.agent);
+  panelSet(panelName, col.label);
+  panelSet(panelAddress, col.agent);
   panelSet(panelSub, [col.role || '—', 'pod ' + col.pod, col.model || '—'].join(' · '));
   panelSet(panelStatus, 'status: ' + col.status + (col.retired ? ' · retired' : ''));
   panelStatus.style.color = statusColour(col.status);
@@ -1483,7 +1487,7 @@ function mirrorPods(current) {
 function mirrorColumns(current) {
   const stubs = collapsedColumns(current);
   columnList.replaceChildren(...current.columns.map((c) => {
-    const parts = [c.agent, c.role, c.status, '⏱ ' + fmtTotal(c.working_s)];
+    const parts = [c.label, c.role, c.status, '⏱ ' + fmtTotal(c.working_s)];
     if (c.blocked_s > 0) parts.push('⛔ ' + fmtTotal(c.blocked_s));
     if (c.waiting_s > 0) parts.push('⏳ ' + fmtTotal(c.waiting_s));
     parts.push(fmtTokens(c.context_tokens));

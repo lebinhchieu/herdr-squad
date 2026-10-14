@@ -137,6 +137,7 @@ class MissingPageTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, str(self.bindir), True)
         self.script = self.bindir / "squad-board"
         shutil.copy(str(BIN), str(self.script))
+        shutil.copy(str(BIN.with_name("squadlabel.py")), str(self.bindir / "squadlabel.py"))
         self.script.chmod(0o755)
 
     def start(self, script):
@@ -589,7 +590,7 @@ class PageTest(BrowserTestCase):
         for mirrored, col in zip(m["columns"], st["columns"]):
             self.assertEqual(mirrored["data"]["status"], col["status"])
             self.assertEqual(mirrored["data"]["retired"], "true" if col["retired"] else "false")
-            for word in (col["agent"], col["role"], col["status"]):
+            for word in (col["label"], col["role"], col["status"]):
                 self.assertIn(word, mirrored["text"])
             tokens = "{:,}".format(col["context_tokens"]) if col["context_tokens"] is not None else "—"
             self.assertTrue(mirrored["text"].endswith(tokens), mirrored["text"])
@@ -708,7 +709,7 @@ class PageTest(BrowserTestCase):
             self.browser.call("sleep", ms=60)
             self.assertEqual(self.browser.eval("document.getElementById('board').title"), "", (x, y))
         self.browser.call("move", x=left + width - 3, y=133)
-        self.browser.wait("document.getElementById('board').title === 'tech-shop \u00b7 Tech Lead \u00b7 idle'")
+        self.browser.wait("document.getElementById('board').title === '\U0001F916 Tech Lead \u00b7 Tech Lead \u00b7 idle'")
 
     def test_a_collapsed_stub_has_no_header_to_hover(self):
         self.browser.open(self.url())
@@ -723,7 +724,7 @@ class PageTest(BrowserTestCase):
         self.browser.wait("window.scrollX === 200")
         # at 900 px every column is 84 wide: page x 308 is the fourth column, qab-shop
         self.browser.call("move", x=108, y=133)
-        self.browser.wait("document.getElementById('board').title === 'qab-shop \u00b7 QA blackbox \u00b7 working'")
+        self.browser.wait("document.getElementById('board').title === '\U0001F916 QA Blackbox \u00b7 QA blackbox \u00b7 working'")
         self.assertEqual(self.browser.eval("document.getElementById('board').style.cursor"), "pointer")
         self.assertGreater(colour_near(self.pixels(17, 20, 23, 54), "E8820E", 3), 150)  # the bar stays put
         # the Manager's mango band has scrolled out of view: the strip below the first screen x is teal now
@@ -734,7 +735,7 @@ class PageTest(BrowserTestCase):
     def test_hovering_a_header_names_the_agent_role_and_status(self):
         self.browser.open(self.url())
         self.browser.call("move", x=58, y=133)
-        self.browser.wait("document.getElementById('board').title === 'manager \\u00b7 Manager \\u00b7 idle'")
+        self.browser.wait("document.getElementById('board').title === '🦀 Manager \\u00b7 Manager \\u00b7 idle'")
         self.browser.call("move", x=640, y=400)
         self.browser.wait("document.getElementById('board').title === ''")
 
@@ -961,7 +962,7 @@ class CanvasDetailTest(BrowserTestCase):
             fx.activity(agent=n, status="idle")
         self.browser.open(self.url(fx.start(now=self.now)))
         drawn = self.drawn()
-        for suffix in ("-10", "-11", "-12", "-13"):
+        for suffix in (" 10", " 11", " 12"):
             cut = [t for t in drawn if t.endswith("\u2026" + suffix)]
             self.assertTrue(cut, (suffix, drawn))
 

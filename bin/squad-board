@@ -355,7 +355,7 @@ def build_columns(squad, messages, activity):
 
     pods = {}
     for r in ordered:
-        same_role = [o["agent"] for o in roster if o["scope"] == r["scope"] and role_id(o["role"]) == role_id(r["role"])]
+        same_role = [o["agent"] for o in roster if o["scope"] == r["scope"] and o["home"] == r["home"] and role_id(o["role"]) == role_id(r["role"])]
         pods.setdefault(r["scope"], []).append(make_column(
             r["agent"], r["role"], r["scope"], not roster_live(r["status"]),
             statuses.get(r["agent"], "idle"), squad["notes"],
