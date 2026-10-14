@@ -69,7 +69,7 @@ A live page showing each agent's state, messages and activity as a sequence of b
 ## Safety defaults
 
 - Every role runs in `auto` permission mode with `.claude/squads/<squad>/settings/<role>.json`.
-- **Denied for every role:** `git push`, `git rebase`, `git reset --hard`, switching to `main`/`dev`, and every Jira/Confluence write tool. **`git merge` is denied for every role except Developers**, who may merge only inside their own branch (integration tasks); the PO does every real merge.
+- **Denied for every role:** `git push`, `git rebase`, `git reset --hard`, switching to `main`/`dev`, and every Jira/Confluence write tool. **`git merge` is denied for every role except Developers**, who may merge only inside their own branch (integration tasks), and the Manager, who merges into the PO's branch only when the PO asks.
 - **QA blackbox** is also denied `Read` on the code folders, so it judges behaviour only. Shell reads aren't covered by `Read` rules; its instructions forbid them.
 - Messages between sessions can't approve permissions. A `blocked` pane needs the PO.
 

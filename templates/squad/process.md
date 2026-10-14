@@ -149,7 +149,7 @@ A `design:` line in `scope.md` (`yes|no`, default `no`) adds the Designer to a s
   - `shared/decisions.md`: decisions and domain facts that hold for the whole goal, one bullet each (a line starting `- `), under 80 lines. The Tech Lead of a closing scope appends; the goal Manager keeps it within the cap.
   - `shared/summaries/<scope>.md`: one page per closed scope: outcome, passed branch and commit, open items, pointers to what was recorded. **No decisions or domain facts**: those go in `decisions.md`.
   - `shared/contracts/<name>.md`: a contract between scopes. The two Tech Leads agree it before either side builds on it, and one QA whitebox checks both sides against it before either scope counts as done.
-- **Stacked branches.** Only the PO merges, so a scope that needs an earlier scope's unmerged code builds on its passed branch:
+- **Stacked branches.** Nothing is merged until the PO asks, so a scope that needs an earlier scope's unmerged code builds on its passed branch:
   - A task that needs unmerged work is spawned with `--base <passed branch or commit>`.
   - Each scope ends with **one integration task**: a Developer branches from the scope's base, merges the scope's passed task branches into its **own** branch, runs the full suite, and hands in like any task. That branch is what the next scope builds on and what the PO merges. **A scope with one task has no integration task**: that task's passed branch is its integration branch.
   - Developers may run `git merge` inside their own branch; their settings still deny `git push`, `git rebase`, `git reset --hard` and checking out `main` or `dev`. Nothing is merged into the PO's branches or pushed.
@@ -205,7 +205,8 @@ Send with `SendMessage` to the agent name in your scope's `roster.md`. **Start e
 | What is promoted to the project docs | Tech Lead (technical), BA (business) | Manager | n/a |
 | Task done | QA whitebox + QA blackbox (S: Tech Lead review) | Manager | n/a |
 | Migration, backward compatibility, deploy plan (order, rollback) | Tech Lead | Manager | Destructive data migration, breaking change for other teams |
-| Merge, push, deploy (any env), running migrations on shared data | PO only | n/a | Always |
+| Merge a passed branch into the PO's checked-out branch | PO asks; the Manager runs it | n/a | Always: the PO's own request, per merge |
+| Push, deploy (any env), running migrations on shared data | PO only | n/a | Always |
 
 **Project rule wins:** if `project.md` names an outside decision maker (e.g. a product owner other than the PO), questions for them go to the place `project.md` says (e.g. an open-points file), never to that person directly.
 
@@ -256,7 +257,12 @@ A scope runs one or more iterations; each has its file `iterations/<n>.md` in th
 
 ## Safety
 
-- **No push, merge or deploy.** Developers commit to their own `squad/<squad>/<scope>/<agent>` branch in their own worktree, and may merge only inside it. The PO merges. A project may open the Manager's merging of passed work in its own `process.md` (and its Who decides row); without that, the default stands.
+- **No push or deploy.** Developers commit to their own `squad/<squad>/<scope>/<agent>` branch in their own worktree, and may merge only inside it.
+- **Merge only on the PO's request.** The Manager is the only role that merges into the PO's branch, and only when the PO asks for that merge in the Manager's own session. A passed branch, a green suite or an approved check-in is not a request.
+  - **Which merge.** The PO's request names the branch, scope or task. The Manager merges that and nothing else, into the branch checked out in the project root, and never switches branches.
+  - **Before.** Check the target as in Stacked branches, and that both checkers passed the sha. Refuse and say why if the project root has uncommitted changes or the sha is not the one that passed. Use `git merge --no-ff`.
+  - **Conflict or failure.** `git merge --abort`, then tell the PO the files in conflict. The Manager never resolves a conflict, and never uses `--force`, `rebase`, `reset --hard` or `push`.
+  - **After.** Quote `git log --oneline -1` and the merge result to the PO, and note the merge in the iteration file.
 - **No writes to Jira or Confluence.** Read only.
 - **Long suites: run once, read the receipt.** For a suite longer than ~2 minutes, one full run at a time for the whole squad, under a lock: `flock /tmp/<squad>-suite.lock nice -n 10 <suite command>` (a project may ship a runner that takes the lock and writes the receipts; `project.md` names it). The Developer runs the full suite once, on the final sha after every fix is in (while building, only the files it touched), and saves a receipt whose first line is `sha <git rev-parse HEAD> clean=<yes|no>` and whose tail is the suite's OK line. QA checks the receipt (same sha as the `HANDIN`, clean tree, OK), then runs only the targeted tests for the files in the diff and reads the diff; it runs the full suite itself only when the receipt is missing or its sha differs (an integration task is no exception). Targeted runs are free; the full suite is never started in the background while you wait on something else.
 - **Close what you open.** Every browser session ends closed, and every server or process you start is stopped by its PID before you report. Never `pkill` or `killall` by name or pattern: it kills other agents' processes.

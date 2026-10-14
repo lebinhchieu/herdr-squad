@@ -5,7 +5,7 @@ A self-managing dev team made of Claude Code sessions. For each request from a h
 ## People
 
 **PO**:
-The human who makes the requests, confirms scope sizes, and alone may merge, push or deploy.
+The human who makes the requests, confirms scope sizes, and alone decides a merge (the Manager runs it on request), a push or a deploy.
 _Avoid_: user, owner, client
 
 **Manager**:

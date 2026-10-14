@@ -1,10 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "SendMessage", "ListAgents", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git branch:*)", "Bash(echo:*)", "Bash(squad-start:*)", "Bash(squad-spawn:*)", "Bash(squad-retire:*)", "Bash(squad-respawn:*)", "Bash(squad-close:*)", "Bash(squad-usage:*)", "Bash(herdr agent list:*)", "Bash(herdr agent get:*)", "Bash(herdr agent read:*)", "Bash(herdr tab list:*)"
+      "SendMessage", "ListAgents", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git branch:*)", "Bash(git merge:*)", "Bash(echo:*)", "Bash(squad-start:*)", "Bash(squad-spawn:*)", "Bash(squad-retire:*)", "Bash(squad-respawn:*)", "Bash(squad-close:*)", "Bash(squad-usage:*)", "Bash(herdr agent list:*)", "Bash(herdr agent get:*)", "Bash(herdr agent read:*)", "Bash(herdr tab list:*)"
     ],
     "deny": [
-      "Bash(git push:*)", "Bash(git merge:*)", "Bash(git rebase:*)", "Bash(git reset --hard:*)", "Bash(git checkout main:*)", "Bash(git checkout dev:*)",
+      "Bash(git push:*)", "Bash(git rebase:*)", "Bash(git reset --hard:*)", "Bash(git checkout main:*)", "Bash(git checkout dev:*)",
       "mcp__atlassian__createJiraIssue", "mcp__atlassian__editJiraIssue", "mcp__atlassian__transitionJiraIssue", "mcp__atlassian__addOrEditJiraIssueComment",
       "mcp__atlassian__createConfluenceContent", "mcp__atlassian__updateConfluenceContent", "mcp__atlassian__executeWrite", "mcp__atlassian__executeDestructive",
       "mcp__claude_ai_Atlassian_Rovo__createJiraIssue", "mcp__claude_ai_Atlassian_Rovo__editJiraIssue", "mcp__claude_ai_Atlassian_Rovo__transitionJiraIssue",

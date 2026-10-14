@@ -48,10 +48,10 @@ class TemplateLayersTest(unittest.TestCase):
         for cmd in ("squad-start", "squad-spawn", "squad-retire", "squad-respawn", "squad-close", "squad-usage"):
             self.assertIn(f"Bash({cmd}:*)", allow)
 
-    def test_only_developers_may_merge_and_never_into_the_integration_branches(self):
+    def test_only_developers_and_the_manager_may_merge_and_nobody_may_push_or_switch_to_main(self):
         for role in ROLES:
             perms = json.loads((T / "squad/settings" / f"{role}.json").read_text())["permissions"]
-            if role == "dev":
+            if role in ("dev", "manager"):
                 self.assertIn("Bash(git merge:*)", perms["allow"])
                 self.assertNotIn("Bash(git merge:*)", perms["deny"])
                 for cmd in ("git push", "git rebase", "git reset --hard", "git checkout main", "git checkout dev"):
