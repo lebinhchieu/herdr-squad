@@ -320,6 +320,38 @@ function fitName(ctx, name, maxWidth) {
   return name.slice(0, cut) + tail;
 }
 
+const LABEL_FONT_FLOOR = 8;
+
+// BA B14: a label ("🤖 Dev 2 · task") never loses its emoji, role word or number to a plain cut.
+// Order: whole label; head + part of the task + …; head + " …"; head alone at a smaller font down to
+// the floor; last resort the role word's tail is cut and the number kept. Sets ctx.font to the size used.
+function fitLabel(ctx, label, maxWidth, weight, size, family) {
+  const setSize = (px) => { ctx.font = weight + ' ' + px + 'px ' + family; };
+  const w = (t) => ctx.measureText(t).width;
+  setSize(size);
+  if (w(label) <= maxWidth) return label;
+  const dot = label.indexOf(' \u00b7 ');
+  const head = dot > 0 ? label.slice(0, dot) : label;
+  if (dot > 0) {
+    const task = label.slice(dot + 3);
+    if (w(head + ' …') <= maxWidth) {
+      let cut = task.length;
+      while (cut > 0 && w(head + ' \u00b7 ' + task.slice(0, cut) + '…') > maxWidth) cut--;
+      return cut > 0 ? head + ' \u00b7 ' + task.slice(0, cut) + '…' : head + ' …';
+    }
+  }
+  for (let px = size; px >= LABEL_FONT_FLOOR; px -= 0.5) {
+    setSize(px);
+    if (w(head) <= maxWidth) return head;
+  }
+  const num = /\s\d+$/.exec(head);
+  const tail = '…' + (num ? num[0] : '');
+  const body = num ? head.slice(0, head.length - num[0].length) : head;
+  let cut = body.length;
+  while (cut > 0 && w(body.slice(0, cut) + tail) > maxWidth) cut--;
+  return body.slice(0, cut) + tail;
+}
+
 function statusColour(status) {
   return status === 'blocked' ? P.red : status === 'working' ? P.teal : status === 'waiting' ? P.yellow : P.idle;
 }
@@ -419,7 +451,7 @@ function drawStub(ctx, cl) {
   ctx.translate(cl.cx + 4, HEADER_Y + HEADER_H - 6);
   ctx.rotate(-Math.PI / 2);
   setText(ctx, '600 10px ' + FONT, P.idle);
-  ctx.fillText(fitName(ctx, cl.col.agent, HEADER_H - 10), 0, 0);
+  ctx.fillText(fitLabel(ctx, cl.col.label, HEADER_H - 10, '600', 10, FONT), 0, 0);
   ctx.restore();
 }
 
@@ -450,7 +482,7 @@ function drawHeaderCard(ctx, cl, view) {
     ctx.stroke();
   }
   setText(ctx, '700 11.5px ' + FONT, P.ink);
-  ctx.fillText(fitName(ctx, col.agent, width - 30), left + 25, HEADER_Y + 20);
+  ctx.fillText(fitLabel(ctx, col.label, width - 30, '700', 11.5, FONT), left + 25, HEADER_Y + 20);
   drawTotals(ctx, left + 6, left + width - 6, HEADER_Y + 39, col);
   setText(ctx, '700 10.5px ' + FONT, col.context_tokens === null ? P.idle : P.muted, 'right');
   ctx.fillText(fmtTokens(col.context_tokens), left + width - 6, HEADER_Y + 56);
@@ -484,7 +516,7 @@ function headerAt(x, y) {
 
 function headerTitle(agent) {
   const col = layout.byAgent[agent].col;
-  return col.agent + ' · ' + col.role + ' · ' + col.status;
+  return col.label + ' · ' + col.role + ' · ' + col.status;
 }
 
 // --- section: sequence ---
@@ -1112,6 +1144,7 @@ panelStyle.textContent = [
   '#panel-close { position: absolute; top: 8px; right: 10px; border: 0; background: none; cursor: pointer;',
   '  font: 700 18px ' + FONT + '; color: ' + P.muted + '; }',
   '#panel-name { margin: 0; padding-right: 28px; font: 800 16px ' + FONT + '; overflow-wrap: anywhere; }',
+  '#panel-address { margin: 2px 0 0; font: 600 11px ' + FONT + '; color: ' + P.muted + '; overflow-wrap: anywhere; }',
   '#panel-sub { margin: 4px 0 0; font-weight: 600; color: ' + P.muted + '; overflow-wrap: anywhere; }',
   '#panel-status { margin: 10px 0 0; font-size: 13px; font-weight: 700; }',
   '#side-panel h3 { margin: 16px 0 8px; font: 800 11px ' + FONT + '; letter-spacing: 0.04em; color: ' + P.idle + '; }',
@@ -1141,6 +1174,8 @@ panelClose.type = 'button';
 panelClose.setAttribute('aria-label', 'Close panel');
 const panelName = panelEl('h2', panelBox);
 panelName.id = 'panel-name';
+const panelAddress = panelEl('p', panelBox);
+panelAddress.id = 'panel-address';
 const panelSub = panelEl('p', panelBox);
 panelSub.id = 'panel-sub';
 const panelStatus = panelEl('p', panelBox);
@@ -1282,7 +1317,8 @@ function drawPanel(ctx, view) {
     notesLink.setAttribute('href', '/notes/' + encodeURIComponent(col.agent)
       + (panelToken ? '?token=' + encodeURIComponent(panelToken) : ''));
   }
-  panelSet(panelName, col.agent);
+  panelSet(panelName, col.label);
+  panelSet(panelAddress, col.agent);
   panelSet(panelSub, [col.role || '—', 'pod ' + col.pod, col.model || '—'].join(' · '));
   panelSet(panelStatus, 'status: ' + col.status + (col.retired ? ' · retired' : ''));
   panelStatus.style.color = statusColour(col.status);
@@ -1483,7 +1519,7 @@ function mirrorPods(current) {
 function mirrorColumns(current) {
   const stubs = collapsedColumns(current);
   columnList.replaceChildren(...current.columns.map((c) => {
-    const parts = [c.agent, c.role, c.status, '⏱ ' + fmtTotal(c.working_s)];
+    const parts = [c.label, c.role, c.status, '⏱ ' + fmtTotal(c.working_s)];
     if (c.blocked_s > 0) parts.push('⛔ ' + fmtTotal(c.blocked_s));
     if (c.waiting_s > 0) parts.push('⏳ ' + fmtTotal(c.waiting_s));
     parts.push(fmtTokens(c.context_tokens));

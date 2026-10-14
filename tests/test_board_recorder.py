@@ -30,7 +30,7 @@ NOW_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 STARTUP_RE = re.compile(r"^squad-board: http://127\.0\.0\.1:([0-9]+)/\?token=([A-Za-z0-9_-]{22})$")
 TOP_KEYS = {"now", "iterations", "iteration", "selected_iteration", "pods", "columns", "rows",
             "bars", "tasks", "needs_you", "live"}
-COLUMN_KEYS = {"agent", "role", "pod", "status", "retired", "notes_path", "working_s", "blocked_s", "waiting_s",
+COLUMN_KEYS = {"agent", "label", "role", "pod", "status", "retired", "notes_path", "working_s", "blocked_s", "waiting_s",
                "wakes", "context_tokens", "tokens_in", "tokens_out", "model"}
 OUTAGE = "herdr unavailable"
 MANAGER = {"agent": "manager", "role": "Manager", "scope": "all"}

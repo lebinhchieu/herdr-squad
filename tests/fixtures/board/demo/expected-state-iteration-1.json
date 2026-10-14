@@ -36,6 +36,7 @@
   "columns": [
     {
       "agent": "manager",
+      "label": "🦀 Manager",
       "role": "Manager",
       "pod": "all",
       "status": "idle",
@@ -52,6 +53,7 @@
     },
     {
       "agent": "tech-board",
+      "label": "🤖 Tech Lead",
       "role": "Tech Lead",
       "pod": "board",
       "status": "idle",
@@ -68,6 +70,7 @@
     },
     {
       "agent": "qaw-board",
+      "label": "🤖 QA Whitebox",
       "role": "QA whitebox",
       "pod": "board",
       "status": "idle",
@@ -84,6 +87,7 @@
     },
     {
       "agent": "dev-board-1",
+      "label": "🤖 Developer 1",
       "role": "Developer",
       "pod": "board",
       "status": "blocked",
@@ -100,6 +104,7 @@
     },
     {
       "agent": "dev-board-2",
+      "label": "🤖 Developer 2",
       "role": "Developer",
       "pod": "board",
       "status": "idle",
@@ -116,6 +121,7 @@
     },
     {
       "agent": "tech-shop",
+      "label": "🤖 Tech Lead",
       "role": "Tech Lead",
       "pod": "shop",
       "status": "idle",
@@ -132,6 +138,7 @@
     },
     {
       "agent": "dev-shop-1",
+      "label": "🤖 Developer",
       "role": "Developer",
       "pod": "shop",
       "status": "working",
@@ -547,7 +554,7 @@
     {
       "id": "blocked:dev-board-1:2026-03-02T10:12:00.000Z",
       "kind": "blocked",
-      "text": "dev-board-1 is blocked",
+      "text": "🤖 Developer 1 is blocked",
       "agent": "dev-board-1",
       "since": "2026-03-02T10:12:00.000Z"
     },

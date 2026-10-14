@@ -531,7 +531,7 @@ class BlockedAgentTest(TaskCase):
         rec = self.fx.activity(agent="dev-board-1", status="blocked")
         self.assertEqual(self.needs(), [{
             "id": "blocked:dev-board-1:%s" % rec["ts"], "kind": "blocked",
-            "text": "dev-board-1 is blocked", "agent": "dev-board-1", "since": rec["ts"]}])
+            "text": "🤖 Developer is blocked", "agent": "dev-board-1", "since": rec["ts"]}])
 
     def test_later_working_event_removes_it(self):
         self.fx.activity(agent="dev-board-1", status="blocked")
