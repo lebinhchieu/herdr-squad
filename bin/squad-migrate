@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+"""Move a squad folder to a newer layout, with a backup, a dry run and a check at the end.
+
+  squad-migrate <squad> --to per-scope --scope NAME [--dry-run] [--no-backup]
+      A flat squad (roster.md, goal.md ... at the squad root) becomes per-scope: scopes/NAME/ gets roster.md,
+      escalations.md, messages.jsonl, activity.jsonl, usage-events.jsonl, iterations/, roles/, evidence/, contracts/,
+      work/ (and tasks/ if there is one); the old goal.md and scopes.md go to scopes/NAME/legacy/; scope.md is written
+      from templates/scope/scope.md (brief = the old goal's first bold line, size = the scopes.md row if there is one).
+      The squad root keeps process.md, project.md, process-log.md and settings/.
+  squad-migrate <squad> --scope-to-goal NAME --goal G [--dry-run] [--no-backup]
+      Makes goals/G/ (goal.md with a row for NAME, roster.md, escalations.md, shared/decisions.md, shared/summaries/),
+      sets `goal: G` in scopes/NAME/scope.md, and MOVES every Manager row out of the scope roster into the goal roster
+      (squad-close --scope would otherwise retire the Manager).
+
+Both refuse when the target already exists. Before changing anything the squad folder is copied to
+<squad folder>.bak-<date> next to it (-2, -3 ... if that exists; --no-backup skips it). --dry-run prints every step and changes nothing.
+Roster files are rewritten by this script keeping every other row, and the result is checked at the end.
+Env: SQUAD_DIR (else <git root>/.claude/squads/<squad>).
+"""
+import argparse
+import datetime
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+PLUGIN = Path(__file__).resolve().parent.parent
+NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+FILES = ("roster.md", "escalations.md", "messages.jsonl", "activity.jsonl", "usage-events.jsonl")
+DIRS = ("iterations", "roles", "evidence", "contracts", "work")  # made even when empty, like squad-start
+OPTIONAL_DIRS = ("tasks",)  # moved only when the flat squad has them
+LEGACY = ("goal.md", "scopes.md")
+FLAT_MARKERS = ("roster.md", "goal.md", "scopes.md")  # the *.jsonl logs also sit at the root of a per-scope squad
+
+
+def die(msg, code=1):
+    print(msg, file=sys.stderr)
+    sys.exit(code)
+
+
+def squad_dir(name):
+    if os.environ.get("SQUAD_DIR") and Path(os.environ["SQUAD_DIR"]).name == name:
+        return Path(os.environ["SQUAD_DIR"]).resolve()
+    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip() or os.getcwd()
+    return (Path(top) / ".claude" / "squads" / name).resolve()
+
+
+def bold_line(text):
+    """The first `**...**` of the first line that has one, without the asterisks."""
+    for line in text.splitlines():
+        m = re.search(r"\*\*(.+?)\*\*", line)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def fill(template, values):
+    for k, v in values.items():
+        template = template.replace("{{" + k + "}}", v)
+    return template
+
+
+def cells(line):
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def table(lines):
+    """(header index, [data row indexes]) of the first markdown table in `lines`; data rows start after the separator."""
+    idx = [i for i, l in enumerate(lines) if l.lstrip().startswith("|")]
+    return (idx[0], idx[2:]) if len(idx) >= 2 else (None, [])
+
+
+def size_from_scopes_md(text, name):
+    head, rows = table(text.splitlines())
+    if head is None:
+        return None
+    lines = text.splitlines()
+    col = next((i for i, c in enumerate(cells(lines[head])) if c.lower() == "size"), None)
+    if col is None:
+        return None
+    mine = [lines[i] for i in rows if cells(lines[i])[0] == name] or ([lines[i] for i in rows] if len(rows) == 1 else [])
+    if not mine or col >= len(cells(mine[0])):
+        return None
+    size = cells(mine[0])[col].replace("**", "")
+    return size.split(" (")[0].strip() or None
+
+
+def split_roster(text):
+    """(text without Manager rows, the Manager rows). Every other line is kept as it was."""
+    lines = text.splitlines(keepends=True)
+    head, rows = table([l.rstrip("\n") for l in lines])
+    if head is None:
+        return text, []
+    col = next((i for i, c in enumerate(cells(lines[head])) if c.lower() == "role"), 1)
+    out = {i for i in rows if len(cells(lines[i])) > col and cells(lines[i])[col].lower() == "manager"}
+    return "".join(l for i, l in enumerate(lines) if i not in out), [lines[i] for i in sorted(out)]
+
+
+def data_rows(text):
+    lines = text.splitlines()
+    return [lines[i].strip() for i in table(lines)[1]]
+
+
+def write_atomic(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp-migrate")
+    tmp.write_text(text)
+    if path.exists():
+        shutil.copymode(path, tmp)
+    os.replace(tmp, path)
+
+
+class Plan:
+    """The steps, as data: dry-run prints them, a real run prints and does them."""
+
+    def __init__(self, root):
+        self.root, self.steps, self.checks = root, [], []
+
+    def rel(self, p):
+        return str(Path(p).relative_to(self.root))
+
+    def mkdir(self, path):
+        self.steps.append((f"mkdir  {self.rel(path)}/", lambda: Path(path).mkdir(parents=True, exist_ok=True)))
+        self.checks.append(("dir", Path(path)))
+
+    def move(self, src, dst):
+        def do():
+            Path(dst).parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(src), str(dst))
+        self.steps.append((f"move   {self.rel(src)} -> {self.rel(dst)}", do))
+        self.checks.append(("moved", Path(src), Path(dst)))
+
+    def write(self, path, text, why=""):
+        self.steps.append((f"write  {self.rel(path)}{'  (' + why + ')' if why else ''}", lambda: write_atomic(Path(path), text)))
+        self.checks.append(("file", Path(path)))
+
+    def run(self, dry):
+        for text, do in self.steps:
+            print(("would " if dry else "") + text)
+            if not dry:
+                do()
+
+    def verify(self):
+        bad = []
+        for c in self.checks:
+            if c[0] == "dir" and not c[1].is_dir():
+                bad.append(f"missing folder {self.rel(c[1])}")
+            elif c[0] == "file" and not c[1].is_file():
+                bad.append(f"missing file {self.rel(c[1])}")
+            elif c[0] == "moved" and (c[1].exists() or not c[2].exists()):
+                bad.append(f"{self.rel(c[1])} did not move to {self.rel(c[2])}")
+        return bad
+
+
+def plan_per_scope(squad, name, plan):
+    scope = squad / "scopes" / name
+    if not any((squad / f).exists() for f in FLAT_MARKERS):
+        die(f"{squad.name} has none of {', '.join(FLAT_MARKERS)} at its root: nothing to migrate")
+    for rel in (f"scopes/{name}", f"goals/{name}", f"scopes/_done/{name}", f"goals/_done/{name}"):
+        if (squad / rel).exists():
+            die(f"{name} already exists as {rel}; scopes and goals share one namespace, pass another --scope")
+
+    old_goal = (squad / "goal.md").read_text() if (squad / "goal.md").exists() else ""
+    brief = bold_line(old_goal) or "Migrated from the flat layout; see legacy/goal.md"
+    size = size_from_scopes_md((squad / "scopes.md").read_text(), name) if (squad / "scopes.md").exists() else None
+    text = fill((PLUGIN / "templates" / "scope" / "scope.md").read_text(),
+                {"name": name, "brief": brief, "goal": "", "touches": ""})
+    if size:
+        text = re.sub(r"(?m)^size:.*$", lambda _: f"size: {size}", text, count=1)
+    text = text.rstrip("\n") + f"\n\nMigrated from the flat layout on {datetime.date.today()}: the old goal and scope table are in `legacy/`.\n"
+
+    plan.mkdir(scope)
+    for f in FILES:
+        if (squad / f).exists():
+            plan.move(squad / f, scope / f)
+    for d in DIRS + OPTIONAL_DIRS:
+        if (squad / d).exists():
+            plan.move(squad / d, scope / d)
+        elif d in DIRS:
+            plan.mkdir(scope / d)
+    for f in LEGACY:
+        if (squad / f).exists():
+            plan.move(squad / f, scope / "legacy" / f)
+    plan.write(scope / "scope.md", text, "from templates/scope/scope.md" + (f", size: {size}" if size else ", no size in scopes.md"))
+    return [f"size: {size or '(none found, left empty)'}", f"brief: {brief}",
+            "next: update project.md paths that still name the flat locations (evidence/, iterations/, roster.md ...)"]
+
+
+def plan_scope_to_goal(squad, name, goal, plan):
+    scope = squad / "scopes" / name
+    if not (scope / "scope.md").is_file():
+        die(f"no scope {name} at {scope}")
+    for rel in (f"goals/{goal}", f"goals/_done/{goal}", f"scopes/{goal}", f"scopes/_done/{goal}"):
+        if (squad / rel).exists():
+            die(f"{goal} already exists as {rel}; scopes and goals share one namespace, pass another --goal")
+    g = squad / "goals" / goal
+    scope_md = (scope / "scope.md").read_text()
+    if re.search(r"(?m)^goal:[ \t]*\S", scope_md):
+        die(f"scope {name} already belongs to a goal; nothing to do")
+    touches = (re.search(r"(?m)^touches:[ \t]*(.*)$", scope_md) or [None, ""])[1].strip()
+    brief = bold_line(scope_md) or name
+
+    goal_md = fill((PLUGIN / "templates" / "goal" / "goal.md").read_text(),
+                   {"name": goal, "brief": brief, "touches": touches})
+    goal_md = re.sub(r"(?m)^(\|---\|---\|---\|)$", lambda m: m.group(1) + f"\n| {name} | none | open |", goal_md, count=1)
+
+    if re.search(r"(?m)^goal:.*$", scope_md):
+        new_scope = re.sub(r"(?m)^goal:.*$", lambda _: f"goal: {goal}", scope_md, count=1)
+    else:  # no goal line: put it before touches:, else after the first bold line
+        new_scope = re.sub(r"(?m)^(touches:)", lambda m: f"goal: {goal}\n" + m.group(1), scope_md, count=1)
+        if new_scope == scope_md:
+            new_scope = scope_md.rstrip("\n") + f"\n\ngoal: {goal}\n"
+
+    kept, managers, before = "", [], 0
+    if (scope / "roster.md").exists():
+        old = (scope / "roster.md").read_text()
+        kept, managers = split_roster(old)
+        before = len(data_rows(old))
+    goal_roster = (PLUGIN / "templates" / "goal" / "roster.md").read_text()
+    goal_roster = goal_roster.rstrip("\n") + "\n" + "".join(m if m.endswith("\n") else m + "\n" for m in managers)
+
+    plan.mkdir(g)
+    plan.write(g / "goal.md", goal_md, "from templates/goal/goal.md, row for " + name)
+    plan.write(g / "roster.md", goal_roster, f"{len(managers)} Manager row(s) from the scope roster")
+    plan.write(g / "escalations.md", (PLUGIN / "templates" / "goal" / "escalations.md").read_text(), "from templates/goal")
+    plan.write(g / "shared" / "decisions.md", (PLUGIN / "templates" / "goal" / "shared" / "decisions.md").read_text(), "from templates/goal")
+    for d in ("shared/summaries", "shared/contracts", "roles"):
+        plan.mkdir(g / d)
+    plan.write(scope / "scope.md", new_scope, f"goal: {goal}")
+    if managers:
+        plan.write(scope / "roster.md", kept, "Manager rows removed, every other row kept")
+    notes = [f"Manager rows moved to the goal roster: {len(managers)}"]
+    if not managers:
+        notes.append(f"WARNING: no Manager row in scopes/{name}/roster.md; add the goal Manager to goals/{goal}/roster.md")
+    return notes, (scope / "roster.md", g / "roster.md", before)
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter, allow_abbrev=False)
+    p.add_argument("squad")
+    p.add_argument("--to", choices=["per-scope"])
+    p.add_argument("--scope", metavar="NAME")
+    p.add_argument("--scope-to-goal", metavar="NAME")
+    p.add_argument("--goal", metavar="G")
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--no-backup", action="store_true")
+    a = p.parse_args()
+
+    to_scope = bool(a.to or a.scope)
+    to_goal = bool(a.scope_to_goal or a.goal)
+    if to_scope == to_goal:
+        die("pass either --to per-scope --scope NAME, or --scope-to-goal NAME --goal G", 2)
+    if to_scope and not (a.to and a.scope):
+        die("--to per-scope needs --scope NAME", 2)
+    if to_goal and not (a.scope_to_goal and a.goal):
+        die("--scope-to-goal NAME needs --goal G", 2)
+    for n in (a.scope, a.scope_to_goal, a.goal):
+        if n and not NAME_RE.match(n):
+            die(f"bad name {n!r}: lowercase letters, digits, dashes, starting with a letter", 2)
+
+    squad = squad_dir(a.squad)
+    if not (squad / "process.md").is_file():
+        die(f"no squad folder at {squad}")
+    if to_scope and (squad / "scopes").is_dir() and not any((squad / f).exists() for f in FLAT_MARKERS):
+        die(f"{squad.name} is already per-scope (it has scopes/ and no {', '.join(FLAT_MARKERS)} at its root)")
+    if to_goal and not (squad / "scopes").is_dir():
+        die(f"{squad.name} is flat; run --to per-scope first")
+
+    plan = Plan(squad)
+    if to_scope:
+        notes = plan_per_scope(squad, a.scope, plan)
+        extra = None
+    else:
+        notes, extra = plan_scope_to_goal(squad, a.scope_to_goal, a.goal, plan)
+
+    backup = squad.with_name(squad.name + ".bak-" + datetime.date.today().isoformat())
+    n = 1
+    while backup.exists():  # a second migration on the same day must not overwrite or refuse
+        n += 1
+        backup = squad.with_name(f"{squad.name}.bak-{datetime.date.today()}-{n}")
+    if a.no_backup:
+        print("no backup (--no-backup)")
+    else:
+        print(("would copy " if a.dry_run else "copying ") + f"{squad} -> {backup}")
+        if not a.dry_run:
+            shutil.copytree(squad, backup, symlinks=True)
+            print(f"WARNING: the backup holds a process.md, so tools that list .claude/squads/*/process.md see two squads: "
+                  f"delete {backup.name} once you have checked the result")
+
+    try:
+        plan.run(a.dry_run)
+    except Exception as e:  # leave the backup, say how to go back
+        die(f"FAILED: {e}\nnothing is deleted; " + (f"restore with: rm -rf {squad} && mv {backup} {squad}" if not a.no_backup else "no backup was made"))
+
+    print("== summary" + (" (dry run, nothing changed)" if a.dry_run else ""))
+    print(f"{len(plan.steps)} steps")
+    for n in notes:
+        print(n)
+    if a.dry_run:
+        return
+    bad = plan.verify()
+    if extra:  # the roster rows: nothing lost, Managers now only in the goal roster
+        scope_roster, goal_roster, before = extra
+        if scope_roster.exists():
+            after = len(data_rows(scope_roster.read_text())) + len(data_rows(goal_roster.read_text()))
+            if before != after:
+                bad.append(f"roster rows: {before} before, {after} after")
+            if split_roster(scope_roster.read_text())[1]:
+                bad.append("a Manager row is still in the scope roster")
+    print(f"checked {len(plan.checks)} files and folders: " + ("all there" if not bad else ""))
+    for b in bad:
+        print("PROBLEM: " + b)
+    if bad:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
