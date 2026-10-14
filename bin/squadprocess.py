@@ -279,7 +279,7 @@ def plan(squad_dir, plugin_root=DEFAULT_PLUGIN_ROOT):
             state = "already"
         elif o is None and n is None:
             state = "local-section"
-        elif o == n:
+        elif o == n and not (s is None and n is not None):  # a local deletion of a section N keeps is a conflict
             state = "local"
         elif o is None and s is None:
             state = "added"
@@ -311,6 +311,8 @@ def format_plan(pl):
     for r in pl["sections"]:
         out.append(f"  {r['state']:13} {r['heading'] or '(preamble)'}")
         if r["state"] == "conflict":
+            if r["squad"] is None and r["new"] is not None:
+                out.append("    the squad deleted this section: `ours` is not offered, choose theirs or file:<path>")
             out += ["    what the squad changed (squad vs old):", _indent(r["squad_vs_old"]),
                     "    what the plugin changed (old vs new):", _indent(r["old_vs_new"])]
     return "\n".join(out)
@@ -330,12 +332,25 @@ def _decide(row, resolve):
     if how is None:
         raise ProcessError(f"conflict in {row['heading']!r}: say --resolve \"{row['heading']}=ours|theirs|file:<path>\"")
     if how == "ours":
+        if row["squad"] is None and row["new"] is not None:
+            raise ProcessError(f"{row['heading']!r}: the squad deleted this section, so `ours` would drop a "
+                               "heading the new version needs: choose `theirs` or `file:<path>`")
         return row["squad"], "ours"
     if how == "theirs":
         return row["new"], "theirs"
     if how.startswith("file:"):
-        return _read(how[5:], "the replacement wording").strip("\n"), "own wording"
+        return _own_wording(row["heading"], _read(how[5:], "the replacement wording")), "own wording"
     raise ProcessError(f"cannot resolve {row['heading']!r} with {how!r}: use ours, theirs or file:<path>")
+
+
+def _own_wording(heading, text):
+    """The body only: a first line equal to the section's heading is dropped; any other heading is refused."""
+    lines = text.strip("\n").splitlines()
+    if lines and lines[0].rstrip() == heading:
+        lines = lines[1:]
+    if any(not fenced and _HEADING.match(ln) for ln, fenced in _fence_flags(lines)):
+        raise ProcessError(f"the wording for {heading!r} holds a heading line: give the body only")
+    return "\n".join(lines).strip("\n")
 
 
 def _render(blocks, version):

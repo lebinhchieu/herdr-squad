@@ -198,6 +198,44 @@ class ComposeTest(Base):
         self.assertEqual(body["## A"], "a2")
         self.assertEqual(body["## Mine"], "own")
 
+    def test_own_wording_with_its_heading_line_is_stripped_other_headings_refused(self):
+        d = self.squad(V1.replace("a1", "a1 mine"))
+        own = self.tmp / "own.txt"
+        own.write_text("## A\nmy A wording\n")
+        out = self.tmp / "o.md"
+        sp.compose(d, self.plugin, out, {"## A": f"file:{own}"})
+        self.assertEqual(out.read_text().count("## A"), 1)
+        self.assertEqual(dict(sp.sections(out.read_text()))["## A"], "my A wording")
+        self.assertTrue(sp.apply(d, self.plugin, out)["diff"])  # apply accepts it
+        own.write_text("my A wording\n")  # body alone gives the same result
+        out2 = self.tmp / "oa.md"
+        sp.compose(d, self.plugin, out2, {"## A": f"file:{own}"})
+        self.assertEqual(out2.read_text(), out.read_text())
+        own.write_text("my A\n\n## Other\nx\n")
+        with self.assertRaises(sp.ProcessError):
+            sp.compose(d, self.plugin, self.tmp / "o2.md", {"## A": f"file:{own}"})
+        self.assertFalse((self.tmp / "o2.md").exists())
+
+    def test_local_deletion_of_an_unchanged_section_is_a_conflict(self):
+        d = self.squad(V2.replace("\n## A\na2\n", ""))  # v3 leaves A as it is in v2
+        self.assertEqual(self.states(d)["## A"], "conflict")
+        self.assertIn("`ours` is not offered", self.cli("plan", d=d).stdout)
+        with self.assertRaises(sp.ProcessError):
+            sp.compose(d, self.plugin, self.tmp / "o.md", {"## A": "ours"})
+
+    def test_ours_that_would_drop_a_heading_of_the_new_version_is_refused(self):
+        d = self.squad(V1.replace("\n## E\ne1\n", ""))  # squad deleted E; plugin changed it
+        self.assertEqual(self.states(d)["## E"], "conflict")
+        with self.assertRaises(sp.ProcessError) as cm:
+            sp.compose(d, self.plugin, self.tmp / "o.md", {"## E": "ours"})
+        self.assertIn("theirs", str(cm.exception))
+        self.assertFalse((self.tmp / "o.md").exists())
+        sp.compose(d, self.plugin, self.tmp / "o.md", {"## E": "theirs"})
+        own = self.tmp / "own.txt"
+        own.write_text("own E\n")
+        sp.compose(d, self.plugin, self.tmp / "o2.md", {"## E": f"file:{own}"})
+        self.assertIn("own E", (self.tmp / "o2.md").read_text())
+
     def test_resolve_of_a_non_conflict_is_refused(self):
         with self.assertRaises(sp.ProcessError):
             sp.compose(self.squad(V1), self.plugin, self.tmp / "o.md", {"## A": "ours"})
@@ -287,6 +325,21 @@ class ApplyTest(Base):
             f.write_text(text)
             r = self.cli("apply", "--file", str(f), "--yes", d=d)
             self.assertEqual(r.returncode, 2, name)
+            self.assertEqual(tree_hash(proj), before, name)
+
+    def test_version_line_problems_are_refused_with_their_own_message(self):
+        d = self.squad(V1)
+        good = self.composed(d).read_text()
+        proj = d.parent.parent.parent
+        before = tree_hash(proj)
+        for name, text in {"two lines": good.replace("## A", "process-version: 3\n\n## A"),
+                           "not a number": good.replace("process-version: 3", "process-version: two"),
+                           "missing": good.replace("process-version: 3\n", "")}.items():
+            f = self.tmp / "bad.md"
+            f.write_text(text)
+            r = self.cli("apply", "--file", str(f), "--yes", d=d)
+            self.assertEqual(r.returncode, 2, name)
+            self.assertIn("exactly one `process-version: 3` line", r.stderr, name)
             self.assertEqual(tree_hash(proj), before, name)
 
     def test_missing_heading_allowed_when_a_remove_item_names_it(self):
