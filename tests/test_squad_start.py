@@ -185,6 +185,86 @@ class StartTest(unittest.TestCase):
         self.assertIn("would", r.stdout)
 
 
+class WorkspaceRenameTest(unittest.TestCase):
+    """squad-start names the caller's herdr workspace after the goal or lone scope; failures never stop the start."""
+
+    def setUp(self):
+        StartTest.setUp(self)
+        self.env["HERDR_WORKSPACE_ID"] = "wK"
+
+    tearDown = StartTest.tearDown
+    start = StartTest.start
+    herdr = StartTest.herdr
+
+    def renames(self):
+        return [l for l in self.herdr().splitlines() if l.startswith("workspace rename")]
+
+    def fake(self, extra):
+        f = Path(self.tmp.name) / "fakebin" / "herdr"
+        f.write_text(FAKE_HERDR.replace("exit 0\n", "") + extra + "\nexit 0\n")
+
+    def test_a_lone_scope_names_the_workspace_after_the_scope(self):
+        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a").returncode, 0)
+        self.assertEqual(self.renames(), ["workspace rename wK one"])
+
+    def test_a_goal_names_the_workspace_after_the_goal(self):
+        self.start("goal: Big", "--name", "g1", "--touches", "a")
+        self.assertEqual(self.renames(), ["workspace rename wK g1"])
+
+    def test_a_scope_in_a_goal_leaves_the_name_alone(self):
+        self.start("goal: Big", "--name", "g1", "--touches", "a")
+        self.log.unlink()
+        self.start("Part", "--in-goal", "g1", "--name", "p1", "--touches", "b")
+        self.assertEqual(self.renames(), [])
+
+    def test_resume_renames_to_the_resumed_name(self):
+        self.start("goal: Big", "--name", "g1", "--touches", "a")
+        self.start("Task one", "--name", "one", "--touches", "b")
+        self.log.unlink()
+        self.start("--resume", "one")
+        self.start("--resume", "g1")
+        self.assertEqual(self.renames(), ["workspace rename wK one", "workspace rename wK g1"])
+
+    def test_two_starts_in_a_row_each_rename(self):
+        self.start("Task one", "--name", "one", "--touches", "a")
+        self.start("Task two", "--name", "two", "--touches", "b")
+        self.assertEqual(self.renames(), ["workspace rename wK one", "workspace rename wK two"])
+
+    def test_dry_run_renames_nothing(self):
+        self.start("x", "--name", "one", "--dry-run")
+        self.start("x", "--name", "one", "--touches", "a")
+        self.log.unlink()
+        self.start("--resume", "one", "--dry-run")
+        self.assertEqual(self.renames(), [])
+
+    def test_without_a_workspace_id_nothing_is_run_and_nothing_is_said(self):
+        del self.env["HERDR_WORKSPACE_ID"]
+        r = self.start("x", "--name", "one", "--touches", "a")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.renames(), [])
+        self.assertNotIn("workspace", r.stderr)
+
+    def test_outside_herdr_the_rename_is_never_reached(self):
+        # spawn itself needs HERDR_ENV=1, so a start outside herdr dies before the rename; the guard is in name_workspace
+        self.env["HERDR_ENV"] = "0"
+        self.start("x", "--name", "one", "--touches", "a")
+        self.assertEqual(self.renames(), [])
+
+    def test_a_refusing_herdr_gives_one_warning_and_the_start_goes_on(self):
+        self.fake('[[ "$1 $2" == "workspace rename" ]] && { echo "no such workspace" >&2; exit 1; }')
+        r = self.start("Task one", "--name", "one", "--touches", "a")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["manager"], "t-mgr-one")
+        self.assertEqual(r.stderr.strip().splitlines().count("workspace not renamed: no such workspace"), 1)
+        self.assertTrue((self.squad / "scopes" / "one" / "scope.md").exists())
+
+    def test_a_failed_manager_start_does_not_rename(self):
+        self.fake('[[ $1 == tab ]] && exit 1')
+        r = self.start("x", "--name", "one", "--touches", "a")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(self.renames(), [])
+
+
 BOARD_HERDR = r"""#!/usr/bin/env bash
 echo "$@" >> "$HERDR_LOG"
 case "$1 $2" in
