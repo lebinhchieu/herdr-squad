@@ -18,6 +18,9 @@ from pathlib import Path
 from unittest import mock
 
 import board_fixture
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+import squadlabel as sl
 from board_fixture import BIN, Fixture
 
 PAGE_FILE = BIN.parent / "squad-board.html"
@@ -1304,6 +1307,82 @@ class WaitingPageTest(BrowserTestCase):
         before = self.browser.eval("window.__raf")
         self.browser.call("sleep", ms=2000)
         self.assertEqual(self.browser.eval("window.__raf") - before, 0)
+
+
+class HeaderLabelTest(BrowserTestCase):
+    """BA B14: a narrow header keeps emoji, role and number and cuts the task text first."""
+
+    ROWS = [("manager", "manager", None, ""), ("tech-shop", "tech-lead", None, "CART-01 coupon codes"),
+            ("qaw-shop", "qa-whitebox", None, "CART-02"), ("qab-shop", "qa-blackbox", None, "CART-02"),
+            ("dev-shop-1", "dev", 1, "CART-03 a long task title here"), ("dev-shop-2", "dev", 2, "CART-04 other work"),
+            ("dev-shop-3", "dev", 3, "")]
+
+    def drawn(self):
+        return self.browser.eval("Array.from(window.__drawn)")
+
+    def lifted(self):
+        source = PAGE_FILE.read_text(encoding="utf-8")
+        return "const LABEL_FONT_FLOOR = 8;" + "".join(
+            re.search(r"^function %s\(.*?^}\n" % fn, source, re.S | re.M).group(0) for fn in ("fit", "fitLabel"))
+
+    def run_fit(self, label, width):
+        return self.browser.eval(
+            "(() => { %s const c = document.createElement('canvas').getContext('2d');"
+            " const text = fitLabel(c, %s, %s, '700', 11.5, %s); return [text, c.font]; })()"
+            % (self.lifted(), json.dumps(label), width, json.dumps(FONT)))
+
+    def test_the_cut_function_follows_the_rule(self):
+        self.browser.open(self.url())
+        whole = "\U0001F916 Dev 2 \u00b7 CART-04 other work"
+        self.assertEqual(self.run_fit(whole, 600)[0], whole)
+        mid = self.run_fit(whole, self.text_width("700 11.5px " + FONT, "\U0001F916 Dev 2 \u00b7 CART\u2026") + 1)[0]
+        self.assertTrue(mid.startswith("\U0001F916 Dev 2 \u00b7 C") and mid.endswith("\u2026"), mid)
+        head = self.run_fit(whole, self.text_width("700 11.5px " + FONT, "\U0001F916 Dev 2 \u2026") + 1)[0]
+        self.assertEqual(head, "\U0001F916 Dev 2 \u2026")
+        text, font = self.run_fit(whole, self.text_width("700 9px " + FONT, "\U0001F916 Dev 2") + 1)
+        self.assertEqual(text, "\U0001F916 Dev 2")
+        self.assertIn("px", font)
+        text, font = self.run_fit("\U0001F916 QA Whitebox 2 \u00b7 x", 55)
+        self.assertTrue(text.startswith("\U0001F916 QA") and text.endswith("\u2026 2"), text)
+        self.assertIn("8px", font)
+        text, _ = self.run_fit("\U0001F916 QA Whitebox", 55)  # no title, no number: cut the role tail
+        self.assertTrue(text.startswith("\U0001F916 QA") and text.endswith("\u2026"), text)
+        long = "\U0001F916 Token Coach \u00b7 " + "x" * 16  # 32 characters
+        self.assertEqual(len(long), 32)
+        self.assertTrue(self.run_fit(long, 90)[0].startswith("\U0001F916 Token Coach"))
+
+    def heads(self, width):
+        fx = Fixture()
+        self.addCleanup(fx.close)
+        fx.roster([{"agent": a, "role": r.title(), "scope": "all" if a == "manager" else "shop"}
+                   for a, r, _n, _t in self.ROWS])
+        fx.iteration(1, QUIET_CHECKIN)
+        for agent, role, number, title in self.ROWS:
+            sl.write_entry(fx.root, agent, role, number, title)
+            fx.activity(agent=agent, status="idle")
+        self.browser.open(self.url(fx.start(now=self.now)), width=width)
+        self.browser.call("sleep", ms=300)
+        drawn = self.drawn()
+        labels = [sl.build_label(r, n, t) for _a, r, n, t in self.ROWS]
+        shown = []
+        for label, (_a, role, number, _t) in zip(labels, self.ROWS):
+            head = label.split(" \u00b7 ")[0]
+            word = sl.role_name(role).split()[-1][:2]
+            hits = [t for t in drawn if t.startswith(head[:2]) and word in t
+                    and (number is None or re.search(r"(^| )%d( |$)|\u2026 %d$" % (number, number), t))]
+            self.assertTrue(hits, (label, drawn))
+            shown.append(min(hits, key=len))
+        return shown, drawn
+
+    def test_headers_keep_role_and_number_at_two_widths(self):
+        for width in (1280, 900):
+            shown, drawn = self.heads(width)
+            devs = [t for t in shown if "Dev" in t]
+            self.assertEqual(len(set(devs)), 3, (width, devs))
+            qa = [t for t in shown if "QA" in t]
+            self.assertEqual(len(set(qa)), 2, (width, qa))
+            for n in ("1", "2", "3"):
+                self.assertTrue(any(t.endswith(n) or (" %s " % n) in t for t in devs), (width, n, devs))
 
 
 if __name__ == "__main__":
