@@ -32,6 +32,10 @@ _Avoid_: code reviewer, tester
 The role that checks the running app does what the business asked, without reading code. Agrees the business AC with the BA.
 _Avoid_: tester, acceptance tester
 
+**UI/UX Designer**:
+The role that delivers a design (screens, states, flows, optional HTML prototype) for a scope's UI tasks before they are built. It joins only when the PO sets `design: yes`, delivers a design only, and does not check the built UI.
+_Avoid_: UX, designer (alone), design reviewer
+
 **Developer**:
 The role that builds one task in its own worktree until the checkers pass it.
 _Avoid_: engineer, coder
@@ -109,6 +113,9 @@ _Avoid_: sprint
 **Goal check**:
 The start of an iteration, where the Manager and PO agree the iteration's goal and the PO confirms the scope's size.
 _Avoid_: kickoff
+
+**design flag**:
+The `design: yes|no` line in `scope.md`, default `no`. Only the PO's request turns it on, and the Manager never proposes it. It adds the UI/UX Designer to a scope of any size.
 
 **Check-in**:
 The end of an iteration, where the Manager shows the PO what is done, open escalations and proposed role changes.
