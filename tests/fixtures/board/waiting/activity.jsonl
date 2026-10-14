@@ -1,0 +1,7 @@
+{"ts": "2026-10-14T09:00:00.000Z", "agent": "manager", "status": "idle", "iteration": 1}
+{"ts": "2026-10-14T09:00:10.000Z", "agent": "dev-wait-1", "status": "working", "iteration": 1}
+{"ts": "2026-10-14T09:01:00.000Z", "agent": "dev-wait-1", "status": "waiting", "iteration": 1, "detail": "monitor"}
+{"ts": "2026-10-14T09:05:05.000Z", "agent": "dev-wait-1", "status": "working", "iteration": 1}
+{"ts": "2026-10-14T09:08:00.000Z", "agent": "dev-wait-1", "status": "idle", "iteration": 1}
+{"ts": "2026-10-14T09:06:00.000Z", "agent": "dev-wait-2", "status": "working", "iteration": 1}
+{"ts": "2026-10-14T09:07:00.000Z", "agent": "dev-wait-2", "status": "waiting", "iteration": 1, "detail": "shell"}

@@ -1,0 +1,1 @@
+{"type": "assistant", "message": {"id": "msg-ba-auth", "model": "fake-model-a", "role": "assistant", "usage": {"input_tokens": 109, "cache_creation_input_tokens": 10000, "cache_read_input_tokens": 123450, "output_tokens": 653}}}

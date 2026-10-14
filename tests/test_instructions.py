@@ -60,6 +60,11 @@ class InstructionsTest(unittest.TestCase):
             for cmd in re.findall(r"`(squad-[a-z]+)[ `]", f.read_text()):
                 self.assertIn(cmd, names, f"{f.name} runs {cmd}")
 
+    def test_init_ignores_the_board_logs_when_everything_is_committed(self):
+        text = (ROOT / "skills/squad-init/SKILL.md").read_text()
+        option = text.split("- **Commit everything.**")[1].split("- **Ignore everything.**")[0]
+        self.assertIn("*.jsonl", option)
+
     def test_the_manager_covers_both_modes_and_closes_through_squad_close(self):
         text = (ROOT / "agents/manager.md").read_text()
         for token in ("goal Manager", "squad-close <squad> --scope", "squad-close <squad> --goal", "--in-goal", "--base",

@@ -1,0 +1,1533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>squad board</title>
+<style>
+  /* Mango Parrot light palette; the look is the round 6 prototype. Design: design-iteration-2.md */
+  html { overflow-y: scroll; background: #FCF8F1; }
+  body { margin: 0; }
+  #stage { position: relative; }
+  /* viewport-sized and sticky (E15): the page scrolls, the canvas stays and draws what is in view */
+  #board { position: sticky; top: 0; left: 0; display: block; }
+  /* the text mirror (E17): hidden with the clip pattern, never display:none */
+  #board-text { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+  #board-text ul { margin: 0; padding: 0; list-style: none; }
+  /* BRD-17 AC 9: one right-anchored row; the controls grow leftward and push the alerts button with
+     them, so `↓ live · N` never overlaps it (BAR_RESERVED_RIGHT) */
+  #top-right { position: fixed; top: 16px; right: 140px; z-index: 2; display: flex; gap: 12px;
+    align-items: center; }
+  #alerts-button { width: 112px; box-sizing: border-box;
+    font: 700 13px system-ui, -apple-system, "Segoe UI", sans-serif; border: 0; border-radius: 8px;
+    padding: 7px 0; cursor: pointer; background: #E8820E; color: #FFFFFF; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="board" aria-hidden="true"></canvas></div>
+<!-- section: alerts -->
+<div id="top-right"><button id="alerts-button" type="button" hidden>Enable alerts</button></div>
+
+<!-- section: mirror -->
+<div id="board-text">
+  <p id="connection-state" data-state="loading">Loading</p>
+  <section id="needs-you" data-count="0"><h2>Needs you</h2><p></p><ul></ul></section>
+  <section><h2>Pods</h2><ul id="pods"></ul></section>
+  <section><h2>Agents</h2><ul id="columns"></ul></section>
+  <section><h2>Rows</h2><ul id="rows"></ul></section>
+  <section><h2>Bars</h2><ul id="bars"></ul></section>
+  <section><h2>Tasks</h2><ul id="tasks"></ul></section>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+// --- section: state ---
+// One state object from the server; every drawing and the mirror read it. The page fetches /state
+// once, then follows /events. Nothing is derived here: the server owns all derivation.
+
+const P = {
+  bg: '#FCF8F1', card: '#FFFDF9', line: '#E7DBC8', line2: '#D6CCBC', ink: '#3E372E', muted: '#857A68',
+  idle: '#A99C86', mango: '#E8820E', mangoDark: '#CE7000', red: '#DB3B22', teal: '#0C8A80',
+  blue: '#2A6DC0', purple: '#9A40CF', pink: '#CE1D6C', green: '#368A1E', yellow: '#9E7A00',
+};
+const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+const RETRY_FIRST_MS = 1000;
+const RETRY_MAX_MS = 15000;
+
+const canvas = document.getElementById('board');
+const stage = document.getElementById('stage');
+const EMPTY_STATE = { iterations: [], iteration: null, selected_iteration: null, pods: [], columns: [],
+  rows: [], bars: [], tasks: [], needs_you: [], live: false };
+
+let state = EMPTY_STATE;
+let loaded = false;
+let layout = null;
+let reconnecting = false;
+let retryMs = RETRY_FIRST_MS;
+let retryTimer = null;
+let stream = null;
+let frameQueued = false;
+
+function tint(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
+}
+
+// E19: header totals are compact ("7m", "1h05", minimum 1m once non-zero); tokens are raw.
+function fmtTotal(seconds) {
+  if (seconds >= 3600) {
+    return Math.floor(seconds / 3600) + 'h' + String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+  }
+  return seconds > 0 ? Math.max(1, Math.floor(seconds / 60)) + 'm' : '0m';
+}
+
+function fmtTokens(count) {
+  return count === null ? '—' : count.toLocaleString('en-US');
+}
+
+async function loadState() {
+  try {
+    const res = await fetch('/state', { cache: 'no-store' });
+    const next = await res.json();
+    applyState(next);
+    connectStream(next.selected_iteration);
+  } catch (e) {
+    retryLater(loadState);
+  }
+}
+
+// EventSource would retry on its own every few seconds; the backoff and the visible
+// "reconnecting" state are ours, so a failed stream is closed and reopened here.
+function connectStream(iteration) {
+  const source = new EventSource('/events' + (iteration === null ? '' : '?iteration=' + iteration));
+  stream = source;
+  source.addEventListener('state', (ev) => {
+    retryMs = RETRY_FIRST_MS;
+    setReconnecting(false);
+    applyState(JSON.parse(ev.data));
+  });
+  source.onerror = () => {
+    source.close();
+    retryLater(() => { if (stream === source) connectStream(iteration); });
+  };
+}
+
+function retryLater(attempt) {
+  clearTimeout(retryTimer);
+  setReconnecting(true);
+  retryTimer = setTimeout(attempt, retryMs);
+  retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
+}
+
+function setReconnecting(on) {
+  reconnecting = on;
+  renderConnection();
+  scheduleDraw();
+}
+
+function applyState(next) {
+  const previous = state;
+  state = next;
+  loaded = true;
+  updateFollow(previous, next);
+  setupPicker(next);
+  checkAlerts(next);
+  relayout();
+  renderMirror(next);
+  renderConnection();
+  scheduleDraw();
+}
+
+// The canvas is as big as the window and no bigger (browsers cap canvas height); a spacer, the
+// stage, gives the page its scroll size. Backing store follows devicePixelRatio.
+function relayout() {
+  const width = document.documentElement.clientWidth;
+  const height = window.innerHeight;
+  const ratio = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+  }
+  layout = computeLayout(state, width, height);
+  stage.style.width = layout.contentWidth + 'px';
+  stage.style.height = layout.stageHeight + 'px';
+}
+
+// E16: frames are drawn on demand. Motion (an arrow drawing in) keeps full-rate frames coming;
+// ambient animation (header pulses, an open bar's timer) redraws at most every AMBIENT_MS, so an
+// open tab on a busy squad does not repaint the whole canvas at 60 fps for nothing.
+const AMBIENT_MS = 200;
+let ambientTimer = 0;
+
+function scheduleDraw() {
+  if (frameQueued || document.hidden) return;
+  frameQueued = true;
+  requestAnimationFrame(frame);
+}
+
+function frame(ts) {
+  frameQueued = false;
+  draw(ts);
+  if (drawIn.size) scheduleDraw();
+  else if (wantsFrames(state) && !document.hidden && !ambientTimer) {
+    ambientTimer = setTimeout(() => { ambientTimer = 0; scheduleDraw(); }, AMBIENT_MS);
+  }
+}
+
+document.addEventListener('visibilitychange', scheduleDraw);
+
+function wantsFrames(current) {
+  return headerAnimating(current) || current.bars.some((b) => b.open && !waitingNow(b));
+}
+
+function draw(ts) {
+  if (!layout) return;
+  const ctx = canvas.getContext('2d');
+  const ratio = canvas.width / layout.width;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.fillStyle = P.bg;
+  ctx.fillRect(0, 0, layout.width, layout.height);
+  const view = { state: state, layout: layout, ts: ts, scrollX: window.scrollX, scrollY: window.scrollY,
+    selected: panelAgent };
+  drawNeedsYou(ctx, view);
+  // the columns scroll sideways; the bar and the task card stay put
+  ctx.save();
+  ctx.translate(-view.scrollX, 0);
+  drawPods(ctx, view);
+  drawSequence(ctx, view);
+  drawHeaders(ctx, view);
+  ctx.restore();
+  drawTasks(ctx, view);
+  drawPanel(ctx, view);
+}
+
+canvas.addEventListener('mousemove', (ev) => {
+  const agent = headerAt(ev.offsetX + window.scrollX, ev.offsetY);
+  canvas.style.cursor = agent ? 'pointer' : 'default';
+  canvas.title = agent ? headerTitle(agent) : '';
+});
+canvas.addEventListener('click', (ev) => {
+  const agent = headerAt(ev.offsetX + window.scrollX, ev.offsetY);
+  if (agent) onHeaderClick(agent);
+});
+window.addEventListener('resize', () => { relayout(); scheduleDraw(); });
+window.addEventListener('scroll', scheduleDraw);
+
+// --- section: layout ---
+// E20 numbers, taken from the round 6 prototype.
+const ROW_H = 30;
+const BAR_Y = 14;
+const BAR_H = 46;
+const PODS_Y = 72;
+const HEADER_Y = 100;
+const HEADER_H = 66;
+const ROWS_Y = 180;
+const SIDE_W = 230;
+const MARGIN = 16;
+const MIN_COL_W = 84;
+const STUB_W = 24;
+const POD_COLOURS = [P.teal, P.blue, P.purple, P.pink, P.green, P.yellow];
+
+// A retired agent with no row and no bar in the viewed iteration is a narrow stub.
+function collapsedColumns(current) {
+  const busy = new Set();
+  current.rows.forEach((r) => {
+    if (r.kind === 'message') { busy.add(r.from); busy.add(r.to); } else if (r.kind === 'status') busy.add(r.agent);
+  });
+  return new Set(current.columns.filter((c) => c.retired && !busy.has(c.agent)).map((c) => c.agent));
+}
+
+function podLabel(pod) {
+  return pod.name.toUpperCase() + (pod.size ? ' · ' + pod.size.toUpperCase() : '');
+}
+
+function computeLayout(current, width, height) {
+  const stubs = collapsedColumns(current);
+  const full = current.columns.length - stubs.size;
+  const areaRight = width - SIDE_W;
+  const colW = Math.max(MIN_COL_W, (areaRight - MARGIN - stubs.size * STUB_W) / full);
+  const cols = [];
+  const byAgent = {};
+  let x = MARGIN;
+  current.columns.forEach((col) => {
+    const stub = stubs.has(col.agent);
+    const w = stub ? STUB_W : colW;
+    const entry = { col: col, x: x, w: w, cx: x + w / 2, stub: stub };
+    cols.push(entry);
+    byAgent[col.agent] = entry;
+    x += w;
+  });
+  // the Manager's pod (the one holding the Manager) is mango and unlabelled; the others take the
+  // other colours in order
+  let next = 0;
+  const pods = current.pods.map((pod) => {
+    const members = pod.agents.map((a) => byAgent[a]);
+    const isManager = members.some((m) => (m.col.role || '').toLowerCase() === 'manager');
+    const left = Math.min.apply(null, members.map((m) => m.x));
+    const right = Math.max.apply(null, members.map((m) => m.x + m.w));
+    const colour = isManager ? P.mango : POD_COLOURS[next++ % POD_COLOURS.length];
+    return { pod: pod, x: left, w: right - left, colour: colour, label: isManager ? '' : podLabel(pod) };
+  });
+  return { width: width, height: height, areaRight: areaRight, cols: cols, byAgent: byAgent, pods: pods,
+    contentWidth: Math.max(width, x + SIDE_W),
+    stageHeight: Math.max(height, ROWS_Y + current.rows.length * ROW_H + 24) };
+}
+
+// --- section: header ---
+// The needs-you bar, the pod bands and the column header cards. The right 360 px of the bar are
+// kept free for the iteration picker and the live button (BRD-14), with the connection text at
+// the far right.
+const BAR_RESERVED_RIGHT = 440;
+const ITEM_GAP = 28;
+const ITEM_MIN_W = 90;
+
+function shadowed(ctx, on) {
+  ctx.shadowColor = on ? tint(P.ink, 0.13) : 'transparent';
+  ctx.shadowBlur = on ? 16 : 0;
+  ctx.shadowOffsetY = on ? 5 : 0;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+}
+
+function setText(ctx, font, colour, align) {
+  ctx.font = font;
+  ctx.fillStyle = colour;
+  ctx.textAlign = align || 'left';
+}
+
+function fit(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let cut = text.length;
+  while (cut > 0 && ctx.measureText(text.slice(0, cut) + '…').width > maxWidth) cut--;
+  return text.slice(0, cut) + '…';
+}
+
+// A numbered name (dev-board-10) is cut in the middle so the number stays: dev-bo…-10.
+function fitName(ctx, name, maxWidth) {
+  const suffix = /-\d+$/.exec(name);
+  if (!suffix || ctx.measureText(name).width <= maxWidth) return fit(ctx, name, maxWidth);
+  const tail = '…' + suffix[0];
+  let cut = name.length - suffix[0].length;
+  while (cut > 0 && ctx.measureText(name.slice(0, cut) + tail).width > maxWidth) cut--;
+  return name.slice(0, cut) + tail;
+}
+
+function statusColour(status) {
+  return status === 'blocked' ? P.red : status === 'working' ? P.teal : status === 'waiting' ? P.yellow : P.idle;
+}
+
+// BRD-29: an agent waiting on background work is steady, not active: nothing pulses for it.
+function waitingNow(bar) {
+  const seg = bar.waiting[bar.waiting.length - 1];
+  return seg !== undefined && (seg.end_row === null || seg.end_row === undefined) && seg.end_ts === null;
+}
+
+function pulse(ts, period) {
+  return 0.5 + 0.5 * Math.sin(ts / period);
+}
+
+function headerAnimating(current) {
+  return current.needs_you.length > 0 || current.columns.some((c) => c.status !== 'idle' && c.status !== 'waiting');
+}
+
+function drawNeedsYou(ctx, view) {
+  const items = view.state.needs_you;
+  const right = view.layout.width - MARGIN;
+  shadowed(ctx, true);
+  ctx.fillStyle = P.card;
+  roundRect(ctx, MARGIN, BAR_Y, right - MARGIN, BAR_H, 12);
+  ctx.fill();
+  shadowed(ctx, false);
+  ctx.fillStyle = items.length ? P.mango : P.idle;
+  roundRect(ctx, MARGIN, BAR_Y, 8, BAR_H, [12, 0, 0, 12]);
+  ctx.fill();
+  const dotY = BAR_Y + BAR_H / 2;
+  if (items.length) {
+    ctx.fillStyle = tint(P.mango, 0.25 + 0.35 * pulse(view.ts, 300));
+    ctx.beginPath();
+    ctx.arc(48, dotY, 9, 0, 7);
+    ctx.fill();
+  }
+  ctx.fillStyle = items.length ? P.mango : P.idle;
+  ctx.beginPath();
+  ctx.arc(48, dotY, 5, 0, 7);
+  ctx.fill();
+  const heading = !loaded ? 'Loading…' : items.length ? 'Needs you · ' + items.length : 'Nothing is waiting on you';
+  setText(ctx, '800 17px ' + FONT, items.length ? P.mangoDark : P.muted);
+  ctx.fillText(heading, 66, BAR_Y + 29);
+  let x = 66 + ctx.measureText(heading).width + 28;
+  const limit = right - BAR_RESERVED_RIGHT;
+  for (let i = 0; i < items.length; i++) {
+    // an item takes what it needs, but never more than an equal share of what is left
+    const share = (limit - x) / (items.length - i) - ITEM_GAP;
+    if (share < ITEM_MIN_W) {
+      setText(ctx, '700 13px ' + FONT, P.muted);
+      ctx.fillText('+' + (items.length - i) + ' more', x, BAR_Y + 29);
+      break;
+    }
+    if (i > 0) {
+      ctx.fillStyle = P.line2;
+      ctx.fillRect(x - ITEM_GAP / 2, BAR_Y + 12, 1.5, 22);
+    }
+    setText(ctx, '600 15px ' + FONT, P.ink);
+    const shown = fit(ctx, items[i].text, share);
+    ctx.fillText(shown, x, BAR_Y + 29);
+    x += ctx.measureText(shown).width + ITEM_GAP;
+  }
+  if (reconnecting) {
+    setText(ctx, '700 14px ' + FONT, P.mangoDark, 'right');
+    ctx.fillText('reconnecting…', right - 24, BAR_Y + 29);
+  }
+  ctx.textAlign = 'left';
+}
+
+function drawPods(ctx, view) {
+  view.layout.pods.forEach((p) => {
+    ctx.fillStyle = tint(p.colour, 0.07);
+    roundRect(ctx, p.x + 2, PODS_Y, p.w - 4, view.layout.height - PODS_Y - MARGIN, 14);
+    ctx.fill();
+    if (p.label) {
+      setText(ctx, '800 11.5px ' + FONT, p.colour);
+      ctx.fillText(fit(ctx, p.label, p.w - 28), p.x + 14, PODS_Y + 18);
+    }
+  });
+}
+
+function drawHeaders(ctx, view) {
+  view.layout.cols.forEach((cl) => {
+    if (cl.stub) drawStub(ctx, cl);
+    else drawHeaderCard(ctx, cl, view);
+  });
+}
+
+function drawStub(ctx, cl) {
+  ctx.strokeStyle = P.line2;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cl.cx, HEADER_Y + HEADER_H);
+  ctx.lineTo(cl.cx, HEADER_Y);
+  ctx.stroke();
+  ctx.save();
+  ctx.translate(cl.cx + 4, HEADER_Y + HEADER_H - 6);
+  ctx.rotate(-Math.PI / 2);
+  setText(ctx, '600 10px ' + FONT, P.idle);
+  ctx.fillText(fitName(ctx, cl.col.agent, HEADER_H - 10), 0, 0);
+  ctx.restore();
+}
+
+function drawHeaderCard(ctx, cl, view) {
+  const col = cl.col;
+  const left = cl.x + 4;
+  const width = cl.w - 8;
+  const colour = statusColour(col.status);
+  const blocked = col.status === 'blocked';
+  shadowed(ctx, true);
+  ctx.fillStyle = P.card;
+  roundRect(ctx, left, HEADER_Y, width, HEADER_H, 11);
+  ctx.fill();
+  shadowed(ctx, false);
+  const selected = view.selected === col.agent;
+  ctx.strokeStyle = selected ? P.mango : blocked ? P.red : P.line;
+  ctx.lineWidth = selected ? 2.5 : blocked ? 2 : 1.5;
+  ctx.stroke();
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.arc(left + 13, HEADER_Y + 16, 5, 0, 7);
+  ctx.fill();
+  if (col.status !== 'idle' && col.status !== 'waiting') {
+    ctx.strokeStyle = tint(colour, 0.4 + 0.4 * pulse(view.ts, 240));
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(left + 13, HEADER_Y + 16, 9, 0, 7);
+    ctx.stroke();
+  }
+  setText(ctx, '700 11.5px ' + FONT, P.ink);
+  ctx.fillText(fitName(ctx, col.agent, width - 30), left + 25, HEADER_Y + 20);
+  drawTotals(ctx, left + 6, left + width - 6, HEADER_Y + 39, col);
+  setText(ctx, '700 10.5px ' + FONT, col.context_tokens === null ? P.idle : P.muted, 'right');
+  ctx.fillText(fmtTokens(col.context_tokens), left + width - 6, HEADER_Y + 56);
+  ctx.textAlign = 'left';
+}
+
+// ⏱ on the left, ⛔ on the right when non-zero; a narrow card shrinks the type instead of overlapping.
+function drawTotals(ctx, from, to, y, col) {
+  const working = '\u23f1 ' + fmtTotal(col.working_s);
+  const blocked = col.blocked_s > 0 ? '\u26d4 ' + fmtTotal(col.blocked_s) : '';
+  let size = 11;
+  ctx.font = '700 ' + size + 'px ' + FONT;
+  while (size > 7 && ctx.measureText(working).width + ctx.measureText(blocked).width + 4 > to - from) {
+    size -= 0.5;
+    ctx.font = '700 ' + size + 'px ' + FONT;
+  }
+  setText(ctx, ctx.font, P.teal);
+  ctx.fillText(working, from, y);
+  if (blocked) {
+    setText(ctx, ctx.font, P.red, 'right');
+    ctx.fillText(blocked, to, y);
+  }
+}
+
+// The agent whose header card holds the point (page x already includes the sideways scroll).
+function headerAt(x, y) {
+  if (!layout || y < HEADER_Y || y > HEADER_Y + HEADER_H) return null;
+  const hit = layout.cols.find((cl) => !cl.stub && x >= cl.x + 4 && x <= cl.x + cl.w - 4);
+  return hit ? hit.col.agent : null;
+}
+
+function headerTitle(agent) {
+  const col = layout.byAgent[agent].col;
+  return col.agent + ' · ' + col.role + ' · ' + col.status;
+}
+
+// --- section: sequence ---
+// The live sequence diagram (E12, E15..E17, E19, E26): dashed rails, activation bars, status rows,
+// arrows and folded gaps. Only the rows in view are drawn; the stage's height gives the scroll size.
+const PANEL = '#F4ECDD';
+const ANSWER_BLUE = '#4A8FE0';
+const TYPE_COLOUR = new Map([['ASK', P.blue], ['ANSWER', ANSWER_BLUE], ['DECISION', P.yellow], ['HANDIN', P.purple],
+  ['PASS', P.green], ['FAIL', P.pink], ['STATUS', P.muted], ['BLOCKED', P.red]]);
+const BAR_HALF = 7;
+const DRAW_IN_MS = 400;
+const CLIP_TOP = ROWS_Y - 6;
+
+let arrivalState = null;
+let seenMessages = new Set();
+let drawIn = new Map();      // message key -> rAF time its arrow started drawing (stamped at arrival; dropped 400 ms later, drawn or not)
+let hatchPatterns = {};
+let clockAnchor = { state: null, at: Date.now() };
+
+// E19: `12s`, `4m 05s`, `1h 02m`.
+function fmtDuration(seconds) {
+  const t = Math.max(0, Math.round(seconds));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  if (h) return h + 'h ' + String(m).padStart(2, '0') + 'm';
+  return m ? m + 'm ' + String(t % 60).padStart(2, '0') + 's' : t + 's';
+}
+
+function gapText(seconds) {
+  return '⋯ ' + (seconds < 60 ? Math.max(0, Math.round(seconds)) + ' s' : Math.max(1, Math.round(seconds / 60)) + ' min') + ' quiet';
+}
+
+function messageLabel(row) {
+  return (row.type || 'msg') + (row.task ? ' ' + row.task : '');
+}
+
+function statusText(row) {
+  return row.status + (row.detail ? ' · ' + row.detail : '') + (typeof row.duration_s === 'number' ? ' · ' + fmtDuration(row.duration_s) : '');
+}
+
+function messageKey(row) {
+  return row.msg_id || row.ts + '|' + row.from + '|' + row.to + '|' + row.text;
+}
+
+// Row i sits at ROWS_Y + i * ROW_H on the page; the canvas is sticky, so its y is that minus the scroll.
+function rowCentre(index, scrollY) {
+  return ROWS_Y + index * ROW_H + ROW_H / 2 - scrollY;
+}
+
+function visibleRows(count, scrollY, height) {
+  const first = Math.max(0, Math.floor((scrollY + CLIP_TOP - ROWS_Y) / ROW_H) - 1);
+  const last = Math.min(count - 1, Math.ceil((scrollY + height - ROWS_Y) / ROW_H) + 1);
+  return { first: first, last: last };
+}
+
+// Seconds shown on an open bar's timer: the server's figure at receipt plus the time since (E19). The
+// browser clock only supplies the elapsed time, so a replay with a fixed `now` still counts up.
+function openSeconds(bar, current) {
+  if (clockAnchor.state !== current) clockAnchor = { state: current, at: Date.now() };
+  return Math.max(0, (bar.duration_s || 0) + (Date.now() - clockAnchor.at) / 1000);
+}
+
+// A message that arrives after the first render draws itself in; the first render, a reload and an
+// iteration switch show everything drawn already.
+function noteArrivals(current, ts) {
+  if (current === arrivalState || !loaded) return;
+  const switched = arrivalState === null || arrivalState.selected_iteration !== current.selected_iteration;
+  arrivalState = current;
+  if (switched) {
+    seenMessages = new Set();
+    drawIn = new Map();
+  }
+  current.rows.forEach((row) => {
+    if (row.kind !== 'message') return;
+    const key = messageKey(row);
+    if (seenMessages.has(key)) return;
+    seenMessages.add(key);
+    if (!switched) drawIn.set(key, ts);
+  });
+}
+
+function drawProgress(key, ts) {
+  if (!drawIn.has(key)) return 1;
+  return Math.min(1, Math.max(0, (ts - drawIn.get(key)) / DRAW_IN_MS));
+}
+
+function dropFinishedArrows(ts) {
+  drawIn.forEach((start, key) => { if (ts - start >= DRAW_IN_MS) drawIn.delete(key); });
+}
+
+function hatch(view, base) {
+  let hatchPattern = hatchPatterns[base];
+  if (!hatchPattern) {
+    const tile = document.createElement('canvas');
+    tile.width = tile.height = 8;
+    const g = tile.getContext('2d');
+    g.fillStyle = tint(base, 0.13);
+    g.fillRect(0, 0, 8, 8);
+    g.strokeStyle = tint(base, 0.6);
+    g.lineWidth = 2.2;
+    g.beginPath();
+    g.moveTo(-2, 10);
+    g.lineTo(10, -2);
+    g.stroke();
+    hatchPattern = hatchPatterns[base] = canvas.getContext('2d').createPattern(tile, 'repeat');
+  }
+  // the rows scroll, the canvas does not: keep the stripes on their rows
+  hatchPattern.setTransform(new DOMMatrix().translateSelf(0, -view.scrollY));
+  return hatchPattern;
+}
+
+function drawRails(ctx, view) {
+  ctx.strokeStyle = P.line2;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3, 5]);
+  view.layout.cols.forEach((cl) => {
+    if (cl.stub) return;
+    ctx.beginPath();
+    ctx.moveTo(cl.cx, HEADER_Y + HEADER_H);
+    ctx.lineTo(cl.cx, view.layout.height - MARGIN);
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+}
+
+function drawBar(ctx, view, bar, range) {
+  const cl = view.layout.byAgent[bar.agent];
+  const count = view.state.rows.length;
+  if (!cl || !count) return;
+  const open = bar.end_row === null || bar.end_row === undefined;
+  const start = Math.min(Math.max(bar.start_row, 0), count - 1);
+  const end = open ? count - 1 : Math.min(Math.max(bar.end_row, start), count - 1);
+  if (end < range.first - 1 || start > range.last + 1) return;
+  const top = view.layout.height - MARGIN + 20;
+  const yTop = Math.max(rowCentre(start, view.scrollY) - 4, CLIP_TOP - 20);
+  const yEnd = open ? rowCentre(end, view.scrollY) + ROW_H / 2 + 2 : rowCentre(end, view.scrollY) + 4;
+  const yBottom = Math.min(yEnd, top);
+  const x = cl.cx;
+  ctx.fillStyle = tint(P.teal, 0.17);
+  ctx.strokeStyle = P.teal;
+  ctx.lineWidth = 1.6;
+  roundRect(ctx, x - BAR_HALF, yTop, BAR_HALF * 2, Math.max(8, yBottom - yTop), 4);
+  ctx.fill();
+  ctx.stroke();
+  let blockedNow = false;
+  [[bar.waiting, P.yellow], [bar.blocked, P.red]].forEach(([segments, colour]) => segments.forEach((seg) => {
+    const segOpen = seg.end_row === null || seg.end_row === undefined;
+    if (segOpen && colour === P.red) blockedNow = true;
+    const s = Math.min(Math.max(seg.start_row, 0), count - 1);
+    const e = segOpen ? yEnd : rowCentre(Math.min(Math.max(seg.end_row, s), count - 1), view.scrollY) + 4;
+    const y1 = Math.max(rowCentre(s, view.scrollY) - 4, CLIP_TOP - 20);
+    const y2 = Math.min(e, top);
+    if (y2 < y1) return;
+    ctx.fillStyle = hatch(view, colour);
+    ctx.strokeStyle = colour;
+    roundRect(ctx, x - BAR_HALF, y1, BAR_HALF * 2, Math.max(8, y2 - y1), 4);
+    ctx.fill();
+    ctx.stroke();
+  }));
+  if (bar.self_start && start >= range.first - 1) {
+    setText(ctx, '700 12px ' + FONT, P.teal, 'right');
+    ctx.fillText('⟲', x - BAR_HALF - 4, rowCentre(start, view.scrollY) + 4);
+    ctx.textAlign = 'left';
+  }
+  if (open && yEnd <= top) drawOpenEnd(ctx, view, bar, x, yEnd, blockedNow);
+}
+
+function drawOpenEnd(ctx, view, bar, x, y, blocked) {
+  if (waitingNow(bar) && !blocked) {  // steady dot, no running clock: a waiting squad draws nothing new
+    ctx.fillStyle = P.yellow;
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, 7);
+    ctx.fill();
+    return;
+  }
+  ctx.globalAlpha = 0.5 + 0.5 * Math.sin(view.ts / 250);
+  ctx.fillStyle = blocked ? P.red : P.teal;
+  ctx.beginPath();
+  ctx.arc(x, y, 4, 0, 7);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  const label = '⏱ ' + fmtDuration(openSeconds(bar, view.state));
+  ctx.font = '700 11px ' + FONT;
+  const width = ctx.measureText(label).width + 10;
+  ctx.fillStyle = P.card;
+  const left = x + 10 + width > textLimits(view).right;
+  const pillX = left ? x - 10 - width : x + 10;
+  roundRect(ctx, pillX, y - 16, width, 16, 8);
+  ctx.fill();
+  setText(ctx, '700 11px ' + FONT, P.teal);
+  ctx.fillText(label, pillX + 5, y - 4);
+}
+
+// AC 10: label text spans at most three columns, and never reaches past the left board edge or under
+// the TASKS card (page x of the card's left edge = scroll + width - SIDE_W).
+function textLimits(view) {
+  const widest = view.layout.cols.reduce((m, cl) => Math.max(m, cl.w), 0);
+  return { left: MARGIN, right: view.scrollX + view.layout.areaRight - 6, span: 3 * widest };
+}
+
+function drawStatusRow(ctx, view, row, y) {
+  const cl = view.layout.byAgent[row.agent];
+  if (!cl) return;
+  const x = cl.cx;
+  const colour = statusColour(row.status);
+  const ended = typeof row.duration_s === 'number';
+  const limits = textLimits(view);
+  setText(ctx, (ended ? '700 ' : '600 ') + '11.5px ' + FONT, ended ? P.muted : colour);
+  const want = ctx.measureText(statusText(row)).width;
+  // in the last columns the word would run under the TASKS card: put it on the left of the rail
+  const left = x + 26 + want > limits.right && x - 26 - want >= limits.left;
+  const side = left ? -1 : 1;
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.moveTo(x + 12 * side, y);
+  ctx.lineTo(x + 17 * side, y - 5);
+  ctx.lineTo(x + 22 * side, y);
+  ctx.lineTo(x + 17 * side, y + 5);
+  ctx.fill();
+  ctx.fillStyle = ended ? P.muted : colour;
+  ctx.textAlign = left ? 'right' : 'left';
+  const room = left ? x - 26 - limits.left : Math.min(limits.span, limits.right - (x + 26));
+  ctx.fillText(fit(ctx, statusText(row), Math.min(limits.span, room)), x + 26 * side, y + 4);
+  ctx.textAlign = 'left';
+}
+
+function drawGapRow(ctx, view, row, y) {
+  const cols = view.layout.cols;
+  if (!cols.length) return;
+  const left = cols[0].x;
+  const right = cols[cols.length - 1].x + cols[cols.length - 1].w;
+  ctx.fillStyle = PANEL;
+  roundRect(ctx, left, y - 10, right - left, 20, 10);
+  ctx.fill();
+  setText(ctx, '600 12px ' + FONT, P.idle, 'center');
+  ctx.fillText(gapText(row.seconds), (left + right) / 2, y + 5);
+  ctx.textAlign = 'left';
+}
+
+function drawArrow(ctx, view, row, y, ts) {
+  const from = view.layout.byAgent[row.from];
+  const to = view.layout.byAgent[row.to];
+  if (!from || !to) return;
+  const colour = TYPE_COLOUR.get(row.type) || P.muted;
+  const progress = drawProgress(messageKey(row), ts);
+  const x1 = from.cx;
+  const x2 = from === to ? x1 + 44 : to.cx;
+  const dir = x2 >= x1 ? 1 : -1;
+  const start = x1 + 8 * dir;
+  const tip = start + (x2 - 8 * dir - start) * progress;
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(start, y);
+  ctx.lineTo(tip, y);
+  ctx.stroke();
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.moveTo(tip, y);
+  ctx.lineTo(tip - 9 * dir, y - 5);
+  ctx.lineTo(tip - 9 * dir, y + 5);
+  ctx.fill();
+  const limits = textLimits(view);
+  ctx.font = '700 11px ' + FONT;
+  const label = fit(ctx, messageLabel(row), Math.min(limits.span, limits.right - limits.left) - 12);
+  const width = ctx.measureText(label).width + 12;
+  const mid = Math.min(Math.max((x1 + x2) / 2, limits.left + width / 2), limits.right - width / 2);
+  ctx.globalAlpha = progress;
+  ctx.fillStyle = P.bg;
+  roundRect(ctx, mid - width / 2, y - 17, width, 14, 7);
+  ctx.fill();
+  setText(ctx, '700 11px ' + FONT, colour, 'center');
+  ctx.fillText(label, mid, y - 6);
+  ctx.textAlign = 'left';
+  ctx.globalAlpha = 1;
+}
+
+function drawSequence(ctx, view) {
+  drawRails(ctx, view);
+  noteArrivals(view.state, view.ts);
+  const rows = view.state.rows;
+  if (!rows.length) return;
+  dropFinishedArrows(view.ts);
+  const range = visibleRows(rows.length, view.scrollY, view.layout.height);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, CLIP_TOP, view.layout.contentWidth, view.layout.height - MARGIN - CLIP_TOP);
+  ctx.clip();
+  view.state.bars.forEach((bar) => drawBar(ctx, view, bar, range));
+  for (let i = range.first; i <= range.last; i++) {
+    const row = rows[i];
+    const y = rowCentre(i, view.scrollY);
+    if (row.kind === 'gap') drawGapRow(ctx, view, row, y);
+    else if (row.kind === 'status') drawStatusRow(ctx, view, row, y);
+    else if (row.kind === 'message') drawArrow(ctx, view, row, y, view.ts);
+  }
+  ctx.restore();
+}
+
+// --- section: tasks ---
+// The task card at the right edge (E13, E26): grouped blocked, building, checking, returned, done.
+const TASK_STATES = ['blocked', 'building', 'checking', 'returned', 'done'];
+const TASK_COLOUR = { blocked: P.red, building: P.teal, checking: P.purple, returned: P.pink, done: P.green };
+const CHIP_H = 26;
+
+// Groups in drawn order; empty groups are left out; inside a group the order of /state (first appearance).
+function taskGroups(current) {
+  return TASK_STATES.map((state) => ({ state: state, tasks: current.tasks.filter((t) => t.state === state) }))
+    .filter((g) => g.tasks.length);
+}
+
+function drawTaskChip(ctx, task, x, y, width) {
+  const colour = TASK_COLOUR[task.state];
+  const hot = task.returns >= 2;
+  ctx.fillStyle = PANEL;
+  roundRect(ctx, x, y, width, CHIP_H, 7);
+  ctx.fill();
+  if (hot) {
+    ctx.strokeStyle = P.mango;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  ctx.fillStyle = colour;
+  roundRect(ctx, x, y, 4, CHIP_H, [7, 0, 0, 7]);
+  ctx.fill();
+  let textRight = x + width - 8;
+  if (task.returns > 0) {
+    const label = '↺' + task.returns;
+    ctx.font = '700 11px ' + FONT;
+    const pill = ctx.measureText(label).width + 12;
+    if (hot) {
+      ctx.fillStyle = P.mango;
+      roundRect(ctx, x + width - pill - 5, y + 5, pill, CHIP_H - 10, 8);
+      ctx.fill();
+      setText(ctx, '700 11px ' + FONT, '#FFFFFF', 'center');
+    } else {
+      setText(ctx, '700 11px ' + FONT, P.muted, 'center');
+    }
+    ctx.fillText(label, x + width - 5 - pill / 2, y + 17);
+    textRight = x + width - pill - 12;
+  }
+  setText(ctx, '700 12.5px ' + FONT, P.ink);
+  ctx.fillText(fit(ctx, task.id, textRight - (x + 12)), x + 12, y + 17);
+}
+
+function drawTasks(ctx, view) {
+  const left = view.layout.width - SIDE_W;
+  shadowed(ctx, true);
+  ctx.fillStyle = P.card;
+  roundRect(ctx, left, PODS_Y, SIDE_W - MARGIN, view.layout.height - PODS_Y - MARGIN, 14);
+  ctx.fill();
+  shadowed(ctx, false);
+  ctx.strokeStyle = P.line;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  setText(ctx, '800 11.5px ' + FONT, P.idle);
+  ctx.fillText('TASKS', left + 16, PODS_Y + 26);
+  const x = left + 16;
+  const width = SIDE_W - 48;
+  const bottom = view.layout.height - MARGIN - 12;
+  let y = PODS_Y + 40;
+  const groups = taskGroups(view.state);
+  const total = view.state.tasks.length;
+  let drawn = 0;
+  for (let g = 0; g < groups.length; g++) {
+    if (y + 28 + CHIP_H > bottom) break;
+    const group = groups[g];
+    setText(ctx, '700 12px ' + FONT, TASK_COLOUR[group.state]);
+    ctx.fillText(group.state, x, y + 14);
+    ctx.fillStyle = TASK_COLOUR[group.state];
+    ctx.fillRect(x, y + 20, width, 2);
+    y += 28;
+    for (let t = 0; t < group.tasks.length && y + CHIP_H <= bottom; t++) {
+      drawTaskChip(ctx, group.tasks[t], x, y, width);
+      drawn++;
+      y += CHIP_H + 6;
+    }
+    y += 6;
+  }
+  if (drawn < total) {
+    setText(ctx, '700 12px ' + FONT, P.muted);
+    ctx.fillText('+' + (total - drawn) + ' more', x, Math.min(y + 14, view.layout.height - MARGIN - 6));
+  }
+}
+
+// --- section: follow ---
+// E21: following = within 40 px of the bottom. New rows keep the bottom in view while following;
+// a user scroll up pauses, and the "↓ live" button counts the rows that arrived since. Only wheel,
+// scroll keys and a scrollbar drag are the user: a scroll the page causes itself (resize, a state
+// that changes the height, the picker) never changes the mode.
+const FOLLOW_EDGE = 40;
+const USER_SCROLL_MS = 400;
+const SCROLL_KEYS = new Set(['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown', ' ']);
+let following = true;
+let newRows = 0;
+let userScrollUntil = 0;
+let draggingScrollbar = false;
+
+// The picker, the live button and the replay banner are DOM controls over the right end of the
+// needs-you bar (the part header keeps free); the picker section adds its own.
+const controls = document.createElement('div');
+controls.id = 'bar-controls';
+const liveButton = document.createElement('button');
+liveButton.id = 'live-button';
+liveButton.type = 'button';
+controls.append(liveButton);
+document.getElementById('top-right').append(controls);
+const liveState = document.createElement('p');
+liveState.id = 'live-state';
+document.getElementById('board-text').append(liveState);
+const controlStyle = document.createElement('style');
+controlStyle.textContent =
+  '#bar-controls { position: relative; display: flex; gap: 8px; ' +
+  'align-items: center; font: 600 12.5px ' + FONT + '; }' +
+  '#iteration-picker, #live-button { height: 24px; box-sizing: border-box; border-radius: 8px; ' +
+  'font: inherit; cursor: pointer; }' +
+  '#iteration-picker { width: 100px; padding: 0 4px; border: 1.5px solid ' + P.line + '; background: ' +
+  P.card + '; color: ' + P.ink + '; }' +
+  '#live-button { padding: 0 10px; border: 0; background: ' + P.mango + '; color: #FFFFFF; font-weight: 800; }' +
+  '#live-button[hidden] { display: none; }' +
+  '#replay-banner { position: absolute; top: 26px; right: 0; height: 16px; padding: 0 8px; ' +
+  'border-radius: 8px; background: ' + tint(P.mango, 0.14) + '; color: ' + P.mangoDark + '; ' +
+  'font: 800 10.5px/16px ' + FONT + '; white-space: nowrap; }';
+document.head.append(controlStyle);
+
+function isReplay(current) {
+  return current.selected_iteration !== current.iteration;
+}
+
+function distanceFromBottom() {
+  const root = document.documentElement;
+  return root.scrollHeight - root.clientHeight - window.scrollY;
+}
+
+function pinBottom() {
+  window.scrollTo(0, document.documentElement.scrollHeight);
+}
+
+function updateFollow(previous, next) {
+  const switched = previous.selected_iteration !== next.selected_iteration;
+  if (isReplay(next)) following = false;
+  else if (switched) following = true;
+  if (switched) newRows = 0;
+  else if (!following) newRows += Math.max(0, next.rows.length - previous.rows.length);
+  // the page height changes in relayout(), which runs right after this
+  queueMicrotask(() => { if (following) pinBottom(); });
+  renderFollow();
+}
+
+function renderFollow() {
+  liveState.setAttribute('data-following', String(following));
+  liveState.textContent = following ? 'Live' : 'Paused';
+  liveButton.hidden = following;
+  liveButton.setAttribute('data-new-rows', String(newRows));
+  liveButton.textContent = newRows > 0 ? '↓ live · ' + newRows : '↓ live';
+}
+
+function armUserScroll() {
+  userScrollUntil = performance.now() + USER_SCROLL_MS;
+}
+
+function onUserScroll() {
+  following = distanceFromBottom() <= FOLLOW_EDGE && !isReplay(state);
+  if (following) newRows = 0;
+  renderFollow();
+}
+
+window.addEventListener('wheel', armUserScroll, { passive: true });
+window.addEventListener('keydown', (ev) => {
+  if (SCROLL_KEYS.has(ev.key) && ev.target.tagName !== 'SELECT') armUserScroll();
+});
+// a click right of the page is on the scrollbar; the drag lasts until the button is let go
+window.addEventListener('mousedown', (ev) => {
+  if (ev.clientX >= document.documentElement.clientWidth) draggingScrollbar = true;
+});
+window.addEventListener('mouseup', () => { draggingScrollbar = false; });
+window.addEventListener('mousemove', (ev) => { if (ev.buttons === 0) draggingScrollbar = false; });
+window.addEventListener('scroll', () => {
+  if (draggingScrollbar || performance.now() < userScrollUntil) onUserScroll();
+});
+window.addEventListener('resize', () => { if (following) pinBottom(); });
+
+liveButton.addEventListener('click', () => {
+  if (isReplay(state)) {
+    selectIteration(state.iteration);
+    return;
+  }
+  following = true;
+  newRows = 0;
+  pinBottom();
+  renderFollow();
+});
+
+// --- section: picker ---
+// E22: a <select> of state.iterations. Choosing one loads /state?iteration=N and then reopens the
+// stream with the same N; only the newest choice counts, so a slow older answer is dropped.
+const picker = document.createElement('select');
+picker.id = 'iteration-picker';
+picker.setAttribute('aria-label', 'Iteration');
+controls.prepend(picker);
+let pickerOptions = '';
+let banner = null;
+let choice = 0;
+
+function closeStream() {
+  if (stream) stream.close();
+  stream = null;
+}
+
+function setupPicker(current) {
+  const key = current.iterations.join(',');
+  if (key !== pickerOptions) {
+    pickerOptions = key;
+    picker.replaceChildren(...current.iterations.map((n) => {
+      const option = document.createElement('option');
+      option.value = String(n);
+      option.textContent = 'Iteration ' + n;
+      return option;
+    }));
+  }
+  picker.value = String(current.selected_iteration);
+  renderBanner(current);
+}
+
+function renderBanner(current) {
+  if (!isReplay(current)) {
+    if (banner) banner.remove();
+    banner = null;
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'replay-banner';
+    controls.append(banner);
+  }
+  banner.textContent = 'Replay of iteration ' + current.selected_iteration;
+}
+
+function selectIteration(n) {
+  if (!state.iterations.includes(n)) {
+    picker.value = String(state.selected_iteration);
+    return;
+  }
+  const mine = ++choice;
+  closeStream();
+  picker.value = String(n);
+  loadIteration(n, mine);
+}
+
+async function loadIteration(n, mine) {
+  try {
+    const res = await fetch('/state?iteration=' + n, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const next = await res.json();
+    if (mine !== choice) return;
+    applyState(next);
+    connectStream(n);
+  } catch (e) {
+    if (mine === choice) retryLater(() => loadIteration(n, mine));
+  }
+}
+
+picker.addEventListener('change', () => selectIteration(Number(picker.value)));
+
+// --- section: panel ---
+// BRD-15: the side panel, Jump to pane (E24) and the notes link (E14). The panel is a DOM card over the
+// sequence, not canvas pixels, so its button and link are real controls and its text is the mirror
+// (#side-panel and the hooks inside it). drawPanel runs on every draw and brings the card up to date
+// in place, so a state update neither flickers nor moves its scroll position. All text is set with
+// textContent (E18).
+const PANEL_W = 360;
+const PANEL_TOP = 176;
+const PANEL_CLIP = 140;
+const PANEL_LAST = 3;
+const PANEL_TYPE_COLOUR = { ASK: P.blue, ANSWER: ANSWER_BLUE, BLOCKED: P.red, DECISION: P.yellow, HANDIN: P.purple,
+  PASS: P.green, FAIL: P.pink, STATUS: P.muted };
+const PANEL_NO_TOKEN = 'Jump needs the token: open the board from the URL squad-board printed (it ends in ?token=…).';
+const PANEL_RETIRED = 'This agent is retired: there is no pane to jump to.';
+const PANEL_MONITOR = [
+  ['context', 'context tokens', (c) => fmtTokens(c.context_tokens)],
+  ['tokens-in', 'tokens in', (c) => fmtTokens(c.tokens_in)],
+  ['tokens-out', 'tokens out', (c) => fmtTokens(c.tokens_out)],
+  ['working', 'working, total', (c) => panelDuration(c.working_s)],
+  ['blocked', 'blocked, total', (c) => panelDuration(c.blocked_s)],
+  ['waiting', 'waiting', (c) => panelDuration(c.waiting_s)],
+  ['wakes', 'times woken', (c) => String(c.wakes)],
+];
+
+// The token the server printed in the URL; the board's one write action (jump) and the notes link need it.
+const panelToken = new URLSearchParams(window.location.search).get('token') || '';
+let panelAgent = null;
+let panelJump = { agent: null, busy: false, ok: false, text: '' };
+let panelMessagesKey = '';
+let panelShownAgent = null;
+const panelExpanded = new Set();
+// Full texts of clipped messages, fetched on "show more": msg_id -> { state: 'loading' | 'failed' | 'ok', text }.
+const panelFull = new Map();
+
+// E19 durations: 12s, 4m 05s, 1h 02m.
+function panelDuration(seconds) {
+  if (seconds >= 3600) {
+    return Math.floor(seconds / 3600) + 'h ' + String(Math.floor((seconds % 3600) / 60)).padStart(2, '0') + 'm';
+  }
+  if (seconds >= 60) return Math.floor(seconds / 60) + 'm ' + String(seconds % 60).padStart(2, '0') + 's';
+  return seconds + 's';
+}
+
+function panelEl(tag, parent, text) {
+  const el = document.createElement(tag);
+  if (text !== undefined) el.textContent = text;
+  parent.appendChild(el);
+  return el;
+}
+
+function panelSet(el, text) {
+  if (el.textContent !== text) el.textContent = text;
+}
+
+const panelStyle = document.createElement('style');
+panelStyle.textContent = [
+  '#side-panel { position: fixed; top: ' + PANEL_TOP + 'px; right: ' + SIDE_W + 'px; width: ' + PANEL_W + 'px;',
+  '  box-sizing: border-box; max-height: calc(100vh - ' + (PANEL_TOP + MARGIN) + 'px); overflow-y: auto;',
+  '  padding: 16px; z-index: 2; background: ' + P.card + '; color: ' + P.ink + '; border: 2px solid ' + P.mango + ';',
+  '  border-radius: 14px; box-shadow: 0 5px 16px ' + tint(P.ink, 0.13) + '; font: 12.5px ' + FONT + '; }',
+  '#panel-close { position: absolute; top: 8px; right: 10px; border: 0; background: none; cursor: pointer;',
+  '  font: 700 18px ' + FONT + '; color: ' + P.muted + '; }',
+  '#panel-name { margin: 0; padding-right: 28px; font: 800 16px ' + FONT + '; overflow-wrap: anywhere; }',
+  '#panel-sub { margin: 4px 0 0; font-weight: 600; color: ' + P.muted + '; overflow-wrap: anywhere; }',
+  '#panel-status { margin: 10px 0 0; font-size: 13px; font-weight: 700; }',
+  '#side-panel h3 { margin: 16px 0 8px; font: 800 11px ' + FONT + '; letter-spacing: 0.04em; color: ' + P.idle + '; }',
+  '#panel-monitor { display: grid; grid-template-columns: 1fr auto; row-gap: 4px; margin: 0; }',
+  '#panel-monitor dd { margin: 0; text-align: right; font-weight: 700; }',
+  '#panel-messages { margin: 0; padding: 0; list-style: none; }',
+  '#panel-messages li { margin-bottom: 8px; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }',
+  '.panel-type { font-weight: 700; }',
+  '.panel-more { border: 0; background: none; padding: 0 0 0 6px; cursor: pointer; color: ' + P.mangoDark + ';',
+  '  font: 600 12px ' + FONT + '; }',
+  '#panel-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }',
+  '#jump-button { border: 0; border-radius: 8px; padding: 6px 16px; cursor: pointer; background: ' + P.mango + ';',
+  '  color: #FFFFFF; font: 700 12.5px ' + FONT + '; }',
+  '#jump-button:disabled { opacity: 0.45; cursor: not-allowed; }',
+  '#notes-link { color: ' + P.mangoDark + '; font-weight: 600; text-decoration: none; }',
+  '#jump-result { margin: 8px 0 0; min-height: 1em; color: ' + P.muted + '; overflow-wrap: anywhere; }',
+].join('\n');
+document.head.appendChild(panelStyle);
+
+const panelBox = document.createElement('aside');
+panelBox.id = 'side-panel';
+panelBox.hidden = true;
+panelBox.setAttribute('aria-label', 'Agent panel');
+const panelClose = panelEl('button', panelBox, '×');
+panelClose.id = 'panel-close';
+panelClose.type = 'button';
+panelClose.setAttribute('aria-label', 'Close panel');
+const panelName = panelEl('h2', panelBox);
+panelName.id = 'panel-name';
+const panelSub = panelEl('p', panelBox);
+panelSub.id = 'panel-sub';
+const panelStatus = panelEl('p', panelBox);
+panelStatus.id = 'panel-status';
+panelEl('h3', panelBox, 'MONITOR');
+const panelMonitor = panelEl('dl', panelBox);
+panelMonitor.id = 'panel-monitor';
+const panelTerms = [];
+const panelValues = PANEL_MONITOR.map((spec) => {
+  panelTerms.push(panelEl('dt', panelMonitor, spec[1]));
+  const dd = panelEl('dd', panelMonitor);
+  dd.setAttribute('data-field', spec[0]);
+  return dd;
+});
+panelEl('h3', panelBox, 'LAST MESSAGES');
+const panelMessages = panelEl('ul', panelBox);
+panelMessages.id = 'panel-messages';
+const panelActions = panelEl('div', panelBox);
+panelActions.id = 'panel-actions';
+const jumpButton = panelEl('button', panelActions, 'Jump to pane ↗');
+jumpButton.id = 'jump-button';
+jumpButton.type = 'button';
+const notesLink = panelEl('a', panelActions, 'notes.md ↗');
+notesLink.id = 'notes-link';
+notesLink.target = '_blank';
+notesLink.rel = 'noopener noreferrer';
+const jumpResult = panelEl('p', panelBox);
+jumpResult.id = 'jump-result';
+jumpResult.setAttribute('role', 'status');
+document.body.appendChild(panelBox);
+
+function closePanel() {
+  if (panelAgent === null) return;
+  panelAgent = null;
+  scheduleDraw();
+}
+
+panelClose.addEventListener('click', closePanel);
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closePanel(); });
+jumpButton.addEventListener('click', panelJumpClick);
+
+async function panelJumpClick() {
+  const agent = panelAgent;
+  if (agent === null || panelJump.busy) return;
+  panelJump = { agent: agent, busy: true, ok: true, text: 'Jumping…' };
+  scheduleDraw();
+  let ok = false;
+  let text;
+  try {
+    const res = await fetch('/jump/' + encodeURIComponent(agent),
+      { method: 'POST', headers: { 'X-Board-Token': panelToken } });
+    ok = res.ok;
+    if (ok) {
+      text = 'Jumped';
+    } else {
+      let detail = '';
+      try { detail = String((await res.json()).error || ''); } catch (e) { /* the status alone says enough */ }
+      text = res.status + (detail ? ' ' + detail : '');
+    }
+  } catch (e) {
+    text = 'Jump failed: the board did not answer';
+  }
+  panelJump = { agent: agent, busy: false, ok: ok, text: text };
+  scheduleDraw();
+}
+
+function panelClip(text) {
+  if (text.length <= PANEL_CLIP) return text;
+  const cut = text.charCodeAt(PANEL_CLIP - 1) >= 0xd800 && text.charCodeAt(PANEL_CLIP - 1) <= 0xdbff
+    ? PANEL_CLIP - 1 : PANEL_CLIP;  // never cut a surrogate pair in half
+  return text.slice(0, cut) + '…';
+}
+
+async function fetchFullText(msgId) {
+  panelFull.set(msgId, { state: 'loading', text: '' });
+  let entry = { state: 'failed', text: '' };
+  try {
+    const res = await fetch('/message/' + encodeURIComponent(msgId) + '?token=' + encodeURIComponent(panelToken));
+    if (res.ok) entry = { state: 'ok', text: await res.text() };
+  } catch (e) { /* the failed state says it */ }
+  panelFull.set(msgId, entry);
+  if (entry.state === 'failed') panelExpanded.delete(msgId);  // the button reads show more again: one click retries
+  scheduleDraw();
+}
+
+function panelMessage(row, agent) {
+  const li = document.createElement('li');
+  const type = row.type || 'msg';
+  const typeEl = panelEl('span', li, type);
+  typeEl.className = 'panel-type';
+  typeEl.style.color = Object.prototype.hasOwnProperty.call(PANEL_TYPE_COLOUR, type) ? PANEL_TYPE_COLOUR[type] : P.muted;
+  const peer = row.from === agent ? '→ ' + (row.to || '—') : '← ' + (row.from || '—');
+  panelEl('span', li, ' ' + peer + (row.task ? ' ' + row.task : '') + ' ');
+  const text = String(row.text === null || row.text === undefined ? '' : row.text);
+  const full = row.text_clipped ? panelFull.get(row.msg_id) : undefined;
+  const open = panelExpanded.has(row.msg_id);
+  panelEl('span', li, open && !row.text_clipped ? text : open && full && full.state === 'ok' ? full.text : row.text_clipped ? panelClip(text) + (text.length <= PANEL_CLIP ? '…' : '') : panelClip(text));
+  if (open && full && full.state === 'loading') panelEl('span', li, ' loading…').style.color = P.muted;
+  if (full && full.state === 'failed') panelEl('span', li, ' full text not available').style.color = P.muted;
+  if (text.length > PANEL_CLIP || row.text_clipped) {
+    const more = panelEl('button', li, open ? 'show less' : 'show more');
+    more.type = 'button';
+    more.className = 'panel-more';
+    more.addEventListener('click', () => {
+      if (panelExpanded.has(row.msg_id)) { panelExpanded.delete(row.msg_id); scheduleDraw(); return; }
+      panelExpanded.add(row.msg_id);
+      if (row.text_clipped && !(full && (full.state === 'ok' || full.state === 'loading'))) fetchFullText(row.msg_id);
+      scheduleDraw();
+    });
+  }
+  return li;
+}
+
+// The last PANEL_LAST messages the agent sent or received in the viewed iteration. The card is rebuilt
+// only when they (or an expanded flag) changed, so a state update with the same messages touches nothing.
+function renderPanelMessages(current, agent) {
+  const rows = current.rows.filter((r) => r.kind === 'message' && (r.from === agent || r.to === agent))
+    .slice(-PANEL_LAST);
+  // row ids shift when a message lands earlier in the log; only what is shown counts
+  const key = JSON.stringify(rows.map((r) => [r.msg_id, r.from, r.to, r.type, r.task, r.text, panelExpanded.has(r.msg_id), (panelFull.get(r.msg_id) || {}).state]));
+  if (key === panelMessagesKey) return;
+  panelMessagesKey = key;
+  panelMessages.replaceChildren(...rows.map((r) => panelMessage(r, agent)));
+}
+
+function drawPanel(ctx, view) {
+  const col = panelAgent === null ? null : view.state.columns.find((c) => c.agent === panelAgent);
+  if (panelAgent !== null && !col) closePanel();  // the agent left the viewed state
+  panelBox.hidden = !col;
+  if (!col) {
+    panelBox.removeAttribute('data-agent');
+    panelShownAgent = null;
+    return;
+  }
+  if (panelShownAgent !== col.agent) {
+    panelShownAgent = col.agent;
+    panelBox.setAttribute('data-agent', col.agent);
+    panelBox.scrollTop = 0;
+    notesLink.setAttribute('href', '/notes/' + encodeURIComponent(col.agent)
+      + (panelToken ? '?token=' + encodeURIComponent(panelToken) : ''));
+  }
+  panelSet(panelName, col.agent);
+  panelSet(panelSub, [col.role || '—', 'pod ' + col.pod, col.model || '—'].join(' · '));
+  panelSet(panelStatus, 'status: ' + col.status + (col.retired ? ' · retired' : ''));
+  panelStatus.style.color = statusColour(col.status);
+  PANEL_MONITOR.forEach((spec, i) => panelSet(panelValues[i], spec[2](col)));
+  panelValues[PANEL_MONITOR.findIndex((spec) => spec[0] === 'blocked')].style.color = col.blocked_s > 0 ? P.red : '';
+  const waitingAt = PANEL_MONITOR.findIndex((spec) => spec[0] === 'waiting');
+  panelTerms[waitingAt].hidden = panelValues[waitingAt].hidden = !(col.waiting_s > 0);  // only when there is some
+  panelValues[waitingAt].style.color = P.yellow;
+  renderPanelMessages(view.state, col.agent);
+  const note = col.retired ? PANEL_RETIRED : !panelToken ? PANEL_NO_TOKEN : '';
+  const mine = panelJump.agent === col.agent && panelJump.text !== '';
+  jumpButton.disabled = panelJump.busy || col.retired || !panelToken;
+  panelSet(jumpResult, mine ? panelJump.text : note);
+  jumpResult.style.color = mine && !panelJump.ok ? P.red : '';
+}
+
+function onHeaderClick(agent) {
+  panelAgent = panelAgent === agent ? null : agent;
+  scheduleDraw();
+}
+
+// --- section: alerts ---
+// E23: a needs-you id not in the seen set fires a notification and one soft chime. Items in the first
+// state count as seen. Every browser API is optional: a missing, denied or failing one is silent.
+const SEEN_KEY = 'squad-board.seen:' + location.origin;
+const SEEN_KEEP = 200;
+const CHIME_PEAK = 0.06;
+const CHIME_ATTACK = 0.02;
+const CHIME_NOTES = [{ hz: 660, at: 0, length: 0.18 }, { hz: 880, at: 0.2, length: 0.28 }];
+const alertsButton = document.getElementById('alerts-button');
+
+let seen = null;  // announced ids, oldest first; null until the first state
+let audioContext = null;
+let decision = null;  // what our own permission request answered
+let asked = false;
+
+function loadSeen() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(SEEN_KEY));
+    return Array.isArray(stored) ? stored : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveSeen() {
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
+  } catch (e) {
+    // storage is unusable (private mode, quota): the set lives in memory for this page only
+  }
+}
+
+function notificationPermission() {
+  try {
+    return window.Notification ? window.Notification.permission : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function alertsDenied() {
+  return decision === 'denied' || notificationPermission() === 'denied';
+}
+
+function notify(entry) {
+  try {
+    new window.Notification('Squad needs you', { body: entry.text, tag: entry.id });
+  } catch (e) {
+    // no Notification, or the constructor refused
+  }
+}
+
+// The context is made on a user gesture, or lazily at the first chime; a browser that has had no
+// gesture leaves it suspended, and a suspended or closed context stays silent.
+function audio() {
+  if (!audioContext) {
+    try {
+      audioContext = new window.AudioContext();
+    } catch (e) {
+      return null;
+    }
+  }
+  return audioContext;
+}
+
+function unlockAudio() {
+  try {
+    const ctx = audio();
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+  } catch (e) {
+    // resume is best effort
+  }
+}
+
+function chime() {
+  try {
+    const ctx = audio();
+    if (!ctx || ctx.state === 'suspended' || ctx.state === 'closed') return;
+    const start = ctx.currentTime;
+    CHIME_NOTES.forEach((note) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const from = start + note.at;
+      osc.type = 'sine';
+      osc.frequency.value = note.hz;
+      gain.gain.setValueAtTime(0, from);
+      gain.gain.linearRampToValueAtTime(CHIME_PEAK, from + CHIME_ATTACK);
+      gain.gain.linearRampToValueAtTime(0, from + note.length);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(from);
+      osc.stop(from + note.length);
+    });
+  } catch (e) {
+    // a failed context is silent
+  }
+}
+
+function renderAlertsButton() {
+  alertsButton.hidden = asked || notificationPermission() !== 'default';
+}
+
+// The only place permission is requested. A dismissed prompt ("default") leaves the button for a retry.
+async function enableAlerts() {
+  unlockAudio();
+  let result = null;
+  try {
+    result = await window.Notification.requestPermission();
+  } catch (e) {
+    // rejected or unavailable: treated as decided, so the button does not nag
+  }
+  if (result === 'granted' || result === 'denied') decision = result;
+  asked = result !== 'default';
+  renderAlertsButton();
+}
+
+function checkAlerts(current) {
+  const items = current.needs_you;
+  document.title = items.length ? '(' + items.length + ') squad board' : 'squad board';
+  const first = seen === null;
+  if (first) seen = loadSeen();
+  const known = new Set(seen);
+  const fresh = items.filter((n) => !known.has(n.id));
+  const before = seen.length;
+  const waiting = new Set(items.map((n) => n.id));
+  const all = seen.concat(fresh.map((n) => n.id));
+  const cut = all.length - SEEN_KEEP;
+  seen = all.filter((id, i) => i >= cut || waiting.has(id));
+  if (fresh.length || seen.length !== before) saveSeen();
+  if (first || !fresh.length || alertsDenied()) return;
+  fresh.forEach(notify);
+  chime();
+}
+
+alertsButton.addEventListener('click', enableAlerts);
+window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
+renderAlertsButton();
+
+// --- section: mirror ---
+// E17: a DOM copy of what the canvas shows, built with textContent only. The page tests and
+// screen readers read this instead of pixels.
+const needsYouBox = document.getElementById('needs-you');
+const podList = document.getElementById('pods');
+const columnList = document.getElementById('columns');
+const rowList = document.getElementById('rows');
+const barList = document.getElementById('bars');
+const taskList = document.getElementById('tasks');
+const connectionLine = document.getElementById('connection-state');
+
+function item(text, attributes) {
+  const el = document.createElement('li');
+  el.textContent = text;
+  Object.keys(attributes).forEach((name) => el.setAttribute('data-' + name, attributes[name]));
+  return el;
+}
+
+function renderConnection() {
+  const status = reconnecting ? 'reconnecting' : 'live';
+  connectionLine.setAttribute('data-state', status);
+  connectionLine.textContent = reconnecting ? 'Reconnecting…' : 'Connected';
+}
+
+function mirrorNeedsYou(current) {
+  const items = current.needs_you;
+  needsYouBox.setAttribute('data-count', items.length);
+  needsYouBox.querySelector('h2').textContent = 'Needs you · ' + items.length;
+  needsYouBox.querySelector('p').textContent = items.length ? '' : 'Nothing is waiting on you';
+  needsYouBox.querySelector('ul').replaceChildren(...items.map((n) => item(n.text, { kind: n.kind, id: n.id })));
+}
+
+function mirrorPods(current) {
+  podList.replaceChildren(...current.pods.map((p) => item(
+    p.name + (p.size ? ' · ' + p.size : ''), { pod: p.name, size: p.size === null ? '' : p.size })));
+}
+
+function mirrorColumns(current) {
+  const stubs = collapsedColumns(current);
+  columnList.replaceChildren(...current.columns.map((c) => {
+    const parts = [c.agent, c.role, c.status, '⏱ ' + fmtTotal(c.working_s)];
+    if (c.blocked_s > 0) parts.push('⛔ ' + fmtTotal(c.blocked_s));
+    if (c.waiting_s > 0) parts.push('⏳ ' + fmtTotal(c.waiting_s));
+    parts.push(fmtTokens(c.context_tokens));
+    return item(parts.join(' · '), { agent: c.agent, status: c.status, retired: c.retired,
+      collapsed: stubs.has(c.agent) });
+  }));
+}
+
+function mirrorRow(r) {
+  if (r.kind === 'message') {
+    return item(messageLabel(r) + ' ' + r.from + ' \u2192 ' + r.to, { 'row-id': r.id, kind: r.kind,
+      type: r.type === null ? '' : r.type, task: r.task === null ? '' : r.task, from: r.from, to: r.to });
+  }
+  if (r.kind === 'status') return item(statusText(r), { 'row-id': r.id, kind: r.kind, agent: r.agent });
+  return item(gapText(r.seconds), { 'row-id': r.id, kind: r.kind, seconds: r.seconds });
+}
+
+function mirrorBar(b) {
+  const text = b.open ? '\u23f1 ' + fmtDuration(b.duration_s) : fmtDuration(b.duration_s);
+  return item((b.self_start ? '\u27f2 ' : '') + text, { agent: b.agent, 'start-row': b.start_row,
+    'end-row': b.end_row === null ? '' : b.end_row, 'self-start': b.self_start, open: b.open,
+    'blocked-segments': b.blocked.length, 'waiting-segments': b.waiting.length });
+}
+
+function mirrorTasks(current) {
+  const ordered = [].concat(...taskGroups(current).map((g) => g.tasks));
+  taskList.replaceChildren(...ordered.map((t) => item(t.id + ' ' + t.state + ' \u21ba' + t.returns,
+    { 'task-id': t.id, state: t.state, returns: t.returns })));
+}
+
+function renderMirror(current) {
+  rowList.replaceChildren(...current.rows.map(mirrorRow));
+  barList.replaceChildren(...current.bars.map(mirrorBar));
+  mirrorTasks(current);
+  mirrorNeedsYou(current);
+  mirrorPods(current);
+  mirrorColumns(current);
+}
+
+// paint the empty board at once, so an unreachable server shows "reconnecting" and not a blank page
+relayout();
+scheduleDraw();
+loadState();
+})();
+</script>
+</body>
+</html>

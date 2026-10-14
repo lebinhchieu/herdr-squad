@@ -1,0 +1,1795 @@
+#!/usr/bin/env python3
+"""squad-board: a live board of the squad at work.
+
+Iteration 1: replay mode only. Reads a squad folder and serves its state over HTTP.
+One file, standard library only, Python 3.9-safe (no `match`, no `X | None` at runtime).
+Design: .scratch/squad-board/design.md. Sections below follow its layout.
+"""
+import argparse
+import errno
+import fcntl
+import hmac
+import json
+import os
+import re
+import secrets
+import socket
+import stat
+import subprocess
+import sys
+import threading
+import time
+from collections import namedtuple
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs
+
+DEFAULT_PORT = 7420
+PORT_TRIES = 20  # busy port P: try P+1..P+20 (design D4)
+JUMP_PREFIX = "/jump/"
+JUMP_NAME_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}")
+NOTES_PREFIX = "/notes/"
+NOTES_MAX_BYTES = 1 << 20
+MESSAGE_PREFIX = "/message/"
+MESSAGE_ID_RE = re.compile(r"[0-9A-Za-z-]{8,64}")
+ROW_TEXT_CLIP = 140  # the panel's own clip: the page shows the same until the user asks for more
+HERDR_TIMEOUT_S = 5
+# Timings of the event stream and the handler socket. The environment overrides exist so tests need
+# not wait 15 s; they are read once at startup:
+#   SQUAD_BOARD_POLL_S             how often the watcher looks at the squad files (default 0.5)
+#   SQUAD_BOARD_KEEPALIVE_S        quiet time before a ": keepalive" comment line (default 15)
+#   SQUAD_BOARD_REQUEST_TIMEOUT_S  longest a handler socket read or write may block (default 10)
+#   SQUAD_BOARD_TOKEN_REFRESH_S    live mode: shortest time between two rebuilds for a growing transcript (default 30)
+MAX_ENV_SECONDS = 86400
+
+
+def env_seconds(name, default):
+    """Seconds from the environment, greater than 0 and at most a day, else exit 2 (0 would spin a
+    loop; nan, inf and absurd values would never fire)."""
+    try:
+        value = float(os.environ.get(name, default))
+    except ValueError:
+        value = 0
+    if not 0 < value <= MAX_ENV_SECONDS:
+        print("squad-board: %s must be a number between 0 and %d" % (name, MAX_ENV_SECONDS), file=sys.stderr)
+        sys.exit(2)
+    return value
+
+
+POLL_S = env_seconds("SQUAD_BOARD_POLL_S", 0.5)
+KEEPALIVE_S = env_seconds("SQUAD_BOARD_KEEPALIVE_S", 15)
+REQUEST_TIMEOUT_S = env_seconds("SQUAD_BOARD_REQUEST_TIMEOUT_S", 10)
+TOKEN_REFRESH_S = env_seconds("SQUAD_BOARD_TOKEN_REFRESH_S", 30)
+
+UNLISTED_POD = "(unlisted)"
+ITERATION_RE = re.compile(r"[0-9]{1,6}")
+STATUS_FOR_EVENT = {"working": "working", "blocked": "blocked", "idle": "idle", "done": "idle",
+                    "waiting": "waiting"}
+
+
+class BadRequest(Exception):
+    """The client asked for something the state cannot answer: HTTP 400."""
+
+
+# --- section: squad reader ---
+
+# Logs and squad files are written by other tools; read them as bytes-tolerant text.
+def read_text(path):
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def clean_cell(cell):
+    return cell.replace("\\|", "|").replace("**", "").replace("`", "").strip()
+
+
+def strip_parenthetical(cell):
+    """`board (S+QAW)` -> `board`: the roster and scopes.md annotate these cells."""
+    return re.sub(r"\s*\([^)]*\)\s*$", "", cell)
+
+
+def read_first_table(path):
+    """Rows of the first markdown table in the file, as dicts keyed by lowercased header."""
+    table = None
+    for line in read_text(path).splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            if table is not None:
+                break
+            continue
+        body = re.sub(r"^\||(?<!\\)\|$", "", line)
+        cells = [clean_cell(c) for c in re.split(r"(?<!\\)\|", body)]
+        if all(re.fullmatch(r":?-{3,}:?", c) for c in cells):
+            continue
+        if table is None:
+            table = {"header": [c.lower() for c in cells], "rows": []}
+        else:
+            table["rows"].append(dict(zip(table["header"], cells)))
+    return table["rows"] if table else []
+
+
+# A home is a folder with its own roster, escalations, logs, iterations and roles (design: Iteration 3).
+# `name` is None for the flat layout's squad folder; `kind` is flat, goal or scope.
+Home = namedtuple("Home", "name path kind")
+HOME_NAME_RE = re.compile(r"[a-z][a-z0-9-]*")  # also keeps `_done` and anything odd out
+MANAGER_POD = "all"
+
+
+def real_dir(path):
+    """A directory that is not a symlink: a link could lead out of the squad folder."""
+    return path.is_dir() and not path.is_symlink()
+
+
+def is_scoped(squad_dir):
+    """L1: a `scopes/` folder means the per-scope layout; a stale root `roster.md` is then ignored."""
+    return real_dir(Path(squad_dir) / "scopes")
+
+
+def find_homes(squad_dir):
+    """L2: the squad folder itself (flat), or `goals/<g>/` then `scopes/<s>/`, each sorted. The names
+    come from a listing filtered by HOME_NAME_RE, never from a file's content."""
+    d = Path(squad_dir)
+    if not is_scoped(d):
+        return [Home(None, d, "flat")]
+    homes = []
+    for container, kind in (("goals", "goal"), ("scopes", "scope")):
+        folder = d / container
+        try:
+            names = sorted(os.listdir(str(folder))) if real_dir(folder) else []
+        except OSError:
+            names = []
+        homes += [Home(n, folder / n, kind) for n in names
+                  if HOME_NAME_RE.fullmatch(n) and real_dir(folder / n)]
+    return homes
+
+
+def read_scope_size(scope_md):
+    """L4: the `size:` line of scope.md, one trailing `(...)` stripped; None when empty or missing."""
+    for line in read_text(scope_md).splitlines():
+        match = re.match(r"size:(.*)", line.strip(), re.I)
+        if match:
+            return strip_parenthetical(clean_cell(match.group(1))) or None
+    return None
+
+
+def read_iterations(home):
+    found = {}
+    for p in (home.path / "iterations").glob("*.md"):
+        if ITERATION_RE.fullmatch(p.stem) and p.is_file():
+            found[int(p.stem)] = read_text(p)
+    return found
+
+
+def read_squad(squad_dir):
+    """Roster, scopes, escalations, iteration texts and notes files of a squad folder, over all its homes.
+    A roster row carries its `home`; the key never reaches the state."""
+    d = Path(squad_dir)
+    scoped = is_scoped(d)
+    homes = find_homes(d)
+    roster, seen, scopes, escalations, iterations, home_iterations, notes = [], set(), [], [], {}, {}, {}
+    for home in homes:
+        kept = set()
+        for row in read_first_table(home.path / "roster.md"):
+            agent, role = row.get("agent", ""), row.get("role", "")
+            scope = strip_parenthetical(row.get("scope", ""))
+            if scoped:  # L3: the folder names the pod; the Scope cell can be empty (goal Manager, coach)
+                scope = MANAGER_POD if is_manager(role) else home.name
+            if agent and role and scope and agent not in seen:
+                seen.add(agent)
+                kept.add(agent)
+                roster.append({"agent": agent, "role": role, "scope": scope, "status": row.get("status", ""),
+                               "home": home})
+        if not scoped:
+            scopes = [{"scope": strip_parenthetical(r.get("scope", "")),
+                       "size": strip_parenthetical(r.get("size", "")) or None}
+                      for r in read_first_table(home.path / "scopes.md")]
+        elif home.kind == "scope":
+            scopes.append({"scope": home.name, "size": read_scope_size(home.path / "scope.md")})
+        escalations.append((home, read_first_table(home.path / "escalations.md")))
+        home_iterations[home] = read_iterations(home)
+        for number, text in home_iterations[home].items():
+            iterations.setdefault(number, text)
+        # Matching against real file names keeps untrusted agent names out of any path. In the per-scope
+        # layout a notes file counts only for a roster agent of its own home (L10).
+        suffix = ".notes.md"
+        for p in (home.path / "roles").glob("*" + suffix):
+            name = p.name[:-len(suffix)]
+            if p.is_file() and (not scoped or name in kept):
+                notes.setdefault(name, (home.path / "roles" / p.name).relative_to(d).as_posix())
+    return {"roster": roster, "scopes": scopes, "escalations": escalations, "iterations": iterations,
+            "home_iterations": home_iterations, "notes": notes, "homes": homes, "scoped": scoped}
+
+
+# --- section: log reader ---
+
+def parse_ts(value):
+    """Aware datetime from a log timestamp, or None (not a string, unparseable, or no zone)."""
+    if not isinstance(value, str):
+        return None
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return dt if dt.tzinfo is not None else None
+
+
+def read_jsonl(path):
+    # split on "\n" only: str.splitlines would also cut at U+2028 inside a JSON string
+    for line in read_text(path).split("\n"):
+        try:
+            rec = json.loads(line)
+        except (ValueError, RecursionError):
+            continue
+        if isinstance(rec, dict) and parse_ts(rec.get("ts")) is not None:
+            yield rec
+
+
+def text_or_none(value):
+    return value if isinstance(value, str) else None
+
+
+def int_or_none(value):
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def read_logs(homes):
+    """`(messages, activity)` from the two logs of every home, in home order (L7). Bad lines are skipped,
+    wrong types become None. Each record carries its `home`; one `msg_id` counts once, first wins."""
+    messages, activity, seen = [], [], set()
+    for home in homes:
+        for rec in read_jsonl(home.path / "messages.jsonl"):
+            msg_id = text_or_none(rec.get("msg_id"))
+            if msg_id is not None:
+                if msg_id in seen:
+                    continue
+                seen.add(msg_id)
+            messages.append({"ts": rec["ts"], "msg_id": msg_id, "from": text_or_none(rec.get("from")),
+                             "to": text_or_none(rec.get("to")), "type": text_or_none(rec.get("type")),
+                             "task": text_or_none(rec.get("task")), "text": text_or_none(rec.get("text")),
+                             "iteration": int_or_none(rec.get("iteration")), "home": home})
+        for rec in read_jsonl(home.path / "activity.jsonl"):
+            agent = text_or_none(rec.get("agent"))
+            if agent:
+                activity.append({"ts": rec["ts"], "agent": agent, "status": text_or_none(rec.get("status")),
+                                 "iteration": int_or_none(rec.get("iteration")),
+                                 "detail": text_or_none(rec.get("detail")), "home": home})
+    return messages, activity
+
+
+def retag_iterations(records, home_iterations, selected):
+    """L8, per-scope layout: iteration numbers mean different things per scope, so the filter is per home.
+    A record without a tag counts as its home's lowest iteration (as the flat layout counts it as the
+    lowest). Default view (`selected` None): a home's current iteration shows as the squad's current one.
+    Explicit N: a home without iteration files (a goal) shows in whichever N is asked."""
+    squad_current = max((max(n) for n in home_iterations.values() if n), default=None)
+    for rec in records:
+        numbers = home_iterations.get(rec["home"], {})
+        lowest, current = (min(numbers), max(numbers)) if numbers else (None, None)
+        if rec["iteration"] is None:
+            rec["iteration"] = lowest
+        if selected is None:
+            if rec["iteration"] == current:
+                rec["iteration"] = squad_current
+        elif not numbers:
+            rec["iteration"] = selected
+
+
+# --- section: columns ---
+
+def is_manager(role):
+    return (role or "").lower() == "manager"
+
+
+def make_column(agent, role, pod, retired, status, notes):
+    return {"agent": agent, "role": role, "pod": pod, "status": status, "retired": retired,
+            "notes_path": notes.get(agent),
+            "working_s": 0, "blocked_s": 0, "waiting_s": 0, "wakes": 0,
+            "context_tokens": None, "tokens_in": None, "tokens_out": None, "model": None}
+
+
+def latest_statuses(activity):
+    """Agent -> status of its latest event; `unknown` and other values are ignored."""
+    latest = {}
+    for i, event in enumerate(activity):
+        if event["status"] not in STATUS_FOR_EVENT:
+            continue
+        key = (parse_ts(event["ts"]), i)
+        if event["agent"] not in latest or key >= latest[event["agent"]][0]:
+            latest[event["agent"]] = (key, STATUS_FOR_EVENT[event["status"]])
+    return {agent: status for agent, (_, status) in latest.items()}
+
+
+def is_agent_name(name):
+    """A log `to` can be a cross-session address (`uds:/run/...sock`): that is no agent."""
+    return re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name) is not None
+
+
+def roster_live(status):
+    """The status cell can carry a note: `live (respawned 2026-10-14 ...)`."""
+    return status.strip().lower().startswith("live")
+
+
+def pod_of_unlisted(name, pods):
+    """L6: the pod whose name stands in the agent's name between `-` boundaries (a scope slug can hold a
+    dash). Several fit: the earliest position, then the longest pod name."""
+    padded = "-%s-" % name
+    fits = [(padded.find("-%s-" % pod), -len(pod), pod) for pod in pods if "-%s-" % pod in padded]
+    return min(fits)[2] if fits else UNLISTED_POD
+
+
+def build_columns(squad, messages, activity):
+    """One column per agent: Manager first, pods by first appearance, roster order inside a pod."""
+    statuses = latest_statuses(activity)
+    roster = squad["roster"]
+    manager = next((r for r in roster if is_manager(r["role"])), None)
+    ordered = ([manager] if manager else []) + [r for r in roster if r is not manager]
+
+    pods = {}
+    for r in ordered:
+        pods.setdefault(r["scope"], []).append(make_column(
+            r["agent"], r["role"], r["scope"], not roster_live(r["status"]),
+            statuses.get(r["agent"], "idle"), squad["notes"]))
+
+    # An agent seen only in a log joins the end of the pod named in its name (pod_of_unlisted).
+    # The Manager's pod is no target: `dev-all-1` is not one of the Manager's team.
+    manager_pod = manager["scope"] if manager else None
+    known = set(r["agent"] for r in ordered)
+    sightings = [(parse_ts(m["ts"]), name) for m in messages for name in (m["from"], m["to"]) if name and is_agent_name(name)]
+    sightings += [(parse_ts(a["ts"]), a["agent"]) for a in activity]
+    for _, name in sorted(sightings, key=lambda s: s[0]):
+        if name in known:
+            continue
+        known.add(name)
+        pod = pod_of_unlisted(name, [p for p in pods if p != manager_pod])
+        pods.setdefault(pod, []).append(make_column(
+            name, None, pod, False, statuses.get(name, "idle"), squad["notes"]))
+    return [col for pod in pods.values() for col in pod]
+
+
+def build_pods(squad, columns):
+    sizes = {}
+    for s in squad["scopes"]:
+        sizes.setdefault(s["scope"], s["size"])
+    pods = {}
+    for col in columns:
+        pods.setdefault(col["pod"], []).append(col)
+    return [{"name": name,
+             "size": None if any(is_manager(c["role"]) for c in cols) else sizes.get(name),
+             "agents": [c["agent"] for c in cols]}
+            for name, cols in pods.items()]
+
+
+# --- section: timeline ---
+
+FOLD_GAP_S = 180    # D5: a longer quiet stretch between two visible rows folds into one gap row
+WAKE_WINDOW_S = 2   # D7: the hook can stamp `working` just before the message that woke the agent
+MICROS = 10 ** 6
+EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+BAR_STATUSES = ("working", "blocked", "idle", "done", "waiting")
+
+
+def micros(ts):
+    """Integer microseconds since the epoch: exact, so boundary tests never meet float noise."""
+    delta = parse_ts(ts) - EPOCH
+    return (delta.days * 86400 + delta.seconds) * MICROS + delta.microseconds
+
+
+def whole_seconds(start_us, end_us):
+    """Floored seconds, never negative: a skewed clock gives 0."""
+    return max(0, (end_us - start_us) // MICROS)
+
+
+def open_segment(bar, kind="blocked"):
+    seg = bar[kind][-1] if bar[kind] else None
+    return seg if seg is not None and seg["end_us"] is None else None
+
+
+class TimelineBuilder:
+    """Replays all records once, in time order, and collects rows, bars and blocked segments.
+
+    Rows and bars are referred to by their index in the unfiltered run; the iteration filter and
+    the gap folding renumber them afterwards.
+    """
+
+    def __init__(self, lowest_iteration):
+        self.lowest = lowest_iteration
+        self.rows = []   # (row, µs, iteration)
+        self.bars = []   # every bar, in start order
+        self.open = {}   # agent -> its open bar
+        self.last = {}   # agent -> (µs, ts) of its last message or status record
+        self.last_row = {}         # agent -> index of the last row that names it: where its bar ends
+        self.last_status_us = {}   # agent -> µs of its last status record, for the D7 wake window
+
+    def add_row(self, row, rec, us):
+        self.rows.append((row, us, rec["iteration"] if rec["iteration"] is not None else self.lowest))
+        return len(self.rows) - 1
+
+    def add_agent_row(self, agent, row, rec, us):
+        index = self.add_row(row, rec, us)
+        self.last_row[agent] = index
+        return index
+
+    def start_bar(self, agent, row_index, self_start):
+        if agent in self.open:
+            return
+        row, us, iteration = self.rows[row_index]
+        # recorded: a status record backs the bar, so only a status record may end it (D7: the hook's
+        # `working` stamp can come just before the message that opens the bar)
+        recorded = us - self.last_status_us.get(agent, -10 ** 18) <= WAKE_WINDOW_S * MICROS
+        bar = {"agent": agent, "start": row_index, "end": None, "start_ts": row["ts"], "end_ts": None,
+               "start_us": us, "end_us": None, "self_start": self_start, "iteration": iteration,
+               "blocked": [], "waiting": [], "recorded": recorded}
+        self.open[agent] = bar
+        self.bars.append(bar)
+
+    def close_segment(self, bar, row_index):
+        """Closes the open blocked and the open waiting segment, whichever there is."""
+        for kind in ("blocked", "waiting"):
+            seg = open_segment(bar, kind)
+            if seg is not None:
+                row, us, _ = self.rows[row_index]
+                seg.update(end=row_index, end_ts=row["ts"], end_us=us)
+
+    def message(self, rec, us):
+        row = {"kind": "message", "ts": rec["ts"], "from": rec["from"], "to": rec["to"],
+               "type": rec["type"], "task": rec["task"], "text": rec["text"], "msg_id": rec["msg_id"]}
+        # a message the route could not fetch again (no id, or one it refuses) is never clipped
+        if (rec["msg_id"] and MESSAGE_ID_RE.fullmatch(rec["msg_id"]) and rec["text"] is not None
+                and len(rec["text"]) > ROW_TEXT_CLIP):
+            row["text"] = rec["text"][:ROW_TEXT_CLIP]
+            row["text_clipped"] = True
+        index = self.add_row(row, rec, us)
+        for agent, self_start in ((rec["from"], True), (rec["to"], False)):
+            if agent and is_agent_name(agent):
+                self.cut_unrecorded(agent, us)
+                self.last[agent] = (us, rec["ts"])
+                self.last_row[agent] = index
+                self.start_bar(agent, index, self_start)
+
+    def end_at_last_event(self, agent):
+        """Ends the agent's open bar, and any open segment of it, at its last event and last row."""
+        bar = self.open.pop(agent)
+        end_us, end_ts = self.last[agent]
+        end_row = self.last_row[agent]
+        for seg in bar["blocked"] + bar["waiting"]:
+            if seg["end_us"] is None:
+                seg.update(end=end_row, end_ts=end_ts, end_us=end_us)
+        bar.update(end=end_row, end_ts=end_ts, end_us=end_us)
+
+    def cut_unrecorded(self, agent, us):
+        """A bar no status record backs ends at the agent's last event once a quiet stretch longer
+        than FOLD_GAP_S follows it: the closing `idle` may be days away (the recorder only runs
+        while the board runs)."""
+        bar = self.open.get(agent)
+        if bar is not None and not bar["recorded"] and us - self.last[agent][0] > FOLD_GAP_S * MICROS:
+            self.end_at_last_event(agent)
+
+    def close_retired(self, live_agents):
+        """A bar still open for an agent that is not live ends at that agent's last event."""
+        for agent in [a for a in self.open if a not in live_agents]:
+            self.end_at_last_event(agent)
+
+    def close_stale(self, now_us):
+        for agent in list(self.open):
+            self.cut_unrecorded(agent, now_us)
+
+    def status(self, rec, us, woken_by_message):
+        agent, status = rec["agent"], rec["status"]
+        self.cut_unrecorded(agent, us)
+        self.last[agent] = (us, rec["ts"])
+        self.last_status_us[agent] = us
+        bar = self.open.get(agent)
+        if bar is not None:
+            bar["recorded"] = True
+        row = {"kind": "status", "ts": rec["ts"], "agent": agent, "status": status}
+        if status == "working":
+            if bar is None:
+                if not woken_by_message:
+                    self.start_bar(agent, self.add_agent_row(agent, row, rec, us), True)
+            elif open_segment(bar) is not None or open_segment(bar, "waiting") is not None:
+                self.close_segment(bar, self.add_agent_row(agent, row, rec, us))
+        elif status == "blocked":
+            if bar is not None and open_segment(bar) is not None:
+                return
+            index = self.add_agent_row(agent, row, rec, us)
+            if bar is not None:
+                self.close_segment(bar, index)  # blocked wins: a waiting segment ends here
+            self.start_bar(agent, index, True)
+            self.open[agent]["blocked"].append({"start": index, "end": None, "start_ts": rec["ts"],
+                                                "end_ts": None, "start_us": us, "end_us": None})
+        elif status == "waiting":
+            detail = rec.get("detail")
+            current = open_segment(bar, "waiting") if bar is not None else None
+            if current is not None and current["detail"] == detail:
+                return
+            if detail:
+                row["detail"] = detail
+            index = self.add_agent_row(agent, row, rec, us)
+            if bar is not None:
+                self.close_segment(bar, index)
+            self.start_bar(agent, index, True)
+            self.open[agent]["waiting"].append({"start": index, "end": None, "start_ts": rec["ts"],
+                                                "end_ts": None, "start_us": us, "end_us": None,
+                                                "detail": detail})
+        elif bar is not None:
+            row["duration_s"] = whole_seconds(bar["start_us"], us)
+            index = self.add_agent_row(agent, row, rec, us)
+            self.close_segment(bar, index)
+            bar.update(end=index, end_ts=rec["ts"], end_us=us)
+            del self.open[agent]
+
+
+def replay_records(messages, activity, lowest_iteration, now_us=None):
+    """Feed messages and status events to a TimelineBuilder in time order (message first on a tie)."""
+    events = [(micros(m["ts"]), 0, i, m) for i, m in enumerate(messages)]
+    events += [(micros(a["ts"]), 1, i, a) for i, a in enumerate(activity) if a["status"] in BAR_STATUSES]
+    events.sort(key=lambda e: e[:3])
+    incoming = {}  # agent -> times of the messages sent to it, for the D7 look-ahead
+    for us, kind, _, rec in events:
+        if kind == 0 and rec["to"]:
+            incoming.setdefault(rec["to"], []).append(us)
+    seen = dict.fromkeys(incoming, 0)  # events come in time order, so each list is walked once
+    builder = TimelineBuilder(lowest_iteration)
+    for us, kind, _, rec in events:
+        if kind == 0:
+            builder.message(rec, us)
+            continue
+        agent, times, woken = rec["agent"], incoming.get(rec["agent"], ()), False
+        if times:
+            while seen[agent] < len(times) and times[seen[agent]] <= us:
+                seen[agent] += 1
+            woken = seen[agent] < len(times) and times[seen[agent]] - us <= WAKE_WINDOW_S * MICROS
+        builder.status(rec, us, woken)
+    if now_us is not None:
+        builder.close_stale(now_us)
+    return builder
+
+
+def fold_rows(rows, selected_iteration):
+    """Visible rows with `id`s and gap rows. Returns `(rows, {unfiltered index: id})`."""
+    out, ids, previous = [], {}, None
+    for index, (row, us, iteration) in enumerate(rows):
+        if selected_iteration is not None and iteration != selected_iteration:
+            continue
+        if previous is not None and us - previous[1] > FOLD_GAP_S * MICROS:
+            out.append({"id": len(out), "kind": "gap", "ts": previous[0]["ts"],
+                        "seconds": (us - previous[1]) // MICROS,
+                        "from_ts": previous[0]["ts"], "to_ts": row["ts"]})
+        ids[index] = len(out)
+        out.append(dict(row, id=len(out)))
+        previous = (row, us)
+    return out, ids
+
+
+def finish_bar(bar, ids, now_us):
+    """A bar as the state shows it. A row that is not visible in this iteration becomes null;
+    its timestamp stays, so the bar is closed, not open."""
+    end_us = bar["end_us"] if bar["end_us"] is not None else now_us
+    def segments_of(kind):
+        shown = []
+        for seg in bar[kind]:
+            seg_end = seg["end_us"] if seg["end_us"] is not None else now_us
+            item = {"start_row": ids.get(seg["start"]), "end_row": ids.get(seg["end"]),
+                    "start_ts": seg["start_ts"], "end_ts": seg["end_ts"],
+                    "duration_s": whole_seconds(seg["start_us"], seg_end)}
+            if kind == "waiting":
+                item["detail"] = seg["detail"]
+            shown.append(item)
+        return shown
+
+    segments = segments_of("blocked")
+    return {"agent": bar["agent"], "start_row": ids.get(bar["start"]), "end_row": ids.get(bar["end"]),
+            "start_ts": bar["start_ts"], "end_ts": bar["end_ts"], "self_start": bar["self_start"],
+            "open": bar["end_us"] is None, "duration_s": whole_seconds(bar["start_us"], end_us),
+            "blocked": segments, "waiting": segments_of("waiting")}
+
+
+def derive_timeline(messages, activity, columns, now, selected_iteration, lowest_iteration=None,
+                    live_agents=None):
+    """Rows, bars and per-agent totals. Totals cover the whole run; rows and bars only the selected
+    iteration. A record without an iteration counts as `lowest_iteration`. A bar of an agent outside
+    `live_agents` ends at its last event; `None` means every agent is live."""
+    now_us = micros(now)
+    builder = replay_records(messages, activity, lowest_iteration, now_us)
+    if live_agents is not None:
+        builder.close_retired(live_agents)
+    rows, ids = fold_rows(builder.rows, selected_iteration)
+    agents = dict((c["agent"], {"working_s": 0, "blocked_s": 0, "waiting_s": 0, "wakes": 0}) for c in columns)
+    bars = []
+    for bar in builder.bars:
+        shown = finish_bar(bar, ids, now_us)
+        totals = agents.setdefault(bar["agent"], {"working_s": 0, "blocked_s": 0, "waiting_s": 0, "wakes": 0})
+        waited = sum(seg["duration_s"] for seg in shown["waiting"])
+        totals["working_s"] += shown["duration_s"] - waited  # a waiting agent is not working
+        totals["blocked_s"] += sum(seg["duration_s"] for seg in shown["blocked"])
+        totals["waiting_s"] += sum(seg["duration_s"] for seg in shown["waiting"])
+        totals["wakes"] += 0 if bar["self_start"] else 1
+        if selected_iteration is None or bar["iteration"] == selected_iteration:
+            bars.append(shown)
+    return {"rows": rows, "bars": bars, "agents": agents}
+
+
+# --- section: tasks ---
+
+TASK_STATE_FOR_TYPE = {"DECISION": "building", "STATUS": "building", "BLOCKED": "blocked",
+                       "HANDIN": "checking", "FAIL": "returned", "PASS": "done"}
+# ASK and ANSWER keep the state but make a task appear (as building) when they name it first.
+# These leave a `done` task alone (a late "STATUS BRD-01: PASS from qaw-board" is no rework);
+# HANDIN, FAIL and BLOCKED reopen it.
+DONE_STICKY_TYPES = {"DECISION", "STATUS"}
+TASK_TYPES = set(TASK_STATE_FOR_TYPE) | {"ASK", "ANSWER"}
+
+
+def in_iteration(record, upto):
+    """A record without an iteration counts as the lowest one; no iteration files filter nothing."""
+    return upto is None or record["iteration"] is None or record["iteration"] <= upto
+
+
+def derive_tasks(messages, activity, upto_iteration):
+    """Task states as of the end of `upto_iteration`, in order of first appearance."""
+    # Messages sort before activity at the same time (as in the timeline); log order breaks the rest.
+    events = [(parse_ts(m["ts"]), 0, i, m) for i, m in enumerate(messages)
+              if m["type"] in TASK_TYPES and m["task"] and in_iteration(m, upto_iteration)]
+    events += [(parse_ts(a["ts"]), 1, i, a) for i, a in enumerate(activity)
+               if a["status"] == "working" and in_iteration(a, upto_iteration)]
+    tasks, blocked_by, handin_since_count = {}, {}, {}
+    for _, is_activity, _, rec in sorted(events, key=lambda e: e[:3]):
+        if is_activity:
+            for task in tasks.values():
+                if task["state"] == "blocked" and blocked_by[task["id"]] == rec["agent"]:
+                    task["state"] = "building"
+            continue
+        task = tasks.setdefault(rec["task"], {"id": rec["task"], "state": "building", "returns": 0,
+                                              "last_ts": None, "last_type": None})
+        if rec["type"] in TASK_STATE_FOR_TYPE and not (
+                task["state"] == "done" and rec["type"] in DONE_STICKY_TYPES):
+            task["state"] = TASK_STATE_FOR_TYPE[rec["type"]]
+        if rec["type"] == "BLOCKED":
+            blocked_by[rec["task"]] = rec["from"]
+        if rec["type"] == "HANDIN":
+            handin_since_count[rec["task"]] = True
+        if rec["type"] == "FAIL" and handin_since_count.get(rec["task"], True):
+            # one return per HANDIN: copies of a FAIL, or a second QA's FAIL, add nothing
+            task["returns"] += 1
+            handin_since_count[rec["task"]] = False
+        task["last_ts"], task["last_type"] = rec["ts"], rec["type"]
+    return list(tasks.values())
+
+
+# --- section: needs-you ---
+
+def po_checkin_filled(text):
+    """Which of `done` / `next` have text in the `## PO check-in` section; None without the section.
+
+    Text on the bullet line or on any line under it (until the next bullet) counts as filled.
+    """
+    lines = text.splitlines()
+    start = next((i for i, line in enumerate(lines) if re.match(r"##\s+PO check-in\b", line, re.I)), None)
+    if start is None:
+        return None
+    filled, field = {"done": False, "next": False}, None
+    for line in lines[start + 1:]:
+        heading = re.match(r"(#+)\s", line)
+        if heading:
+            if len(heading.group(1)) <= 2:
+                break
+            field = None
+            continue
+        bullet = re.match(r"[-*]\s+\*\*(\w+)[^*]*\*\*:?(.*)", line)
+        if bullet:
+            field, line = bullet.group(1).lower(), bullet.group(2)
+        if field in filled and line.strip(" \t-*"):
+            filled[field] = True
+    return filled
+
+
+def latest_event_ts(activity, agent, statuses):
+    """Time of the agent's latest event with one of these statuses (log order breaks ties)."""
+    stamps = [(parse_ts(a["ts"]), i, a["ts"]) for i, a in enumerate(activity)
+              if a["agent"] == agent and a["status"] in statuses]
+    return max(stamps)[2] if stamps else None
+
+
+def derive_needs_you(squad, columns, activity):
+    """Blocked agents (roster order), then unanswered escalations, then the idle Manager."""
+    rank = {r["agent"]: i for i, r in enumerate(squad["roster"])}
+    items = []
+    for col in sorted(columns, key=lambda c: rank.get(c["agent"], len(rank))):
+        if col["status"] == "blocked" and not col["retired"]:
+            since = latest_event_ts(activity, col["agent"], ("blocked",))
+            items.append({"id": "blocked:%s:%s" % (col["agent"], since), "kind": "blocked",
+                          "text": "%s is blocked" % col["agent"], "agent": col["agent"], "since": since})
+
+    for home, rows in squad["escalations"]:
+        numbers = [r.get("#", "") for r in rows]
+        for i, row in enumerate(rows, 1):
+            # a blank row has an empty Answer too, but without a number or question it is no escalation
+            if row.get("answer") or not (row.get("#") or row.get("question")):
+                continue
+            number = numbers[i - 1] if numbers[i - 1] and numbers.count(numbers[i - 1]) == 1 else i
+            # L9: per-scope, two scopes can both have a row #1, so the id and the text name the home
+            label = home.name or ""
+            items.append({"id": "escalation:%s%s" % (label + ":" if label else "", number),
+                          "kind": "escalation", "text": (label + ": " if label else "") + row.get("question", ""),
+                          "agent": None, "since": None})
+
+    # Flat: the first Manager only, as before. Per-scope: each Manager against its own home's check-in.
+    managers = [r for r in squad["roster"] if is_manager(r["role"])]
+    for manager in managers if squad["scoped"] else managers[:1]:
+        manager_col = next((c for c in columns if c["agent"] == manager["agent"]), None)
+        since = latest_event_ts(activity, manager["agent"], tuple(STATUS_FOR_EVENT))
+        iterations = squad["home_iterations"].get(manager["home"], {})
+        if manager_col and not manager_col["retired"] and since and manager_col["status"] == "idle" \
+                and iterations:
+            current = max(iterations)
+            filled = po_checkin_filled(iterations[current])
+            if filled is not None and not any(filled.values()):
+                label = manager["home"].name or ""
+                items.append({"id": "manager_idle:%s%d" % (label + ":" if label else "", current),
+                              "kind": "manager_idle",
+                              "text": "%sManager is idle and the PO check-in of iteration %d is empty" % (
+                                  label + ": " if label else "", current),
+                              "agent": manager["agent"], "since": since})
+    return items
+
+
+# --- section: tokens ---
+
+SESSION_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+SYNTHETIC_MODEL = "<synthetic>"
+HEAD_BYTES = 64  # a rewritten file that grew past the old offset is caught by comparing its start
+
+# Per transcript (by real path): the reader's place and the replies seen so far. The server is
+# threaded, so `_cache_lock` guards the dict and each entry's own lock guards its read, which
+# keeps one agent's file I/O from blocking another's.
+_cache = {}
+_cache_lock = threading.Lock()
+
+
+def count(value):
+    """A usage field that is not a non-negative int counts as 0 (the reply itself still counts)."""
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
+def parse_reply(line):
+    """`(message_id, tokens_in, tokens_out, model)` of an assistant line with usage, else None.
+
+    A `<synthetic>` reply (Claude Code's own placeholder, usage all zero) is skipped: as the last
+    reply it would show a context of 0."""
+    if b'"usage"' not in line:  # cheap filter: most transcript lines are tool output
+        return None
+    try:
+        rec = json.loads(line.decode("utf-8", errors="replace"))
+    except (ValueError, RecursionError):
+        return None
+    message = rec.get("message") if isinstance(rec, dict) and rec.get("type") == "assistant" else None
+    usage = message.get("usage") if isinstance(message, dict) else None
+    if not isinstance(usage, dict) or message.get("model") == SYNTHETIC_MODEL:
+        return None
+    tokens_in = sum(count(usage.get(k)) for k in
+                    ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
+    return text_or_none(message.get("id")), tokens_in, count(usage.get("output_tokens")), \
+        text_or_none(message.get("model"))
+
+
+def refresh_entry(entry, path):
+    """Read what was appended to `path` since last time. False when the file cannot be read."""
+    with entry["lock"]:
+        try:
+            with open(path, "rb") as f:
+                head = f.read(len(entry["head"]))
+                if os.fstat(f.fileno()).st_size < entry["offset"] or head != entry["head"]:
+                    entry.update(offset=0, head=b"", replies={}, anonymous=0)
+                f.seek(entry["offset"])
+                for line in iter(f.readline, b""):
+                    if not line.endswith(b"\n"):
+                        break  # still being written: read it again once it is complete
+                    entry["offset"] += len(line)
+                    reply = parse_reply(line)
+                    if reply is None:
+                        continue
+                    msg_id = reply[0]
+                    if msg_id is None:
+                        entry["anonymous"] += 1
+                        msg_id = "anonymous-%d" % entry["anonymous"]
+                    # last line wins, and moves the reply to the end: it is the latest by position
+                    entry["replies"].pop(msg_id, None)
+                    entry["replies"][msg_id] = reply[1:]
+                f.seek(0)
+                entry["head"] = f.read(min(entry["offset"], HEAD_BYTES))
+        except OSError:
+            return False
+        return True
+
+
+def transcript_figures(path):
+    with _cache_lock:
+        entry = _cache.setdefault(path, {"lock": threading.Lock(), "offset": 0, "head": b"",
+                                         "replies": {}, "anonymous": 0})
+    if not refresh_entry(entry, path):
+        return None
+    with entry["lock"]:
+        replies = list(entry["replies"].values())
+    if not replies:
+        return None
+    models = [model for _, _, model in replies if model]
+    return {"context_tokens": replies[-1][0], "tokens_in": sum(r[0] for r in replies),
+            "tokens_out": sum(r[1] for r in replies), "model": models[-1] if models else None}
+
+
+def inside(path, root):
+    return os.path.commonpath([path, root]) == root
+
+
+def read_sessions(replay):
+    """Agent -> valid session id from `replay/herdr.json`; anything odd is left out."""
+    path = os.path.realpath(replay / "herdr.json")
+    if not inside(path, os.path.realpath(replay)):
+        return {}
+    try:
+        agents = json.loads(read_text(Path(path))).get("agents")
+    except (ValueError, RecursionError, AttributeError):
+        return {}
+    sessions = {}
+    for name, entry in (agents.items() if isinstance(agents, dict) else ()):
+        sid = entry.get("session_id") if isinstance(entry, dict) else None
+        if isinstance(sid, str) and SESSION_ID_RE.fullmatch(sid):
+            sessions[name] = sid
+    return sessions
+
+
+# Live mode's session map: the recorder's latest herdr snapshot, `{agent: session id}`. The recorder
+# thread writes it and the HTTP threads read it, so `_sessions_lock` guards it.
+_sessions = {}
+_sessions_lock = threading.Lock()
+
+
+def set_sessions(sessions):
+    with _sessions_lock:
+        _sessions.clear()
+        _sessions.update(sessions)
+
+
+def session_map():
+    with _sessions_lock:
+        return dict(_sessions)
+
+
+def replay_roots(replay):
+    """`(root, container)` pairs: every `replay/claude*` folder. A transcript's real path must stay
+    inside the replay folder, so a symlink leading out of it is refused."""
+    contain = os.path.realpath(replay)
+    return [(root, contain) for root in sorted(replay.glob("claude*"))]
+
+
+def live_roots():
+    """Every `~/.claude*` folder, each its own container: `~/.claude-b` may be a symlink to another disk,
+    but a transcript inside it must not point out of it."""
+    return [(root, os.path.realpath(root)) for root in sorted(Path(os.path.expanduser("~")).glob(".claude*"))
+            if root.is_dir()]
+
+
+def find_transcript(roots, session_id):
+    """Real path of the transcript under any root; one file reached through two roots counts once."""
+    found = set()
+    for root, contain in roots:
+        for path in root.glob("projects/*/%s.jsonl" % session_id):
+            real = os.path.realpath(path)
+            if inside(real, contain):
+                found.add(real)
+    return min(found, default=None)
+
+
+def read_tokens(columns, sessions, roots):
+    """Token figures per agent that has a readable transcript; the others are left out (null).
+    Replay and live differ only in `sessions` (agent -> session id) and `roots` (see above)."""
+    tokens = {}
+    for col in columns:
+        path = find_transcript(roots, sessions[col["agent"]]) if col["agent"] in sessions else None
+        found = transcript_figures(path) if path else None
+        if found:
+            tokens[col["agent"]] = found
+    return tokens
+
+
+def transcript_signature():
+    """What the transcripts of the known live sessions look like right now, for the watcher."""
+    roots = live_roots()
+    signature = []
+    for sid in sorted(set(session_map().values())):
+        path = find_transcript(roots, sid)
+        try:
+            info = os.stat(path) if path else None
+        except OSError:
+            info = None
+        signature.append((sid, info and (info.st_size, info.st_mtime_ns, info.st_ino)))
+    return tuple(signature)
+
+
+# --- section: state ---
+
+def latest_ts(messages, activity):
+    stamps = [r["ts"] for r in messages + activity]
+    return max(stamps, key=parse_ts) if stamps else None
+
+
+def build_state(squad_dir, now=None, selected_iteration=None, live=False):
+    """The whole board state from files alone. Raises BadRequest for an unknown iteration.
+    Live mode reads tokens through the live agent -> session id map; replay through `replay/herdr.json`."""
+    squad = read_squad(squad_dir)
+    messages, activity = read_logs(squad["homes"])
+    iterations = sorted(squad["iterations"])
+    iteration = iterations[-1] if iterations else None
+    requested = selected_iteration
+    if selected_iteration is None:
+        selected_iteration = iteration
+    elif selected_iteration not in squad["iterations"]:
+        raise BadRequest("unknown iteration %d" % selected_iteration)
+    now = now or latest_ts(messages, activity) or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if squad["scoped"]:
+        retag_iterations(messages + activity, squad["home_iterations"], requested)
+
+    columns = build_columns(squad, messages, activity)
+    timeline = derive_timeline(messages, activity, columns, now, selected_iteration,
+                               iterations[0] if iterations else None,
+                               set(r["agent"] for r in squad["roster"] if roster_live(r["status"])))
+    if not live:
+        replay = Path(squad_dir) / "replay"
+        tokens = read_tokens(columns, read_sessions(replay), replay_roots(replay))
+    else:
+        tokens = read_tokens(columns, session_map(), live_roots())
+    for col in columns:
+        for key in ("working_s", "blocked_s", "waiting_s", "wakes"):
+            col[key] = timeline["agents"].get(col["agent"], {}).get(key, col[key])
+        for key in ("context_tokens", "tokens_in", "tokens_out", "model"):
+            col[key] = tokens.get(col["agent"], {}).get(key, col[key])
+    return {"now": now, "iterations": iterations, "iteration": iteration,
+            "selected_iteration": selected_iteration, "pods": build_pods(squad, columns),
+            "columns": columns, "rows": timeline["rows"], "bars": timeline["bars"],
+            "tasks": derive_tasks(messages, activity, selected_iteration),
+            "needs_you": derive_needs_you(squad, columns, activity),
+            "live": live}
+
+
+# --- section: recorder ---
+
+# The activity recorder (design-iteration-2 E2 to E6): herdr's socket in, activity.jsonl out.
+# Environment overrides exist so tests need not wait; they are read once at startup:
+#   SQUAD_BOARD_RECONNECT_S      first wait before reconnecting to herdr (default 1)
+#   SQUAD_BOARD_RECONNECT_CAP_S  the wait doubles each time up to this (default 30)
+#   SQUAD_BOARD_ROSTER_REREAD_S  shortest time between two roster re-reads (default 1)
+RECONNECT_BASE_S = env_seconds("SQUAD_BOARD_RECONNECT_S", 1)
+RECONNECT_CAP_S = env_seconds("SQUAD_BOARD_RECONNECT_CAP_S", 30)
+ROSTER_REREAD_S = env_seconds("SQUAD_BOARD_ROSTER_REREAD_S", 1)
+HERDR_SOCKET_TIMEOUT_S = 5
+MAX_FRAME_BYTES = 8 << 20  # a longer frame is dropped unread; a snapshot of a big squad is a few KB
+# What the board shows. herdr's `unknown` says nothing the timeline uses, so it is not recorded.
+RECORDED_STATUSES = ("working", "idle", "blocked", "done", "waiting")
+WAIT_POLL_S = env_seconds("SQUAD_BOARD_WAIT_POLL_S", 5)
+READ_ID = "squad-board:read"
+# Claude's mode line ends with what still runs in the background: `· 2 monitors`,
+# `1 shell still running`. Order is the order of `detail` when several are there. `← N agents` is not
+# one of them: every live pane carries `← 1 agent` all the time, so it says nothing about waiting.
+BACKGROUND_PATTERNS = (("shell", re.compile(r"\b\d+ shells? still running")),
+                       ("monitor", re.compile(r"\b\d+ monitors?\b")))
+SNAPSHOT_ID = "squad-board:snapshot"
+SUBSCRIBE_ID = "squad-board:subscribe"
+
+
+def herdr_socket_path():
+    return os.environ.get("HERDR_SOCKET_PATH") or os.path.expanduser("~/.config/herdr/herdr.sock")
+
+
+class FrameReader:
+    """Newline-delimited frames from a socket. A frame over MAX_FRAME_BYTES is dropped, never held."""
+
+    def __init__(self, sock):
+        self.sock = sock
+        self.buf = bytearray()
+        self.dropping = False  # inside an over-long frame: discard up to its newline
+
+    def next(self):
+        """The next frame's bytes. Raises ConnectionError at end of stream, socket.timeout when the
+        socket's timeout runs out."""
+        while True:
+            end = self.buf.find(b"\n")
+            if end >= 0:
+                frame = bytes(self.buf[:end])
+                del self.buf[:end + 1]
+                if self.dropping:
+                    self.dropping = False
+                    continue
+                return frame
+            if len(self.buf) > MAX_FRAME_BYTES:
+                self.buf.clear()
+                self.dropping = True
+            chunk = self.sock.recv(65536)
+            if not chunk:
+                raise ConnectionError("herdr closed the connection")
+            if self.dropping and b"\n" not in chunk:
+                continue
+            self.buf += chunk
+
+
+def herdr_connect(socket_path):
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.settimeout(HERDR_SOCKET_TIMEOUT_S)
+    try:
+        sock.connect(socket_path)
+    except BaseException:
+        sock.close()
+        raise
+    return sock
+
+
+def herdr_call(sock, reader, request_id, method, params):
+    """Send one request, return its reply's `result`. Frames with another id (events) are skipped."""
+    sock.sendall((json.dumps({"id": request_id, "method": method, "params": params}) + "\n").encode("utf-8"))
+    while True:
+        try:
+            frame = json.loads(reader.next())
+        except (ValueError, RecursionError):
+            continue
+        if not isinstance(frame, dict) or frame.get("id") != request_id:
+            continue
+        if "error" in frame:
+            raise RuntimeError("herdr refused %s: %s" % (method, frame["error"]))
+        return frame["result"] if isinstance(frame.get("result"), dict) else {}
+
+
+def session_id(agent):
+    """`agent_session.value` of a snapshot entry when it is a valid session id."""
+    session = agent.get("agent_session")
+    value = session.get("value") if isinstance(session, dict) else None
+    return value if isinstance(value, str) and SESSION_ID_RE.fullmatch(value) else None
+
+
+def herdr_snapshot(socket_path):
+    """`[(name, pane_id, agent_status, session_id)]` of every agent pane; the session id is None unless it
+    is a valid one. It has a connection of its own: herdr resets one that has subscribed and then sends
+    another request."""
+    sock = herdr_connect(socket_path)
+    try:
+        result = herdr_call(sock, FrameReader(sock), SNAPSHOT_ID, "session.snapshot", {})
+    finally:
+        sock.close()
+    snapshot = result.get("snapshot")
+    agents = snapshot.get("agents") if isinstance(snapshot, dict) else None
+    return [(a["name"], a["pane_id"], a.get("agent_status"), session_id(a)) for a in agents or []
+            if isinstance(a, dict) and isinstance(a.get("name"), str) and a["name"]
+            and isinstance(a.get("pane_id"), str)]
+
+
+def parse_background(text):
+    """`shell`, `monitor` or `agent` when the last non-empty line of a pane's text says background
+    work runs, else None. Only that line counts: the same words in the conversation above are no
+    indicator."""
+    lines = [line for line in (text or "").splitlines() if line.strip()]
+    if not lines:
+        return None
+    return next((kind for kind, pattern in BACKGROUND_PATTERNS if pattern.search(lines[-1])), None)
+
+
+def herdr_read_text(socket_path, name):
+    """The last visible lines of an agent's pane (read-only), on a connection of its own."""
+    sock = herdr_connect(socket_path)
+    try:
+        result = herdr_call(sock, FrameReader(sock), READ_ID, "agent.read",
+                            {"target": name, "source": "visible", "lines": 3})
+    finally:
+        sock.close()
+    read = result.get("read")
+    text = read.get("text") if isinstance(read, dict) else None
+    return text if isinstance(text, str) else ""
+
+
+def herdr_subscribe(socket_path, pane_ids):
+    """One status subscription per pane (herdr insists on a pane id) plus pane creation and closing. Returns
+    `(socket, FrameReader)` once herdr has acknowledged, so a snapshot taken next misses nothing."""
+    sock = herdr_connect(socket_path)
+    try:
+        reader = FrameReader(sock)
+        subscriptions = [{"type": "pane.agent_status_changed", "pane_id": p} for p in sorted(pane_ids)]
+        subscriptions += [{"type": "pane.created"}, {"type": "pane.closed"}]
+        herdr_call(sock, reader, SUBSCRIBE_ID, "events.subscribe", {"subscriptions": subscriptions})
+        sock.settimeout(None)  # events come when they come
+    except BaseException:
+        sock.close()
+        raise
+    return sock, reader
+
+
+def event_stamp():
+    now = datetime.now(timezone.utc)
+    return now.strftime("%Y-%m-%dT%H:%M:%S.") + "%03dZ" % (now.microsecond // 1000)
+
+
+def highest_iteration(squad_dir):
+    numbers = [int(p.stem) for p in (Path(squad_dir) / "iterations").glob("*.md")
+               if ITERATION_RE.fullmatch(p.stem) and p.is_file()]
+    return max(numbers) if numbers else None
+
+
+def last_statuses(log_path):
+    """agent -> status of its last record in the log."""
+    last = {}
+    for rec in read_jsonl(log_path):
+        if isinstance(rec.get("agent"), str):
+            last[rec["agent"]] = rec.get("status")
+    return last
+
+
+class Recorder:
+    def __init__(self, squad_dir, socket_path):
+        self.squad_dir = Path(squad_dir)
+        self.socket_path = socket_path
+        self.names = {}          # pane id -> agent name, from the latest snapshot
+        self.subscribed = set()  # pane ids the open subscription covers
+        self.stream = None       # (socket, FrameReader) of the open subscription
+        self.roster = {}         # agent name -> its Home (the roster row's folder)
+        self.roster_read = None  # monotonic time of the last roster read
+        self.reported = False    # the current outage already has its stderr line
+        self.write_error = None  # the write error already printed, until a write succeeds
+        self.delay = RECONNECT_BASE_S
+        self.lock = threading.RLock()  # the event loop and the poller both write; this orders them
+        self.last_recorded = {}        # agent -> (status, detail) of the last record written or seen at sync
+
+    def run(self):
+        threading.Thread(target=self.poll_loop, name="wait-poller", daemon=True).start()
+        while True:
+            try:
+                self.session()
+            except Exception as e:  # herdr gone, refused, or odd: wait, then start over
+                self.close_stream()
+                self.report(e)
+                time.sleep(self.delay)
+                self.delay = min(self.delay * 2, RECONNECT_CAP_S)
+
+    def report(self, error):
+        if not self.reported:
+            self.reported = True
+            reason = " ".join(str(error).split())[:200] or type(error).__name__
+            print("squad-board: herdr unavailable (%s); retrying" % reason, file=sys.stderr, flush=True)
+
+    def close_stream(self):
+        if self.stream is not None:
+            self.stream[0].close()
+        self.stream = None
+
+    def session(self):
+        """Sync, then handle events until the connection fails (which raises)."""
+        self.sync()
+        self.reported = False
+        self.delay = RECONNECT_BASE_S
+        while True:
+            self.handle(self.stream[1].next())
+
+    def sync(self):
+        """Snapshot; if the agent panes differ from the subscribed ones, subscribe afresh and
+        snapshot again (so nothing between the two is missed); then write what the log lacks (E4)."""
+        while True:
+            agents = herdr_snapshot(self.socket_path)
+            panes = set(pane for _, pane, _, _ in agents)
+            self.names = dict((pane, name) for name, pane, _, _ in agents)
+            if self.stream is not None and panes == self.subscribed:
+                break
+            self.close_stream()
+            self.stream = herdr_subscribe(self.socket_path, panes)
+            self.subscribed = panes
+        set_sessions(dict((name, sid) for name, _, _, sid in agents if sid))
+        last = {}  # agent names are unique across homes, so one dict merges every home's log
+        for home in find_homes(self.squad_dir):
+            last.update(last_statuses(home.path / "activity.jsonl"))
+        with self.lock:
+            for name, state in last.items():
+                self.last_recorded[name] = (state, None)
+            for name, _, status, _ in agents:
+                # `waiting` is ours: only the poller clears it, so herdr's idle is no change to record
+                same = last.get(name) == status or (last.get(name) == "waiting" and status in ("idle", "done"))
+                if status in RECORDED_STATUSES and not same and self.rostered(name):
+                    self.append(name, status)
+        # herdr sends no idle when a pane closes. Only a snapshot that listed an agent pane is proof
+        # that the others are gone; an empty one may be a herdr that has not loaded yet.
+        if agents:
+            present = set(name for name, _, _, _ in agents)
+            for name, status in last.items():
+                if name not in present and status in RECORDED_STATUSES and status != "done" \
+                        and self.rostered(name):
+                    self.append(name, "done")
+
+    def handle(self, frame):
+        try:
+            message = json.loads(frame)
+        except (ValueError, RecursionError):
+            return
+        if not isinstance(message, dict):
+            return
+        event, data = message.get("event"), message.get("data")
+        if event in ("pane.created", "pane.closed"):
+            return self.sync()  # the snapshot is the truth, the event only the trigger
+        if event != "pane.agent_status_changed" or not isinstance(data, dict):
+            return
+        pane, status = data.get("pane_id"), data.get("agent_status")
+        if not isinstance(pane, str) or status not in RECORDED_STATUSES:
+            return
+        name = self.names.get(pane)
+        if name is None:
+            return self.sync()  # a pane we never saw: the snapshot says what it is, and records it
+        if self.rostered(name):
+            if status in ("idle", "done"):
+                # read first: an idle that hides background work would end the bar, and waiting follow it
+                detail = self.background_of(name)
+                if detail:
+                    with self.lock:
+                        if self.last_recorded.get(name) != ("waiting", detail):
+                            self.append(name, "waiting", detail)
+                    return
+            self.append(name, status)
+
+    def background_of(self, name):
+        """What runs in the background in `name`'s pane, or None (also when it cannot be read)."""
+        try:
+            return parse_background(herdr_read_text(self.socket_path, name))
+        except (OSError, RuntimeError, ValueError, ConnectionError):
+            return None
+
+    def poll_loop(self):
+        """Own thread, own connections: the event loop blocks on its socket with no timeout."""
+        delay, reported = RECONNECT_BASE_S, False
+        while True:
+            time.sleep(WAIT_POLL_S if not reported else delay)
+            try:
+                self.poll()
+            except Exception as e:  # herdr unreachable: back off, one stderr line per outage
+                if not reported:
+                    reported = True
+                    reason = " ".join(str(e).split())[:200] or type(e).__name__
+                    print("squad-board: herdr unavailable for the wait poll (%s); retrying" % reason,
+                          file=sys.stderr, flush=True)
+                delay = min(delay * 2, RECONNECT_CAP_S) if reported else delay
+            else:
+                delay, reported = RECONNECT_BASE_S, False
+
+    def poll(self):
+        """One tick: a snapshot, then one read per rostered pane herdr calls idle or done."""
+        for name, _, status, _ in herdr_snapshot(self.socket_path):
+            if status not in ("idle", "done") or not self.rostered(name):
+                continue
+            with self.lock:
+                before = self.last_recorded.get(name)
+            try:
+                text = herdr_read_text(self.socket_path, name)
+            except (OSError, RuntimeError, ValueError):
+                continue  # one unreadable pane writes nothing and stops nothing
+            detail = parse_background(text)
+            with self.lock:
+                if self.last_recorded.get(name) != before:
+                    continue  # the event loop wrote meanwhile: its record is newer than our read
+                if detail:
+                    if before == ("waiting", None):
+                        self.last_recorded[name] = ("waiting", detail)  # seen at sync, kind unknown: adopt it
+                    elif before != ("waiting", detail):
+                        self.append(name, "waiting", detail)
+                elif before is not None and before[0] == "waiting":
+                    self.append(name, "idle")
+
+    def rostered(self, name):
+        """E3. The roster is read again only for a name it lacks, and at most every ROSTER_REREAD_S."""
+        if name not in self.roster:
+            now = time.monotonic()
+            if self.roster_read is None or now - self.roster_read >= ROSTER_REREAD_S:
+                self.roster_read = now
+                self.roster = dict((row["agent"], row["home"]) for row in read_squad(self.squad_dir)["roster"])
+        return name in self.roster
+
+    def append(self, name, status, detail=None):
+        """One record, one write, under the lock the hook's writer takes too (E5). It goes to the log of the
+        agent's own home (L13), tagged with that home's highest iteration; an agent in no roster gets none."""
+        home = self.roster.get(name)
+        if home is None:
+            return
+        record = {"ts": event_stamp(), "agent": name, "status": status,
+                  "iteration": highest_iteration(home.path)}
+        if detail:
+            record["detail"] = detail
+        line = (json.dumps(record) + "\n").encode("utf-8")
+        try:
+            fd = os.open(str(home.path / "activity.jsonl"), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX)
+                os.write(fd, line)
+            finally:
+                os.close(fd)  # closing also releases the lock
+        except OSError as e:
+            # Not a herdr outage: the record is lost, the connection is fine, so no backoff. It prints when
+            # the reason differs from the last one printed, and a good write resets that, so a log that
+            # stays unwritable does not print once per event.
+            reason = " ".join(str(e).split())[:200]
+            if reason != self.write_error:
+                self.write_error = reason
+                print("squad-board: cannot write activity.jsonl: %s" % reason, file=sys.stderr, flush=True)
+        else:
+            self.write_error = None
+            with self.lock:
+                self.last_recorded[name] = (status, detail)
+
+
+def start_recorder(squad_dir, socket_path):
+    """Run the recorder on a daemon thread, so it never keeps the process alive."""
+    thread = threading.Thread(target=Recorder(squad_dir, socket_path).run, name="recorder", daemon=True)
+    thread.start()
+    return thread
+
+
+# --- section: http ---
+
+# The page sits next to the real script file, so a symlink in a bin/ folder still finds it.
+PAGE_PATH = Path(os.path.realpath(__file__)).parent / "squad-board.html"
+# design-iteration-2 E10: the page runs only its own inline script and talks only to this server
+PAGE_HEADERS = (
+    ("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+     "connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"),
+    ("Referrer-Policy", "no-referrer"),
+)
+
+
+def send(handler, status, content_type, body, extra_headers=()):
+    handler.send_response(status)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(body)))
+    handler.send_header("Cache-Control", "no-store")
+    for name, value in extra_headers:
+        handler.send_header(name, value)
+    if content_type.startswith("application/json"):
+        handler.send_header("X-Content-Type-Options", "nosniff")
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+def send_json(handler, status, obj):
+    send(handler, status, "application/json; charset=utf-8", json.dumps(obj).encode("utf-8"))
+
+
+def check_request(handler):
+    """Host and Origin must name this server, else 403: a web page on another site (or a rebinding
+    DNS name) cannot talk to it. Runs before method, token and path, for every route."""
+    port = handler.server.server_address[1]
+    hosts = ["127.0.0.1:%d" % port, "localhost:%d" % port]
+    given = handler.headers.get_all("Host") or []
+    origins = handler.headers.get_all("Origin") or []
+    if (len(given) == 1 and given[0].lower() in hosts
+            and all(o.lower() in ["http://" + h for h in hosts] for o in origins)):
+        return True
+    send_json(handler, 403, {"error": "forbidden"})
+    return False
+
+
+def token_ok(handler):
+    """Constant-time compare on UTF-8 bytes: a non-ASCII header is a mismatch, not a TypeError.
+    A repeated header must have every copy right."""
+    expected = handler.server.token.encode("utf-8")
+    given = handler.headers.get_all("X-Board-Token") or []
+    return bool(given) and all(hmac.compare_digest(g.encode("utf-8"), expected) for g in given)
+
+
+def handle_root(handler):
+    """GET /: the page file, read on every request so an edit shows on reload. The error text names
+    no path."""
+    try:
+        body = PAGE_PATH.read_bytes()
+    except OSError:
+        return send_json(handler, 500, {"error": "page file missing"})
+    send(handler, 200, "text/html; charset=utf-8", body, PAGE_HEADERS)
+
+
+def query_iteration(handler):
+    """The `iteration` query value as an int, or None when absent. Raises BadRequest."""
+    values = parse_qs(handler.path.partition("?")[2], keep_blank_values=True).get("iteration")
+    if values is None:
+        return None
+    if len(values) != 1 or not ITERATION_RE.fullmatch(values[0]):
+        raise BadRequest("iteration must be a number")
+    return int(values[0])
+
+
+def wall_clock():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def stamp_now(state):
+    """A cached live state is stamped with the wall clock as it leaves, so it never shows the time of its build."""
+    state["now"] = wall_clock()
+    return state
+
+
+def handle_state(handler):
+    live = handler.server.live
+    try:
+        state = build_state(handler.server.replay_dir, wall_clock() if live else handler.server.now,
+                            query_iteration(handler), live)
+    except BadRequest as e:
+        return send_json(handler, 400, {"error": str(e)})
+    send_json(handler, 200, state)
+
+
+def watched_signature(squad_dir):
+    """What the squad files look like right now. The inode is part of it, so an editor that writes a
+    temp file and renames it over the original is seen even when size and mtime come out equal. The
+    list of homes is part of it (L12): a new or closed scope changes the pods."""
+    homes = find_homes(squad_dir)
+    signature = [("homes", tuple((h.kind, h.name) for h in homes))]
+    paths = []
+    for home in homes:
+        names = ["messages.jsonl", "activity.jsonl", "escalations.md", "roster.md"]
+        names += {"flat": ["scopes.md"], "scope": ["scope.md"], "goal": []}[home.kind]
+        paths += [home.path / name for name in names]
+        paths += sorted(home.path.glob("iterations/*.md")) + sorted(home.path.glob("roles/*.notes.md"))
+    for path in paths:
+        try:
+            info = path.stat()
+        except OSError:
+            signature.append((str(path), None))  # missing counts as a state of its own
+        else:
+            signature.append((str(path), info.st_size, info.st_mtime_ns, info.st_ino))
+    return tuple(signature)
+
+
+class StateWatcher:
+    """One thread looks at the squad files; a state is built once per change and iteration, however
+    many streams are open. Streams wait on `changed` and never touch the files themselves."""
+
+    def __init__(self, squad_dir, now, live=False):
+        self.squad_dir = squad_dir
+        self.now = now
+        self.live = live
+        self.changed = threading.Condition()
+        self.version = 0
+        self.signature = watched_signature(squad_dir)
+        # live only: a growing transcript is not a squad file, so it is looked at on a timer, and only
+        # while an agent works (the only time one grows). `working` and `transcripts` (what the
+        # transcripts looked like) are as of the last state built.
+        self.working = False
+        self.transcripts = ()
+        self.transcripts_due = time.monotonic() + TOKEN_REFRESH_S
+        # selected iteration -> (state without `now`, its JSON or None in live mode), for this version
+        self.built = {}
+        threading.Thread(target=self.watch, daemon=True).start()
+
+    def bump(self):
+        self.version += 1
+        self.built = {}
+        self.transcripts_due = time.monotonic() + TOKEN_REFRESH_S  # the rebuild reads them too
+        self.changed.notify_all()
+
+    def refresh(self):
+        with self.changed:
+            signature = watched_signature(self.squad_dir)
+            if signature != self.signature:
+                self.signature = signature
+                self.bump()
+            elif self.live and self.working and time.monotonic() >= self.transcripts_due:
+                self.transcripts_due = time.monotonic() + TOKEN_REFRESH_S
+                if transcript_signature() != self.transcripts:
+                    self.bump()
+
+    def watch(self):
+        while True:
+            try:
+                self.refresh()
+            except Exception as e:  # one bad poll must not end the watching
+                print("squad-board: watcher: %s" % e, file=sys.stderr, flush=True)
+            time.sleep(POLL_S)
+
+    def snapshot(self, selected):
+        """(version, state, JSON) for the files as they are now. Raises BadRequest for an unknown
+        iteration. Looks at the files first, so a new connection never gets a stale state."""
+        self.refresh()
+        with self.changed:
+            if selected not in self.built:
+                if self.live:  # taken before the build, so a growth in between is caught next time
+                    self.transcripts = transcript_signature()
+                state = build_state(self.squad_dir, wall_clock() if self.live else self.now, selected,
+                                    self.live)
+                self.working = any(c["status"] == "working" for c in state["columns"])
+                # `now` is left out of the comparison: a clock tick alone is not a change. In live mode
+                # no JSON is kept: each send re-stamps the state (`event_data`).
+                self.built[selected] = ({k: v for k, v in state.items() if k != "now"},
+                                        None if self.live else json.dumps(state))
+            state, data = self.built[selected]
+            return self.version, state, data
+
+    def wait_after(self, version, timeout):
+        """The current version, once it differs from `version` or `timeout` seconds have passed."""
+        with self.changed:
+            self.changed.wait_for(lambda: self.version != version, timeout)
+            return self.version
+
+
+def event_data(watcher, state, data):
+    """The JSON of one `state` event. In live mode the cached state is stamped again, without a rebuild."""
+    return json.dumps(stamp_now(dict(state))) if watcher.live else data
+
+
+def handle_events(handler):
+    """GET /events: the state now, then again whenever it changes, plus a keepalive comment line
+    when nothing was sent for KEEPALIVE_S. The iteration is fixed for the connection."""
+    watcher = handler.server.watcher
+    try:
+        selected = query_iteration(handler)
+        version, state, data = watcher.snapshot(selected)
+    except BadRequest as e:
+        return send_json(handler, 400, {"error": str(e)})
+    handler.send_response(200)
+    handler.send_header("Content-Type", "text/event-stream; charset=utf-8")
+    handler.send_header("Cache-Control", "no-store")
+    handler.end_headers()
+    handler.close_connection = True
+    try:
+        handler.wfile.write(("event: state\ndata: %s\n\n" % event_data(watcher, state, data)).encode("utf-8"))
+        last_write = time.monotonic()
+        while True:
+            quiet = time.monotonic() - last_write
+            if quiet >= KEEPALIVE_S:
+                handler.wfile.write(b": keepalive\n\n")
+                last_write = time.monotonic()
+                continue
+            current = watcher.wait_after(version, KEEPALIVE_S - quiet)
+            if current == version:
+                continue
+            version = current
+            try:
+                version, new_state, data = watcher.snapshot(selected)
+            except Exception as e:  # e.g. the pinned iteration file was deleted: wait for the next change
+                print("squad-board: state not rebuilt: %s" % e, file=sys.stderr, flush=True)
+                continue
+            if new_state != state:
+                state = new_state
+                handler.wfile.write(("event: state\ndata: %s\n\n" % event_data(watcher, state, data)).encode("utf-8"))
+                last_write = time.monotonic()
+    except OSError:
+        pass  # the client went away, or stopped reading for longer than REQUEST_TIMEOUT_S
+
+
+# design-iteration-2 "Notes route" step 8: the text is shown, never run, never framed, never cached
+NOTES_HEADERS = (
+    ("X-Content-Type-Options", "nosniff"),
+    ("Content-Security-Policy", "sandbox; default-src 'none'"),
+    ("Referrer-Policy", "no-referrer"),
+    ("Content-Disposition", "inline"),
+)
+
+
+def send_notes(handler, status, text):
+    send(handler, status, "text/plain; charset=utf-8", text, NOTES_HEADERS)
+
+
+def notes_token_ok(handler):
+    """The `token` query value: exactly one, compared as UTF-8 bytes (a link cannot send a header)."""
+    values = parse_qs(handler.path.partition("?")[2], keep_blank_values=True).get("token") or []
+    return len(values) == 1 and hmac.compare_digest(values[0].encode("utf-8"), handler.server.token.encode("utf-8"))
+
+
+def read_notes(home_dir, name):
+    """The first NOTES_MAX_BYTES of `<home>/roles/<name>.notes.md` as bytes, or None. `name` is
+    already validated and `home_dir` comes from the roster row (L10), never from the request. The real path must stay inside the real roles folder, so a symlink leading
+    out is refused; the open is non-blocking and re-checked on the descriptor, so a file swapped for
+    a pipe after the check cannot hang the handler."""
+    roles = os.path.realpath(os.path.join(home_dir, "roles"))
+    real = os.path.realpath(os.path.join(roles, name + ".notes.md"))
+    if os.path.dirname(real) != roles:
+        return None
+    try:
+        fd = os.open(real, os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0))
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        with os.fdopen(fd, "rb", closefd=False) as f:
+            return f.read(NOTES_MAX_BYTES)
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+
+
+def handle_notes(handler):
+    """GET /notes/<name>?token=...: an agent's notes file as plain text. Check order: token, name,
+    roster, file, so a refused token never reveals who is on the roster."""
+    if not notes_token_ok(handler):
+        return send_notes(handler, 403, b"forbidden")
+    name = handler.path.partition("?")[0][len(NOTES_PREFIX):]
+    if not JUMP_NAME_RE.fullmatch(name):
+        return send_notes(handler, 400, b"bad agent name")
+    # a retired agent stays: its notes outlive it
+    row = next((r for r in read_squad(handler.server.replay_dir)["roster"] if r["agent"] == name), None)
+    if row is None:
+        return send_notes(handler, 404, b"not found")
+    data = read_notes(row["home"].path, name)
+    if data is None:
+        return send_notes(handler, 404, b"not found")
+    send_notes(handler, 200, data.decode("utf-8", errors="replace").encode("utf-8"))
+
+
+def handle_message(handler):
+    """GET /message/<msg_id>?token=...: the full text of one message as plain text. Check order: token,
+    id, lookup; the id is looked up in the logs, never joined into a path."""
+    if not notes_token_ok(handler):
+        return send_notes(handler, 403, b"forbidden")
+    msg_id = handler.path.partition("?")[0][len(MESSAGE_PREFIX):]
+    if not MESSAGE_ID_RE.fullmatch(msg_id):
+        return send_notes(handler, 400, b"bad message id")
+    messages, _ = read_logs(read_squad(handler.server.replay_dir)["homes"])
+    found = next((m for m in messages if m["msg_id"] == msg_id), None)
+    if found is None or found["text"] is None:
+        return send_notes(handler, 404, b"not found")
+    send_notes(handler, 200, found["text"].encode("utf-8", errors="replace"))
+
+
+def handle_jump(handler):
+    """POST /jump/<name>: focus a roster agent's herdr pane. Check order: token, name, roster, so a
+    refused token never reveals who is on the roster. Nothing is run until all three pass."""
+    if not token_ok(handler):
+        return send_json(handler, 403, {"error": "forbidden"})
+    name = handler.path.partition("?")[0][len(JUMP_PREFIX):]
+    if not JUMP_NAME_RE.fullmatch(name):
+        return send_json(handler, 400, {"error": "bad agent name"})
+    live = [r["agent"] for r in read_squad(handler.server.replay_dir)["roster"]
+            if r["status"].lower() == "live"]
+    if name not in live:
+        return send_json(handler, 404, {"error": "not on the roster"})
+    # argv list, never a shell; herdr's own output stays out of the response
+    try:
+        done = subprocess.run(["herdr", "agent", "focus", name], timeout=HERDR_TIMEOUT_S,
+                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        return send_json(handler, 502, {"ok": False, "error": "herdr timed out"})
+    except OSError:
+        return send_json(handler, 502, {"ok": False, "error": "herdr could not be run"})
+    if done.returncode != 0:
+        return send_json(handler, 502, {"ok": False, "error": "herdr exited with status %d" % done.returncode})
+    send_json(handler, 200, {"ok": True})
+
+
+class BoardHandler(BaseHTTPRequestHandler):
+    # StreamRequestHandler puts this on the connection socket: a client that connects and sends
+    # nothing frees its thread after REQUEST_TIMEOUT_S. The event stream only writes, so a quiet
+    # one is not cut; a stuck write (a client that stopped reading) times out the same way.
+    timeout = REQUEST_TIMEOUT_S
+
+    def do_GET(self):
+        if not check_request(self):
+            return
+        path = self.path.partition("?")[0]
+        if path.startswith(JUMP_PREFIX):
+            send_json(self, 405, {"error": "method not allowed"})
+        elif path.startswith(NOTES_PREFIX):
+            handle_notes(self)
+        elif path.startswith(MESSAGE_PREFIX):
+            handle_message(self)
+        elif path == "/":
+            handle_root(self)
+        elif path == "/state":
+            handle_state(self)
+        elif path == "/events":
+            handle_events(self)
+        else:
+            send_json(self, 404, {"error": "not found"})
+
+    def do_POST(self):
+        if not check_request(self):
+            return
+        path = self.path.partition("?")[0]
+        if path.startswith(JUMP_PREFIX):
+            handle_jump(self)
+        elif path.startswith(NOTES_PREFIX) or path.startswith(MESSAGE_PREFIX):
+            send_json(self, 405, {"error": "method not allowed"})
+        else:
+            send_json(self, 404, {"error": "not found"})
+
+    def method_not_allowed(self):
+        if check_request(self):
+            send_json(self, 405, {"error": "method not allowed"})
+
+    do_HEAD = do_OPTIONS = do_PUT = do_PATCH = do_DELETE = method_not_allowed
+
+    def send_error(self, code, message=None, explain=None):
+        # the stock error page is HTML without our headers; `message` is dropped because for a
+        # malformed request line it echoes the client's text, which can carry the token
+        send_json(self, code, {"error": self.responses.get(code, ("error",))[0]})
+
+    def log_message(self, format, *args):
+        # a request line on stderr would break the "silent when healthy" contract
+        pass
+
+
+class BoardServer(ThreadingHTTPServer):
+    daemon_threads = True
+    live = False  # live mode: wall-clock `now`, and the recorder is running
+
+
+def make_server(replay_dir, now, port, live=False):
+    """Bind `port` on loopback, or the next free one of the following PORT_TRIES (not for port 0).
+    Raises OSError when the port cannot be bound; the last EADDRINUSE when all are busy."""
+    last = min(port + PORT_TRIES, 65535) if port else 0
+    for candidate in range(port, last + 1):
+        try:
+            server = BoardServer(("127.0.0.1", candidate), BoardHandler)
+        except OSError as e:
+            if e.errno != errno.EADDRINUSE or candidate == last:
+                raise
+            continue
+        server.replay_dir = replay_dir
+        server.now = now
+        server.token = secrets.token_urlsafe(16)
+        server.live = live
+        server.watcher = StateWatcher(replay_dir, now, live)
+        return server
+
+
+def die(message, code):
+    print("squad-board: " + message, file=sys.stderr)
+    return code
+
+
+def find_squad_dir():
+    """E1: $SQUAD_DIR, else <git toplevel>/squad, else ./squad. None when there is none to use."""
+    if os.environ.get("SQUAD_DIR"):
+        return os.environ["SQUAD_DIR"]
+    try:
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
+                             stdin=subprocess.DEVNULL, timeout=HERDR_TIMEOUT_S).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        top = ""
+    for candidate in ([os.path.join(top, "squad")] if top else []) + ["squad"]:
+        if os.path.isdir(candidate):
+            return candidate
+    return None
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="squad-board", description="Live board of the squad.")
+    parser.add_argument("--replay", metavar="DIR", help="read this squad folder; without it the board is live")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="0 lets the OS pick")
+    parser.add_argument("--now", metavar="ISO", help="fixed time for --replay, e.g. 2026-10-12T12:00:00Z")
+    args = parser.parse_args(argv)
+    live = args.replay is None
+    if live:
+        if args.now is not None:
+            return die("--now needs --replay (live mode uses the wall clock)", 2)
+        squad_dir = find_squad_dir()
+        if squad_dir is None:
+            return die("no squad folder: set SQUAD_DIR, or run where <git toplevel>/squad or ./squad exists", 2)
+        if not Path(squad_dir).is_dir():
+            return die("not a squad folder: %s" % squad_dir, 2)
+    else:
+        squad_dir = args.replay
+        if not Path(squad_dir).is_dir():
+            return die("not a directory: %s" % squad_dir, 2)
+    if args.now is not None and parse_ts(args.now) is None:
+        return die("--now must be an ISO time with a zone, e.g. 2026-10-12T12:00:00Z", 2)
+    if not 0 <= args.port <= 65535:
+        return die("--port must be 0..65535", 2)
+    try:
+        server = make_server(squad_dir, args.now, args.port, live)
+    except OSError as e:
+        if e.errno == errno.EADDRINUSE and args.port:
+            return die("ports %d..%d are all busy" % (args.port, min(args.port + PORT_TRIES, 65535)), 1)
+        return die("cannot bind port %d: %s" % (args.port, e.strerror), 1)
+    print("squad-board: http://127.0.0.1:%d/?token=%s" % (server.server_address[1], server.token), flush=True)
+    try:  # the recorder starts inside it: a Ctrl-C right after its thread starts must still end quietly
+        if live:
+            start_recorder(squad_dir, herdr_socket_path())
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -48,6 +48,18 @@ def squad_dir(name):
     return found[0].resolve()
 
 
+def open_board(squad):
+    """The board URL, or None: a board that cannot start never stops the Manager (squad-board-start is idempotent)."""
+    r = subprocess.run([str(PLUGIN / "bin" / "squad-board-start")], env={**os.environ, "SQUAD_DIR": str(squad)},
+                       capture_output=True, text=True)
+    url = r.stdout.strip()
+    if r.returncode == 0 and url:
+        return url
+    reason = (r.stderr.strip().splitlines() or ["no reason given"])[-1]
+    print(f"board not started: {reason}; run /squad:squad-board", file=sys.stderr)
+    return None
+
+
 def derive_name(text):
     ticket = re.search(r"\b[A-Z][A-Z0-9]*-\d+\b", text)
     if ticket:
@@ -116,7 +128,7 @@ def resume(squad, a):
         tab = json.loads(r.stdout).get("tab")
     except ValueError:
         tab = None
-    print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab}))
+    print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab, "board": open_board(squad)}))
 
 
 def main():
@@ -204,7 +216,7 @@ def main():
             tab = json.loads(r.stdout).get("tab")
         except ValueError:
             pass
-    print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab}))
+    print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab, "board": open_board(squad)}))
 
 
 if __name__ == "__main__":
