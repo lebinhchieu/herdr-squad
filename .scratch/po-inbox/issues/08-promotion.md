@@ -1,4 +1,4 @@
-Status: blocked (last task; the PO's merge is the promotion)
+Status: done
 Blocked by: 07
 Task ID: PI-08
 Files touched: `CONTEXT.md`, `docs/adr/0007-inbox-sits-on-escalations.md` (new), `.scratch/po-inbox/` status lines

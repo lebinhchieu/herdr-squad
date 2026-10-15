@@ -1,6 +1,6 @@
 # PO inbox
 
-Status: ready-for-agent (PO answered Q1–Q4 as recommended on 2026-10-15; QA blackbox AGREED the AC)
+Status: done
 
 **A Claude Code mod in the Manager's session that shows the PO a separate list of what the Manager needs the PO to read or answer, so none of it is buried in the working chat. The PO answers in the list; the answer reaches the Manager without the PO retyping it.** Brief: `scopes/po-inbox/scope.md`. Written by the BA, iteration 1 of scope `po-inbox`.
 

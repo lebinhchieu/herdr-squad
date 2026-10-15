@@ -1,4 +1,4 @@
-Status: ready-for-agent (design final; starts when PI-03 has passed QA whitebox: its sha is the base)
+Status: done
 Blocked by: 03 (the snapshot atom, `registerUi` seam, `/inbox`), the Designer's final design, spike S3
 Task ID: PI-04
 Design: ui-design/PI-04.md

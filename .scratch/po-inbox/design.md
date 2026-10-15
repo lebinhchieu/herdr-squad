@@ -1,6 +1,6 @@
 # PO inbox: design (Tech Lead)
 
-Status: draft for QA agreement. Spec: `spec.md` (B-01..B-36). Tickets: `issues/01..08`. Plan and order: `plan.md`.
+Status: done (Spec: `spec.md` B-01..B-36; tickets `issues/01..08`; plan `plan.md`)
 
 **Build a mod inside the squad plugin itself: one hooks module (`hooks/po-inbox/register.tsx`) that draws a band above the prompt (counts) and a pane (list, detail, answer), reads and writes everything through a new Python CLI `bin/squad-inbox`, and hands an answer to the Manager with `$.prompt.submit`.** Answer items stay rows of `escalations.md` (Q3b); read items live in `inbox.jsonl` in the Manager's home. The mod never parses or writes a file itself: the CLI is the single store, so Q3 can still change by replacing the CLI.
 

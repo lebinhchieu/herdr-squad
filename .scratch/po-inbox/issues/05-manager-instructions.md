@@ -1,4 +1,4 @@
-Status: ready-for-agent (PO approval of the wording before merge: role instruction change)
+Status: done
 Blocked by: none (command names are fixed in `design.md`)
 Task ID: PI-05
 Files touched: `agents/manager.md`, `tests/test_instructions.py`

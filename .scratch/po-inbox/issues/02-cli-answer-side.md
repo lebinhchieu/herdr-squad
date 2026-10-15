@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Blocked by: 01 (same `squadinbox.py` and `test_squadinbox*.py`; same Developer, no respawn)
 Task ID: PI-02
 Files touched: `bin/squad-inbox`, `bin/squadinbox.py`, `tests/test_squadinbox_answer.py` (new), `tests/fixtures/inbox/`

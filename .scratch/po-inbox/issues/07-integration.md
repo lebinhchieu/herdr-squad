@@ -1,4 +1,4 @@
-Status: blocked (waits for 01, 02, 03, 04, 05, [06])
+Status: done
 Blocked by: 01, 02, 03, 04, 05, 06 if built
 Task ID: PI-07
 Files touched: merges only; `.claude-plugin/plugin.json` (`version` bump), `tests/fixtures/inbox/` and `hooks/po-inbox/fixtures/` reconciliation, `tests/test_po_inbox_contract.py` (new), `tests/run_suite.py` (one line, AC7), `.scratch/po-inbox/` (AC8)

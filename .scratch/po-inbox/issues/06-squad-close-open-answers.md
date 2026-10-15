@@ -1,4 +1,4 @@
-Status: ready-for-agent (droppable: should-have, B-29)
+Status: done
 Blocked by: 01 (it reads `squad-inbox list --json --no-write`)
 Task ID: PI-06
 Files touched: `bin/squad-close`, `tests/test_squad_close.py`

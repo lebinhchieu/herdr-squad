@@ -166,7 +166,7 @@ The message a Developer sends to QA to give a finished task for checking. Not th
 _Avoid_: submit, handoff
 
 **Escalation**:
-A question that waits for the PO, written down by the Manager with options and a recommendation.
+A question that waits for the PO, written down by the Manager with options and a recommendation. An escalation is an answer item of the inbox; `escalations.md` stays the store of answer items.
 _Avoid_: blocker (a blocked agent waits on anything; an escalation waits on the PO)
 
 ## Squad board
@@ -197,6 +197,16 @@ Serving a copy of a squad folder at a fixed `--now` instead of live data. Tests 
 **Receipt**:
 The proof of one full test run on the final sha: `suite-default.txt` and `suite-tz.txt` in the ticket's evidence folder, made by `tests/run_suite.py --receipt`.
 
+## PO inbox
+
+**Inbox**:
+The PO-facing list in a Manager's session (a mod of the squad plugin): what the Manager needs the PO to read or answer, apart from the working chat. One per Manager home (a scope or a goal). Sources: `.scratch/po-inbox/`, `docs/adr/0007-inbox-sits-on-escalations.md`.
+_Avoid_: notifications, todo list
+
+**Item**:
+One entry of the inbox, with a short id (`E3`, `R1`). A **read item** is for reading and is cleared by "mark read"; it lives in `inbox.jsonl` in the Manager's home. An **answer item** needs a decision or reply and is a row of `escalations.md`. Only the Manager writes items.
+_Avoid_: message (a message is a `SendMessage`), ticket, task
+
 ## Relationships
 
 - A **Squad** holds many **Scopes** and **Goals** over time, each with its own folder and fresh **Manager** (a **Goal** has one **goal Manager** for all its **Scopes**).
@@ -204,3 +214,4 @@ The proof of one full test run on the final sha: `suite-default.txt` and `suite-
 - A **Scope** is split into **Tasks**; one **Developer** builds one **Task**.
 - A **Task** is **Done** only when the checkers its **Size** names pass it.
 - A **Home** belongs to one **Goal** or **Scope**; a **Bar** is drawn in the **Home** its start row came from.
+- An **Inbox** shows the open **Escalations** of its **Home** (answer items) and its own read items; the PO's answer is written into the escalation's Answer cell.

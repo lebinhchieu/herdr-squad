@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Blocked by: none
 Task ID: PI-01
 Files touched: `bin/squad-inbox` (new), `bin/squadinbox.py` (new), `tests/test_squadinbox.py` (new), `tests/fixtures/inbox/` (new)

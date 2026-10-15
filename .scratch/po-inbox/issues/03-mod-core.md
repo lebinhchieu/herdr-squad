@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Blocked by: none for the scaffold and spikes; its answer-delivery AC use the CLI of PI-01/02 only through fixtures
 Task ID: PI-03
 Files touched: `hooks/hooks.json` (add `modules`), `hooks/po-inbox/register.tsx`, `hooks/po-inbox/core.ts`, `hooks/po-inbox/ui.tsx` (stub), `hooks/po-inbox/*.test.ts`, `types/index.d.ts`, `.claude-plugin/plugin.json` (`types` only), `tests/test_po_inbox_mod.py`, `tests/test_hooks_json.py`
