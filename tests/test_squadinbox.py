@@ -90,7 +90,7 @@ class ProjectionTest(Base):
         self.assertEqual(items["E18"]["title"], "A row with no number")  # no `#`: above the max of the file and the log
         self.assertEqual(items["E19"]["title"], "Same number as the badge row")  # duplicate `#`
         self.assertEqual(items["E8"]["title"], "Ship the badge?")
-        self.assertEqual(snap["errors"], [{"file": "escalations.md", "row": 17, "message": "row has 3 cells, header has 7"}])
+        self.assertEqual(snap["errors"], [{"file": "escalations.md", "row": 17, "message": "row has 2 cells, header has 7"}])
         self.assertFalse(any(i["title"] == "" for i in snap["items"]))  # the blank row is skipped
 
     def test_contract_shape(self):  # AC6
@@ -129,6 +129,46 @@ class ProjectionTest(Base):
         snap = listing(h)
         self.assertEqual(snap["items"], [])
         self.assertEqual([(e["file"], e["row"]) for e in snap["errors"]], [("inbox.jsonl", 1)])
+
+    def test_live_row_wins_over_seen_snapshot(self):  # AC26
+        h = self.home
+        run(h, "add", "--kind", "answer", "--title", "Qlive?", "--options", "(a) x; (b) y", "--blocks", "PI-9", stdin="body")
+        listing(h)
+        t = (h / "escalations.md").read_text()
+        (h / "escalations.md").write_text(t.replace("(a) x; (b) y", "(a) x; (b) y; (c) z").replace("PI-9", ""))
+        it = [i for i in listing(h)["items"] if i["title"] == "Qlive?"][0]
+        self.assertEqual(([o["key"] for o in it["options"]], it["blocks"]), (["a", "b", "c"], ""))
+
+    def test_every_event_is_validated(self):  # AC27
+        h = self.home
+        run(h, "add", "--kind", "answer", "--title", "Qev?", stdin="body")
+        listing(h)
+        log = (h / "inbox.jsonl").read_text().splitlines()
+        key = next(json.loads(l)["key"] for l in log if '"Qev?"' in l)
+        bad = ['{"ev":"seen","id":"zz","key":"%s"}' % key, '{"ev":"seen","id":5,"key":"%s"}' % key, '{"ev":"seen","id":"E9"}',
+               '{"ev":"answer","id":"x"}', '{"ev":"withdraw"}', '{"ev":"delivered","id":7}', '{"ev":"read","id":"R0x"}',
+               '{"ev":"gone","id":null}', '{"ev":"filled","id":"e1"}']
+        before = len(listing(h)["items"])
+        with open(h / "inbox.jsonl", "a") as f:
+            f.write("\n".join(bad) + "\n")
+        snap = listing(h)
+        self.assertEqual(len(snap["items"]), before)
+        rows = sorted(e["row"] for e in snap["errors"] if e["file"] == "inbox.jsonl")
+        self.assertEqual(rows, list(range(len(log) + 1, len(log) + 1 + len(bad))))
+
+    def test_duplicate_answer_add_refused(self):  # AC28
+        h = self.home
+        self.assertEqual(run(h, "add", "--kind", "answer", "--title", "Qdup?", stdin="body").returncode, 0)
+        before = (h / "escalations.md").read_bytes()
+        r = run(h, "add", "--kind", "answer", "--title", "Qdup?", stdin="body")
+        self.assertEqual(r.returncode, 3, r.stderr)
+        self.assertEqual((h / "escalations.md").read_bytes(), before)
+
+    def test_short_row_reaching_the_question(self):  # AC29
+        h = self.empty_home()
+        (h / "escalations.md").write_text("| # | Date | Question | Options | Recommendation | Blocks | Answer |\n|---|---|---|---|---|---|---|\n| 4 | 2026-10-12 | short one |\n")
+        snap = listing(h)
+        self.assertEqual(([i["title"] for i in snap["items"]], snap["errors"]), (["short one"], []))
 
     def test_no_files(self):  # AC12, AC13
         h = self.empty_home()
@@ -416,12 +456,12 @@ class RowWriterTest(Base):
         return [(len(r), tuple(r)) for r in load_board().read_first_table(self.home / "escalations.md")]
 
     def test_each_break_becomes_one_br(self):
-        for ch in BREAKS:
+        for i, ch in enumerate(BREAKS):
             before = len(load_board().read_first_table(self.home / "escalations.md"))
-            run(self.home, "add", "--kind", "answer", "--title", "t", stdin="one%stwo" % ch)
+            run(self.home, "add", "--kind", "answer", "--title", "t%d" % i, stdin="one%stwo" % ch)
             rows = load_board().read_first_table(self.home / "escalations.md")
             self.assertEqual(len(rows), before + 1, repr(ch))
-            self.assertEqual(rows[0]["question"], "t<br>one<br>two", repr(ch))
+            self.assertEqual(rows[0]["question"], "t%d<br>one<br>two" % i, repr(ch))
             self.assertEqual(len(rows[0]), 7, repr(ch))
 
     def test_endings_pipes_and_backslashes(self):

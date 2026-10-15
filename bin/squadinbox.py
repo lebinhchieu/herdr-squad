@@ -122,7 +122,7 @@ def parse_options(raw):
 
 
 def row_key(date, question):
-    return hashlib.sha1((date + "|" + question).encode("utf-8")).hexdigest()[:10]
+    return hashlib.sha1((date + "|" + question).encode("utf-8", "surrogateescape")).hexdigest()[:10]
 
 
 def project_rows(text):
@@ -137,6 +137,8 @@ def project_rows(text):
     for no, cells in raw_rows:
         if all(not c for c in cells):
             continue
+        if len(cells) < len(header) and len(cells) > cm["question"]:  # like the board: a short row reaching the question is fine
+            cells = cells + [""] * (len(header) - len(cells))
         if len(cells) != len(header):
             errors.append({"file": TABLE, "row": no, "message": "row has %d cells, header has %d" % (len(cells), len(header))})
             continue
@@ -157,6 +159,9 @@ def title_of(question):
 
 # --- the log ------------------------------------------------------------------------------------------------------
 
+ID_RE = re.compile(r"[ER][0-9]{1,6}")
+
+
 def read_log(path):
     """(events, errors): a malformed line goes to errors and is skipped."""
     events, errors = [], []
@@ -169,6 +174,10 @@ def read_log(path):
                 raise ValueError("not an event object")
             if ev["ev"] == "add" and not all(isinstance(ev.get(k), str) and ev[k] for k in ("id", "title", "ts")):
                 raise ValueError("add event lacks id, title or ts")
+            if not isinstance(ev.get("id"), str) or not ID_RE.fullmatch(ev["id"]):
+                raise ValueError("event has no valid id")
+            if ev["ev"] == "seen" and not (isinstance(ev.get("key"), str) and ev["key"]):
+                raise ValueError("seen event has no key")
         except ValueError as e:
             errors.append({"file": LOG, "row": no, "message": "malformed line: %s" % e})
             continue
@@ -314,6 +323,9 @@ def fold(events, rows, ts):
         row = it.pop("_row", None)
         if it["kind"] != "answer":
             continue
+        if row is not None:  # the file is the truth while the row exists; the `seen` snapshot is for a removed row
+            it.update(title=title_of(row["question"]), body=row["question"], options=parse_options(row.get("options")),
+                      recommendation=row.get("recommendation") or None, blocks=clean_blocks(row.get("blocks")))
         if row is None:
             it["flags"].append("row-removed")
         if it["state"] != "open":
@@ -437,7 +449,11 @@ def add_row(home, title, body, options, rec, blocks):
         eol = "\r\n" if "\r\n" in raw else "\n"
         lines[sep_no - 1] = sep + eol
         lines.append(row)
-    atomic_write(path, "".join(lines))
+    text = "".join(lines)
+    same = [r for r in project_rows(text)[0] if r.get("#") == str(n)]
+    if same and sum(r["key"] == same[0]["key"] for r in project_rows(text)[0]) > 1:
+        raise Refused("an item with the same title and body was already added today", 3)
+    atomic_write(path, text)
     return "E%d" % n
 
 
