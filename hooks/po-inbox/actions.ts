@@ -22,6 +22,8 @@ const run = {
   isCommandRegistered: false,
   inflight: new Set<string>(),
   failed: new Set<string>(),
+  sent: new Set<string>(),
+  tries: new Map<string, number>(),
 }
 
 // T2: a Manager (SQUAD_ROLE=manager) with a home. Anything else loads the mod and does nothing.
@@ -59,9 +61,9 @@ export async function refresh($: any): Promise<boolean> {
     await update($, inboxAtom, () => parsed.snapshot)
     await setError($, null)
     const fresh = newOpenIds(prev, parsed.snapshot)
-    for (const it of parsed.snapshot.items.filter((i) => fresh.includes(i.id))) {
-      await $.ui.toast(toastText(it))
-    }
+    const added = parsed.snapshot.items.filter((i) => fresh.includes(i.id))
+    if (added.length === 1) await $.ui.toast(toastText(added[0]))
+    else if (added.length > 1) await $.ui.toast(`${added.length} new items in the inbox`)
     return true
   } catch (e) {
     try {
@@ -101,17 +103,23 @@ export async function tick($: any): Promise<void> {
 
 async function sendAndMark($: any, id: string, text: string): Promise<void> {
   try {
-    const sent = await $.prompt.submit({ text })
-    if (sent && sent.drop !== undefined) throw new Error(`the prompt was not accepted: ${sent.drop}`)
+    if (!run.sent.has(id)) {
+      const sent = await $.prompt.submit({ text })
+      if (sent && sent.drop !== undefined) throw new Error(`the prompt was not accepted: ${sent.drop}`)
+      run.sent.add(id)
+    }
     const r = await $.process.run(
       [`${$.plugin.root}/bin/squad-inbox`, 'delivered', id, '--session', String(await $.session.id())],
       { timeoutMs: CLI_TIMEOUT_MS },
     )
     if (r.exitCode !== 0) throw new Error(`squad-inbox delivered failed: ${failure(r)}`)
     run.failed.delete(id)
+    run.sent.delete(id)
+    run.tries.delete(id)
     await refresh($)
   } catch (e) {
-    // No `delivered`: the item stays answered-waiting and is retried at the next turn.complete.
+    // No `delivered`: retried once at the next turn.complete (the answer is never submitted twice),
+    // then dropped with the error left showing.
     run.failed.add(id)
     try {
       await setError($, e instanceof Error ? e.message : String(e))
@@ -127,6 +135,9 @@ async function sendAndMark($: any, id: string, text: string): Promise<void> {
 // (spike S1b): start it unawaited. One submit per item at a time.
 export function deliver($: any, item: { id: string; title: string }, answerText: string): void {
   if (run.inflight.has(item.id)) return
+  const tries = run.tries.get(item.id) ?? 0
+  if (tries >= 2) return
+  run.tries.set(item.id, tries + 1)
   run.inflight.add(item.id)
   void sendAndMark($, item.id, describePrompt(item, answerText))
 }
@@ -196,6 +207,8 @@ export function stop(): void {
   if (run.timer) run.timer.cancel()
   run.timer = undefined
   run.home = ''
+  run.sent.clear()
+  run.tries.clear()
 }
 
 export async function openPane($: any): Promise<void> {

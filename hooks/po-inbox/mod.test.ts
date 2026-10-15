@@ -212,6 +212,16 @@ test('toast: a first load none, an unchanged snapshot none, a new open id exactl
   expect(w.toasts.length).toBe(1)
 })
 
+test('toast: two new items in one change give one toast with the count', async ($, on) => {
+  let out = snapWith(['E1'])
+  const w = world(on, MANAGER, () => ok(out))
+  await $.session.start(START)
+  out = snapWith(['E1', 'E2', 'E3'])
+  w.mtime += 1
+  await w.clock.advance(2000)
+  expect(w.toasts).toEqual(['2 new items in the inbox'])
+})
+
 // --- (e) delivery -----------------------------------------------------------------------------
 
 const E3_ANSWER = { text: 'yes\nplease "do"', option: 'a', note: null, ts: 't', source: 'pane', delivered_ts: null }
@@ -321,6 +331,19 @@ test('failed submit: no delivered, one retry at the next turn.complete, none in 
   await $.turn.complete(TURN('t2'))
   await w.clock.settle()
   expect(w.submits.length).toBe(2)
+})
+
+test('delivered fails: the answer is submitted once, delivered retried once, then the error stays', async ($, on) => {
+  const w = world(on, MANAGER, (argv) => (argv[0] === 'delivered' ? { exitCode: 2, stdout: '', stderr: 'read-only' } : ok(ANSWERED)))
+  await $.session.start(START)
+  await w.clock.settle()
+  for (const t of ['t1', 't2', 't3', 't4']) {
+    await $.turn.complete(TURN(t))
+    await w.clock.settle()
+  }
+  expect(w.submits.length).toBe(1)
+  expect(verb(w, 'delivered').length).toBe(2)
+  expect(w.state.inboxError).toContain('delivered failed')
 })
 
 test('in flight: a queued submit that is still pending is not submitted again', async ($, on) => {
