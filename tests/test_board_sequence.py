@@ -18,6 +18,17 @@ from board_fixture import Fixture
 EXTRA_OPS = r"""
   async openPatched({ url, patch, width = 1280, height = 800, dpr = 1 }) {
     await reset(width, height, dpr);
+    // the stream here is one-shot, so "live" lasts a few ms before the page reconnects: latch it
+    await page.addInitScript(() => {
+      window.__wasLive = false;
+      // armed before the page's scripts; watches the whole document until #connection-state exists
+      const latch = () => {
+        const el = document.querySelector('#connection-state');
+        if (el && el.dataset.state === 'live') window.__wasLive = true;
+      };
+      new MutationObserver(latch).observe(document, { subtree: true, childList: true, attributes: true,
+        attributeFilter: ['data-state'] });
+    });
     const edit = new Function('state', patch);
     const origin = new URL(url).origin;
     // a handler that outlives its context must not throw: an unhandled rejection ends the driver
@@ -40,6 +51,8 @@ EXTRA_OPS = r"""
   async quiesce() { if (context) { await context.close(); context = null; page = null; } },
 """
 DRIVER_JS = page.DRIVER_JS.replace("const ops = {", "const ops = {" + EXTRA_OPS, 1)
+
+LIVED_JS = "window.__wasLive === true"  # openPatched's page: has been live (live is only transient there)
 
 ROW_H, ROWS_Y = 30, 180
 PILL = re.compile("⏱ (\\d+h \\d\\dm|\\d+m \\d\\ds|\\d+s)")  # an open bar's timer; a header total has no seconds
@@ -131,6 +144,14 @@ class SequenceCase(page.BrowserTestCase):
 
     def seq(self):
         return self.browser.eval(SEQ_MIRROR_JS)
+
+    def wait_lived(self):
+        try:
+            self.browser.wait(LIVED_JS)
+        except AssertionError as e:
+            seen = self.browser.eval("[window.__wasLive, (document.querySelector('#connection-state') || {dataset: {}}).dataset.state,"
+                                     " document.querySelectorAll('#rows li').length]")
+            raise AssertionError("%s (latch, #connection-state, rows: %r)" % (e, seen)) from None
 
     def drawn(self):
         return self.browser.eval("Array.from(window.__drawn)")
@@ -420,7 +441,7 @@ class BarTest(SequenceCase):
                            self_start: false, open: false, duration_s: 0, waiting: [], blocked: []});
           return state;"""
         self.browser.call("openPatched", url=self.url(), patch=patch)
-        self.browser.wait(page.LIVE_JS)
+        self.wait_lived()
         self.browser.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
         self.stay_at_top()
         x = self.cx("tech-shop")
@@ -628,7 +649,7 @@ class AnimationTest(SequenceCase):
 
     def test_a_board_with_no_iteration_does_not_draw_its_first_state_in(self):
         self.browser.call("openPatched", url=self.url(), patch="state.selected_iteration = null; return state;")
-        self.browser.wait(page.LIVE_JS)
+        self.wait_lived()
         self.browser.wait("document.querySelectorAll('#rows li').length > 100")
         self.first_arrow_is_drawn_already()
 
@@ -642,7 +663,7 @@ class AnimationTest(SequenceCase):
           }
           return state;""" % (int(time.time() * 1000) + 2500)
         self.browser.call("openPatched", url=self.url(), patch=patch)
-        self.browser.wait(page.LIVE_JS)
+        self.wait_lived()
         self.browser.wait("document.querySelectorAll('#rows li').length === 1", timeout=15000)
         self.first_arrow_is_drawn_already()
 
@@ -766,7 +787,7 @@ class WindowTest(SequenceCase):
 
     def open_rows(self, count, **kw):
         self.browser.call("openPatched", url=self.url(), patch=self.PATCH % (count, count), **kw)
-        self.browser.wait(page.LIVE_JS)
+        self.wait_lived()
         self.browser.wait("document.querySelectorAll('#rows li').length === %d" % count)
         self.browser.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
         self.stay_at_top()
@@ -893,7 +914,7 @@ class EdgeTest(SequenceCase):
                            self_start: true, open: true, duration_s: 1, waiting: [], blocked: []});
           return state;"""
         self.browser.call("openPatched", url=self.url(), patch=patch)
-        self.browser.wait(page.LIVE_JS)
+        self.wait_lived()
         self.assertEqual(self.browser.eval(NAN_JS), [])
         self.assertEqual(self.browser.call("events")["errors"], [])
         self.assertEqual(len(self.seq()["rows"]), len(self.srv.state()["rows"]) + 2)
@@ -905,7 +926,7 @@ class EdgeTest(SequenceCase):
                            start_ts: state.now, end_ts: state.now, duration_s: 1}]});
           return state;"""
         self.browser.call("openPatched", url=self.url(), patch=patch)
-        self.browser.wait(page.LIVE_JS)
+        self.wait_lived()
         self.assertEqual(self.browser.eval(NAN_JS), [])
         self.assertEqual(self.browser.call("events")["errors"], [])
 
