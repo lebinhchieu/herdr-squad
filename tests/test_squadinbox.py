@@ -117,6 +117,19 @@ class ProjectionTest(Base):
         items = listing(h)["items"]
         self.assertEqual([(i["id"], i["blocks"]) for i in items], [("R2", "PI-9"), ("R1", "")])
 
+    def test_nothing_is_not_blocking(self):  # QA-B F1
+        h = self.empty_home()
+        for t, b in (("A", " Nothing "), ("B", "-")):
+            run(h, "add", "--kind", "read", "--title", t, "--blocks", b, stdin="b")
+        self.assertEqual([i["blocks"] for i in listing(h)["items"]], ["", ""])
+
+    def test_add_event_missing_fields_is_an_error(self):  # QA-B F2
+        h = self.empty_home()
+        (h / "inbox.jsonl").write_text('{"ev":"add","id":"R2"}\n')
+        snap = listing(h)
+        self.assertEqual(snap["items"], [])
+        self.assertEqual([(e["file"], e["row"]) for e in snap["errors"]], [("inbox.jsonl", 1)])
+
     def test_no_files(self):  # AC12, AC13
         h = self.empty_home()
         snap = listing(h, "--no-write")

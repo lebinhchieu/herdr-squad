@@ -167,6 +167,8 @@ def read_log(path):
             ev = json.loads(line)
             if not isinstance(ev, dict) or not isinstance(ev.get("ev"), str):
                 raise ValueError("not an event object")
+            if ev["ev"] == "add" and not all(isinstance(ev.get(k), str) and ev[k] for k in ("id", "title", "ts")):
+                raise ValueError("add event lacks id, title or ts")
         except ValueError as e:
             errors.append({"file": LOG, "row": no, "message": "malformed line: %s" % e})
             continue
@@ -255,6 +257,12 @@ def fold_marks(events):
 
 # --- folding to the contract --------------------------------------------------------------------------------------
 
+def clean_blocks(text):
+    """'nothing' and '-' mean the item blocks nothing."""
+    text = (text or "").strip()
+    return "" if text.lower() in ("nothing", "-") else text
+
+
 def iso_day(date):
     return date + "T00:00:00Z" if re.fullmatch(r"\d{4}-\d{2}-\d{2}", date or "") else None
 
@@ -267,13 +275,13 @@ def fold(events, rows, ts):
         ev, eid = e["ev"], e.get("id")
         if ev == "add":
             items[eid] = {"id": eid, "kind": "read", "state": "open", "title": e.get("title", ""), "body": e.get("body", ""),
-                          "options": None, "recommendation": None, "blocks": e.get("blocks") or "",
+                          "options": None, "recommendation": None, "blocks": clean_blocks(e.get("blocks")),
                           "created": e.get("ts"), "created_precision": "second", "answer": None, "done": None, "flags": []}
         elif ev == "seen":
             row = by_key.get(e.get("key"))
             items[eid] = {"id": eid, "kind": "answer", "state": "open", "title": e.get("title", ""), "body": e.get("body", ""),
                           "options": parse_options(e.get("options")), "recommendation": e.get("rec") or None,
-                          "blocks": e.get("blocks") or "", "created": iso_day(e.get("date")) or e.get("ts"),
+                          "blocks": clean_blocks(e.get("blocks")), "created": iso_day(e.get("date")) or e.get("ts"),
                           "created_precision": "day" if iso_day(e.get("date")) else "second", "answer": None,
                           "done": None, "flags": [], "_row": row}
     for e in events:
