@@ -1,0 +1,21 @@
+{"ev": "add", "id": "R1", "ts": "2026-10-14T09:00:00Z", "title": "Read the summary", "body": "Line one\nLine two", "blocks": "PI-04"}
+{"ev": "add", "id": "R2", "ts": "2026-10-13T09:00:00Z", "title": "Old news", "body": "Done already", "blocks": ""}
+{"ev": "read", "id": "R2", "ts": "2026-10-14T12:00:00Z"}
+{"ev": "add", "id": "R3", "ts": "2026-10-13T10:00:00Z", "title": "Overtaken", "body": "No longer true", "blocks": ""}
+{"ev": "withdraw", "id": "R3", "ts": "2026-10-14T13:00:00Z", "reason": "overtaken"}
+{"ev": "seen", "id": "E11", "ts": "2026-10-14T08:00:00Z", "key": "c4f95bdae9", "title": "Answered, waiting for the Manager", "body": "Answered, waiting for the Manager", "options": "(a) x; (b) y", "rec": "", "blocks": "PI-02", "date": "2026-10-14", "row_no": 0}
+{"ev": "answer", "id": "E11", "ts": "2026-10-14T14:00:00Z", "text": "(a) x", "option": "a", "note": null, "source": "pane"}
+{"ev": "seen", "id": "E13", "ts": "2026-10-14T08:00:00Z", "key": "0a447a0831", "title": "Answered and delivered", "body": "Answered and delivered", "options": "(a) x; (b) y", "rec": "", "blocks": "", "date": "2026-10-14", "row_no": 0}
+{"ev": "answer", "id": "E13", "ts": "2026-10-14T14:10:00Z", "text": "(b) y\nwith a note", "option": "b", "note": "with a note", "source": "pane"}
+{"ev": "delivered", "id": "E13", "ts": "2026-10-14T14:11:00Z", "session": "s1"}
+{"ev": "seen", "id": "E14", "ts": "2026-10-14T08:00:00Z", "key": "fe599cace2", "title": "Answered in chat", "body": "Answered in chat", "options": "(a) x; (b) y", "rec": "", "blocks": "", "date": "2026-10-14", "row_no": 0}
+{"ev": "answer", "id": "E14", "ts": "2026-10-14T14:20:00Z", "text": "(a) x", "option": "a", "note": null, "source": "chat"}
+{"ev": "seen", "id": "E15", "ts": "2026-10-14T08:00:00Z", "key": "308c5533f3", "title": "Withdrawn by the Manager", "body": "Withdrawn by the Manager", "options": "(a) x; (b) y", "rec": "", "blocks": "", "date": "2026-10-14", "row_no": 0}
+{"ev": "withdraw", "id": "E15", "ts": "2026-10-14T14:30:00Z", "reason": "no longer needed"}
+{"ev": "seen", "id": "E16", "ts": "2026-10-14T08:00:00Z", "key": "4db1ac320f", "title": "Row deleted while open", "body": "Row deleted while open", "options": "(a) x; (b) y", "rec": "", "blocks": "", "date": "2026-10-11", "row_no": 0}
+{"ev": "gone", "id": "E16", "ts": "2026-10-14T15:00:00Z"}
+{"ev": "seen", "id": "E17", "ts": "2026-10-14T08:00:00Z", "key": "186d566d88", "title": "Answered in chat, row deleted", "body": "Answered in chat, row deleted", "options": "(a) x; (b) y", "rec": "", "blocks": "", "date": "2026-10-11", "row_no": 0}
+{"ev": "answer", "id": "E17", "ts": "2026-10-14T15:10:00Z", "text": "(b) y", "option": "b", "note": null, "source": "chat"}
+{"ev": "seen", "id": "E12", "ts": "2026-10-14T08:00:00Z", "key": "16834ba1cd", "title": "Waiting, row deleted", "body": "Waiting, row deleted", "options": "(a) x; (b) y", "rec": "", "blocks": "", "date": "2026-10-11", "row_no": 0}
+{"ev": "answer", "id": "E12", "ts": "2026-10-14T15:20:00Z", "text": "(a) x", "option": "a", "note": null, "source": "pane"}
+{"ev": "gone", "id": "E12", "ts": "2026-10-14T15:21:00Z"}

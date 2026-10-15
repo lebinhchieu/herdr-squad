@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""PO inbox store: read items in inbox.jsonl, answer items as rows of escalations.md.
+
+  squad-inbox add --kind read|answer --title T [--body-file F] [--options "(a) x; (b) y"] [--rec R] [--blocks X]
+  squad-inbox list [--json] [--open] [--no-write]
+  squad-inbox read R<n>
+
+The home is --home D, else $SCOPE_DIR, else $GOAL_DIR. Exit 0 ok, 2 refused (bad input, wrong role), 3 already handled.
+"""
+import argparse
+import sys
+import os
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadinbox as si  # noqa: E402
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(prog="squad-inbox", description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+    p.add_argument("--home", help="the Manager's home folder (default $SCOPE_DIR, then $GOAL_DIR)")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    a = sub.add_parser("add")
+    a.add_argument("--kind", required=True)
+    a.add_argument("--title")
+    a.add_argument("--body-file")
+    a.add_argument("--options")
+    a.add_argument("--rec")
+    a.add_argument("--blocks")
+    ls = sub.add_parser("list")
+    ls.add_argument("--json", action="store_true")
+    ls.add_argument("--open", action="store_true")
+    ls.add_argument("--no-write", action="store_true")
+    r = sub.add_parser("read")
+    r.add_argument("id")
+    args = p.parse_args(argv)
+    try:
+        return si.run(args)
+    except si.Refused as e:
+        print("squad-inbox: %s" % e, file=sys.stderr)
+        return e.code
+
+
+if __name__ == "__main__":
+    sys.exit(main())
