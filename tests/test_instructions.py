@@ -91,5 +91,50 @@ class InstructionsTest(unittest.TestCase):
         self.assertIn("`designer`", (ROOT / "agents/manager.md").read_text())
 
 
+SECTION_ROLES = ("dev", "qa-whitebox", "qa-blackbox", "designer")
+# Literal copy of the role table (PS-01's map is not on this branch); a citation outside it is read with --also.
+VIEW = {"dev": ["Messages", "Task lifecycle", "Cost rules", "Safety"],
+        "qa-whitebox": ["Messages", "Task lifecycle", "Cost rules", "Safety"],
+        "qa-blackbox": ["Messages", "Task lifecycle", "Cost rules", "Safety"],
+        "designer": ["Messages", "Cost rules", "Safety"]}
+OUTSIDE_VIEW = {"dev": ["Inside a goal"], "designer": ["Notes"]}
+
+
+class SectionViewTest(unittest.TestCase):
+    def test_each_section_role_runs_its_own_show_command(self):
+        for name in SECTION_ROLES:
+            text = (ROOT / f"agents/{name}.md").read_text()
+            self.assertIn(f"squad-process show {name}", text)
+            self.assertNotIn("Read `$SQUAD_DIR/process.md`", text)
+
+    def test_other_roles_do_not_use_show(self):
+        for name in ("manager", "tech-lead", "ba", "team-lead", "token-coach"):
+            self.assertNotIn("squad-process show", (ROOT / f"agents/{name}.md").read_text(), name)
+
+    def test_every_citation_is_in_the_role_view_or_listed_as_outside_it(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("citations", ROOT / "tests/test_process_citations.py")
+        citations = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(citations)
+        CITATION = citations.CITATION
+        for name in SECTION_ROLES:
+            text = (ROOT / f"agents/{name}.md").read_text()
+            outside = OUTSIDE_VIEW.get(name, [])
+            for m in CITATION.finditer(text):
+                head = m.group(1).split("→")[0].strip()
+                known = [h for h in VIEW[name] + outside if head.startswith(h)]
+                self.assertTrue(known, f"{name}.md cites {head!r} outside its view: add it to OUTSIDE_VIEW or drop it")
+            if outside:
+                self.assertIn("--also", text, name)
+
+
+    def test_show_is_allowed_for_exactly_the_four_roles_and_never_as_a_wildcard(self):
+        import json
+        for f in sorted((ROOT / "templates/squad/settings").glob("*.json")):
+            allow = json.loads(f.read_text())["permissions"]["allow"]
+            self.assertEqual("Bash(squad-process show:*)" in allow, f.stem in SECTION_ROLES, f.name)
+            self.assertNotIn("Bash(squad-process:*)", allow, f.name)
+
+
 if __name__ == "__main__":
     unittest.main()
