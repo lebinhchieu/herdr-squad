@@ -91,6 +91,25 @@ class InstructionsTest(unittest.TestCase):
         self.assertIn("`designer`", (ROOT / "agents/manager.md").read_text())
 
 
+class ManagerInboxTest(unittest.TestCase):
+    text = (ROOT / "agents/manager.md").read_text()
+
+    def test_the_manager_names_each_inbox_command_and_flag(self):
+        for token in ("squad-inbox add", "--kind answer", "(a) ", "squad-inbox answer", "--source chat", "squad-inbox withdraw",
+                      '--blocks ""'):
+            self.assertIn(token, self.text)
+
+    def test_an_inbox_answer_is_never_a_merge_push_or_deploy_request(self):
+        self.assertRegex(self.text, r"(?is)never[^.]*merge, push or deploy[^.]*inbox|never[^.]*inbox[^.]*merge, push or deploy"
+                         r"|inbox[^.]*never[^.]*merge, push or deploy")
+        self.assertIn("\n## Never\n", self.text)
+
+    def test_every_squad_inbox_word_is_a_cli_command(self):
+        words = set(re.findall(r"squad-inbox ([a-z]+)", self.text))
+        self.assertTrue(words)
+        self.assertLessEqual(words, {"add", "list", "read", "answer", "withdraw", "delivered"})
+
+
 SECTION_ROLES = ("dev", "qa-whitebox", "qa-blackbox", "designer")
 # Literal copy of the role table (PS-01's map is not on this branch); a citation outside it is read with --also.
 VIEW = {"dev": ["Messages", "Task lifecycle", "Cost rules", "Safety"],
