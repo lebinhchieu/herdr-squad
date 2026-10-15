@@ -102,6 +102,11 @@ class ManagerInboxTest(unittest.TestCase):
     def test_the_add_bullet_says_the_body_comes_from_a_quoted_heredoc(self):  # PI-07 AC9
         self.assertIn("body in a quoted heredoc, `squad-inbox add ... <<'EOF' … EOF`; no pipe and no unquoted heredoc (the body would show in chat)", self.text)
 
+    def test_the_inbox_bullets_carry_the_three_live_wording_rules(self):  # PI-08 AC4
+        self.assertIn("One `squad-inbox add` per Bash call, never two.", self.text)  # M1
+        self.assertIn("your reply is the printed line and nothing else: no body, options or recommendation", self.text)  # M2
+        self.assertIn("Run `squad-inbox list` first; never answer from memory of what is open.", self.text)  # M3
+
     def test_an_inbox_answer_is_never_a_merge_push_or_deploy_request(self):
         self.assertRegex(self.text, r"(?is)never[^.]*merge, push or deploy[^.]*inbox|never[^.]*inbox[^.]*merge, push or deploy"
                          r"|inbox[^.]*never[^.]*merge, push or deploy")
