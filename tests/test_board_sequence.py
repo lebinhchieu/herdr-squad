@@ -142,7 +142,7 @@ class SequenceCase(page.BrowserTestCase):
     def stay_at_top(self):
         """A live page follows the bottom (BRD-14) and pins it again on every resize. These tests sample
         or scroll the page themselves, so a wheel and a scroll to the top pause the follow first."""
-        self.browser.eval("window.dispatchEvent(new Event('wheel')); window.scrollTo(0, 0)")
+        self.browser.pause_follow()
         self.browser.call("sleep", ms=500)  # past the page's 400 ms "this is the user" window
         self.browser.eval("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
 
