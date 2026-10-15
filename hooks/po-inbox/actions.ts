@@ -184,7 +184,7 @@ export async function answerItem($: any, input: AnswerInput): Promise<AnswerResu
   const item: InboxItem | undefined = snap?.items.find((it) => it.id === input.id)
   if (!item?.answer) {
     // Recorded but not readable back: send nothing; the item stays answered-waiting and the redelivery sends the recorded text.
-    return { ok: true, message: `${input.id} answered; delivery to the Manager waits for the next load` }
+    return { ok: true, message: `${input.id} answered; it is delivered to the Manager at the next start` }
   }
   deliver($, { id: input.id, title: item.title }, item.answer.text)
   return { ok: true }

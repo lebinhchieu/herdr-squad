@@ -259,6 +259,24 @@ test('delivery: answer exit 0 submits once with describePrompt text, then delive
   expect(w.runs.findIndex((x) => x.argv[1] === 'delivered')).toBeGreaterThan(w.runs.findIndex((x) => x.argv[1] === 'answer'))
 })
 
+test('delivery: the submit carries the snapshot answer text, not the pane input', async (_$, on) => {
+  const recorded = JSON.stringify({
+    ...JSON.parse(MIXED),
+    items: [{ ...JSON.parse(MIXED).items[0], state: 'answered-waiting', answer: { ...E3_ANSWER, text: '(a) Merge now\nbecause' } }],
+  })
+  let answered = false
+  const cli = (argv: string[]) => {
+    if (argv[0] === 'answer') return (answered = true, ok(''))
+    if (argv[0] === 'delivered') return ok('')
+    return ok(answered ? recorded : MIXED)
+  }
+  const w = world(on, MANAGER, cli)
+  await answerItem(fakeDollar(w, cli), { id: 'E3', option: 'a', note: 'because' })
+  await new Promise((r) => setTimeout(r, 20))
+  expect(w.submits.length).toBe(1)
+  expect(w.submits[0].endsWith('\n\n(a) Merge now\nbecause')).toBe(true)
+})
+
 test('delivery: exit 3 shows the message and submits nothing', async (_$, on) => {
   const cli = (argv: string[]) =>
     argv[0] === 'answer' ? { exitCode: 3, stdout: '', stderr: 'E3 was answered by chat at 10:02\n' } : ok(MIXED)
