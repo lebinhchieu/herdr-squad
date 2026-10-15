@@ -103,6 +103,7 @@ class ManagerInboxTest(unittest.TestCase):
         self.assertRegex(self.text, r"(?is)never[^.]*merge, push or deploy[^.]*inbox|never[^.]*inbox[^.]*merge, push or deploy"
                          r"|inbox[^.]*never[^.]*merge, push or deploy")
         self.assertIn("\n## Never\n", self.text)
+        self.assertIn("needs their explicit request here", self.text)
 
     def test_every_squad_inbox_word_is_a_cli_command(self):
         words = set(re.findall(r"squad-inbox ([a-z]+)", self.text))
