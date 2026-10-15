@@ -325,6 +325,17 @@ class FileShapeTest(Base):
         self.assertEqual(self.one(pre + (head + row + "\n").encode()),
                          pre + (head + row.replace("|  |", "| ok \\| x |") + "\n").encode())
 
+    def test_stdin_cap(self):
+        cap = squadinbox.MAX_BODY
+        before = (self.home / "escalations.md").read_bytes()
+        r = run(self.home, "answer", "E8", "--source", "pane", stdin="x" * (cap + 1))
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertEqual((self.home / "escalations.md").read_bytes(), before)
+        self.assertEqual(len(events(self.home, "answer")), 5)
+        r = run(self.home, "answer", "E8", "--source", "pane", stdin="x" * cap)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(events(self.home, "answer")), 6)
+
     def test_short_row_is_padded(self):
         for name, head, short, want in (
             ("last", "| # | Date | Question | Options | Answer |\n|---|---|---|---|---|\n", "| 5 | 2026-10-14 | Q? |", "| 5 | 2026-10-14 | Q? | | t |"),
@@ -365,7 +376,8 @@ class WithdrawDeliveredTest(Base):
         row = [r for r in load_board().read_first_table(self.home / "escalations.md") if r.get("question", "").startswith("Ship")][0]
         self.assertEqual(row["answer"], "withdrawn: not needed")
         before = (self.home / "escalations.md").read_bytes()
-        self.assertEqual(run(self.home, "withdraw", "R1", "--reason", "old").returncode, 0)
+        r = run(self.home, "withdraw", "R1", "--reason", "old")
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
         self.assertEqual((self.home / "escalations.md").read_bytes(), before)
         self.assertEqual(by_id(listing(self.home))["R1"]["done"]["kind"], "withdrawn")
         self.assertEqual(run(self.home, "withdraw", "R1", "--reason", "again").returncode, 3)
