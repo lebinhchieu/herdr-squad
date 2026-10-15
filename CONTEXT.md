@@ -82,6 +82,10 @@ _Avoid_: interface, spec
 The integer on the line `process-version: <N>` in a squad's `process.md`. A squad without the line is version 1. The plugin's template carries the current version; a squad is *behind* when its number is lower.
 _Avoid_: schema version, template version
 
+**Section view**:
+What `squad-process show <role>` prints for a role: its sections of `process.md` plus the title section, from the same one file. Manager and Tech Lead read the whole file.
+_Avoid_: split file, role copy
+
 **Process changelog**:
 The plugin's list of changes to the `process.md` template, one `##` per version and one `###` item per change (sections, kind, why, old and new wording), next to a pristine copy of every released version. The update reads it.
 _Avoid_: release notes

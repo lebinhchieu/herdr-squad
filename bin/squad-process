@@ -92,7 +92,11 @@ def main(argv=None):
         p.add_argument("--json", action="store_true")
         if name == "check":
             p.add_argument("--quiet", action="store_true", help="print nothing when current and stamped")
-    sh = sub.add_parser("show")
+    sh = sub.add_parser(
+        "show", help="print the sections of process.md a role needs",
+        description="Prints the sections of process.md a role needs. Valid roles: "
+        + ", ".join(list(sp.ROLE_SECTIONS) + list(sp.WHOLE_FILE_ROLES))
+        + ". The first four read a section view; any other role gets the whole file.")
     sh.add_argument("role")
     sh.add_argument("--also", action="append", default=[], metavar="HEADING")
     sh.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))

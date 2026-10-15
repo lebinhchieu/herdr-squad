@@ -204,6 +204,15 @@ class ErrorTest(Squad):
         self.assertIn("show", r.stdout)
         self.assertIn("squad-process show", CLI.read_text().split('"""')[1])
 
+    def test_show_help_has_purpose_and_roles(self):
+        r = subprocess.run([sys.executable, str(CLI), "show", "--help"], capture_output=True, text=True)
+        text = " ".join(r.stdout.split())
+        self.assertIn("Prints the sections of process.md a role needs", text)
+        for role in list(sp.ROLE_SECTIONS) + list(sp.WHOLE_FILE_ROLES):
+            self.assertIn(role, text)
+        h = subprocess.run([sys.executable, str(CLI), "--help"], capture_output=True, text=True)
+        self.assertIn("print the sections of process.md a role needs", " ".join(h.stdout.split()))
+
 
 class TemplatePinTest(unittest.TestCase):
     @staticmethod
