@@ -206,7 +206,10 @@ def append_events(path, events):
 
 @contextmanager
 def locked(home):
-    fd = os.open(os.path.join(home, LOCK), os.O_WRONLY | os.O_CREAT, 0o644)
+    try:
+        fd = os.open(os.path.join(home, LOCK), os.O_WRONLY | os.O_CREAT, 0o644)
+    except OSError as e:
+        raise Refused("cannot open %s: %s" % (os.path.join(home, LOCK), e.strerror or e), 1)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
         yield
@@ -338,6 +341,8 @@ def fold(events, rows, ts):
                       options_raw=raw_options(row.get("options")), recommendation=row.get("recommendation") or None, blocks=clean_blocks(row.get("blocks")))
         if row is None:
             it["flags"].append("row-removed")
+        elif it["answer"] and not row.get("answer"):
+            it["flags"].append("cell-not-written")
         if it["state"] != "open":
             continue
         if row is None:
@@ -485,13 +490,18 @@ def set_answer_cell(home, key, text):
         raise Refused("cannot write the Answer cell: %d rows match" % len(hits) + (
             " (lines %s)" % ", ".join(str(no) for no, _ in hits) if hits else ""), 1)
     no, cells = hits[0]
-    if len(cells) != len(header):
+    if len(cells) > len(header):
         raise Refused("row on line %d has %d cells, header has %d" % (no, len(cells), len(header)), 1)
     lines = raw.splitlines(keepends=True)
     line = lines[no - 1]
     content = line.rstrip("\r\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029")
     tail = line[len(content):]
     stripped = content.rstrip()
+    if len(cells) < len(header):  # a short row: pad it to the header width so the Answer cell exists
+        if not re.search(r"(?<!\\)\|$", stripped):
+            stripped += " |"
+        stripped += " |" * (len(header) - len(cells))
+        content = stripped
     pipes = [m.start() for m in re.finditer(r"(?<!\\)\|", stripped)]
     start = pipes[idx] + 1  # cell k sits after pipe k; pipe 0 opens the row
     end = pipes[idx + 1] if idx + 1 < len(pipes) else len(stripped)

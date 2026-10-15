@@ -236,6 +236,7 @@ class CellFailureTest(Base):
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertIn("not written", r.stderr)
                 self.assertEqual(by_id(listing(self.home, "--no-write"))["E8"]["state"], "answered-waiting")
+                self.assertIn("cell-not-written", by_id(listing(self.home))["E8"]["flags"])
                 if name == "symlink":
                     self.assertTrue(path.is_symlink())
                     self.assertEqual((self.home / "real.md").read_bytes(), good)
@@ -243,6 +244,30 @@ class CellFailureTest(Base):
                     (self.home / "real.md").rename(path)
                 (self.home / "inbox.jsonl").write_text("".join(l + "\n" for l in (self.home / "inbox.jsonl").read_text().split("\n")
                                                               if '"answer", "id": "E8"' not in l and '"ev": "answer", "id": "E8"' not in l))
+
+    def test_short_row_is_padded_and_answered(self):
+        path = self.home / "escalations.md"
+        path.write_text(path.read_text().rstrip("\n") + "\n| 9 | 2026-10-15 | Short row |\n")
+        item = [i for i in listing(self.home)["items"] if i["title"] == "Short row"][0]
+        r = run(self.home, "answer", item["id"], "--text", "x | y", "--source", "pane")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stderr, "")
+        row = [r for r in load_board().read_first_table(path) if r.get("question") == "Short row"][0]
+        self.assertEqual(row["answer"], "x | y")
+        self.assertEqual(by_id(listing(self.home))[item["id"]]["flags"], [])
+
+    def test_unwritable_home_is_one_clean_line(self):
+        if os.geteuid() == 0:
+            self.skipTest("root ignores modes")
+        os.chmod(self.home, 0o555)
+        try:
+            r = run(self.home, "answer", "E8", "--option", "a", "--source", "pane")
+        finally:
+            os.chmod(self.home, 0o755)
+        self.assertEqual(r.returncode, 1)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertEqual(len(r.stderr.strip().splitlines()), 1)
+        self.assertIn("inbox.jsonl.lock", r.stderr)
 
     def test_duplicate_key_names_both_rows(self):
         path = self.home / "escalations.md"
@@ -300,16 +325,34 @@ class FileShapeTest(Base):
         self.assertEqual(self.one(pre + (head + row + "\n").encode()),
                          pre + (head + row.replace("|  |", "| ok \\| x |") + "\n").encode())
 
-    def test_short_row_is_not_written(self):
-        h = self.home / "short"
+    def test_short_row_is_padded(self):
+        for name, head, short, want in (
+            ("last", "| # | Date | Question | Options | Answer |\n|---|---|---|---|---|\n", "| 5 | 2026-10-14 | Q? |", "| 5 | 2026-10-14 | Q? | | t |"),
+            ("middle", "| # | Date | Question | Answer | Blocks |\n|---|---|---|---|---|\n", "| 5 | 2026-10-14 | Q? |", "| 5 | 2026-10-14 | Q? | t | |"),
+        ):
+            with self.subTest(name):
+                h = self.home / name
+                os.makedirs(h)
+                tail = "\n| 6 | 2026-10-14 | Other | | |\n" if name == "middle" else "\n"
+                (h / "escalations.md").write_bytes(("# T\n\n" + head + short + tail).encode())
+                r = run(h, "answer", "E5", "--text", "t", "--source", "pane")
+                self.assertEqual((r.returncode, r.stderr), (0, ""))
+                got = (h / "escalations.md").read_text()
+                self.assertTrue(got.startswith("# T\n\n" + head), got)
+                rows = [l for l in got.splitlines() if l.startswith("| 5 ")]
+                self.assertEqual([c.strip() for c in rows[0].strip("|").split("|")], [c.strip() for c in want.strip("|").split("|")])
+                self.assertEqual(got.count("\n"), ("# T\n\n" + head + short + tail).count("\n"))
+                self.assertEqual(by_id(listing(h))["E5"]["flags"], [])
+
+    def test_invalid_utf8_row_flags_cell_not_written(self):
+        h = self.home / "bad"
         os.makedirs(h)
         head = "| # | Date | Question | Options | Answer |\n|---|---|---|---|---|\n"
-        content = (head + "| 5 | 2026-10-14 | Q? |\n").encode()
-        (h / "escalations.md").write_bytes(content)
+        (h / "escalations.md").write_bytes((head + "| 5 | 2026-10-14 | Q").encode() + b"\xff? | | |\n")
         r = run(h, "answer", "E5", "--text", "t", "--source", "pane")
         self.assertEqual(r.returncode, 0)
         self.assertIn("not written", r.stderr)
-        self.assertEqual((h / "escalations.md").read_bytes(), content)
+        self.assertEqual(by_id(listing(h, "--no-write"))["E5"]["flags"], ["cell-not-written"])
 
 
 class WithdrawDeliveredTest(Base):
