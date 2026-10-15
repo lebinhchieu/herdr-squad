@@ -204,7 +204,7 @@ Both logs live in the squad folder, append only, one JSON object per line, never
 
 - **Layout:** the needs-you bar on top, the sequence in the centre, the task column on the right, and the side panel over the sequence when an agent is selected.
 - **Header:** status dot, ⏱ working total, ⛔ blocked total when non-zero, and context tokens as a raw count.
-- **Following:** the page follows live; scrolling up pauses; "↓ live" resumes; the iteration picker reloads history for that iteration.
+- **Following:** the page follows live; scrolling up pauses; "↓ live" resumes; the iteration picker reloads history for that iteration. A user scroll up (wheel, scroll key or scrollbar drag) always pauses the follow, and an update or resize never undoes it. The follow changes only by a user gesture: back to live is the `↓ live` button or scrolling to within 40 px of the bottom; a gesture that moves nothing leaves the page Live and at the bottom.
 - **Notification:** asked permission once; fires with a chime only for needs-you items it hasn't seen before.
 - **Palette:** from the Mango Parrot light theme:
   - background `#FCF8F1`, panel `#F4ECDD`, border `#E7DBC8`, ink `#3E372E`, muted `#857A68`;
