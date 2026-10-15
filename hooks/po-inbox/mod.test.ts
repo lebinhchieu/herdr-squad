@@ -270,6 +270,21 @@ test('delivery: exit 3 shows the message and submits nothing', async (_$, on) =>
   expect(verb(w, 'delivered')).toEqual([])
 })
 
+test('delivery: answer recorded but list fails afterwards submits nothing and writes no delivered', async (_$, on) => {
+  let answered = false
+  const cli = (argv: string[]) => {
+    if (argv[0] === 'answer') return (answered = true, ok(''))
+    return answered ? { exitCode: 1, stdout: '', stderr: 'boom' } : ok(MIXED)
+  }
+  const w = world(on, MANAGER, cli)
+  const r = await answerItem(fakeDollar(w, cli), { id: 'E3', option: 'a', text: 'because it is small' })
+  await new Promise((r) => setTimeout(r, 20))
+  expect(r.ok).toBe(true)
+  expect((r as any).message).toContain('E3')
+  expect(w.submits).toEqual([])
+  expect(verb(w, 'delivered')).toEqual([])
+})
+
 // --- (f) redelivery at session.start ----------------------------------------------------------
 
 test('redelivery: every answered-waiting item is submitted once at session.start', async ($, on) => {
@@ -359,6 +374,34 @@ test('in flight: a queued submit that is still pending is not submitted again', 
   release(undefined)
   await w.clock.settle()
   expect(verb(w, 'delivered').length).toBe(1)
+})
+
+test('in flight: a second session.start while the first submit is queued submits once', async ($, on) => {
+  let release: (v: unknown) => void = () => {}
+  const w = world(on, MANAGER, (argv) => (argv[0] === 'delivered' ? ok('') : ok(ANSWERED)))
+  w.submit = (text: string) => new Promise((r) => (release = () => r({ text })))
+  await $.session.start(START)
+  await w.clock.settle()
+  await $.session.start(START)
+  await w.clock.settle()
+  expect(w.submits.length).toBe(1)
+  release(undefined)
+  await w.clock.settle()
+  expect(verb(w, 'delivered').length).toBe(1)
+})
+
+test('submit dropped: not delivered, retried once, error shown', async ($, on) => {
+  const w = world(on, MANAGER, (argv) => (argv[0] === 'delivered' ? ok('') : ok(ANSWERED)))
+  w.submit = () => ({ drop: 'busy' })
+  await $.session.start(START)
+  await w.clock.settle()
+  for (const t of ['t1', 't2', 't3']) {
+    await $.turn.complete(TURN(t))
+    await w.clock.settle()
+  }
+  expect(w.submits.length).toBe(2)
+  expect(verb(w, 'delivered')).toEqual([])
+  expect(w.state.inboxError).toContain('not accepted')
 })
 
 test('timers: two session.start leave one timer and one /inbox registration', async ($, on) => {
