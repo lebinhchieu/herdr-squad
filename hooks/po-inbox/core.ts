@@ -231,7 +231,7 @@ function shellWords(line: string): string[] | null {
 }
 
 // The first `<<` that is outside quotes: the operator, its delimiter and whether the delimiter is quoted.
-function findHeredoc(head: string): { start: number; end: number; delim: string; quoted: boolean } | null {
+function findHeredoc(head: string): { start: number; end: number; delim: string } | null {
   let quote = ''
   for (let i = 0; i < head.length; i++) {
     const ch = head[i]
@@ -243,9 +243,10 @@ function findHeredoc(head: string): { start: number; end: number; delim: string;
     if (ch === "'" || ch === '"') quote = ch
     else if (ch === '\\') i++
     else if (ch === '<' && head[i + 1] === '<' && head[i + 2] !== '<') {
-      const m = /^<<-?[ \t]*(?:(['"])([A-Za-z_][A-Za-z0-9_]*)\1|(\\?)([A-Za-z_][A-Za-z0-9_]*))/.exec(head.slice(i))
+      // Only exactly <<'WORD' or <<"WORD", then whitespace or the end of the line; anything else is not inert.
+      const m = /^<<(['"])([A-Za-z_][A-Za-z0-9_]*)\1(?=$|[ \t])/.exec(head.slice(i))
       if (!m) return null
-      return { start: i, end: i + m[0].length, delim: m[2] ?? m[4], quoted: m[1] !== undefined || m[3] === '\\' }
+      return { start: i, end: i + m[0].length, delim: m[2] }
     }
   }
   return null
@@ -253,7 +254,7 @@ function findHeredoc(head: string): { start: number; end: number; delim: string;
 
 // `{ title }` (title null when it cannot be read) for a command that is exactly one
 // `squad-inbox add` invocation, optionally with a heredoc body; null for anything else.
-// A heredoc body is hidden only when bash will not expand it: a quoted delimiter.
+// A heredoc body is hidden only for <<'WORD' / <<"WORD" (bash expands nothing in it) closed by a line equal to WORD.
 export function parseAdd(command: string): { title: string | null } | null {
   const lines = command.replace(/^\s+/, '').split('\n')
   let head = lines[0]
@@ -261,9 +262,8 @@ export function parseAdd(command: string): { title: string | null } | null {
   const m = findHeredoc(head)
   if (m) {
     head = head.slice(0, m.start) + head.slice(m.end)
-    const end = rest.findIndex((l) => l === m.delim || l.replace(/^\t+/, '') === m.delim)
+    const end = rest.findIndex((l) => l === m.delim)
     if (end < 0) return null
-    if (!m.quoted) return null
     rest = rest.slice(end + 1)
   }
   if (rest.some((l) => l.trim() !== '')) return null

