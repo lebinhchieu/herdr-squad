@@ -132,12 +132,13 @@ class ProjectionTest(Base):
 
     def test_live_row_wins_over_seen_snapshot(self):  # AC26
         h = self.home
-        run(h, "add", "--kind", "answer", "--title", "Qlive?", "--options", "(a) x; (b) y", "--blocks", "PI-9", stdin="body")
+        run(h, "add", "--kind", "answer", "--title", "Qlive?", "--options", "(a) x; (b) y", "--rec", "old rec", "--blocks", "PI-9", stdin="body")
         listing(h)
         t = (h / "escalations.md").read_text()
-        (h / "escalations.md").write_text(t.replace("(a) x; (b) y", "(a) x; (b) y; (c) z").replace("PI-9", ""))
+        (h / "escalations.md").write_text(t.replace("(a) x; (b) y", "(a) x; (b) y; (c) z").replace("PI-9", "").replace("old rec", "new rec"))
         it = [i for i in listing(h)["items"] if i["title"] == "Qlive?"][0]
         self.assertEqual(([o["key"] for o in it["options"]], it["blocks"]), (["a", "b", "c"], ""))
+        self.assertEqual(it["recommendation"], "new rec")
 
     def test_every_event_is_validated(self):  # AC27
         h = self.home
