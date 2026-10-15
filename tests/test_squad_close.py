@@ -382,10 +382,10 @@ class InboxGuardTest(unittest.TestCase):
     def put(self, folder, text=ESC):
         (self.squad / folder / "escalations.md").write_text(text)
 
-    def inbox(self, folder, *args):
+    def inbox(self, folder, *args, body=""):
         env = {**self.env, "SQUAD_ROLE": "manager", "SQUAD_INBOX_NOW": "2026-10-15T10:00:00Z"}
         return subprocess.run([str(BIN / "squad-inbox"), "--home", str(self.squad / folder), *args], env=env,
-                              text=True, capture_output=True, timeout=30, input="")
+                              text=True, capture_output=True, timeout=30, input=body)
 
     def assertNothingDone(self, folder):
         self.assertTrue((self.squad / folder).exists())
@@ -408,7 +408,7 @@ class InboxGuardTest(unittest.TestCase):
         self.assertIn("E2 Ship it? (answered, not yet read by the Manager)", r.stderr)
         self.assertNothingDone("scopes/sc1")
         self.assertEqual(self.inbox("scopes/sc1", "delivered", "E2", "--session", "s").returncode, 0)
-        self.assertEqual(self.inbox("scopes/sc1", "add", "--kind", "read", "--title", "FYI").returncode, 0)
+        self.assertEqual(self.inbox("scopes/sc1", "add", "--kind", "read", "--title", "FYI", body="details").returncode, 0)
         r = self.close("--scope", "sc1")
         self.assertEqual(r.returncode, 0, r.stderr)
 
