@@ -16,6 +16,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 
 LOG, TABLE, LOCK = "inbox.jsonl", "escalations.md", "inbox.jsonl.lock"
+EVENTS = {"add", "seen", "read", "answer", "withdraw", "delivered", "gone", "filled"}
 ID_RE = re.compile(r"[ER][0-9]{1,6}")
 TITLE_MAX = 80
 BR_RE = re.compile(r"<br\s*/?>", re.I)
@@ -176,6 +177,8 @@ def read_log(path):
                 raise ValueError("add event lacks id, title or ts")
             if not isinstance(ev.get("id"), str) or not ID_RE.fullmatch(ev["id"]):
                 raise ValueError("event has no valid id")
+            if ev["ev"] not in EVENTS:
+                raise ValueError("unknown event type %r" % ev["ev"])
             if ev["ev"] == "seen" and not (isinstance(ev.get("key"), str) and ev["key"]):
                 raise ValueError("seen event has no key")
         except ValueError as e:
@@ -450,9 +453,13 @@ def add_row(home, title, body, options, rec, blocks):
         lines[sep_no - 1] = sep + eol
         lines.append(row)
     text = "".join(lines)
-    same = [r for r in project_rows(text)[0] if r.get("#") == str(n)]
-    if same and sum(r["key"] == same[0]["key"] for r in project_rows(text)[0]) > 1:
-        raise Refused("an item with the same title and body was already added today", 3)
+    all_rows = project_rows(text)[0]
+    mine = [r for r in all_rows if r.get("#") == str(n)]
+    twins = [r for r in all_rows if mine and r["key"] == mine[0]["key"] and r is not mine[0]]
+    if twins:
+        known = {e["key"]: e["id"] for e in events if e.get("ev") == "seen" and "key" in e}
+        was = known.get(twins[0]["key"]) or "E%s" % twins[0].get("#")
+        raise Refused("the same title and body was already added today as %s" % was, 3)
     atomic_write(path, text)
     return "E%d" % n
 

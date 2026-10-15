@@ -147,7 +147,7 @@ class ProjectionTest(Base):
         key = next(json.loads(l)["key"] for l in log if '"Qev?"' in l)
         bad = ['{"ev":"seen","id":"zz","key":"%s"}' % key, '{"ev":"seen","id":5,"key":"%s"}' % key, '{"ev":"seen","id":"E9"}',
                '{"ev":"answer","id":"x"}', '{"ev":"withdraw"}', '{"ev":"delivered","id":7}', '{"ev":"read","id":"R0x"}',
-               '{"ev":"gone","id":null}', '{"ev":"filled","id":"e1"}']
+               '{"ev":"gone","id":null}', '{"ev":"frobnicate","id":"E1"}', '{"ev":"filled","id":"e1"}']
         before = len(listing(h)["items"])
         with open(h / "inbox.jsonl", "a") as f:
             f.write("\n".join(bad) + "\n")
@@ -162,6 +162,7 @@ class ProjectionTest(Base):
         before = (h / "escalations.md").read_bytes()
         r = run(h, "add", "--kind", "answer", "--title", "Qdup?", stdin="body")
         self.assertEqual(r.returncode, 3, r.stderr)
+        self.assertRegex(r.stderr, r"as E\d+")
         self.assertEqual((h / "escalations.md").read_bytes(), before)
 
     def test_short_row_reaching_the_question(self):  # AC29
