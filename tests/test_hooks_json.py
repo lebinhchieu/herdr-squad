@@ -3,7 +3,8 @@ import json
 import unittest
 from pathlib import Path
 
-HOOKS = json.loads((Path(__file__).resolve().parent.parent / "hooks" / "hooks.json").read_text())["hooks"]
+HOOKS_FILE = json.loads((Path(__file__).resolve().parent.parent / "hooks" / "hooks.json").read_text())
+HOOKS = HOOKS_FILE["hooks"]
 NOTIFY = '"${CLAUDE_PLUGIN_ROOT}/bin/squad-notify"'
 
 
@@ -22,6 +23,10 @@ class HooksJsonTest(unittest.TestCase):
 
     def test_notify_on_notification(self):
         self.assertEqual(commands("Notification", "permission_prompt|elicitation_dialog"), [(NOTIFY, True, 5)])
+
+    def test_po_inbox_module_listed_beside_the_command_hooks(self):
+        self.assertEqual(HOOKS_FILE["modules"], ["./po-inbox/register.tsx"])
+        self.assertTrue((Path(__file__).resolve().parent.parent / "hooks" / "po-inbox" / "register.tsx").is_file())
 
 
 if __name__ == "__main__":
