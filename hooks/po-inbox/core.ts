@@ -230,24 +230,44 @@ function shellWords(line: string): string[] | null {
   return words
 }
 
-const HEREDOC = /<<-?[ \t]*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/
+// The first `<<` that is outside quotes: the operator, its delimiter and whether the delimiter is quoted.
+function findHeredoc(head: string): { start: number; end: number; delim: string; quoted: boolean } | null {
+  let quote = ''
+  for (let i = 0; i < head.length; i++) {
+    const ch = head[i]
+    if (quote) {
+      if (ch === quote) quote = ''
+      else if (quote === '"' && ch === '\\') i++
+      continue
+    }
+    if (ch === "'" || ch === '"') quote = ch
+    else if (ch === '\\') i++
+    else if (ch === '<' && head[i + 1] === '<' && head[i + 2] !== '<') {
+      const m = /^<<-?[ \t]*(?:(['"])([A-Za-z_][A-Za-z0-9_]*)\1|(\\?)([A-Za-z_][A-Za-z0-9_]*))/.exec(head.slice(i))
+      if (!m) return null
+      return { start: i, end: i + m[0].length, delim: m[2] ?? m[4], quoted: m[1] !== undefined || m[3] === '\\' }
+    }
+  }
+  return null
+}
 
 // `{ title }` (title null when it cannot be read) for a command that is exactly one
 // `squad-inbox add` invocation, optionally with a heredoc body; null for anything else.
+// A heredoc body is hidden only when bash will not expand it: a quoted delimiter.
 export function parseAdd(command: string): { title: string | null } | null {
   const lines = command.replace(/^\s+/, '').split('\n')
   let head = lines[0]
   let rest = lines.slice(1)
-  const m = HEREDOC.exec(head)
+  const m = findHeredoc(head)
   if (m) {
-    head = head.slice(0, m.index) + head.slice(m.index + m[0].length)
-    const delim = m[2]
-    const end = rest.findIndex((l) => l === delim || l.replace(/^\t+/, '') === delim)
+    head = head.slice(0, m.start) + head.slice(m.end)
+    const end = rest.findIndex((l) => l === m.delim || l.replace(/^\t+/, '') === m.delim)
     if (end < 0) return null
+    if (!m.quoted) return null
     rest = rest.slice(end + 1)
   }
   if (rest.some((l) => l.trim() !== '')) return null
-  if (/<<|\r/.test(head)) return null
+  if (/\r/.test(head)) return null
   const words = shellWords(head)
   if (!words || words.length < 2 || words[1] !== 'add') return null
   const bin = words[0]

