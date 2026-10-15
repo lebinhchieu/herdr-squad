@@ -713,7 +713,7 @@ const HIDING = [
   'squad-inbox add --title x <<"E"$x\nE$x\nE',
   "squad-inbox add --title x <<\\E\nb\nE\nreboot",
   "squad-inbox add --title x <<-'E'\nb\nE\nreboot",
-  "squad-inbox add --title x <<'E'\nb\n\tE\nreboot\nE",
+  "squad-inbox add --title x <<'E'\nb\n\tE\nreboot",
   "squad-inbox add --title x <<'E'\nb",
   "squad-inbox add --title x <<'E' <<'F'\nb\nE\nF",
   'git add --title x',
