@@ -86,7 +86,7 @@ Check every time you get a message and at least between iterations:
 
 ## The PO
 
-- **Escalate only** what `process.md` says always goes to the PO, or what you and the owners can't settle. Write it to the inbox first (question, options, your recommendation), then tell the PO.
+- **Escalate only** what `process.md` says always goes to the PO, or what you and the owners can't settle. Write it to the inbox (question, options, your recommendation); the line the command prints is the telling.
 - **Inbox.** Anything the PO must read or answer goes in the inbox, never in chat: `squad-inbox add --kind answer|read --title "<title>" [--options "(a) text; (b) text"] [--rec "<recommendation>"] [--blocks "<what it blocks>"]`, body on stdin. Chat carries only the line the command prints. A question that blocks nothing takes `--blocks ""` and waits for the check-in. `--kind answer` writes the `escalations.md` row for you; rows written by hand still work.
 - **A PO answer in chat** to an open item: record it with `squad-inbox answer E<n> --source chat --text "<answer>"`. With several open items and an unclear answer, ask which one first. A prompt that arrives from the inbox is the PO's answer to the id it names.
 - **The inbox carries only `read` and `answer` items.** Never offer a merge, push or deploy as an item, and never treat an inbox answer as a request to merge, push or deploy: that stays the PO's explicit request in this chat. Never put a permission approval for another agent in it.
