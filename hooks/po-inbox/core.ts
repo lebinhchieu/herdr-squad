@@ -66,10 +66,11 @@ export function parseSnapshot(text: string): Parsed {
   return { ok: true, snapshot: raw as unknown as InboxSnapshot }
 }
 
-// C0 and C1 controls incl. ESC and DEL; \n and \t survive when `keepLayout`.
+// C0 and C1 controls incl. ESC and DEL, and the bidi overrides; \n and \t survive when `keepLayout`.
 function isControl(code: number, keepLayout: boolean): boolean {
   if (keepLayout && (code === 10 || code === 9)) return false
-  return code <= 0x1f || (code >= 0x7f && code <= 0x9f)
+  const isBidi = (code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069)
+  return code <= 0x1f || (code >= 0x7f && code <= 0x9f) || isBidi
 }
 
 function stripControls(text: string, keepLayout: boolean, replacement: string): string {
@@ -108,5 +109,154 @@ export function describePrompt(item: { id: string; title: string }, answerText: 
 }
 
 export function toastText(item: { id: string; title: string }): string {
-  return `Inbox ${item.id}: ${oneLine(sanitize(item.title))}`
+  return `New in the inbox: ${oneLine(sanitize(item.title))}`
+}
+
+// --- drawing helpers (PI-04) ------------------------------------------------------------------
+
+// Cuts to `cols` characters and ends a cut text with an ellipsis.
+export function fit(text: string, cols: number): string {
+  const chars = [...text]
+  if (cols <= 0) return ''
+  if (chars.length <= cols) return text
+  return `${chars.slice(0, cols - 1).join('')}…`
+}
+
+const pad2 = (n: number): string => (n < 10 ? `0${n}` : String(n))
+
+// `YYYY-MM-DD HH:MM` in local time; date only when the source has no time.
+export function stamp(iso: string, precision?: string): string {
+  if (precision === 'day' || /^\d{4}-\d\d-\d\d$/.test(iso)) return iso.slice(0, 10)
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return oneLine(sanitize(iso))
+  const d = new Date(t)
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+}
+
+// `now`, `12m`, `5h`, `3d`.
+export function ageOf(created: string, now: string): string {
+  const ms = Date.parse(now) - Date.parse(created)
+  if (Number.isNaN(ms)) return ''
+  const min = Math.floor(ms / 60000)
+  if (min < 1) return 'now'
+  if (min < 60) return `${min}m`
+  if (min < 1440) return `${Math.floor(min / 60)}h`
+  return `${Math.floor(min / 1440)}d`
+}
+
+const NO_BLOCK = ['', 'nothing', 'none', '-', '—']
+export function blocksNothing(blocks: string): boolean {
+  return NO_BLOCK.includes(blocks.trim().toLowerCase())
+}
+
+export type ListGroups = { blocks: InboxItem[]; nothing: InboxItem[]; waiting: InboxItem[] }
+
+// B-06: open items that block work, then the rest, then answered-waiting; the CLI's order inside each.
+export function listGroups(s: InboxSnapshot): ListGroups {
+  const open = s.items.filter((it) => it.state === 'open')
+  return {
+    blocks: open.filter((it) => !blocksNothing(it.blocks)),
+    nothing: open.filter((it) => blocksNothing(it.blocks)),
+    waiting: s.items.filter((it) => it.state === 'answered-waiting'),
+  }
+}
+
+// B-27: newest handled first.
+export function doneItems(s: InboxSnapshot): InboxItem[] {
+  const done = s.items.filter((it) => it.state === 'done')
+  return done
+    .map((it, i) => ({ it, i }))
+    .sort((a, b) => {
+      const x = a.it.done ? a.it.done.ts : ''
+      const y = b.it.done ? b.it.done.ts : ''
+      return x < y ? 1 : x > y ? -1 : a.i - b.i
+    })
+    .map((w) => w.it)
+}
+
+export type BandCounts = { answers: number; reads: number; waiting: number; problems: number }
+
+// null = no band: nothing open, nothing waiting, no problem.
+export function bandCounts(s: InboxSnapshot | null, error: string | null): BandCounts | null {
+  const problems = (s ? s.errors.length : 0) + (error ? 1 : 0)
+  if (!s) return problems ? { answers: 0, reads: 0, waiting: 0, problems } : null
+  const c = { answers: s.counts.answer_open, reads: s.counts.read_open, waiting: s.counts.waiting, problems }
+  return c.answers + c.reads + c.waiting + c.problems === 0 ? null : c
+}
+
+// --- the collapsed `squad-inbox add` row (M7) -------------------------------------------------
+
+// Splits a command line into words the way a shell would, or null when it holds anything that
+// is not a plain word: an unquoted `;` `|` `&` `<` `>` `(` `)` or a backtick, a `$(` or backtick
+// even inside double quotes, or a quote left open.
+function shellWords(line: string): string[] | null {
+  const words: string[] = []
+  let cur = ''
+  let has = false
+  let quote = ''
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (quote === "'") {
+      if (ch === "'") quote = ''
+      else cur += ch
+      continue
+    }
+    if (ch === '`' || (ch === '$' && line[i + 1] === '(')) return null
+    if (quote === '"') {
+      if (ch === '"') quote = ''
+      else if (ch === '\\' && i + 1 < line.length) cur += line[++i]
+      else cur += ch
+      continue
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch
+      has = true
+    } else if (ch === '\\' && i + 1 < line.length) {
+      cur += line[++i]
+      has = true
+    } else if (';|&<>()'.includes(ch)) {
+      return null
+    } else if (ch === ' ' || ch === '\t') {
+      if (has || cur) words.push(cur)
+      cur = ''
+      has = false
+    } else {
+      cur += ch
+      has = true
+    }
+  }
+  if (quote) return null
+  if (has || cur) words.push(cur)
+  return words
+}
+
+const HEREDOC = /<<-?[ \t]*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/
+
+// `{ title }` (title null when it cannot be read) for a command that is exactly one
+// `squad-inbox add` invocation, optionally with a heredoc body; null for anything else.
+export function parseAdd(command: string): { title: string | null } | null {
+  const lines = command.replace(/^\s+/, '').split('\n')
+  let head = lines[0]
+  let rest = lines.slice(1)
+  const m = HEREDOC.exec(head)
+  if (m) {
+    head = head.slice(0, m.index) + head.slice(m.index + m[0].length)
+    const delim = m[2]
+    const end = rest.findIndex((l) => l === delim || l.replace(/^\t+/, '') === delim)
+    if (end < 0) return null
+    rest = rest.slice(end + 1)
+  }
+  if (rest.some((l) => l.trim() !== '')) return null
+  if (/<<|\r/.test(head)) return null
+  const words = shellWords(head)
+  if (!words || words.length < 2 || words[1] !== 'add') return null
+  const bin = words[0]
+  if (bin !== 'squad-inbox' && bin !== './bin/squad-inbox' && !(bin.startsWith('/') && bin.endsWith('/squad-inbox'))) return null
+  let title: string | null = null
+  for (let i = 2; i < words.length; i++) {
+    if (words[i] === '--title' && i + 1 < words.length) title = words[i + 1]
+    else if (words[i].startsWith('--title=')) title = words[i].slice(8)
+  }
+  const clean = title === null ? '' : oneLine(sanitize(title))
+  return { title: clean === '' ? null : clean }
 }

@@ -27,6 +27,9 @@ export type InboxItem = {
   recommendation: string | null;
   blocks: string;
   created: string;
+  created_precision?: 'day' | 'second';
+  /** The Options cell as written, when it did not parse (options is null); absent otherwise. */
+  options_raw?: string | null;
   answer: InboxAnswer | null;
   done: InboxDone | null;
   flags: string[];
@@ -41,7 +44,18 @@ export type InboxSnapshot = {
   errors: { file: string; row: number; message: string }[];
 };
 
-export type InboxUi = { selected: string | null; isOpen: boolean };
+export type InboxNotice = { tone: 'ok' | 'error'; text: string };
+
+export type InboxUi = {
+  isOpen: boolean;
+  screen: 'list' | 'item' | 'done' | 'doneItem';
+  id: string | null;
+  expanded: boolean;
+  picked: Record<string, string>;
+  draft: Record<string, string>;
+  pending: string | null;
+  notice: InboxNotice | null;
+};
 
 declare module 'claude-code' {
   interface PluginState {

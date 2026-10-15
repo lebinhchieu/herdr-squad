@@ -206,7 +206,7 @@ test('toast: a first load none, an unchanged snapshot none, a new open id exactl
   out = snapWith(['E1', 'E2', 'E3'])
   w.mtime += 1
   await w.clock.advance(2000)
-  expect(w.toasts).toEqual(['Inbox E3: Question E3'])
+  expect(w.toasts).toEqual(['New in the inbox: Question E3'])
   w.mtime += 1
   await w.clock.advance(2000)
   expect(w.toasts.length).toBe(1)
@@ -283,7 +283,7 @@ test('delivery: exit 3 shows the message and submits nothing', async (_$, on) =>
   const w = world(on, MANAGER, cli)
   const r = await answerItem(fakeDollar(w, cli), { id: 'E3', text: 'yes' })
   await w.clock.settle()
-  expect(r).toEqual({ ok: false, message: 'E3 was answered by chat at 10:02' })
+  expect(r).toEqual({ ok: false, message: 'E3 was answered by chat at 10:02', exit: 3 })
   expect(w.submits).toEqual([])
   expect(verb(w, 'delivered')).toEqual([])
 })

@@ -2,12 +2,13 @@
 // process is the plugin's own bin/squad-inbox, run by argv (no shell). PI-04's pane calls answerItem.
 import { atom, read, update } from 'claude-code'
 
-import type { InboxItem } from '../../types'
+import type { InboxItem, InboxSnapshot, InboxUi } from '../../types'
 import { describePrompt, newOpenIds, parseSnapshot, sanitize, toastText, waitingItems } from './core'
 
 export const inboxAtom = atom({ plugin: 'squad', key: 'inbox' } as const, null)
 export const errorAtom = atom({ plugin: 'squad', key: 'inboxError' } as const, null)
-export const uiAtom = atom({ plugin: 'squad', key: 'ui' } as const, { selected: null, isOpen: false })
+const FRESH_UI: InboxUi = { isOpen: false, screen: 'list', id: null, expanded: false, picked: {}, draft: {}, pending: null, notice: null }
+export const uiAtom = atom({ plugin: 'squad', key: 'ui' } as const, FRESH_UI)
 
 const POLL_MS = 2000
 const CLI_TIMEOUT_MS = 20000
@@ -22,6 +23,7 @@ const run = {
   isCommandRegistered: false,
   inflight: new Set<string>(),
   failed: new Set<string>(),
+  busy: false,
   sent: new Set<string>(),
   tries: new Map<string, number>(),
 }
@@ -122,6 +124,7 @@ async function sendAndMark($: any, id: string, text: string): Promise<void> {
     // then dropped with the error left showing.
     run.failed.add(id)
     try {
+      await patchUi($, { notice: { tone: 'error', text: `${id} saved. Waiting for the Manager; it will be sent again when the Manager's turn ends.` } })
       await setError($, e instanceof Error ? e.message : String(e))
     } catch {
       // best effort
@@ -161,7 +164,7 @@ export async function retryFailed($: any): Promise<void> {
 }
 
 export type AnswerInput = { id: string; option?: string; text?: string; note?: string }
-export type AnswerResult = { ok: true; message?: string } | { ok: false; message: string }
+export type AnswerResult = { ok: true; message?: string } | { ok: false; message: string; exit?: number }
 
 // The pane's submit (PI-04): record the answer through the CLI (text by stdin), then hand it to the model.
 export async function answerItem($: any, input: AnswerInput): Promise<AnswerResult> {
@@ -177,7 +180,7 @@ export async function answerItem($: any, input: AnswerInput): Promise<AnswerResu
   }
   if (r.exitCode !== 0) {
     await refresh($)
-    return { ok: false, message: failure(r) }
+    return { ok: false, message: failure(r), exit: r.exitCode }
   }
   await refresh($)
   const snap = await read($, inboxAtom)
@@ -193,6 +196,8 @@ export async function answerItem($: any, input: AnswerInput): Promise<AnswerResu
 // session.start: register once, load, redeliver, and leave exactly one timer however often it fires.
 export async function start($: any, home: string): Promise<void> {
   run.home = home
+  run.busy = false
+  await update($, uiAtom, () => FRESH_UI)
   if (!run.isCommandRegistered) {
     run.isCommandRegistered = true
     await $.command.register({ name: 'inbox', description: 'Open the PO inbox: items to answer or read' })
@@ -216,6 +221,94 @@ export function stop(): void {
 }
 
 export async function openPane($: any): Promise<void> {
-  await update($, uiAtom, (ui) => ({ ...ui, isOpen: true }))
-  await $.ui.open({ id: 'inbox', title: 'Inbox' })
+  await update($, uiAtom, (ui) => ({ ...ui, isOpen: true, screen: 'list', id: null, expanded: false, notice: null }))
+  await $.ui.open({ id: 'inbox', title: 'Inbox', focus: true })
+}
+
+// What the band and the pane draw from; the state scan only follows atoms read in their own file.
+export async function readView($: any): Promise<{ ui: InboxUi; snap: InboxSnapshot | null; error: string | null }> {
+  return { ui: await read($, uiAtom), snap: await read($, inboxAtom), error: await read($, errorAtom) }
+}
+
+// --- the pane's handlers (PI-04) ---------------------------------------------------------------
+// Each is a top-level function so a closure in ui.tsx may hand it `$`.
+
+export async function patchUi($: any, patch: Partial<InboxUi>): Promise<void> {
+  await update($, uiAtom, (ui) => ({ ...ui, ...patch }))
+}
+
+export async function goTo($: any, screen: InboxUi['screen'], id: string | null): Promise<void> {
+  await update($, uiAtom, (ui) => ({ ...ui, screen, id, expanded: false, notice: null }))
+}
+
+export async function pickOption($: any, id: string, value: string): Promise<void> {
+  await update($, uiAtom, (ui) => ({ ...ui, picked: { ...ui.picked, [id]: value } }))
+}
+
+export async function setDraft($: any, id: string, text: string): Promise<void> {
+  await update($, uiAtom, (ui) => ({ ...ui, draft: { ...ui.draft, [id]: text } }))
+}
+
+function without<T>(m: Record<string, T>, id: string): Record<string, T> {
+  const out: Record<string, T> = {}
+  for (const k of Object.keys(m)) if (k !== id) out[k] = m[k]
+  return out
+}
+
+// B-09/B-10: `read R<n>` once; a second press while it runs does nothing.
+export async function markRead($: any, id: string): Promise<void> {
+  if (run.busy) return
+  run.busy = true
+  await patchUi($, { pending: id })
+  let notice: InboxUi['notice']
+  let next: Partial<InboxUi> = {}
+  try {
+    const r = await $.process.run([`${$.plugin.root}/bin/squad-inbox`, 'read', id], { timeoutMs: CLI_TIMEOUT_MS })
+    await refresh($)
+    if (r.exitCode === 0) {
+      notice = { tone: 'ok', text: `${id} marked read.` }
+      next = { screen: 'list', id: null }
+    } else {
+      notice = { tone: 'error', text: failure(r) }
+    }
+  } catch (e) {
+    notice = { tone: 'error', text: `Could not reach the inbox: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300) }
+  }
+  run.busy = false
+  await patchUi($, { ...next, pending: null, notice })
+}
+
+// B-12/B-13/B-32: send what the pane holds for `id`. The CLI runs once; a press while it runs does nothing.
+export async function submitAnswer($: any, id: string, typedNow?: string): Promise<void> {
+  if (run.busy) return
+  run.busy = true
+  const ui = await read($, uiAtom)
+  const snap = await read($, inboxAtom)
+  const item = snap?.items.find((it) => it.id === id)
+  const hasOptions = !!item?.options && item.options.length > 0
+  const option = hasOptions ? ui.picked[id] : undefined
+  const typed = typedNow ?? ui.draft[id] ?? ''
+  if (!option && typed.trim() === '') {
+    run.busy = false
+    await patchUi($, { notice: { tone: 'error', text: 'Nothing to send: pick an option or type a reply.' } })
+    return
+  }
+  await patchUi($, { pending: id, notice: null })
+  const input: AnswerInput = option ? { id, option, note: typed } : { id, text: typed }
+  const res = await answerItem($, input)
+  run.busy = false
+  if (res.ok) {
+    await update($, uiAtom, (u) => ({
+      ...u,
+      pending: null,
+      screen: 'list',
+      id: null,
+      picked: without(u.picked, id),
+      draft: without(u.draft, id),
+      notice: { tone: 'ok', text: res.message ?? `${id} answered. Sending to the Manager.` },
+    }))
+    return
+  }
+  const text = res.exit === 3 ? res.message : `Could not reach the inbox: ${res.message.split('\n')[0].slice(0, 200)}`
+  await update($, uiAtom, (u) => ({ ...u, pending: null, draft: { ...u.draft, [id]: typed }, notice: { tone: 'error', text } }))
 }
