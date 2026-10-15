@@ -16,7 +16,7 @@ CLI = str(ROOT / "bin" / "squad-inbox")
 FIX = ROOT / "tests" / "fixtures" / "inbox"
 NOW = "2026-10-15T10:00:00Z"
 AGENT_ENV = ("SQUAD_DIR", "SCOPE_DIR", "GOAL_DIR", "SQUAD_NAME", "SQUAD_ROLE", "SQUAD_SCOPE", "SQUAD_INBOX_NOW")
-KEYS = {"id", "kind", "state", "title", "body", "options", "recommendation", "blocks", "created", "created_precision", "answer", "done", "flags"}
+KEYS = {"id", "kind", "state", "title", "body", "options", "options_raw", "recommendation", "blocks", "created", "created_precision", "answer", "done", "flags"}
 
 
 def env(role="manager", **extra):

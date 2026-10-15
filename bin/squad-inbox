@@ -4,6 +4,9 @@
   squad-inbox add --kind read|answer --title T [--body-file F] [--options "(a) x; (b) y"] [--rec R] [--blocks X]
   squad-inbox list [--json] [--open] [--no-write]
   squad-inbox read R<n>
+  squad-inbox answer E<n> [--option K] [--note N | --text T | stdin] --source pane|chat
+  squad-inbox withdraw E<n>|R<n> --reason R
+  squad-inbox delivered E<n> --session S
 
 The home is --home D, else $SCOPE_DIR, else $GOAL_DIR. Exit 0 ok, 2 refused (bad input, wrong role), 3 already handled.
 """
@@ -33,6 +36,19 @@ def main(argv=None):
     ls.add_argument("--no-write", action="store_true")
     r = sub.add_parser("read")
     r.add_argument("id")
+    an = sub.add_parser("answer")
+    an.add_argument("id")
+    an.add_argument("--option")
+    g = an.add_mutually_exclusive_group()
+    g.add_argument("--note")
+    g.add_argument("--text")
+    an.add_argument("--source", required=True, choices=("pane", "chat"))
+    w = sub.add_parser("withdraw")
+    w.add_argument("id")
+    w.add_argument("--reason", required=True)
+    d = sub.add_parser("delivered")
+    d.add_argument("id")
+    d.add_argument("--session", required=True)
     args = p.parse_args(argv)
     try:
         return si.run(args)

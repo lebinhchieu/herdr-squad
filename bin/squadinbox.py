@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import select
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -275,6 +276,12 @@ def clean_blocks(text):
     return "" if text.lower() in ("nothing", "-") else text
 
 
+def raw_options(cell):
+    """The Options cell when it has text that is not in the `(a) x; (b) y` format, else None."""
+    cell = (cell or "").strip()
+    return cell if cell and parse_options(cell) is None else None
+
+
 def iso_day(date):
     return date + "T00:00:00Z" if re.fullmatch(r"\d{4}-\d{2}-\d{2}", date or "") else None
 
@@ -287,13 +294,13 @@ def fold(events, rows, ts):
         ev, eid = e["ev"], e.get("id")
         if ev == "add":
             items[eid] = {"id": eid, "kind": "read", "state": "open", "title": e.get("title", ""), "body": e.get("body", ""),
-                          "options": None, "recommendation": None, "blocks": clean_blocks(e.get("blocks")),
+                          "options": None, "options_raw": None, "recommendation": None, "blocks": clean_blocks(e.get("blocks")),
                           "created": e.get("ts"), "created_precision": "second", "answer": None, "done": None, "flags": []}
         elif ev == "seen":
             row = by_key.get(e.get("key"))
             items[eid] = {"id": eid, "kind": "answer", "state": "open", "title": e.get("title", ""), "body": e.get("body", ""),
-                          "options": parse_options(e.get("options")), "recommendation": e.get("rec") or None,
-                          "blocks": clean_blocks(e.get("blocks")), "created": iso_day(e.get("date")) or e.get("ts"),
+                          "options": parse_options(e.get("options")), "options_raw": raw_options(e.get("options")),
+                          "recommendation": e.get("rec") or None, "blocks": clean_blocks(e.get("blocks")), "created": iso_day(e.get("date")) or e.get("ts"),
                           "created_precision": "day" if iso_day(e.get("date")) else "second", "answer": None,
                           "done": None, "flags": [], "_row": row}
     for e in events:
@@ -328,7 +335,7 @@ def fold(events, rows, ts):
             continue
         if row is not None:  # the file is the truth while the row exists; the `seen` snapshot is for a removed row
             it.update(title=title_of(row["question"]), body=row["question"], options=parse_options(row.get("options")),
-                      recommendation=row.get("recommendation") or None, blocks=clean_blocks(row.get("blocks")))
+                      options_raw=raw_options(row.get("options")), recommendation=row.get("recommendation") or None, blocks=clean_blocks(row.get("blocks")))
         if row is None:
             it["flags"].append("row-removed")
         if it["state"] != "open":
@@ -364,12 +371,13 @@ def find_repairs(events, rows):
     cells = {r["key"]: r for r in rows}
     out, seen_ids = [], set()
     for e in events:
-        if e["ev"] != "answer" or e.get("id") in seen_ids:
+        if e["ev"] not in ("answer", "withdraw") or e.get("id") in seen_ids:
             continue
         seen_ids.add(e.get("id"))
+        text = e.get("text") if e["ev"] == "answer" else "withdrawn: %s" % e.get("reason")
         row = cells.get(keys.get(e.get("id")))
-        if row is not None and not row.get("answer") and isinstance(e.get("text"), str) and e["text"].strip():
-            out.append((row["key"], e["text"]))
+        if row is not None and not row.get("answer") and isinstance(text, str) and text.strip():
+            out.append((row["key"], text))
     return out
 
 
@@ -612,6 +620,133 @@ def cmd_read(home, args):
     return 0
 
 
+def stdin_text(only_if_ready):
+    """Piped stdin as text. A terminal is empty; with only_if_ready an open pipe nobody wrote to is empty too, never a wait."""
+    try:
+        if sys.stdin is None or sys.stdin.isatty():
+            return ""
+        if only_if_ready and not select.select([sys.stdin], [], [], 0)[0]:
+            return ""
+        data = sys.stdin.buffer.read(MAX_BODY + 1)
+    except (OSError, ValueError):
+        return ""
+    if len(data) > MAX_BODY:
+        raise Refused("the answer is over %d KiB" % (MAX_BODY // 1024))
+    return data.decode("utf-8", "replace")
+
+
+def prepare(home, eid):
+    """Under the lock: bring the log up to date with the file, then the item `eid` and its row key."""
+    if not os.path.isdir(home):
+        raise Refused("home %s is not a folder" % home)
+    log_path = os.path.join(home, LOG)
+    events, _ = read_log(log_path)
+    rows, _ = project_rows(read_text(os.path.join(home, TABLE)))
+    pending = sync_events(events, rows, now())
+    if pending:
+        append_events(log_path, pending)
+        events += pending
+    item = next((i for i in fold(events, rows, now()) if i["id"] == eid), None)
+    if item is None:
+        raise Refused("no item %s" % eid)
+    key = next((e.get("key") for e in events if e["ev"] == "seen" and e.get("id") == eid), None)
+    return item, key
+
+
+def winner(item):
+    """Who handled the item first, for an exit-3 message."""
+    a, d = item["answer"], item["done"]
+    if a:
+        return "answered at %s (%s)" % (a["ts"], a["source"])
+    if d and d["kind"] == "withdrawn":
+        return "withdrawn at %s: %s" % (d["ts"], d["reason"])
+    if d and d["kind"] == "answered-file":
+        return "answered in the file, not through the inbox (%s)" % d["reason"]
+    if d:
+        return "already handled (%s at %s)" % (d["kind"], d["ts"])
+    return "already handled"
+
+
+def write_cell(home, key, text):
+    """After the event: the cell. A failure is a warning, the answer is in the log and `list` fills the cell later."""
+    try:
+        if key is None:
+            raise Refused("the item has no row")
+        set_answer_cell(home, key, text)
+    except (Refused, OSError) as e:
+        print("squad-inbox: recorded, but the Answer cell was not written: %s" % e, file=sys.stderr)
+
+
+def cmd_answer(home, args):
+    require_manager()
+    eid = check_id(args.id)
+    if eid[0] != "E":
+        raise Refused("only answer items (E<n>) take an answer")
+    given = args.note if args.note is not None else args.text
+    piped = stdin_text(only_if_ready=given is not None)
+    if given is not None and piped:
+        raise Refused("give the answer with --note/--text or on stdin, not both")
+    body = given if given is not None else piped
+    if args.option is None:
+        if not body.strip():
+            raise Refused("an empty answer is not recorded")
+    elif args.text is not None:
+        raise Refused("with --option the words are a --note, not --text")
+    with locked(home):
+        item, key = prepare(home, eid)
+        if item["kind"] != "answer":
+            raise Refused("%s is not an answer item" % eid)
+        if item["state"] != "open" and not (item["done"] and item["done"]["kind"] == "removed" and not item["answer"]):
+            raise Refused("%s is %s" % (eid, winner(item)), 3)
+        if args.option is None:
+            text, option, note = body, None, None
+        else:
+            if item["options"] is None:
+                raise Refused("%s has no options to pick from" % eid)
+            hit = next((o for o in item["options"] if o["key"] == args.option), None)
+            if hit is None:
+                raise Refused("%s has no option %r (it has %s)" % (eid, args.option, ", ".join(o["key"] for o in item["options"])))
+            note = body if body.strip() else None
+            text, option = "(%s) %s" % (hit["key"], hit["text"]) + ("\n" + note if note else ""), hit["key"]
+        append_events(os.path.join(home, LOG), [{"ev": "answer", "id": eid, "ts": now(), "text": text, "option": option,
+                                                "note": note, "source": args.source}])
+        write_cell(home, key, text)
+    return 0
+
+
+def cmd_withdraw(home, args):
+    require_manager()
+    eid = check_id(args.id)
+    reason = (args.reason or "").strip()
+    if not reason:
+        raise Refused("a withdrawal needs a --reason")
+    with locked(home):
+        item, key = prepare(home, eid)
+        if item["state"] != "open":
+            raise Refused("%s is %s" % (eid, winner(item)), 3)
+        append_events(os.path.join(home, LOG), [{"ev": "withdraw", "id": eid, "ts": now(), "reason": reason}])
+        if eid[0] == "E":
+            write_cell(home, key, "withdrawn: %s" % reason)
+    return 0
+
+
+def cmd_delivered(home, args):
+    require_manager()
+    eid = check_id(args.id)
+    if eid[0] != "E":
+        raise Refused("only answers (E<n>) are delivered")
+    with locked(home):
+        item, _ = prepare(home, eid)
+        a = item["answer"]
+        if a is None:
+            raise Refused("%s has no answer to deliver (%s)" % (eid, item["state"]), 3)
+        if a["delivered_ts"]:
+            raise Refused("%s was already delivered at %s" % (eid, a["delivered_ts"]), 3)
+        append_events(os.path.join(home, LOG), [{"ev": "delivered", "id": eid, "ts": now(), "session": args.session or ""}])
+    return 0
+
+
 def run(args):
     home = home_of(args)
-    return {"add": cmd_add, "list": cmd_list, "read": cmd_read}[args.cmd](home, args)
+    return {"add": cmd_add, "list": cmd_list, "read": cmd_read, "answer": cmd_answer, "withdraw": cmd_withdraw,
+            "delivered": cmd_delivered}[args.cmd](home, args)
