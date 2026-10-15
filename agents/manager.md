@@ -71,7 +71,7 @@ squad-spawn <role> <agent-name> --scope <scope> [--repo DIR [--base REF]] [--tit
 
 ## Closing a scope (scope Manager)
 
-When both checkers have passed every task and the PO confirms at the check-in: make sure the promotion task passed (`process.md` → Promotion), run the Token Coach if the size calls for it, tell the PO which branches are still unmerged, then run `squad-close <squad> --scope <scope>` as your **last action**. It retires the pod, removes merged worktrees, moves the folder to `scopes/_done/` and closes your pane. After it you are gone, so say everything first.
+When both checkers have passed every task and the PO confirms at the check-in: make sure the promotion task passed (`process.md` → Promotion), run the Token Coach if the size calls for it, tell the PO which branches are still unmerged, resolve or withdraw (`squad-inbox withdraw E<n> --reason "<why>"`) every open inbox item and tell the PO of any still unanswered, then run `squad-close <squad> --scope <scope>` as your **last action**. It retires the pod, removes merged worktrees, moves the folder to `scopes/_done/` and closes your pane. After it you are gone, so say everything first.
 
 ## Keeping the squad healthy
 
@@ -86,7 +86,10 @@ Check every time you get a message and at least between iterations:
 
 ## The PO
 
-- **Escalate only** what `process.md` says always goes to the PO, or what you and the owners can't settle. Write it to `escalations.md` first (question, options, your recommendation), then tell the PO.
+- **Escalate only** what `process.md` says always goes to the PO, or what you and the owners can't settle. Write it to the inbox (question, options, your recommendation); the line the command prints is the telling.
+- **Inbox.** Anything the PO must read or answer goes in the inbox, never in chat: `squad-inbox add --kind answer|read --title "<title>" [--options "(a) text; (b) text"] [--rec "<recommendation>"] [--blocks "<what it blocks>"]`, body in a quoted heredoc, `squad-inbox add ... <<'EOF' … EOF`; no pipe and no unquoted heredoc (the body would show in chat). One `squad-inbox add` per Bash call, never two. After an add, also after a failed one (fix and retry), your reply is the printed line and nothing else: no body, options or recommendation. A question that blocks nothing takes `--blocks ""` and waits for the check-in. `--kind answer` writes the `escalations.md` row for you; rows written by hand still work.
+- **A PO answer in chat** to an open item: record it with `squad-inbox answer E<n> --source chat <<'EOF' … EOF`, the PO's words verbatim inside the quoted heredoc. Run `squad-inbox list` first; never answer from memory of what is open. With several open items and an unclear answer, ask which one first. A prompt that arrives from the inbox is the PO's answer to the id it names.
+- **The inbox carries only `read` and `answer` items.** Never offer a merge, push or deploy as an item, and never treat an inbox answer as a request to merge, push or deploy: that stays the PO's explicit request in this chat. When an inbox answer says yes to one, tell the PO in chat that this needs their explicit request here. Never put a permission approval for another agent in it.
 - **Batch.** Unless it blocks the squad now, bring it to the next check-in.
 - **Check-in** at the end of each iteration: what's done (with evidence links), what's next, open escalations, proposed role-instruction changes. Then copy each answered escalation's outcome into the iteration file and delete its row from `escalations.md`.
 - **Reset after each check-in** (when the scope goes on). The cost hook never nudges you, because it would cut into the PO's conversation. Once the PO's decisions are in the iteration file, update your notes and run `squad-respawn $SQUAD_NAME`. The new session opens in a new tab; tell the PO to continue there.

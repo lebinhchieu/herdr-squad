@@ -91,6 +91,34 @@ class InstructionsTest(unittest.TestCase):
         self.assertIn("`designer`", (ROOT / "agents/manager.md").read_text())
 
 
+class ManagerInboxTest(unittest.TestCase):
+    text = (ROOT / "agents/manager.md").read_text()
+
+    def test_the_manager_names_each_inbox_command_and_flag(self):
+        for token in ("squad-inbox add", "--kind answer|read", "Never offer a merge, push or deploy as an item", "<<'EOF'", "(a) ", "squad-inbox answer", "--source chat", "squad-inbox withdraw",
+                      '--blocks ""'):
+            self.assertIn(token, self.text)
+
+    def test_the_add_bullet_says_the_body_comes_from_a_quoted_heredoc(self):  # PI-07 AC9
+        self.assertIn("body in a quoted heredoc, `squad-inbox add ... <<'EOF' … EOF`; no pipe and no unquoted heredoc (the body would show in chat)", self.text)
+
+    def test_the_inbox_bullets_carry_the_three_live_wording_rules(self):  # PI-08 AC4
+        self.assertIn("One `squad-inbox add` per Bash call, never two.", self.text)  # M1
+        self.assertIn("your reply is the printed line and nothing else: no body, options or recommendation", self.text)  # M2
+        self.assertIn("Run `squad-inbox list` first; never answer from memory of what is open.", self.text)  # M3
+
+    def test_an_inbox_answer_is_never_a_merge_push_or_deploy_request(self):
+        self.assertRegex(self.text, r"(?is)never[^.]*merge, push or deploy[^.]*inbox|never[^.]*inbox[^.]*merge, push or deploy"
+                         r"|inbox[^.]*never[^.]*merge, push or deploy")
+        self.assertIn("\n## Never\n", self.text)
+        self.assertIn("needs their explicit request here", self.text)
+
+    def test_every_squad_inbox_word_is_a_cli_command(self):
+        words = set(re.findall(r"squad-inbox ([a-z]+)", self.text))
+        self.assertTrue(words)
+        self.assertLessEqual(words, {"add", "list", "read", "answer", "withdraw", "delivered"})
+
+
 SECTION_ROLES = ("dev", "qa-whitebox", "qa-blackbox", "designer")
 # Literal copy of the role table (PS-01's map is not on this branch); a citation outside it is read with --also.
 VIEW = {"dev": ["Messages", "Task lifecycle", "Cost rules", "Safety"],

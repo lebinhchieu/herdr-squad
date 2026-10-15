@@ -368,3 +368,123 @@ class WorktreeFinderTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse(self.wts["dev-b"].exists())
         self.assertTrue(self.wts["dev-a"].exists())  # not a worktree of this scope
+
+
+ESC = ("# Escalations\n\n| # | Date | Question | Options | Manager's recommendation | Blocks | Answer |\n|---|---|---|---|---|---|---|\n"
+       "| 2 | 2026-10-14 | Ship it? | (a) yes; (b) no | a | X | |\n"
+       "| 1 | 2026-10-14 | Old one | (a) x | | | (a) x |\n")
+
+
+class InboxGuardTest(unittest.TestCase):
+    setUp, tearDown, close = ScopedCloseTest.setUp, ScopedCloseTest.tearDown, ScopedCloseTest.close
+    """PI-06 (B-29): a scope or goal with open answer items is not closed unless --force."""
+
+    def put(self, folder, text=ESC):
+        (self.squad / folder / "escalations.md").write_text(text)
+
+    def inbox(self, folder, *args, body=""):
+        env = {**self.env, "SQUAD_ROLE": "manager", "SQUAD_INBOX_NOW": "2026-10-15T10:00:00Z"}
+        return subprocess.run([str(BIN / "squad-inbox"), "--home", str(self.squad / folder), *args], env=env,
+                              text=True, capture_output=True, timeout=30, input=body)
+
+    def assertNothingDone(self, folder):
+        self.assertTrue((self.squad / folder).exists())
+        self.assertFalse(self.log.exists() and self.log.read_text().strip())
+
+    def test_open_item_refuses_scope_close(self):
+        self.put("scopes/sc1")
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("scope sc1 has 1 open answer items: E2 Ship it?", r.stderr)
+        self.assertIn("--force", r.stderr)
+        self.assertNothingDone("scopes/sc1")
+        self.assertTrue(self.wts["t-dev-sc1-1"].exists())
+
+    def test_answered_waiting_blocks_but_delivered_withdrawn_and_read_do_not(self):
+        self.put("scopes/sc1")
+        self.assertEqual(self.inbox("scopes/sc1", "answer", "E2", "--option", "a", "--source", "pane").returncode, 0)
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("E2 Ship it? (answered, not yet read by the Manager)", r.stderr)
+        self.assertNothingDone("scopes/sc1")
+        self.assertEqual(self.inbox("scopes/sc1", "delivered", "E2", "--session", "s").returncode, 0)
+        self.assertEqual(self.inbox("scopes/sc1", "add", "--kind", "read", "--title", "FYI", body="details").returncode, 0)
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_withdrawn_does_not_block(self):
+        self.put("scopes/sc1")
+        self.assertEqual(self.inbox("scopes/sc1", "withdraw", "E2", "--reason", "gone").returncode, 0)
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+
+    def test_force_closes_and_dry_run_reports_without_acting(self):
+        self.put("scopes/sc1")
+        r = self.close("--scope", "sc1", "--dry-run")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("open answer items", r.stderr)
+        self.assertNothingDone("scopes/sc1")
+        r = self.close("--scope", "sc1", "--force")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue((self.squad / "scopes/_done/sc1").exists())
+
+    def test_goal_checks_only_its_own_folder_and_promoted_comes_first(self):
+        for s in ("sc2", "sc3"):
+            self.close("--scope", s, "--force")
+        self.put("goals/g1")
+        r = self.close("--goal", "g1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("goal g1 has 1 open answer items: E2 Ship it?", r.stderr)
+        (self.squad / "goals/g1/shared/decisions.md").write_text("# D\n\n- fact\n")
+        self.assertIn("unpromoted", self.close("--goal", "g1").stderr)
+        self.assertEqual(self.close("--goal", "g1", "--force").returncode, 0)
+
+    def test_open_item_elsewhere_does_not_block(self):
+        self.put("scopes/sc2")
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+
+    def test_malformed_row_warns_naming_file_and_row(self):
+        self.put("scopes/sc1", ESC.replace("| 2 | 2026-10-14 | Ship it? | (a) yes; (b) no | a | X | |\n", "")
+                 + "| 3 | 2026-10-14 | Too many | | | | | | | |\n")
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("warning: escalations.md row 6:", r.stderr)
+
+    def test_refused_close_leaves_the_folder_untouched(self):
+        self.put("scopes/sc1")
+        folder = self.squad / "scopes/sc1"
+        snap = {p.name: p.read_bytes() for p in folder.iterdir() if p.is_file()}
+        self.assertEqual(self.close("--scope", "sc1").returncode, 1)
+        self.assertEqual({p.name: p.read_bytes() for p in folder.iterdir() if p.is_file()}, snap)
+
+    def test_two_blockers_are_counted_and_joined(self):
+        self.put("scopes/sc1", ESC.replace("| 1 | 2026-10-14 | Old one | (a) x | | | (a) x |\n", "| 1 | 2026-10-14 | Other one | (a) x; (b) y | | | |\n"))
+        self.assertEqual(self.inbox("scopes/sc1", "answer", "E1", "--option", "a", "--source", "pane").returncode, 0)
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("scope sc1 has 2 open answer items: E2 Ship it?, E1 Other one (answered, not yet read by the Manager) (answer", r.stderr)
+
+    def test_missing_cli_warns_and_does_not_block(self):
+        self.put("scopes/sc1")
+        lone = self.root / "lonebin"
+        lone.mkdir()
+        for n in ("squad-close", "squad-retire"):
+            (lone / n).write_text((BIN / n).read_text())
+            (lone / n).chmod(0o755)
+        r = subprocess.run([str(lone / "squad-close"), "t", "--scope", "sc1"], env=self.env, cwd=self.root,
+                           text=True, capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("warning", r.stderr)
+
+    def test_non_json_output_warns_and_does_not_block(self):
+        self.put("scopes/sc1")
+        lone = self.root / "lonebin"
+        lone.mkdir()
+        for n in ("squad-close", "squad-retire"):
+            (lone / n).write_text((BIN / n).read_text())
+            (lone / n).chmod(0o755)
+        (lone / "squad-inbox").write_text("#!/bin/sh\necho not json\n")
+        (lone / "squad-inbox").chmod(0o755)
+        r = subprocess.run([str(lone / "squad-close"), "t", "--scope", "sc1"], env=self.env, cwd=self.root,
+                           text=True, capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("did not answer with JSON", r.stderr)
