@@ -4,6 +4,9 @@
   squad-process version [--json]        squad version, plugin version, state, stamp
   squad-process check [--quiet] [--json]  one-line warning when the squad's process.md is not current
 
+  squad-process show <role> [--also "<Heading>" ...] [--squad-dir D]
+                                        read-only: the role's sections of process.md, or the whole file
+
   squad-process plan [--json]            read-only: changelog items, section states, conflicts
   squad-process compose --out FILE [--resolve "<heading>=ours|theirs|file:<path>" ...]
   squad-process apply --file FILE [--yes] without --yes: diff, "NOT APPLIED"; with it: backup, write, log
@@ -63,6 +66,22 @@ def _mutating(a):
     return 0
 
 
+def _show(a):
+    if not a.squad_dir:
+        print("squad-process: no --squad-dir and $SQUAD_DIR is not set", file=sys.stderr)
+        return 2
+    try:
+        text = sp._read(os.path.join(a.squad_dir, "process.md"), "the squad's process.md")
+        out, warn = sp.show(text, a.role, a.also)
+    except sp.ProcessError as e:
+        print(f"squad-process: {e}", file=sys.stderr)
+        return 2
+    if warn:
+        print(f"squad-process: {warn}", file=sys.stderr)
+    sys.stdout.write(out if out.endswith("\n") else out + "\n")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="squad-process", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -73,6 +92,14 @@ def main(argv=None):
         p.add_argument("--json", action="store_true")
         if name == "check":
             p.add_argument("--quiet", action="store_true", help="print nothing when current and stamped")
+    sh = sub.add_parser(
+        "show", help="print the sections of process.md a role needs",
+        description="Prints the sections of process.md a role needs. Valid roles: "
+        + ", ".join(list(sp.ROLE_SECTIONS) + list(sp.WHOLE_FILE_ROLES))
+        + ". The first four read a section view; any other role gets the whole file.")
+    sh.add_argument("role")
+    sh.add_argument("--also", action="append", default=[], metavar="HEADING")
+    sh.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
     pl = sub.add_parser("plan")
     co = sub.add_parser("compose")
     ap_ = sub.add_parser("apply")
@@ -85,6 +112,8 @@ def main(argv=None):
     ap_.add_argument("--file", required=True)
     ap_.add_argument("--yes", action="store_true")
     a = ap.parse_args(argv)
+    if a.cmd == "show":
+        return _show(a)
     if a.cmd in ("plan", "compose", "apply"):
         return _mutating(a)
     if not a.squad_dir:
