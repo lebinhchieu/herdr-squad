@@ -670,6 +670,119 @@ class PickerTest(FollowCase):
         self.assertEqual(self.metrics()["height"], height)
 
 
+# A state update for the page's own EventSource: `prepare(extra)` fetches the current state with `extra` more
+# rows (cloned from the last one), `deliver(data)` hands it to the stream synchronously, so a test can place the
+# update exactly between a gesture and its scroll event.
+STATE_JS = """
+const prepare = async (extra) => {
+  const next = await (await fetch('/state', { cache: 'no-store' })).json();
+  const last = next.rows[next.rows.length - 1];
+  for (let i = 0; i < extra; i++) next.rows.push(JSON.parse(JSON.stringify(last)));
+  return JSON.stringify(next);
+};
+const deliver = (data) => window.__streams.filter((s) => s.readyState !== 2).pop()
+  .dispatchEvent(new MessageEvent('state', { data }));
+"""
+FRAMES_JS = "new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))"
+
+
+class RaceTest(FollowCase):
+    """A state update or a resize that lands after the user's gesture but before its scroll event (one task,
+    so no timing is involved) must not pin the bottom again. The scroll event is delivered with the next
+    frame, after microtasks, which is exactly the gap."""
+
+    def race(self, gesture, update):
+        """The gesture scrolls to the top, then `update` runs, all in one task; then two frames pass."""
+        self.open()
+        m = self.metrics()
+        self.assertGreater(m["height"], m["view"] * 3)
+        self.assertEqual(self.status()["following"], "true")
+        self.browser.eval("""(async () => {
+          %s
+          const data = await prepare(1);
+          %s
+          window.scrollTo(0, 0);
+          %s
+          await %s;
+        })()""" % (STATE_JS, gesture, update, FRAMES_JS))
+        self.sleep(100)
+        self.assertEqual(self.status()["following"], "false")
+        self.assertEqual(self.status()["buttonShown"], True)
+        self.assertEqual(self.metrics()["y"], 0)
+
+    WHEEL = "window.dispatchEvent(new Event('wheel'));"
+    STATE = "deliver(data);"
+    RESIZE = "window.dispatchEvent(new Event('resize'));"
+
+    def test_a_state_update_between_a_wheel_and_its_scroll_does_not_pin_the_bottom(self):
+        self.race(self.WHEEL, self.STATE)
+
+    def test_a_resize_between_a_wheel_and_its_scroll_does_not_pin_the_bottom(self):
+        self.race(self.WHEEL, self.RESIZE)
+
+    def test_a_state_update_right_after_a_scroll_key_does_not_pin_the_bottom(self):
+        self.race("window.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp' }));", self.STATE)
+
+    def test_a_state_update_during_a_scrollbar_drag_does_not_pin_the_bottom(self):
+        self.race("window.dispatchEvent(new MouseEvent('mousedown', "
+                  "{ clientX: document.documentElement.clientWidth + 6 }));", self.STATE)
+        self.browser.eval("window.dispatchEvent(new MouseEvent('mouseup'))")
+
+    def test_a_state_update_while_a_real_scrollbar_drag_is_down_does_not_pin_the_bottom(self):
+        self.open()
+        width = self.browser.eval("document.documentElement.clientWidth")
+        self.browser.call("drag", x=width + 6, y1=700, y2=100)  # the button stays down
+        self.browser.eval("(async () => { %s deliver(await prepare(1)); })()" % STATE_JS)
+        self.sleep(300)
+        self.browser.call("mouseUp")
+        self.sleep(300)
+        self.assertEqual(self.status()["following"], "false")
+        self.assertGreater(self.metrics()["left"], 40)
+
+    def test_a_state_update_while_the_scrollbar_is_held_does_not_pin_even_after_the_window(self):
+        self.open()
+        self.browser.eval("window.dispatchEvent(new MouseEvent('mousedown', "
+                          "{ clientX: document.documentElement.clientWidth + 6 })); window.scrollTo(0, 0)")
+        self.sleep(600)  # past the 400 ms window: only the drag keeps the gesture alive
+        self.browser.eval("(async () => { %s deliver(await prepare(1)); })()" % STATE_JS)
+        self.sleep(600)
+        self.assertEqual((self.status()["following"], self.metrics()["y"]), ("false", 0))
+        self.browser.eval("window.dispatchEvent(new MouseEvent('mouseup'))")
+
+    def test_a_wheel_that_moves_nothing_does_not_leave_the_page_short_of_the_new_rows(self):
+        self.open()
+        self.assertLessEqual(self.metrics()["left"], 1)
+        before = self.metrics()["height"]
+        self.browser.eval("""(async () => {
+          %s
+          const data = await prepare(3);
+          window.dispatchEvent(new Event('wheel'));  // a wheel down at the bottom: no scroll event follows
+          deliver(data);
+          await %s;
+        })()""" % (STATE_JS, FRAMES_JS))
+        self.browser.wait("document.documentElement.scrollHeight >= %d" % (before + 3 * ROW_H))
+        # the trailing pin comes when the 400 ms window ends
+        self.browser.wait("document.documentElement.scrollHeight - document.documentElement.clientHeight"
+                          " - window.scrollY <= 1", timeout=1500)
+        self.assertEqual((self.status()["following"], self.status()["buttonShown"]), ("true", False))
+
+    def test_the_trailing_pin_waits_for_a_second_gesture_and_is_not_taken_for_the_user(self):
+        self.open()
+        self.browser.eval("""(async () => {
+          %s
+          const data = await prepare(3);
+          window.dispatchEvent(new Event('wheel'));
+          deliver(data);
+          await new Promise((done) => setTimeout(done, 300));
+          window.dispatchEvent(new Event('wheel'));  // the window starts over; the first timer must not pin
+          window.scrollTo(0, 0);
+        })()""" % STATE_JS)
+        self.sleep(200)  # the first window would have ended by now
+        self.assertEqual(self.metrics()["y"], 0)
+        self.sleep(600)
+        self.assertEqual((self.status()["following"], self.metrics()["y"]), ("false", 0))
+
+
 class FollowSourceTest(unittest.TestCase):
     def sections(self):
         text = page.page_text()

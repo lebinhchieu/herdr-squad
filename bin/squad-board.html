@@ -914,6 +914,7 @@ let following = true;
 let newRows = 0;
 let userScrollUntil = 0;
 let draggingScrollbar = false;
+let pinTimer = 0;
 
 // The picker, the live button and the replay banner are DOM controls over the right end of the
 // needs-you bar (the part header keeps free); the picker section adds its own.
@@ -962,8 +963,28 @@ function updateFollow(previous, next) {
   if (switched) newRows = 0;
   else if (!following) newRows += Math.max(0, next.rows.length - previous.rows.length);
   // the page height changes in relayout(), which runs right after this
-  queueMicrotask(() => { if (following) pinBottom(); });
+  queueMicrotask(pinIfFollowing);
   renderFollow();
+}
+
+// A gesture's scroll event arrives with the next frame, after microtasks and resize handlers: until
+// then `following` is stale, and a pin would undo the scroll the user just made.
+function userIsScrolling() {
+  return draggingScrollbar || performance.now() < userScrollUntil;
+}
+
+// A pin skipped for a gesture is not lost: a gesture that moves nothing (wheel down at the bottom) sends no
+// scroll event to decide. When the window ends and the follow is still on, pin once. setTimeout may fire a
+// little early against performance.now(), so the check is repeated instead of trusting the delay.
+function pinIfFollowing() {
+  if (!following) return;
+  if (!userIsScrolling()) {
+    pinBottom();
+    return;
+  }
+  clearTimeout(pinTimer);
+  const wait = draggingScrollbar ? USER_SCROLL_MS : userScrollUntil - performance.now();
+  pinTimer = setTimeout(pinIfFollowing, Math.max(1, wait));
 }
 
 function renderFollow() {
@@ -997,7 +1018,7 @@ window.addEventListener('mousemove', (ev) => { if (ev.buttons === 0) draggingScr
 window.addEventListener('scroll', () => {
   if (draggingScrollbar || performance.now() < userScrollUntil) onUserScroll();
 });
-window.addEventListener('resize', () => { if (following) pinBottom(); });
+window.addEventListener('resize', pinIfFollowing);
 
 liveButton.addEventListener('click', () => {
   if (isReplay(state)) {
