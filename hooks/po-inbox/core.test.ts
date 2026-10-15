@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { describePrompt, newOpenIds, oneLine, parseSnapshot, sanitize } from './core'
+import { ageOf, describePrompt, fit, newOpenIds, oneLine, parseAdd, parseSnapshot, sanitize, stamp } from './core'
 import { FIXTURES } from './fixtures'
 
 const mixed = () => JSON.parse(FIXTURES['contract-provisional-mixed'])
@@ -127,4 +127,39 @@ describe('sanitize and oneLine', () => {
   test('oneLine joins words and drops separators', () => {
     expect(oneLine('  a\n\n b c  ')).toBe('a b c')
   })
+})
+
+test('fit: cuts to the width and ends with an ellipsis; short text is whole', () => {
+  expect(fit('abcdef', 4)).toBe('abc…')
+  expect(fit('abcd', 4)).toBe('abcd')
+  expect(fit('abc', 0)).toBe('')
+})
+
+test('ageOf: now, minutes, hours, days (60 days stays days)', () => {
+  const now = '2026-10-15T12:00:00'
+  expect(ageOf('2026-10-15T11:59:30', now)).toBe('now')
+  expect(ageOf('2026-10-15T11:48:00', now)).toBe('12m')
+  expect(ageOf('2026-10-15T07:00:00', now)).toBe('5h')
+  expect(ageOf('2026-10-12T12:00:00', now)).toBe('3d')
+  expect(ageOf('2026-08-16T12:00:00', now)).toBe('60d')
+})
+
+test('stamp: local date and time; a day-precision source is date only', () => {
+  expect(stamp('2026-10-15T10:42:00')).toBe('2026-10-15 10:42')
+  expect(stamp('2026-10-15', 'day')).toBe('2026-10-15')
+  expect(stamp('2026-10-15T10:42:00', 'day')).toBe('2026-10-15')
+})
+
+test('sanitize strips bidi controls and keeps tab and newline', () => {
+  expect(sanitize('a‮b⁦c⁩d\te\nf')).toBe('abcd\te\nf')
+})
+
+test('parseAdd: one add call only', () => {
+  expect(parseAdd('squad-inbox add --title "A B"')).toEqual({ title: 'A B' })
+  expect(parseAdd('  ./bin/squad-inbox add --title=x')).toEqual({ title: 'x' })
+  expect(parseAdd('squad-inbox add --kind read')).toEqual({ title: null })
+  expect(parseAdd('squad-inbox add --title x; ls')).toBeNull()
+  expect(parseAdd('echo squad-inbox add')).toBeNull()
+  expect(parseAdd("squad-inbox add --title x <<'E'\nbody; | $(x)\nE")).toEqual({ title: 'x' })
+  expect(parseAdd("squad-inbox add --title x <<'E'\nbody\nE\nls")).toBeNull()
 })
