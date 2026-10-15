@@ -95,7 +95,7 @@ class ManagerInboxTest(unittest.TestCase):
     text = (ROOT / "agents/manager.md").read_text()
 
     def test_the_manager_names_each_inbox_command_and_flag(self):
-        for token in ("squad-inbox add", "--kind answer", "(a) ", "squad-inbox answer", "--source chat", "squad-inbox withdraw",
+        for token in ("squad-inbox add", "--kind answer|read", "Never offer a merge, push or deploy as an item", "<<'EOF'", "(a) ", "squad-inbox answer", "--source chat", "squad-inbox withdraw",
                       '--blocks ""'):
             self.assertIn(token, self.text)
 
