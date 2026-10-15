@@ -443,15 +443,25 @@ class InboxGuardTest(unittest.TestCase):
         self.assertEqual(self.close("--scope", "sc1").returncode, 0)
 
     def test_malformed_row_warns_naming_file_and_row(self):
-        self.put("scopes/sc1", ESC.replace("| 1 | 2026-10-14 | Old one | (a) x | | | (a) x |\n", "| 1 | 2026-10-14 | Old one | (a) x | | | (a) x | extra | cells |\n"))
-        (self.squad / "scopes/sc1/escalations.md").write_text(
-            ESC.replace("| 2 | 2026-10-14 | Ship it? | (a) yes; (b) no | a | X | |\n", ""))
-        self.assertEqual(self.inbox("scopes/sc1", "list", "--json").returncode, 0)
-        text = (self.squad / "scopes/sc1/escalations.md").read_text() + "| 3 | 2026-10-14 | Too many | | | | | | | |\n"
-        (self.squad / "scopes/sc1/escalations.md").write_text(text)
+        self.put("scopes/sc1", ESC.replace("| 2 | 2026-10-14 | Ship it? | (a) yes; (b) no | a | X | |\n", "")
+                 + "| 3 | 2026-10-14 | Too many | | | | | | | |\n")
         r = self.close("--scope", "sc1")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertRegex(r.stderr, r"warning: escalations\.md row \d+")
+        self.assertIn("warning: escalations.md row 6:", r.stderr)
+
+    def test_refused_close_leaves_the_folder_untouched(self):
+        self.put("scopes/sc1")
+        folder = self.squad / "scopes/sc1"
+        snap = {p.name: p.read_bytes() for p in folder.iterdir() if p.is_file()}
+        self.assertEqual(self.close("--scope", "sc1").returncode, 1)
+        self.assertEqual({p.name: p.read_bytes() for p in folder.iterdir() if p.is_file()}, snap)
+
+    def test_two_blockers_are_counted_and_joined(self):
+        self.put("scopes/sc1", ESC.replace("| 1 | 2026-10-14 | Old one | (a) x | | | (a) x |\n", "| 1 | 2026-10-14 | Other one | (a) x; (b) y | | | |\n"))
+        self.assertEqual(self.inbox("scopes/sc1", "answer", "E1", "--option", "a", "--source", "pane").returncode, 0)
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("scope sc1 has 2 open answer items: E2 Ship it?, E1 Other one (answered, not yet read by the Manager) (answer", r.stderr)
 
     def test_missing_cli_warns_and_does_not_block(self):
         self.put("scopes/sc1")
