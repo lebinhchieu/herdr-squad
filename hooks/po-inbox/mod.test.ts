@@ -49,6 +49,7 @@ function world(on: any, env: Record<string, string>, cli: (argv: string[], stdin
   })
   on('command.register', (_$: any, e: any) => (w.registered.push(e.name), { value: { command: e.name } }))
   on('ui.open', (_$: any, e: any) => (w.opened.push(e.id), { value: { isPlaced: true } }))
+  on('ui.close', () => ({ value: undefined }))
   on('turn.complete', () => ({ text: '' }))
   on('session.id', () => ({ value: 'sess-1' }))
   on('state.set', (_$: any, e: any, next: any) => (w.writes++, (w.state[e.key] = e.value), next(e)))

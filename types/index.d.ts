@@ -55,6 +55,8 @@ export type InboxUi = {
   draft: Record<string, string>;
   pending: string | null;
   notice: InboxNotice | null;
+  /** Bumped when a refused send must bring the typed text back into a field the engine cleared. */
+  rev: number;
 };
 
 declare module 'claude-code' {

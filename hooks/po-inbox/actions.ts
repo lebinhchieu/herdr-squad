@@ -7,7 +7,7 @@ import { describePrompt, newOpenIds, parseSnapshot, sanitize, toastText, waiting
 
 export const inboxAtom = atom({ plugin: 'squad', key: 'inbox' } as const, null)
 export const errorAtom = atom({ plugin: 'squad', key: 'inboxError' } as const, null)
-const FRESH_UI: InboxUi = { isOpen: false, screen: 'list', id: null, expanded: false, picked: {}, draft: {}, pending: null, notice: null }
+const FRESH_UI: InboxUi = { isOpen: false, screen: 'list', id: null, expanded: false, picked: {}, draft: {}, pending: null, notice: null, rev: 0 }
 export const uiAtom = atom({ plugin: 'squad', key: 'ui' } as const, FRESH_UI)
 
 const POLL_MS = 2000
@@ -222,7 +222,9 @@ export function stop(): void {
 
 export async function openPane($: any): Promise<void> {
   await update($, uiAtom, (ui) => ({ ...ui, isOpen: true, screen: 'list', id: null, expanded: false, notice: null }))
-  await $.ui.open({ id: 'inbox', title: 'Inbox', focus: true })
+  // Opening an open pane would only retitle it and leave the keys in the prompt: close it first so focus is asked afresh.
+  await $.ui.close({ id: 'inbox' })
+  await $.ui.open({ id: 'inbox', title: 'Inbox', focus: true, rows: 18 })
 }
 
 // What the band and the pane draw from; the state scan only follows atoms read in their own file.
@@ -310,5 +312,5 @@ export async function submitAnswer($: any, id: string, typedNow?: string): Promi
     return
   }
   const text = res.exit === 3 ? res.message : `Could not reach the inbox: ${res.message.split('\n')[0].slice(0, 200)}`
-  await update($, uiAtom, (u) => ({ ...u, pending: null, draft: { ...u.draft, [id]: typed }, notice: { tone: 'error', text } }))
+  await update($, uiAtom, (u) => ({ ...u, pending: null, draft: { ...u.draft, [id]: typed }, rev: u.rev + 1, notice: { tone: 'error', text } }))
 }

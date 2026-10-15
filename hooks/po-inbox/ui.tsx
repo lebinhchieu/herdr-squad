@@ -187,7 +187,7 @@ function answerForm($: any, it: any, ui: any, T: any) {
   const picked = ui.picked[id]
   const field = (key: string, label: string) => (
     <Input
-      key={key}
+      key={ui.rev ? `${key}-${ui.rev}` : key}
       label={label}
       value={ui.draft[id] ?? ''}
       submitLabel="send"
@@ -350,8 +350,16 @@ function renderToolUse($: any, e: any, next: any) {
   return <Text dimColor wrap="truncate">{`→ inbox: ${title === '' ? 'new item' : title}`}</Text>
 }
 
+// A failed add (a non-zero exit shows as isErrored, or as a code on the result) keeps its normal result.
+function exitedNonZero(output: unknown): boolean {
+  if (typeof output !== 'object' || output === null) return false
+  const o = output as { exitCode?: unknown; code?: unknown; interrupted?: unknown }
+  const code = typeof o.exitCode === 'number' ? o.exitCode : typeof o.code === 'number' ? o.code : 0
+  return code !== 0 || o.interrupted === true
+}
+
 function renderToolResult($: any, e: any, next: any) {
-  if (e.props.tool !== 'Bash' || e.props.isErrored || !collapsed.has(e.props.tool_use_id)) return next(e)
+  if (e.props.tool !== 'Bash' || e.props.isErrored || exitedNonZero(e.props.output) || !collapsed.has(e.props.tool_use_id)) return next(e)
   const { Box } = $.ui.resolve(e) as any
   return <Box key="inbox-result" />
 }

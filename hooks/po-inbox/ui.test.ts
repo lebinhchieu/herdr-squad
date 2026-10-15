@@ -32,6 +32,7 @@ async function boot($: any, on: any, s: unknown, cli?: (argv: string[], stdin?: 
   on('fs.stat', () => ({ value: { kind: 'file', size: 1, mtimeMs: 1, isLink: false } }))
   on('command.register', (_$: any, e: any) => ({ value: { command: e.name } }))
   on('ui.open', (_$: any, e: any) => (w.opened.push(e), { value: { isPlaced: true } }))
+  on('ui.close', () => ({ value: undefined }))
   on('prompt.submit', (_$: any, e: any) => (w.submits.push(e.text), { text: e.text }))
   on('session.id', () => ({ value: 'sess-1' }))
   on('ui.toast', () => ({ value: undefined }))
@@ -645,6 +646,26 @@ test('ToolGroup: a group of only collapsed adds draws pointer lines; a mixed gro
   expect(await dump(mixed)).toBe('ENGINE')
   const bad = await $.ui.mount(grp([call(ADD, { isErrored: true })], 'g3'))
   expect(await dump(bad)).toBe('ENGINE')
+})
+
+test('ToolResult: a failed add (exit code) keeps its result; a chained command is untouched in all three hooks', async ($, on) => {
+  await boot($, on, snap([]))
+  const res = (id: string, output: unknown) =>
+    ({ plugin: 'squad', surface: 'terminal', component: 'ToolResult', requestId: id, props: { tool_use_id: id, tool: 'Bash', output, isErrored: false } }) as any
+  const use = await $.ui.mount(toolUse('terminal', ADD, {}, 'fail1'))
+  await dump(use)
+  const failed = await $.ui.mount(res('fail1', { stdout: '', stderr: 'bad', exitCode: 2 }))
+  expect(await dump(failed)).toBe('ENGINE')
+  const chained = 'squad-inbox add --title x; echo hi'
+  const useChained = await $.ui.mount(toolUse('terminal', chained, {}, 'chain1'))
+  expect(await dump(useChained)).toBe('ENGINE')
+  const grp = await $.ui.mount({
+    plugin: 'squad', surface: 'terminal', component: 'ToolGroup', requestId: 'gchain',
+    props: { calls: [{ tool_use_id: 'chain1', tool: 'Bash', input: { command: chained }, isRunning: false, isErrored: false, isInterrupted: false }], isActive: false, isExpanded: false },
+  } as any)
+  expect(await dump(grp)).toBe('ENGINE')
+  const chainedResult = await $.ui.mount(res('chain1', { stdout: '1 new item in the inbox: x\nhi', stderr: '', exitCode: 0 }))
+  expect(await dump(chainedResult)).toBe('ENGINE')
 })
 
 // --- the rest -----------------------------------------------------------------------------
