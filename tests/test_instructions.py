@@ -111,6 +111,13 @@ class SectionViewTest(unittest.TestCase):
         for name in ("manager", "tech-lead", "ba", "team-lead", "token-coach"):
             self.assertNotIn("squad-process show", (ROOT / f"agents/{name}.md").read_text(), name)
 
+    def test_the_fallback_sentence_names_exactly_the_role_view(self):
+        for name in SECTION_ROLES:
+            text = (ROOT / f"agents/{name}.md").read_text()
+            m = re.search(r"if the command fails, read the `process\.md` sections (.*?) by heading", text)
+            self.assertTrue(m, name)
+            self.assertEqual(re.findall(r"`([^`]+)`", m.group(1)), VIEW[name], name)
+
     def test_every_citation_is_in_the_role_view_or_listed_as_outside_it(self):
         import importlib.util
         spec = importlib.util.spec_from_file_location("citations", ROOT / "tests/test_process_citations.py")
