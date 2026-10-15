@@ -454,6 +454,15 @@ for (const [name, it, texts] of HANDLED) {
   })
 }
 
+test('item-cell-not-written: an answered item with the flag says the board may still list it', async ($, on) => {
+  await boot($, on, snap([item({ ...Q, state: 'answered-waiting', answer: ANS(), flags: ['cell-not-written'] }), item({ id: 'E4', state: 'answered-waiting', answer: ANS() })]))
+  const ui = await openItem($, 'terminal', 'E3')
+  expect(await dump(ui)).toContain('Answer kept. escalations.md was not updated, so the board may still list it.')
+  await ui.unmount()
+  const other = await openItem($, 'terminal', 'E4')
+  expect(await dump(other)).not.toContain('Answer kept.')
+})
+
 test('item-delivery-failed: the answered-waiting item says delivery is not confirmed', async ($, on) => {
   const waiting = item({ ...Q, state: 'answered-waiting', answer: ANS() })
   const w = await boot($, on, snap([waiting]), (argv) => (argv[0] === 'delivered' ? { exitCode: 2, stdout: '', stderr: 'read-only' } : undefined))

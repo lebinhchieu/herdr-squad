@@ -258,6 +258,9 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
           {handledLines(it).map((hl, i) => (
             <Text key={`h${i}`} {...(hl.tone ? { color: hl.tone } : {})} wrap="wrap">{hl.text}</Text>
           ))}
+          {it.answer && it.flags.includes('cell-not-written') ? (
+            <Text dimColor wrap="wrap">Answer kept. escalations.md was not updated, so the board may still list it.</Text>
+          ) : null}
           {it.state === 'answered-waiting' && error ? (
             <Text color="error" wrap="wrap">{`answered, delivery not confirmed: ${line(error)}`}</Text>
           ) : null}

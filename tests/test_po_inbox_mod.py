@@ -36,7 +36,7 @@ class PoInboxModTest(unittest.TestCase):
         hooks = next(line for line in out.splitlines() if "register.tsx hooks:" in line)
         for event in ("session.start", "command.run{command=inbox}", "turn.complete"):
             self.assertIn(event, hooks)
-        self.assertNotIn("ui.render", hooks)  # PI-04 adds it
+        self.assertIn("ui.render", hooks)
         self.assertRegex(out, r"env reads: .*GOAL_DIR")
         for name in ("SQUAD_ROLE", "SCOPE_DIR", "GOAL_DIR"):
             self.assertIn(name, next(line for line in out.splitlines() if "env reads:" in line))
