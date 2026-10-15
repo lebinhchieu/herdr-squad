@@ -812,3 +812,35 @@ test('openPane closes the pane before it opens it', async ($, on) => {
   await $.command.run({ command: 'inbox' })
   expect(w.order).toEqual(['close', 'open'])
 })
+
+// --- QA blackbox F1, F2 (90f8eb8) ------------------------------------------------------------
+
+test('labels carry their hotkey hints (design §1, §2)', async ($, on) => {
+  await boot($, on, snap([Q, R, DONE_R]))
+  const b = await $.ui.mount(band('terminal'))
+  expect((await b.find({ key: 'open' }))?.text).toContain('Open inbox (i)')
+  const c = await $.ui.mount(band('terminal', 40))
+  expect((await c.find({ key: 'open' }))?.text).toContain('Open (i)')
+  const list = await openItem($, 'terminal', 'R2')
+  expect((await list.find({ key: 'mark-read' }))?.text).toContain('Mark read (m)')
+  expect((await list.find({ key: 'back' }))?.text).toContain('← Back (b)')
+  await list.press({ key: 'back' })
+  expect((await list.find({ key: 'done' }))?.text).toContain('Done (1) (d)')
+  await list.press({ key: 'done' })
+  expect((await list.find({ key: 'back' }))?.text).toContain('← Back (b)')
+})
+
+test('item body: <br> is a line break and the title is not repeated', async ($, on) => {
+  await boot($, on, snap([
+    item({ id: 'E9', title: 'Ship the badge?', body: 'Ship the badge?<br>It touches CART-04.' }),
+    item({ id: 'E7', title: 'Free reply question?', body: 'Free reply question?' }),
+  ]))
+  const ui = await openItem($, 'terminal', 'E9')
+  const t = await dump(ui)
+  expect(t).not.toContain('<br>')
+  expect(t.match(/Ship the badge\?/g)?.length).toBe(1)
+  expect(t).toContain('It touches CART-04.')
+  await ui.unmount()
+  const free = await openItem($, 'terminal', 'E7')
+  expect((await dump(free)).match(/Free reply question\?/g)?.length).toBe(1)
+})

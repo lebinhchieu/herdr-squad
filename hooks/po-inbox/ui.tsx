@@ -57,7 +57,7 @@ async function renderBand($: any, e: any, next: any) {
         {parts}
         {'   '}
       </Text>
-      <Button key="open" hotkey="i" label={compact ? 'Open' : 'Open inbox'} onPress={() => openPane($)} />
+      <Button key="open" hotkey="i" label={compact ? 'Open (i)' : 'Open inbox (i)'} onPress={() => openPane($)} />
     </Box>
   )
 }
@@ -133,14 +133,16 @@ function listScreen($: any, e: any, ui: any, snap: InboxSnapshot, error: any, T:
       {group('Blocks work', g.blocks)}
       {group('Blocks nothing', g.nothing)}
       {group('Answered, waiting for the Manager', g.waiting, true)}
-      {doneCount ? <Button key="done" hotkey="d" label={`Done (${doneCount})`} onPress={() => goTo($, 'done', null)} /> : null}
+      {doneCount ? <Button key="done" hotkey="d" label={`Done (${doneCount}) (d)`} onPress={() => goTo($, 'done', null)} /> : null}
     </Box>
   )
 }
 
 function body($: any, it: InboxItem, ui: any, T: any) {
   const { Box, Text, Button } = T
-  const lines = sanitize(it.body).split('\n')
+  // The escalations row writes line breaks as <br>, and often starts with the title the screen already shows.
+  const lines = sanitize(it.body).replace(/<br\s*\/?>/gi, '\n').split('\n')
+  if (lines.length > 0 && lines[0].trim() === line(it.title).trim()) lines.shift()
   const cut = !ui.expanded && lines.length > ANSWER_FIRST_LINES
   const shown = cut ? lines.slice(0, ANSWER_FIRST_LINES) : lines
   return (
@@ -245,7 +247,7 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   const draft = ui.draft[it.id] ?? ''
   return (
     <Box flexDirection="column">
-      <Button key="back" label="← Back" {...hot} onPress={() => goTo($, back, null)} />
+      <Button key="back" label={isForm ? '← Back' : '← Back (b)'} {...hot} onPress={() => goTo($, back, null)} />
       {notice(ui, T)}
       <Text dimColor wrap="wrap">
         {`${it.id} · ${it.kind} · blocks ${line(it.blocks) || 'nothing'} · created ${when(it.created, it.created_precision)} (${ageOf(it.created, snap.now) === 'now' ? 'now' : `${ageOf(it.created, snap.now)} ago`})`}
@@ -274,7 +276,7 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
           {draft !== '' ? <Text wrap="wrap">{sanitize(draft)}</Text> : null}
         </Box>
       ) : it.kind === 'read' ? (
-        <Button key="mark-read" hotkey="m" label="Mark read" onPress={() => markRead($, it.id)} />
+        <Button key="mark-read" hotkey="m" label="Mark read (m)" onPress={() => markRead($, it.id)} />
       ) : (
         answerForm($, it, ui, T)
       )}
@@ -295,7 +297,7 @@ function doneScreen($: any, e: any, snap: InboxSnapshot, T: any) {
   }
   return (
     <Box flexDirection="column">
-      <Button key="back" label="← Back" hotkey="b" onPress={() => goTo($, 'list', null)} />
+      <Button key="back" label="← Back (b)" hotkey="b" onPress={() => goTo($, 'list', null)} />
       <Text bold>Done · newest first</Text>
       {items.length === 0 ? <Text>Nothing handled yet.</Text> : null}
       {items.map((it, i) => (
