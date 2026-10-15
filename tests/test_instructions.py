@@ -100,7 +100,7 @@ class ManagerInboxTest(unittest.TestCase):
             self.assertIn(token, self.text)
 
     def test_the_add_bullet_says_the_body_comes_from_a_quoted_heredoc(self):  # PI-07 AC9
-        self.assertIn("body on stdin from a quoted heredoc", self.text)
+        self.assertIn("body in a quoted heredoc, `squad-inbox add ... <<'EOF' … EOF`; no pipe and no unquoted heredoc (the body would show in chat)", self.text)
 
     def test_an_inbox_answer_is_never_a_merge_push_or_deploy_request(self):
         self.assertRegex(self.text, r"(?is)never[^.]*merge, push or deploy[^.]*inbox|never[^.]*inbox[^.]*merge, push or deploy"
