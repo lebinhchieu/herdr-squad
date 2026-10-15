@@ -6,8 +6,8 @@ import { FIXTURES } from './fixtures'
 const START = { cwd: '/w', surface: null, isInteractive: true } as const
 const HOME = '/h/scope'
 const MANAGER = { SQUAD_ROLE: 'manager', SCOPE_DIR: HOME }
-const MIXED = FIXTURES['contract-provisional-mixed']
-const EMPTY = FIXTURES['contract-provisional-empty']
+const MIXED = FIXTURES['contract-mixed']
+const EMPTY = FIXTURES['contract-empty']
 
 type Reply = { exitCode: number; stdout: string; stderr: string }
 const ok = (stdout: string): Reply => ({ exitCode: 0, stdout, stderr: '' })

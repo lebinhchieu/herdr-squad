@@ -99,6 +99,9 @@ class ManagerInboxTest(unittest.TestCase):
                       '--blocks ""'):
             self.assertIn(token, self.text)
 
+    def test_the_add_bullet_says_the_body_comes_from_a_quoted_heredoc(self):  # PI-07 AC9
+        self.assertIn("body on stdin from a quoted heredoc", self.text)
+
     def test_an_inbox_answer_is_never_a_merge_push_or_deploy_request(self):
         self.assertRegex(self.text, r"(?is)never[^.]*merge, push or deploy[^.]*inbox|never[^.]*inbox[^.]*merge, push or deploy"
                          r"|inbox[^.]*never[^.]*merge, push or deploy")

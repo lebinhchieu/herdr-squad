@@ -3,7 +3,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import { ageOf, describePrompt, fit, newOpenIds, oneLine, parseAdd, parseSnapshot, sanitize, stamp } from './core'
 import { FIXTURES } from './fixtures'
 
-const mixed = () => JSON.parse(FIXTURES['contract-provisional-mixed'])
+const mixed = () => JSON.parse(FIXTURES['contract-mixed'])
 const parse = (v: unknown) => parseSnapshot(JSON.stringify(v))
 
 describe('parseSnapshot', () => {

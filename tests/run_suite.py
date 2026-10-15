@@ -216,7 +216,9 @@ def main(argv=None):
             browser_tests = {"%s/%s.py" % (tests_dir_name, f.stem) for f in discover(args.tests_dir)[1]}
             skip_browser = not touches(changed, browser_tests, BROWSER_WATCH)
             skip_tz = not touches(changed, {"%s/%s.py" % (tests_dir_name, n) for n in only}, TZ_WATCH)
-    text, ok = execute(args.tests_dir, None, args.jobs, args.browser_streams, args.retries, skip_browser=skip_browser)
+    # The full --tz run must not skip the claude-dependent mod test: without `claude` it fails.
+    text, ok = execute(args.tests_dir, None, args.jobs, args.browser_streams, args.retries,
+                       {"SQUAD_REQUIRE_CLAUDE": "1"} if args.tz else None, skip_browser=skip_browser)
     text += notes
     if skip_browser:
         text += "skipped browser files: no browser test or watched source changed since %s\n" % args.if_changed

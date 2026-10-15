@@ -28,7 +28,8 @@ class RunSuiteTest(unittest.TestCase):
     def run_runner(self, *args):
         return subprocess.run([sys.executable, str(RUNNER), "--tests-dir", str(self.dir)] + list(args),
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True,
-                              env=dict(os.environ, SQUAD_SUITE_LOCK=str(self.dir / "lock")))
+                              env=dict({k: v for k, v in os.environ.items() if k != "SQUAD_REQUIRE_CLAUDE"},
+                                         SQUAD_SUITE_LOCK=str(self.dir / "lock")))
 
     def test_discovery_takes_test_files_and_splits_browser_files_off_by_text(self):
         self.stub("test_plain.py", PASS)
@@ -103,6 +104,15 @@ class RunSuiteTest(unittest.TestCase):
         self.assertRegex(lines[-3], r"^Ran 2 tests in \d+\.\d+s$")
         self.assertEqual(lines[-1], "OK")
         self.assertFalse((out / "suite-tz.txt").exists())
+
+    def test_tz_run_requires_claude_for_the_mod_test_and_a_plain_run_does_not(self):  # PI-07 AC7
+        self.stub("test_env.py", "import os, unittest\nclass T(unittest.TestCase):\n"
+                  "    def test_a(self): self.assertEqual(os.environ.get('SQUAD_REQUIRE_CLAUDE'), '1')\n")
+        out = self.dir / "r"
+        done = self.run_runner("--receipt", str(out / "tz"), "--tz")
+        self.assertEqual(done.returncode, 0, done.stdout)
+        done = self.run_runner("--receipt", str(out / "plain"))
+        self.assertEqual(done.returncode, 1, done.stdout)
 
     def test_tz_run_takes_only_the_time_files_and_the_also_file_under_new_york_time(self):
         probe = ("import os, unittest\nclass T(unittest.TestCase):\n"
