@@ -77,6 +77,36 @@ if [[ $mode == goal && $force == 0 ]]; then
   ! unpromoted "$src" || { echo "goal $goal has unpromoted decisions in shared/decisions.md and no 'promoted:' line in goal.md (promote first, or --force)" >&2; exit 1; }
 fi
 
+# An answer item still open, or answered but not yet read by the Manager, is a question the PO would lose with this
+# folder. A broken inbox warns and never traps a close.
+inbox_blockers() {  # stdout: the blocking items; stderr: warnings
+  local json
+  json=$("$bin/squad-inbox" --home "$1" list --json --no-write 2>/dev/null) || { echo "warning: could not read the inbox of $1; not checked" >&2; return 0; }
+  python3 -c '
+import json, sys
+try:
+    d = json.loads(sys.stdin.read())
+    items, errors = d["items"], d.get("errors", [])
+except Exception:
+    print("warning: the inbox of %s did not answer with JSON; not checked" % sys.argv[1], file=sys.stderr)
+    sys.exit(0)
+for e in errors:
+    print("warning: %s row %s: %s (it may be an open question)" % (e.get("file"), e.get("row"), e.get("message")), file=sys.stderr)
+for i in items:
+    if i.get("kind") == "answer" and i.get("state") == "open":
+        print("%s %s" % (i["id"], i.get("title")))
+    elif i.get("kind") == "answer" and i.get("state") == "answered-waiting":
+        print("%s %s (answered, not yet read by the Manager)" % (i["id"], i.get("title")))
+' "$1" <<<"$json"
+}
+if [[ $mode == goal || $mode == scope ]] && [[ $force == 0 ]]; then
+  blockers=$(inbox_blockers "$src")
+  if [[ -n $blockers ]]; then
+    echo "$mode $(basename "$src") has $(wc -l <<<"$blockers") open answer items: $(sed ':a;N;$!ba;s/\n/, /g' <<<"$blockers") (answer or withdraw them first, or --force)" >&2
+    exit 1
+  fi
+fi
+
 agents=() roles=() labels=()
 for r in "${rosters[@]}"; do
   [[ -f $r ]] || continue
