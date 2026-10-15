@@ -105,6 +105,28 @@ class RespawnTest(unittest.TestCase):
         prompt = next(l for l in log if l.startswith("agent prompt"))
         self.assertIn("roles/manager-t.notes.md", prompt)
 
+    def dry_prompt(self, agent, role):
+        with (self.squad / "roster.md").open("a") as f:
+            f.write(f"| {agent} | {role} |  |  | live | old-sid |\n")
+        r = subprocess.run([str(BIN / "squad-respawn"), agent, "--dry-run"], env=self.env,
+                           text=True, capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout
+
+    def test_the_four_section_roles_are_told_to_run_squad_process_show_with_their_role(self):
+        for agent, role in (("d2", "Dev"), ("w1", "QA whitebox"), ("b1", "QA blackbox"), ("ux", "Designer")):
+            out = self.dry_prompt(agent, role)
+            name = role.lower().replace(" ", "-")
+            self.assertIn(f"squad-process show {name}", out)
+            self.assertIn(f"roles/{agent}.notes.md", out)
+            self.assertNotIn("Read $SQUAD_DIR/process.md", out)
+
+    def test_other_roles_keep_the_whole_process_md_prompt(self):
+        for agent, role in (("m1", "Manager"), ("t1", "Tech Lead"), ("b2", "BA"), ("l1", "Team Lead"), ("c1", "Token Coach")):
+            out = self.dry_prompt(agent, role)
+            self.assertIn(f"Read $SQUAD_DIR/process.md, then your notes $SQUAD_DIR/roles/{agent}.notes.md, and continue from them.", out)
+            self.assertNotIn("squad-process", out)
+
     def test_respawn_brings_back_the_title_and_the_number(self):
         init = subprocess.run([str(BIN / "squad-label"), "--init", "--home", str(self.squad), "--agent", "dev-1",
                                "--role", "dev", "--title", "plan"], env=self.env, text=True, capture_output=True)

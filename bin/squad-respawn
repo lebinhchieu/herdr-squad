@@ -42,6 +42,10 @@ title_args=()
 [[ -z $title ]] || title_args=(--title "$title")
 
 prompt="RESPAWN: you are $name, restarted fresh. Read \$SQUAD_DIR/process.md, then your notes \$$home_var/roles/$name.notes.md, and continue from them."
+case $role in
+  dev|qa-whitebox|qa-blackbox|designer)
+    prompt="RESPAWN: you are $name, restarted fresh. Run \`squad-process show $role\` (your sections of \$SQUAD_DIR/process.md), then your notes \$$home_var/roles/$name.notes.md, and continue from them." ;;
+esac
 spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" "${title_args[@]}" --prompt "$prompt")
 
 notes=$home/roles/$name.notes.md
