@@ -455,3 +455,35 @@ class OptionsRawTest(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InvalidUtf8Test(Base):
+    """PI-01 AC26: invalid UTF-8 in an argument or on stdin is refused with exit 2 and one line."""
+
+    def go(self, argv, stdin=b""):
+        return subprocess.run([sys.executable, "-B", CLI, "--home", str(self.home)] + argv, input=stdin,
+                              capture_output=True, env=env("manager"))
+
+    def check(self, r, option):
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertNotIn(b"Traceback", r.stderr)
+        self.assertEqual(len(r.stderr.strip().splitlines()), 1)
+        self.assertIn(option, r.stderr)
+
+    def test_refused_and_nothing_written(self):
+        before = (self.home / "escalations.md").read_bytes(), (self.home / "inbox.jsonl").read_bytes()
+        bad = b"Q\xff"
+        (self.home / "bad.txt").write_bytes(b"body \xff")
+        for argv, stdin, option in (
+            ([b"add", b"--kind", b"answer", b"--title", bad], b"body", b"--title"),
+            ([b"add", b"--kind", b"read", b"--title", b"ok", b"--body-file", str(self.home / "bad.txt").encode()], b"", b"--body-file"),
+            ([b"add", b"--kind", b"read", b"--title", b"ok"], b"body \xff", b"stdin"),
+            ([b"add", b"--kind", b"answer", b"--title", b"ok", b"--options", bad], b"body", b"--options"),
+            ([b"answer", b"E8", b"--text", bad, b"--source", b"pane"], b"", b"--text"),
+            ([b"answer", b"E8", b"--option", b"a", b"--note", bad, b"--source", b"pane"], b"", b"--note"),
+            ([b"answer", b"E8", b"--source", b"pane"], b"x\xff", b"stdin"),
+            ([b"withdraw", b"E8", b"--reason", bad], b"", b"--reason"),
+        ):
+            with self.subTest(argv=argv):
+                self.check(self.go(argv, stdin), option)
+        self.assertEqual(((self.home / "escalations.md").read_bytes(), (self.home / "inbox.jsonl").read_bytes()), before)

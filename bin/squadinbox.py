@@ -556,7 +556,7 @@ def read_body(path):
         raise Refused("cannot read the body: %s" % e)
     if len(data) > MAX_BODY:
         raise Refused("the body is over %d KiB" % (MAX_BODY // 1024))
-    return data.decode("utf-8", "replace")
+    return decode_utf8(data, "--body-file" if path else "the body on stdin")
 
 
 def cmd_add(home, args):
@@ -642,7 +642,7 @@ def stdin_text(only_if_ready):
         return ""
     if len(data) > MAX_BODY:
         raise Refused("the answer is over %d KiB" % (MAX_BODY // 1024))
-    return data.decode("utf-8", "replace")
+    return decode_utf8(data, "the text on stdin")
 
 
 def prepare(home, eid):
@@ -756,7 +756,25 @@ def cmd_delivered(home, args):
     return 0
 
 
+def check_utf8(args):
+    """An argument holding a lone surrogate (invalid UTF-8 in os.argv) is bad input, not a traceback."""
+    for name, value in vars(args).items():
+        if isinstance(value, str):
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError:
+                raise Refused("--%s is not valid UTF-8" % name.replace("_", "-"))
+
+
+def decode_utf8(data, what):
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        raise Refused("%s is not valid UTF-8" % what)
+
+
 def run(args):
+    check_utf8(args)
     home = home_of(args)
     return {"add": cmd_add, "list": cmd_list, "read": cmd_read, "answer": cmd_answer, "withdraw": cmd_withdraw,
             "delivered": cmd_delivered}[args.cmd](home, args)
