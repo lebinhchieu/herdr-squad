@@ -3,7 +3,8 @@ import { describe, expect, test } from 'claude-code/testing'
 import {
   TONE, blocksTone, bodyBudget, capGroup, cellWidth, kindTone, outcomeTone, recommendedKey, recPointer, clipCells, rowsFor, sanitize, tableLayout,
 } from './core'
-import { clipRows } from './draw'
+import { clipRows, drawBody } from './draw'
+import { parseBody } from './markup'
 import { FIXTURES } from './fixtures'
 
 const ABC = [{ key: 'a' }, { key: 'b' }, { key: 'c' }]
@@ -99,8 +100,11 @@ describe('rowsFor', () => {
     expect(rowsFor('aaaa bbb', 4)).toBe(2)
     expect(rowsFor('aaaa bbbb', 4)).toBe(3)
     expect(rowsFor('aaaa bbbb', 5)).toBe(2)
-    expect(rowsFor('a'.repeat(8), 4)).toBe(3)
+    expect(rowsFor('a'.repeat(8), 4)).toBe(2)
     expect(rowsFor('a'.repeat(7), 4)).toBe(2)
+    // real captures (qa-w-live/11b4b3d/hardwrap-40x40.txt, inner width 36): a broken token carries no space
+    expect(rowsFor('a'.repeat(72), 36)).toBe(2)
+    expect(rowsFor('b'.repeat(108), 36)).toBe(3)
     expect(rowsFor('漢字 漢字', 4)).toBe(3)
   })
   test('the two real titles whose first row is 36 cells: 3 rows uncut, 2 after clipRows (QAB F1)', () => {
@@ -325,5 +329,24 @@ describe('tones (V-15)', () => {
   test('unknown kind and no outcome are none, never throw', () => {
     expect(outcomeTone({ state: 'done', done: { kind: 'zzz' } })).toBe('none')
     expect(outcomeTone({ state: 'open', done: null })).toBe('none')
+  })
+})
+
+describe('[rec] indent (QAB F2): counted and clipped with the indent', () => {
+  const T = { Box: 'Box', Text: 'Text', Button: 'Button' }
+  const plan = { expanded: false, fitRows: 5, budget: 5 }
+  test('an indent that pushes the line over a row boundary adds the row', () => {
+    // '✓ recommended abcdef' is 20 cells: one row at 20 columns, two with 2 spaces in front
+    expect(drawBody(parseBody('[rec] abcdef'), 20, T, plan).rows).toBe(1)
+    expect(drawBody(parseBody('  [rec] abcdef'), 20, T, plan).rows).toBe(2)
+  })
+  test('the indent is capped at 8 spaces', () => {
+    const text = (src: string) => JSON.stringify(drawBody(parseBody(src), 80, T, plan).nodes)
+    expect(text(`${' '.repeat(12)}[rec] x`)).toContain(`"${' '.repeat(8)}"`)
+    expect(text(`${' '.repeat(12)}[rec] x`)).not.toContain(`"${' '.repeat(9)}"`)
+  })
+  test('a rec line taller than the budget is clipped with its indent', () => {
+    const d = drawBody(parseBody('    [rec] aaaa bbbb cccc dddd eeee'), 20, T, { expanded: false, fitRows: 0, budget: 1 })
+    expect(d.nodes[0].children[0]).toBe('\u00a0\u00a0\u00a0\u00a0✓ recommended a…')
   })
 })

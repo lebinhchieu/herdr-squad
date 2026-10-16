@@ -451,6 +451,15 @@ test('QAB F2: a `[rec]` line keeps its leading spaces', async ($, on) => {
   await ui.unmount()
 })
 
+test('QAB F4: the label of a Show all row keeps a one-cell gap to the button (also when the row wraps at 30 columns)', async ($, on) => {
+  const gaps = (n: any): number => (n && typeof n === 'object' ? (n.type === 'Box' && n.props?.marginRight === 1 ? 1 : 0) + (n.children ?? []).reduce((a: number, c: any) => a + gaps(c), 0) : 0)
+  const { ui } = await open($, on, [R1], 'R1', 30, ROWS_24)
+  const tree = await ui.drawn()
+  expect(textOf(tree)).toContain('more lines')
+  expect(gaps(tree)).toBe(1)
+  await ui.unmount()
+})
+
 test('QAB F3: only the header is clipped: the row says `… full header`, a whole title is not named', async ($, on) => {
   const blocks = `${'work item '.repeat(12)}end`
   const { ui } = await open($, on, [item({ id: 'F3', blocks, body: 'b' })], 'F3', 40, ROWS_40)

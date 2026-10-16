@@ -354,7 +354,7 @@ export function rowsFor(text: string, cols: number): number {
         const cw = cellWidth(ch)
         if (used > 0 && used + cw > width) {
           r++
-          used = used === width ? 1 : 0
+          used = 0
         }
         used += cw
       }
