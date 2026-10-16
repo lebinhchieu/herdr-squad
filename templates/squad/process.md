@@ -135,7 +135,7 @@ The plan file has the same format in every size; only its owner changes.
 - `shared/contracts/<name>.md`: both Tech Leads agree it before either builds; one QA whitebox checks both sides against it before either scope is done.
 - **Stacked branches.** Nothing merges until the PO asks, so a scope that needs an earlier scope's unmerged code builds on its passed branch:
   - A task that needs unmerged work is spawned with `--base <passed branch or commit>`, which the Manager checked and named in the iteration file.
-  - Each scope ends with one integration task: a Developer branches from the scope's base, merges the passed task branches into its own, runs the full suite and hands in. The next scope builds on that branch; the PO merges it.
+  - Each scope ends with one integration task: a Developer branches from the scope's base, merges the passed task branches into its own, runs the targeted tests and hands in; the Tech Lead then runs the full suite. The next scope builds on that branch; the PO merges it.
   - A one-task scope has no integration task: its passed branch is the integration branch.
   - **Check a merge target before naming it:** the Manager runs `git merge-base --is-ancestor <base> <sha>` and `git log --oneline <base>..<sha>` and quotes the output, never a ticket list.
 - A lone scope builds on the project as the PO left it.
@@ -211,7 +211,7 @@ Questions for an outside decision maker `project.md` names go to the place it sa
 - A Developer with queued tickets in its area takes the next, and retires per Cost rules.
 - **Verify against the real thing:** code that parses another tool's output (pane text, logs, an API) needs two real samples, including the constant or idle case, before a pattern is trusted; QA whitebox runs it once, read-only, on live data.
 - A ticket that changes a payload is checked on its field shape (every row has the fields the consumer reads, every closed item has its end), not only on totals.
-- **QA mode** (`qa:` in `scope.md`): `full` (default) or `light`. In `light`, QA runs the suite, skims the diff and PASSes; a task returns only for wrong behaviour, a spec-rule defect, a failing suite or a security finding.
+- **QA mode** (`qa:` in `scope.md`): `full` (default) or `light`. In `light`, QA runs the targeted tests, skims the diff and PASSes; a task returns only for wrong behaviour, a spec-rule defect, a failing test or a security finding.
 - In `light`, test-strength gaps go in `qa-w.md` as "follow-up"; the Tech Lead batches them into one last, droppable ticket.
 - After 3 returns on one task the Team Lead (S: the Manager) steps in and decides whether the task, the AC or the Developer is the problem.
 - Evidence goes where `project.md` says (default `$SCOPE_DIR/evidence/<task>/`); `qa-b.md` exists in M and L, `tl-review.md` in S.
@@ -262,8 +262,11 @@ A Stop hook (`squad-usage --check`) tells you when rule 2 or 3 fires and logs it
   - **Conflict or failure:** `git merge --abort`, then tell the PO the files in conflict. The Manager never resolves a conflict and never uses `--force`, `rebase`, `reset --hard` or `push`.
   - **After:** quote `git log --oneline -1` and the result to the PO; note it in the iteration file.
 - **No writes to Jira or Confluence.** Read only.
-- **Long suites: run once, read the receipt.** A suite over ~2 minutes runs once per task. `project.md` may name the runner; it locks only its browser files and skips phases the diff cannot affect.
-  - The Developer runs the full suite once, on the final sha after every fix, in the background, waits for its completion notice (never `pgrep -f` or `pkill -f`) and saves a receipt: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the suite's OK line. While building, only touched files.
-  - QA checks the receipt (same sha as the `HANDIN`, clean tree, OK, its skipped-phase lines), then runs only targeted tests for the diff's files and reads the diff. It runs the full suite only when the receipt is missing or its sha differs, integration tasks included. Targeted runs are free.
+- **Suites: only the Tech Lead runs the full suite.** `project.md` may name the runner; it locks only its browser files and skips phases the diff cannot affect.
+  - Developers and QAs run only the test files their diff touches. They never run the full suite, and two suite runs never overlap.
+  - The Tech Lead decides when it runs: once for a batch of tasks, or at the end of the scope or iteration. A scope reaches the PO only with a passing run (`--tz` where `project.md` names it) on its integration sha.
+  - Run it in the background and wait for its completion notice (never `pgrep -f` or `pkill -f`). Commit every fix first; never restart a run. Save a receipt in the evidence folder: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the OK line.
+  - On a failing run the Tech Lead names the task whose files fail; it returns to its Developer and counts as a return.
+  - QA reads the receipt when it covers the sha (same sha, clean, OK). With none, it checks the targeted tests and the diff, and never runs the suite.
 - **Close what you open.** Before you report, end every browser session and stop every server or process you started, by PID. Never `pkill` or `killall` by name or pattern.
 - **Stay in your lane:** edit only the files your role owns, plus your own notes file.

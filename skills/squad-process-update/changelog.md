@@ -64,6 +64,13 @@
 - old: snapshot
 - new: snapshot
 
+### Only the Tech Lead runs the full suite
+- sections: ## Safety; ## Inside a goal; ## Task lifecycle
+- change: rule
+- why: PO note 2026-10-17: Developers and QAs run only the test files they touched, never the full suite or two runs at once; the Tech Lead decides when it runs and saves the receipt
+- old: snapshot
+- new: snapshot
+
 ## v3 — 2026-10-16
 - snapshot: history/process-v3.md
 
