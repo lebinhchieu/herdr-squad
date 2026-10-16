@@ -6,10 +6,9 @@ import type { InboxItem, InboxSnapshot } from '../../types'
 import { goTo, markRead, openPane, patchUi, pickOption, readView, setDraft, submitAnswer } from './actions'
 import type { Tone } from './core'
 import {
-  TONE, ageOf, bandCounts, blocksTone, capGroup, cellWidth, clipCells, doneItems, fit, kindTone, listGroups, oneLine, outcomeTone, parseAdd, sanitize, stamp,
+  ageOf, bandCounts, blocksTone, bodyBudget, capGroup, cellWidth, clipCells, DEFAULT_BODY_ROWS, doneItems, fit, kindTone, listGroups, oneLine, outcomeTone, parseAdd,
+  recommendedKey, recPointer, rowsFor, sanitize, stamp,
 } from './core'
-
-import { blocksTone, bodyBudget, cellWidth, clipCells, DEFAULT_BODY_ROWS, kindTone, outcomeTone, recommendedKey, recPointer, rowsFor } from './core'
 import { clipRows, drawBody, drawOptions, toneProps } from './draw'
 import type { Opt } from './draw'
 import { bodyBlocks } from './markup'
@@ -45,9 +44,6 @@ const RUNGS = [
   { head: '', words: TINY, sep: ' ', label: 'Open (i)', gap: ' ' },
   { head: '', words: TINY, sep: ' ', label: 'Open (i)', gap: ' ' },
 ]
-
-// Theme keys only (V-15): amber is `warning`, red `error`, dim is the dimColor prop, none is no prop.
-const toneProps = (t: Tone): Record<string, unknown> => (t === 'dim' ? { dimColor: true } : t === 'none' ? {} : { color: TONE[t] })
 
 function bandSegs(c: { answers: number; reads: number; waiting: number; problems: number }, w: Words): Seg[] {
   const out: Seg[] = []
