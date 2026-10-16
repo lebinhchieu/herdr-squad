@@ -420,6 +420,16 @@ test('title of 300 characters: 3 rows with an ellipsis, a `full title` row, Show
   }
 })
 
+test('hint counts the `… full title` row: cut title, uncut body at 80x7 shows `↓ more below`, a size that fits shows none', async ($, on) => {
+  const long = item({ id: 'E8', kind: 'read', title: VISUAL.title300, body: 'b' })
+  const small = await open($, on, [long], 'E8', 80, 7)
+  expect(textOf(await small.ui.drawn())).toContain('↓ more below')
+  await small.ui.unmount()
+  const fits = await open($, on, [long], 'E8', 80, 40)
+  expect(textOf(await fits.ui.drawn())).not.toContain('↓ more below')
+  await fits.ui.unmount()
+})
+
 test('3.1e: 300-char title, 2-row header, 40 columns, 6 rows: the pointer is inside the first viewport, the title shows 2 rows', async ($, on) => {
   const blocks = `${'work item '.repeat(12)}end`
   const long = item({ id: 'E8', title: VISUAL.title300, blocks, body: VISUAL.e1, recommendation: E1_REC, options: E1_OPTS })
