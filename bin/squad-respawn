@@ -51,7 +51,7 @@ ovr_args=()
 if [[ -f $home/roles/$name.overrides ]]; then
   while IFS='=' read -r k v || [[ -n $k ]]; do
     case $k in model|effort) ;; *) continue ;; esac
-    [[ $v =~ ^[][A-Za-z0-9._-]+$ ]] || { echo "bad $k value in $home/roles/$name.overrides: refusing" >&2; exit 1; }
+    [[ $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad $k value in $home/roles/$name.overrides: refusing" >&2; exit 1; }
     ovr_args+=("--$k" "$v")
   done < "$home/roles/$name.overrides"
 fi

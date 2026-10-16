@@ -67,6 +67,20 @@ class StartTest(unittest.TestCase):
         self.assertEqual(self.start("Task two", "--name", "two", "--touches", "b").returncode, 0)
         self.assertRegex(self.herdr(), r"--model opus\b")
 
+    def test_the_managers_model_override_survives_a_respawn_for_a_scope_and_a_goal(self):
+        for text, kind, var, flag in (("Task one", "scopes", "SCOPE_DIR", "--scope"), ("goal: Big thing", "goals", "GOAL_DIR", "--goal")):
+            with self.subTest(kind=kind):
+                name = "one" if kind == "scopes" else "big"
+                r = self.start(text, "--name", name, "--touches", name, "--model", "sonnet", "--effort", "low")
+                self.assertEqual(r.returncode, 0, r.stderr)
+                home = self.squad / kind / name
+                self.assertEqual((home / "roles" / f"t-mgr-{name}.overrides").read_text(), "model=sonnet\neffort=low\n")
+                env = {**self.env, var: str(home)}
+                d = subprocess.run([str(SCRIPT.parent / "squad-respawn"), f"t-mgr-{name}", "--dry-run"], env=env,
+                                   text=True, capture_output=True, timeout=30)
+                self.assertEqual(d.returncode, 0, d.stderr)
+                self.assertRegex(d.stdout, rf"squad-spawn manager t-mgr-{name} {flag} {name} .*--model sonnet --effort low ")
+
     def test_name_comes_from_a_ticket_id_else_a_short_slug_and_can_be_overridden(self):
         self.assertEqual(json.loads(self.start("Regroup the settings tabs", "--touches", "x").stdout)["name"], "regroup-settings")
         self.assertEqual(json.loads(self.start("Anything", "--name", "mine", "--touches", "y").stdout)["name"], "mine")
