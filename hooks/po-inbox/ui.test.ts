@@ -141,13 +141,11 @@ test('band-none: nothing open, nothing waiting, no error: the band is absent', a
   }
 })
 
-test('band-narrow: compact under 60 columns, still one line with the button', async ($, on) => {
+test('band-narrow: the words follow the ladder by width (IV-04), the button stays', async ($, on) => {
   await boot($, on, snap([Q, R]))
-  for (const cols of [59, 28]) {
+  for (const [cols, word] of [[59, '1 to answer'], [28, '1 answer']] as const) {
     const ui = await $.ui.mount(band('terminal', cols))
-    const text = await dump(ui)
-    expect(text).toContain('1 answer')
-    expect(text).not.toContain('to answer')
+    expect(await dump(ui)).toContain(word)
     expect(await ui.find({ type: 'Button', key: 'open' })).toBeDefined()
     await ui.unmount()
   }
@@ -234,16 +232,17 @@ test('list: a failed refresh is shown as a problem with the last snapshot kept',
   expect(await dump(ui)).toContain('E3')
 })
 
-test('list-50 and list-long-title: nothing dropped, the long title cut with an ellipsis (B-36)', async ($, on) => {
+test('list-50 and list-long-title: nothing dropped (folded, 7 rows + +43 more), the long title cut with an ellipsis (B-36)', async ($, on) => {
   const many = Array.from({ length: 50 }, (_, i) => item({ id: `E${100 + i}`, title: `Question ${i}` }))
   many[0] = item({ id: 'E100', title: 'T'.repeat(300) })
   await boot($, on, snap(many))
   for (const surface of SURFACES) {
     const ui = await $.ui.mount(pane(surface, 80))
     const rows = await ui.findAll({ type: 'Button' })
-    expect(rows.length).toBe(50)
+    expect(rows.length).toBe(7 + 1)
     expect(rows[0].text.length).toBeLessThan(90)
     expect(rows[0].text).toContain('…')
+    expect(rows[7].text).toContain('+43 more')
     expect(await dump(ui)).toContain('50 to answer')
     await ui.unmount()
   }

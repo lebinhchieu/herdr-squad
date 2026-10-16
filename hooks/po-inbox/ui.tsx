@@ -4,7 +4,10 @@ import type { On } from 'claude-code'
 
 import type { InboxItem, InboxSnapshot } from '../../types'
 import { goTo, markRead, openPane, patchUi, pickOption, readView, setDraft, submitAnswer } from './actions'
-import { ageOf, bandCounts, doneItems, fit, listGroups, oneLine, parseAdd, sanitize, stamp } from './core'
+import type { Tone } from './core'
+import {
+  TONE, ageOf, bandCounts, blocksTone, capGroup, cellWidth, clipCells, doneItems, fit, kindTone, listGroups, oneLine, outcomeTone, parseAdd, sanitize, stamp,
+} from './core'
 
 import { blocksTone, bodyBudget, cellWidth, clipCells, DEFAULT_BODY_ROWS, kindTone, outcomeTone, recommendedKey, recPointer, rowsFor } from './core'
 import { clipRows, drawBody, drawOptions, toneProps } from './draw'
@@ -28,40 +31,74 @@ function when(iso: string, precision?: string): string {
 
 // --- the band ---------------------------------------------------------------------------------
 
+type Seg = { text: string; tone: Tone }
+type Words = { answer: string; read: string; waiting: string; waitingOnly: string }
+const LONG: Words = { answer: 'to answer', read: 'to read', waiting: 'waiting', waitingOnly: 'answered, waiting for the Manager' }
+const SHORT: Words = { answer: 'answer', read: 'read', waiting: 'waiting', waitingOnly: 'waiting' }
+const TINY: Words = { answer: 'answer', read: 'read', waiting: 'wait', waitingOnly: 'wait' }
+// IV-04 ladder: the first rung whose whole line (the button as `[ label ]`) fits; the last one wraps.
+const RUNGS = [
+  { head: 'Inbox  ', words: LONG, sep: ' · ', label: 'Open inbox (i)', gap: '   ' },
+  { head: 'Inbox  ', words: LONG, sep: ' · ', label: 'Open (i)', gap: '   ' },
+  { head: 'Inbox ', words: SHORT, sep: ' · ', label: 'Open (i)', gap: ' ' },
+  { head: '', words: SHORT, sep: ' · ', label: 'Open (i)', gap: ' ' },
+  { head: '', words: TINY, sep: ' ', label: 'Open (i)', gap: ' ' },
+  { head: '', words: TINY, sep: ' ', label: 'Open (i)', gap: ' ' },
+]
+
+// Theme keys only (V-15): amber is `warning`, red `error`, dim is the dimColor prop, none is no prop.
+const toneProps = (t: Tone): Record<string, unknown> => (t === 'dim' ? { dimColor: true } : t === 'none' ? {} : { color: TONE[t] })
+
+function bandSegs(c: { answers: number; reads: number; waiting: number; problems: number }, w: Words): Seg[] {
+  const out: Seg[] = []
+  if (c.answers > 0) out.push({ text: `${c.answers} ${w.answer}`, tone: 'warn' })
+  if (c.reads > 0) out.push({ text: `${c.reads} ${w.read}`, tone: 'none' })
+  if (c.waiting > 0) out.push({ text: `${c.waiting} ${c.answers + c.reads === 0 ? w.waitingOnly : w.waiting}`, tone: 'warn' })
+  if (c.problems > 0) out.push({ text: `${c.problems} ${c.problems === 1 ? 'problem' : 'problems'}`, tone: 'bad' })
+  return out
+}
+
 async function renderBand($: any, e: any, next: any) {
   if (e.props.hasSurvey) return next(e)
   const { snap, error } = await readView($)
   const c = bandCounts(snap, error)
   if (!c) return next(e)
   const { Box, Text, Button } = $.ui.resolve(e) as any
-  const compact = e.props.bodyColumns < BODY_COLUMNS_FULL
+  const cols = e.props.bodyColumns
+  let at = RUNGS.length - 1
+  for (let i = 0; i < RUNGS.length - 1; i++) {
+    const r = RUNGS[i]
+    const segs = bandSegs(c, r.words)
+    const width = cellWidth(r.head + segs.map((x) => x.text).join(r.sep) + r.gap) + cellWidth(`[ ${r.label} ]`)
+    if (width <= cols) {
+      at = i
+      break
+    }
+  }
+  const r = RUNGS[at]
   const parts: any[] = []
-  const sep = ' · '
-  const add = (node: any) => parts.push(node)
-  if (c.answers > 0) add(<Text key="a" color="warning">{compact ? `${c.answers} answer` : `${c.answers} to answer`}</Text>)
-  if (c.reads > 0) {
-    if (parts.length) add(<Text key="s1">{sep}</Text>)
-    add(<Text key="r" color="suggestion">{compact ? `${c.reads} read` : `${c.reads} to read`}</Text>)
-  }
-  if (c.waiting > 0) {
-    if (parts.length) add(<Text key="s2">{sep}</Text>)
-    const only = c.answers + c.reads === 0
-    const text = only ? (compact ? `${c.waiting} waiting` : `${c.waiting} answered, waiting for the Manager`) : `${c.waiting} waiting`
-    add(<Text key="w" dimColor>{text}</Text>)
-  }
-  if (c.problems > 0) {
-    if (parts.length) add(<Text key="s3">{sep}</Text>)
-    add(<Text key="p" color="error">{`${c.problems} ${c.problems === 1 ? 'problem' : 'problems'}`}</Text>)
+  bandSegs(c, r.words).forEach((s, i) => {
+    if (i > 0) parts.push(<Text key={`s${i}`}>{r.sep}</Text>)
+    parts.push(<Text key={`c${i}`} {...toneProps(s.tone)}>{s.text}</Text>)
+  })
+  const button = <Button key="open" hotkey="i" label={r.label} onPress={() => openPane($)} />
+  if (at === RUNGS.length - 1) {
+    return (
+      <Box key="inbox-band" flexDirection="column">
+        <Text wrap="wrap">{parts}</Text>
+        {button}
+      </Box>
+    )
   }
   return (
     <Box key="inbox-band">
       <Text wrap="truncate">
-        <Text bold>Inbox</Text>
-        {compact ? ' ' : '  '}
+        {r.head ? <Text bold>Inbox</Text> : null}
+        {r.head.slice(5)}
         {parts}
-        {'   '}
+        {r.gap}
       </Text>
-      <Button key="open" hotkey="i" label={compact ? 'Open (i)' : 'Open inbox (i)'} onPress={() => openPane($)} />
+      {button}
     </Box>
   )
 }
@@ -86,57 +123,135 @@ function problems(snap: any, error: any, T: any) {
   return rows
 }
 
-function heading(snap: InboxSnapshot): string {
+// The amber count is the waiting one (V-15); under 60 columns the words are the short ones.
+function heading(snap: InboxSnapshot, compact: boolean, T: any) {
+  const { Text } = T
   const c = snap.counts
-  const parts: string[] = []
-  if (c.answer_open) parts.push(`${c.answer_open} to answer`)
-  if (c.read_open) parts.push(`${c.read_open} to read`)
-  if (c.waiting) parts.push(`${c.waiting} waiting`)
-  return parts.length ? `Inbox · ${parts.join(' · ')}` : 'Inbox'
+  const parts: any[] = []
+  const add = (key: string, text: string, tone: Tone = 'none') => {
+    parts.push(<Text key={`hs${key}`}>{' · '}</Text>)
+    parts.push(<Text key={`h${key}`} {...toneProps(tone)}>{text}</Text>)
+  }
+  if (c.answer_open) add('a', `${c.answer_open} ${compact ? 'answer' : 'to answer'}`)
+  if (c.read_open) add('r', `${c.read_open} ${compact ? 'read' : 'to read'}`)
+  if (c.waiting) add('w', `${c.waiting} waiting`, 'warn')
+  return <Text bold wrap="wrap">{'Inbox'}{parts}</Text>
 }
+
+// Rows of at most `width` cells, a word longer than a row is cut across rows; past `maxRows` the last row ends with `…`.
+function wrapRows(text: string, width: number, maxRows: number): string[] {
+  const rows: string[] = []
+  let cur = ''
+  for (const word of text.split(' ')) {
+    const pieces: string[] = []
+    let piece = ''
+    for (const ch of word) {
+      if (piece !== '' && cellWidth(piece + ch) > width) {
+        pieces.push(piece)
+        piece = ''
+      }
+      piece += ch
+    }
+    pieces.push(piece)
+    for (const p of pieces) {
+      if (cur === '') cur = p
+      else if (cellWidth(cur) + 1 + cellWidth(p) <= width) cur += ` ${p}`
+      else {
+        rows.push(cur)
+        cur = p
+      }
+    }
+  }
+  rows.push(cur)
+  if (rows.length <= maxRows) return rows
+  return [...rows.slice(0, maxRows - 1), clipCells(`${rows.slice(maxRows - 1).join(' ')}…`, width)]
+}
+
+const INDENT = '    '
 
 function listScreen($: any, e: any, ui: any, snap: InboxSnapshot, error: any, T: any) {
   const { Box, Text, Button } = T
   const cols = e.props.bodyColumns
+  const compact = cols < BODY_COLUMNS_FULL
+  const opened: string[] = ui.more ?? []
   const g = listGroups(snap)
   const empty = g.blocks.length + g.nothing.length + g.waiting.length === 0
   let n = 0
-  const rows = (items: InboxItem[], waiting: boolean) =>
-    items.map((it) => {
-      n += 1
-      const kind = waiting ? 'answered' : it.kind
-      const sub = waiting
-        ? it.answer
-          ? `(your answer sent ${when(it.answer.ts)})`
-          : ''
-        : `blocks ${line(it.blocks) || 'nothing'} · created ${ageOf(it.created, snap.now) === 'now' ? 'now' : `${ageOf(it.created, snap.now)} ago`}`
-      const hot = n <= 9 ? { hotkey: String(n) } : {}
+  const subLines = (it: InboxItem, waiting: boolean) => {
+    if (waiting) {
+      if (!it.answer) return null
+      return <Text key="sub" dimColor>{clipCells(`${INDENT}(your answer sent ${when(it.answer.ts)})`, cols)}</Text>
+    }
+    const label = `blocks ${line(it.blocks) || 'nothing'}`
+    const tone = toneProps(blocksTone(it.blocks))
+    const a = ageOf(it.created, snap.now)
+    const age = compact || a === 'now' ? a : `created ${a} ago`
+    const withAge = a !== '' && cellWidth(`${INDENT}${label} · ${age}`) <= cols
+    if (withAge) {
       return (
-        <Box key={`row-${it.id}`} flexDirection="column">
-          <Button key={it.id} plain {...hot} onPress={() => goTo($, 'item', it.id)}>
-            {`${line(it.id)}  ${kind}  ${itemLine(it, Math.max(10, cols - 16))}`}
-          </Button>
-          {sub ? <Text dimColor wrap="truncate">{`    ${sub}`}</Text> : null}
-        </Box>
+        <Text key="sub">
+          {INDENT}
+          <Text {...tone}>{label}</Text>
+          <Text dimColor>{` · ${age}`}</Text>
+        </Text>
       )
-    })
-  const group = (title: string, items: InboxItem[], waiting = false) =>
-    items.length ? (
-      <Box key={title} flexDirection="column">
-        <Text bold>{title}</Text>
-        {rows(items, waiting)}
+    }
+    return wrapRows(label, Math.max(1, cols - INDENT.length), 2).map((r, i) => (
+      <Text key={`sub${i}`}>
+        {INDENT}
+        <Text {...tone}>{r}</Text>
+      </Text>
+    ))
+  }
+  const row = (it: InboxItem, waiting: boolean) => {
+    n += 1
+    const id = line(it.id)
+    const kind = waiting ? 'answered' : it.kind
+    const kindProps = toneProps(waiting ? 'warn' : kindTone(it))
+    const title = clipCells(line(it.title), Math.max(10, cols - (3 + cellWidth(id) + 2 + cellWidth(kind) + 2)))
+    const hot = n <= 9 ? { hotkey: String(n) } : {}
+    return (
+      <Box key={`row-${it.id}`} flexDirection="column">
+        <Button key={it.id} plain {...hot} onPress={() => goTo($, 'item', it.id)}>
+          {n > 9 ? '   ' : ''}
+          <Text dimColor>{id}</Text>
+          {'  '}
+          <Text {...kindProps}>{kind}</Text>
+          {'  '}
+          {title}
+        </Button>
+        {subLines(it, waiting)}
       </Box>
-    ) : null
+    )
+  }
+  const group = (key: string, title: string, items: InboxItem[], waiting = false) => {
+    if (!items.length) return null
+    const { shown, hidden } = capGroup(items, opened.includes(key))
+    return (
+      <Box key={key} flexDirection="column">
+        <Text bold wrap="wrap" {...(waiting ? { color: 'warning' } : {})}>
+          {title}
+          <Text bold={false} dimColor>{` (${items.length})`}</Text>
+        </Text>
+        {shown.map((it) => row(it, waiting))}
+        {hidden > 0 ? (
+          <Button key={`more-${key}`} plain onPress={() => patchUi($, { more: [...opened, key] })}>
+            <Text dimColor>{`   +${hidden} more`}</Text>
+          </Button>
+        ) : null}
+      </Box>
+    )
+  }
   const doneCount = snap.items.filter((it: InboxItem) => it.state === 'done').length
   return (
     <Box flexDirection="column">
-      <Text bold>{empty ? 'Inbox' : heading(snap)}</Text>
+      {empty ? <Text bold>Inbox</Text> : heading(snap, compact, T)}
       {notice(ui, T)}
       {problems(snap, error, T)}
       {empty ? <Text>Nothing waits on you.</Text> : null}
-      {group('Blocks work', g.blocks)}
-      {group('Blocks nothing', g.nothing)}
-      {group('Answered, waiting for the Manager', g.waiting, true)}
+      {group('blocks', 'Blocks work', g.blocks)}
+      {group('nothing', 'Blocks nothing', g.nothing)}
+      {group('waiting', 'Answered, waiting for the Manager', g.waiting, true)}
       {doneCount ? <Button key="done" hotkey="d" label={`Done (${doneCount}) (d)`} onPress={() => goTo($, 'done', null)} /> : null}
     </Box>
   )
@@ -421,10 +536,11 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   )
 }
 
-function doneScreen($: any, e: any, snap: InboxSnapshot, T: any) {
+function doneScreen($: any, e: any, ui: any, snap: InboxSnapshot, T: any) {
   const { Box, Text, Button } = T
-  const items = doneItems(snap)
+  const all = doneItems(snap)
   const cols = e.props.bodyColumns
+  const { shown, hidden } = capGroup(all, (ui.more ?? []).includes('done'))
   const word = (it: InboxItem): string => {
     const d = it.done
     if (!d) return 'done'
@@ -432,16 +548,44 @@ function doneScreen($: any, e: any, snap: InboxSnapshot, T: any) {
     if (d.kind === 'answered-file') return 'answered in the file'
     return d.kind
   }
+  const row = (it: InboxItem, i: number) => {
+    const id = line(it.id)
+    const w = word(it)
+    const d = it.done
+    const lead = i < 9 ? '' : '   '
+    const title = clipCells(line(it.title), Math.max(10, cols - (3 + cellWidth(id) + 2 + cellWidth(w) + 2)))
+    const reason = d && d.kind === 'withdrawn' && d.reason ? ` · withdrawn: ${line(d.reason)}` : ''
+    const sub = wrapRows(`${d ? when(d.ts) : ''}${reason}`, Math.max(1, cols - INDENT.length), Number.MAX_SAFE_INTEGER)
+    return (
+      <Box key={`row-${it.id}`} flexDirection="column">
+        <Button key={`d-${it.id}`} plain {...(i < 9 ? { hotkey: String(i + 1) } : {})} onPress={() => goTo($, 'doneItem', it.id)}>
+          {lead}
+          <Text dimColor>{id}</Text>
+          {'  '}
+          <Text {...toneProps(outcomeTone(it))}>{w}</Text>
+          {'  '}
+          {title}
+        </Button>
+        {sub.map((r, k) => (
+          <Text key={`s${k}`} dimColor>{`${INDENT}${r}`}</Text>
+        ))}
+      </Box>
+    )
+  }
   return (
     <Box flexDirection="column">
       <Button key="back" label="← Back (b)" hotkey="b" onPress={() => goTo($, 'list', null)} />
-      <Text bold>Done · newest first</Text>
-      {items.length === 0 ? <Text>Nothing handled yet.</Text> : null}
-      {items.map((it, i) => (
-        <Button key={`d-${it.id}`} plain {...(i < 9 ? { hotkey: String(i + 1) } : {})} onPress={() => goTo($, 'doneItem', it.id)}>
-          {`${it.id}  ${word(it)}  ${it.done ? when(it.done.ts) : ''}  ${itemLine(it, Math.max(10, cols - 40))}${it.done && it.done.kind === 'withdrawn' && it.done.reason ? `  (withdrawn: ${line(it.done.reason)})` : ''}`}
+      <Text bold>
+        {'Done · newest first'}
+        <Text bold={false} dimColor>{` (${all.length})`}</Text>
+      </Text>
+      {all.length === 0 ? <Text>Nothing handled yet.</Text> : null}
+      {shown.map(row)}
+      {hidden > 0 ? (
+        <Button key="more-done" plain onPress={() => patchUi($, { more: [...(ui.more ?? []), 'done'] })}>
+          <Text dimColor>{`   +${hidden} more`}</Text>
         </Button>
-      ))}
+      ) : null}
     </Box>
   )
 }
@@ -458,7 +602,7 @@ async function renderPane($: any, e: any) {
       </Box>
     )
   }
-  if (ui.screen === 'done') return doneScreen($, e, snap, T)
+  if (ui.screen === 'done') return doneScreen($, e, ui, snap, T)
   if (ui.screen === 'item' || ui.screen === 'doneItem') {
     const it = snap.items.find((x) => x.id === ui.id)
     if (it) return itemScreen($, e, ui, snap, it, error, T)
