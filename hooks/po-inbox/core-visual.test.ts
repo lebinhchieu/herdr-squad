@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import {
-  TONE, blocksTone, bodyBudget, capGroup, cellWidth, kindTone, outcomeTone, recommendedKey, rowsFor, tableLayout,
+  TONE, blocksTone, bodyBudget, capGroup, cellWidth, kindTone, outcomeTone, recommendedKey, recPointer, clipCells, rowsFor, sanitize, tableLayout,
 } from './core'
 import { FIXTURES } from './fixtures'
 
@@ -176,14 +176,61 @@ describe('capGroup', () => {
 
 describe('bodyBudget', () => {
   test('rows minus chrome', () => expect(bodyBudget(24, 10)).toBe(14))
-  test('floor of 2', () => {
-    expect(bodyBudget(10, 10)).toBe(2)
-    expect(bodyBudget(5, 20)).toBe(2)
+  test('floor defaults to 3', () => {
+    expect(bodyBudget(10, 10)).toBe(3)
+    expect(bodyBudget(5, 20)).toBe(3)
+  })
+  test('floor is an argument', () => {
+    expect(bodyBudget(10, 10, 2)).toBe(2)
+    expect(bodyBudget(10, 10, 5)).toBe(5)
+    expect(bodyBudget(30, 10, 5)).toBe(20)
   })
   test('missing or NaN rows fall back to 20', () => {
     expect(bodyBudget(undefined, 5)).toBe(15)
     expect(bodyBudget(Number.NaN, 5)).toBe(15)
   })
+})
+
+describe('clipCells / recPointer', () => {
+  const SAMPLES = ['a'.repeat(300), '漢字'.repeat(150), '😀'.repeat(150), '漢a😀'.repeat(80)]
+  for (const cols of [30, 40]) {
+    for (const s of SAMPLES) {
+      test(`clipCells ${cols} cols of ${s.slice(0, 4)}…`, () => {
+        const c = clipCells(s, cols)
+        expect(cellWidth(c)).toBeLessThanOrEqual(cols)
+        expect(c.endsWith('…')).toBe(true)
+      })
+      test(`recPointer ${cols} cols unmarked of ${s.slice(0, 4)}…`, () => {
+        expect(cellWidth(recPointer(s, ABC, cols))).toBeLessThanOrEqual(cols)
+      })
+    }
+  }
+  test('a wide char at the cut is dropped whole', () => expect(clipCells('漢字漢', 4)).toBe('漢…'))
+  test('exact fit has no ellipsis', () => {
+    expect(clipCells('a'.repeat(30), 30)).toBe('a'.repeat(30))
+    expect(clipCells('漢'.repeat(15), 30)).toBe('漢'.repeat(15))
+  })
+  test('one over is cut', () => expect(clipCells('a'.repeat(31), 30)).toBe(`${'a'.repeat(29)}…`))
+  test('cols < 1 is empty', () => {
+    expect(clipCells('abc', 0)).toBe('')
+    expect(clipCells('abc', -3)).toBe('')
+  })
+  test('marked rec points at its key', () => expect(recPointer('(c), built (a) first: why', ABC, 40)).toBe('recommends (c)'))
+  test('marked pointer is clipped at a narrow width', () => expect(cellWidth(recPointer('(c) yes', ABC, 8))).toBeLessThanOrEqual(8))
+  test('unmarked rec is its first line', () => {
+    expect(recPointer("Reply 'all recs'\nsecond line", ABC, 40)).toBe("Reply 'all recs'")
+    expect(recPointer('(z) yes', ABC, 40)).toBe('(z) yes')
+  })
+  test('null and empty rec give an empty row', () => {
+    expect(recPointer(null, ABC, 40)).toBe('')
+    expect(recPointer('', ABC, 40)).toBe('')
+  })
+  // Callers pass already-sanitised text (core.sanitize); the helpers do not strip, so this pins that contract.
+  test('control characters are the caller\'s job: sanitize first, then the pointer holds none', () => {
+    const p = recPointer(sanitize('\u001b]0;x\u0007Reply \u202eall'), ABC, 40)
+    expect(/[\u0000-\u001f\u202e]/.test(p)).toBe(false)
+  })
+  test('a [rec] line stays literal', () => expect(recPointer('[rec] go', ABC, 40)).toBe('[rec] go'))
 })
 
 describe('tones (V-15)', () => {

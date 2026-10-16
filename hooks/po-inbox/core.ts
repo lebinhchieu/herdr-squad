@@ -378,12 +378,37 @@ export function capGroup<T>(items: T[], expanded: boolean): { shown: T[]; hidden
 }
 
 export const DEFAULT_BODY_ROWS = 20
+export const DEFAULT_BODY_FLOOR = 3
 
-// T9: rows the body may use; never below 2. A missing or NaN row count falls back to DEFAULT_BODY_ROWS.
-export function bodyBudget(bodyRows: number | undefined, chromeRows: number): number {
+// T9 v3: rows the body may use, never below `floor` (the Designer's number, default 3). A missing or NaN
+// row count falls back to DEFAULT_BODY_ROWS.
+export function bodyBudget(bodyRows: number | undefined, chromeRows: number, floor: number = DEFAULT_BODY_FLOOR): number {
   const rows = typeof bodyRows === 'number' && Number.isFinite(bodyRows) ? bodyRows : DEFAULT_BODY_ROWS
   const chrome = Number.isFinite(chromeRows) ? chromeRows : 0
-  return Math.max(2, rows - chrome)
+  return Math.max(floor, rows - chrome)
+}
+
+// At most `cols` cells by cellWidth; a cut text ends with `…`; a wide char at the cut is dropped whole.
+export function clipCells(s: string, cols: number): string {
+  if (cols < 1) return ''
+  if (cellWidth(s) <= cols) return s
+  let out = ''
+  let w = 0
+  for (const ch of s) {
+    const cw = cellWidth(ch)
+    if (w + cw > cols - 1) break
+    out += ch
+    w += cw
+  }
+  return `${out}…`
+}
+
+// One row naming the recommendation: "recommends (c)" when a key is marked, else the rec's first line, clipped.
+export function recPointer(rec: string | null, options: { key: string }[] | null, cols: number): string {
+  if (rec === null || rec === '') return ''
+  const key = recommendedKey(rec, options)
+  if (key !== null) return clipCells(`recommends (${key})`, cols)
+  return clipCells(rec.split('\n')[0], cols)
 }
 
 // V-15, one function per row family so a screen never invents a colour.
