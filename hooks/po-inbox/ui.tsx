@@ -114,7 +114,7 @@ function listScreen($: any, e: any, ui: any, snap: InboxSnapshot, error: any, T:
       return (
         <Box key={`row-${it.id}`} flexDirection="column">
           <Button key={it.id} plain {...hot} onPress={() => goTo($, 'item', it.id)}>
-            {`${it.id}  ${kind}  ${itemLine(it, Math.max(10, cols - 16))}`}
+            {`${line(it.id)}  ${kind}  ${itemLine(it, Math.max(10, cols - 16))}`}
           </Button>
           {sub ? <Text dimColor wrap="truncate">{`    ${sub}`}</Text> : null}
         </Box>

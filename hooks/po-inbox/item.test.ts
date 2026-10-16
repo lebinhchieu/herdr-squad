@@ -40,6 +40,11 @@ const WITHDRAWN = handled('done', { kind: 'withdrawn', ts: '2026-10-16T12:00:00'
 const READ = item({ id: 'R5', kind: 'read', title: 'Old read', body: 'seen', state: 'done', blocks: 'IV-04', created: '2026-10-16T09:00:00', done: { kind: 'read', ts: '2026-10-16T12:00:00', reason: null } })
 const REMOVED = handled('done', { kind: 'removed', ts: '2026-10-16T12:00:00', reason: null }, null)
 
+// Press Show all when the screen offers it: a cut screen must offer it, a failing press must fail the test.
+async function showAll(ui: any) {
+  if (await ui.find({ key: 'show-all' })) await ui.press({ key: 'show-all' })
+}
+
 // --- helpers ----------------------------------------------------------------------------------
 
 // One boot per test (the hooks are registered once): later opens in the same test reuse it, so a test passes the
@@ -609,7 +614,7 @@ test('hostile bodies mount in under 2 s each, draw as text, and leave E1 intact'
       const { ui } = await open($, on, [bad, E1], 'X1', cols, ROWS_24)
       const t0 = Date.now()
       await ui.drawn()
-      await ui.press({ key: 'show-all' }).catch(() => undefined)
+      await showAll(ui)
       const tree = await ui.drawn()
       expect(Date.now() - t0, name).toBeLessThan(2000)
       // nothing exceeds the pane: a hanging prefix is capped, every code row fits
@@ -647,9 +652,9 @@ test('V-27: ESC, OSC and U+202E in every drawn source are removed', async ($, on
   ]
   for (const [name, o] of sources) {
     const it = item({ id: 'E3', ...o })
-    const { ui } = await open($, on, [it], it.id, 80, 40).catch(async () => ({ ui: null as any }))
-    if (ui === null) continue
-    await ui.press({ key: 'show-all' }).catch(() => undefined)
+    const { ui } = await open($, on, [it], it.id, 80, 40)
+    expect(textOf(await ui.drawn()), name).not.toBe('')
+    await showAll(ui)
     clean(`${name}: ${textOf(await ui.drawn())}`.replace(name, ''))
     await ui.unmount()
   }
@@ -657,6 +662,107 @@ test('V-27: ESC, OSC and U+202E in every drawn source are removed', async ($, on
   clean(textOf(await (await open($, on, [w], w.id, 80, 40)).ui.drawn()))
   const a = handled('answered-waiting', null, ANS({ text: `typed ${BAD}` }))
   clean(textOf(await (await open($, on, [a], a.id, 80, 40)).ui.drawn()))
+})
+
+// --- QA whitebox survivors: each test below goes red on one named mutation -------------------
+
+test('bullet glyph by depth: 0 is •, 1 is ◦, 2 and deeper are ▪', async ($, on) => {
+  const body = ['- d0', '  - d1', '    - d2', '          - d5'].join('\n')
+  const { ui } = await open($, on, [item({ id: 'G1', kind: 'read', body })], 'G1', 80, 40)
+  const r = rowsOf(await ui.drawn())
+  expect(r.filter((l) => /d\d$/.test(l)).map((l) => l.trim())).toEqual(['• d0', '◦ d1', '▪ d2', '▪ d5'])
+})
+
+test('a tab in a code line draws as four spaces and counts rows that way', async ($, on) => {
+  const { ui } = await open($, on, [item({ id: 'G2', kind: 'read', body: '```\na\tb\n```' })], 'G2', 80, 40)
+  expect(textOf(await ui.drawn())).toContain('  │ a    b')
+  const wide = `\`\`\`\n${'\t'.repeat(10)}x\n\`\`\``
+  const w = await open($, on, [item({ id: 'G2', kind: 'read', body: wide })], 'G2', 30, 40)
+  expect(textOf(await w.ui.drawn())).not.toContain('\t')
+})
+
+test('blank runs in a body draw one blank row, none at either end', async ($, on) => {
+  const { ui } = await open($, on, [item({ id: 'G3', kind: 'read', title: 'T3', body: '\n\nA\n\n\n\nB\n\n' })], 'G3', 80, 40)
+  const r = rowsOf(await ui.drawn())
+  expect(r.slice(r.indexOf('T3') + 1)).toEqual(['A', ' ', 'B', '[Mark read (m)]'])
+})
+
+const LONG_BODY = Array.from({ length: 10 }, (_, i) => `line ${i}`).join('\n\n')
+test('FLOOR_ANSWER: an answer item keeps exactly 3 body rows at 6 rows, then the count of the lines left', async ($, on) => {
+  const { ui } = await open($, on, [item({ id: 'G4', title: 't', blocks: 'x', body: LONG_BODY })], 'G4', 80, ROWS_24)
+  const r = rowsOf(await ui.drawn())
+  const at = r.indexOf('t')
+  expect(r.slice(at + 1, at + 5)).toEqual(['line 0', ' ', 'line 1', '… 16 more lines '])
+})
+
+test('"N more lines" counts a fence as lines + 2 and a table as rows + 2', async ($, on) => {
+  const body = 'one\n\n```\nc1\nc2\n```\n\n| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |'
+  const { ui } = await open($, on, [item({ id: 'G5', title: 't', blocks: 'x', body })], 'G5', 80, ROWS_24)
+  // left: blank 1 + fence (2 lines + 2) 4 + blank 1 + table (2 rows + 2) 4
+  expect(textOf(await ui.drawn())).toContain('… 10 more lines')
+})
+
+test('a first block taller than the budget is clipped to at most budget (3) rows', async ($, on) => {
+  const { ui } = await open($, on, [item({ id: 'G6', title: 't', blocks: 'x', body: 'word '.repeat(58) })], 'G6', 80, ROWS_24)
+  const r = rowsOf(await ui.drawn())
+  const p = r.find((l) => l.startsWith('word ')) as string
+  expect(p.endsWith('…')).toBe(true)
+  expect(refRows(p, 80)).toBe(3)
+  expect(r.join('\n')).toContain('… 1 more lines')
+})
+
+test('the PO answer keeps a blank line between paragraphs, and `**`, `#`, `|` literally', async ($, on) => {
+  const typed = '**not bold**\n\n# not a heading\n| a | b |'
+  const it = handled('answered-waiting', null, ANS({ text: typed, option: null }), { id: 'G7' })
+  const { ui } = await open($, on, [it], 'G7', 80, 40)
+  const tree = await ui.drawn()
+  const r = rowsOf(tree)
+  const at = r.indexOf('Your answer')
+  expect(r.slice(at + 1, at + 5)).toEqual(['**not bold**', ' ', '# not a heading', '| a | b |'])
+  expect(styleOf(tree, '**not bold**')).toEqual({})
+})
+
+test('the unsent note label is dim, the note is plain; a refused send keeps both', async ($, on) => {
+  const q = item({ id: 'U1', options: E1_OPTS, recommendation: '(c) yes' })
+  let w: any
+  const cli = (argv: string[]) => {
+    if (argv[0] !== 'answer') return undefined
+    w.current = snap([item({ ...q, state: 'done', answer: ANS({ source: 'chat' }), done: { kind: 'answered', ts: '2026-10-16T12:00:00', reason: null } })])
+    return { exitCode: 3, stdout: '', stderr: 'U1 was answered by chat\n' }
+  }
+  const o = await open($, on, [q], 'U1', 80, 40, cli)
+  w = o.w
+  await o.ui.select({ key: 'pick', value: 'a' })
+  await o.ui.input({ key: 'note', text: 'my words', kind: 'change' })
+  await o.ui.press({ key: 'send' })
+  const tree = await o.ui.drawn()
+  expect(styleOf(tree, 'Your unsent note (not sent):')).toEqual({ dimColor: true })
+  expect(styleOf(tree, 'my words')).toEqual({})
+  expect(styleOf(tree, 'This item changed while you were reading it.')).toEqual({ color: 'warning' })
+})
+
+test('a notice is clipped to 2 rows and a refusal draws in the error tone (V-15)', async ($, on) => {
+  const R4 = item({ id: 'R4', kind: 'read', title: 't', body: 'b' })
+  const said = Array.from({ length: 60 }, (_, i) => `w${i}`).join(' ')
+  const { ui } = await open($, on, [R4], 'R4', 30, ROWS_24, (argv) => (argv[0] === 'read' ? { exitCode: 2, stdout: '', stderr: `${said}\n` } : undefined))
+  await ui.press({ key: 'mark-read' })
+  const tree = await ui.drawn()
+  const n = rowsOf(tree).find((l) => l.startsWith('⚠ ')) as string
+  expect(n.endsWith('…')).toBe(true)
+  expect(refRows(n, 30)).toBe(2)
+  expect(styleOf(tree, '⚠ ')).toEqual({ color: 'error' })
+})
+
+test('Select labels are cut to cols - 18 cells (at least 8), ending in …', async ($, on) => {
+  const opts = [{ key: 'a', text: 'x'.repeat(100) }, { key: 'b', text: 'y' }]
+  for (const [cols, width] of [[30, 12], [40, 22], [80, 62]]) {
+    const { ui } = await open($, on, [item({ id: 'S1', options: opts, recommendation: null })], 'S1', cols, 40)
+    const labels = (await ui.find({ key: 'pick' }))?.props?.options.map((o: any) => o.label)
+    expect(cellWidth(labels[0]), `${cols}`).toBe(width)
+    expect(labels[0].endsWith('…')).toBe(true)
+    expect(labels[1]).toBe('(b) y')
+    await ui.unmount()
+  }
 })
 
 // --- 7, 3.6, 3.9: colour, truncation, colourless ----------------------------------------------
@@ -686,7 +792,7 @@ test('3.6: no Text that draws body, code, table, option or recommendation text t
   for (const it of [E1, E2, R1, WAITING, item({ id: 'E3', body: STRUCT, options: E1_OPTS, recommendation: 'x'.repeat(200) })]) {
     for (const [cols, rows] of [[80, ROWS_24], [40, ROWS_24], [30, 40]]) {
       const { ui } = await open($, on, [it], it.id, cols, rows)
-      await ui.press({ key: 'show-all' }).catch(() => undefined)
+      await showAll(ui)
       walk(await ui.drawn(), (n) => {
         if (n.type === 'Text') expect(String(n.props?.wrap ?? ''), flat(n)).not.toMatch(/truncate/)
       })
@@ -746,6 +852,33 @@ test('V-26: pick + note and a free reply reach the CLI with the same argv and st
   await second.ui.press({ key: 'send' })
   expect(sent()[1]).toEqual([['answer', 'E2', '--source', 'pane'], '  free reply: --option z; rm -rf /  '])
   expect(sent()).toHaveLength(2)
+})
+
+// V-26, the rest of 3.3: markup characters, blank runs and a trailing newline are sent byte for byte (actions.ts is
+// unchanged since d5593f4, which sent `typed` as is), and the recommended and another pick make the same call shape.
+test('V-26: `**`, `#`, `|`, two blank lines and a trailing newline reach stdin byte for byte; any pick has the same shape', async ($, on) => {
+  const opts = [{ key: 'a', text: 'one' }, { key: 'b', text: 'two' }, { key: 'c', text: 'three' }]
+  const ok = (argv: string[]) => (argv[0] === 'answer' ? { exitCode: 0, stdout: '', stderr: '' } : undefined)
+  const items = [item({ id: 'E1', options: opts, recommendation: '(c) yes' }), item({ id: 'E2', options: opts, recommendation: '(c) yes' }), item({ id: 'E3' })]
+  const note = '**bold** # head | a | b |\n\n\nlast line\n'
+  const first = await open($, on, items, 'E1', 80, 40, ok)
+  const w = first.w
+  await first.ui.select({ key: 'pick', value: 'c' }) // the recommended option
+  await first.ui.input({ key: 'note', text: note, kind: 'change' })
+  await first.ui.press({ key: 'send' })
+  const second = await open($, on, items, 'E2', 80, 40, ok)
+  await second.ui.select({ key: 'pick', value: 'a' }) // not the recommended one
+  await second.ui.input({ key: 'note', text: note, kind: 'change' })
+  await second.ui.press({ key: 'send' })
+  const third = await open($, on, items, 'E3', 80, 40, ok)
+  await third.ui.input({ key: 'reply', text: note, kind: 'change' })
+  await third.ui.press({ key: 'send' })
+  const sent = w.runs.filter((r: any) => r.argv[1] === 'answer').map((r: any) => [r.argv.slice(1), r.stdin])
+  expect(sent).toEqual([
+    [['answer', 'E1', '--option', 'c', '--source', 'pane'], '**bold** # head | a | b |\n\n\nlast line\n'],
+    [['answer', 'E2', '--option', 'a', '--source', 'pane'], '**bold** # head | a | b |\n\n\nlast line\n'],
+    [['answer', 'E3', '--source', 'pane'], '**bold** # head | a | b |\n\n\nlast line\n'],
+  ])
 })
 
 test('Send is a plain Button: no variant', async ($, on) => {
