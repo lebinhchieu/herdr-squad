@@ -14,5 +14,8 @@ Status: accepted (po-inbox)
 - Known limits: an answer recorded by an outside process with `--source pane` is delivered at the next session start; `squad-close` refuses for `--scope`/`--goal` only (not whole-squad or legacy flat).
 - The engine's permission dialog shows the full `squad-inbox add` command, body included, unless `squad-inbox add *` is pre-allowed in the Manager's settings (the PO's choice, not set by the plugin).
 - The mod reads and writes no file itself; the CLI cannot prove who ran `answer`, so the merge/push/deploy rule is an instruction, not a lock.
+- The pane draws bodies with its own small parser (`hooks/po-inbox/markup.ts`), not a library, and lists fold at 7 rows per group (`+N more` expands in place); the recommended option comes from the key already written in `--rec`, so `squad-inbox add` and `agents/manager.md` are unchanged.
+- The pane's height is set by the host, so layout is sized from `scroll.bodyRows` (6 rows at 24 terminal rows, 11 at 40), never a constant; the item's first viewport (kind, blocks, title, a one-row recommendation pointer) is the bar for an item and must fit it, and a long title is cut with a marked `… full title` row, never dropped.
+- Row counts for wrapped text come from `rowsFor` (`hooks/po-inbox/core.ts`), which rounds up: the host starts the row after an exactly full one a cell in (measured on a real pane), but a word broken mid-word carries nothing. Check any change to it against a real pane capture, not only unit tests.
 
 **Alternatives rejected:** replace `escalations.md` (cross-cutting change); two separate lists (the PO looks in two places).

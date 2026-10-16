@@ -194,6 +194,15 @@ _Avoid_: notifications, todo list
 One entry of the inbox, with a short id (`E3`, `R1`). A **read item** is for reading and is cleared by "mark read"; it lives in `inbox.jsonl` in the Manager's home. An **answer item** needs a decision or reply and is a row of `escalations.md`. Only the Manager writes items.
 _Avoid_: message (a message is a `SendMessage`), ticket, task
 
+**Structured body**:
+An item's body drawn from a small markdown subset (headings, bullets, numbered lists, bold, code, fenced code, pipe tables, a leading `[rec]` tag); anything else shows as plain text. Display only: stored text and the PO's answer are never changed.
+
+**Recommended option**:
+The option whose key the Manager's `--rec` text starts with, exactly one existing key like `(c)`; marked "recommended". When the text names no key, several keys or an unknown key, no option is marked and the recommendation shows as its own line.
+
+**Colour meaning**:
+In the inbox green = passed, recommended, delivered; red = blocks work, failed, error; amber = warning, waiting, not verified; dim = metadata. One meaning per colour on every screen, as theme keys (`success`, `error`, `warning`, dim), never RGB; structure is carried by weight and shape, and meaning is never by colour alone. `blocks X` is red while the work is still blocked (open, or answered and waiting) and dim once released (delivered, answered in chat, withdrawn, read).
+
 ## Relationships
 
 - A **Squad** holds many **Scopes** and **Goals** over time, each with its own folder and fresh **Manager** (a **Goal** has one **goal Manager** for all its **Scopes**).
@@ -202,3 +211,4 @@ _Avoid_: message (a message is a `SendMessage`), ticket, task
 - A **Task** is **Done** only when the checkers its **Size** names pass it.
 - A **Home** belongs to one **Goal** or **Scope**.
 - An **Inbox** shows the open **Escalations** of its **Home** (answer items) and its own read items; the PO's answer is written into the escalation's Answer cell.
+- Rendering never drops or changes the Manager's or the PO's text: unknown markup shows as plain text and every word stays reachable.
