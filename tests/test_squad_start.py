@@ -157,6 +157,7 @@ class StartTest(unittest.TestCase):
         r = self.start("--resume", "one")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)["manager"], "t-mgr-one")
+        self.assertNotIn("board", json.loads(r.stdout))
         self.assertEqual((sc / "tasks" / "T-1.md").read_text(), "keep me")
         h = self.herdr()
         self.assertIn(f"SCOPE_DIR={sc}", h)
