@@ -6,7 +6,7 @@ import type { InboxItem, InboxSnapshot } from '../../types'
 import { goTo, markRead, openPane, patchUi, pickOption, readView, setDraft, submitAnswer } from './actions'
 import type { Tone } from './core'
 import {
-  TONE, ageOf, bandCounts, blocksTone, capGroup, cellWidth, clipCells, doneItems, fit, kindTone, listGroups, oneLine, parseAdd, sanitize, stamp,
+  TONE, ageOf, bandCounts, blocksTone, capGroup, cellWidth, clipCells, doneItems, fit, kindTone, listGroups, oneLine, outcomeTone, parseAdd, sanitize, stamp,
 } from './core'
 
 const ANSWER_FIRST_LINES = 12
@@ -399,10 +399,11 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   )
 }
 
-function doneScreen($: any, e: any, snap: InboxSnapshot, T: any) {
+function doneScreen($: any, e: any, ui: any, snap: InboxSnapshot, T: any) {
   const { Box, Text, Button } = T
-  const items = doneItems(snap)
+  const all = doneItems(snap)
   const cols = e.props.bodyColumns
+  const { shown, hidden } = capGroup(all, (ui.more ?? []).includes('done'))
   const word = (it: InboxItem): string => {
     const d = it.done
     if (!d) return 'done'
@@ -410,16 +411,44 @@ function doneScreen($: any, e: any, snap: InboxSnapshot, T: any) {
     if (d.kind === 'answered-file') return 'answered in the file'
     return d.kind
   }
+  const row = (it: InboxItem, i: number) => {
+    const id = line(it.id)
+    const w = word(it)
+    const d = it.done
+    const lead = i < 9 ? '' : '   '
+    const title = clipCells(line(it.title), Math.max(10, cols - (3 + cellWidth(id) + 2 + cellWidth(w) + 2)))
+    const reason = d && d.kind === 'withdrawn' && d.reason ? ` · withdrawn: ${line(d.reason)}` : ''
+    const sub = wrapRows(`${d ? when(d.ts) : ''}${reason}`, Math.max(1, cols - INDENT.length), Number.MAX_SAFE_INTEGER)
+    return (
+      <Box key={`row-${it.id}`} flexDirection="column">
+        <Button key={`d-${it.id}`} plain {...(i < 9 ? { hotkey: String(i + 1) } : {})} onPress={() => goTo($, 'doneItem', it.id)}>
+          {lead}
+          <Text dimColor>{id}</Text>
+          {'  '}
+          <Text {...toneProps(outcomeTone(it))}>{w}</Text>
+          {'  '}
+          {title}
+        </Button>
+        {sub.map((r, k) => (
+          <Text key={`s${k}`} dimColor>{`${INDENT}${r}`}</Text>
+        ))}
+      </Box>
+    )
+  }
   return (
     <Box flexDirection="column">
       <Button key="back" label="← Back (b)" hotkey="b" onPress={() => goTo($, 'list', null)} />
-      <Text bold>Done · newest first</Text>
-      {items.length === 0 ? <Text>Nothing handled yet.</Text> : null}
-      {items.map((it, i) => (
-        <Button key={`d-${it.id}`} plain {...(i < 9 ? { hotkey: String(i + 1) } : {})} onPress={() => goTo($, 'doneItem', it.id)}>
-          {`${it.id}  ${word(it)}  ${it.done ? when(it.done.ts) : ''}  ${itemLine(it, Math.max(10, cols - 40))}${it.done && it.done.kind === 'withdrawn' && it.done.reason ? `  (withdrawn: ${line(it.done.reason)})` : ''}`}
+      <Text bold>
+        {'Done · newest first'}
+        <Text bold={false} dimColor>{` (${all.length})`}</Text>
+      </Text>
+      {all.length === 0 ? <Text>Nothing handled yet.</Text> : null}
+      {shown.map(row)}
+      {hidden > 0 ? (
+        <Button key="more-done" plain onPress={() => patchUi($, { more: [...(ui.more ?? []), 'done'] })}>
+          <Text dimColor>{`   +${hidden} more`}</Text>
         </Button>
-      ))}
+      ) : null}
     </Box>
   )
 }
@@ -436,7 +465,7 @@ async function renderPane($: any, e: any) {
       </Box>
     )
   }
-  if (ui.screen === 'done') return doneScreen($, e, snap, T)
+  if (ui.screen === 'done') return doneScreen($, e, ui, snap, T)
   if (ui.screen === 'item' || ui.screen === 'doneItem') {
     const it = snap.items.find((x) => x.id === ui.id)
     if (it) return itemScreen($, e, ui, snap, it, error, T)
