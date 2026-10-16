@@ -1,4 +1,5 @@
 """squad-respawn: same name, role, scope and worktree; new session id in roster.md; old pane closed last."""
+import json
 import os
 import re
 import shutil
@@ -8,6 +9,8 @@ import unittest
 from pathlib import Path
 
 BIN = Path(__file__).resolve().parent.parent / "bin"
+_DEV = json.loads((BIN.parent / "templates/squad/settings/dev.json").read_text())
+DEV = (_DEV["model"], _DEV["effortLevel"])
 FAKE_HERDR = """#!/usr/bin/env bash
 echo "$@" >> "$HERDR_LOG"
 case "$1 $2" in
@@ -70,7 +73,7 @@ class RespawnTest(unittest.TestCase):
         self.assertEqual(log[-1], "pane close p-old")  # old pane goes last
         start = next(l for l in log if l.startswith("agent start dev-1"))
         self.assertIn("--agent squad:dev", start)
-        self.assertIn("--model sonnet --effort medium", start)  # the role's defaults
+        self.assertIn(f"--model {DEV[0]} --effort {DEV[1]}", start)  # from settings/dev.json
         sid = re.search(r"--session-id (\S+)", start).group(1)
         self.assertIn(f"| dev-1 | Dev | settings | task 1 | live | {sid} |", (self.squad / "roster.md").read_text())
         prompt = next(l for l in log if l.startswith("agent prompt"))

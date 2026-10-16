@@ -27,8 +27,8 @@ Options:
                    "<emoji> <Role>[ n][ · title]", built and numbered by squad-label --init; the agent's
                    address name (env, herdr agent, roster) is unchanged.
   --prompt TEXT    First message to send once the session is ready
-  --model M        Model override (default: the role file's model, else yours)
-  --effort E       Effort override (low|medium|high|xhigh|max; default: the role file's effort)
+  --model M        Model override (default: settings/<role>.json "model", else Claude's default)
+  --effort E       Effort override (low|medium|high|xhigh|max; default: settings/<role>.json "effortLevel")
   --dry-run        Print what would run, start nothing
 
 Env:
@@ -140,11 +140,22 @@ fi
 # Overrides given now are what squad-respawn replays; none given means no file (a stale one is removed).
 ovr_model=$model ovr_effort=$effort
 
-# Role defaults come from the role file's frontmatter; --model/--effort override them.
-role_file=$plugin_root/agents/$role.md
-fm() { awk -v k="$1:" 'NR==1&&$0!="---"{exit} NR>1&&$0=="---"{exit} $1==k{print $2; exit}' "$role_file"; }
-[[ -n $model ]] || model=$(fm model)
-[[ -n $effort ]] || effort=$(fm effort)
+# Role defaults come from "model" and "effortLevel" in settings/<role>.json, per key: the squad's file, then the
+# template. --model/--effort win. Still passed as flags: an --agent frontmatter model would beat --settings.
+key_of() { # key -> value from the squad file, else the template; refuses a bad value
+  local k=$1 f v
+  for f in "$squad_dir/settings/$role.json" "$plugin_root/templates/squad/settings/$role.json"; do
+    [[ -f $f ]] || continue
+    v=$(jq -r --arg k "$k" '.[$k] // empty | if type=="string" then . else error("not a string") end' "$f") || { echo "cannot read $k from $f (needs jq, valid JSON, a string value)" >&2; exit 2; }
+    if [[ -n $v ]]; then
+      [[ $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad $k value in $f: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
+      printf '%s' "$v"; return
+    fi
+  done
+  echo "warning: no $k for $role in $squad_dir/settings/$role.json or the template; it runs on Claude Code's default" >&2
+}
+[[ -n $model ]] || model=$(key_of model)
+[[ -n $effort ]] || effort=$(key_of effortLevel)
 
 # Known up front so roster.md can point at the transcript <config dir>/projects/<cwd>/<session>.jsonl.
 session=$(python3 -c 'import uuid; print(uuid.uuid4())')

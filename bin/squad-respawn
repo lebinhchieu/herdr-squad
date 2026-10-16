@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Replace a squad agent's session with a fresh one: same name, role, scope and worktree, the role's
-# default model and effort unless squad-spawn recorded an override in roles/<agent>.overrides. The new session starts from roles/<agent>.notes.md. roster.md gets the new session id.
+# Replace a squad agent's session with a fresh one: same name, role, scope and worktree, the model and effort
+# in settings/<role>.json unless squad-spawn recorded an override in roles/<agent>.overrides. The new session starts from roles/<agent>.notes.md. roster.md gets the new session id.
 # Safe to run from the agent's own pane: the old pane is closed last.
 set -euo pipefail
 
