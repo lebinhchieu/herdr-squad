@@ -7,7 +7,7 @@ import { describePrompt, newOpenIds, parseSnapshot, sanitize, toastText, waiting
 
 export const inboxAtom = atom({ plugin: 'squad', key: 'inbox' } as const, null)
 export const errorAtom = atom({ plugin: 'squad', key: 'inboxError' } as const, null)
-const FRESH_UI: InboxUi = { isOpen: false, screen: 'list', id: null, expanded: false, picked: {}, draft: {}, pending: null, notice: null, rev: 0 }
+const FRESH_UI: InboxUi = { isOpen: false, screen: 'list', id: null, expanded: false, picked: {}, draft: {}, pending: null, notice: null, rev: 0, more: [] }
 export const uiAtom = atom({ plugin: 'squad', key: 'ui' } as const, FRESH_UI)
 
 const POLL_MS = 2000
@@ -240,7 +240,7 @@ export async function patchUi($: any, patch: Partial<InboxUi>): Promise<void> {
 }
 
 export async function goTo($: any, screen: InboxUi['screen'], id: string | null): Promise<void> {
-  await update($, uiAtom, (ui) => ({ ...ui, screen, id, expanded: false, notice: null }))
+  await update($, uiAtom, (ui) => ({ ...ui, screen, id, expanded: false, notice: null, more: [] }))
 }
 
 export async function pickOption($: any, id: string, value: string): Promise<void> {
