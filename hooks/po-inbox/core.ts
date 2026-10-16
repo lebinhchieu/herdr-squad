@@ -280,3 +280,134 @@ export function parseAdd(command: string): { title: string | null } | null {
   const clean = title === null ? '' : oneLine(sanitize(title))
   return { title: clean === '' ? null : clean }
 }
+
+// --- visual helpers (IV-02): pure, no drawing ---------------------------------------------------
+
+// V-15 / T6: theme keys, never RGB. Dim is the `dimColor` prop, not a colour.
+export const TONE = { good: 'success', bad: 'error', warn: 'warning' } as const
+export type Tone = 'good' | 'bad' | 'warn' | 'dim' | 'none'
+
+// V-11 / T7: the leading `(x)` run names the option; anything that could name a second option marks none.
+export function recommendedKey(rec: string | null, options: { key: string }[] | null): string | null {
+  if (rec === null || options === null) return null
+  const m = /^[ \t ]*\(([a-z])\)/.exec(rec)
+  if (!m) return null
+  const after = rec.slice(m[0].length)
+  if (/^[ \t ]*(\+|\/|,[ \t ]*\([a-z]\))/.test(after)) return null
+  if (/^[ \t ]*(and|or)[ \t ]*\([a-z]\)/i.test(after)) return null
+  const hits = options.filter((o) => o.key === m[1])
+  return hits.length === 1 ? m[1] : null
+}
+
+const inRanges = (c: number, r: number[][]): boolean => r.some(([a, b]) => c >= a && c <= b)
+const ZERO = [[0x300, 0x36f], [0x200b, 0x200f], [0x20d0, 0x20ff], [0xfe00, 0xfe0f], [0xfe20, 0xfe2f], [0xe0100, 0xe01ef]]
+const WIDE = [
+  [0x1100, 0x115f], [0x2e80, 0x303e], [0x3041, 0x33ff], [0x3400, 0x4dbf], [0x4e00, 0x9fff], [0xa000, 0xa4cf],
+  [0xac00, 0xd7a3], [0xf900, 0xfaff], [0xfe30, 0xfe6f], [0xff01, 0xff60], [0xffe0, 0xffe6],
+  [0x1f300, 0x1f64f], [0x1f680, 0x1f6ff], [0x1f900, 0x1f9ff], [0x20000, 0x3fffd],
+]
+
+// Terminal cells of a text, by code point: wide (CJK, fullwidth, emoji) 2, combining and zero-width 0.
+export function cellWidth(s: string): number {
+  let w = 0
+  for (const ch of s) {
+    const c = ch.codePointAt(0) as number
+    w += inRanges(c, ZERO) ? 0 : inRanges(c, WIDE) ? 2 : 1
+  }
+  return w
+}
+
+// Rows a text takes when wrapped to `cols` cells: words wrap on spaces, a longer word is hard-wrapped.
+// Rounds up when unsure (the engine's real wrap is not measurable).
+export function rowsFor(text: string, cols: number): number {
+  const width = Math.max(1, Math.floor(cols) || 1)
+  let rows = 0
+  for (const line of text.split('\n')) {
+    let used = 0
+    let r = 1
+    for (const word of line.split(' ')) {
+      let w = cellWidth(word)
+      if (used > 0 && used + 1 + w <= width) {
+        used += 1 + w
+        continue
+      }
+      if (used > 0) {
+        r++
+        used = 0
+      }
+      while (w > width) {
+        // Hard-wrap: fill rows cell by cell.
+        r++
+        w -= width
+      }
+      used = w
+    }
+    rows += r
+  }
+  return rows
+}
+
+export type Table = { header: string[]; rows: string[][] }
+export type TableLayout =
+  | { kind: 'aligned'; widths: number[] }
+  | { kind: 'stacked'; rows: { column: string; value: string }[][] }
+
+// Aligned at 60+ columns when header and rows fit as `cell  cell` (widest cell per column,
+// two spaces between columns); otherwise each row stacks as `column: value`.
+export function tableLayout(table: Table, cols: number): TableLayout {
+  const n = Math.max(table.header.length, ...table.rows.map((r) => r.length))
+  const cell = (r: string[], i: number): string => (i < r.length ? r[i] : '')
+  const widths: number[] = []
+  for (let i = 0; i < n; i++) {
+    widths.push(Math.max(cellWidth(cell(table.header, i)), ...table.rows.map((r) => cellWidth(cell(r, i)))))
+  }
+  const total = widths.reduce((a, b) => a + b, 0) + 2 * Math.max(0, n - 1)
+  if (cols >= 60 && total <= cols) return { kind: 'aligned', widths }
+  return {
+    kind: 'stacked',
+    rows: table.rows.map((r) => Array.from({ length: n }, (_, i) => ({ column: cell(table.header, i), value: cell(r, i) }))),
+  }
+}
+
+export const GROUP_CAP = 7
+
+// V-20: the first 7 in input order; `hidden` is how many `+N more` stands for.
+export function capGroup<T>(items: T[], expanded: boolean): { shown: T[]; hidden: number } {
+  if (expanded || items.length <= GROUP_CAP) return { shown: [...items], hidden: 0 }
+  return { shown: items.slice(0, GROUP_CAP), hidden: items.length - GROUP_CAP }
+}
+
+export const DEFAULT_BODY_ROWS = 20
+
+// T9: rows the body may use; never below 2. A missing or NaN row count falls back to DEFAULT_BODY_ROWS.
+export function bodyBudget(bodyRows: number | undefined, chromeRows: number): number {
+  const rows = typeof bodyRows === 'number' && Number.isFinite(bodyRows) ? bodyRows : DEFAULT_BODY_ROWS
+  const chrome = Number.isFinite(chromeRows) ? chromeRows : 0
+  return Math.max(2, rows - chrome)
+}
+
+// V-15, one function per row family so a screen never invents a colour.
+// Kind word: amber for an open answer item, none for a read item.
+export function kindTone(it: { kind: string; state: string }): Tone {
+  return it.kind === 'answer' && it.state === 'open' ? 'warn' : 'none'
+}
+
+// "blocks X": red; "blocks nothing": dim.
+export function blocksTone(blocks: string): Tone {
+  return blocksNothing(blocks) ? 'dim' : 'bad'
+}
+
+// Handled lines and the done list. answered-waiting: amber; answered (also in chat): green;
+// answered-file: amber; read, withdrawn, removed: dim; anything unknown: none.
+export function outcomeTone(it: { state: string; done: { kind: string } | null }): Tone {
+  if (it.state === 'answered-waiting') return 'warn'
+  if (!it.done) return 'none'
+  switch (it.done.kind) {
+    case 'answered': return 'good'
+    case 'answered-file': return 'warn'
+    case 'read':
+    case 'withdrawn':
+    case 'removed': return 'dim'
+    default: return 'none'
+  }
+}

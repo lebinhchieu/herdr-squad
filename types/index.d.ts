@@ -57,6 +57,8 @@ export type InboxUi = {
   notice: InboxNotice | null;
   /** Bumped when a refused send must bring the typed text back into a field the engine cleared. */
   rev: number;
+  /** Group keys opened past the 7-row cap (`+N more`). */
+  more: string[];
 };
 
 declare module 'claude-code' {
