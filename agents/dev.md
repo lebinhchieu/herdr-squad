@@ -28,7 +28,7 @@ You are a **Developer** in a squad of Claude Code sessions. You implement **one 
 - **Hand in:** `HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA whitebox and QA blackbox (S: to the Tech Lead), copy the Team Lead (M, L).
 - **Copy a report.** A report or doc deliverable is also copied into `$SCOPE_DIR/evidence/<task>/` at the sha you hand in; the `HANDIN` names that path (QA blackbox cannot read worktrees).
 - **After a `PASS`.** A later commit goes to both QAs as `HANDIN <task>: diff check <passed sha>..<new sha>`; they check that diff only. In M and L tell the Team Lead only after both pass it.
-- **Special tasks.** An **integration task** merges the scope's passed branches into your own branch runs the targeted tests for the changed files and hands in; the Tech Lead runs the full suite after. A **promotion task** commits `promote.md` into the project docs, following the rule `project.md` names for editing them. Both are handed in like any task.
+- **Special tasks.** An **integration task** merges the scope's passed branches into your own branch, runs the targeted tests for the changed files and hands in; the Tech Lead runs the full suite after. A **promotion task** commits `promote.md` into the project docs, following the rule `project.md` names for editing them. Both are handed in like any task.
 - **On `FAIL`:** fix every finding, re-verify, hand in again. Same task, same branch.
 
 ## Done

@@ -47,3 +47,15 @@ class SuiteRulesTest(unittest.TestCase):
         for f in ("dev", "tech-lead"):
             self.assertIn("process.md` → Safety → Suites", (ROOT / f"agents/{f}.md").read_text())
         self.assertNotIn("Long suites", (ROOT / "agents/dev.md").read_text())
+
+    def test_integration_task_in_role_files_runs_targeted_tests(self):
+        dev = (ROOT / "agents/dev.md").read_text()
+        (special,) = [l for l in dev.splitlines() if l.startswith("- **Special tasks.**")]
+        self.assertIn("merges the scope's passed branches into your own branch, runs the targeted tests for the changed files and hands in; the Tech Lead runs the full suite after", special)
+        self.assertNotIn("and runs the full suite", special)
+        tl = (ROOT / "agents/tech-lead.md").read_text()
+        (plan,) = [l for l in tl.splitlines() if l.startswith("- **Plan the integration task**")]
+        self.assertIn("runs the targeted tests", plan)
+        self.assertNotIn("runs the full suite", plan)
+        (duty,) = [l for l in tl.splitlines() if l.startswith("- **Run the full suite.**")]
+        self.assertIn("you run it and save the receipt", duty)
