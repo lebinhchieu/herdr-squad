@@ -708,16 +708,22 @@ test('V-30: the item screen key map is today\'s (hotkeys, keys, no two Buttons s
   expect(await keys(item({ id: 'E3', body: VISUAL.forty }))).toEqual({ 'Button:back': null, 'Button:show-all': null, 'Input:reply': null, 'Button:send': null })
 })
 
-test('V-30: pick, type, send, and back drive the same handlers as before', async ($, on) => {
-  let sent: string[] | null = null
-  const { ui, w } = await open($, on, [E1], 'E1', 80, 40, () => undefined)
-  void w
-  await ui.select({ key: 'pick', value: 'b' })
-  await ui.input({ key: 'note', text: 'because', kind: 'change' })
-  expect(textOf(await ui.drawn())).toContain('<Note (optional)because>')
-  await ui.press({ key: 'back' })
-  expect(textOf(await ui.drawn())).toContain('Blocks work')
-  void sent
+// V-26: the literals below were recorded from the base d5593f4 (before this ticket) and from this branch: same argv, same stdin.
+test('V-26: pick + note and a free reply reach the CLI with the same argv and stdin as before', async ($, on) => {
+  const opts = [{ key: 'a', text: 'one' }, { key: 'b', text: 'two' }, { key: 'c', text: 'Both: (a) and (b)' }]
+  const ok = (argv: string[]) => (argv[0] === 'answer' ? { exitCode: 0, stdout: '', stderr: '' } : undefined)
+  const items = [item({ id: 'E1', options: opts, recommendation: '(c) yes' }), item({ id: 'E2' })]
+  const { ui, w } = await open($, on, items, 'E1', 80, 40, ok)
+  await ui.select({ key: 'pick', value: 'c' })
+  await ui.input({ key: 'note', text: 'a "q" $HOME `x` \\n é 日本\nline2', kind: 'change' })
+  await ui.press({ key: 'send' })
+  const sent = () => w.runs.filter((r: any) => r.argv[1] === 'answer').map((r: any) => [r.argv.slice(1), r.stdin])
+  expect(sent()).toEqual([[['answer', 'E1', '--option', 'c', '--source', 'pane'], 'a "q" $HOME `x` \\n é 日本\nline2']])
+  const second = await open($, on, items, 'E2', 80, 40, ok)
+  await second.ui.input({ key: 'reply', text: '  free reply: --option z; rm -rf /  ', kind: 'change' })
+  await second.ui.press({ key: 'send' })
+  expect(sent()[1]).toEqual([['answer', 'E2', '--source', 'pane'], '  free reply: --option z; rm -rf /  '])
+  expect(sent()).toHaveLength(2)
 })
 
 test('Send is a plain Button: no variant', async ($, on) => {
