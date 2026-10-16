@@ -51,17 +51,6 @@ A lone scope sees nothing of other scopes. The scopes of a goal share only `goal
 
 `bin/` is on the Bash tool's PATH while the plugin is enabled, so the Manager runs `squad-spawn` as a plain command.
 
-## Squad board
-
-A live page showing each agent's state, messages and activity as a sequence of bars.
-
-- `/squad:squad-start` opens it in a `board` herdr tab and prints the URL. `/squad:squad-board` prints the URL again or restarts the board (`squad-board-start --restart`).
-- It listens on 127.0.0.1 (port 7420 by default) only. The token at the end of the URL is needed for Jump.
-- Bars grow from when the recorder first runs; nothing is drawn for time before that.
-- Needs Python 3, herdr, `jq` and `git`.
-- `messages.jsonl` and `activity.jsonl` hold message text and are git-ignored by `squad-init`.
-- The user guide is [docs/squad-board-guide.html](docs/squad-board-guide.html); the design is in `.scratch/squad-board/spec.md`.
-
 ## Requirements
 
 - Claude Code ≥ 2.1.224 (cross-session messaging), herdr, `jq`, `git`, `python3`.
@@ -78,6 +67,5 @@ A live page showing each agent's state, messages and activity as a sequence of b
 ## Known limits
 
 - **Flat squads.** A squad created before the per-scope layout (a `roster.md` at its top, no `scopes/` folder) keeps working through the same scripts, which fall back to the flat layout and the older worktree paths. `squad-start` refuses to convert one. The fallbacks are marked `legacy flat layout` and can go once such squads finish.
-- **One board per herdr workspace.** A second `squad-board-start` in the same workspace reuses the running board instead of starting another.
 - **Cost:** every role is a full session, and every scope pays a fresh start (a Manager, plus a re-read of the project docs). Run `squad-usage` after real use to see what a scope costs.
 - **Several Managers, several tabs.** Each running scope or goal has its own Manager tab that can block on you.
