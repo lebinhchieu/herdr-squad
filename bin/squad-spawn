@@ -60,6 +60,8 @@ done
 
 case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer) ;;
   *) echo "unknown role: $role" >&2; exit 2 ;; esac
+# A Team Lead respawning itself (squad-respawn) is team-lead under its own name; nothing else passes.
+[[ ${SQUAD_ROLE:-} != team-lead || $role == dev || ( $role == team-lead && $name == "${SQUAD_NAME:-}" ) ]] || { echo "a Team Lead may only spawn dev" >&2; exit 2; }
 [[ -z $base || -n $repo ]] || { echo "--base needs --repo" >&2; exit 2; }
 for v in "$model" "$effort"; do
   [[ -z $v || $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad --model/--effort value: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
