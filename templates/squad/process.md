@@ -75,7 +75,7 @@ Every scope and goal starts with these; its brief may override them.
 2. **Names.** A scope or goal is named after its ticket id (`SEC-04` becomes `sec04`) or a short slug; scopes and goals share one namespace, `_done/` included.
 3. An agent is `<squad>-<role-short>-<scope>[-n]`, at most 32 characters; role-short is `mgr`, `ba`, `tl`, `tech`, `qaw`, `qab`, `ux`, `dev` or `coach`. Address agents by bare name; `squad-spawn` refuses a live name.
 4. **Overlap.** `touches:` lists the repos or paths the work changes. `squad-start` compares it with every open scope and stops on an overlap for the PO.
-5. The Manager reads the brief, sizes the scope (Sizes), proposes the plan, and spawns the pod's non-Developer roles only after the PO confirms.
+5. The Manager reads the brief, sizes the scope (Sizes), proposes the plan, and spawns the pod only after the PO confirms; in M and L the Team Lead spawns the Developers.
 
 ## Lifetimes: every scope starts fresh
 

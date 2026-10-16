@@ -45,6 +45,9 @@ class PodRulesTest(unittest.TestCase):
         self.assertIn("the Manager retires the roles that drop out", T)
         self.assertIn("a joining Team Lead takes the plan over from it", T)
 
+    def test_s_keeps_the_confirm_gate_for_all_spawns(self):
+        self.assertIn("and spawns the pod only after the PO confirms; in M and L the Team Lead spawns the Developers.", T)
+
     def test_no_leftover_old_model(self):
         for old in ("Tech Lead in S and M", "The Manager never pushes `STATUS`"):
             self.assertNotIn(old, T)

@@ -15,10 +15,10 @@
 - old: snapshot
 - new: snapshot
 
-### Manager spawns only the non-Developer roles
+### Team Lead spawns the Developers in M and L
 - sections: ## Starting work
 - change: rule
-- why: the Team Lead spawns and retires the Developers
+- why: in M and L the Team Lead spawns and retires the Developers; the Manager's confirm gate for its own spawns stays
 - old: snapshot
 - new: snapshot
 
