@@ -2,6 +2,7 @@
 import contract_empty from './contract-empty'
 import contract_home from './contract-home'
 import contract_mixed from './contract-mixed'
+export { E1_OPTIONS, E1_REC, E1_TITLE, VISUAL } from './visual'
 
 export const FIXTURES: Record<string, string> = {
   'contract-empty': contract_empty,
