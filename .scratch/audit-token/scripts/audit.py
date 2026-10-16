@@ -4,7 +4,7 @@
   python3 -I .scratch/audit-token/scripts/audit.py --until 2026-10-16T09:00:00Z
   python3 -I .scratch/audit-token/scripts/audit.py --selftest
 
-Writes audit-tables.md and audit.json under .scratch/audit-token/ (refuses any other path).
+Writes audit-tables.md and audit-tables.json under .scratch/audit-token/ (refuses any other path).
 Method: usage is deduped by message.id over ALL files; each token field is the max over the lines of an id
 (streaming partials only grow). Cost = list price per model. The report holds ids, counts and numbers only.
 """
@@ -295,7 +295,7 @@ def tables(rows, parsed, reg, raw_count, until, dup, claude_dirs):
     sess_with_usage = [p for p in sess_main if p["msgs"]]
     ts = sorted(r["ts"] for r in rows)
     P(f"## Baseline (until {until})\n")
-    P(f"- Transcript files found (raw, both config dirs): {raw_count}; distinct after realpath: {len(parsed)} "
+    P(f"- Transcript files found (raw, both config dirs; all files on disk, not cut off at the baseline end): {raw_count}; distinct after realpath: {len(parsed)} "
       f"({len(sess_main)} sessions + {len(parsed) - len(sess_main)} subagent files)")
     P(f"- Sessions with at least one usage line before the cutoff: {len(sess_with_usage)}")
     P(f"- Messages (distinct ids): {len(rows)}; lines read: {sum(p['lines'] for p in parsed)}; "

@@ -1,6 +1,6 @@
 ## Baseline (until 2026-10-16T02:00:00Z)
 
-- Transcript files found (raw, both config dirs): 488; distinct after realpath: 244 (240 sessions + 4 subagent files)
+- Transcript files found (raw, both config dirs; all files on disk, not cut off at the baseline end): 488; distinct after realpath: 244 (240 sessions + 4 subagent files)
 - Sessions with at least one usage line before the cutoff: 227
 - Messages (distinct ids): 10287; lines read: 19331; synthetic ids skipped: 15
 - Date range of usage: 2026-10-11T14:15:45.040Z .. 2026-10-16T01:59:39.101Z

@@ -82,7 +82,7 @@ class UsageTest(UsageBase):
         self.assertEqual(row[1], "claude-sonnet-5-5/medium")
         self.assertEqual(row[2], "3")
         self.assertEqual(row[3:5], ["70k", "70k"])
-        self.assertEqual(row[5:], ["0k", "0", "0", "0k"])  # out, expiries, compactions, subagents
+        self.assertEqual(row[5:], ["0k", "0", "0", "0"])  # out, expiries, compactions, subagents
         self.assertNotIn("manager", r.stdout)
 
     def test_cache_expiry_needs_gap_and_big_write(self):
@@ -197,7 +197,7 @@ class UndercountTest(UsageBase):
         self.transcript("s1", [turn(0, "m1"), turn(1, "side", isSidechain=True, ctx=(2, 90_000, 0))])
         self.roster(("dev-1", "s1"))
         row = self.table()[0]["dev-1"]
-        self.assertEqual((row[2], row[3], row[-1]), ("1", "1k", "0k"))
+        self.assertEqual((row[2], row[3], row[-1]), ("1", "1k", "100"))
 
     def test_sessions_with_the_same_agent_name_sum(self):
         self.named("old", "dev-1", [turn(0, "a", ctx=(2, 90_000, 0), out=1000), turn(1, "b", ctx=(2, 91_000, 0), out=1000)])
@@ -251,7 +251,7 @@ class UndercountTest(UsageBase):
         self.roster(("dev-1", "s1"))
         rows, head = self.table()
         self.assertEqual(head.split()[:3], ["agent", "model/effort", "turns"])
-        self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "0k", "0", "0", "0k"])
+        self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "0k", "0", "0", "0"])
 
     def test_check_ignores_other_sessions_and_subagents(self):
         self.named("old", "dev-1", [turn(0, "a", ctx=(2, 150_000, 0), base=NOW)])
