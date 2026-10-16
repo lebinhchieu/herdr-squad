@@ -32,16 +32,19 @@ class ModelEffortSettingsTest(unittest.TestCase):
                 self.assertRegex(d["model"], r"^[A-Za-z0-9][][A-Za-z0-9._-]*$")
                 self.assertIn(d["effortLevel"], EFFORTS)
 
-    def test_permissions_are_unchanged(self):
+    def test_nothing_from_the_base_permissions_was_removed_or_changed(self):
+        # Later tasks may add allow/deny entries (T5 did); T9 itself may only add model and effortLevel.
         for role in ROLES:
             with self.subTest(role=role):
                 rel = f"templates/squad/settings/{role}.json"
                 old = subprocess.run(["git", "show", f"{BASE}:{rel}"], cwd=ROOT, text=True, capture_output=True)
                 if old.returncode != 0:
                     self.skipTest(f"{BASE} not in this clone")
-                now = json.loads((ROOT / rel).read_text())
-                self.assertEqual(now["permissions"], json.loads(old.stdout)["permissions"])
-                self.assertEqual(set(now) - set(json.loads(old.stdout)), {"model", "effortLevel"})
+                old, now = json.loads(old.stdout), json.loads((ROOT / rel).read_text())
+                self.assertLessEqual(set(old) - {"permissions"}, set(now))
+                for kind, entries in old["permissions"].items():
+                    self.assertLessEqual(set(entries), set(now["permissions"].get(kind, [])), f"{kind} lost entries")
+                self.assertEqual(set(now) - set(old), {"model", "effortLevel"})
 
 
 if __name__ == "__main__":
