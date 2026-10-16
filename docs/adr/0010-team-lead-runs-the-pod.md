@@ -8,6 +8,7 @@ Status: accepted (tl-manages-team)
 
 **Consequences:**
 - The Manager spawns the Team Lead, Tech Lead, BA, QAs and Designer; the Team Lead spawns and retires Developers only, enforced by its settings (`squad-spawn dev` prefix) and by `squad-spawn` and `squad-retire` refusing other targets when `SQUAD_ROLE=team-lead` (a squad's own `settings/` copy overrides the template).
+- The Manager hears four kinds from a pod (the *Manager traffic* term): an escalation to the PO, a size-change signal, a dispute the pod could not settle, and the iteration summary; plus one line at 3 returns on a task. Everything else goes to the Team Lead.
 - The Developer cap holds across a goal by shares: the goal Manager divides it among running scopes in each Team Lead's briefing. When a scope ends, its share goes to the scopes still running, at their next briefing or respawn.
 - The Team Lead settles plan, order and assignment disputes; every other dispute goes straight to the Manager. A Team Lead ruling starts with `FINAL:` and is not re-opened.
 - Nobody relays a blocked pane or a permission prompt; each agent's own toast tells the PO.

@@ -9,7 +9,7 @@ The human who makes the requests, confirms scope sizes, and alone decides a merg
 _Avoid_: user, owner, client
 
 **Manager**:
-The role that runs one scope (a lone task) or one goal (several scopes): sizes the work, starts and retires the other roles, and keeps them unblocked. It starts fresh for each request and never does another role's work. The one running a goal is the **goal Manager**.
+The role that runs one scope (a lone task) or one goal (several scopes): sizes the work, starts and retires the other roles (in M and L the Team Lead starts and retires the Developers) and keeps them unblocked (in M and L the Team Lead keeps the pod unblocked). It starts fresh for each request and never does another role's work. The one running a goal is the **goal Manager**.
 _Avoid_: orchestrator, lead
 
 **BA**:
@@ -23,6 +23,10 @@ _Avoid_: project manager, scrum master
 **Single point of contact**:
 In an M or L scope, the role every pod member messages for routine matters: the Team Lead. The Manager hears from it only an escalation to the PO, a size-change signal, a dispute the pod could not settle, 3 returns on one task and one summary per iteration (`iterations/<n>.summary.md`).
 _Avoid_: relay, gateway
+
+**Manager traffic**:
+The four things the Manager hears from an M or L pod: an escalation to the PO, a size-change signal, a dispute the pod could not settle, and the iteration summary; plus one line when a task has had 3 returns.
+_Avoid_: status, relay
 
 **Tech Lead**:
 The role that owns technical design, quality and security of one scope. Owns the plan in S; in M and L the Team Lead takes it.
