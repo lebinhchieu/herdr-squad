@@ -271,6 +271,18 @@ describe('tones (V-15)', () => {
     expect(kindTone({ kind: 'answer', state: 'open' })).toBe('warn')
     expect(kindTone({ kind: 'read', state: 'open' })).toBe('none')
   })
+  test('kindTone: only an open answer item is amber, over every kind/state in the contract fixtures', () => {
+    const seen = new Set<string>()
+    for (const text of Object.values(FIXTURES)) {
+      for (const it of JSON.parse(text).items) {
+        seen.add(`${it.kind}/${it.state}`)
+        expect(kindTone(it)).toBe(it.kind === 'answer' && it.state === 'open' ? 'warn' : 'none')
+      }
+    }
+    for (const k of ['answer/open', 'answer/answered-waiting', 'answer/done', 'read/open']) expect(seen.has(k)).toBe(true)
+    expect(kindTone({ kind: 'answer', state: 'answered-waiting' })).toBe('none')
+    expect(kindTone({ kind: 'answer', state: 'done' })).toBe('none')
+  })
   const NOTHING = ['', 'nothing', 'none', '-', '—', ' Nothing ']
   for (const b of NOTHING) test(`blocks ${JSON.stringify(b)} is dim`, () => expect(blocksTone(b)).toBe('dim'))
   for (const b of ['PI-04', 'spawning the pod', 'nothing else']) test(`blocks ${b} is bad`, () => expect(blocksTone(b)).toBe('bad'))
