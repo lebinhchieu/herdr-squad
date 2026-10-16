@@ -91,6 +91,7 @@ describe('recognised elements', () => {
   test('[rec] with leading spaces is a rec block; the tag itself is not kept', () => {
     expect(first('[rec] take (a)')).toEqual({ type: 'rec', spans: [{ kind: 'text', text: 'take (a)' }] })
     expect(first('   [rec] yes').type).toBe('rec')
+    expect(first('   [rec] yes')).toEqual({ type: 'rec', spans: [{ kind: 'text', text: 'yes' }], indent: 3 })
     expect(first('[rec]').type).toBe('rec')
   })
 

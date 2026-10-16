@@ -144,15 +144,17 @@ export function drawBlock(b: Block, cols: number, T: T, key: string): Drawn {
     }
     case 'rec': {
       const rest = drawnText(b.spans)
+      const pad = ' '.repeat(Math.min(b.indent ?? 0, 8))
       return {
         node: (
           <Text key={key} wrap="wrap">
+            {pad}
             <Text color={TONE.good} bold>✓ recommended</Text>
             {rest === '' ? null : ' '}
             {drawSpans(b.spans, T, key)}
           </Text>
         ),
-        rows: rowsFor(`✓ recommended${rest === '' ? '' : ' '}${rest}`, cols),
+        rows: rowsFor(`${pad}✓ recommended${rest === '' ? '' : ' '}${rest}`, cols),
       }
     }
     case 'bullet':
@@ -186,7 +188,7 @@ function plainText(b: Block): string {
   if (b.type === 'code') return [...(b.lang === '' ? [] : [b.lang]), ...b.lines].join('\n')
   if (b.type === 'table') return [b.header, ...b.rows].map((r) => r.map(spansText).join('  ')).join('\n')
   const t = drawnText(b.spans)
-  return b.type === 'bullet' ? `• ${t}` : b.type === 'number' ? `${b.n}. ${t}` : b.type === 'rec' ? `✓ recommended ${t}` : t
+  return b.type === 'bullet' ? `• ${t}` : b.type === 'number' ? `${b.n}. ${t}` : b.type === 'rec' ? `${' '.repeat(Math.min(b.indent ?? 0, 8))}✓ recommended ${t}` : t
 }
 
 // Runs of blank lines draw one blank row; none at either end of what is drawn.

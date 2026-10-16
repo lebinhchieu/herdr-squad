@@ -445,6 +445,22 @@ test('QAB F1: 80-char titles whose first row is exactly 36 cells: title cut at 2
   }
 })
 
+test('QAB F2: a `[rec]` line keeps its leading spaces', async ($, on) => {
+  const { ui } = await open($, on, [item({ id: 'F2', body: 'intro\n   [rec] take (a)' })], 'F2', 80, ROWS_40)
+  expect(rowsOf(await ui.drawn())).toContain('   ✓ recommended take (a)')
+  await ui.unmount()
+})
+
+test('QAB F3: only the header is clipped: the row says `… full header`, a whole title is not named', async ($, on) => {
+  const blocks = `${'work item '.repeat(12)}end`
+  const { ui } = await open($, on, [item({ id: 'F3', blocks, body: 'b' })], 'F3', 40, ROWS_40)
+  const text = textOf(await ui.drawn())
+  expect(text).toContain('… full header')
+  expect(text).not.toContain('full title')
+  expect(text).not.toContain('header and title')
+  await ui.unmount()
+})
+
 test('3.1e: 300-char title, 2-row header, 40 columns, 6 rows: the pointer is inside the first viewport, the title shows 2 rows', async ($, on) => {
   const blocks = `${'work item '.repeat(12)}end`
   const long = item({ id: 'E8', title: VISUAL.title300, blocks, body: VISUAL.e1, recommendation: E1_REC, options: E1_OPTS })
@@ -458,9 +474,9 @@ test('3.1e: 300-char title, 2-row header, 40 columns, 6 rows: the pointer is ins
     const t = r.find((l) => l.startsWith('TTT')) as string
     expect(t.endsWith('…')).toBe(true)
     expect(refRows(t, cols), `${cols}x${rows}`).toBe(cap)
-    expect(r.join('\n')).toContain('… full title')
+    expect(r.join('\n')).toContain('… full header and title')
     if (cols === 40 && rows === ROWS_24) {
-      expect(r.findIndex((l) => l.includes('… full title'))).toBeGreaterThan(r.findIndex((l) => l.includes('✓ recommends')))
+      expect(r.findIndex((l) => l.includes('… full header and title'))).toBeGreaterThan(r.findIndex((l) => l.includes('✓ recommends')))
       await ui.press({ key: 'show-title' })
       expect(textOf(await ui.drawn())).toContain('T'.repeat(300))
     }
@@ -719,7 +735,7 @@ test('FLOOR_ANSWER: an answer item keeps exactly 3 body rows at 6 rows, then the
   const { ui } = await open($, on, [item({ id: 'G4', title: 't', blocks: 'x', body: LONG_BODY })], 'G4', 80, ROWS_24)
   const r = rowsOf(await ui.drawn())
   const at = r.indexOf('t')
-  expect(r.slice(at + 1, at + 5)).toEqual(['line 0', ' ', 'line 1', '… 16 more lines '])
+  expect(r.slice(at + 1, at + 5)).toEqual(['line 0', ' ', 'line 1', '… 16 more lines'])
 })
 
 test('"N more lines" counts a fence as lines + 2 and a table as rows + 2', async ($, on) => {

@@ -393,12 +393,12 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   const bd = drawBody(bodyBlocks(it.body, it.title), cols, T, { expanded, fitRows: bodyRows - chrome, budget: bodyBudget(bodyRows, chrome + 1, floor) })
   const showAll = (text: string, k = 'show-all') => (
     <Box key={`more-${k}`}>
-      <Text dimColor>{`${text} `}</Text>
+      <Box marginRight={1}><Text dimColor>{text}</Text></Box>
       <Button key={k} label="Show all" onPress={() => patchUi($, { expanded: true })} />
     </Box>
   )
   const bodyMore = bd.cut ? showAll(`… ${bd.hidden} more lines`) : null
-  const topMore = !expanded && topCut ? showAll('… full title', bodyMore ? 'show-title' : 'show-all') : null
+  const topMore = !expanded && topCut ? showAll(`… full ${title !== titleFull ? (hd.cut ? 'header and title' : 'title') : 'header'}`, bodyMore ? 'show-title' : 'show-all') : null
   const total = chrome + bd.rows + (bodyMore ? 1 : 0) + (topMore ? 1 : 0)
   const hint = total > bodyRows ? <Text key="hint" dimColor>{'  ↓ more below'}</Text> : null
 
