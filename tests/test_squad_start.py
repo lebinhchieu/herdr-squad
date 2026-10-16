@@ -46,6 +46,8 @@ class StartTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         out = json.loads(r.stdout)
         self.assertEqual((out["kind"], out["name"], out["manager"]), ("scope", "sec04", "t-mgr-sec04"))
+        self.assertEqual(set(out), {"kind", "name", "dir", "manager", "tab", "process_update"})
+        self.assertNotIn("board", (r.stdout + r.stderr).replace(str(ROOT), "").lower())
         sc = self.squad / "scopes" / "sec04"
         brief = (sc / "scope.md").read_text()
         self.assertIn("Fix SEC-04: remove the committed default bypass key", brief)
@@ -105,7 +107,7 @@ class StartTest(unittest.TestCase):
         r = self.start("Tabs regroup", "--in-goal", "g1", "--name", "s1", "--touches", "wpfe/tabs", "--yes")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertRegex((self.squad / "scopes" / "s1" / "scope.md").read_text(), r"(?m)^goal: g1$")
-        self.assertNotIn("agent start", self.herdr())  # the goal Manager runs it, no Manager of its own (only the board lookup runs)
+        self.assertNotIn("agent start", self.herdr())  # the goal Manager runs it, no Manager of its own
         self.assertEqual(json.loads(r.stdout)["manager"], None)
 
     def test_in_goal_needs_an_existing_goal(self):
@@ -169,6 +171,7 @@ class StartTest(unittest.TestCase):
         r = self.start("--resume", "one")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)["manager"], "t-mgr-one")
+        self.assertNotIn("board", json.loads(r.stdout))
         self.assertEqual((sc / "tasks" / "T-1.md").read_text(), "keep me")
         h = self.herdr()
         self.assertIn(f"SCOPE_DIR={sc}", h)
@@ -198,6 +201,7 @@ class StartTest(unittest.TestCase):
         self.assertFalse((self.squad / "scopes" / "one").exists())
         self.assertEqual(self.herdr(), "")
         self.assertIn("would", r.stdout)
+        self.assertNotIn("board", (r.stdout + r.stderr).replace(str(ROOT), "").lower())
 
 
 class WorkspaceRenameTest(unittest.TestCase):
@@ -278,67 +282,6 @@ class WorkspaceRenameTest(unittest.TestCase):
         r = self.start("x", "--name", "one", "--touches", "a")
         self.assertNotEqual(r.returncode, 0)
         self.assertEqual(self.renames(), [])
-
-
-BOARD_HERDR = r"""#!/usr/bin/env bash
-echo "$@" >> "$HERDR_LOG"
-case "$1 $2" in
-  "tab list") echo '{"result":{"tabs":[]}}' ;;
-  "tab create") echo '{"result":{"root_pane":{"pane_id":"p1"},"tab":{"tab_id":"t1"}}}' ;;
-  "pane run") ;;
-  "pane wait-output") [[ ${FAKE_BOARD:-up} == up ]] || exit 1 ;;
-  "pane read") if [[ ${FAKE_BOARD:-up} == up ]]; then echo "squad-board: http://127.0.0.1:7420/?token=abc_DEF-1"; else echo "port busy"; fi ;;
-  "agent get") echo '{"error":{"code":"agent_not_found"}}'; exit 1 ;;
-esac
-exit 0
-"""
-
-
-class BoardTest(unittest.TestCase):
-    """squad-start also opens the board; a board that fails never stops the Manager."""
-
-    def setUp(self):
-        StartTest.setUp(self)
-        (Path(self.tmp.name) / "fakebin" / "herdr").write_text(BOARD_HERDR)
-
-    tearDown = StartTest.tearDown
-    start = StartTest.start
-    herdr = StartTest.herdr
-
-    def test_the_url_is_in_the_json(self):
-        r = self.start("Task one", "--name", "one", "--touches", "a")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(json.loads(r.stdout)["board"], "http://127.0.0.1:7420/?token=abc_DEF-1")
-        self.assertIn("--label 📋 Board", self.herdr())
-
-    def test_a_board_that_fails_leaves_the_manager_running(self):
-        self.env["FAKE_BOARD"] = "down"
-        r = self.start("Task one", "--name", "one", "--touches", "a")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        out = json.loads(r.stdout)
-        self.assertIsNone(out["board"])
-        self.assertEqual(out["manager"], "t-mgr-one")
-        self.assertIn("board not started:", r.stderr)
-        self.assertIn("run /squad:squad-board", r.stderr)
-        self.assertTrue((self.squad / "scopes" / "one" / "scope.md").exists())
-        self.assertIn("--label 🦀 Manager", self.herdr())
-
-    def test_dry_run_starts_no_board(self):
-        r = self.start("Task one", "--name", "one", "--touches", "a", "--dry-run")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertNotIn("board", self.herdr())
-
-    def test_resume_opens_it_too(self):
-        self.start("Task one", "--name", "one", "--touches", "a")
-        r = self.start("--resume", "one")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(json.loads(r.stdout)["board"], "http://127.0.0.1:7420/?token=abc_DEF-1")
-
-    def test_a_scope_in_a_goal_makes_the_idempotent_call_too(self):
-        self.start("goal: Big", "--name", "g1", "--touches", "z")
-        r = self.start("Part", "--in-goal", "g1", "--name", "p1", "--touches", "a")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(json.loads(r.stdout)["board"], "http://127.0.0.1:7420/?token=abc_DEF-1")
 
 
 ROOT = SCRIPT.parent.parent

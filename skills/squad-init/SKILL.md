@@ -44,7 +44,7 @@ Make sure `.worktrees/` is git-ignored at the project root (Developers get `<roo
 Ask the user once how `<root>/.claude/squads/` is tracked. A long-lived squad keeps its tuned `process.md`, source map and each scope's brief and iterations there, and an ignored folder lives only on this machine. Options:
 
 - **Commit the durable files only (recommended).** Write `<root>/.claude/squads/.gitignore` with these lines: `*/scopes/*/roles/`, `*/scopes/*/evidence/`, `*/scopes/*/roster.md`, `*/scopes/*/escalations.md`, `*/goals/*/roles/`, `*/goals/*/roster.md`, `*/goals/*/escalations.md`, `*.jsonl` and `_done/`. Notes, evidence, rosters and logs stay local; `process.md`, `project.md`, `process-log.md`, `settings/`, and each scope's `scope.md`, `iterations/`, `tasks/` and each goal's `goal.md` and `shared/` are shared.
-- **Commit everything.** Evidence and notes go into the history. Only the board logs are ignored: write `<root>/.claude/squads/.gitignore` with the single line `*.jsonl` (they hold message text) and say so.
+- **Commit everything.** Evidence and notes go into the history. Only the message logs are ignored: write `<root>/.claude/squads/.gitignore` with the single line `*.jsonl` (they hold message text) and say so.
 - **Ignore everything.** Add `.claude/squads/` to the project's `.gitignore`; use it for a short-lived squad.
 
 Do what the user picks and tell them what you wrote. If `git check-ignore .claude/squads/<squad>/process.md` already matches a rule, say which one before adding anything.

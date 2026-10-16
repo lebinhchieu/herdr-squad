@@ -35,9 +35,6 @@ class BuildLabelTest(unittest.TestCase):
         self.assertEqual(sl.build_label("qa-blackbox", None, "TAB-05 integration live check"),
                          "🤖 QA Blackbox · TAB-05 integrat…")
 
-    def test_board_labels(self):
-        self.assertEqual((sl.BOARD_LABEL, sl.LEGACY_BOARD_LABEL), ("📋 Board", "board"))
-
 
 class StoreTest(unittest.TestCase):
     def setUp(self):

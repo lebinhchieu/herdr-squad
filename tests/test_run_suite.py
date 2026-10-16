@@ -117,18 +117,31 @@ class RunSuiteTest(unittest.TestCase):
     def test_tz_run_takes_only_the_time_files_and_the_also_file_under_new_york_time(self):
         probe = ("import os, unittest\nclass T(unittest.TestCase):\n"
                  "    def test_a(self): self.assertEqual((os.environ['TZ'], os.environ['LC_ALL']), ('America/New_York', 'C'))\n")
-        self.stub("test_board_state.py", probe)
+        self.stub("test_time_probe.py", probe)
         self.stub("test_extra.py", probe)
         self.stub("test_other.py", FAIL)  # would fail the run if the tz pass picked it up
         out = self.dir / "receipt"
-        done = self.run_runner("--receipt", str(out), "--tz", "--also", "test_extra")
+        done = self.run_runner("--receipt", str(out), "--tz", "--also", "test_time_probe", "--also", "test_extra")
         self.assertEqual(done.returncode, 1)  # the default run fails on the probes and on test_other
         tz = (out / "suite-tz.txt").read_text()
         self.assertRegex(tz.splitlines()[0], r"^sha [0-9a-f]{40} clean=(yes|no)$")
-        self.assertIn("test_board_state", tz)
+        self.assertIn("test_time_probe", tz)
         self.assertIn("test_extra", tz)
         self.assertNotIn("test_other", tz)
         self.assertRegex(tz, r"Ran 2 tests in \d+\.\d+s\n\nOK\n")
+
+    def test_tz_run_with_no_time_files_and_no_also_skips_the_time_pass_and_says_so(self):  # RB-01 AC7
+        self.stub("test_plain.py", "import os, unittest\nclass T(unittest.TestCase):\n"
+                  "    def test_a(self): self.assertEqual(os.environ.get('SQUAD_REQUIRE_CLAUDE'), '1')\n")
+        out = self.dir / "receipt"
+        done = self.run_runner("--receipt", str(out), "--tz")
+        self.assertEqual(done.returncode, 0, done.stdout)  # the default run still sets SQUAD_REQUIRE_CLAUDE under --tz
+        line = "skipped: no time files (TZ_FILES is empty and no --also given)"
+        tz = (out / "suite-tz.txt").read_text().splitlines()
+        self.assertRegex(tz[0], r"^sha [0-9a-f]{40} clean=(yes|no)$")
+        self.assertEqual(tz[1:], [line])
+        self.assertIn(line, done.stdout)
+        self.assertNotIn("TZ=America/New_York", done.stdout)
 
     def test_dirty_check_ignores_evidence_and_pycache(self):
         repo = self.dir / "repo"
@@ -262,10 +275,10 @@ class IfChangedTest(unittest.TestCase):
         self.repo = Path(tmp.name)
         for d in ("tests", "bin", "docs"):
             (self.repo / d).mkdir()
-        (self.repo / "tests" / "test_board_state.py").write_text(PASS)  # a time file
+        (self.repo / "tests" / "test_time_probe.py").write_text(PASS)  # a time file
         (self.repo / "tests" / "test_browser.py").write_text(PASS + "# playwright\n")
         (self.repo / "tests" / "test_other.py").write_text(PASS)
-        for f in ("bin/squad-board", "bin/squadlabel.py", "bin/elsewhere", "docs/a.md", "tests/run_suite.py"):
+        for f in ("bin/squadlabel.py", "bin/elsewhere", "docs/a.md", "tests/run_suite.py"):
             (self.repo / f).write_text("x\n")
         git(self.repo, "init", "-q")
         self.commit_all("base")
@@ -283,7 +296,8 @@ class IfChangedTest(unittest.TestCase):
 
     def run_runner(self, *args, base=None):
         return subprocess.run([sys.executable, str(RUNNER), "--tests-dir", str(self.repo / "tests"), "--repo", str(self.repo),
-                               "--receipt", str(self.out), "--if-changed", base or self.base] + list(args),
+                               "--receipt", str(self.out), "--if-changed", base or self.base,
+                               "--also", "test_time_probe"] + list(args),
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True,
                               env=dict(os.environ, SQUAD_SUITE_LOCK=str(self.lock)))
 
@@ -299,7 +313,7 @@ class IfChangedTest(unittest.TestCase):
                          not browser, default)
         self.assertRegex(tzt.splitlines()[0], r"^sha [0-9a-f]{40} clean=(yes|no)$")
         self.assertEqual("skipped: no time file or watched source changed since " + self.base in tzt, not tz, tzt)
-        self.assertEqual("test_board_state" in tzt, tz, tzt)
+        self.assertEqual("test_time_probe" in tzt, tz, tzt)
         self.assertNotIn("waiting for the suite lock", done.stdout)
         return done
 
@@ -316,26 +330,26 @@ class IfChangedTest(unittest.TestCase):
             fcntl.flock(held, fcntl.LOCK_EX)
             self.check(False, False)  # would hang on the held lock if the runner asked for it
 
-    def test_browser_phase_runs_for_a_browser_test_a_watched_source_run_suite_and_an_uncommitted_change(self):
+    def test_browser_phase_runs_for_a_browser_test_run_suite_and_an_uncommitted_change_not_for_a_bin_file(self):
         self.commit("tests/test_browser.py", PASS + "# playwright edit\n")
         self.check(True, False)
         git(self.repo, "reset", "-q", "--hard", self.base)
         self.commit("bin/squadlabel.py")
-        self.check(True, True)
+        self.check(False, False)
         git(self.repo, "reset", "-q", "--hard", self.base)
         self.commit("tests/run_suite.py")
         self.check(True, False)
         git(self.repo, "reset", "-q", "--hard", self.base)
-        (self.repo / "bin" / "squad-board").write_text("dirty\n")
-        self.check(True, True)
+        (self.repo / "tests" / "run_suite.py").write_text("dirty\n")
+        self.check(True, False)
 
-    def test_time_pass_runs_for_a_time_file_or_a_watched_source_and_a_new_fixture(self):
-        self.commit("tests/test_board_state.py", PASS + "# edit\n")
+    def test_time_pass_runs_for_the_also_file_only_not_for_a_new_fixture(self):
+        self.commit("tests/test_time_probe.py", PASS + "# edit\n")
         self.check(False, True)
         git(self.repo, "reset", "-q", "--hard", self.base)
         (self.repo / "tests" / "fixtures").mkdir()
         (self.repo / "tests" / "fixtures" / "new.json").write_text("{}")
-        self.check(True, True)
+        self.check(False, False)
 
     def test_a_bad_base_runs_everything_and_says_so(self):
         done = self.run_runner(base="no-such-ref")
@@ -352,47 +366,6 @@ class IfChangedTest(unittest.TestCase):
         done = self.run_runner("--tz")
         self.assertEqual(done.returncode, 2)
         self.assertIn("excludes --tz", done.stdout)
-
-    def reach(self, start):
-        """Every non-test source the files in `start` load, transitively: bin/<name> paths, local modules, html."""
-        here = Path(run_suite.__file__).resolve().parent
-        root = here.parent
-        seen, visited, todo = set(), set(), list(start)
-        while todo:
-            f = todo.pop()
-            if f in visited:
-                continue
-            visited.add(f)
-            seen.add(f)
-            text = (root / f).read_text()
-            found = {"bin/" + n for n in re.findall(r"(?<![\w/])bin/([A-Za-z][\w.-]*)", text) if (root / "bin" / n).exists()}
-            found |= {"bin/" + n for n in re.findall(r"([\w-]+\.html)\b", text) if (root / "bin" / n).exists()}
-            for mod in re.findall(r"^(?:from|import) (\w+)", text, re.M):
-                for d in ("bin", "tests"):
-                    if (root / d / (mod + ".py")).exists():
-                        found.add("%s/%s.py" % (d, mod))
-            todo += [n for n in found if (root / n).is_file()]
-            seen |= {n for n in found if not n.startswith("tests/test_")}
-        return {n for n in seen if not n.startswith("tests/test_") and n != "tests/run_suite.py"}
-
-    def assert_watched(self, files, watch):
-        for n in self.reach(files):
-            self.assertTrue(run_suite.touches([n], set(), watch), "%s is loaded but not in the watch list" % n)
-
-    def test_watch_lists_hold_everything_the_time_and_browser_files_load_transitively(self):
-        here = Path(run_suite.__file__).resolve().parent
-        browser = ["tests/" + f.name for f in run_suite.discover(here)[1] if f.name != "test_run_suite.py"]
-        self.assertIn("tests/test_board_page.py", browser)
-        self.assert_watched(browser, run_suite.BROWSER_WATCH)
-        self.assert_watched(["tests/%s.py" % n for n in run_suite.TZ_FILES], run_suite.TZ_WATCH)
-        reached = self.reach(["tests/%s.py" % n for n in run_suite.TZ_FILES])
-        self.assertIn("bin/squadlabel.py", reached)  # two hops: test -> squad-board -> squadlabel
-        self.assertIn("bin/squad-board.html", reached)
-
-    def test_the_pin_fails_when_one_entry_is_dropped(self):
-        trimmed = tuple(w for w in run_suite.BROWSER_WATCH if w != "bin/squadlabel.py")
-        with self.assertRaises(AssertionError):
-            self.assert_watched(["tests/test_board_page.py"], trimmed)
 
 
 class ClaudeMdTest(unittest.TestCase):

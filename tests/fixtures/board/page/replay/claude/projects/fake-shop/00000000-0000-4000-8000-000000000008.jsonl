@@ -1,1 +1,0 @@
-{"type": "assistant", "message": {"id": "msg-dev-shop-4", "model": "fake-model-a", "role": "assistant", "usage": {"input_tokens": 107, "cache_creation_input_tokens": 8000, "cache_read_input_tokens": 98760, "output_tokens": 619}}}

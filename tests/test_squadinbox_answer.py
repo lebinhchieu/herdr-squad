@@ -11,7 +11,7 @@ from argparse import Namespace
 from pathlib import Path
 from unittest import mock
 
-from test_squadinbox import Base, CLI, ROOT, env, listing, by_id, load_board, run, digest
+from test_squadinbox import Base, CLI, ROOT, env, listing, by_id, rows_of, run, digest
 
 sys.path.insert(0, str(ROOT / "bin"))
 import squadinbox  # noqa: E402
@@ -26,7 +26,7 @@ def events(home, ev=None):
 
 
 def table(home):
-    return [(len(r), tuple(r)) for r in load_board().read_first_table(Path(home) / "escalations.md")]
+    return [(len(r), tuple(r)) for r in rows_of(Path(home) / "escalations.md")]
 
 
 def lines_except(home, marker=None):
@@ -41,7 +41,7 @@ class AnswerTest(Base):
         self.assertEqual((ev["id"], ev["option"], ev["note"], ev["text"], ev["source"]), ("E8", "b", "x", "(b) no\nx", "pane"))
         it = by_id(listing(self.home))["E8"]
         self.assertEqual((it["state"], it["answer"]["text"]), ("answered-waiting", "(b) no\nx"))
-        row = [r for r in load_board().read_first_table(self.home / "escalations.md") if r.get("question", "").startswith("Ship")][0]
+        row = [r for r in rows_of(self.home / "escalations.md") if r.get("question", "").startswith("Ship")][0]
         self.assertEqual(row["answer"], "(b) no<br>x")
 
     def test_option_without_note(self):
@@ -86,7 +86,7 @@ class AnswerTest(Base):
             old, new = before.split(b"\n"), after.split(b"\n")
             self.assertEqual(len(old), len(new), repr(t))
             self.assertEqual([i for i, (a, b) in enumerate(zip(old, new)) if a != b].__len__(), 1, repr(t))
-            rows = load_board().read_first_table(h / "escalations.md")
+            rows = rows_of(h / "escalations.md")
             self.assertTrue(all(len(r) == 7 for r in rows if r.get("question")), repr(t))
 
     def test_second_answer_and_withdraw_race_losers(self):  # AC5
@@ -205,14 +205,14 @@ class CellFailureTest(Base):
         self.assertEqual(by_id(listing(self.home, "--no-write"))["E8"]["state"], "answered-waiting")
         it = by_id(listing(self.home))["E8"]
         self.assertEqual(it["state"], "answered-waiting")  # never answered-file
-        row = [r for r in load_board().read_first_table(self.home / "escalations.md") if r.get("question", "").startswith("Ship")][0]
+        row = [r for r in rows_of(self.home / "escalations.md") if r.get("question", "").startswith("Ship")][0]
         self.assertEqual(row["answer"], "(a) yes")
 
     def test_withdraw_cell_failure_is_repaired(self):
         with mock.patch.object(squadinbox, "set_answer_cell", side_effect=OSError("read-only")):
             self.assertEqual(self.call("withdraw", "E8", "--reason", "nope"), 0)
         self.assertEqual(by_id(listing(self.home))["E8"]["done"]["kind"], "withdrawn")
-        row = [r for r in load_board().read_first_table(self.home / "escalations.md") if r.get("question", "").startswith("Ship")][0]
+        row = [r for r in rows_of(self.home / "escalations.md") if r.get("question", "").startswith("Ship")][0]
         self.assertEqual(row["answer"], "withdrawn: nope")
 
     def test_crash_between_event_and_cell(self):
@@ -252,7 +252,7 @@ class CellFailureTest(Base):
         r = run(self.home, "answer", item["id"], "--text", "x | y", "--source", "pane")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stderr, "")
-        row = [r for r in load_board().read_first_table(path) if r.get("question") == "Short row"][0]
+        row = [r for r in rows_of(path) if r.get("question") == "Short row"][0]
         self.assertEqual(row["answer"], "x | y")
         self.assertEqual(by_id(listing(self.home))[item["id"]]["flags"], [])
 
@@ -373,7 +373,7 @@ class WithdrawDeliveredTest(Base):
         self.assertEqual(run(self.home, "withdraw", "E8", "--reason", "not needed").returncode, 0)
         it = by_id(listing(self.home))["E8"]
         self.assertEqual((it["state"], it["done"]["kind"], it["done"]["reason"]), ("done", "withdrawn", "not needed"))
-        row = [r for r in load_board().read_first_table(self.home / "escalations.md") if r.get("question", "").startswith("Ship")][0]
+        row = [r for r in rows_of(self.home / "escalations.md") if r.get("question", "").startswith("Ship")][0]
         self.assertEqual(row["answer"], "withdrawn: not needed")
         before = (self.home / "escalations.md").read_bytes()
         r = run(self.home, "withdraw", "R1", "--reason", "old")
@@ -416,7 +416,7 @@ class RaceTest(Base):
         return h
 
     def cell(self, h):
-        return [r for r in load_board().read_first_table(h / "escalations.md") if r.get("question", "").startswith("Ship")][0]["answer"]
+        return [r for r in rows_of(h / "escalations.md") if r.get("question", "").startswith("Ship")][0]["answer"]
 
     def test_ten_answers(self):  # AC6, AC17
         for i in range(20):

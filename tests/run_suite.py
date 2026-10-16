@@ -21,14 +21,10 @@ import time
 from pathlib import Path
 
 LOCK = os.environ.get("SQUAD_SUITE_LOCK", "/tmp/squad-suite.lock")  # the override is for test_run_suite only
-TZ_FILES = ("test_board_timeline", "test_board_state", "test_board_tokens", "test_board_recorder")
+TZ_FILES = ()  # no file needs a fixed time zone now; --also adds one for a run
 AGENT_ENV = ("SQUAD_DIR", "SCOPE_DIR", "GOAL_DIR", "SQUAD_NAME", "SQUAD_ROLE", "SQUAD_SCOPE")  # an agent's own squad folders; tests must never see them
-# Non-test sources the board tests load, transitively (squad-board imports squadlabel and serves the html); a path ending
-# in "/" is a whole folder. test_run_suite pins that every bin/<name>, local module and html they reach is listed.
-BOARD_SOURCES = ("bin/squad-board", "bin/squad-board.html", "bin/squadlabel.py", "tests/board_fixture.py",
-                 "tests/fake_herdr.py", "tests/fixtures/")
-TZ_WATCH = BOARD_SOURCES  # the four time files
-BROWSER_WATCH = BOARD_SOURCES + ("tests/run_suite.py",)  # the browser files; a browser test file itself is found by discover
+TZ_WATCH = ()
+BROWSER_WATCH = ("tests/run_suite.py",)  # a browser test file itself is found by discover
 TZ_ENV = {"TZ": "America/New_York", "LC_ALL": "C"}
 RAN_RE = re.compile(r"^Ran (\d+) tests? in ", re.M)
 
@@ -226,6 +222,9 @@ def main(argv=None):
     outputs = {"suite-default.txt": text}
     if skip_tz:
         outputs["suite-tz.txt"] = "skipped: no time file or watched source changed since %s\n" % args.if_changed
+    elif not only and (args.tz or args.if_changed):
+        outputs["suite-tz.txt"] = "skipped: no time files (TZ_FILES is empty and no --also given)\n"
+        print("\n" + outputs["suite-tz.txt"], end="")
     elif args.tz or args.if_changed:
         print("\n--- TZ=America/New_York LC_ALL=C: %s ---" % ", ".join(sorted(only)), flush=True)
         tz_text, tz_ok = execute(args.tests_dir, only, args.jobs, args.browser_streams, args.retries, TZ_ENV)
