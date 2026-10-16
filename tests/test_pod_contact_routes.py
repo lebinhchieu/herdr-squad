@@ -39,7 +39,7 @@ class PodContactRoutes(unittest.TestCase):
         self.assertIn("the Team Lead retires you", dev)
         self.assertIn("Plan or order → the Team Lead", dev)
         self.assertIn("copy the Team Lead (M, L)", read("qa-whitebox.md"))
-        self.assertIn("copy the Team Lead (M, L) and the BA", read("qa-blackbox.md"))
+        self.assertIn("copy the Team Lead (M, L).", read("qa-blackbox.md"))
         self.assertIn("tell the Team Lead", read("ba.md"))
         tl = read("tech-lead.md")
         self.assertIn("**In S you also own the plan**", tl)
@@ -55,6 +55,15 @@ class PodContactRoutes(unittest.TestCase):
         self.assertIn("In S you are also the checker", tl)
         self.assertIn("tl-review.md", tl)
         self.assertIn("the scope moves up to M", tl)
+
+    def test_qa_blackbox_copies_team_lead_only_and_dev_blocked_route(self):
+        qb = (AGENTS / "qa-blackbox.md").read_text()
+        qw = (AGENTS / "qa-whitebox.md").read_text()
+        self.assertIn("copy the Team Lead (M, L).", qb)
+        self.assertNotIn("and the BA", qb)
+        self.assertIn("copy the Team Lead (M, L).", qw)
+        dev = (AGENTS / "dev.md").read_text()
+        self.assertIn("`BLOCKED <task>` and answers to `STATUS?` go to the Team Lead (S: the Tech Lead); a permission prompt is not sent anywhere", dev)
 
 
 if __name__ == "__main__":
