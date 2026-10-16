@@ -84,7 +84,7 @@ export const dump = async (ui: any) => lines(await ui.drawn()).join('\n')
 
 const STYLE_PROPS = ['color', 'dimColor', 'bold', 'weight', 'italic', 'underline', 'inverse', 'strikethrough', 'backgroundColor']
 
-// Style props of the first Text whose own text contains `text`; null when none does.
+// Style props of the innermost first Text whose text contains `text`; null when none does.
 export function styleOf(tree: any, text: string): Record<string, unknown> | null {
   if (tree === null || tree === undefined || typeof tree === 'string') return null
   if (Array.isArray(tree)) {
@@ -95,6 +95,9 @@ export function styleOf(tree: any, text: string): Record<string, unknown> | null
     return null
   }
   if (tree.type === 'Text' && textOf(tree).includes(text)) {
+    // A nested Text that holds the text is the one that carries its style.
+    const inner = styleOf(tree.children ?? [], text)
+    if (inner) return inner
     const out: Record<string, unknown> = {}
     for (const k of STYLE_PROPS) if (tree.props && tree.props[k] !== undefined) out[k] = tree.props[k]
     return out

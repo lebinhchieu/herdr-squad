@@ -59,8 +59,14 @@ describe('cellWidth', () => {
     ['astral plus combining mark', '😀́', 2],
     ['combining accent', 'é', 1],
     ['zero-width space', 'a​b', 2],
+    ['check mark and warning sign stay 1 (the inbox glyphs)', '✓⚠', 2],
+    ['emoji presentation: check, cross, star, hourglass, melting face', '✅❌⭐⌛🫠', 10],
+    ['emoji presentation: low ranges', '\u231a\u23e9\u25fd\u2614\u2648\u267f\u2693\u26a1\u26aa\u26bd\u26c4\u26ce\u26d4\u26ea\u26f2\u26fa\u26fd', 34],
+    ['emoji presentation: dingbats', '\u2705\u270a\u2728\u274c\u274e\u2753\u2757\u2795\u27b0\u27bf\u2b1b\u2b50\u2b55', 26],
+    ['regional indicators and the 1FA70 block', '\u{1f1e6}\u{1fa70}\u{1faff}', 6],
+    ['test tube', '🧪', 2],
     ['pinned: heart + VS16 is 1 + 0', '❤️', 1],
-    ['pinned: ZWJ family is 2+2+2+2+2 (ZWJ 0)', '👨‍👩‍👧', 6],
+    ['pinned: ZWJ family is 2+2+2 plus two zero-width joiners (0)', '👨‍👩‍👧', 6],
   ]
   for (const [name, s, w] of cases) test(name, () => expect(cellWidth(s)).toBe(w))
 })
@@ -73,7 +79,20 @@ describe('rowsFor', () => {
   test('word fits with its space exactly', () => expect(rowsFor('aaaa bbbb', 9)).toBe(1))
   test('a long word is hard-wrapped', () => expect(rowsFor('a'.repeat(25), 10)).toBe(3))
   test('embedded newlines count per line, empty lines are one row', () => expect(rowsFor('a\n\nb', 10)).toBe(3))
-  test('CJK counts two cells', () => expect(rowsFor('漢字漢字漢', 10)).toBe(1) && expect(rowsFor('漢字漢字漢字', 10)).toBe(2))
+  test('CJK counts two cells', () => {
+    expect(rowsFor('漢字漢字漢', 10)).toBe(1)
+    expect(rowsFor('漢字漢字漢字', 10)).toBe(2)
+  })
+  test('a wide char at the end of a row starts the next row', () => {
+    expect(rowsFor('aaaa漢', 5)).toBe(2)
+    expect(rowsFor('aaaa 漢', 5)).toBe(2)
+    expect(rowsFor('漢漢a漢', 5)).toBe(2)
+  })
+  test('a wide char never splits across rows', () => {
+    expect(rowsFor('漢'.repeat(10), 5)).toBe(5)
+    expect(rowsFor('漢'.repeat(200), 31)).toBe(14)
+    expect(rowsFor('漢'.repeat(3), 3)).toBe(3)
+  })
   test('leading and repeated spaces never shrink the count', () => expect(rowsFor('   a    b', 4)).toBeGreaterThan(1))
   test('cols 0 and negative do not hang', () => {
     expect(rowsFor('ab', 0)).toBe(2)
@@ -85,20 +104,34 @@ describe('rowsFor', () => {
     let seed = 12345
     const rnd = (n: number) => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed % n)
     const alpha = ['a', 'b', 'c', ' ', ' ', ' ', '漢', '字', '😀', '\n', 'x', 'y']
+    // Independent reference: place one code point at a time. A word moves to the next row when it fits an empty
+    // row but not the rest of this one; a longer word fills rows, a wide char that does not fit starts a new row.
+    const width = (ch: string): number => cellWidth(ch)
     const reference = (text: string, cols: number): number => {
       let rows = 0
       for (const line of text.split('\n')) {
-        let used = 0
-        let r = 1
-        for (const word of line.split(' ')) {
-          const w = [...word].reduce((n, ch) => n + (cellWidth(ch)), 0)
-          if (used === 0) used = 0
-          else if (used + 1 + w <= cols) { used += 1 + w; continue } else { r++; used = 0 }
-          let left = w
-          while (left > cols) { r++; left -= cols }
-          used = left
+        const chars = [...line]
+        let row = 1
+        let col = 0
+        let i = 0
+        while (i < chars.length) {
+          if (chars[i] === ' ') {
+            if (col + 1 > cols) { row++; col = 0 }
+            col++
+            i++
+            continue
+          }
+          let j = i
+          let ww = 0
+          while (j < chars.length && chars[j] !== ' ') ww += width(chars[j++])
+          if (col + ww > cols && ww <= cols) { row++; col = 0 }
+          for (; i < j; i++) {
+            const cw = width(chars[i])
+            if (col + cw > cols) { row++; col = 0 }
+            col += cw
+          }
         }
-        rows += r
+        rows += row
       }
       return rows
     }

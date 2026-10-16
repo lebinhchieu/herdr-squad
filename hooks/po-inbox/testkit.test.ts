@@ -23,3 +23,15 @@ test('rowsOfTree counts rendered rows by width', () => {
   expect(rowsOfTree(tree, 80)).toBe(4)
   expect(rowsOfTree(tree, 4)).toBe(7)
 })
+
+test('styleOf returns the innermost Text of a nested tree (the band shape)', () => {
+  const band = {
+    type: 'Text', props: { wrap: 'truncate' }, children: [
+      { type: 'Text', props: { bold: true }, children: ['Inbox'] }, ' · ',
+      { type: 'Text', props: { color: 'warning' }, children: ['2 to answer'] },
+    ],
+  }
+  expect(styleOf(band, '2 to answer')).toEqual({ color: 'warning' })
+  expect(styleOf(band, 'Inbox')).toEqual({ bold: true })
+  expect(styleOf(band, ' · ')).toEqual({})
+})
