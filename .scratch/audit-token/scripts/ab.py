@@ -13,7 +13,7 @@ PROJ = os.path.realpath(os.path.expanduser("~/.claude/projects"))  # ~/.claude-2
 # Source: claude-api skill model table cached 2026-10-06 (input/output; Sonnet 5.5 cache read 0.20). Cache read = 0.1x input,
 # write 5m = 1.25x, 1h = 2x are the standard multipliers, ASSUMED for models whose table row lacks them (marked).
 PRICES = {
-    "claude-sonnet-5-5": (2.00, 10.00, 0.20, 2.50, 4.00),
+    "claude-sonnet-5-5": (2.00, 10.00, 0.10, 2.50, 4.00),
     "claude-haiku-5-5": (0.10, 0.50, 0.01, 0.125, 0.20),
     "claude-haiku-4-5": (1.00, 5.00, 0.10, 1.25, 2.00),
     "claude-sonnet-4-6": (3.00, 15.00, 0.30, 3.75, 6.00),
