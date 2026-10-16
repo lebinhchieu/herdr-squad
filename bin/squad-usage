@@ -27,25 +27,54 @@ def config_dir():
     return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
 
 
+def projects_glob(pattern):
+    """Transcript paths under projects/, symlinks resolved and deduped: ~/.claude-2/projects links to ~/.claude/projects."""
+    return sorted({os.path.realpath(p) for p in glob.glob(str(config_dir() / "projects" / pattern))})
+
+
 def find_transcript(session):
-    hits = glob.glob(str(config_dir() / "projects" / "*" / f"{session}.jsonl"))
+    hits = projects_glob(f"*/{session}.jsonl")
     return Path(hits[0]) if hits else None
+
+
+def agent_name(path, limit=50):
+    """The agentName of a transcript's `agent-name` record (written at the top), or None."""
+    with open(path, errors="replace") as f:
+        for _, line in zip(range(limit), f):
+            if '"agent-name"' in line:
+                try:
+                    o = json.loads(line)
+                except ValueError:
+                    continue
+                if o.get("type") == "agent-name":
+                    return o.get("agentName")
+    return None
+
+
+def agent_sessions():
+    """{agentName: [transcript path]} for every top-level transcript with an agent-name record."""
+    out = {}
+    for p in projects_glob("*/*.jsonl"):
+        name = agent_name(p)
+        if name:
+            out.setdefault(name, []).append(p)
+    return out
 
 
 def parse_ts(s):
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
-def read_session(path):
-    """Fold a transcript into per-turn rows. A message spans several lines; the last one has the final usage."""
-    turns = {}
+TOKEN_FIELDS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "output_tokens")
+
+
+def read_lines(path, turns, side_file):
+    """Fold one file into `turns`, keyed by message id. A message spans several lines whose usage only grows: keep the max per field."""
     boundaries = summaries = 0
     for line in Path(path).read_text().splitlines():
         try:
             o = json.loads(line)
         except ValueError:
-            continue
-        if o.get("isSidechain"):
             continue
         if o.get("isCompactSummary"):
             summaries += 1
@@ -57,13 +86,25 @@ def read_session(path):
         u = m.get("usage")
         if not u or m.get("model") == "<synthetic>":
             continue
-        key = m.get("id") or o.get("uuid")
-        turns[key] = {
-            "ts": parse_ts(o["timestamp"]), "model": m.get("model"),
-            "effort": o.get("effort") or m.get("effort"),
-            "ctx": u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0) + u.get("cache_creation_input_tokens", 0),
-            "write": u.get("cache_creation_input_tokens", 0), "out": u.get("output_tokens", 0),
-        }
+        side = side_file or bool(o.get("isSidechain"))
+        t = turns.setdefault(m.get("id") or o.get("uuid"), {"side": side, **dict.fromkeys(TOKEN_FIELDS, 0)})
+        t["side"] = t["side"] and side
+        for f in TOKEN_FIELDS:
+            t[f] = max(t[f], u.get(f, 0))
+        if "ts" not in t or parse_ts(o["timestamp"]) >= t["ts"]:
+            t.update(ts=parse_ts(o["timestamp"]), model=m.get("model"), effort=o.get("effort") or m.get("effort"))
+    return boundaries, summaries
+
+
+def read_session(path):
+    """Per-turn rows of a session and of its subagents/*.jsonl (flagged side), plus the compaction count of the session itself."""
+    turns = {}
+    boundaries, summaries = read_lines(path, turns, False)
+    for sub in sorted(glob.glob(str(Path(path).with_suffix("") / "subagents" / "*.jsonl"))):
+        read_lines(sub, turns, True)
+    for t in turns.values():
+        t["ctx"] = t["input_tokens"] + t["cache_read_input_tokens"] + t["cache_creation_input_tokens"]
+        t["write"], t["out"] = t["cache_creation_input_tokens"], t["output_tokens"]
     rows = sorted(turns.values(), key=lambda t: t["ts"])
     # one compaction may leave both a boundary and a summary line
     return rows, max(boundaries, summaries)
@@ -74,15 +115,27 @@ def is_expiry(a, b):
 
 
 def summarize(path):
-    rows, compactions = read_session(path)
+    """One session. Context, expiries and model follow the agent's own turns; turns and out include its subagents."""
+    every, compactions = read_session(path)
+    rows = [t for t in every if not t["side"]] or every
     if not rows:
         return None
     expiries = sum(is_expiry(a, b) for a, b in zip(rows, rows[1:]))
     last = rows[-1]
-    return {"model": last["model"], "effort": last["effort"] or "-", "turns": len(rows),
-            "peak": max(t["ctx"] for t in rows), "last": last["ctx"], "out": sum(t["out"] for t in rows),
+    return {"model": last["model"], "effort": last["effort"] or "-", "turns": len(every),
+            "subagents": sum(t["side"] for t in every),
+            "peak": max(t["ctx"] for t in rows), "last": last["ctx"], "out": sum(t["out"] for t in every),
             "expiries": expiries, "compactions": compactions, "last_ts": last["ts"],
             "just_expired": len(rows) > 1 and is_expiry(rows[-2], last)}
+
+
+def summarize_agent(paths):
+    """Every session of one agent: turns, out, expiries, compactions sum; the newest session gives ctx and model."""
+    ss = [s for s in map(summarize, paths) if s]
+    if not ss:
+        return None
+    newest = max(ss, key=lambda s: s["last_ts"])
+    return {**newest, **{k: sum(s[k] for s in ss) for k in ("turns", "subagents", "out", "expiries", "compactions")}}
 
 
 def check(s, now=None):
@@ -154,16 +207,23 @@ def report(squad_dir):
     entries = roster_sessions(squad_dir / "roster.md")
     if not entries:
         sys.exit("no session ids in roster.md")
-    head = ("agent", "model/effort", "turns", "peak ctx", "last ctx", "out", "expiries", "compactions")
-    body = []
+    named = agent_sessions()
+    head = ("agent", "model/effort", "turns", "peak ctx", "last ctx", "out", "expiries", "compactions", "subagents")
+    body, seen = [], set()
     for name, sid in entries:
-        path = find_transcript(sid)
-        s = summarize(path) if path else None
+        if name in seen:
+            continue
+        seen.add(name)
+        paths = set(named.get(name, []))
+        found = find_transcript(sid)
+        if found:
+            paths.add(str(found))
+        s = summarize_agent(sorted(paths))
         if not s:
-            body.append((name, "no transcript", "-", "-", "-", "-", "-", "-"))
+            body.append((name, "no transcript", "-", "-", "-", "-", "-", "-", "-"))
             continue
         body.append((name, f"{s['model']}/{s['effort']}", s["turns"], fmt_k(s["peak"]), fmt_k(s["last"]),
-                     fmt_k(s["out"]), s["expiries"], s["compactions"]))
+                     fmt_k(s["out"]), s["expiries"], s["compactions"], s["subagents"]))
     widths = [max(len(str(r[i])) for r in [head] + body) for i in range(len(head))]
     for r in [head] + body:
         print("  ".join(str(c).ljust(w) for c, w in zip(r, widths)).rstrip())
