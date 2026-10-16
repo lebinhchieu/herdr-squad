@@ -61,6 +61,21 @@ def load_checks(c):
     s = importlib.util.spec_from_file_location("checks_" + c, os.path.join(ROOT, "fixtures", c, "checks.py"))
     m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
 
+def transcript_files(sid):
+    """Found by session id (the project dir name encoding of a temp path is not worth reproducing)."""
+    return glob.glob(os.path.join(PROJ, "*", sid + ".jsonl")) + glob.glob(os.path.join(PROJ, "*", sid, "subagents", "*.jsonl"))
+
+def rescan():
+    """Recompute tokens/cost/defects of every saved run from its session id and saved output."""
+    for f in sorted(glob.glob(os.path.join(ROOT, "runs", "*.json"))):
+        r = json.load(open(f)); files = transcript_files(r["session"]); ids = usage_of(files); usd, un = cost(ids)
+        tag = os.path.basename(f)[len(r["candidate"]) + 1:-5]
+        out = open(os.path.join(ROOT, "outputs", r["candidate"], tag + ".txt")).read()
+        r.update(models=sorted({e["model"] for e in ids.values()}), n_message_ids=len(ids),
+                 tokens={k: sum(e[k] for e in ids.values()) for k in FIELDS}, cost_usd=round(usd, 6), unpriced=un,
+                 defects=load_checks(r["candidate"]).check(out), transcript_files=len(files))
+        json.dump(r, open(f, "w"), indent=1)
+
 def run_one(c, alias, k, extra_model=None):
     fx = os.path.join(ROOT, "fixtures", c)
     prompt = open(os.path.join(fx, "prompt.md")).read()
@@ -80,8 +95,7 @@ def run_one(c, alias, k, extra_model=None):
         except subprocess.TimeoutExpired:
             p.kill(); out, err = p.communicate()  # our own PID only
         secs = time.time() - t0
-        pdir = os.path.join(PROJ, cwd.replace("/", "-").replace(".", "-"))
-        files = glob.glob(os.path.join(pdir, sid + ".jsonl")) + glob.glob(os.path.join(pdir, sid, "subagents", "*.jsonl"))
+        files = transcript_files(sid)
         ids = usage_of(files)
         usd, unpriced = cost(ids)
         defects = load_checks(c).check(out)
@@ -111,6 +125,7 @@ def report():
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a and a[0] == "run":
-        for k in range(1, int(a[3]) + 1): run_one(a[1], a[2], k)
+        for k in range(int(a[4]) if len(a) > 4 else 1, int(a[3]) + 1): run_one(a[1], a[2], k)  # optional 5th arg: first run index
+    elif a and a[0] == "rescan": rescan()
     elif a and a[0] == "report": report()
     else: print(__doc__)
