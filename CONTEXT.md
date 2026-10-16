@@ -169,6 +169,14 @@ _Avoid_: submit, handoff
 A question that waits for the PO, written down by the Manager with options and a recommendation. An escalation is an answer item of the inbox; `escalations.md` stays the store of answer items.
 _Avoid_: blocker (a blocked agent waits on anything; an escalation waits on the PO)
 
+**Cost-weighted unit**:
+Dollars at list price per model for input, cache read, cache write (5m, 1h) and output tokens.
+_Avoid_: token count
+
+**Real token saving**:
+A change measured in cost-weighted units that saves at least 2% of total net squad spend, with no QA-AC regression. Net means after the cost the change adds. Below the bar it is "minor" or "unproven", never recommended.
+_Avoid_: saving (unmeasured)
+
 ## Squad board
 
 The local page that shows a squad live (`bin/squad-board`, `bin/squad-board.html`, guide `docs/squad-board-guide.html`). Sources: `docs/adr/`, `.scratch/squad-board/`.

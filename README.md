@@ -44,7 +44,7 @@ A lone scope sees nothing of other scopes. The scopes of a goal share only `goal
 | `bin/processlint.py` | Lint a `process.md` against the Writing rule (`python3 bin/processlint.py FILE`, exit 1 on a finding). |
 | `bin/squad-respawn` | Replaces an agent's session with a fresh one from its notes; keeps its name, scope and worktree |
 | `bin/squad-retire` | Asks an agent to save its notes, then closes its pane (worktree and branch are kept) |
-| `bin/squad-usage` and the Stop hook | Token usage per agent, and the cost rules that tell an agent to start fresh |
+| `bin/squad-usage` and the Stop hook | Token usage per agent, and the cost rules that tell an agent to start fresh. The table counts every session of an agent (matched by its `agent-name` record, so respawns are included) and its subagents' output tokens (`subagents` column); context, expiries, model/effort and `--check` read the main thread only. |
 | `skills/squad-init`, `skills/squad-start` | The two commands you run |
 | `templates/squad/` | The standing layer: `process.md`, `project.md`, `process-log.md`, per-role `settings/*.json` |
 | `templates/scope/`, `templates/goal/` | What `squad-start` copies into a new scope or goal |

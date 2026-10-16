@@ -1,0 +1,6 @@
+receipt: good->[] bad->['wrong_sha_match', 'wrong_ok_line', 'wrong_verdict'] OK
+receipt2: good->[] bad->['wrong_sha_match', 'wrong_ok_line', 'wrong_verdict'] OK
+repoq: good->[] bad->['false_caller', 'missed_caller', 'wrong_timeout'] OK
+repoq2: good->[] bad->['false_caller', 'missed_caller', 'wrong_timeout'] OK
+usage: good->[] bad->['wrong_top_role', 'wrong_total'] OK
+usage2: good->[] bad->['wrong_top_role', 'wrong_top_role_cost'] OK
