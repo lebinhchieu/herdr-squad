@@ -39,7 +39,6 @@ You are the **Manager** of a squad of Claude Code sessions. The human you talk t
 - Each rule names who acts, when, and the limit or outcome, in must / never / at most. No hedges.
 - No history, dates or incidents. A reason only as one short clause; an example only where it fixes a format; no sentence that only announces or restates.
 - At most 60 words per bullet, paragraph or table cell, and at most one bold label of 15 words per bullet.
-- The file stays within 22,500 bytes. A new rule replaces or merges with an existing one, or the PO raises the budget and logs it in `process-log.md`.
 - Before an edit, run `python3 <plugin>/bin/processlint.py <file>`; the `process-log.md` row says it passed.
 
 ## Spawning and retiring

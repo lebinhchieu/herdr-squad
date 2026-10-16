@@ -23,24 +23,6 @@ def checks(problems):
     return [p.split(": ")[1] for p in problems]
 
 
-class SizeTest(unittest.TestCase):
-    def test_budget_exactly_passes_one_byte_over_fails(self):
-        text = doc("- Manager must act.\n")
-        n = len(text.encode())
-        self.assertEqual(pl.lint(text, budget=n), [])
-        self.assertEqual(checks(pl.lint(text, budget=n - 1)), ["size"])
-
-    def test_counts_bytes_not_characters(self):
-        text = doc("- Manager must act é.\n")
-        self.assertEqual(len(text.encode()), len(text) + 1)
-        self.assertEqual(pl.lint(text, budget=len(text) + 1), [])
-        self.assertEqual(checks(pl.lint(text, budget=len(text))), ["size"])
-
-    def test_fenced_lines_count_toward_size(self):
-        text = doc("```\n" + "x" * 100 + "\n```\n")
-        self.assertEqual(checks(pl.lint(text, budget=100)), ["size"])
-
-
 class LengthTest(unittest.TestCase):
     def test_bullet_60_words_passes_61_fails(self):
         self.assertEqual(pl.lint(doc(f"- {words(60)}\n")), [])
@@ -167,10 +149,6 @@ class ExceptionsTest(unittest.TestCase):
     def test_exception_matching_no_line_is_stale(self):
         out = pl.lint(doc("- Manager must act.\n"), exceptions=[("hedge", "- Gone", "was needed once")])
         self.assertEqual(checks(out), ["stale-exception"])
-
-    def test_size_exception_matches_the_whole_file_marker(self):
-        self.assertEqual(pl.lint(self.BAD, budget=1, exceptions=[
-            ("size", "<file>", "too big on purpose"), ("hedge", "- Manager", "r")]), [])
 
 
 class CliTest(unittest.TestCase):

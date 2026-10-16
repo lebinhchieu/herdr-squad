@@ -1,3 +1,69 @@
+## v4 — 2026-10-17
+- snapshot: history/process-v4.md
+
+### Files table: Team Lead rows
+- sections: ## Files are the truth, messages are the talk
+- change: rule
+- why: the Team Lead keeps its Developers' roster rows, owns the plan file in M and L, and writes the iteration summary the Manager reads
+- old: snapshot
+- new: snapshot
+
+### Developer cap shared out by the Team Lead
+- sections: ## Defaults
+- change: rule
+- why: the Team Lead spawns Developers up to the cap; a goal Manager divides the cap among running scopes
+- old: snapshot
+- new: snapshot
+
+### Manager spawns only the non-Developer roles
+- sections: ## Starting work
+- change: rule
+- why: the Team Lead spawns and retires the Developers
+- old: snapshot
+- new: snapshot
+
+### M gains the Team Lead
+- sections: ## Sizes: not every scope runs the full pod; ### When a role is left out, its duties move. They are never dropped.
+- change: rule
+- why: M runs the plan, order and assignment through the Team Lead, who keeps the Manager out of the pod's traffic; S is unchanged
+- old: snapshot
+- new: snapshot
+
+### Size changes and handover with a Team Lead
+- sections: ### Changing size
+- change: rule
+- why: the Manager retires the roles that drop out when a scope moves down; a joining Team Lead takes the plan over from the Handover
+- old: snapshot
+- new: snapshot
+
+### Base branch checked by the Manager
+- sections: ## Inside a goal
+- change: rule
+- why: the Team Lead spawns with the base the Manager checked and named
+- old: snapshot
+- new: snapshot
+
+### Pod contact and Team Lead rulings
+- sections: ## Messages
+- change: rule
+- why: pod members message the Team Lead, which reports to the Manager only four things; the Team Lead's ruling follows the FINAL: rule; nobody relays a blocked pane
+- old: snapshot
+- new: snapshot
+
+### Owners and escalation of plan and Developer duties
+- sections: ## Who decides
+- change: rule
+- why: the Team Lead decides plan, order and assignment disputes in M and L and owns Developer spawning there
+- old: snapshot
+- new: snapshot
+
+### 3 returns handled by the Team Lead
+- sections: ## Task lifecycle
+- change: rule
+- why: the Team Lead steps in after 3 returns on one task in M and L
+- old: snapshot
+- new: snapshot
+
 ## v3 — 2026-10-16
 - snapshot: history/process-v3.md
 
