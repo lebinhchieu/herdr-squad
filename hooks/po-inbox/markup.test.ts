@@ -304,10 +304,19 @@ describe('linear', () => {
 
   test('4x the input takes under 12x the time (+20 ms) for bold, code and pipe cases', () => {
     for (const unit of ['**a ', '**a**b', '`a ', 'a ` ', '`*', '| a ']) {
-      const small = timed(unit.repeat(2500)).ms
-      const big = timed(unit.repeat(10000)).ms
+      const small = timed(unit.repeat(20000)).ms
+      const big = timed(unit.repeat(80000)).ms
       expect(big).toBeLessThan(12 * small + 20)
     }
+  })
+
+  test('a far-away opener of the other kind is not searched for again at every span', () => {
+    const build = (n: number) => '**a**b'.repeat(n) + ' `x`'
+    const small = timed(build(40000)).ms
+    const big = timed(build(160000)).ms
+    expect(big).toBeLessThan(12 * small + 20)
+    const rev = (n: number) => '`a`b'.repeat(n) + ' **x**'
+    expect(timed(rev(160000)).ms).toBeLessThan(12 * timed(rev(40000)).ms + 20)
   })
 
   test('hostile fixtures all parse', () => {
