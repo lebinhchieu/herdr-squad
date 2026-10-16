@@ -6,6 +6,12 @@ set -euo pipefail
 name=$1; notes=1
 [[ ${2:-} == --no-notes ]] && notes=0
 
+# A Team Lead retires Developers only; a name missing from its roster is refused too.
+if [[ ${SQUAD_ROLE:-} == team-lead ]]; then
+  row=$("$(dirname "$(readlink -f "$0")")/squad-usage" --get "$name" 2>/dev/null) || row=""
+  [[ ${row%%$'\t'*} == dev ]] || { echo "a Team Lead may only retire dev (${name}: not a dev in the roster)" >&2; exit 2; }
+fi
+
 # The pane, not the tab: the PO may have merged other agents into this tab, and closing a tab kills them all.
 pane=$(herdr agent get "$name" | jq -r '.result.agent.pane_id // .result.pane_id // empty')
 [[ -n $pane ]] || { echo "no live agent named $name" >&2; exit 1; }
