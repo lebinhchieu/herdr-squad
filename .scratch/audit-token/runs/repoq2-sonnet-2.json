@@ -1,0 +1,25 @@
+{
+ "candidate": "repoq2",
+ "arm_alias": "sonnet",
+ "run": 2,
+ "date": "2026-10-16",
+ "session": "53f7498a-f175-4bd1-ba67-1c72a6a082d9",
+ "models": [
+  "claude-sonnet-5-5"
+ ],
+ "n_message_ids": 3,
+ "tokens": {
+  "input_tokens": 6,
+  "output_tokens": 561,
+  "cache_read_input_tokens": 14673,
+  "ephemeral_5m": 0,
+  "ephemeral_1h": 3347
+ },
+ "cost_usd": 0.021945,
+ "unpriced": [],
+ "defects": [],
+ "seconds": 8.2,
+ "exit": 0,
+ "stderr_len": 0,
+ "transcript_files": 1
+}
