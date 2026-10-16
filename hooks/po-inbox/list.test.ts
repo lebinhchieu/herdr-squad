@@ -186,8 +186,9 @@ test('fold: the shown rows are the first 7 of the CLI order, the hidden count is
   expect(m1.props.hotkey).toBeUndefined()
   expect(m2.props.hotkey).toBeUndefined()
   expect(m1.key).not.toBe(m2.key)
-  expect(m1.props.dimColor).toBe(true)
-  expect(m2.props.dimColor).toBe(true)
+  const tree = await ui.drawn()
+  expect(styleOf(tree, '+5 more')?.dimColor).toBe(true)
+  expect(styleOf(tree, '+2 more')?.dimColor).toBe(true)
 })
 
 test('+N more opens only its group, in place; going to an item and back folds both again (T10)', async ($, on) => {

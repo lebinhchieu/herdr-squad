@@ -231,8 +231,8 @@ function listScreen($: any, e: any, ui: any, snap: InboxSnapshot, error: any, T:
         </Text>
         {shown.map((it) => row(it, waiting))}
         {hidden > 0 ? (
-          <Button key={`more-${key}`} plain dimColor onPress={() => patchUi($, { more: [...opened, key] })}>
-            {`   +${hidden} more`}
+          <Button key={`more-${key}`} plain onPress={() => patchUi($, { more: [...opened, key] })}>
+            <Text dimColor>{`   +${hidden} more`}</Text>
           </Button>
         ) : null}
       </Box>
