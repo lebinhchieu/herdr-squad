@@ -1,3 +1,4 @@
+import json
 import unittest
 from pathlib import Path
 
@@ -38,9 +39,17 @@ class TeamLeadRoleTest(unittest.TestCase):
             self.assertIn(s, TEXT.split("## State lives in files")[1])
 
     def test_keeps_model_and_notes_block(self):
-        self.assertIn("model: sonnet\neffort: medium", TEXT)
+        self.assertNotIn("model:", TEXT.split("---")[1])  # T9: model and effort live in settings/team-lead.json
+        cfg = json.loads((Path(__file__).resolve().parent.parent / "templates/squad/settings/team-lead.json").read_text())
+        self.assertEqual((cfg["model"], cfg["effortLevel"]), ("sonnet", "medium"))
         self.assertIn("## Start of every session", TEXT)
         self.assertIn("## Notes", TEXT)
+
+    def test_party_to_dispute_does_not_settle_it(self):
+        self.assertIn("yourself a party to a plan, order or assignment dispute, do not settle it; after the two-round rule it goes to the Manager", TEXT)
+
+    def test_summary_names_passed_sha_and_checkers(self):
+        self.assertIn("each task's final passed sha and the checkers that passed it", TEXT)
 
 
 if __name__ == "__main__":
