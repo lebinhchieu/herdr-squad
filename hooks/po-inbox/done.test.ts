@@ -118,3 +118,47 @@ test('ESC, OSC and U+202E in title and reason draw none', async ($, on) => {
   expect(text).toContain('withdrawn:')
   expect(textOf(await ui.drawn())).not.toMatch(/[\u001b‮]/)
 })
+
+// Row 1 is `n: ` (3 cells the engine draws), the Button text, then the title clipped with `…`.
+// The design's floor of 10 title cells can push a row past `cols` only when id + outcome word are long;
+// with `E1  read` it still fits at 30, so every width is asserted.
+const TITLES: [string, string][] = [
+  ['ASCII', 'a'.repeat(300)],
+  ['CJK', '题目'.repeat(150)],
+  ['emoji', '🙂x'.repeat(100)],
+]
+for (const cols of [80, 59, 40, 30]) {
+  for (const [name, title] of TITLES) {
+    test(`title clipping: ${name} title ends with … and row 1 fits ${cols} columns`, async ($, on) => {
+      const ui = await open($, on, [dn(1, 'read', { title })], cols)
+      const btn = (await buttons(ui)).find((b: any) => b.key === 'd-E1')
+      expect(btn.text.endsWith('…')).toBe(true)
+      expect(3 + cellWidth(btn.text)).toBeLessThanOrEqual(cols)
+    })
+  }
+}
+
+test('hotkey 9 and the three-space lead: the ninth row has digit 9 and no lead, the tenth the lead and no digit', async ($, on) => {
+  const ui = await open($, on, many(12))
+  await ui.press((await moreOf(ui))[0])
+  const rows = (await buttons(ui)).filter((b: any) => /^(   )?E\d+ /.test(b.text))
+  expect(rows).toHaveLength(12)
+  expect(rows[8].props.hotkey).toBe('9')
+  expect(rows[8].text.startsWith('   ')).toBe(false)
+  expect(rows[9].props.hotkey).toBeUndefined()
+  expect(rows[9].text.startsWith('   ')).toBe(true)
+})
+
+test('an old atom without `more` draws the done list and expands without a crash', async ($, on) => {
+  // every write of the ui atom drops `more`, as an atom saved before IV-04 has it
+  on('state.set', (_$: any, e: any, next: any) => {
+    if (e.key !== 'ui' || !e.value) return next(e)
+    const { more: _drop, ...old } = e.value
+    return next({ ...e, value: old })
+  })
+  const ui = await open($, on, many(9))
+  expect(await dump(ui)).toContain('Done · newest first (9)')
+  expect((await moreOf(ui)).map((b) => b.text.trim())).toEqual(['+2 more'])
+  await ui.press((await moreOf(ui))[0])
+  expect(await rowIds(ui)).toHaveLength(7)
+})
