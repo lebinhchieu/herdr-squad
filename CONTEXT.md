@@ -9,7 +9,7 @@ The human who makes the requests, confirms scope sizes, and alone decides a merg
 _Avoid_: user, owner, client
 
 **Manager**:
-The role that runs one scope (a lone task) or one goal (several scopes): sizes the work, starts and retires the other roles, and keeps them unblocked. It starts fresh for each request and never does another role's work. The one running a goal is the **goal Manager**.
+The role that runs one scope (a lone task) or one goal (several scopes): sizes the work, starts and retires the other roles (in M and L the Team Lead starts and retires the Developers) and keeps them unblocked (in M and L the Team Lead keeps the pod unblocked). It starts fresh for each request and never does another role's work. The one running a goal is the **goal Manager**.
 _Avoid_: orchestrator, lead
 
 **BA**:
@@ -17,11 +17,19 @@ The role that owns the business need and the business AC of one scope. Present i
 _Avoid_: analyst, product owner
 
 **Team Lead**:
-The role that owns the plan (which tasks, in which order, who does each). Present only in L scopes; in S and M the Tech Lead holds this duty.
+The role that owns the plan (which tasks, in which order, who does each) and runs the pod in M and L scopes: spawns and retires the Developers, checks on the pod, routes its questions, and is the pod's **single point of contact**. Takes the plan from the Tech Lead. Present in M and L scopes.
 _Avoid_: project manager, scrum master
 
+**Single point of contact**:
+In an M or L scope, the role every pod member messages for routine matters: the Team Lead. The Manager hears from it only an escalation to the PO, a size-change signal, a dispute the pod could not settle, 3 returns on one task and one summary per iteration (`iterations/<n>.summary.md`).
+_Avoid_: relay, gateway
+
+**Manager traffic**:
+The four things the Manager hears from an M or L pod: an escalation to the PO, a size-change signal, a dispute the pod could not settle, and the iteration summary; plus one line when a task has had 3 returns.
+_Avoid_: status, relay
+
 **Tech Lead**:
-The role that owns technical design, quality and security of one scope. Also owns the plan in S and M.
+The role that owns technical design, quality and security of one scope. Owns the plan in S; in M and L the Team Lead takes it.
 _Avoid_: architect
 
 **QA whitebox**:
@@ -67,7 +75,7 @@ The group of agents that delivers one scope.
 _Avoid_: team, squad (a squad is the whole)
 
 **Size**:
-How many roles a scope gets: S (Tech Lead + Developers), M (+ BA and both QAs), L (+ Team Lead). The Manager proposes it, the PO confirms it. Bigger work is a goal.
+How many roles a scope gets: S (Tech Lead + Developers), M (+ BA, both QAs and Team Lead), L (the same roles as M; it differs only in the signals that call for it). The Manager proposes it, the PO confirms it. Bigger work is a goal.
 _Avoid_: tier, T-shirt size
 
 **Risk flag**:
@@ -121,7 +129,7 @@ A branch that builds on a passed but unmerged branch, so a later scope of a goal
 _Avoid_: dependent branch
 
 **Integration task**:
-The last task of a scope with several tasks: a Developer merges the scope's passed branches into its own branch and runs the full suite.
+The last task of a scope with several tasks: a Developer merges the scope's passed branches into its own branch and runs the targeted tests; the Tech Lead then runs the full suite.
 _Avoid_: merge task
 
 ## Work
@@ -182,7 +190,7 @@ A change measured in cost-weighted units that saves at least 2% of total net squ
 _Avoid_: saving (unmeasured)
 
 **Receipt**:
-The proof of one full test run on the final sha: `suite-default.txt` and `suite-tz.txt` in the ticket's evidence folder, made by `tests/run_suite.py --receipt`.
+The proof of the Tech Lead's one full test run on the final sha: `suite-default.txt` and `suite-tz.txt` in the ticket's evidence folder, made by `tests/run_suite.py --receipt`.
 
 ## PO inbox
 
