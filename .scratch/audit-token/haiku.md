@@ -60,5 +60,5 @@ Every run scored 0 defects in both arms (24 of 24). These fixtures therefore can
 ## What is open
 
 - Per-activity shares (receipt checks, summaries) need AT-01 to split a role's spend by activity; not available.
-- A harder fixture that Haiku fails would give the guard case; none of the five did.
+- A harder fixture that Haiku fails would give the guard case; none of the six did.
 - Not done: tool calls beyond Read/Grep/Glob (Bash, Edit) and long inputs (the squad's real receipts and transcripts, kept out by T10).
