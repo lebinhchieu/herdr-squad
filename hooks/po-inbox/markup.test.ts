@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { E1_OPTIONS, E1_REC, E1_TITLE, VISUAL } from './fixtures'
+import { E1_OPTIONS, E1_REC, E1_TITLE, VISUAL } from './fixtures/visual'
 import { type Block, bodyBlocks, parseBody, parseInline, plainOf } from './markup'
 
 const types = (text: string) => parseBody(text).map((b) => b.type)
