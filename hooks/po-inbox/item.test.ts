@@ -423,14 +423,16 @@ test('title of 300 characters: 3 rows with an ellipsis, a `full title` row, Show
 test('3.1e: 300-char title, 2-row header, 40 columns, 6 rows: the pointer is inside the first viewport, the title shows 2 rows', async ($, on) => {
   const blocks = `${'work item '.repeat(12)}end`
   const long = item({ id: 'E8', title: VISUAL.title300, blocks, body: VISUAL.e1, recommendation: E1_REC, options: E1_OPTS })
-  for (const [cols, rows] of [[40, ROWS_24], [80, ROWS_24], [40, ROWS_40]]) {
+  // titleCap = clamp(bodyRows - 1 - headerRows - pointerRows, 1, 3), header 2 rows (clipped) and pointer 1 row in all three:
+  // 40x6: 6-1-2-1 = 2; 80x6: 6-1-2-1 = 2; 40x11: 11-1-2-1 = 7, capped at 3
+  for (const [cols, rows, cap] of [[40, ROWS_24, 2], [80, ROWS_24, 2], [40, ROWS_40, 3]]) {
     const { ui } = await open($, on, [long], 'E8', cols, rows).catch((e: any) => { throw new Error(`${cols}x${rows}: ${e.message}`) })
     const tree = await ui.drawn()
     const r = rowsOf(tree)
     expect(rows7(tree, 'recommends', cols), r.join('\n')).toBeLessThanOrEqual(rows)
     const t = r.find((l) => l.startsWith('TTT')) as string
     expect(t.endsWith('…')).toBe(true)
-    if (cols === 40 && rows === ROWS_24) expect(refRows(t, cols)).toBe(2)
+    expect(refRows(t, cols), `${cols}x${rows}`).toBe(cap)
     expect(r.join('\n')).toContain('… full title')
     if (cols === 40 && rows === ROWS_24) {
       expect(r.findIndex((l) => l.includes('… full title'))).toBeGreaterThan(r.findIndex((l) => l.includes('✓ recommends')))
