@@ -430,6 +430,46 @@ test('hint counts the `… full title` row: cut title, uncut body at 80x7 shows 
   await fits.ui.unmount()
 })
 
+test('QAB F1: 80-char titles whose first row is exactly 36 cells: title cut at 2 rows, the pointer is inside the 6-row viewport at 36 columns', async ($, on) => {
+  const titles = ['inbox-visual: what should the visual mean in the terminal inbox for every kind of item', 'auth: do we accept the legacy tokens during the migration window for internal tools?']
+  for (const [i, title] of titles.entries()) {
+    const long = item({ id: `F1-${i}`, title, blocks: 'IV-02', created: '2026-10-16T09:00:00', body: VISUAL.e1, recommendation: E1_REC, options: E1_OPTS })
+    const { ui } = await open($, on, [long], `F1-${i}`, 36, ROWS_24)
+    const tree = await ui.drawn()
+    const r = rowsOf(tree)
+    const t = r.find((l) => l.startsWith(title.slice(0, 5))) as string
+    expect(t.endsWith('…'), r.join('\n')).toBe(true)
+    expect(refRows(t, 36)).toBe(2)
+    expect(rows7(tree, 'recommends', 36), r.join('\n')).toBeLessThanOrEqual(ROWS_24)
+    await ui.unmount()
+  }
+})
+
+test('QAB F2: a `[rec]` line keeps its leading spaces', async ($, on) => {
+  const { ui } = await open($, on, [item({ id: 'F2', body: 'intro\n   [rec] take (a)' })], 'F2', 80, ROWS_40)
+  expect(rowsOf(await ui.drawn())).toContain('   ✓ recommended take (a)')
+  await ui.unmount()
+})
+
+test('QAB F4: the label of a Show all row keeps a one-cell gap to the button (also when the row wraps at 30 columns)', async ($, on) => {
+  const gaps = (n: any): number => (n && typeof n === 'object' ? (n.type === 'Box' && n.props?.marginRight === 1 ? 1 : 0) + (n.children ?? []).reduce((a: number, c: any) => a + gaps(c), 0) : 0)
+  const { ui } = await open($, on, [R1], 'R1', 30, ROWS_24)
+  const tree = await ui.drawn()
+  expect(textOf(tree)).toContain('more lines')
+  expect(gaps(tree)).toBe(1)
+  await ui.unmount()
+})
+
+test('QAB F3: only the header is clipped: the row says `… full header`, a whole title is not named', async ($, on) => {
+  const blocks = `${'work item '.repeat(12)}end`
+  const { ui } = await open($, on, [item({ id: 'F3', blocks, body: 'b' })], 'F3', 40, ROWS_40)
+  const text = textOf(await ui.drawn())
+  expect(text).toContain('… full header')
+  expect(text).not.toContain('full title')
+  expect(text).not.toContain('header and title')
+  await ui.unmount()
+})
+
 test('3.1e: 300-char title, 2-row header, 40 columns, 6 rows: the pointer is inside the first viewport, the title shows 2 rows', async ($, on) => {
   const blocks = `${'work item '.repeat(12)}end`
   const long = item({ id: 'E8', title: VISUAL.title300, blocks, body: VISUAL.e1, recommendation: E1_REC, options: E1_OPTS })
@@ -443,9 +483,9 @@ test('3.1e: 300-char title, 2-row header, 40 columns, 6 rows: the pointer is ins
     const t = r.find((l) => l.startsWith('TTT')) as string
     expect(t.endsWith('…')).toBe(true)
     expect(refRows(t, cols), `${cols}x${rows}`).toBe(cap)
-    expect(r.join('\n')).toContain('… full title')
+    expect(r.join('\n')).toContain('… full header and title')
     if (cols === 40 && rows === ROWS_24) {
-      expect(r.findIndex((l) => l.includes('… full title'))).toBeGreaterThan(r.findIndex((l) => l.includes('✓ recommends')))
+      expect(r.findIndex((l) => l.includes('… full header and title'))).toBeGreaterThan(r.findIndex((l) => l.includes('✓ recommends')))
       await ui.press({ key: 'show-title' })
       expect(textOf(await ui.drawn())).toContain('T'.repeat(300))
     }
@@ -704,7 +744,7 @@ test('FLOOR_ANSWER: an answer item keeps exactly 3 body rows at 6 rows, then the
   const { ui } = await open($, on, [item({ id: 'G4', title: 't', blocks: 'x', body: LONG_BODY })], 'G4', 80, ROWS_24)
   const r = rowsOf(await ui.drawn())
   const at = r.indexOf('t')
-  expect(r.slice(at + 1, at + 5)).toEqual(['line 0', ' ', 'line 1', '… 16 more lines '])
+  expect(r.slice(at + 1, at + 5)).toEqual(['line 0', ' ', 'line 1', '… 16 more lines'])
 })
 
 test('"N more lines" counts a fence as lines + 2 and a table as rows + 2', async ($, on) => {

@@ -12,7 +12,7 @@ export type Block =
   | { type: 'number'; n: number; depth: number; spans: Span[] }
   | { type: 'code'; lang: string; lines: string[] }
   | { type: 'table'; header: Span[][]; rows: Span[][][] }
-  | { type: 'rec'; spans: Span[] }
+  | { type: 'rec'; spans: Span[]; indent?: number }
   | { type: 'para'; spans: Span[] }
   | { type: 'blank' }
 
@@ -166,7 +166,8 @@ export function parseBody(text: string): Block[] {
       }
     }
     if (trimmed.startsWith('[rec]') && (trimmed.length === 5 || isSpace(trimmed[5]))) {
-      blocks.push({ type: 'rec', spans: parseInline(trimmed.slice(5).trim()) })
+      const indent = line.length - line.trimStart().length
+      blocks.push({ type: 'rec', spans: parseInline(trimmed.slice(5).trim()), ...(indent > 0 ? { indent } : {}) })
     } else {
       blocks.push(headingLine(line) ?? listLine(line) ?? { type: 'para', spans: parseInline(line.trimEnd()) })
     }

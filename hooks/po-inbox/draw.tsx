@@ -144,15 +144,17 @@ export function drawBlock(b: Block, cols: number, T: T, key: string): Drawn {
     }
     case 'rec': {
       const rest = drawnText(b.spans)
+      const pad = recPad(b)
       return {
         node: (
           <Text key={key} wrap="wrap">
+            {pad}
             <Text color={TONE.good} bold>✓ recommended</Text>
             {rest === '' ? null : ' '}
             {drawSpans(b.spans, T, key)}
           </Text>
         ),
-        rows: rowsFor(`✓ recommended${rest === '' ? '' : ' '}${rest}`, cols),
+        rows: rowsFor(`${recPad(b, NBSP)}✓ recommended${rest === '' ? '' : ' '}${rest}`, cols),
       }
     }
     case 'bullet':
@@ -180,13 +182,17 @@ export function sourceLines(b: Block): number {
   return b.type === 'code' ? b.lines.length + 2 : b.type === 'table' ? b.rows.length + 2 : 1
 }
 
+// `rowsFor` drops leading spaces, so the counted and clipped text carries the indent as no-break spaces.
+const NBSP = '\u00a0'
+const recPad = (b: { indent?: number }, ch = ' ') => ch.repeat(Math.min(b.indent ?? 0, 8))
+
 // The text of a block as plain words, for a clip of a first block taller than the budget.
 function plainText(b: Block): string {
   if (b.type === 'blank') return ''
   if (b.type === 'code') return [...(b.lang === '' ? [] : [b.lang]), ...b.lines].join('\n')
   if (b.type === 'table') return [b.header, ...b.rows].map((r) => r.map(spansText).join('  ')).join('\n')
   const t = drawnText(b.spans)
-  return b.type === 'bullet' ? `• ${t}` : b.type === 'number' ? `${b.n}. ${t}` : b.type === 'rec' ? `✓ recommended ${t}` : t
+  return b.type === 'bullet' ? `• ${t}` : b.type === 'number' ? `${b.n}. ${t}` : b.type === 'rec' ? `${recPad(b, NBSP)}✓ recommended ${t}` : t
 }
 
 // Runs of blank lines draw one blank row; none at either end of what is drawn.

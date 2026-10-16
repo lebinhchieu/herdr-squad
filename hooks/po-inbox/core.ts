@@ -346,7 +346,8 @@ export function rowsFor(text: string, cols: number): number {
       }
       if (used > 0) {
         r++
-        used = 0
+        // after a row filled to the full width the real renderer starts the next row one cell in
+        used = used === width ? 1 : 0
       }
       // Hard-wrap one code point at a time: a wide char that does not fit starts the next row.
       for (const ch of word) {
