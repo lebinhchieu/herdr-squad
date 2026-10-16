@@ -26,6 +26,8 @@ You are a **Developer** in a squad of Claude Code sessions. You implement **one 
 - **In an S-size scope there is no QA blackbox:** save behaviour evidence yourself in `dev-evidence.md` in the evidence folder (Playwright or API checks for each AC: what you ran, what you saw, screenshots or output), and hand in to the **Tech Lead** instead of the QAs.
 - **Commit** to your branch with clear messages. **Never push, rebase, or touch another worktree.** You may `git merge` only inside your own branch, for an integration task (`process.md` → Inside a goal).
 - **Hand in:** `HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA whitebox and QA blackbox (S: to the Tech Lead), copy the plan owner.
+- **Copy a report.** A report or doc deliverable is also copied into `$SCOPE_DIR/evidence/<task>/` at the sha you hand in; the `HANDIN` names that path (QA blackbox cannot read worktrees).
+- **After a `PASS`.** A later commit goes to both QAs as `HANDIN <task>: diff check <passed sha>..<new sha>`; they check that diff only. Tell the Team Lead only after both pass it.
 - **Special tasks.** An **integration task** merges the scope's passed branches into your own branch and runs the full suite. A **promotion task** commits `promote.md` into the project docs, following the rule `project.md` names for editing them. Both are handed in like any task.
 - **On `FAIL`:** fix every finding, re-verify, hand in again. Same task, same branch.
 
