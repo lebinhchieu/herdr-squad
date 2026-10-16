@@ -254,11 +254,11 @@ test('fold: the waiting group folds too (own key) ', async ($, on) => {
 })
 
 test('2.10 an old atom without `more` draws, expands and navigates without a crash', async ($, on) => {
-  on('state.get', (_$: any, e: any, next: any) => {
-    const r = next(e) as any
-    if (e.key !== 'ui' || !r || !r.value) return r
-    const { more: _drop, ...old } = r.value
-    return { ...r, value: old }
+  // every write of the ui atom drops `more`, as an atom saved before IV-04 has it
+  on('state.set', (_$: any, e: any, next: any) => {
+    if (e.key !== 'ui' || !e.value) return next(e)
+    const { more: _drop, ...old } = e.value
+    return next({ ...e, value: old })
   })
   await boot($, on, snap(many(9, ans)))
   const ui = await $.ui.mount(pane('terminal', 80))
