@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Blocked by: none (RB-03 6e1110e, RB-04 933adc2, RB-05 64fc206 passed)
 Task ID: RB-06
 Files touched: none of its own (merge commit and evidence only)
