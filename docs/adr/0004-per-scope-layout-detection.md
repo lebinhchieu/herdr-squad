@@ -1,6 +1,6 @@
 # Per-scope layout is detected from `scopes/`, not configured
 
-Status: accepted (BRD-19)
+Status: partly superseded by 0009 (board part); the layout rule is restated there (was: accepted (BRD-19))
 
 A squad is per-scope when `scopes/` is a directory; otherwise it is flat. There is no setting. Legacy flat squads keep working unchanged.
 

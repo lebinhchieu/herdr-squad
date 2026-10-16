@@ -1,3 +1,19 @@
+## v3 — 2026-10-16
+- snapshot: history/process-v3.md
+
+### Board removed
+- sections: ## Messages
+- change: reword
+- why: the squad board is removed, so the Manager no longer reads it
+- old:
+```
+- The Manager never pushes `STATUS`: it reads the board, logs, roster and task file first, and pings an agent only after 10 minutes of no pane activity.
+```
+- new:
+```
+- The Manager never pushes `STATUS`: it reads logs, the roster and the task file first, and pings an agent only after 10 minutes of no pane activity.
+```
+
 ## v2 — 2026-10-15
 - snapshot: history/process-v2.md
 

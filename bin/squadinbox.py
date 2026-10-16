@@ -43,7 +43,7 @@ def home_of(args):
     return home
 
 
-# --- escalations.md: a local copy of the board's reader (bin/squad-board read_first_table, clean_cell) ---------------
+# --- escalations.md: the table reader (first_table, clean_cell) -----------------------------------------------------
 
 def clean_cell(cell):
     return cell.replace("\\|", "|").replace("**", "").replace("`", "").strip()
@@ -71,7 +71,7 @@ def table_lines(text):
 
 
 def raw_cell(cell):
-    """The cell as typed, `\\|` unescaped and trimmed; `**` and backticks stay (an item's body is not the board's text)."""
+    """The cell as typed, `\\|` unescaped and trimmed; `**` and backticks stay (an item's body keeps its markup)."""
     return cell.replace("\\|", "|").strip()
 
 
@@ -81,7 +81,7 @@ def split_row(line, clean=True):
 
 
 def first_table(text, clean=True):
-    """(header, rows): header lower-cased; rows are (line_no, cells). With clean, the board's reader minus the dict zip."""
+    """(header, rows): header lower-cased; rows are (line_no, cells). With clean, cells are stripped of `**` and backticks."""
     header, rows = None, []
     for no, line in table_lines(text):
         cells = split_row(line, clean)
@@ -139,7 +139,7 @@ def project_rows(text):
     for no, cells in raw_rows:
         if all(not c for c in cells):
             continue
-        if len(cells) < len(header) and len(cells) > cm["question"]:  # like the board: a short row reaching the question is fine
+        if len(cells) < len(header) and len(cells) > cm["question"]:  # a short row reaching the question is fine
             cells = cells + [""] * (len(header) - len(cells))
         if len(cells) != len(header):
             errors.append({"file": TABLE, "row": no, "message": "row has %d cells, header has %d" % (len(cells), len(header))})

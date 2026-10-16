@@ -194,7 +194,7 @@ class CliTest(unittest.TestCase):
         d = squad(self.t.name, text)
         return subprocess.run([sys.executable, str(CLI), *args[:1], "--squad-dir", str(d),
                                "--plugin-root", str(FIX / plugin), *args[1:]],
-                              capture_output=True, text=True, env={"PATH": "/usr/bin:/bin"})
+                              capture_output=True, text=True, env={"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"})
 
     def test_version(self):
         r = self.run_cli("# T\n", "version", plugin="plugin-v3")

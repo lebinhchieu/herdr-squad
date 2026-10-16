@@ -15,8 +15,6 @@ ROLE_NAMES = {
     "qa-whitebox": "QA Whitebox", "qa-blackbox": "QA Blackbox", "dev": "Dev",
     "designer": "Designer", "token-coach": "Token Coach",
 }
-BOARD_LABEL = "📋 Board"
-LEGACY_BOARD_LABEL = "board"
 MAX_LEN = 32
 NAME_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}")
 
