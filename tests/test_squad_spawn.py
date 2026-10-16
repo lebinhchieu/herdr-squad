@@ -107,6 +107,61 @@ class SpawnDryRunTest(unittest.TestCase):
         tab_create = next(l for l in self.log.read_text().splitlines() if l.startswith("tab create"))
         self.assertIn("--workspace wK", tab_create)
 
+    def _real_spawn(self, *args, name="dev-1"):
+        self._fake_herdr(live="")
+        return subprocess.run([str(SCRIPT), "dev", name, "--scope", "s", *args], env=self.env,
+                              text=True, capture_output=True, timeout=10)
+
+    def _respawn_dry(self, name="dev-1"):
+        r = subprocess.run([str(SCRIPT.parent / "squad-respawn"), name, "--dry-run"], env=self.env,
+                           text=True, capture_output=True, timeout=10)
+        return r
+
+    def test_an_effort_override_is_recorded_and_replayed_by_respawn(self):
+        self.assertEqual(self._real_spawn("--effort", "low").returncode, 0)
+        self.assertEqual((self.squad / "roles" / "dev-1.overrides").read_text(), "effort=low\n")
+        r = self._respawn_dry()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertRegex(r.stdout, r"squad-spawn dev dev-1 .*--effort low ")
+        self.assertNotIn("--model", r.stdout)  # the role's default model is left to squad-spawn
+
+    def test_both_overrides_are_recorded(self):
+        self.assertEqual(self._real_spawn("--model", "haiku", "--effort", "low").returncode, 0)
+        self.assertEqual((self.squad / "roles" / "dev-1.overrides").read_text(), "model=haiku\neffort=low\n")
+        self.assertRegex(self._respawn_dry().stdout, r"--model haiku --effort low ")
+
+    def test_no_override_writes_no_file_and_respawn_passes_none(self):
+        self.assertEqual(self._real_spawn().returncode, 0)
+        self.assertFalse((self.squad / "roles" / "dev-1.overrides").exists())
+        out = self._respawn_dry().stdout
+        self.assertNotIn("--model", out)
+        self.assertNotIn("--effort", out)
+
+    def test_a_spawn_without_overrides_removes_a_stale_file(self):
+        self.assertEqual(self._real_spawn("--effort", "low").returncode, 0)
+        self.assertTrue((self.squad / "roles" / "dev-1.overrides").exists())
+        Path(self.tmp.name, "herdr.log").unlink()
+        self.assertEqual(self._real_spawn().returncode, 0)
+        self.assertFalse((self.squad / "roles" / "dev-1.overrides").exists())
+
+    def test_a_bad_override_value_is_refused_by_spawn_and_by_respawn(self):
+        r = self._real_spawn("--model", "x; touch pwned")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("bad --model/--effort value", r.stderr)
+        self.assertFalse((self.squad / "roles").exists())
+        self.assertEqual(self._real_spawn().returncode, 0)
+        (self.squad / "roles").mkdir(exist_ok=True)
+        (self.squad / "roles" / "dev-1.overrides").write_text("effort=low\nfuture=ignored $(x)\nmodel=a b\n")
+        r = self._respawn_dry()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("bad model value", r.stderr)
+        (self.squad / "roles" / "dev-1.overrides").write_text("future=ignored $(x)\neffort=low\n")
+        self.assertRegex(self._respawn_dry().stdout, r"--effort low ")
+
+    def test_dry_run_records_nothing(self):
+        self.spawn("dev", "--effort", "low")
+        self.assertFalse((self.squad / "roles").exists())
+
     def test_every_role_has_settings_that_parse(self):
         settings = SCRIPT.parent.parent / "templates" / "squad" / "settings"
         for role in TABLE:

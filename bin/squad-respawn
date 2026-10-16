@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Replace a squad agent's session with a fresh one: same name, role, scope and worktree, the role's
-# default model. The new session starts from roles/<agent>.notes.md. roster.md gets the new session id.
+# default model and effort unless squad-spawn recorded an override in roles/<agent>.overrides. The new session starts from roles/<agent>.notes.md. roster.md gets the new session id.
 # Safe to run from the agent's own pane: the old pane is closed last.
 set -euo pipefail
 
@@ -46,7 +46,16 @@ case $role in
   dev|qa-whitebox|qa-blackbox|designer)
     prompt="RESPAWN: you are $name, restarted fresh. Run \`squad-process show $role\` (your sections of \$SQUAD_DIR/process.md), then your notes \$$home_var/roles/$name.notes.md, and continue from them." ;;
 esac
-spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" "${title_args[@]}" --prompt "$prompt")
+# --model/--effort recorded by squad-spawn survive the respawn. Values are checked, never evaluated.
+ovr_args=()
+if [[ -f $home/roles/$name.overrides ]]; then
+  while IFS='=' read -r k v || [[ -n $k ]]; do
+    case $k in model|effort) ;; *) continue ;; esac
+    [[ $v =~ ^[][A-Za-z0-9._-]+$ ]] || { echo "bad $k value in $home/roles/$name.overrides: refusing" >&2; exit 1; }
+    ovr_args+=("--$k" "$v")
+  done < "$home/roles/$name.overrides"
+fi
+spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" "${title_args[@]}" "${ovr_args[@]}" --prompt "$prompt")
 
 notes=$home/roles/$name.notes.md
 if [[ -f $notes ]] && (( $(wc -l <"$notes") > 100 )); then

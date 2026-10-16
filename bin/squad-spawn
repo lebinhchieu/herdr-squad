@@ -61,6 +61,9 @@ done
 case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer) ;;
   *) echo "unknown role: $role" >&2; exit 2 ;; esac
 [[ -z $base || -n $repo ]] || { echo "--base needs --repo" >&2; exit 2; }
+for v in "$model" "$effort"; do
+  [[ -z $v || $v =~ ^[][A-Za-z0-9._-]+$ ]] || { echo "bad --model/--effort value: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
+done
 [[ $name =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { echo "bad agent name: $name (herdr needs [a-z][a-z0-9_-]{0,31})" >&2; exit 2; }
 [[ ${HERDR_ENV:-} == 1 ]] || { echo "not inside a herdr pane (HERDR_ENV != 1)" >&2; exit 1; }
 
@@ -134,6 +137,9 @@ elif [[ -n $repo ]]; then
   cwd=$wt
 fi
 
+# Overrides given now are what squad-respawn replays; none given means no file (a stale one is removed).
+ovr_model=$model ovr_effort=$effort
+
 # Role defaults come from the role file's frontmatter; --model/--effort override them.
 role_file=$plugin_root/agents/$role.md
 fm() { awk -v k="$1:" 'NR==1&&$0!="---"{exit} NR>1&&$0=="---"{exit} $1==k{print $2; exit}' "$role_file"; }
@@ -196,6 +202,13 @@ herdr agent start "$name" --kind claude --pane "$pane" --timeout 120000 -- "${cl
 }
 
 "$plugin_root/bin/squad-usage" --squad-dir "$home" --set-session "$name" "$session" --role "$role" --scope "$scope"
+
+ovr_file=$home/roles/$name.overrides
+rm -f "$ovr_file"
+if [[ -n $ovr_model || -n $ovr_effort ]]; then
+  mkdir -p "$home/roles"
+  { [[ -z $ovr_model ]] || echo "model=$ovr_model"; [[ -z $ovr_effort ]] || echo "effort=$ovr_effort"; } > "$ovr_file"
+fi
 
 [[ -n $prompt ]] && herdr agent prompt "$name" "$prompt" >/dev/null
 
