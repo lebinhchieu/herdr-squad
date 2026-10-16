@@ -21,30 +21,30 @@ Cost = cost-weighted USD per run. Defects = checks failed.
 
 | Fixture | Candidate it stands for | Haiku cost (run1, run2) | Sonnet cost (run1, run2) | Haiku / Sonnet | Defects Haiku | Defects Sonnet |
 |---|---|---|---|---|---|---|
-| receipt | QA receipt check, bad receipt (sha differs, tail FAILED) | 0.00100, 0.00102 | 0.00100, 0.00102 | 0.01346, 0.01346 | 7% | 0, 0 |
+| receipt | QA receipt check, bad receipt (sha differs, tail FAILED) | 0.00100, 0.00102 | 0.01346, 0.01346 | 7% | 0, 0 | 0, 0 |
 | receipt2 | QA receipt check, good receipt (sha equal, clean=yes, tail OK; decoy test names with "FAIL") | 0.00146, 0.00114 | 0.01334, 0.01334 | 10% | 0, 0 | 0, 0 |
-| usage | Token Coach / board summary arithmetic (6 roles, 24 rows) | 0.00175, 0.00174 | 0.00175, 0.00174 | 0.01884, 0.01884 | 9% | 0, 0 |
-| usage2 | same, harder: 40 rows, top role by cost differs from the largest-token role | 0.00226, 0.00229 | 0.00226, 0.00229 | 0.02464, 0.02512 | 9% | 0, 0 |
-| repoq | read-only fan-out subagent (repo question) | 0.00111, 0.00133 | 0.00111, 0.00133 | 0.01264, 0.01275 | 10% | 0, 0 |
-| repoq2 | same, decoys: alias import, `reload`, docstring, scripts/, stale docs | 0.00143, 0.00143 | 0.00143, 0.00143 | 0.01917, 0.02048 | 7% | 0, 0 |
+| usage | Token Coach / board summary arithmetic (6 roles, 24 rows) | 0.00175, 0.00174 | 0.01884, 0.01884 | 9% | 0, 0 | 0, 0 |
+| usage2 | same, harder: 40 rows, top role by cost differs from the largest-token role | 0.00226, 0.00229 | 0.02464, 0.02512 | 9% | 0, 0 | 0, 0 |
+| repoq | read-only fan-out subagent (repo question) | 0.00111, 0.00133 | 0.01264, 0.01275 | 10% | 0, 0 | 0, 0 |
+| repoq2 | same, decoys: alias import, `reload`, docstring, scripts/, stale docs | 0.00143, 0.00143 | 0.01917, 0.02048 | 7% | 0, 0 | 0, 0 |
 
 Token detail per run: `ab.py report` output in `evidence/AT-02/dev-evidence.md`. Spread between the two runs of an arm is under 5% of cost on every fixture except repoq/haiku (20%: the second run read more files) and repoq2/sonnet (6%).
 
 ## Candidates and verdicts
 
-Share column: from AT-01's `audit.py` at def08da (baseline until 2026-10-16T02:00:00Z, total $297.17), tables "Spend per role" and "Subagents". AT-01 gives shares per role, not per activity, so a role share is an upper bound for a candidate that is one activity of that role; only the fan-out and Token Coach rows are measured under 2%. A candidate under 2% of total spend is "minor" and not a go whatever the A/B says. RS-1: measured (above). RS-3: no QA-AC loss on the fixtures. If AT-01's table changes after its own QA, re-check this column.
+Share column: from AT-01's `audit.py` at def08da (baseline until 2026-10-16T02:00:00Z, total $297.17), tables "Spend per role" and "Subagents". AT-01 gives shares per role, not per activity, so a role share is an upper bound for a candidate that is one activity of that role; only the fan-out and Token Coach rows are measured under 2%. A candidate under 2% of total spend is "minor" and not a go whatever the A/B says. RS-1: measured (above). RS-3: no QA-AC loss on the fixtures (the A/B is RS-3 evidence). No row is a go: under business-ac v4 a share that is not measurable cannot be a go. If AT-01's table changes after its own QA, re-check this column.
 
 | Candidate | AT-01 share | Tested by | n per arm | Verdict | Saving per run, fixture (AT-01 unit USD) |
 |---|---|---|---|---|---|
-| QA receipt checks | QA roles 20.5% of spend (qa-whitebox 12.1% + qa-blackbox 8.4%); the receipt check is a part of that, not isolated | receipt, receipt2 | 2 + 2 | **go**: 0 defects both arms on a bad and a good receipt, so neither always-FAIL nor always-PASS passes; n=2, no clean=no case | 0.0122 |
+| QA receipt checks | QA roles 20.5% of spend (qa-whitebox 12.1% + qa-blackbox 8.4%); the receipt check is a part of that, not isolated | receipt, receipt2 | 2 + 2 | **unproven** (share not measurable per activity, so not a go): 0 defects both arms on a bad and a good receipt, so neither always-FAIL nor always-PASS passes; n=2, no clean=no case | 0.0122 |
 | Read-only fan-out subagents | 0.5% (Subagents table, all roles; $1.61 of $297.17) | repoq, repoq2 | 2 + 2 | **minor**: under 2% of spend, so not a go whatever the A/B says (A/B: 0 defects both arms) | 0.0115 / 0.0184 |
-| Board / log summaries (arithmetic and "top driver" questions) | manager 20.9% of spend; the summary part is not isolated by AT-01 | usage, usage2 | 2 + 2 | **go**: arithmetic over 40 rows correct in both Haiku runs | 0.0171 / 0.0226 |
+| Board / log summaries (arithmetic and "top driver" questions) | manager 20.9% of spend; the summary part is not isolated by AT-01 | usage, usage2 | 2 + 2 | **unproven** (share not measurable per activity, so not a go): arithmetic over 40 rows correct in both Haiku runs | 0.0171 / 0.0226 |
 | Token Coach (full role: ranked process.md proposals) | 0.5% (token-coach role) | not tested | 0 | **minor**: under 2% of spend; also untested (judgement is not checkable by a deterministic check) | n/a |
-| Dev / QA whitebox code review | dev 32.7%, qa-whitebox 12.1% | not tested | 0 | **no-go**: nothing tested, so nothing supports a switch | n/a |
+| Dev / QA whitebox code review | dev 32.7%, qa-whitebox 12.1% | not tested | 0 | **unproven**: not tested | n/a |
 
 **No-go list (AT-02-B4):** none; Haiku got nothing wrong in 12 runs.
 **Haiku's limit:** no Haiku failure was found, so this study cannot show where Haiku stops being good enough.
-**Guard (AT-02-B3, T6):** no Haiku failure occurred in any run, so a "go with guard" is neither claimed nor proven. These verdicts are "go" on n=2 and zero defects; a "go" rests on two runs per fixture and across five fixtures, which the Manager asked to be flagged as small.
+**Guard (AT-02-B3, T6):** no Haiku failure occurred in any run, so a "go with guard" is neither claimed nor proven. No row is a go: the A/B (n=2 per arm, six fixtures, 0 defects; small, as the Manager asked to flag) is RS-3 evidence only, because per-activity shares are not measurable.
 
 ## What is open
 
