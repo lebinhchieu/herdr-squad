@@ -56,6 +56,11 @@ class ManagerMLTest(unittest.TestCase):
         for token in ("Sizing and changing size", "Merge only on the PO's request", "squad-inbox add", "Token Coach", "squad-close <squad> --scope"):
             self.assertIn(token, M)
 
+    def test_merging_reads_sha_from_files_and_checkin_gets_three_returns_line(self):
+        self.assertIn("passed sha and checkers from `iterations/<n>.summary.md` or the task files, never from messages", M)
+        self.assertNotIn("(B15)", M)
+        self.assertIn("the Team Lead's one line at 3 returns on a task (M, L)", M)
+
 
 if __name__ == "__main__":
     unittest.main()
