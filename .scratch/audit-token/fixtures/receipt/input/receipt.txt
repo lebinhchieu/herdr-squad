@@ -1,0 +1,12 @@
+sha 3f9a1c27be5d40aa91e6c0b7d2f4e8a15c6b7d09 clean=yes
+test_alpha ... ok
+test_beta ... ok
+test_gamma ... FAIL
+test_delta ... ok
+======================================================================
+FAIL: test_gamma
+AssertionError: 3 != 4
+----------------------------------------------------------------------
+Ran 4 tests in 0.012s
+
+FAILED (failures=1)

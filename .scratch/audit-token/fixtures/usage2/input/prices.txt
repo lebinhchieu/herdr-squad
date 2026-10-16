@@ -1,0 +1,4 @@
+Price per 1M tokens, USD (hand-made for this exercise):
+input 3.00
+cache_read 0.30
+output 15.00
