@@ -10,10 +10,9 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-spawn"
 BIN_DIR = SCRIPT.parent
-TABLE = {"manager": ("opus", "medium"), "tech-lead": ("sonnet", "high"), "ba": ("sonnet", "high"),
-         "team-lead": ("sonnet", "medium"), "dev": ("sonnet", "medium"),
-         "qa-whitebox": ("sonnet", "high"), "qa-blackbox": ("sonnet", "high"),
-         "token-coach": ("sonnet", "medium"), "designer": ("sonnet", "high")}
+SETTINGS = SCRIPT.parent.parent / "templates" / "squad" / "settings"
+TABLE = {p.stem: (json.loads(p.read_text())["model"], json.loads(p.read_text())["effortLevel"])
+         for p in sorted(SETTINGS.glob("*.json"))}
 UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 FAKE_HERDR = """#!/usr/bin/env bash
 echo "$@" >> "$HERDR_LOG"
@@ -51,6 +50,59 @@ class SpawnDryRunTest(unittest.TestCase):
 
     def test_flags_override_role_defaults(self):
         self.assertRegex(self.spawn("dev", "--model", "opus", "--effort", "high"), r"--model opus --effort high\b")
+
+    def _squad_settings(self, role, data):
+        (self.squad / "settings").mkdir(exist_ok=True)
+        (self.squad / "settings" / f"{role}.json").write_text(json.dumps(data))
+
+    def _spawn_any(self, *args):
+        return subprocess.run([str(SCRIPT), "dev", "x", "--dry-run", *args], env=self.env,
+                              text=True, capture_output=True, timeout=10)
+
+    def test_the_table_covers_every_role(self):
+        self.assertEqual(len(TABLE), 9)
+
+    def test_squad_settings_override_the_template(self):
+        self._squad_settings("dev", {"model": "haiku", "effortLevel": "low"})
+        self.assertRegex(self.spawn("dev"), r"--model haiku --effort low\b")
+
+    def test_flag_beats_squad_and_template(self):
+        self._squad_settings("dev", {"model": "haiku", "effortLevel": "low"})
+        self.assertRegex(self.spawn("dev", "--model", "opus", "--effort", "max"), r"--model opus --effort max\b")
+
+    def test_squad_file_lacking_a_key_falls_back_to_the_template_silently(self):
+        self._squad_settings("dev", {"permissions": {}, "model": "haiku"})
+        r = self._spawn_any()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertRegex(r.stdout, rf"--model haiku --effort {TABLE['dev'][1]}\b")
+        self.assertEqual(r.stderr, "")
+
+    def test_a_key_in_neither_file_warns_and_passes_no_flag(self):
+        tpl = Path(self.tmp.name) / "plugin"
+        shutil.copytree(SCRIPT.parent.parent, tpl, ignore=shutil.ignore_patterns(".git", ".worktrees", ".scratch", "tests"))
+        (tpl / "templates/squad/settings/dev.json").write_text('{"model": "sonnet"}')
+        r = subprocess.run([str(tpl / "bin/squad-spawn"), "dev", "x", "--dry-run"], env=self.env,
+                           text=True, capture_output=True, timeout=10)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("warning: no effortLevel for dev in", r.stderr)
+        self.assertIn("runs on Claude Code's default", r.stderr)
+        self.assertIn("--model sonnet", r.stdout)
+        self.assertNotIn("--effort", r.stdout)
+
+    def test_a_bad_settings_value_is_refused(self):
+        for bad in ({"model": ["x"]}, {"model": "--x"}, {"effortLevel": "a; touch pwned"}, {"effortLevel": 3}):
+            with self.subTest(bad=bad):
+                self._squad_settings("dev", bad)
+                r = self._spawn_any()
+                self.assertEqual(r.returncode, 2, r.stdout)
+                self.assertNotIn("would run: herdr agent start", r.stdout)
+
+    def test_an_unparsable_settings_file_is_refused(self):
+        (self.squad / "settings").mkdir()
+        (self.squad / "settings" / "dev.json").write_text("{not json")
+        r = self._spawn_any()
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("cannot read", r.stderr)
 
     def test_dry_run_passes_a_session_id_and_plans_the_roster_write(self):
         out = self.spawn("dev")

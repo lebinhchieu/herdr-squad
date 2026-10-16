@@ -1,4 +1,6 @@
 {
+  "model": "sonnet",
+  "effortLevel": "high",
   "permissions": {
     "allow": [
       "SendMessage",

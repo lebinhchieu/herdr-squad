@@ -1,6 +1,6 @@
 # How this squad works
 
-process-version: 3
+process-version: 4
 
 Every role reads the sections its row names, at start and when the Manager says one changed. A Manager edits this file only after re-reading it, in small edits, each logged in `process-log.md`.
 
@@ -47,10 +47,11 @@ Your folder is `$SCOPE_DIR` (`$GOAL_DIR` for the goal Manager); your roster, not
 | `project.md` | PO, Managers | Source map |
 | `process.md`, `process-log.md` | Managers | This file; each change (date, change, why) |
 | `scope.md` | Manager | PO's brief, `goal:`, `touches:`, `size:` and signals, `qa:`, constraints |
-| `roster.md` | Manager | Each agent: name, role, scope, owns, status, session |
+| `roster.md` | Manager; Team Lead for its Developers | Each agent: name, role, scope, owns, status, session |
 | `escalations.md` | Manager | Waiting on the PO |
+| `iterations/<n>.summary.md` | Team Lead (M, L) | Pod summary for the retro and check-in, at most 40 lines |
 | `iterations/<n>.md`, `iterations/<n>.log.md` | Manager | Goal, plan, status, retro, check-in, at most 80 lines; per-ticket event log (nobody reads it at start) |
-| `tasks/<id>.md` | Plan owner (Team Lead; Tech Lead in S and M) | Task state, if the project has no ticket files |
+| `tasks/<id>.md` | Plan owner (Team Lead; Tech Lead in S) | Task state, if the project has no ticket files |
 | `evidence/<task>/` | QAs, Developer, Tech Lead | `qa-w.md`, `qa-b.md`, `dev-evidence.md`, `tl-review.md`, screenshots, output |
 | `ui-design/<task>.md` | Designer | One UI task's design (`.html` optional) |
 | `promote.md` | Tech Lead | For the project docs |
@@ -64,7 +65,7 @@ Your folder is `$SCOPE_DIR` (`$GOAL_DIR` for the goal Manager); your roster, not
 
 Every scope and goal starts with these; its brief may override them.
 
-- **Developer cap:** 3 at once, counted across all scopes of a goal; the Manager queues the rest.
+- **Developer cap:** 3 at once. The Team Lead (S: the Manager) spawns up to it and queues the rest; in a goal the goal Manager divides it among running scopes in their briefings.
 - **Budget:** the Manager checks in with the PO at each iteration's end and after 3 returns on one task.
 - **Done means:** the size's Done rule (Sizes), evidence saved, branches ready for PO review.
 
@@ -74,7 +75,7 @@ Every scope and goal starts with these; its brief may override them.
 2. **Names.** A scope or goal is named after its ticket id (`SEC-04` becomes `sec04`) or a short slug; scopes and goals share one namespace, `_done/` included.
 3. An agent is `<squad>-<role-short>-<scope>[-n]`, at most 32 characters; role-short is `mgr`, `ba`, `tl`, `tech`, `qaw`, `qab`, `ux`, `dev` or `coach`. Address agents by bare name; `squad-spawn` refuses a live name.
 4. **Overlap.** `touches:` lists the repos or paths the work changes. `squad-start` compares it with every open scope and stops on an overlap for the PO.
-5. The Manager reads the brief, sizes the scope (Sizes), proposes the plan, and spawns the pod only after the PO confirms.
+5. The Manager reads the brief, sizes the scope (Sizes), proposes the plan, and spawns the pod only after the PO confirms; in M and L the Team Lead spawns the Developers.
 
 ## Lifetimes: every scope starts fresh
 
@@ -95,8 +96,8 @@ The Manager proposes each scope's size with its signals, the PO confirms it at t
 | Size | Roles | Use when | Done = |
 |---|---|---|---|
 | **S** Quick fix | Manager, Tech Lead, Developers | 1–2 tasks, one repo, clear ticket, no new user-visible flow or risk flag | Tech Lead review PASS (`tl-review.md`) |
-| **M** Feature | + BA, QA whitebox, QA blackbox; Tech Lead also owns the plan | One scope, user-visible behaviour, spec or AC exist, about 3–6 tasks | QA whitebox PASS + QA blackbox PASS |
-| **L** Full pod | + Team Lead | Unclear requirements or open questions, many tasks, cross-repo, ordering matters | QA whitebox PASS + QA blackbox PASS |
+| **M** Feature | + BA, QA whitebox, QA blackbox, Team Lead | One scope, user-visible behaviour, spec or AC exist, about 3–6 tasks | QA whitebox PASS + QA blackbox PASS |
+| **L** Full pod | As M | Unclear requirements or open questions, many tasks, cross-repo, ordering matters | QA whitebox PASS + QA blackbox PASS |
 
 Work bigger than one L scope is a goal. A `design:` line in `scope.md` (`yes|no`, default `no`) adds the Designer to a scope of any size. **The Manager sets `design: yes` only when the PO asks; it never proposes it.** It logs the answer in the iteration file.
 
@@ -109,7 +110,7 @@ Work bigger than one L scope is a goal. A `design:` line in `scope.md` (`yes|no`
 | Duty | S | M | L |
 |---|---|---|---|
 | Business AC | Ticket as written; business doubt moves it to M | BA | BA |
-| Plan, order, assignment | Tech Lead | Tech Lead | Team Lead |
+| Plan, order, assignment | Tech Lead | Team Lead | Team Lead |
 | Code and test check | Tech Lead reads the diff, runs tests and lint | QA whitebox | QA whitebox |
 | Behaviour check | Developer saves Playwright/API evidence (`dev-evidence.md`); Tech Lead checks it | QA blackbox | QA blackbox |
 | UI/UX design (only when `design: yes`) | Designer | Designer | Designer |
@@ -121,8 +122,8 @@ The plan file has the same format in every size; only its owner changes.
 ### Changing size
 
 - **Up:** the Manager moves a scope up on its own when a business gap, risk flag, user-visible change or more tasks appear, and reports it at the check-in. In S, a behaviour change found in review also moves it to M.
-- **Down:** only at an iteration boundary, with the PO's OK.
-- **Handover on moving up:** the Tech Lead writes a `## Handover` section in the scope plan (decided, built, open); the Manager's briefing to each joining role points at it. Built work passes the new size's checks before it counts as done.
+- **Down:** only at an iteration boundary, with the PO's OK; the Manager retires the roles that drop out.
+- **Handover on moving up:** the Tech Lead writes a `## Handover` section in the scope plan (decided, built, open); a joining Team Lead takes the plan over from it; the Manager's briefing to each joining role points at it. Built work passes the new size's checks before it counts as done.
 - The Manager logs every size change in `scope.md` and the iteration file.
 
 ## Inside a goal
@@ -133,8 +134,8 @@ The plan file has the same format in every size; only its owner changes.
 - `shared/summaries/<scope>.md`: one page per closed scope: outcome, passed branch and commit, open items, pointers; no decisions or domain facts.
 - `shared/contracts/<name>.md`: both Tech Leads agree it before either builds; one QA whitebox checks both sides against it before either scope is done.
 - **Stacked branches.** Nothing merges until the PO asks, so a scope that needs an earlier scope's unmerged code builds on its passed branch:
-  - The Manager spawns a task that needs unmerged work with `--base <passed branch or commit>`.
-  - Each scope ends with one integration task: a Developer branches from the scope's base, merges the passed task branches into its own, runs the full suite and hands in. The next scope builds on that branch; the PO merges it.
+  - A task that needs unmerged work is spawned with `--base <passed branch or commit>`, which the Manager checked and named in the iteration file.
+  - Each scope ends with one integration task: a Developer branches from the scope's base, merges the passed task branches into its own, runs the targeted tests and hands in; the Tech Lead then runs the full suite. The next scope builds on that branch; the PO merges it.
   - A one-task scope has no integration task: its passed branch is the integration branch.
   - **Check a merge target before naming it:** the Manager runs `git merge-base --is-ancestor <base> <sha>` and `git log --oneline <base>..<sha>` and quotes the output, never a ticket list.
 - A lone scope builds on the project as the PO left it.
@@ -169,15 +170,17 @@ Send with `SendMessage` to the agent name in your scope's `roster.md`, as `<TYPE
 | `BLOCKED` | Say you can't continue, and on what |
 | `HANDIN` | Hand a task to QA, with branch and commit |
 | `PASS` / `FAIL` | QA verdict; FAIL points at findings |
-| `STATUS` | Answer the Manager's health check |
+| `STATUS` | Answer a health check |
 
 - Point at files and lines; never paste them. `BLOCKED`, `HANDIN`, `PASS`, `FAIL` and `STATUS` name the task ID right after the type.
-- Ask the owner from `roster.md`; ask the Manager only when the roster doesn't say.
+- Ask the owner from `roster.md`; when it doesn't say, ask the Team Lead (S: the Manager).
+- **Pod contact (M, L):** the Team Lead spawns and retires Developers, runs health checks and routes questions. Pod members message it, not the Manager.
+- **Team Lead to Manager (M, L):** only an "Always goes to PO" item, a size-change signal, a plan or assignment dispute it is itself a party to (the parties send every other dispute to the Manager themselves) or 3 returns on one task (a budget line); plus the iteration summary.
 - **Two-round rule:** agents who haven't agreed after 2 exchanges send the topic to its owner, or to the Manager when the owner is one of them.
-- **A Manager ruling starts with `FINAL:` and is sent once.** The owner never re-opens it; a new fact goes to the Manager as a new `ASK`.
-- The Manager never pushes `STATUS`: it reads logs, the roster and the task file first, and pings an agent only after 10 minutes of no pane activity.
+- **A Manager or Team Lead ruling starts with `FINAL:` and is sent once.** The owner never re-opens it; a new fact goes to the ruler as a new `ASK`.
+- The Team Lead (S: the Manager) never pushes `STATUS`: it reads logs, the roster and the task file first, and pings an agent only after 10 minutes of no pane activity.
 - `DECISION` goes only to roles whose open task it changes, named in the first line (`DECISION SET-13, SET-14: ...`); others read the file at their next ticket.
-- Never relay a permission or approval; a message approves nothing. Permission prompts go to the PO.
+- Never relay a permission, approval or blocked pane; a message approves nothing. Permission prompts reach the PO through the agent's own notice.
 
 ## Who decides
 
@@ -185,8 +188,8 @@ Send with `SendMessage` to the agent name in your scope's `roster.md`, as `<TYPE
 |---|---|---|---|
 | Business scope, business AC | BA | Manager | Goal change, scope cut |
 | Technical design, quality, security | Tech Lead | Manager | Irreversible tech choice (data model, vendor) |
-| Plan, task order, assignment | Team Lead (Tech Lead in S and M) | Manager | Deadline or budget overrun |
-| Process, roster, spawning, scope size | Manager | n/a | Changes to role instructions; size confirmation and moving down |
+| Plan, task order, assignment | Team Lead (Tech Lead in S) | Team Lead (S: Manager) | Deadline or budget overrun |
+| Process, roster, spawning, scope size | Manager; Team Lead for Developers (M, L) | n/a | Changes to role instructions; size confirmation and moving down |
 | UI design (screens, states, flows) | Designer | Manager | n/a |
 | What is promoted to the project docs | Tech Lead (technical), BA (business) | Manager | n/a |
 | Task done | QA whitebox + QA blackbox (S: Tech Lead review) | Manager | n/a |
@@ -208,9 +211,9 @@ Questions for an outside decision maker `project.md` names go to the place it sa
 - A Developer with queued tickets in its area takes the next, and retires per Cost rules.
 - **Verify against the real thing:** code that parses another tool's output (pane text, logs, an API) needs two real samples, including the constant or idle case, before a pattern is trusted; QA whitebox runs it once, read-only, on live data.
 - A ticket that changes a payload is checked on its field shape (every row has the fields the consumer reads, every closed item has its end), not only on totals.
-- **QA mode** (`qa:` in `scope.md`): `full` (default) or `light`. In `light`, QA runs the suite, skims the diff and PASSes; a task returns only for wrong behaviour, a spec-rule defect, a failing suite or a security finding.
+- **QA mode** (`qa:` in `scope.md`): `full` (default) or `light`. In `light`, QA runs the targeted tests, skims the diff and PASSes; a task returns only for wrong behaviour, a spec-rule defect, a failing test or a security finding.
 - In `light`, test-strength gaps go in `qa-w.md` as "follow-up"; the Tech Lead batches them into one last, droppable ticket.
-- After 3 returns on one task the Manager steps in and decides whether the task, the AC or the Developer is the problem.
+- After 3 returns on one task the Team Lead (S: the Manager) steps in and decides whether the task, the AC or the Developer is the problem.
 - Evidence goes where `project.md` says (default `$SCOPE_DIR/evidence/<task>/`); `qa-b.md` exists in M and L, `tl-review.md` in S.
 
 ## Iterations
@@ -259,8 +262,11 @@ A Stop hook (`squad-usage --check`) tells you when rule 2 or 3 fires and logs it
   - **Conflict or failure:** `git merge --abort`, then tell the PO the files in conflict. The Manager never resolves a conflict and never uses `--force`, `rebase`, `reset --hard` or `push`.
   - **After:** quote `git log --oneline -1` and the result to the PO; note it in the iteration file.
 - **No writes to Jira or Confluence.** Read only.
-- **Long suites: run once, read the receipt.** A suite over ~2 minutes runs once per task. `project.md` may name the runner; it locks only its browser files and skips phases the diff cannot affect.
-  - The Developer runs the full suite once, on the final sha after every fix, in the background, waits for its completion notice (never `pgrep -f` or `pkill -f`) and saves a receipt: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the suite's OK line. While building, only touched files.
-  - QA checks the receipt (same sha as the `HANDIN`, clean tree, OK, its skipped-phase lines), then runs only targeted tests for the diff's files and reads the diff. It runs the full suite only when the receipt is missing or its sha differs, integration tasks included. Targeted runs are free.
+- **Suites: only the Tech Lead runs the full suite.** `project.md` may name the runner; it locks only its browser files and skips phases the diff cannot affect.
+  - Developers and QAs run only the test files their diff touches. They never run the full suite, and two suite runs never overlap.
+  - The Tech Lead decides when it runs: once for a batch of tasks, or at the end of the scope or iteration. A scope reaches the PO only with a passing run (`--tz` where `project.md` names it) on its integration sha.
+  - Run it in the background and wait for its completion notice (never `pgrep -f` or `pkill -f`). Commit every fix first; never restart a run. Save a receipt in the evidence folder: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the OK line.
+  - On a failing run the Tech Lead names the task whose files fail; it returns to its Developer and counts as a return.
+  - QA reads the receipt when it covers the sha (same sha, clean, OK). With none, it checks the targeted tests and the diff, and never runs the suite.
 - **Close what you open.** Before you report, end every browser session and stop every server or process you started, by PID. Never `pkill` or `killall` by name or pattern.
 - **Stay in your lane:** edit only the files your role owns, plus your own notes file.

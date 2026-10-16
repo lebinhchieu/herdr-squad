@@ -2,6 +2,8 @@
 
 Status: accepted (refine-process)
 
+Amended by 0010: the byte budget was removed (PO, tl-manages-team); the rest stands.
+
 **Decision:** the Writing rule for `process.md` (one rule per bullet, stated once, actor and limit named, no hedges, history, dates or restating sentences, at most 60 words per bullet or cell, a byte budget) lives in `agents/manager.md`, the only role that edits `process.md`, not in `process.md`. `bin/processlint.py` checks it mechanically; the suite lints the template on every run; `apply` warns on the combined file.
 
 **Why:** every agent reads `process.md` at start, so its size is every session's starting cost; the rule is needed only when editing.

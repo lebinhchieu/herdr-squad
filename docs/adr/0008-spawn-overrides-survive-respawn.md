@@ -2,6 +2,8 @@
 
 Status: accepted (audit-token)
 
+Amended by 0010: the role default now comes from settings/<role>.json, not the role file's frontmatter.
+
 **Decision:** `squad-spawn --model/--effort` records the override in the agent's home, `roles/<name>.overrides` (lines `model=<v>`, `effort=<v>`). `squad-respawn` reads that file and passes the values to `squad-spawn` again. A spawn with no override removes a stale file. `squad-start --resume` does not read the file: the Manager's flags must be repeated on it.
 
 **Why:** a cost-rule respawn silently returned a Sonnet Manager or a medium-effort QA to its role default, so a model-per-role trial would have measured nothing.

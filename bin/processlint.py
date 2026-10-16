@@ -1,6 +1,6 @@
 """Lint a process.md against the writing rule (design §9). stdlib only.
 
-lint(text, budget, exceptions) -> ["line N: <check>: <detail>", ...]; line 0 = whole file.
+lint(text, exceptions) -> ["line N: <check>: <detail>", ...].
 CLI: python3 bin/processlint.py FILE  (exit 1 on any problem).
 """
 import re
@@ -9,7 +9,6 @@ import sys
 MAX_WORDS = 60
 MAX_BOLD_WORDS = 15
 MIN_DUP_WORDS = 8
-WHOLE_FILE = "<file>"  # the line text an exception prefix matches for a problem on no single line
 
 _BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
 _BOLD = re.compile(r"\*\*(.+?)\*\*")
@@ -72,16 +71,12 @@ def _norm(text):
     return " ".join(re.sub(r"[*`_|]", "", text).lower().split())
 
 
-def _problems(text, budget):
+def _problems(text):
     lines = text.splitlines()
     found = []  # (line, check, detail, line text for exception matching)
 
     def add(n, check, detail, shown=""):
         found.append((n, check, detail, shown.strip()))
-
-    size = len(text.encode("utf-8"))
-    if size > budget:
-        add(0, "size", f"{size} bytes > {budget}", WHOLE_FILE)
 
     fenced = False
     for n, raw in enumerate(lines, 1):
@@ -130,12 +125,12 @@ def _problems(text, budget):
     return sorted(found, key=lambda p: p[0])
 
 
-def lint(text, budget=22500, exceptions=()):
+def lint(text, exceptions=()):
     """exceptions: (check, line-text prefix, reason). No reason raises; one matching nothing is stale."""
     for exc in exceptions:
         if len(exc) != 3 or not str(exc[1]).strip() or not str(exc[2]).strip():
             raise ValueError(f"exception {exc!r} needs a prefix and a reason: (check, line-text prefix, reason)")
-    problems = _problems(text, budget)
+    problems = _problems(text)
     used = set()
     kept = []
     for n, check, detail, shown in problems:

@@ -43,8 +43,9 @@ Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root.
 
 ## Running tests
 
+- Only the Tech Lead runs the full suite; everyone else runs the test files they touched.
 - Runner: `python3 tests/run_suite.py --receipt <dir> --if-changed <task base>`. Integration and promotion tasks and the sha the PO merges use `--tz` instead: nothing skipped.
-- Start it in the background and wait as in the Suites bullet of `agents/dev.md`. Never `pgrep -f` or `pkill -f run_suite`: it kills other agents' runs.
+- Start it in the background and wait as in `process.md` → Safety → Suites. Never `pgrep -f` or `pkill -f run_suite`: it kills other agents' runs.
 - Commit every fix before a run; never kill and restart one.
 - Browser tests: never poll for a transient state (a stub stream that ends and reconnects shows `live` for milliseconds). Latch it with an init script, or wait for a state that stays; a wait's failure message names the page state.
 - A stress or flake check runs whole test files or classes, never only the named tests.

@@ -12,7 +12,7 @@
 The name is the first ticket id in the text (SEC-04 -> sec04), else a short slug; --name overrides it.
 --touches lists the repos or paths the work changes. If it overlaps an open scope's `touches:` the script lists
 the overlaps and exits 3 without creating anything; the PO decides, and --yes goes ahead.
---model and --effort set the Manager's model and effort (default: those in agents/manager.md); it does not change the roles the Manager spawns.
+--model and --effort set the Manager's model and effort (default: the model and effort in settings/manager.json); it does not change the roles the Manager spawns.
 Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
 """
 import argparse
