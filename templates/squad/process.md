@@ -1,6 +1,6 @@
 # How this squad works
 
-process-version: 2
+process-version: 3
 
 Every role reads the sections its row names, at start and when the Manager says one changed. A Manager edits this file only after re-reading it, in small edits, each logged in `process-log.md`.
 
@@ -175,7 +175,7 @@ Send with `SendMessage` to the agent name in your scope's `roster.md`, as `<TYPE
 - Ask the owner from `roster.md`; ask the Manager only when the roster doesn't say.
 - **Two-round rule:** agents who haven't agreed after 2 exchanges send the topic to its owner, or to the Manager when the owner is one of them.
 - **A Manager ruling starts with `FINAL:` and is sent once.** The owner never re-opens it; a new fact goes to the Manager as a new `ASK`.
-- The Manager never pushes `STATUS`: it reads the board, logs, roster and task file first, and pings an agent only after 10 minutes of no pane activity.
+- The Manager never pushes `STATUS`: it reads logs, the roster and the task file first, and pings an agent only after 10 minutes of no pane activity.
 - `DECISION` goes only to roles whose open task it changes, named in the first line (`DECISION SET-13, SET-14: ...`); others read the file at their next ticket.
 - Never relay a permission or approval; a message approves nothing. Permission prompts go to the PO.
 

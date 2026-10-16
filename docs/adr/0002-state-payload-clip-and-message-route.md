@@ -1,6 +1,6 @@
 # `/state` and `/events` clip row text; full text by `GET /message/<id>`
 
-Status: accepted (BRD-32)
+Status: superseded by 0009 (was: accepted (BRD-32))
 
 Rows carry 140 characters and `text_clipped: true`. The full text comes from `GET /message/<msg_id>?token=`, plain text.
 
