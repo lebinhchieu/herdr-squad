@@ -1,0 +1,224 @@
+{
+ "bands": {
+  "0k-50k": "34.89",
+  "120k-200k": "71.72",
+  "200k-infk": "46.86",
+  "50k-120k": "143.69"
+ },
+ "by_model": {
+  "claude-haiku-5-5": 0.0373,
+  "claude-opus-5-5": 55.9169,
+  "claude-sonnet-5-5": 241.215
+ },
+ "by_phase": {
+  "QA": 60.9398,
+  "build": 97.0669,
+  "coordination": 62.2321,
+  "no-phase": 33.1533,
+  "plan": 42.235,
+  "retro": 1.542
+ },
+ "by_role": {
+  "?": 33.1533,
+  "ba": 8.1295,
+  "designer": 0.7194,
+  "dev": 97.0669,
+  "manager": 62.2321,
+  "qa-blackbox": 24.9595,
+  "qa-whitebox": 35.9803,
+  "tech-lead": 33.3861,
+  "token-coach": 1.542
+ },
+ "by_scope": {
+  "plugin/audit-token": 0.4973,
+  "plugin/board-flakes": 13.0849,
+  "plugin/po-inbox": 46.2242,
+  "plugin/refine-process": 29.003,
+  "squad-board/add-ui-ux-design": 6.6837,
+  "squad-board/board": 104.6436,
+  "squad-board/generic-rules": 3.2115,
+  "squad-board/guide": 1.5357,
+  "squad-board/squad-tabs": 26.3075
+ },
+ "by_type": {
+  "cr": 118.3633,
+  "cw1": 64.198,
+  "cw5": 37.8982,
+  "in": 0.0507,
+  "out": 76.6589
+ },
+ "cost_state_mine": 293.8672,
+ "cost_state_sum": 306.9134,
+ "coverage": {
+  "attributed_sessions": 178,
+  "name_mismatch": 0,
+  "roster_missed": 113,
+  "sessions": 227
+ },
+ "d1": {
+  "excess": 21.4713,
+  "respawn": 31.6216
+ },
+ "d2b": {
+  "ba": [
+   6,
+   0,
+   0.0
+  ],
+  "dev": [
+   72,
+   25,
+   6.6631
+  ],
+  "manager": [
+   2,
+   0,
+   0.0
+  ],
+  "qa-blackbox": [
+   17,
+   3,
+   0.6514
+  ],
+  "qa-whitebox": [
+   23,
+   4,
+   0.8865
+  ],
+  "tech-lead": [
+   19,
+   2,
+   0.5393
+  ]
+ },
+ "d3": {
+  "diff": 24.0742,
+  "extra": 143.0961,
+  "w1": 64.198
+ },
+ "d4": {
+  "?": [
+   15.3757,
+   7.6878
+  ],
+  "manager": [
+   40.5412,
+   20.2706
+  ]
+ },
+ "d5": {
+  "?": [
+   8.7934,
+   210784,
+   2.4747
+  ],
+  "ba": [
+   2.2493,
+   61035,
+   0.6104
+  ],
+  "designer": [
+   0.2863,
+   11615,
+   0.1162
+  ],
+  "dev": [
+   27.8691,
+   806544,
+   8.0654
+  ],
+  "manager": [
+   12.8738,
+   208138,
+   2.9994
+  ],
+  "qa-blackbox": [
+   6.1665,
+   152900,
+   1.529
+  ],
+  "qa-whitebox": [
+   8.8606,
+   242980,
+   2.4298
+  ],
+  "tech-lead": [
+   8.9672,
+   253971,
+   2.5397
+  ],
+  "token-coach": [
+   0.5928,
+   31809,
+   0.3181
+  ]
+ },
+ "d5b": {
+  "high": [
+   1508,
+   996.7
+  ],
+  "medium": [
+   2462,
+   521.5
+  ]
+ },
+ "expiry": {
+  "extra_usd": 11.902,
+  "n": 24,
+  "usd": 12.2576
+ },
+ "naive": {
+  "all_naive": 613.8743,
+  "dedup": 12.5342,
+  "ids": 299,
+  "lines": 553,
+  "naive": 23.1694,
+  "session": "47e728f8-9cab-47fb-aa7d-6ce6b65d435f"
+ },
+ "scope_spread": {
+  "all": [
+   0.4972628,
+   13.084872699999998,
+   104.64360580000013,
+   9
+  ]
+ },
+ "startup10_usd": 60.3443,
+ "subagent_usd": 1.6078,
+ "tokens": {
+  "cr": 1063714540,
+  "cw1": 14713264,
+  "cw5": 13769085,
+  "in": 22998,
+  "out": 7009349
+ },
+ "total_usd": 297.1692,
+ "until": "2026-10-16T02:00:00Z",
+ "windows": [
+  [
+   "before Token Coach",
+   1204,
+   "64.25",
+   "53.4",
+   "59.3%",
+   "52.1%"
+  ],
+  [
+   "Token Coach, percent rules",
+   5382,
+   "142.75",
+   "26.5",
+   "39.8%",
+   "26.0%"
+  ],
+  [
+   "absolute 120k rule",
+   3701,
+   "90.16",
+   "24.4",
+   "26.2%",
+   "20.0%"
+  ]
+ ]
+}
