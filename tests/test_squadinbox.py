@@ -1,7 +1,5 @@
-"""PI-01: squad-inbox add / list / read, the escalations projection, and parity with the board's table reader."""
+"""PI-01: squad-inbox add / list / read, the escalations projection, and the escalations.md table reader against its golden file."""
 import hashlib
-import importlib.machinery
-import importlib.util
 import json
 import os
 import shutil
@@ -50,13 +48,15 @@ def digest(folder):
             for p in sorted(Path(folder).iterdir()) if not p.name.endswith(".lock")}
 
 
-def load_board():
-    loader = importlib.machinery.SourceFileLoader("squad_board_for_inbox_test", str(ROOT / "bin" / "squad-board"))
-    spec = importlib.util.spec_from_loader(loader.name, loader)
-    mod = importlib.util.module_from_spec(spec)
+def rows_of(path):
+    """The rows of the escalations.md table at `path`, as dicts keyed by the lower-cased header; [] without a header."""
     sys.dont_write_bytecode = True
-    loader.exec_module(mod)
-    return mod
+    if str(ROOT / "bin") not in sys.path:
+        sys.path.insert(0, str(ROOT / "bin"))
+    import squadinbox
+    header, rows = squadinbox.first_table(squadinbox.read_text(path))
+    mine = [dict(zip(header, cells)) for _, cells in rows] if header else []
+    return mine
 
 
 class Base(unittest.TestCase):
@@ -290,7 +290,7 @@ class AddReadTest(Base):
         self.assertEqual(new[:sep + 1], old[:sep + 1])
         self.assertEqual(new[sep + 2:], old[sep + 1:])  # the rest byte-identical
         self.assertEqual(new[sep + 1].decode(), "| 18 | 2026-10-15 | Pick \\| one<br>Line one<br>line \\| two<br>three | (a) x; (b) y | a | PI-04 |  |\n")
-        rows = load_board().read_first_table(self.home / "escalations.md")
+        rows = rows_of(self.home / "escalations.md")
         self.assertEqual(rows[0]["question"], "Pick | one<br>Line one<br>line | two<br>three")
         item = by_id(listing(self.home))["E18"]
         self.assertEqual((item["title"], item["body"]), ("Pick | one", "Pick | one<br>Line one<br>line | two<br>three"))
@@ -429,52 +429,47 @@ class ErrorsTest(Base):
         self.assertEqual(len(snap["errors"]), 1)
 
 
-class BoardParityTest(Base):
-    def test_same_rows_as_the_board_reader(self):  # AC1: a copy that cannot drift
+class ReaderGoldenTest(Base):
+    def test_same_rows_as_the_golden(self):  # AC1: the reader's output on fixed inputs cannot drift
         sys.dont_write_bytecode = True
         sys.path.insert(0, str(ROOT / "bin"))
         import squadinbox
-        board = load_board()
-        for path in (FIX / "home" / "escalations.md", FIX / "no-table" / "escalations.md"):
-            header, rows = squadinbox.first_table(path.read_text())
-            mine = [dict(zip(header, cells)) for _, cells in rows]
-            self.assertEqual(mine, board.read_first_table(path), path.name)
-        for text in ("", "| a |\n|---|\n"):
-            p = Path(self.tmp) / "x.md"
-            p.write_text(text)
+        golden = json.loads((FIX / "board-reader-golden.json").read_text(encoding="utf-8"))
+        for name, case in golden["tables"].items():
+            text = case["text"] if "text" in case else (FIX / name).read_text()
             header, rows = squadinbox.first_table(text)
-            self.assertEqual([dict(zip(header, c)) for _, c in rows] if header else [], board.read_first_table(p))
-        for cell in ("a \\| b", "**bold** `code`", "  x  "):
-            self.assertEqual(squadinbox.clean_cell(cell), board.clean_cell(cell))
+            self.assertEqual([dict(zip(header, c)) for _, c in rows] if header else [], case["rows"], name)
+        for cell, want in golden["clean_cell"].items():
+            self.assertEqual(squadinbox.clean_cell(cell), want)
 
 
 BREAKS = ["\r\n", "\n", "\r", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"]
 
 
 class RowWriterTest(Base):
-    """AC16: the row writer, in bytes, against the board's reader."""
+    """AC16: the row writer, in bytes, against the escalations.md table reader."""
 
     def structure(self):
-        return [(len(r), tuple(r)) for r in load_board().read_first_table(self.home / "escalations.md")]
+        return [(len(r), tuple(r)) for r in rows_of(self.home / "escalations.md")]
 
     def test_each_break_becomes_one_br(self):
         for i, ch in enumerate(BREAKS):
-            before = len(load_board().read_first_table(self.home / "escalations.md"))
+            before = len(rows_of(self.home / "escalations.md"))
             run(self.home, "add", "--kind", "answer", "--title", "t%d" % i, stdin="one%stwo" % ch)
-            rows = load_board().read_first_table(self.home / "escalations.md")
+            rows = rows_of(self.home / "escalations.md")
             self.assertEqual(len(rows), before + 1, repr(ch))
             self.assertEqual(rows[0]["question"], "t%d<br>one<br>two" % i, repr(ch))
             self.assertEqual(len(rows[0]), 7, repr(ch))
 
     def test_endings_pipes_and_backslashes(self):
         for tail in ("\\", "\\\\", "\\|", "|", "a|", "**b** `c`"):
-            before = len(load_board().read_first_table(self.home / "escalations.md"))
+            before = len(rows_of(self.home / "escalations.md"))
             run(self.home, "add", "--kind", "answer", "--title", "t", "--rec", "r" + tail, stdin="body" + tail)
-            rows = load_board().read_first_table(self.home / "escalations.md")
+            rows = rows_of(self.home / "escalations.md")
             self.assertEqual((len(rows), len(rows[0])), (before + 1, 7), tail)
             self.assertEqual(rows[0]["blocks"], "", tail)
         bodies = [i["body"] for i in listing(self.home)["items"]]
-        self.assertTrue(any(b.endswith("<br>body**b** `c`") for b in bodies))  # the body keeps markup the board's clean_cell strips
+        self.assertTrue(any(b.endswith("<br>body**b** `c`") for b in bodies))  # the body keeps markup clean_cell strips
 
     def test_bytes_survive(self):
         for name, data in (("crlf", b"| # | Date | Question | Options | Rec | Blocks | Answer |\r\n|---|---|---|---|---|---|---|\r\n| 1 | d | q | | | | |\r\n"),
@@ -494,7 +489,7 @@ class RowWriterTest(Base):
                 self.assertIn(b"intro \xff\xfe\n", out)
             if name == "sep-last":
                 self.assertFalse(out.endswith(b"\n"))
-                self.assertEqual(len(load_board().read_first_table(h / "escalations.md")), 1)
+                self.assertEqual(len(rows_of(h / "escalations.md")), 1)
 
     def test_symlink_refused(self):
         h = self.empty_home()
@@ -622,7 +617,7 @@ class RepairTest(Base):
     def test_repair(self):
         p = self.home / "escalations.md"
         p.write_text(p.read_text().replace("| PI-02 | (a) x |", "| PI-02 | |"))
-        rows = len(load_board().read_first_table(p))
+        rows = len(rows_of(p))
         before = digest(self.home)
         it = by_id(listing(self.home, "--no-write"))["E11"]
         self.assertEqual(it["state"], "answered-waiting")
@@ -630,7 +625,7 @@ class RepairTest(Base):
         it = by_id(listing(self.home))["E11"]
         self.assertEqual((it["state"], it["answer"]["text"]), ("answered-waiting", "(a) x"))
         self.assertIn("| PI-02 | (a) x |", p.read_text())
-        self.assertEqual(len(load_board().read_first_table(p)), rows)
+        self.assertEqual(len(rows_of(p)), rows)
         after = digest(self.home)
         listing(self.home)
         self.assertEqual(digest(self.home), after)
