@@ -6,7 +6,11 @@ import type { InboxItem, InboxSnapshot } from '../../types'
 import { goTo, markRead, openPane, patchUi, pickOption, readView, setDraft, submitAnswer } from './actions'
 import { ageOf, bandCounts, doneItems, fit, listGroups, oneLine, parseAdd, sanitize, stamp } from './core'
 
-const ANSWER_FIRST_LINES = 12
+import { blocksTone, bodyBudget, cellWidth, clipCells, DEFAULT_BODY_ROWS, kindTone, outcomeTone, recommendedKey, recPointer, rowsFor } from './core'
+import { clipRows, drawBody, drawOptions, toneProps } from './draw'
+import type { Opt } from './draw'
+import { bodyBlocks } from './markup'
+
 const BODY_COLUMNS_FULL = 60
 
 // tool_use_ids of Bash rows drawn collapsed; their success result draws nothing.
@@ -110,7 +114,7 @@ function listScreen($: any, e: any, ui: any, snap: InboxSnapshot, error: any, T:
       return (
         <Box key={`row-${it.id}`} flexDirection="column">
           <Button key={it.id} plain {...hot} onPress={() => goTo($, 'item', it.id)}>
-            {`${it.id}  ${kind}  ${itemLine(it, Math.max(10, cols - 16))}`}
+            {`${line(it.id)}  ${kind}  ${itemLine(it, Math.max(10, cols - 16))}`}
           </Button>
           {sub ? <Text dimColor wrap="truncate">{`    ${sub}`}</Text> : null}
         </Box>
@@ -138,55 +142,114 @@ function listScreen($: any, e: any, ui: any, snap: InboxSnapshot, error: any, T:
   )
 }
 
-function body($: any, it: InboxItem, ui: any, T: any) {
-  const { Box, Text, Button } = T
-  // The escalations row writes line breaks as <br>, and often starts with the title the screen already shows.
-  const lines = sanitize(it.body).replace(/<br\s*\/?>/gi, '\n').split('\n')
-  if (lines.length > 0 && lines[0].trim() === line(it.title).trim()) lines.shift()
-  const cut = !ui.expanded && lines.length > ANSWER_FIRST_LINES
-  const shown = cut ? lines.slice(0, ANSWER_FIRST_LINES) : lines
-  return (
-    <Box flexDirection="column">
-      {shown.map((l: string, i: number) => (
-        <Text key={`b${i}`} wrap="wrap">{l === '' ? ' ' : l}</Text>
-      ))}
-      {cut ? (
-        <Box key="more">
-          <Text dimColor>{`… ${lines.length - ANSWER_FIRST_LINES} more lines `}</Text>
-          <Button key="show-all" label="Show all" onPress={() => patchUi($, { expanded: true })} />
-        </Box>
-      ) : null}
-    </Box>
-  )
+// --- the item screen (IV-03) ------------------------------------------------------------------
+// One column in V-03 order. The top block (back, header, title, rec pointer) is first; the body is cut by rows
+// (T9 v3) so the options and controls follow it; Show all draws everything. Rows are estimated with `rowsFor`.
+
+const FLOOR_ANSWER = 3
+const FLOOR_READ = 12
+const TITLE_ROWS = 3
+const HEADER_ROWS = 2
+
+type Sized = { node: any; rows: number }
+
+function itemNotice(ui: any, cols: number, T: any): Sized | null {
+  const { Text } = T
+  if (!ui.notice) return null
+  const ok = ui.notice.tone === 'ok'
+  const text = clipRows(`${ok ? '✓' : '⚠'} ${line(ui.notice.text)}`, cols, 2)
+  return { node: <Text key="notice" color={ok ? 'success' : 'error'} wrap="wrap">{text}</Text>, rows: rowsFor(text, cols) }
 }
 
-function handledLines(it: InboxItem): { text: string; tone?: string }[] {
+// `created Y`: under a day `5h ago`; from a day the date and the age when wide, the age alone when compact.
+function createdText(it: InboxItem, now: string, cols: number): string {
+  const age = ageOf(it.created, now)
+  if (age === '') return when(it.created, it.created_precision)
+  if (age === 'now') return 'now'
+  if (!age.endsWith('d')) return `${age} ago`
+  return cols >= BODY_COLUMNS_FULL ? `${when(it.created, it.created_precision).slice(0, 10)} (${age} ago)` : `${age} ago`
+}
+
+function header(it: InboxItem, snap: InboxSnapshot, cols: number, expanded: boolean, T: any): Sized & { cut: boolean } {
+  const { Text } = T
+  const id = line(it.id)
+  const kind = line(it.kind)
+  const created = createdText(it, snap.now, cols)
+  const blocksFull = line(it.blocks) || 'nothing'
+  const plain = (b: string) => `${id} · ${kind} · blocks ${b} · created ${created}`
+  let blocks = blocksFull
+  if (!expanded && rowsFor(plain(blocks), cols) > HEADER_ROWS) {
+    let room = Math.max(1, HEADER_ROWS * cols - cellWidth(plain('')) - 2)
+    blocks = clipCells(blocksFull, room)
+    while (room > 1 && rowsFor(plain(blocks), cols) > HEADER_ROWS) blocks = clipCells(blocksFull, --room)
+  }
+  const bt = it.state === 'done' ? 'dim' : blocksTone(it.blocks)
+  const node = (
+    <Text key="header" wrap="wrap">
+      <Text dimColor>{id}</Text>
+      <Text dimColor>{' · '}</Text>
+      <Text {...toneProps(kindTone(it))}>{kind}</Text>
+      <Text dimColor>{' · '}</Text>
+      <Text {...toneProps(bt)}>{`blocks ${blocks}`}</Text>
+      <Text dimColor>{` · created ${created}`}</Text>
+    </Text>
+  )
+  return { node, rows: rowsFor(plain(blocks), cols), cut: blocks !== blocksFull }
+}
+
+function pointer(rec: string | null, opts: Opt[], key: string | null, cols: number, T: any): Sized | null {
+  const { Text } = T
+  if (rec === null) return null
+  if (key !== null) {
+    const text = `✓ ${recPointer(rec, opts, cols - 2)}`
+    return { node: <Text key="pointer" color="success" wrap="wrap">{text}</Text>, rows: 1 }
+  }
+  const rest = recPointer(rec, opts, cols - 14)
+  return {
+    node: (
+      <Text key="pointer" wrap="wrap">
+        <Text color="success">✓ recommends: </Text>
+        {rest}
+      </Text>
+    ),
+    rows: 1,
+  }
+}
+
+function handledLines(it: InboxItem): { text: string; tone: string }[] {
   const a = it.answer
   const d = it.done
-  const out: { text: string; tone?: string }[] = []
+  const tone = outcomeTone(it)
+  const out: { text: string; tone: string }[] = []
   if (it.state === 'answered-waiting' && a) {
-    out.push({ text: `Answered ${when(a.ts)}, waiting for the Manager.`, tone: 'warning' })
+    out.push({ text: `Answered ${when(a.ts)}, waiting for the Manager.`, tone })
   } else if (d) {
-    if (d.kind === 'read') out.push({ text: `Read ${when(d.ts)}.` })
-    else if (d.kind === 'answered' && a && a.source === 'chat') out.push({ text: `Answered in chat ${when(d.ts)}.` })
+    if (d.kind === 'read') out.push({ text: `Read ${when(d.ts)}.`, tone })
+    else if (d.kind === 'answered' && a && a.source === 'chat') out.push({ text: `Answered in chat ${when(d.ts)}.`, tone })
     else if (d.kind === 'answered') {
       out.push({
         text: a && a.delivered_ts ? `Answered ${when(d.ts)}, delivered ${when(a.delivered_ts)}.` : `Answered ${when(d.ts)}.`,
-        tone: 'success',
+        tone,
       })
-    } else if (d.kind === 'answered-file') out.push({ text: 'Answered in the file (not through the inbox).', tone: 'warning' })
-    else if (d.kind === 'withdrawn') out.push({ text: `Withdrawn by the Manager ${when(d.ts)}${d.reason ? `: ${line(d.reason)}` : ''}.` })
-    else out.push({ text: 'Removed from escalations.md before an answer.' })
+    } else if (d.kind === 'answered-file') out.push({ text: 'Answered in the file (not through the inbox).', tone })
+    else if (d.kind === 'withdrawn') out.push({ text: `Withdrawn by the Manager ${when(d.ts)}${d.reason ? `: ${line(d.reason)}` : ''}.`, tone })
+    else out.push({ text: 'Removed from escalations.md before an answer.', tone })
   }
   return out
 }
 
-function answerForm($: any, it: any, ui: any, T: any) {
+// What is left of an open answer item after the body: options, the notice, the answer fields and Send.
+function answerForm($: any, it: any, ui: any, cols: number, opts: Opt[], rec: string | null, recKey: string | null, notice: Sized | null, T: any): { parts: any[]; rows: number } {
   const { Box, Text, Button, Select, Input } = T
   const id = it.id
   const pending = ui.pending === id
-  const hasOptions = !!it.options && it.options.length > 0
-  const picked = ui.picked[id]
+  const picked = ui.picked[id] ?? null
+  const parts: any[] = []
+  let rows = 0
+  const add = (node: any, n: number) => {
+    parts.push(node)
+    rows += n
+  }
   const field = (key: string, label: string) => (
     <Input
       key={ui.rev ? `${key}-${ui.rev}` : key}
@@ -199,87 +262,161 @@ function answerForm($: any, it: any, ui: any, T: any) {
       }}
     />
   )
-  const send = (
-    <Button key="send" variant="primary" label={pending ? 'Sending…' : 'Send answer'} onPress={() => submitAnswer($, id)} />
-  )
-  return (
-    <Box flexDirection="column">
-      {hasOptions ? (
-        <Box flexDirection="column">
-          <Text bold>Options</Text>
-          {it.options.map((o: any) => (
-            <Text key={`o${o.key}`} wrap="wrap">{`  (${line(o.key)}) ${line(o.text)}`}</Text>
-          ))}
-          {it.recommendation ? <Text dimColor wrap="wrap">{`Manager recommends: ${line(it.recommendation)}`}</Text> : null}
-          <Select
-            key="pick"
-            label="Your answer"
-            options={it.options.map((o: any) => ({ value: o.key, label: `(${line(o.key)}) ${line(o.text)}` }))}
-            {...(picked ? { value: picked } : {})}
-            onSelect={(v: string) => pickOption($, id, v)}
-          />
-          <Text>{picked ? `Picked: (${line(picked)}) ${line((it.options.find((o: any) => o.key === picked) || { text: '' }).text)}` : 'Picked: none yet'}</Text>
-          {field('note', 'Note (optional)')}
-        </Box>
-      ) : (
-        <Box flexDirection="column">
-          {it.options_raw ? (
-            <Box flexDirection="column">
-              <Text bold>Options, as the Manager wrote them</Text>
-              <Text wrap="wrap">{sanitize(it.options_raw)}</Text>
-            </Box>
-          ) : null}
-          {field('reply', 'Your reply')}
-        </Box>
-      )}
-      {send}
-    </Box>
-  )
+  if (opts.length > 0) {
+    add(<Text key="olabel" bold>Options</Text>, 1)
+    const blocks = drawOptions(opts, rec, recKey, picked, cols, T)
+    add(<Box key="opts" flexDirection="column">{blocks.nodes}</Box>, blocks.rows)
+  } else if (it.options_raw) {
+    add(<Text key="rawlabel" bold>Options, as the Manager wrote them</Text>, 1)
+    const raw = sanitize(it.options_raw)
+    add(<Text key="raw" wrap="wrap">{raw}</Text>, rowsFor(raw, cols))
+  }
+  if (rec !== null && recKey === null) {
+    add(
+      <Text key="mgr" wrap="wrap">
+        <Text color="success" bold>Manager recommends: </Text>
+        {rec}
+      </Text>,
+      rowsFor(`Manager recommends: ${rec}`, cols),
+    )
+  }
+  if (notice) add(notice.node, notice.rows)
+  if (opts.length > 0) {
+    add(
+      <Select
+        key="pick"
+        label="Your answer"
+        options={opts.map((o) => ({ value: o.key, label: clipCells(`(${o.key}) ${o.text}`, Math.max(8, cols - 18)) }))}
+        {...(picked ? { value: picked } : {})}
+        onSelect={(v: string) => pickOption($, id, v)}
+      />,
+      1,
+    )
+    add(field('note', 'Note (optional)'), 1)
+  } else {
+    add(field('reply', 'Your reply'), 1)
+  }
+  add(<Button key="send" label={pending ? 'Sending…' : 'Send answer'} onPress={() => submitAnswer($, id)} />, 1)
+  return { parts, rows }
+}
+
+// The state a handled item is opened for: its lines, the PO's answer as typed (never parsed), an unsent note.
+function handledBlock(it: InboxItem, ui: any, error: any, cols: number, T: any): { parts: any[]; rows: number } {
+  const { Text } = T
+  const draft = ui.draft[it.id] ?? ''
+  const parts: any[] = []
+  let rows = 0
+  const add = (node: any, text: string) => {
+    parts.push(node)
+    rows += rowsFor(text, cols)
+  }
+  const changed = 'This item changed while you were reading it.'
+  if (draft !== '') add(<Text key="changed" color="warning" wrap="wrap">{changed}</Text>, changed)
+  handledLines(it).forEach((hl, i) => add(<Text key={`h${i}`} {...toneProps(hl.tone)} wrap="wrap">{hl.text}</Text>, hl.text))
+  if (it.answer && it.flags.includes('cell-not-written')) {
+    const t = 'Answer kept. escalations.md was not updated.'
+    add(<Text key="kept" dimColor wrap="wrap">{t}</Text>, t)
+  }
+  if (it.state === 'answered-waiting' && error) {
+    const t = `answered, delivery not confirmed: ${line(error)}`
+    add(<Text key="unconfirmed" color="error" wrap="wrap">{t}</Text>, t)
+  }
+  if (it.answer) {
+    add(<Text key="yours" bold>Your answer</Text>, 'Your answer')
+    sanitize(it.answer.text)
+      .split('\n')
+      .forEach((l: string, i: number) => add(<Text key={`a${i}`} wrap="wrap">{l === '' ? ' ' : l}</Text>, l === '' ? ' ' : l))
+  }
+  if (draft !== '') {
+    add(<Text key="unsent" dimColor>Your unsent note (not sent):</Text>, 'Your unsent note (not sent):')
+    const d = sanitize(draft)
+    add(<Text key="draft" wrap="wrap">{d}</Text>, d)
+  }
+  return { parts, rows }
 }
 
 function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem, error: any, T: any) {
   const { Box, Text, Button } = T
+  const cols = e.props.bodyColumns
+  const bodyRows = typeof e.props.scroll?.bodyRows === 'number' ? e.props.scroll.bodyRows : DEFAULT_BODY_ROWS
   const fromDone = ui.screen === 'doneItem'
   const back = fromDone ? 'done' : 'list'
-  const isForm = it.state === 'open' && it.kind === 'answer'
+  const open = it.state === 'open'
+  const isForm = open && it.kind === 'answer'
   const hot = isForm ? {} : { hotkey: 'b' }
-  const handled = it.state !== 'open'
-  const draft = ui.draft[it.id] ?? ''
+  const expanded = !!ui.expanded
+  const rec = it.recommendation && line(it.recommendation) !== '' ? line(it.recommendation) : null
+  const opts: Opt[] = (it.options ?? []).map((o: any) => ({ key: line(o.key), text: line(o.text) }))
+  const recKey = recommendedKey(rec, opts)
+  const notice = itemNotice(ui, cols, T)
+
+  // the top block
+  const hd = header(it, snap, cols, expanded, T)
+  const titleFull = line(it.title)
+  const ptr = isForm ? pointer(rec, opts, recKey, cols, T) : null
+  // the top block (back, header, title, pointer) must fit the first viewport
+  const fitCap = Math.max(1, Math.min(TITLE_ROWS, bodyRows - 1 - hd.rows - (ptr ? ptr.rows : 0)))
+  const titleCap = notice && !isForm ? Math.min(2, fitCap) : fitCap
+  const title = expanded ? titleFull : clipRows(titleFull, cols, titleCap)
+  const topRows = 1 + (notice && !isForm ? notice.rows : 0) + hd.rows + rowsFor(title, cols) + (ptr ? ptr.rows : 0)
+  const topCut = title !== titleFull || hd.cut
+
+  // the state lines of a handled item, and what follows the body
+  let after: any[] = []
+  let afterRows = 0
+  let state: any[] = []
+  let stateRows = 0
+  if (isForm) {
+    const f = answerForm($, it, ui, cols, opts, rec, recKey, notice, T)
+    after = f.parts
+    afterRows = f.rows
+  } else if (open) {
+    after = [<Button key="mark-read" hotkey="m" label="Mark read (m)" onPress={() => markRead($, it.id)} />]
+    afterRows = 1
+  } else {
+    const hb = handledBlock(it, ui, error, cols, T)
+    state = hb.parts
+    stateRows = hb.rows
+    if (opts.length > 0) {
+      const blocks = drawOptions(opts, rec, recKey, it.answer ? it.answer.option : null, cols, T)
+      after = [<Text key="olabel" bold>Options</Text>, <Box key="opts" flexDirection="column">{blocks.nodes}</Box>]
+      afterRows = 1 + blocks.rows
+      if (rec !== null && recKey === null) {
+        after.push(<Text key="mgr" wrap="wrap"><Text color="success" bold>Manager recommends: </Text>{rec}</Text>)
+        afterRows += rowsFor(`Manager recommends: ${rec}`, cols)
+      }
+    }
+  }
+
+  const floor = it.kind === 'read' && open ? FLOOR_READ : FLOOR_ANSWER
+  const chrome = topRows + stateRows + afterRows
+  const bd = drawBody(bodyBlocks(it.body, it.title), cols, T, { expanded, fitRows: bodyRows - chrome, budget: bodyBudget(bodyRows, chrome + 1, floor) })
+  const showAll = (text: string, k = 'show-all') => (
+    <Box key={`more-${k}`}>
+      <Text dimColor>{`${text} `}</Text>
+      <Button key={k} label="Show all" onPress={() => patchUi($, { expanded: true })} />
+    </Box>
+  )
+  const bodyMore = bd.cut ? showAll(`… ${bd.hidden} more lines`) : null
+  const topMore = !expanded && topCut ? showAll('… full title', bodyMore ? 'show-title' : 'show-all') : null
+  const total = chrome + bd.rows + (bodyMore ? 1 : 0) + (topMore ? 1 : 0)
+  const hint = total > bodyRows ? <Text key="hint" dimColor>{'  ↓ more below'}</Text> : null
+
   return (
     <Box flexDirection="column">
-      <Button key="back" label={isForm ? '← Back' : '← Back (b)'} {...hot} onPress={() => goTo($, back, null)} />
-      {notice(ui, T)}
-      <Text dimColor wrap="wrap">
-        {`${it.id} · ${it.kind} · blocks ${line(it.blocks) || 'nothing'} · created ${when(it.created, it.created_precision)} (${ageOf(it.created, snap.now) === 'now' ? 'now' : `${ageOf(it.created, snap.now)} ago`})`}
-      </Text>
-      <Text bold wrap="wrap">{line(it.title)}</Text>
-      {body($, it, ui, T)}
-      {handled ? (
-        <Box flexDirection="column">
-          {draft !== '' ? <Text color="warning">This item changed while you were reading it.</Text> : null}
-          {handledLines(it).map((hl, i) => (
-            <Text key={`h${i}`} {...(hl.tone ? { color: hl.tone } : {})} wrap="wrap">{hl.text}</Text>
-          ))}
-          {it.answer && it.flags.includes('cell-not-written') ? (
-            <Text dimColor wrap="wrap">Answer kept. escalations.md was not updated.</Text>
-          ) : null}
-          {it.state === 'answered-waiting' && error ? (
-            <Text color="error" wrap="wrap">{`answered, delivery not confirmed: ${line(error)}`}</Text>
-          ) : null}
-          {it.answer ? <Text bold>Your answer</Text> : null}
-          {it.answer
-            ? sanitize(it.answer.text)
-                .split('\n')
-                .map((l: string, i: number) => <Text key={`a${i}`} wrap="wrap">{l === '' ? ' ' : l}</Text>)
-            : null}
-          {draft !== '' ? <Text dimColor>Your unsent note (not sent):</Text> : null}
-          {draft !== '' ? <Text wrap="wrap">{sanitize(draft)}</Text> : null}
-        </Box>
-      ) : it.kind === 'read' ? (
-        <Button key="mark-read" hotkey="m" label="Mark read (m)" onPress={() => markRead($, it.id)} />
-      ) : (
-        answerForm($, it, ui, T)
-      )}
+      <Box key="top">
+        <Button key="back" label={isForm ? '← Back' : '← Back (b)'} {...hot} onPress={() => goTo($, back, null)} />
+        {hint}
+      </Box>
+      {notice && !isForm ? notice.node : null}
+      {hd.node}
+      <Text key="title" bold wrap="wrap">{title}</Text>
+      {ptr ? ptr.node : null}
+      {state}
+      {topMore}
+      {bd.nodes.length > 0 ? <Box key="body" flexDirection="column">{bd.nodes}</Box> : null}
+      {bodyMore}
+      {after}
     </Box>
   )
 }

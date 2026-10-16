@@ -175,9 +175,11 @@ const ANS = (o: Record<string, unknown> = {}) => ({ text: '(b) Merge PI-01 first
 const DONE_R = item({ id: 'R1', kind: 'read', title: 'Old read', state: 'done', done: { kind: 'read', ts: '2026-10-15T10:42:00', reason: null } })
 const DONE_E = item({ id: 'E4', title: 'Old question', state: 'done', answer: ANS({ delivered_ts: '2026-10-15T10:43:00' }), done: { kind: 'answered', ts: '2026-10-15T10:30:00', reason: null } })
 
-async function openItem($: any, surface: string, id: string) {
+async function openItem($: any, surface: string, id: string, cols = 100, bodyRows = 20) {
   await $.command.run({ command: 'inbox' })
-  const ui = await $.ui.mount(pane(surface))
+  const p = pane(surface, cols)
+  p.props.scroll = { bodyRows }
+  const ui = await $.ui.mount(p)
   await ui.press({ key: id })
   return ui
 }
@@ -247,6 +249,9 @@ test('list-50 and list-long-title: nothing dropped, the long title cut with an e
   }
   const ui = await $.ui.mount(pane('terminal', 80))
   await ui.press({ key: 'E100' })
+  // IV-03: the item screen caps the title at 3 rows; Show all draws it whole.
+  expect(await dump(ui)).not.toContain('T'.repeat(300))
+  await ui.press({ key: 'show-all' })
   expect(await dump(ui)).toContain('T'.repeat(300))
 })
 
@@ -278,9 +283,11 @@ test('item-answer-options: options, recommendation as text only, nothing picked,
   for (const surface of SURFACES) {
     const ui = await openItem($, surface, 'E3')
     const text = await dump(ui)
-    expect(text).toContain('(a) Merge PI-03 first')
+    // IV-03: an option is a hanging block, its key and its text are separate rows of the tree.
+    expect(text).toContain('(a) \nMerge PI-03 first')
     expect(text).toContain('Manager recommends: b: less rework')
-    expect(text).toContain('Picked: none yet')
+    expect(text).not.toContain('Picked:')
+    expect(text).not.toContain('your pick')
     expect((await ui.find({ key: 'pick' }))?.props?.value).toBeUndefined()
     expect((await ui.find({ key: 'back' }))?.props?.hotkey).toBeUndefined()
     expect(await ui.find({ key: 'note' })).toBeDefined()
@@ -305,10 +312,11 @@ test('item-answer-free and item-answer-unparsed', async ($, on) => {
   }
 })
 
-test('item-long-body: 12 lines then Show all gives the whole body (B-36)', async ($, on) => {
+test('item-long-body: the read-item floor of 12 lines then Show all gives the whole body (B-36)', async ($, on) => {
   const body = Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join('\n')
   await boot($, on, snap([item({ id: 'R9', kind: 'read', body })]))
-  const ui = await openItem($, 'terminal', 'R9')
+  // IV-03: the cut follows the pane's rows (T9 v3), floor 12 for a read item; at 7 rows it is the floor.
+  const ui = await openItem($, 'terminal', 'R9', 80, 7)
   let text = await dump(ui)
   expect(text).toContain('line 12')
   expect(text).not.toContain('line 13')
@@ -331,7 +339,7 @@ test('answer flow: pick b, note, submit: the CLI runs once with argv and stdin, 
   })
   const ui = await openItem($, 'terminal', 'E3')
   await ui.select({ key: 'pick', value: 'b' })
-  expect(await dump(ui)).toContain('Picked: (b) Merge PI-01 first')
+  expect(await dump(ui)).toContain('▸ (b) \nMerge PI-01 first ← your pick')
   await ui.input({ key: 'note', text: 'because', kind: 'change' })
   await Promise.all([ui.press({ key: 'send' }), ui.press({ key: 'send' })])
   expect(answered).toBe(true)
@@ -791,7 +799,8 @@ test('a refused answer (exit 3) keeps the typed text in the field; an accepted o
   const back = await openItem($, 'terminal', 'E3')
   const t = await dump(back)
   expect(t).not.toContain('my words')
-  expect(t).toContain('Picked: none yet')
+  expect(t).not.toContain('Picked:')
+  expect(t).not.toContain('your pick')
 })
 
 test('Mark read with a failing CLI shows the error and stays on the item (B-35)', async ($, on) => {
