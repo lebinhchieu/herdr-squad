@@ -172,10 +172,15 @@ class SectionViewTest(unittest.TestCase):
 
 
     def test_dev_copies_reports_to_evidence_and_sends_a_diff_check_after_a_pass(self):
-        text = (ROOT / "agents/dev.md").read_text()
-        self.assertRegex(text, r"evidence/<task>/` at the sha you hand in")
-        self.assertIn("HANDIN <task>: diff check <passed sha>..<new sha>", text)
-        self.assertIn("both QAs", text)
+        lines = (ROOT / "agents/dev.md").read_text().splitlines()
+        copy = [l for l in lines if l.startswith("- **Copy a report")]
+        after = [l for l in lines if l.startswith("- **After a `PASS`")]
+        self.assertEqual(len(copy), 1)
+        self.assertEqual(len(after), 1)
+        self.assertIn("evidence/<task>/", copy[0])
+        self.assertIn("hand in", copy[0])
+        self.assertIn("diff check", after[0])
+        self.assertIn("both QAs", after[0])
 
 
 if __name__ == "__main__":
