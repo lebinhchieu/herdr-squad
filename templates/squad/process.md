@@ -175,7 +175,7 @@ Send with `SendMessage` to the agent name in your scope's `roster.md`, as `<TYPE
 - Point at files and lines; never paste them. `BLOCKED`, `HANDIN`, `PASS`, `FAIL` and `STATUS` name the task ID right after the type.
 - Ask the owner from `roster.md`; when it doesn't say, ask the Team Lead (S: the Manager).
 - **Pod contact (M, L):** the Team Lead spawns and retires Developers, runs health checks and routes questions. Pod members message it, not the Manager.
-- **Team Lead to Manager (M, L):** only an "Always goes to PO" item, a size-change signal, a dispute it cannot settle or 3 returns on one task (a budget line); plus the iteration summary.
+- **Team Lead to Manager (M, L):** only an "Always goes to PO" item, a size-change signal, a plan or assignment dispute it is itself a party to (the parties send every other dispute to the Manager themselves) or 3 returns on one task (a budget line); plus the iteration summary.
 - **Two-round rule:** agents who haven't agreed after 2 exchanges send the topic to its owner, or to the Manager when the owner is one of them.
 - **A Manager or Team Lead ruling starts with `FINAL:` and is sent once.** The owner never re-opens it; a new fact goes to the ruler as a new `ASK`.
 - The Team Lead (S: the Manager) never pushes `STATUS`: it reads logs, the roster and the task file first, and pings an agent only after 10 minutes of no pane activity.

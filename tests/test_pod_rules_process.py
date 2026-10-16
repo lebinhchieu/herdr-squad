@@ -55,6 +55,13 @@ class PodRulesTest(unittest.TestCase):
     def test_no_byte_budget(self):
         self.assertNotRegex(T, r"\bbytes\b")
 
+    def test_team_lead_to_manager_dispute_wording(self):
+        line = row(T, "- **Team Lead to Manager (M, L):**")
+        self.assertIn("a plan or assignment dispute it is itself a party to (the parties send every other dispute to the Manager themselves)", line)
+        self.assertNotIn("cannot settle", line)
+        h = ROOT / "skills/squad-process-update/history/process-v4.md"
+        self.assertEqual(h.read_text(), T)
+
 
 if __name__ == "__main__":
     unittest.main()
