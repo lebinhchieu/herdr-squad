@@ -1,6 +1,6 @@
 # `waiting` means a background shell or monitor, nothing else
 
-Status: superseded by 0008 (was: accepted (BRD-29))
+Status: superseded by 0009 (was: accepted (BRD-29))
 
 An idle agent is `waiting` when the last pane line says `N shells still running` or `N monitors`.
 
