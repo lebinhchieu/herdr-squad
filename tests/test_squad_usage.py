@@ -82,7 +82,7 @@ class UsageTest(UsageBase):
         self.assertEqual(row[1], "claude-sonnet-5-5/medium")
         self.assertEqual(row[2], "3")
         self.assertEqual(row[3:5], ["70k", "70k"])
-        self.assertEqual(row[5:], ["0k", "0", "0", "0"])  # out, expiries, compactions, subagents
+        self.assertEqual(row[5:], ["0k", "0", "0", "0k"])  # out, expiries, compactions, subagents
         self.assertNotIn("manager", r.stdout)
 
     def test_cache_expiry_needs_gap_and_big_write(self):
@@ -187,16 +187,17 @@ class UndercountTest(UsageBase):
         self.roster(("dev-1", "s1"))
         rows, head = self.table()
         row = rows["dev-1"]
-        self.assertEqual(row[2], "4")                    # 2 own + 2 subagent ids
-        self.assertEqual(row[5], "4k")                   # 100+200+3000 (max of x1's lines)+1000 = 4300
-        self.assertEqual(row[-1], "2")                   # subagents column
+        self.assertEqual(row[2], "2")                    # turns: main thread only
+        self.assertEqual(row[5], "4k")                   # out: 100+200+3000 (max of x1's lines)+1000 = 4300
+        self.assertEqual(row[-1], "4k")                  # subagents: their output tokens, 4000
+        self.assertIn("turns = main-thread", self.run_cli("--squad-dir", str(self.squad)).stdout)
         self.assertEqual(row[4], "5k")                   # last ctx is the agent's own, not the subagent's
 
     def test_sidechain_line_in_the_main_file_counts_as_subagent(self):
         self.transcript("s1", [turn(0, "m1"), turn(1, "side", isSidechain=True, ctx=(2, 90_000, 0))])
         self.roster(("dev-1", "s1"))
         row = self.table()[0]["dev-1"]
-        self.assertEqual((row[2], row[3], row[-1]), ("2", "1k", "1"))
+        self.assertEqual((row[2], row[3], row[-1]), ("1", "1k", "0k"))
 
     def test_sessions_with_the_same_agent_name_sum(self):
         self.named("old", "dev-1", [turn(0, "a", ctx=(2, 90_000, 0), out=1000), turn(1, "b", ctx=(2, 91_000, 0), out=1000)])
@@ -219,12 +220,38 @@ class UndercountTest(UsageBase):
         self.assertEqual(self.table()[0], real)
         self.assertEqual(real["dev-1"][2], "2")
 
+    def test_same_name_in_another_project_dir_is_not_summed(self):
+        other = self.cfg / "projects" / "-another-squad"
+        other.mkdir()
+        wt = self.cfg / "projects" / "-some-cwd--worktrees-sc-dev-1"
+        wt.mkdir()
+        rec = {"type": "agent-name", "agentName": "dev-1"}
+        (other / "x.jsonl").write_text(json.dumps(rec) + "\n" + json.dumps(turn(0, "z", out=9000)) + "\n")
+        (wt / "w.jsonl").write_text(json.dumps(rec) + "\n" + json.dumps(turn(0, "w", out=2000)) + "\n")
+        self.named("mine", "dev-1", [turn(0, "a", out=1000)])
+        self.roster(("dev-1", "mine"))
+        row = self.table()[0]["dev-1"]
+        self.assertEqual((row[2], row[5]), ("2", "3k"))   # own dir + its worktree dir, not -another-squad
+
+    def test_missing_roster_session_is_reported_not_guessed(self):
+        self.named("x", "dev-1", [turn(0, "a")])
+        self.roster(("dev-1", "gone"))
+        r = self.run_cli("--squad-dir", str(self.squad))
+        self.assertIn("no transcript", r.stdout)
+        self.assertIn("could not be told", r.stdout)
+
+    def test_two_paths_for_one_session_id_take_the_sorted_first(self):
+        for d, ctx in (("-b-cwd", 5000), ("-a-cwd", 150_000)):
+            (self.cfg / "projects" / d).mkdir()
+            (self.cfg / "projects" / d / "dup.jsonl").write_text(json.dumps(turn(0, "a", ctx=(2, ctx, 0), base=NOW)) + "\n")
+        self.assertEqual(self.run_cli("--check", "dup").stdout.strip(), "fresh")   # -a-cwd wins
+
     def test_one_session_no_subagents_is_todays_table(self):
         self.transcript("s1", [turn(0, "a", ctx=(2, 0, 20_000), out=50), turn(1, "b", ctx=(2, 20_000, 40_000), out=100)])
         self.roster(("dev-1", "s1"))
         rows, head = self.table()
         self.assertEqual(head.split()[:3], ["agent", "model/effort", "turns"])
-        self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "0k", "0", "0", "0"])
+        self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "0k", "0", "0", "0k"])
 
     def test_check_ignores_other_sessions_and_subagents(self):
         self.named("old", "dev-1", [turn(0, "a", ctx=(2, 150_000, 0), base=NOW)])

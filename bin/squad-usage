@@ -51,14 +51,24 @@ def agent_name(path, limit=50):
     return None
 
 
-def agent_sessions():
-    """{agentName: [transcript path]} for every top-level transcript with an agent-name record."""
-    out = {}
-    for p in projects_glob("*/*.jsonl"):
-        name = agent_name(p)
-        if name:
-            out.setdefault(name, []).append(p)
-    return out
+WORKTREES = "--worktrees-"
+
+
+def agent_sessions(name, roster_path):
+    """Transcripts of agent `name`: only the project dirs of its roster session (and the squad's main dir) and of its worktree.
+    Another squad's agent of the same bare name lives in another project dir and is never read. Returns (paths, certain)."""
+    if not roster_path:
+        return [], False
+    base = Path(roster_path).parent.name.split(WORKTREES)[0]
+    projects = config_dir() / "projects"
+    dirs = {base, Path(roster_path).parent.name}
+    dirs |= {d.name for d in projects.glob(base + WORKTREES + "*") if d.name.endswith("-" + name)}
+    out = []
+    for d in sorted(dirs):
+        for p in projects_glob(f"{d}/*.jsonl"):
+            if agent_name(p) == name:
+                out.append(p)
+    return out, True
 
 
 def parse_ts(s):
@@ -117,13 +127,13 @@ def is_expiry(a, b):
 def summarize(path):
     """One session. Context, expiries and model follow the agent's own turns; turns and out include its subagents."""
     every, compactions = read_session(path)
-    rows = [t for t in every if not t["side"]] or every
+    rows = [t for t in every if not t["side"]]
     if not rows:
         return None
     expiries = sum(is_expiry(a, b) for a, b in zip(rows, rows[1:]))
     last = rows[-1]
-    return {"model": last["model"], "effort": last["effort"] or "-", "turns": len(every),
-            "subagents": sum(t["side"] for t in every),
+    return {"model": last["model"], "effort": last["effort"] or "-", "turns": len(rows),
+            "subagents": sum(t["out"] for t in every if t["side"]),
             "peak": max(t["ctx"] for t in rows), "last": last["ctx"], "out": sum(t["out"] for t in every),
             "expiries": expiries, "compactions": compactions, "last_ts": last["ts"],
             "just_expired": len(rows) > 1 and is_expiry(rows[-2], last)}
@@ -207,26 +217,32 @@ def report(squad_dir):
     entries = roster_sessions(squad_dir / "roster.md")
     if not entries:
         sys.exit("no session ids in roster.md")
-    named = agent_sessions()
     head = ("agent", "model/effort", "turns", "peak ctx", "last ctx", "out", "expiries", "compactions", "subagents")
-    body, seen = [], set()
+    body, seen, unsure = [], set(), []
     for name, sid in entries:
         if name in seen:
             continue
         seen.add(name)
-        paths = set(named.get(name, []))
         found = find_transcript(sid)
+        paths, certain = agent_sessions(name, found)
         if found:
-            paths.add(str(found))
-        s = summarize_agent(sorted(paths))
+            paths.append(str(found))
+        elif not certain:
+            unsure.append(name)
+        s = summarize_agent(sorted(set(paths)))
         if not s:
             body.append((name, "no transcript", "-", "-", "-", "-", "-", "-", "-"))
             continue
         body.append((name, f"{s['model']}/{s['effort']}", s["turns"], fmt_k(s["peak"]), fmt_k(s["last"]),
-                     fmt_k(s["out"]), s["expiries"], s["compactions"], s["subagents"]))
+                     fmt_k(s["out"]), s["expiries"], s["compactions"], fmt_k(s["subagents"])))
     widths = [max(len(str(r[i])) for r in [head] + body) for i in range(len(head))]
     for r in [head] + body:
         print("  ".join(str(c).ljust(w) for c, w in zip(r, widths)).rstrip())
+    print("note: turns = main-thread turns only; out includes subagents; subagents = their output tokens (inside out);"
+          " peak/last ctx, expiries, model are the agent's own thread")
+    if unsure:
+        print("note: roster session not found, so the squad could not be told; no other sessions were scanned for: "
+              + ", ".join(unsure))
 
 
 def main():
