@@ -359,3 +359,22 @@ describe('real samples', () => {
     for (const t of ['heading', 'bullet', 'number', 'code', 'table', 'rec', 'para', 'blank']) expect(seen.has(t as Block['type'])).toBe(true)
   })
 })
+
+describe('fence close and number width', () => {
+  for (const ch of ['`', '~']) {
+    test(`a 1- or 2-char line of ${ch} inside a ${ch.repeat(3)} fence stays code`, () => {
+      const b = parseBody([ch.repeat(3), 'a', ch, 'b', ch.repeat(2), 'c', ch.repeat(3), 'after'].join('\n'))
+      expect(b[0]).toEqual({ type: 'code', lang: '', lines: ['a', ch, 'b', ch.repeat(2), 'c'] })
+      expect(b[1].type).toBe('para')
+    })
+  }
+
+  test('multi-digit numbers keep n as written; ten digits is plain text', () => {
+    expect(first('10. x')).toMatchObject({ type: 'number', n: 10 })
+    expect(first('123456789. x')).toMatchObject({ type: 'number', n: 123456789 })
+    const b = parseBody('1234567890. x')
+    expect(b.length).toBe(1)
+    expect(b[0].type).toBe('para')
+    expect(plainOf(b)).toBe('1234567890. x')
+  })
+})
