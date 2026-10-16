@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 -I
+#!/usr/bin/env python3
 """AT-02 A/B runner. Usage: python3 -I scripts/ab.py run <candidate> <arm-alias> <n-runs> [--tag T]
                           python3 -I scripts/ab.py report
 Each run: fresh temp dir outside the repo with a byte copy of fixtures/<c>/input, the committed prompt.md on stdin,
