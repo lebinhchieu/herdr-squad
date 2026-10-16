@@ -21,7 +21,7 @@ test('styleOf finds a bold, a dim and a coloured Text', () => {
 test('rowsOfTree counts rendered rows by width', () => {
   expect(lines(tree)).toHaveLength(4)
   expect(rowsOfTree(tree, 80)).toBe(4)
-  expect(rowsOfTree(tree, 4)).toBe(7)
+  expect(rowsOfTree(tree, 4)).toBe(9)
 })
 
 test('styleOf returns the innermost Text of a nested tree (the band shape)', () => {

@@ -3,6 +3,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import {
   TONE, blocksTone, bodyBudget, capGroup, cellWidth, kindTone, outcomeTone, recommendedKey, recPointer, clipCells, rowsFor, sanitize, tableLayout,
 } from './core'
+import { clipRows } from './draw'
 import { FIXTURES } from './fixtures'
 
 const ABC = [{ key: 'a' }, { key: 'b' }, { key: 'c' }]
@@ -92,6 +93,23 @@ describe('rowsFor', () => {
     expect(rowsFor('漢'.repeat(10), 5)).toBe(5)
     expect(rowsFor('漢'.repeat(200), 31)).toBe(14)
     expect(rowsFor('漢'.repeat(3), 3)).toBe(3)
+  })
+  test('after a row filled to the full width the next row starts one cell in (QAB F1)', () => {
+    expect(rowsFor('aaaa bb', 4)).toBe(2)
+    expect(rowsFor('aaaa bbb', 4)).toBe(2)
+    expect(rowsFor('aaaa bbbb', 4)).toBe(3)
+    expect(rowsFor('aaaa bbbb', 5)).toBe(2)
+    expect(rowsFor('a'.repeat(8), 4)).toBe(3)
+    expect(rowsFor('a'.repeat(7), 4)).toBe(2)
+    expect(rowsFor('漢字 漢字', 4)).toBe(3)
+  })
+  test('the two real titles whose first row is 36 cells: 3 rows uncut, 2 after clipRows (QAB F1)', () => {
+    for (const t of ['inbox-visual: what should the visual mean in the terminal inbox for every kind of item', 'auth: do we accept the legacy tokens during the migration window for internal tools?']) {
+      expect(rowsFor(t, 36)).toBe(3)
+      const c = clipRows(t, 36, 2)
+      expect(rowsFor(c, 36)).toBe(2)
+      expect(c.endsWith('…')).toBe(true)
+    }
   })
   test('leading and repeated spaces never shrink the count', () => expect(rowsFor('   a    b', 4)).toBeGreaterThan(1))
   test('cols 0 and negative do not hang', () => {

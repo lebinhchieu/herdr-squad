@@ -430,6 +430,21 @@ test('hint counts the `… full title` row: cut title, uncut body at 80x7 shows 
   await fits.ui.unmount()
 })
 
+test('QAB F1: 80-char titles whose first row is exactly 36 cells: title cut at 2 rows, the pointer is inside the 6-row viewport at 36 columns', async ($, on) => {
+  const titles = ['inbox-visual: what should the visual mean in the terminal inbox for every kind of item', 'auth: do we accept the legacy tokens during the migration window for internal tools?']
+  for (const [i, title] of titles.entries()) {
+    const long = item({ id: `F1-${i}`, title, blocks: 'IV-02', created: '2026-10-16T09:00:00', body: VISUAL.e1, recommendation: E1_REC, options: E1_OPTS })
+    const { ui } = await open($, on, [long], `F1-${i}`, 36, ROWS_24)
+    const tree = await ui.drawn()
+    const r = rowsOf(tree)
+    const t = r.find((l) => l.startsWith(title.slice(0, 5))) as string
+    expect(t.endsWith('…'), r.join('\n')).toBe(true)
+    expect(refRows(t, 36)).toBe(2)
+    expect(rows7(tree, 'recommends', 36), r.join('\n')).toBeLessThanOrEqual(ROWS_24)
+    await ui.unmount()
+  }
+})
+
 test('3.1e: 300-char title, 2-row header, 40 columns, 6 rows: the pointer is inside the first viewport, the title shows 2 rows', async ($, on) => {
   const blocks = `${'work item '.repeat(12)}end`
   const long = item({ id: 'E8', title: VISUAL.title300, blocks, body: VISUAL.e1, recommendation: E1_REC, options: E1_OPTS })
