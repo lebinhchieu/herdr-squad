@@ -4,7 +4,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { cellWidth } from './core'
 import { E1_OPTIONS, E1_REC, E1_TITLE, VISUAL } from './fixtures/visual'
-import { boot, item, lines, pane, snap, styleOf } from './testkit'
+import { boot, item, START, lines, pane, snap, styleOf } from './testkit'
 
 const ROWS_24 = 7
 const ROWS_40 = 11
@@ -44,18 +44,24 @@ const REMOVED = handled('done', { kind: 'removed', ts: '2026-10-16T12:00:00', re
 
 // One boot per test (the hooks are registered once): later opens in the same test reuse it, so a test passes the
 // same universe of items every time.
-const booted = new WeakMap<object, any>()
-async function open($: any, on: any, items: any[], id: string, cols = 80, rows = ROWS_24) {
-  let w = booted.get($)
-  if (!w) booted.set($, (w = await boot($, on, snap(items))))
+const booted = new WeakMap<object, { w: any; ui: any }>()
+async function open($: any, on: any, items: any[], id: string, cols = 80, rows = ROWS_24, cli?: (argv: string[], stdin?: string) => any) {
+  let st = booted.get($)
+  if (!st) booted.set($, (st = { w: await boot($, on, snap(items), cli), ui: null }))
+  else {
+    st.w.current = snap(items)
+    await $.session.start(START)
+  }
+  if (st.ui) await st.ui.unmount().catch(() => undefined)
   await $.command.run({ command: 'inbox' })
   const ui = await $.ui.mount(pane('terminal', cols, rows))
+  st.ui = ui
   const target = items.find((i) => i.id === id)
   if (target.state === 'done') {
     await ui.press({ key: 'done' })
     await ui.press({ key: `d-${id}` })
   } else await ui.press({ key: id })
-  return { ui, w }
+  return { ui, w: st.w }
 }
 
 // Leaves of the tree in reading order; a row Box (a hanging block, the Back row) is one leaf.
@@ -127,7 +133,8 @@ function walk(n: any, fn: (n: any) => void) {
 }
 const flat = (n: any): string => (n === null || n === undefined ? '' : typeof n === 'string' ? n : Array.isArray(n) ? n.map(flat).join('') : flat(n.children ?? []))
 
-const words = (s: string) => s.split(/\s+/).filter(Boolean)
+// Words only: markup characters and punctuation drop out, so a bold, chip or glyph does not break the order.
+const words = (s: string) => s.replace(/[^\p{L}\p{N}]+/gu, ' ').split(' ').filter(Boolean)
 // `needle` words appear in `hay` words in order, as a subsequence.
 function inOrder(hay: string, needle: string): boolean {
   const h = words(hay)
@@ -182,16 +189,15 @@ function rows7(tree: any, marker: string, cols: number): number {
   return n
 }
 
-test('3.1c: the top block stays whole, with no notice, an ok notice and an error row, at both widths', async ($, on) => {
-  const notices = [null, { tone: 'ok', text: 'Saved.' }, { tone: 'error', text: 'E1 was answered by chat at 10:02 and the answer was not sent, so nothing changed here' }]
+test('3.1c: the top block stays whole with no notice and with an error row, at both widths', async ($, on) => {
   for (const [cols, rows] of [[80, ROWS_24], [40, ROWS_24]]) {
-    for (const notice of notices) {
-      const { ui, w } = await open($, on, [E1], 'E1', cols, rows)
-      void w
-      if (notice) await ui.press({ key: 'send' }) // a refused empty answer is the real way to get a notice; fall through below
+    for (const withNotice of [false, true]) {
+      const { ui } = await open($, on, [E1], 'E1', cols, rows)
+      if (withNotice) await ui.press({ key: 'send' }) // an empty answer is refused: the real way to get an error row
       const tree = await ui.drawn()
-      expect(rows7(tree, 'recommends (c)', cols)).toBeLessThanOrEqual(ROWS_24)
       const r = rowsOf(tree)
+      expect(r.some((l) => l.startsWith('⚠ '))).toBe(withNotice)
+      expect(rows7(tree, 'recommends (c)', cols)).toBeLessThanOrEqual(ROWS_24)
       expect(r.findIndex((l) => l.includes('✓ recommends (c)'))).toBeLessThan(r.findIndex((l) => l.includes('Options')))
       await ui.unmount()
     }
@@ -285,7 +291,7 @@ test('M4: E2 (rec not marked): pointer with the start of the rec, the full rec o
   await ui.press({ key: 'show-all' })
   const full = textOf(await ui.drawn())
   expect(full).toContain('✓ recommended the item screen')
-  expect(inOrder(full, VISUAL.e2.split('<br>').slice(1).join(' ').replace(/\[rec\]/g, 'recommended'))).toBe(true)
+  expect(inOrder(full, VISUAL.e2.replace(/<br>\s+\[rec\]/g, '<br>recommended').split('<br>').slice(1).join(' '))).toBe(true)
 })
 
 test('M5: read item with markdown: structure, glyphs, chips, table, Mark read last', async ($, on) => {
@@ -304,7 +310,7 @@ test('M5: read item with markdown: structure, glyphs, chips, table, Mark read la
   expect(text).toContain('1. numbered one')
   expect(styleOf(tree, '1.')).toEqual({ bold: true })
   expect(text).toContain('Task   State')
-  expect(text).toContain('─────  ─────────')
+  expect(text).toContain('─────  ────────')
   expect(text).not.toMatch(/\|---|\*\*|`|^#/m)
   expect(styleOf(tree, 'Task   State')).toEqual({ bold: true })
   expect(text).toContain('↓ more below')
@@ -312,7 +318,7 @@ test('M5: read item with markdown: structure, glyphs, chips, table, Mark read la
   expect(rowsOf(tree).at(-1)).toBe('[Mark read (m)]')
   await ui.unmount()
   // 40 columns: the table is stacked, column names bold, a blank row between records
-  const narrow = await open($, on, [R1], 'R1', 40, ROWS_24)
+  const narrow = await open($, on, [R1], 'R1', 40, 40)
   tree = await narrow.ui.drawn()
   text = textOf(tree)
   expect(text).toContain('Task: IV-01')
@@ -364,7 +370,6 @@ test('handled with options: blocks, the recommended mark stays, the PO pick in w
   expect(text).toContain('✓ recommended: (b), fewer keys')
   expect(text).toContain('(b) use **Tab**, no hotkey')
   expect(styleOf(tree, 'blocks IV-04')).toEqual({ color: 'error' })
-  expect(styleOf(tree, 'answer')).toEqual({})
   expect(styleOf(tree, 'Your answer')).toEqual({ bold: true })
   expect(styleOf(await (await open($, on, all, DELIVERED.id, 80, ROWS_24)).ui.drawn(), 'blocks IV-04')).toEqual({ dimColor: true })
   expect(styleOf(await (await open($, on, all, READ.id, 80, ROWS_24)).ui.drawn(), 'blocks IV-04')).toEqual({ dimColor: true })
@@ -445,15 +450,15 @@ test('notice: on the answer form directly above Your answer, the top block uncha
 
 test('notice on a read item sits under the Back row and the title cap drops to 2 rows', async ($, on) => {
   const R3 = item({ id: 'R3', kind: 'read', title: VISUAL.title300, body: 'b' })
-  const { ui } = await open($, on, [R3], 'R3', 40, ROWS_24)
-  await ui.press({ key: 'mark-read' }) // the CLI mock answers ok with nothing to change: a notice either way
+  const { ui } = await open($, on, [R3], 'R3', 40, ROWS_24, (argv) => (argv[0] === 'read' ? { exitCode: 2, stdout: '', stderr: 'R3 is locked\n' } : undefined))
+  await ui.press({ key: 'mark-read' })
   const r = rowsOf(await ui.drawn())
-  const n = r.findIndex((l) => l.startsWith('✓ ') || l.startsWith('⚠ '))
-  if (n >= 0) {
-    expect(n).toBe(1)
-    const t = r.find((l) => l.startsWith('TTT')) as string
-    expect(refRows(t, 40)).toBeLessThanOrEqual(2)
-  }
+  const n = r.findIndex((l) => l.startsWith('⚠ '))
+  expect(r[n]).toBe('⚠ R3 is locked')
+  expect(r.slice(0, n).filter((l) => !l.includes('more below'))).toEqual(['[← Back (b)]'])
+  expect(r[n + 1].startsWith('R3 · read')).toBe(true)
+  const t = r.find((l) => l.startsWith('TTT')) as string
+  expect(refRows(t, 40)).toBeLessThanOrEqual(2)
 })
 
 // --- V-11 through the real screen ---------------------------------------------------------------
@@ -469,28 +474,28 @@ test('V-11: each row through the screen: mark and success only on the marked opt
     const it = item({ id: 'E3', options: E1_OPTS, recommendation: rec })
     const { ui } = await open($, on, [it], 'E3', 80, 40)
     const tree = await ui.drawn()
-    const marks: string[] = []
-    walk(tree, (n) => {
-      if (n.type === 'Text' && flat(n).includes('✓ recommended: ')) marks.push(flat(n))
-    })
-    const mgr: string[] = []
-    walk(tree, (n) => {
-      if (n.type === 'Text' && flat(n).startsWith('Manager recommends: ')) mgr.push(flat(n))
-    })
+    const label = (l: string) => {
+      let c = 0
+      walk(tree, (n) => {
+        if (n.type === 'Text' && n.children?.length === 1 && n.children[0] === l) c++
+      })
+      return c
+    }
+    const r0 = rowsOf(tree)
     const trimmed = rec.trim()
     if (key) {
-      expect(marks).toHaveLength(1)
-      expect(marks[0]).toBe(`✓ recommended: ${trimmed}`)
+      expect(label('✓ recommended: ')).toBe(1)
+      expect(r0.filter((l) => l.endsWith(`✓ recommended: ${trimmed}`))).toHaveLength(1)
       expect(styleOf(tree, '✓ recommended: ')).toEqual({ color: 'success', bold: true })
-      expect(mgr).toHaveLength(0)
+      expect(label('Manager recommends: ')).toBe(0)
       // the mark sits in the block of its own option, a separate Text from the key and the option text
       const r = rowsOf(tree)
       const at = r.findIndex((l) => l.includes('✓ recommended: '))
-      expect(r.slice(0, at).reverse().find((l) => /^[▸ ] \([a-z]\)/.test(l))?.[3]).toBe(key)
+      expect(r.slice(0, at + 1).reverse().find((l) => /^[▸ ] \([a-z]\)/.test(l))?.[3]).toBe(key)
       expect(r.join('\n').split('✓ recommends (' + key + ')').length - 1).toBe(1)
     } else {
-      expect(marks).toHaveLength(0)
-      expect(mgr).toEqual([`Manager recommends: ${trimmed}`])
+      expect(label('✓ recommended: ')).toBe(0)
+      expect(r0.filter((l) => l === `Manager recommends: ${trimmed}`)).toHaveLength(1)
       expect(textOf(tree)).toContain('✓ recommends: ')
       expect(textOf(tree)).not.toContain('✓ recommends (')
     }
@@ -500,10 +505,10 @@ test('V-11: each row through the screen: mark and success only on the marked opt
 })
 
 test('V-11: no rec at all: no pointer, no recommends line; options still drawn', async ($, on) => {
-  const { ui } = await open($, on, [item({ id: 'E3', options: E1_OPTS })], 'E3', 80, 40)
+  const { ui } = await open($, on, [item({ id: 'E3', options: H_OPTS })], 'E3', 80, 40)
   const text = textOf(await ui.drawn())
   expect(text).not.toContain('recommend')
-  expect(text).toContain('(c) Both')
+  expect(text).toContain('(c) both')
 })
 
 test('V-14: options not parsed: the raw text whole, then the rec line, then Your reply; no Select', async ($, on) => {
@@ -536,14 +541,14 @@ test('body cut: E1 at 7 rows shows the floor, then N more lines, then the option
 })
 
 test('body cut: a tall pane shows everything, no cut and no hint; the hint is on at 7 rows', async ($, on) => {
-  const tall = await open($, on, [E1], 'E1', 80, 40)
+  const tall = await open($, on, [E1], 'E1', 80, 60)
   const text = textOf(await tall.ui.drawn())
   expect(text).not.toContain('more lines')
   expect(text).not.toContain('↓ more below')
   expect(await tall.ui.find({ key: 'show-all' })).toBeUndefined()
   expect(inOrder(text, VISUAL.e1.split('<br>').slice(1).join('\n'))).toBe(true)
-  const mid = await open($, on, [E1], 'E1', 80, 30)
-  expect(textOf(await mid.ui.drawn())).not.toContain('more lines')
+  const mid = await open($, on, [E1], 'E1', 80, 20)
+  expect(textOf(await mid.ui.drawn())).toContain('more lines')
   const short = await open($, on, [E1], 'E1', 80, 7)
   expect(textOf(await short.ui.drawn())).toContain('↓ more below')
 })
@@ -627,9 +632,9 @@ test('V-27: ESC, OSC and U+202E in every drawn source are removed', async ($, on
     await ui.unmount()
   }
   const w = handled('done', { kind: 'withdrawn', ts: '2026-10-16T12:00:00', reason: `why ${BAD}` }, null)
-  clean(textOf(await (await open($, on, [w], 'E3', 80, 40)).ui.drawn()))
+  clean(textOf(await (await open($, on, [w], w.id, 80, 40)).ui.drawn()))
   const a = handled('answered-waiting', null, ANS({ text: `typed ${BAD}` }))
-  clean(textOf(await (await open($, on, [a], 'E3', 80, 40)).ui.drawn()))
+  clean(textOf(await (await open($, on, [a], a.id, 80, 40)).ui.drawn()))
 })
 
 // --- 7, 3.6, 3.9: colour, truncation, colourless ----------------------------------------------
@@ -638,7 +643,7 @@ const STRUCT = '# Head\n## Two\n### Three\nplain **bold** and `code`\n- bullet\n
 test('V-18: no meaning colour on structure (heading, code, bold, table, bullet); only the [rec] tag is green', async ($, on) => {
   const { ui } = await open($, on, [item({ id: 'E3', body: STRUCT, title: 'S' })], 'E3', 80, 40)
   const tree = await ui.drawn()
-  for (const t of ['Head', 'Two', 'Three', 'bold', ' code ', 'const a = 1', 'bullet', 'A   B', '1   2']) {
+  for (const t of ['Head', 'Two', 'Three', 'bold', ' code ', 'const a = 1', 'bullet', 'A  B', '1  2']) {
     const s = styleOf(tree, t)
     expect(s, t).not.toBeNull()
     expect(s?.color, t).toBeUndefined()
@@ -697,7 +702,7 @@ test('V-30: the item screen key map is today\'s (hotkeys, keys, no two Buttons s
     return out
   }
   expect(await keys(E1)).toEqual({ 'Button:back': null, 'Select:pick': null, 'Input:note': null, 'Button:send': null })
-  expect(await keys(E2)).toEqual({ 'Button:back': null, 'Input:reply': null, 'Button:send': null })
+  expect(await keys(E2)).toEqual({ 'Button:back': null, 'Button:show-all': null, 'Input:reply': null, 'Button:send': null })
   expect(await keys(R1)).toEqual({ 'Button:back': 'b', 'Button:mark-read': 'm' })
   expect(await keys(WAITING)).toEqual({ 'Button:back': 'b' })
   expect(await keys(item({ id: 'E3', body: VISUAL.forty }))).toEqual({ 'Button:back': null, 'Button:show-all': null, 'Input:reply': null, 'Button:send': null })

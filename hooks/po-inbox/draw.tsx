@@ -64,7 +64,7 @@ export function drawSpans(spans: Span[], T: T, base = ''): any[] {
     ) : s.kind === 'code' ? (
       <Text key={`${base}s${i}`} inverse>{` ${s.text} `}</Text>
     ) : (
-      <Text key={`${base}s${i}`}>{s.text}</Text>
+      s.text
     ),
   )
 }
