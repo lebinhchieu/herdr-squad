@@ -24,9 +24,9 @@ export const snap = (items: any[], errors: any[] = []) => ({
 })
 
 export async function boot($: any, on: any, s: unknown, cli?: (argv: string[], stdin?: string) => any) {
-  const w = { runs: [] as { argv: string[]; stdin?: string }[], submits: [] as string[], opened: [] as any[], order: [] as string[], current: s }
+  const w = { runs: [] as { argv: string[]; stdin?: string }[], submits: [] as string[], opened: [] as any[], order: [] as string[], current: s, clock: undefined as any, mtime: 1 }
   mock.env(on, { SQUAD_ROLE: 'manager', SCOPE_DIR: '/h' })
-  mock.clock(on)
+  w.clock = mock.clock(on)
   on('session.start', (_$: any, e: any) => ({ cwd: e.cwd }))
   on('process.run', (_$: any, e: any) => {
     w.runs.push({ argv: [...e.argv], stdin: e.init?.stdin })
@@ -34,7 +34,7 @@ export async function boot($: any, on: any, s: unknown, cli?: (argv: string[], s
     const out = r ?? { exitCode: 0, stdout: JSON.stringify(w.current), stderr: '' }
     return { value: { ...out, isStdoutTruncated: false, isStderrTruncated: false } }
   })
-  on('fs.stat', () => ({ value: { kind: 'file', size: 1, mtimeMs: 1, isLink: false } }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 1, mtimeMs: w.mtime, isLink: false } }))
   on('command.register', (_$: any, e: any) => ({ value: { command: e.name } }))
   on('ui.open', (_$: any, e: any) => (w.opened.push(e), w.order.push('open'), { value: { isPlaced: true } }))
   on('ui.close', () => (w.order.push('close'), { value: undefined }))
@@ -107,4 +107,16 @@ export function styleOf(tree: any, text: string): Record<string, unknown> | null
 
 // Rendered rows of the whole tree at `cols`, by the same estimate the screens use (`rowsFor`);
 // a ticket that must not share that estimate counts with its own reference wrap instead.
-export const rowsOfTree = (tree: any, cols: number): number => lines(tree).reduce((n, l) => n + rowsFor(l, cols), 0)
+// A Box with no flexDirection or `row` draws its children side by side: one text, a Button as `[ label ]`.
+export function rowsOfTree(tree: any, cols: number): number {
+  if (tree === null || tree === undefined || typeof tree === 'string') return 0
+  if (Array.isArray(tree)) return tree.reduce((n: number, t: any) => n + rowsOfTree(t, cols), 0)
+  if (tree.type === 'Box' && (tree.props?.flexDirection ?? 'row') === 'row') {
+    const side = (n: any): string =>
+      Array.isArray(n) ? n.map(side).join('') : n && n.type === 'Button' ? `[ ${n.props?.label ?? textOf(n)} ]` : n && n.type === 'Box' ? (n.children ?? []).map(side).join('') : textOf(n)
+    const text = side(tree.children ?? [])
+    return text === '' ? 0 : rowsFor(text, cols)
+  }
+  if (tree.type === 'Box') return rowsOfTree(tree.children ?? [], cols)
+  return lines(tree).reduce((n, l) => n + rowsFor(l, cols), 0)
+}
