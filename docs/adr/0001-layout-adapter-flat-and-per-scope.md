@@ -1,6 +1,6 @@
 # Layout adapter: one list of homes for flat and per-scope squads
 
-Status: accepted (BRD-19, design L1-L14)
+Status: superseded by 0008 (was: accepted (BRD-19, design L1-L14))
 
 The board reads a squad as a list of **homes**, so one code path serves both layouts.
 
