@@ -353,9 +353,11 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   // the top block
   const hd = header(it, snap, cols, expanded, T)
   const titleFull = line(it.title)
-  const titleCap = notice && !isForm ? 2 : TITLE_ROWS
-  const title = expanded ? titleFull : clipRows(titleFull, cols, titleCap)
   const ptr = isForm ? pointer(rec, opts, recKey, cols, T) : null
+  // the top block (back, header, title, pointer) must fit the first viewport
+  const fitCap = Math.max(1, Math.min(TITLE_ROWS, bodyRows - 1 - hd.rows - (ptr ? ptr.rows : 0)))
+  const titleCap = notice && !isForm ? Math.min(2, fitCap) : fitCap
+  const title = expanded ? titleFull : clipRows(titleFull, cols, titleCap)
   const topRows = 1 + (notice && !isForm ? notice.rows : 0) + hd.rows + rowsFor(title, cols) + (ptr ? ptr.rows : 0)
   const topCut = title !== titleFull || hd.cut
 
@@ -389,14 +391,15 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   const floor = it.kind === 'read' && open ? FLOOR_READ : FLOOR_ANSWER
   const chrome = topRows + stateRows + afterRows
   const bd = drawBody(bodyBlocks(it.body, it.title), cols, T, { expanded, fitRows: bodyRows - chrome, budget: bodyBudget(bodyRows, chrome + 1, floor) })
-  const showAll = (text: string) => (
-    <Box key="more">
+  const showAll = (text: string, k = 'show-all') => (
+    <Box key={`more-${k}`}>
       <Text dimColor>{`${text} `}</Text>
-      <Button key="show-all" label="Show all" onPress={() => patchUi($, { expanded: true })} />
+      <Button key={k} label="Show all" onPress={() => patchUi($, { expanded: true })} />
     </Box>
   )
-  const more = bd.cut ? showAll(`… ${bd.hidden} more lines`) : !expanded && topCut ? showAll('… full title') : null
-  const total = chrome + bd.rows + (more ? 1 : 0)
+  const bodyMore = bd.cut ? showAll(`… ${bd.hidden} more lines`) : null
+  const topMore = !expanded && topCut ? showAll('… full title', bodyMore ? 'show-title' : 'show-all') : null
+  const total = chrome + bd.rows + (bodyMore ? 1 : 0) + (topMore ? 1 : 0)
   const hint = total > bodyRows ? <Text key="hint" dimColor>{'  ↓ more below'}</Text> : null
 
   return (
@@ -410,9 +413,9 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
       <Text key="title" bold wrap="wrap">{title}</Text>
       {ptr ? ptr.node : null}
       {state}
-      {!bd.cut ? more : null}
+      {topMore}
       {bd.nodes.length > 0 ? <Box key="body" flexDirection="column">{bd.nodes}</Box> : null}
-      {bd.cut ? more : null}
+      {bodyMore}
       {after}
     </Box>
   )

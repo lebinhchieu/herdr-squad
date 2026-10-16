@@ -1,12 +1,12 @@
 // IV-03: the item screen, mounted through the real pane. Text and style are read from the drawn tree.
-// `bodyRows` is 7 at 80x24 and at 40x24, 11 at 40x40: the numbers the engine hands the pane (evidence/IV-03/dev-evidence.md).
+// `bodyRows` is 6 at 80x24 and at 40x24, 11 at 40x40: the numbers the engine hands the pane (evidence/IV-03/dev-evidence.md).
 import { expect, test } from 'claude-code/testing'
 
 import { cellWidth } from './core'
 import { E1_OPTIONS, E1_REC, E1_TITLE, VISUAL } from './fixtures/visual'
 import { boot, item, START, lines, pane, snap, styleOf } from './testkit'
 
-const ROWS_24 = 7
+const ROWS_24 = 6
 const ROWS_40 = 11
 const SIZES: [number, number][] = [[80, ROWS_24], [60, ROWS_24], [59, ROWS_24], [40, ROWS_24], [30, ROWS_24], [80, ROWS_40], [40, ROWS_40]]
 
@@ -158,7 +158,7 @@ function colourless(n: any): any {
 
 // --- 3.1 the top block, counted with the reference wrap --------------------------------------
 
-test('V-01: the top block is first, in order, inside bodyRows 7 at 40 and 80 columns', async ($, on) => {
+test('V-01: the top block is first, in order, inside bodyRows 6 at 40 and 80 columns', async ($, on) => {
   for (const [cols, rows] of [[80, ROWS_24], [40, ROWS_24], [80, ROWS_40], [40, ROWS_40]]) {
     const { ui } = await open($, on, [E1], 'E1', cols, rows)
     const tree = await ui.drawn()
@@ -169,7 +169,7 @@ test('V-01: the top block is first, in order, inside bodyRows 7 at 40 and 80 col
     const top = 1 + treeRows((await ui.find({ type: 'Text', text: 'E1 · answer' }))?.node ?? [], cols)
     expect(top).toBeGreaterThan(0)
     const upto = rows7(tree, 'recommends (c)', cols)
-    expect(upto).toBeLessThanOrEqual(ROWS_24)
+    expect(upto, `cols ${cols} rows ${rows}\n${r.join("\n")}`).toBeLessThanOrEqual(rows)
     await ui.unmount()
   }
 })
@@ -181,8 +181,9 @@ function rows7(tree: any, marker: string, cols: number): number {
   const go = (x: any) => {
     if (done || x === null || x === undefined || typeof x === 'string') return
     if (Array.isArray(x)) return x.forEach(go)
-    if (x.type === 'Box' && x.props?.flexDirection !== 'row' && x.props?.width === undefined) return go(x.children ?? [])
-    n += treeRows(x, cols)
+    if (x.type === 'Box' && x.props?.flexDirection === 'column' && x.props?.width === undefined) return go(x.children ?? [])
+    // an unflagged Box is Ink's default row: the Back button and its hint share one line
+    n += x.type === 'Box' && x.props?.flexDirection === undefined && x.props?.width === undefined ? refRows(leaves(x).join(''), cols) : treeRows(x, cols)
     if (flat(x).includes(marker)) done = true
   }
   go(tree)
@@ -217,7 +218,7 @@ test('3.1d: bodyRows 14 and 10 (too small for the screen): no crash, every optio
 
 // --- design states: text, order, tokens -------------------------------------------------------
 
-test('M1: E1 open at 80 columns, 7 rows: top block, hint, floor of body, options as blocks, nothing picked', async ($, on) => {
+test('M1: E1 open at 80 columns, 6 rows: top block, hint, floor of body, options as blocks, nothing picked', async ($, on) => {
   const { ui } = await open($, on, [E1], 'E1', 80, ROWS_24)
   const tree = await ui.drawn()
   const text = textOf(tree)
@@ -414,6 +415,27 @@ test('title of 300 characters: 3 rows with an ellipsis, a `full title` row, Show
   }
 })
 
+test('3.1e: 300-char title, 2-row header, 40 columns, 6 rows: the pointer is inside the first viewport, the title shows 2 rows', async ($, on) => {
+  const blocks = `${'work item '.repeat(12)}end`
+  const long = item({ id: 'E8', title: VISUAL.title300, blocks, body: VISUAL.e1, recommendation: E1_REC, options: E1_OPTS })
+  for (const [cols, rows] of [[40, ROWS_24], [80, ROWS_24], [40, ROWS_40]]) {
+    const { ui } = await open($, on, [long], 'E8', cols, rows).catch((e: any) => { throw new Error(`${cols}x${rows}: ${e.message}`) })
+    const tree = await ui.drawn()
+    const r = rowsOf(tree)
+    expect(rows7(tree, 'recommends', cols), r.join('\n')).toBeLessThanOrEqual(rows)
+    const t = r.find((l) => l.startsWith('TTT')) as string
+    expect(t.endsWith('…')).toBe(true)
+    if (cols === 40 && rows === ROWS_24) expect(refRows(t, cols)).toBe(2)
+    expect(r.join('\n')).toContain('… full title')
+    if (cols === 40 && rows === ROWS_24) {
+      expect(r.findIndex((l) => l.includes('… full title'))).toBeGreaterThan(r.findIndex((l) => l.includes('✓ recommends')))
+      await ui.press({ key: 'show-title' })
+      expect(textOf(await ui.drawn())).toContain('T'.repeat(300))
+    }
+    await ui.unmount()
+  }
+})
+
 test('blocks of 120 characters: the header is clipped to 2 rows, Show all draws it whole', async ($, on) => {
   const blocks = `${'work item '.repeat(12)}end`
   for (const cols of [80, 40]) {
@@ -524,7 +546,7 @@ test('V-14: options not parsed: the raw text whole, then the rec line, then Your
 
 // --- 4: the body cut by rows ------------------------------------------------------------------
 
-test('body cut: E1 at 7 rows shows the floor, then N more lines, then the options; Show all draws every word in order', async ($, on) => {
+test('body cut: E1 at 6 rows shows the floor, then N more lines, then the options; Show all draws every word in order', async ($, on) => {
   const { ui } = await open($, on, [E1], 'E1', 80, ROWS_24)
   const r = rowsOf(await ui.drawn())
   const more = r.findIndex((l) => l.includes('… 7 more lines'))
@@ -540,7 +562,7 @@ test('body cut: E1 at 7 rows shows the floor, then N more lines, then the option
   await ui.unmount()
 })
 
-test('body cut: a tall pane shows everything, no cut and no hint; the hint is on at 7 rows', async ($, on) => {
+test('body cut: a tall pane shows everything, no cut and no hint; the hint is on at 6 rows', async ($, on) => {
   const tall = await open($, on, [E1], 'E1', 80, 60)
   const text = textOf(await tall.ui.drawn())
   expect(text).not.toContain('more lines')
@@ -549,7 +571,7 @@ test('body cut: a tall pane shows everything, no cut and no hint; the hint is on
   expect(inOrder(text, VISUAL.e1.split('<br>').slice(1).join('\n'))).toBe(true)
   const mid = await open($, on, [E1], 'E1', 80, 20)
   expect(textOf(await mid.ui.drawn())).toContain('more lines')
-  const short = await open($, on, [E1], 'E1', 80, 7)
+  const short = await open($, on, [E1], 'E1', 80, ROWS_24)
   expect(textOf(await short.ui.drawn())).toContain('↓ more below')
 })
 
