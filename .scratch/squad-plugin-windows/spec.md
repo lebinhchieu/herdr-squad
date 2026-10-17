@@ -96,3 +96,69 @@ Touches now (PO, E2): `bin`, `.gitattributes`, `tests`, `hooks/po-inbox`. F1 is 
 ## Agreement
 
 - BA: final. QA blackbox: agrees to the 13 stories subject to C1-C6 (`$SCOPE_DIR/evidence/qab-review-of-spec.md`); all six are applied (BA 2026-10-17). C1 printing named in stories 7 and 10; C2 story 10 is exit 0 with empty stderr, or one line naming the cause and non-zero; C3 LF is Windows-only proof; C4 story 11 proved on Linux with a `core.autocrlf=true` clone; C5 story 13 names every touched test file and byte-identity vs 0.3.2; C6 hooks: no-crash with a sample payload, real firing on Windows not verified and listed in the checklist (widening it is the PO's call). Checklist length: at most 12 steps (story 12); prerequisite checks 0a-0c do not count. QA blackbox's sign-off on story 10 follows E3 (answered: PO picked (a)).
+
+# Iteration 2: the PO inbox on Windows, follow-ups
+
+**One line:** after 0.3.3 the `squad-inbox` CLI works on Windows but the pane that starts it was never shown to run, a CRLF body keeps a stray `\r`, the Manager writes plain notes as answer rows, and the test suite fails on Windows for reasons that are not product bugs. Source: `issue-po-inbox.md` ("Done when"). Tasks A-D of `$SCOPE_DIR/iterations/2.md`. Stories 1-13 above still hold; these add to them. Technical AC live in the tickets.
+
+## Findings the BA made (iteration 2)
+
+- **F4: `tests/run_suite.py` imports `fcntl` (line 14), so the runner itself cannot start on Windows.** "Skip the Windows-only failures" is not enough for story 17 on its own: the PO needs a written way to run the test files on Windows (for example one file at a time with `python3 -m unittest`). Tech Lead / Team Lead decide the form.
+- **F5: `agents/manager.md` line 95 says "rows written by hand still work".** That sentence is the likely cause of the hand-written rows E5-E8; story 16 removes the permission, not only adds a new rule.
+- **F6: the pane's three `$.process.run` calls were never run by the real Claude Code host on Windows.** Linux can prove the argv and that the pane still works on Linux; only Windows proves the host starts it (story 14, proof split).
+
+## User Stories (iteration 2)
+
+14. **As the PO on Windows, I want the inbox pane to start `squad-inbox` by itself, so I can see and answer what my Manager asks from the pane.** (task A)
+    - Given the plugin at a path with a space and an emoji (like `C:\Users\x\Guardian - Learn 🦀\...`) and a Manager session with `inbox.jsonl` and `escalations.md`, When the pane lists, answers an item and marks it delivered, Then **every** call the pane makes to `squad-inbox` is started as `python3` followed by the script's full path, **as separate arguments** (the path is one argument, never split at the space), and none runs the extensionless script directly.
+    - Given an open answer item, When I answer it from the pane, Then `inbox.jsonl` holds an `answer` event with `source: pane` and then a `delivered` event, and `escalations.md` holds my answer.
+    - Given a plugin copy where `bin/squad-inbox` is **not executable** (so a direct start fails like `ENOENT` or `WinError 193`) and `python3` on `PATH`, When the pane lists and answers, Then it works with no `squad-inbox list failed` line. With the exec bit set (Linux), the rows, events and screen text equal 0.3.3's apart from ids and timestamps.
+    - Given `python3` cannot start, When the pane refreshes, Then the pane shows its normal error line (one line, no freeze, no blank pane).
+    - **Proof split:** Linux (QA blackbox, `claude plugin test` with a stub host and a recording stand-in for `python3`; the pane's answer being taken by a live Manager is the PO's run): the argv above for each of the pane's calls, and the pane behaves as on 0.3.3 (same list, same answer row, same events). **Only Windows proves** that the Claude Code host's `$.process.run` starts it: the PO runs the issue's section 1 check (checklist W7, extended). If W7 fails, the squad has not met this story.
+15. **As the PO, I want a body file with Windows line endings stored as plain lines, so my inbox shows no stray break or hidden `\r`.** (task B)
+    - Given `--body-file` with CRLF endings (`line one\r\nline two\r\n\r\n- bullet\r\n`), When I run `squad-inbox add` (kind read and kind answer), Then the stored body is `line one\nline two\n\n- bullet`: no `\r` in `inbox.jsonl` or `escalations.md` (`grep -c $'\r'` prints `0`), and the answer row ends with `- bullet` and **no trailing `<br>`**.
+    - Given a body file with lone CR endings (old Mac style, `a\rb\r`), Then each CR counts as one line break: stored `a\nb`.
+    - Given a body with mixed endings (LF, CRLF, CR in one file), Then the result is the same lines as the all-LF file, one break each.
+    - Given a body with LF endings, or the body on stdin (quoted heredoc), Then the stored result is **byte-identical to 0.3.3**.
+    - Edge cases (QA blackbox B3): a CRLF at the very end, a blank CRLF line and a body with non-ASCII (é, →, 🦀) store clean. A body that is empty, or only `\r\n`, is refused exactly as on 0.3.3 ("an item needs a body", non-zero), not stored.
+    - Out of scope (BA decision): the `--title` text, the answer text from `squad-inbox answer`, `--options` and `--rec`. The issue names only the body file. If the PO wants them too, that is a new item.
+    - **Proof split:** all of it is provable on Linux (the CRLF is in the file, not made by the OS). The Windows checklist adds one CRLF body file (W8).
+16. **As the PO, I want the Manager's notes that need no answer to show under "to read", so the inbox does not claim things wait on me that don't.** (task C)
+    - Given `agents/manager.md` as the Manager reads it, Then it says in one place that a note that needs no answer (informational, "READ, not blocking", progress, a result) goes in with `squad-inbox add --kind read --title ...` and a quoted-heredoc body, and that a row for it is **never written by hand** in `escalations.md`.
+    - And the sentence that lets hand-written rows stand (F5) is gone or is reversed into the rule above.
+    - And `--kind answer` stays the only way an item that waits on the PO is written (`add` writes the row); the existing rules (one `add` per Bash call, reply is the printed line only, no merge/push/deploy items) are unchanged.
+    - Given a scratch Manager home, When a read item is added, Then `squad-inbox list` counts it under "to read" and `escalations.md` gets **no** row for it (regression check of the existing behaviour, on Linux).
+    - And the same text still sends a question that needs the PO's answer to an answer item (`--kind answer`), so the two cases are not blurred; and no other file in `agents/` differs from 0.3.3.
+    - **Bar (agreed with QA blackbox):** the instruction text, plus the command it shows run verbatim in a scratch home (quoted heredoc; `|`, quotes, `$` and backticks in the body survive). QA blackbox may read `agents/manager.md`: it is a role instruction, not code. If their settings deny it, the Tech Lead pastes the diff into the task's evidence folder.
+    - **Proof split:** the instruction text is checked by reading it. Whether a live Manager obeys it **only a real Manager session shows**: the PO sees at the next check-in whether informational notes arrive as read items. Clearing the old rows E5-E8 in `scopes/scene-split` is the PO's call and not part of this iteration.
+17. **As the PO on Windows, I want the test suite to say "skipped, and why" instead of failing for things that are not bugs, so a red test on Windows means a real problem.** (task D)
+    - Given the 12 Windows failures of `issue-po-inbox.md` in `test_squadinbox`, `test_squadinbox_win`, `test_po_inbox_contract`, `test_po_inbox_mod` and `test_squadinbox_answer`, When those files run on real Windows, Then there are **0 failures and 0 errors**, and each skipped test prints a reason that names its cause: no `termios`/`pty`; symlink privilege; file modes; `os.execv`; a simulated-Windows test that needs a real `fcntl`; POSIX-only paths. (A fixture that writes in text mode is fixed by writing LF, or skipped with its reason; fixing is preferred.)
+    - A skip is **conditional on Windows or on the missing module**, never unconditional. On Linux **no test is skipped for these causes**: the number of tests run per file equals 0.3.3's, and the suite is green.
+    - Check on Linux (QA blackbox D4): forcing the Windows condition (patching `sys.platform`/`os.name`, or hiding the module the skip keys on) skips exactly the listed tests and no more.
+    - A test that fails on Windows for a cause **not** in the list is not skipped. It is reported to the Team Lead as a possible product bug.
+    - The way to run the test files on Windows is written down in one place a PO can find under `tests/` (F4): the command, what it skips and why. The PO does not need the runner `run_suite.py` to work on Windows.
+    - No product code changes under this story (`tests/` only).
+    - **Proof split:** Linux proves the skips are conditional (same test count, no skips, green, also under `PYTHONUTF8=0 LC_ALL=C`) and that each reason is a real sentence. **Only Windows proves** the 0 failures: the PO runs the documented command at check-in (new checklist line). The squad does not claim "green on Windows".
+18. **As the PO, I want Linux and macOS exactly as before, and the Windows checklist to match.** (integration)
+    - Given the final branch, Then the full suite with `--tz` is green; every touched test file also passes under `PYTHONUTF8=0 LC_ALL=C`; under a UTF-8 locale the output of every read-only command and the files written are byte-identical to 0.3.3 (QA blackbox diffs against a `git archive` of `59a8d1b`), except the intended changes of stories 14-17.
+    - And `.scratch/squad-plugin-windows/windows-checklist.md` still has **at most 12 numbered steps** (W1-W12) plus a separate line for the test run (story 17), and says what to send back on a failure: W7 now includes "answer one item from the pane, then see an `answer` event with `source: pane` and a `delivered` event in `inbox.jsonl`" (the issue's section 1 check); W8 includes one CRLF `--body-file` with CR count `0` (story 15). It notes that a bare `squad-inbox answer --option` reads stdin and needs `</dev/null`, and that `python3` may be the Store alias (0a).
+    - And the ADR 0011 D6 text is updated to the decision that holds (story 14), see "For promotion".
+
+## For promotion (to the Tech Lead; one line each)
+
+- **Rule:** the pane runs `python3 <plugin root>/bin/squad-inbox ...` as separate arguments (updates ADR 0011 D6; the "would open a T5" sentence is then done).
+- **Rule:** `--body-file` input is normalised: CRLF and lone CR become LF before the `<br>` conversion.
+- **Rule:** a Manager writes only an item that waits on the PO as an answer item; every other note is a read item; an `escalations.md` row is never written by hand.
+- **Rule:** Windows-only test failures are skipped with a named reason; the skip is conditional, and Linux runs every test. `tests/run_suite.py` needs `fcntl`, so on Windows the files run one by one.
+- **Glossary:** no new term. `Escalation` (CONTEXT.md) already says an escalation is an answer item; "read item" is used by the inbox docs and by ADR 0007 (check, add to the glossary only if missing).
+
+## Out of scope (iteration 2, BA decision)
+
+- E5-E8 in `scopes/scene-split` (PO's call). `E7` saying RESOLVED in an open row: same.
+- Real Windows runs by the squad (impossible here); the PO does them at check-in.
+- Making `run_suite.py` run on Windows; the Store-alias `python3` note (issue Notes) beyond the checklist's existing 0a step.
+- Changing the order or number of the pane's calls; new pane features.
+
+## Agreement (iteration 2)
+
+- BA: final for iteration 2 (2026-10-17). QA blackbox proposed A1-E2 (`$SCOPE_DIR/evidence/iter2/qab-proposed-ac.md`); all merged into stories 14-18. Their five open points: (1) A2 by `claude plugin test` with a stub, real run is the PO's: yes; (2) answer-note CRLF: out of scope; (3) C3 bar = instruction text + runnable example: yes; (4) D = skip with reasons plus a written way to run the files on Windows: yes; (5) QA blackbox may read `agents/manager.md`: yes (their settings decide; fallback above). One correction to their B3: an empty or only-CRLF body is refused as on 0.3.3, not exit 0. QA blackbox confirmed stories 14-18 and this Agreement, including the B3 correction (2026-10-17).

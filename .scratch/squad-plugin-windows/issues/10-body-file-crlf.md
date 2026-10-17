@@ -25,3 +25,4 @@ When `--body-file` is read, normalise `\r\n` and lone `\r` to `\n` before the `<
 - **TB4** an LF-only file is byte-identical to before; existing `test_body_file` and size-limit tests pass (run them, do not edit them). All new tests fail on 59a8d1b.
 
 - BA AC (spec.md "Iteration 2", story 15): an empty or only-CRLF body is still refused as on 0.3.3; answer-note, title, options and rec are out of scope.
+- **TB5 (QAW)** replace `\r\n` before the lone `\r`. Normalising in the shared `read_body` also changes stdin bodies; accepted only if `test_each_break_becomes_one_br` and `test_add_answer_row_on_top` pass unedited. Assert on the raw bytes of `inbox.jsonl` and of the `escalations.md` row.

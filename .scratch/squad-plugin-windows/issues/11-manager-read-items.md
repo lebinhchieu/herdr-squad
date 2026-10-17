@@ -23,3 +23,4 @@ In `agents/manager.md` (The PO, Inbox bullet): an informational note, one that n
 - **TC4** no other `agents/` or `templates/` file changes; run `test_instructions`, `test_manager_m_l`, `test_process_writing`, `test_pod_contact_routes`, `test_process_citations`.
 
 - BA AC (spec.md story 16, F5): also REMOVE the sentence "rows written by hand still work" in `agents/manager.md` (line ~95), not only add the rule. No other file in `agents/` may change.
+- **TC5 (QAW)** the phrase test anchors to the Inbox bullet and fails on the 59a8d1b text. Open item for the PO (not in touches, no FAIL): `templates/scope/escalations.md:3` and `templates/goal/escalations.md:3` say "The Manager writes each one before telling the PO"; with `squad-inbox add --kind answer` the command writes the row. I list it in the hand-in to the PO.
