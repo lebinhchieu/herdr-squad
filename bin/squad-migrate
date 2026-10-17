@@ -27,6 +27,8 @@ import sys
 from pathlib import Path
 
 PLUGIN = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PLUGIN / "bin"))
+import squadio  # noqa: E402
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 FILES = ("roster.md", "escalations.md", "messages.jsonl", "activity.jsonl", "usage-events.jsonl")
 DIRS = ("iterations", "roles", "evidence", "contracts", "work")  # made even when empty, like squad-start
@@ -43,7 +45,7 @@ def die(msg, code=1):
 def squad_dir(name):
     if os.environ.get("SQUAD_DIR") and Path(os.environ["SQUAD_DIR"]).name == name:
         return Path(os.environ["SQUAD_DIR"]).resolve()
-    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip() or os.getcwd()
+    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip() or os.getcwd()
     return (Path(top) / ".claude" / "squads" / name).resolve()
 
 
@@ -106,7 +108,8 @@ def data_rows(text):
 def write_atomic(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp-migrate")
-    tmp.write_text(text)
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
     if path.exists():
         shutil.copymode(path, tmp)
     os.replace(tmp, path)
@@ -162,10 +165,10 @@ def plan_per_scope(squad, name, plan):
         if (squad / rel).exists():
             die(f"{name} already exists as {rel}; scopes and goals share one namespace, pass another --scope")
 
-    old_goal = (squad / "goal.md").read_text() if (squad / "goal.md").exists() else ""
+    old_goal = (squad / "goal.md").read_text(encoding="utf-8") if (squad / "goal.md").exists() else ""
     brief = bold_line(old_goal) or "Migrated from the flat layout; see legacy/goal.md"
-    size = size_from_scopes_md((squad / "scopes.md").read_text(), name) if (squad / "scopes.md").exists() else None
-    text = fill((PLUGIN / "templates" / "scope" / "scope.md").read_text(),
+    size = size_from_scopes_md((squad / "scopes.md").read_text(encoding="utf-8"), name) if (squad / "scopes.md").exists() else None
+    text = fill((PLUGIN / "templates" / "scope" / "scope.md").read_text(encoding="utf-8"),
                 {"name": name, "brief": brief, "goal": "", "touches": ""})
     if size:
         text = re.sub(r"(?m)^size:.*$", lambda _: f"size: {size}", text, count=1)
@@ -196,13 +199,13 @@ def plan_scope_to_goal(squad, name, goal, plan):
         if (squad / rel).exists():
             die(f"{goal} already exists as {rel}; scopes and goals share one namespace, pass another --goal")
     g = squad / "goals" / goal
-    scope_md = (scope / "scope.md").read_text()
+    scope_md = (scope / "scope.md").read_text(encoding="utf-8")
     if re.search(r"(?m)^goal:[ \t]*\S", scope_md):
         die(f"scope {name} already belongs to a goal; nothing to do")
     touches = (re.search(r"(?m)^touches:[ \t]*(.*)$", scope_md) or [None, ""])[1].strip()
     brief = bold_line(scope_md) or name
 
-    goal_md = fill((PLUGIN / "templates" / "goal" / "goal.md").read_text(),
+    goal_md = fill((PLUGIN / "templates" / "goal" / "goal.md").read_text(encoding="utf-8"),
                    {"name": goal, "brief": brief, "touches": touches})
     goal_md = re.sub(r"(?m)^(\|---\|---\|---\|)$", lambda m: m.group(1) + f"\n| {name} | none | open |", goal_md, count=1)
 
@@ -215,17 +218,17 @@ def plan_scope_to_goal(squad, name, goal, plan):
 
     kept, managers, before = "", [], 0
     if (scope / "roster.md").exists():
-        old = (scope / "roster.md").read_text()
+        old = (scope / "roster.md").read_text(encoding="utf-8")
         kept, managers = split_roster(old)
         before = len(data_rows(old))
-    goal_roster = (PLUGIN / "templates" / "goal" / "roster.md").read_text()
+    goal_roster = (PLUGIN / "templates" / "goal" / "roster.md").read_text(encoding="utf-8")
     goal_roster = goal_roster.rstrip("\n") + "\n" + "".join(m if m.endswith("\n") else m + "\n" for m in managers)
 
     plan.mkdir(g)
     plan.write(g / "goal.md", goal_md, "from templates/goal/goal.md, row for " + name)
     plan.write(g / "roster.md", goal_roster, f"{len(managers)} Manager row(s) from the scope roster")
-    plan.write(g / "escalations.md", (PLUGIN / "templates" / "goal" / "escalations.md").read_text(), "from templates/goal")
-    plan.write(g / "shared" / "decisions.md", (PLUGIN / "templates" / "goal" / "shared" / "decisions.md").read_text(), "from templates/goal")
+    plan.write(g / "escalations.md", (PLUGIN / "templates" / "goal" / "escalations.md").read_text(encoding="utf-8"), "from templates/goal")
+    plan.write(g / "shared" / "decisions.md", (PLUGIN / "templates" / "goal" / "shared" / "decisions.md").read_text(encoding="utf-8"), "from templates/goal")
     for d in ("shared/summaries", "shared/contracts", "roles"):
         plan.mkdir(g / d)
     plan.write(scope / "scope.md", new_scope, f"goal: {goal}")
@@ -238,6 +241,7 @@ def plan_scope_to_goal(squad, name, goal, plan):
 
 
 def main():
+    squadio.utf8_stdio()
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter, allow_abbrev=False)
     p.add_argument("squad")
     p.add_argument("--to", choices=["per-scope"])
@@ -305,10 +309,10 @@ def main():
     if extra:  # the roster rows: nothing lost, Managers now only in the goal roster
         scope_roster, goal_roster, before = extra
         if scope_roster.exists():
-            after = len(data_rows(scope_roster.read_text())) + len(data_rows(goal_roster.read_text()))
+            after = len(data_rows(scope_roster.read_text(encoding="utf-8"))) + len(data_rows(goal_roster.read_text(encoding="utf-8")))
             if before != after:
                 bad.append(f"roster rows: {before} before, {after} after")
-            if split_roster(scope_roster.read_text())[1]:
+            if split_roster(scope_roster.read_text(encoding="utf-8"))[1]:
                 bad.append("a Manager row is still in the scope roster")
     print(f"checked {len(plan.checks)} files and folders: " + ("all there" if not bad else ""))
     for b in bad:

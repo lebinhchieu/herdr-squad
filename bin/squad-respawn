@@ -8,6 +8,7 @@ set -euo pipefail
 name=$1 dry=0
 [[ ${2:-} == --dry-run ]] && dry=1
 
+command -v jq >/dev/null || { echo "squad-respawn needs jq: install it (Windows: winget install jqlang.jq)" >&2; exit 1; }
 bin=$(dirname "$(readlink -f "$0")")
 # The folder holding this agent's roster and notes: its scope, else its goal, else (flat squad) the squad.
 if [[ -n ${SCOPE_DIR:-} ]]; then home=$SCOPE_DIR home_var=SCOPE_DIR

@@ -17,6 +17,9 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
+
 CACHE_TTL_S = 3600           # the 1h cache lifetime
 EXPIRY_MIN_WRITE = 10_000    # a cache write this big after a gap counts as an expiry
 FRESH_CTX = 120_000          # process.md: fresh when context is over 120k
@@ -39,7 +42,7 @@ def find_transcript(session):
 
 def agent_name(path, limit=50):
     """The agentName of a transcript's `agent-name` record (written at the top), or None."""
-    with open(path, errors="replace") as f:
+    with open(path, encoding="utf-8", errors="replace") as f:
         for _, line in zip(range(limit), f):
             if '"agent-name"' in line:
                 try:
@@ -81,7 +84,7 @@ TOKEN_FIELDS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input
 def read_lines(path, turns, side_file):
     """Fold one file into `turns`, keyed by message id. A message spans several lines whose usage only grows: keep the max per field."""
     boundaries = summaries = 0
-    for line in Path(path).read_text().splitlines():
+    for line in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
         try:
             o = json.loads(line)
         except ValueError:
@@ -164,7 +167,7 @@ def table_rows(text):
 
 
 def roster_sessions(roster):
-    rows = table_rows(roster.read_text())
+    rows = table_rows(roster.read_text(encoding="utf-8"))
     if not rows or "Session" not in rows[0]:
         return []
     si, ai = rows[0].index("Session"), rows[0].index("Agent")
@@ -172,7 +175,7 @@ def roster_sessions(roster):
 
 
 def roster_get(roster, name):
-    rows = table_rows(roster.read_text())
+    rows = table_rows(roster.read_text(encoding="utf-8"))
     col = {h: i for i, h in enumerate(rows[0])} if rows else {}
     for r in rows[2:]:
         if r and r[0] == name:
@@ -181,7 +184,7 @@ def roster_get(roster, name):
 
 
 def set_session(roster, name, session, role="", scope=""):
-    lines = roster.read_text().splitlines() if roster.exists() else []
+    lines = roster.read_text(encoding="utf-8").splitlines() if roster.exists() else []
     out, header_seen, width, done = [], False, 0, False
     for l in lines:
         if not l.startswith("|"):
@@ -206,7 +209,8 @@ def set_session(roster, name, session, role="", scope=""):
         row = [name, role, scope, "", "live"] + [""] * (width - 5)
         row[si] = session
         out.append("| " + " | ".join(row) + " |")
-    roster.write_text("\n".join(out) + "\n")
+    with open(roster, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(out) + "\n")
 
 
 def fmt_k(n):
@@ -247,6 +251,7 @@ def report(squad_dir):
 
 
 def main():
+    squadio.utf8_stdio()
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--squad-dir")
     p.add_argument("--check", metavar="SESSION")
