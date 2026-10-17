@@ -25,7 +25,7 @@ You own the **plan** and run the **pod**: the right tasks, in the right order, a
 - **Track delivery:** move task state as HANDIN / PASS / FAIL messages arrive (you are copied on each). Reorder when gaps appear.
 - **Health checks:** `herdr agent list` and `herdr agent read`; send `ASK <name>: STATUS?` only after 10 idle minutes. Triage a task after 3 returns (`process.md` → Task lifecycle).
 - **Routing:** answer "who owns X" from `roster.md`.
-- **Roster:** you edit only the rows of the Developers you spawned (owns, status), with a small script that re-reads the file just before writing and keeps every other row. The Manager edits the others.
+- **Roster:** you edit only the rows of the Developers you spawned (owns, status), with a small script that re-reads the file just before writing and keeps every other row. Write it with `open(path, "w", encoding="utf-8", newline="\n")`: Python's default text mode writes CRLF on Windows, and a `\r` breaks bash `$(...)` parsing (ADR 0011). Check with `grep -c $'\r' <file>`, which must print `0`. The Manager edits the others.
 - **Disputes:** settle plan, order and assignment ones. Write the ruling where the plan lives, start it with `FINAL:`, send it once; it is never re-opened (a new fact is a new `ASK`). When you are yourself a party to a plan, order or assignment dispute, do not settle it; after the two-round rule it goes to the Manager.
 
 ## You never

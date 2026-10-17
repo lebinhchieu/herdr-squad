@@ -491,5 +491,7 @@ class InvalidUtf8Test(Base):
             ([b"withdraw", b"E8", b"--reason", bad], b"", b"--reason"),
         ):
             with self.subTest(argv=argv):
+                if sys.platform == "win32" and option not in (b"--body-file", b"stdin"):
+                    self.skipTest("Windows: invalid UTF-8 cannot be passed in argv")
                 self.check(self.go(argv, stdin), option)
         self.assertEqual(((self.home / "escalations.md").read_bytes(), (self.home / "inbox.jsonl").read_bytes()), before)
