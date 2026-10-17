@@ -1,6 +1,6 @@
 # Windows checklist for the PO
 
-At most 13 steps (W0-W12), about 15 minutes, in Git Bash. Stop at the first failure and send me the full error text.
+Twelve steps (W1-W12) after the 0a-0c checks, about 15 minutes, in Git Bash. Stop at the first failure and send me the full error text.
 
 ## What the squad proved on Linux, and what only you can prove
 
@@ -21,13 +21,11 @@ If two Git Bash windows replace the same file at the same moment, Windows may re
 - **No `PYTHONUTF8` or `PYTHONIOENCODING`.** `echo "[$PYTHONUTF8][$PYTHONIOENCODING]"` must print `[][]`.
 - A project path with a space (like `Guardian - Learn`) and a squad with one scope whose Manager is not running. Note which form you typed: `/c/Users/...` or `C:\Users\...`. Run W1 once from each form if time allows. A backslash path or a path cut at the space in an error is a real finding: send the exact form and the full error.
 - `CR` check used below: `grep -c $'\r' <file>` must print `0`.
-- **Known limit (W9):** if two windows replace the same file at the same moment, Windows may refuse one `os.replace` with `PermissionError`. Not fixed (see `promote.md`). The lock itself must still work.
 
 ## Steps
 
 | # | Run | You should see | ✓ |
 |---|---|---|---|
-| W0 | In Git Bash: `python3 --version`, `jq --version`, `bash --version`, `git --version` | Each prints a version. A Microsoft Store stub that opens the Store for `python3` is a fail. If `jq` is missing, install it first: it is a documented prerequisite, not a plugin bug. | |
 | W1 | `squad-start --squad <squad> --resume <scope>` | A Manager tab titled `🦀 Manager`, ready. No `WinError 193`, no traceback. | |
 | W2 | `squad-start "windows check scratch" --squad <squad> --touches docs --yes`, then the CR check on the new `scope.md` | New scope folder, Manager tab, no traceback. CR count `0`. | |
 | W3 | In that Manager (no env vars exported), have it spawn a Tech Lead, a Developer, QA whitebox and QA blackbox. CR check on `roster.md`. | Four tabs with their emoji labels, each ready. No `UnicodeDecodeError`. CR count `0`. | |
@@ -38,7 +36,7 @@ If two Git Bash windows replace the same file at the same moment, Windows may re
 | W8 | `squad-inbox add --kind read --title "é → 🦀 check" --body-file <any file>`, then `squad-inbox list`, then `squad-inbox answer` on an answer item with a note holding an emoji. CR check on `inbox.jsonl` and `escalations.md`. | The title and note read back as typed. CR counts `0`. | |
 | W9 | Open two Git Bash windows. In each run `for i in $(seq 20); do squad-inbox add --kind read --title "w9 $i" --body-file <file>; done` at the same time. Then `squad-inbox list --json` and count the `w9` titles. | 40 titles, none twice, no error from the lock. A `PermissionError` on a rename that clears on re-run is the known limit above. | |
 | W10 | `squad-process show qa-blackbox`, then `squad-usage` | Both print, no traceback. | |
-| W11 | `squad-retire <a name from W3>`, then `squad-close --scope <scratch scope>`. CR check on `process-log.md`. | Both finish, the tabs close, no traceback. If one says `jq` is missing (you skipped W0), that is a fail unless the message names `jq` and what to install. | |
+| W11 | `squad-retire <a name from W3>`, then `squad-close --scope <scratch scope>`. CR check on `process-log.md`. | Both finish, the tabs close, no traceback. If one says `jq` is missing (you skipped 0b), that is a fail unless the message names `jq` and what to install. | |
 | W12 | `git clone -c core.autocrlf=true <plugin repo> x && cd x && git ls-files --eol \| grep -v "w/lf"` | Nothing listed (binary files show `w/-text`: ignore those). | |
 
 ## Not on this list (decided by the PO in E3)
@@ -53,6 +51,6 @@ If two Git Bash windows replace the same file at the same moment, Windows may re
 
 ## What to send back
 
-- W0-W12 as pass, fail or skipped.
+- 0a-0c and W1-W12 as pass, fail or skipped.
 - The full error text for each fail.
 - The sha from "Before you start" and the path form you used.
