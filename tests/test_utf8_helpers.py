@@ -83,6 +83,25 @@ class LabelAndSpawnTest(Base):
         self.assert_clean(r)
         self.assertEqual(r.stdout, "🤖 Dev · TAB-02 tabs\n".encode("utf-8"))
 
+    def test_label_reads_a_herdr_reply_with_emoji_on_the_calls_it_makes(self):
+        # squad-label calls agent list / agent get / tab rename; the emoji must be on those replies, or the
+        # utf-8 decode in herdr() is never exercised (a cp1252 decode error would drop the live peer silently).
+        peer = (
+            '#!/usr/bin/env bash\necho "$@" >> "$HERDR_LOG"\ncase "$1 $2" in\n'
+            '  "agent list") echo \'{"result":{"agents":[{"name":"dev-1","tab_id":"t-dev-1","note":"🦀"}]}}\' ;;\n'
+            '  "agent get") echo \'{"result":{"agent":{"name":"dev-1","tab_id":"t-dev-1","note":"🦀"}}}\' ;;\n'
+            '  "tab rename") echo "🦀" ;;\nesac\nexit 0\n')
+        (self.root / "fakebin" / "herdr").write_text(peer, encoding="utf-8", newline="\n")
+        (self.scope / "labels").mkdir()
+        (self.scope / "labels" / "dev-1.json").write_text(
+            json.dumps({"agent": "dev-1", "role": "dev", "number": None, "title": "TAB-01"}), encoding="utf-8")
+        r = self.cli("squad-label", "--init", "--agent", "dev-2", "--role", "dev", "--home", self.scope, "--title", "TAB-02")
+        # Not assert_clean: under LC_ALL=C the emoji argv of `tab rename` cannot be encoded by this Linux child
+        # (a sim artifact; Windows argv is UTF-16), so the rename warning is expected here.
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout, "🤖 Dev 2 · TAB-02\n".encode("utf-8"))
+        self.assertIn(b"agent get dev-1", self.log.read_bytes())
+
     def test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path(self):
         for role in ROLES:
             for dry in (True, False):
