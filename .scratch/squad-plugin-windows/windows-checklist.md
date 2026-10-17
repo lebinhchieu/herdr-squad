@@ -19,7 +19,7 @@ If two Git Bash windows replace the same file at the same moment, Windows may re
 - Git Bash, herdr running (`HERDR_ENV=1`).
 - The plugin version under test, from its cache. Its sha: `__________`
 - **No `PYTHONUTF8` or `PYTHONIOENCODING`.** `echo "[$PYTHONUTF8][$PYTHONIOENCODING]"` must print `[][]`.
-- A project path with a space (like `Guardian - Learn`) and a squad with one scope whose Manager is not running. Note which form you typed: `/c/Users/...` or `C:\Users\...`. Run W1 once from each form if time allows. A backslash path or a path cut at the space in an error is a real finding: send the exact form and the full error.
+- A project path with a space and an emoji (like `Guardian - Learn 🦀`) and a squad with one scope whose Manager is not running. Note which form you typed: `/c/Users/...` or `C:\Users\...`. Run W1 once from each form if time allows. A backslash path or a path cut at the space in an error is a real finding: send the exact form and the full error.
 - `CR` check used below: `grep -c $'\r' <file>` must print `0`.
 
 ## Steps
