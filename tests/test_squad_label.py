@@ -34,7 +34,7 @@ class LabelCliTest(unittest.TestCase):
         self.goal.mkdir(parents=True)
         fake = r / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR)
+        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
         (fake / "herdr").chmod(0o755)
         self.log = r / "herdr.log"
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR", "HERDR"))}
@@ -46,10 +46,10 @@ class LabelCliTest(unittest.TestCase):
 
     def run_cli(self, *args, **env):
         e = {**self.env, **env}
-        return subprocess.run([str(BIN / "squad-label"), *args], env=e, text=True, capture_output=True, timeout=20)
+        return subprocess.run([str(BIN / "squad-label"), *args], env=e, text=True, encoding="utf-8", capture_output=True, timeout=20)
 
     def calls(self):
-        return self.log.read_text().splitlines() if self.log.exists() else []
+        return self.log.read_text(encoding="utf-8").splitlines() if self.log.exists() else []
 
     def as_dev(self, name="dev-2", **kw):
         return dict(SQUAD_NAME=name, SQUAD_ROLE="dev", SCOPE_DIR=str(self.scope), **kw)
@@ -135,14 +135,14 @@ class LabelCliTest(unittest.TestCase):
 
     def test_init_dry_run_prints_the_label_and_writes_and_renames_nothing(self):
         sl.write_entry(self.scope, "dev-1", "dev", None, "TAB-01")
-        before = (self.scope / "labels" / "dev-1.json").read_text()
+        before = (self.scope / "labels" / "dev-1.json").read_text(encoding="utf-8")
         r = self.run_cli("--init", "--dry-run", "--home", str(self.goal), "--agent", "mgr", "--role", "manager")
         self.assertEqual((r.returncode, r.stdout), (0, "🦀 Manager\n"), r.stderr)
         self.assertFalse((self.goal / "labels").exists())
         r = self.run_cli("--init", "--dry-run", "--home", str(self.scope), "--agent", "dev-2", "--role", "dev",
                          "--title", "T", LIVE="dev-1")
         self.assertEqual(r.stdout, "🤖 Dev 2 · T\n")
-        self.assertEqual((self.scope / "labels" / "dev-1.json").read_text(), before)
+        self.assertEqual((self.scope / "labels" / "dev-1.json").read_text(encoding="utf-8"), before)
         self.assertFalse((self.scope / "labels" / "dev-2.json").exists())
         self.assertFalse([c for c in self.calls() if c.startswith("tab rename")])
 

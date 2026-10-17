@@ -34,27 +34,27 @@ class LogMessageTest(unittest.TestCase):
         if squad_name is not None:
             env.update(SQUAD_NAME=squad_name, SQUAD_DIR=str(self.squad))
         stdin = raw if raw is not None else json.dumps(data)
-        return subprocess.run([str(SCRIPT)], input=stdin, text=True, env=env,
+        return subprocess.run([str(SCRIPT)], input=stdin, text=True, encoding="utf-8", env=env,
                               capture_output=True, timeout=10)
 
     def records(self):
         if not self.log.exists():
             return []
-        return [json.loads(line) for line in self.log.read_text().splitlines()]
+        return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
 
     def run_hook_in(self, home_env, data=None):
         env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
         env.update(SQUAD_NAME="dev-1", SQUAD_DIR=str(self.squad), **home_env)
-        return subprocess.run([str(SCRIPT)], input=json.dumps(data or payload()), text=True, env=env,
+        return subprocess.run([str(SCRIPT)], input=json.dumps(data or payload()), text=True, encoding="utf-8", env=env,
                               capture_output=True, timeout=10)
 
     def test_scope_agent_logs_into_its_scope_folder_with_that_scopes_iteration(self):
         scope = self.squad / "scopes" / "sc1"
         (scope / "iterations").mkdir(parents=True)
-        (scope / "iterations" / "3.md").write_text("x")
-        (self.squad / "iterations" / "9.md").write_text("x")
+        (scope / "iterations" / "3.md").write_text("x", encoding="utf-8")
+        (self.squad / "iterations" / "9.md").write_text("x", encoding="utf-8")
         self.assertEqual(self.run_hook_in({"SCOPE_DIR": str(scope)}).returncode, 0)
-        [rec] = [json.loads(l) for l in (scope / "messages.jsonl").read_text().splitlines()]
+        [rec] = [json.loads(l) for l in (scope / "messages.jsonl").read_text(encoding="utf-8").splitlines()]
         self.assertEqual(rec["iteration"], 3)
         self.assertFalse(self.log.exists())
 
@@ -74,9 +74,9 @@ class LogMessageTest(unittest.TestCase):
         self.assertFalse((goal / "messages.jsonl").exists())
 
     def test_typed_message_is_logged_with_type_task_and_sender(self):
-        (self.squad / "iterations" / "1.md").write_text("x")
-        (self.squad / "iterations" / "2.md").write_text("x")
-        (self.squad / "iterations" / "10.md").write_text("x")
+        (self.squad / "iterations" / "1.md").write_text("x", encoding="utf-8")
+        (self.squad / "iterations" / "2.md").write_text("x", encoding="utf-8")
+        (self.squad / "iterations" / "10.md").write_text("x", encoding="utf-8")
         r = self.run_hook(payload())
         self.assertEqual(r.returncode, 0, r.stderr)
         [rec] = self.records()

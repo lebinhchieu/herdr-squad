@@ -27,15 +27,15 @@ class UsageHomeTest(unittest.TestCase):
             squad, scope = Path(tmp) / "squad", Path(tmp) / "squad" / "scopes" / "sc1"
             scope.mkdir(parents=True)
             head = "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
-            (squad / "roster.md").write_text(head + "| dev-1 | dev | flat | x | live | s-flat |\n")
-            (scope / "roster.md").write_text(head + "| dev-1 | dev | sc1 | x | live | s-scope |\n")
+            (squad / "roster.md").write_text(head + "| dev-1 | dev | flat | x | live | s-flat |\n", encoding="utf-8")
+            (scope / "roster.md").write_text(head + "| dev-1 | dev | sc1 | x | live | s-scope |\n", encoding="utf-8")
             env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
             env.update(SQUAD_DIR=str(squad), SCOPE_DIR=str(scope))
-            r = subprocess.run([str(SCRIPT), "--get", "dev-1"], env=env, text=True, capture_output=True, timeout=10)
+            r = subprocess.run([str(SCRIPT), "--get", "dev-1"], env=env, text=True, encoding="utf-8", capture_output=True, timeout=10)
             self.assertEqual(r.stdout.split("\t")[2].strip(), "s-scope", r.stderr)
             env.pop("SCOPE_DIR")
             env["GOAL_DIR"] = str(scope)
-            r = subprocess.run([str(SCRIPT), "--get", "dev-1"], env=env, text=True, capture_output=True, timeout=10)
+            r = subprocess.run([str(SCRIPT), "--get", "dev-1"], env=env, text=True, encoding="utf-8", capture_output=True, timeout=10)
             self.assertEqual(r.stdout.split("\t")[2].strip(), "s-scope", r.stderr)
 
 
@@ -55,10 +55,10 @@ class UsageBase(unittest.TestCase):
         self.tmp.cleanup()
 
     def transcript(self, sid, lines):
-        (self.proj / f"{sid}.jsonl").write_text("".join(json.dumps(l) + "\n" for l in lines))
+        (self.proj / f"{sid}.jsonl").write_text("".join(json.dumps(l) + "\n" for l in lines), encoding="utf-8")
 
     def run_cli(self, *args):
-        return subprocess.run([str(SCRIPT), *args], env=self.env, text=True, capture_output=True, timeout=10)
+        return subprocess.run([str(SCRIPT), *args], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=10)
 
 
 class UsageTest(UsageBase):
@@ -74,7 +74,7 @@ class UsageTest(UsageBase):
         ])
         (self.squad / "roster.md").write_text(
             "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
-            "| manager | Manager | all | x | live | |\n| dev-1 | Dev | s | y | live | sid-1 |\n")
+            "| manager | Manager | all | x | live | |\n| dev-1 | Dev | s | y | live | sid-1 |\n", encoding="utf-8")
         r = self.run_cli("--squad-dir", str(self.squad))
         self.assertEqual(r.returncode, 0, r.stderr)
         row = next(l for l in r.stdout.splitlines() if l.startswith("dev-1")).split()
@@ -93,7 +93,7 @@ class UsageTest(UsageBase):
             turn(30 + 61 + 90, "d", ctx=(2, 52_000, 500)),       # >1h gap but cache survived -> not an expiry
         ])
         self.env["SQUAD_DIR"] = str(self.squad)
-        (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n| dev-1 | sid-1 |\n")
+        (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n| dev-1 | sid-1 |\n", encoding="utf-8")
         r = self.run_cli()
         self.assertEqual(r.stdout.splitlines()[1].split()[-3:-1], ["1", "0"])
 
@@ -101,7 +101,7 @@ class UsageTest(UsageBase):
         self.transcript("sid-1", [turn(0, "a"), {"type": "system", "subtype": "compact_boundary"},
                                   {"type": "user", "isCompactSummary": True}, turn(1, "b")])
         self.assertEqual(self.run_cli("--check", "sid-1").stdout.strip(), "fresh")
-        (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n| dev-1 | sid-1 |\n")
+        (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n| dev-1 | sid-1 |\n", encoding="utf-8")
         self.assertEqual(self.run_cli("--squad-dir", str(self.squad)).stdout.splitlines()[1].split()[-2], "1")
 
     def test_check_fresh_over_120k(self):
@@ -141,18 +141,18 @@ class UsageTest(UsageBase):
 
     def test_check_with_explicit_transcript(self):
         p = Path(self.tmp.name) / "elsewhere.jsonl"
-        p.write_text(json.dumps(turn(0, "a", ctx=(2, 150_000, 0))) + "\n")
+        p.write_text(json.dumps(turn(0, "a", ctx=(2, 150_000, 0))) + "\n", encoding="utf-8")
         self.assertEqual(self.run_cli("--check", "x", "--transcript", str(p)).stdout.strip(), "fresh")
 
     def test_set_session_updates_row_adds_column_and_appends(self):
         roster = self.squad / "roster.md"
         roster.write_text("# Roster\n\n| Agent | Role | Scope | Owns | Status |\n|---|---|---|---|---|\n"
-                          "| manager | Manager | all | x | live |\n")
+                          "| manager | Manager | all | x | live |\n", encoding="utf-8")
         self.env["SQUAD_DIR"] = str(self.squad)
         self.run_cli("--set-session", "manager", "sid-m")
         self.run_cli("--set-session", "dev-1", "sid-d", "--role", "Dev", "--scope", "s")
         self.run_cli("--set-session", "dev-1", "sid-d2")
-        lines = roster.read_text().splitlines()
+        lines = roster.read_text(encoding="utf-8").splitlines()
         self.assertEqual(lines[0], "# Roster")
         self.assertEqual(lines[2], "| Agent | Role | Scope | Owns | Status | Session |")
         self.assertEqual(lines[4], "| manager | Manager | all | x | live | sid-m |")
@@ -164,7 +164,7 @@ class UndercountTest(UsageBase):
     """AT-05: subagents, every session of an agent, symlinked config dirs."""
 
     def roster(self, *rows):
-        (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n" + "".join(f"| {a} | {s} |\n" for a, s in rows))
+        (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n" + "".join(f"| {a} | {s} |\n" for a, s in rows), encoding="utf-8")
 
     def named(self, sid, name, lines, proj=None):
         self.transcript(sid, [{"type": "agent-name", "agentName": name, "sessionId": sid}] + lines)
@@ -178,7 +178,7 @@ class UndercountTest(UsageBase):
     def sub(self, sid, name, lines):
         d = self.proj / sid / "subagents"
         d.mkdir(parents=True, exist_ok=True)
-        (d / f"{name}.jsonl").write_text("".join(json.dumps(l) + "\n" for l in lines))
+        (d / f"{name}.jsonl").write_text("".join(json.dumps(l) + "\n" for l in lines), encoding="utf-8")
 
     def test_subagent_file_adds_and_duplicates_count_once(self):
         self.transcript("s1", [turn(0, "m1", out=100), turn(1, "m2", ctx=(2, 5000, 0), out=200)])
@@ -226,8 +226,8 @@ class UndercountTest(UsageBase):
         wt = self.cfg / "projects" / "-some-cwd--worktrees-sc-dev-1"
         wt.mkdir()
         rec = {"type": "agent-name", "agentName": "dev-1"}
-        (other / "x.jsonl").write_text(json.dumps(rec) + "\n" + json.dumps(turn(0, "z", out=9000)) + "\n")
-        (wt / "w.jsonl").write_text(json.dumps(rec) + "\n" + json.dumps(turn(0, "w", out=2000)) + "\n")
+        (other / "x.jsonl").write_text(json.dumps(rec) + "\n" + json.dumps(turn(0, "z", out=9000)) + "\n", encoding="utf-8")
+        (wt / "w.jsonl").write_text(json.dumps(rec) + "\n" + json.dumps(turn(0, "w", out=2000)) + "\n", encoding="utf-8")
         self.named("mine", "dev-1", [turn(0, "a", out=1000)])
         self.roster(("dev-1", "mine"))
         row = self.table()[0]["dev-1"]
@@ -243,7 +243,7 @@ class UndercountTest(UsageBase):
     def test_two_paths_for_one_session_id_take_the_sorted_first(self):
         for d, ctx in (("-b-cwd", 5000), ("-a-cwd", 150_000)):
             (self.cfg / "projects" / d).mkdir()
-            (self.cfg / "projects" / d / "dup.jsonl").write_text(json.dumps(turn(0, "a", ctx=(2, ctx, 0), base=NOW)) + "\n")
+            (self.cfg / "projects" / d / "dup.jsonl").write_text(json.dumps(turn(0, "a", ctx=(2, ctx, 0), base=NOW)) + "\n", encoding="utf-8")
         self.assertEqual(self.run_cli("--check", "dup").stdout.strip(), "fresh")   # -a-cwd wins
 
     def test_one_session_no_subagents_is_todays_table(self):

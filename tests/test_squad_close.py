@@ -18,7 +18,7 @@ GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAM
 
 
 def git(*args, cwd):
-    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True,
+    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
                           env={**os.environ, **GIT_ENV}).stdout
 
 
@@ -30,12 +30,12 @@ class CloseTest(unittest.TestCase):
         git("commit", "-q", "--allow-empty", "-m", "init", cwd=self.root)
         self.squad = self.root / ".claude" / "squads" / "t"
         (self.squad / "evidence").mkdir(parents=True)
-        (self.squad / "process.md").write_text("x")
-        (self.squad / "evidence" / "proof.md").write_text("kept")
+        (self.squad / "process.md").write_text("x", encoding="utf-8")
+        (self.squad / "evidence" / "proof.md").write_text("kept", encoding="utf-8")
         (self.squad / "roster.md").write_text(
             "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
             "| manager-t | manager |  |  | live | s0 |\n| t-ba-x | ba | x | biz | live | s1 |\n"
-            "| t-dev-x-1 | dev | x | task 1 | live | s2 |\n| t-dev-x-2 | dev | x | task 2 | dead | s3 |\n")
+            "| t-dev-x-1 | dev | x | task 1 | live | s2 |\n| t-dev-x-2 | dev | x | task 2 | dead | s3 |\n", encoding="utf-8")
         self.wts = {}
         for n, mode in (("t-dev-x-1", "merged"), ("t-dev-x-2", "unmerged"), ("t-dev-x-3", "dirty")):
             wt = self.root / ".worktrees" / "t" / n
@@ -43,12 +43,12 @@ class CloseTest(unittest.TestCase):
             if mode == "unmerged":
                 git("commit", "-q", "--allow-empty", "-m", "work", cwd=wt)
             if mode == "dirty":
-                (wt / "wip.txt").write_text("uncommitted")
+                (wt / "wip.txt").write_text("uncommitted", encoding="utf-8")
                 git("add", "wip.txt", cwd=wt)  # staged: a tracked change blocks removal; a plain untracked file does not
             self.wts[n] = wt
         fake = self.root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR)
+        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
         (fake / "herdr").chmod(0o755)
         self.log = self.root / "herdr.log"
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
@@ -60,14 +60,14 @@ class CloseTest(unittest.TestCase):
 
     def close(self, *args):
         return subprocess.run([str(BIN / "squad-close"), "t", *args], env=self.env, cwd=self.root,
-                              text=True, capture_output=True, timeout=30)
+                              text=True, encoding="utf-8", capture_output=True, timeout=30)
 
     def test_closes_squad_and_reports_each_branch(self):
         r = self.close()
         self.assertEqual(r.returncode, 0, r.stderr)
 
         self.assertFalse(self.squad.exists())
-        self.assertEqual((self.root / ".claude" / "squads" / "_done" / "t" / "evidence" / "proof.md").read_text(), "kept")
+        self.assertEqual((self.root / ".claude" / "squads" / "_done" / "t" / "evidence" / "proof.md").read_text(encoding="utf-8"), "kept")
 
         self.assertFalse(self.wts["t-dev-x-1"].exists())      # merged and clean: removed
         self.assertTrue(self.wts["t-dev-x-2"].exists())       # unmerged: kept
@@ -77,14 +77,14 @@ class CloseTest(unittest.TestCase):
         self.assertIn("squad/t/t-dev-x-3: merged into main, kept (uncommitted changes)", r.stdout)
         self.assertIn("squad/t/t-dev-x-1", git("branch", "--list", "squad/t/*", cwd=self.root))  # branches are never deleted
 
-        log = self.log.read_text().splitlines()
+        log = self.log.read_text(encoding="utf-8").splitlines()
         closed = [l for l in log if l.startswith("pane close")]
         self.assertEqual(closed, ["pane close p-t-ba-x", "pane close p-t-dev-x-1", "pane close p-manager-t"])  # dead agent skipped, Manager last
         self.assertEqual(log[-1], "pane close p-manager-t")
         self.assertFalse(any(l.startswith("agent prompt") for l in log))  # nothing to save for a closed goal
 
     def _add_scope_y_dev(self):
-        with (self.squad / "roster.md").open("a") as f:
+        with (self.squad / "roster.md").open("a", encoding="utf-8") as f:
             f.write("| t-dev-y-1 | dev | y | task 9 | live | s9 |\n")
         wt = self.root / ".worktrees" / "t" / "t-dev-y-1"
         git("worktree", "add", "-q", str(wt), "-b", "squad/t/t-dev-y-1", cwd=self.root)
@@ -101,10 +101,10 @@ class CloseTest(unittest.TestCase):
         self.assertTrue(y_wt.exists())                         # other scope untouched
         self.assertNotIn("t-dev-y-1", r.stdout)
 
-        closed = [l for l in self.log.read_text().splitlines() if l.startswith("pane close")]
+        closed = [l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("pane close")]
         self.assertEqual(closed, ["pane close p-t-ba-x", "pane close p-t-dev-x-1"])
 
-        roster = (self.squad / "roster.md").read_text()
+        roster = (self.squad / "roster.md").read_text(encoding="utf-8")
         for gone in ("t-ba-x", "t-dev-x-1", "t-dev-x-2"):
             self.assertNotIn(f"| {gone} |", roster)
         self.assertIn("| manager-t |", roster)
@@ -112,10 +112,10 @@ class CloseTest(unittest.TestCase):
         self.assertIn("| Agent | Role |", roster)              # header kept
 
     def test_scope_mode_dry_run_changes_nothing(self):
-        before = (self.squad / "roster.md").read_text()
+        before = (self.squad / "roster.md").read_text(encoding="utf-8")
         r = self.close("--scope", "x", "--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual((self.squad / "roster.md").read_text(), before)
+        self.assertEqual((self.squad / "roster.md").read_text(encoding="utf-8"), before)
         self.assertTrue(self.wts["t-dev-x-1"].exists())
 
     def test_scope_mode_unknown_scope_fails(self):
@@ -133,7 +133,7 @@ class CloseTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue(self.squad.exists())
         self.assertTrue(self.wts["t-dev-x-1"].exists())
-        self.assertFalse(self.log.exists() and "pane close" in self.log.read_text())
+        self.assertFalse(self.log.exists() and "pane close" in self.log.read_text(encoding="utf-8"))
         self.assertIn("would", r.stdout)
 
     def test_refuses_to_overwrite_an_existing_archive(self):
@@ -145,7 +145,7 @@ class CloseTest(unittest.TestCase):
 
     def test_unknown_squad_fails(self):
         self.env.pop("SQUAD_DIR")
-        r = subprocess.run([str(BIN / "squad-close"), "ghost"], env=self.env, cwd=self.root, text=True, capture_output=True, timeout=10)
+        r = subprocess.run([str(BIN / "squad-close"), "ghost"], env=self.env, cwd=self.root, text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertNotEqual(r.returncode, 0)
 
 
@@ -162,19 +162,19 @@ class ScopedCloseTest(unittest.TestCase):
         git("commit", "-q", "--allow-empty", "-m", "init", cwd=self.root)
         self.squad = self.root / ".claude" / "squads" / "t"
         (self.squad / "process.md").parent.mkdir(parents=True)
-        (self.squad / "process.md").write_text("x")
+        (self.squad / "process.md").write_text("x", encoding="utf-8")
         for d in ("scopes/sc1", "scopes/sc2", "scopes/sc3", "goals/g1/shared"):
             (self.squad / d).mkdir(parents=True)
-        (self.squad / "scopes/sc1/roster.md").write_text(HEAD + "| t-mgr-sc1 | manager | sc1 |  | live | s0 |\n| t-dev-sc1-1 | dev | sc1 | x | live | s1 |\n")
-        (self.squad / "scopes/sc1/scope.md").write_text("# Scope\n\ngoal:\n")
+        (self.squad / "scopes/sc1/roster.md").write_text(HEAD + "| t-mgr-sc1 | manager | sc1 |  | live | s0 |\n| t-dev-sc1-1 | dev | sc1 | x | live | s1 |\n", encoding="utf-8")
+        (self.squad / "scopes/sc1/scope.md").write_text("# Scope\n\ngoal:\n", encoding="utf-8")
         (self.squad / "scopes/sc1/evidence").mkdir()
-        (self.squad / "scopes/sc1/evidence/proof.md").write_text("kept")
-        (self.squad / "scopes/sc2/roster.md").write_text(HEAD + "| t-dev-sc2-1 | dev | sc2 | x | live | s2 |\n")
-        (self.squad / "scopes/sc2/scope.md").write_text("# Scope\n\ngoal: g1\n")
-        (self.squad / "scopes/sc3/scope.md").write_text("# Scope\n\ngoal: g1\n")
-        (self.squad / "goals/g1/roster.md").write_text(HEAD + "| t-mgr-g1 | manager |  |  | live | s3 |\n")
-        (self.squad / "goals/g1/goal.md").write_text("# Goal\n")
-        (self.squad / "goals/g1/shared/decisions.md").write_text("# Decisions\n")
+        (self.squad / "scopes/sc1/evidence/proof.md").write_text("kept", encoding="utf-8")
+        (self.squad / "scopes/sc2/roster.md").write_text(HEAD + "| t-dev-sc2-1 | dev | sc2 | x | live | s2 |\n", encoding="utf-8")
+        (self.squad / "scopes/sc2/scope.md").write_text("# Scope\n\ngoal: g1\n", encoding="utf-8")
+        (self.squad / "scopes/sc3/scope.md").write_text("# Scope\n\ngoal: g1\n", encoding="utf-8")
+        (self.squad / "goals/g1/roster.md").write_text(HEAD + "| t-mgr-g1 | manager |  |  | live | s3 |\n", encoding="utf-8")
+        (self.squad / "goals/g1/goal.md").write_text("# Goal\n", encoding="utf-8")
+        (self.squad / "goals/g1/shared/decisions.md").write_text("# Decisions\n", encoding="utf-8")
         self.wts = {}
         for scope, agent, merged in (("sc1", "t-dev-sc1-1", True), ("sc1", "t-dev-sc1-2", False), ("sc2", "t-dev-sc2-1", True)):
             wt = self.root / ".worktrees" / "t" / scope / agent
@@ -184,7 +184,7 @@ class ScopedCloseTest(unittest.TestCase):
             self.wts[agent] = wt
         fake = self.root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR)
+        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
         (fake / "herdr").chmod(0o755)
         self.log = self.root / "herdr.log"
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
@@ -195,16 +195,16 @@ class ScopedCloseTest(unittest.TestCase):
 
     def close(self, *args):
         return subprocess.run([str(BIN / "squad-close"), "t", *args], env=self.env, cwd=self.root,
-                              text=True, capture_output=True, timeout=30)
+                              text=True, encoding="utf-8", capture_output=True, timeout=30)
 
     def closed_tabs(self):
-        return [l for l in self.log.read_text().splitlines() if l.startswith("pane close")] if self.log.exists() else []
+        return [l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("pane close")] if self.log.exists() else []
 
     def test_scope_close_moves_the_folder_and_tidies_only_that_scopes_worktrees(self):
         r = self.close("--scope", "sc1")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse((self.squad / "scopes/sc1").exists())
-        self.assertEqual((self.squad / "scopes/_done/sc1/evidence/proof.md").read_text(), "kept")
+        self.assertEqual((self.squad / "scopes/_done/sc1/evidence/proof.md").read_text(encoding="utf-8"), "kept")
         self.assertFalse(self.wts["t-dev-sc1-1"].exists())          # merged: removed
         self.assertTrue(self.wts["t-dev-sc1-2"].exists())           # unmerged: kept
         self.assertTrue(self.wts["t-dev-sc2-1"].exists())           # other scope untouched
@@ -240,7 +240,7 @@ class ScopedCloseTest(unittest.TestCase):
         for s in ("sc2", "sc3"):
             (self.squad / "scopes" / "_done").mkdir(exist_ok=True)
             (self.squad / "scopes" / s).rename(self.squad / "scopes" / "_done" / s)
-        (self.squad / "goals/g1/shared/decisions.md").write_text("# Decisions\n\n- the API returns ISO dates\n")
+        (self.squad / "goals/g1/shared/decisions.md").write_text("# Decisions\n\n- the API returns ISO dates\n", encoding="utf-8")
         r = self.close("--goal", "g1")
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("unpromoted", r.stderr)
@@ -252,15 +252,15 @@ class ScopedCloseTest(unittest.TestCase):
         for s in ("sc2", "sc3"):
             (self.squad / "scopes" / "_done").mkdir(exist_ok=True)
             (self.squad / "scopes" / s).rename(self.squad / "scopes" / "_done" / s)
-        (self.squad / "goals/g1/shared/decisions.md").write_text("# Decisions\n\n- the API returns ISO dates\n")
-        (self.squad / "goals/g1/goal.md").write_text("# Goal\n\npromoted: 2026-10-13 abc123\n")
+        (self.squad / "goals/g1/shared/decisions.md").write_text("# Decisions\n\n- the API returns ISO dates\n", encoding="utf-8")
+        (self.squad / "goals/g1/goal.md").write_text("# Goal\n\npromoted: 2026-10-13 abc123\n", encoding="utf-8")
         r = self.close("--goal", "g1")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse((self.squad / "goals/g1").exists())
         self.assertEqual(self.closed_tabs(), ["pane close p-t-mgr-g1"])
 
     def test_squad_close_covers_every_scope_and_goal_roster_and_nested_worktrees(self):
-        (self.squad / "goals/g1/shared/decisions.md").write_text("# D\n\n- fact\n")
+        (self.squad / "goals/g1/shared/decisions.md").write_text("# D\n\n- fact\n", encoding="utf-8")
         r = self.close()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue((self.root / ".claude/squads/_done/t/scopes/sc1/evidence/proof.md").exists())
@@ -273,13 +273,13 @@ class ScopedCloseTest(unittest.TestCase):
     def test_flat_squad_with_the_oldest_worktree_layout_is_found_by_agent_name(self):
         squad = self.root / ".claude" / "squads" / "old"
         squad.mkdir(parents=True)
-        (squad / "process.md").write_text("x")
-        (squad / "roster.md").write_text(HEAD + "| dev-board-1 | dev | board | x | live | s |\n")
+        (squad / "process.md").write_text("x", encoding="utf-8")
+        (squad / "roster.md").write_text(HEAD + "| dev-board-1 | dev | board | x | live | s |\n", encoding="utf-8")
         wt = self.root / ".worktrees" / "dev-board-1"
         git("worktree", "add", "-q", str(wt), "-b", "squad/dev-board-1", cwd=self.root)
         self.env["SQUAD_DIR"] = str(squad)
         r = subprocess.run([str(BIN / "squad-close"), "old", "--scope", "board"], env=self.env, cwd=self.root,
-                           text=True, capture_output=True, timeout=30)
+                           text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("squad/dev-board-1: merged into main, worktree removed", r.stdout)
         self.assertFalse(wt.exists())
@@ -299,8 +299,8 @@ class WorktreeFinderTest(unittest.TestCase):
         git("commit", "-q", "--allow-empty", "-m", "init", cwd=self.root)
         self.squad = self.root / ".claude" / "squads" / "t"
         self.squad.mkdir(parents=True)
-        (self.squad / "process.md").write_text("x")
-        (self.squad / "roster.md").write_text(HEAD + "| dev-a | dev | x | t | live | s1 |\n")
+        (self.squad / "process.md").write_text("x", encoding="utf-8")
+        (self.squad / "roster.md").write_text(HEAD + "| dev-a | dev | x | t | live | s1 |\n", encoding="utf-8")
         self.wts = {}
         for name, branch in (("dev-a", "squad/dev-a"),          # old layout: .worktrees/<name>, branch squad/<name>
                              ("dev-b", "squad/t/x/dev-b"),      # nested, scope layout
@@ -312,16 +312,16 @@ class WorktreeFinderTest(unittest.TestCase):
             git("worktree", "add", "-q", str(wt), "-b", branch, cwd=self.root)
             self.wts[name] = wt
         git("commit", "-q", "--allow-empty", "-m", "work", cwd=self.wts["dev-c"])
-        (self.wts["dev-d"] / "README").write_text("x")
+        (self.wts["dev-d"] / "README").write_text("x", encoding="utf-8")
         git("add", "README", cwd=self.wts["dev-d"])
         (self.wts["dev-a"] / "__pycache__").mkdir()
-        (self.wts["dev-a"] / "__pycache__" / "m.pyc").write_text("c")
-        (self.wts["dev-a"] / "agent.pid").write_text("1")
-        with (self.squad / "roster.md").open("a") as f:
+        (self.wts["dev-a"] / "__pycache__" / "m.pyc").write_text("c", encoding="utf-8")
+        (self.wts["dev-a"] / "agent.pid").write_text("1", encoding="utf-8")
+        with (self.squad / "roster.md").open("a", encoding="utf-8") as f:
             f.write("| dev-b | dev | x | t | live | s2 |\n| dev-c | dev | y | t | live | s3 |\n| dev-d | dev | y | t | live | s4 |\n")
         fake = self.root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR)
+        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
         (fake / "herdr").chmod(0o755)
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.root / "h.log"),
@@ -332,7 +332,7 @@ class WorktreeFinderTest(unittest.TestCase):
 
     def close(self, *args):
         return subprocess.run([str(BIN / "squad-close"), "t", *args], env=self.env, cwd=self.root,
-                              text=True, capture_output=True, timeout=30)
+                              text=True, encoding="utf-8", capture_output=True, timeout=30)
 
     def test_removes_merged_clean_worktrees_in_any_folder_and_lists_untracked(self):
         r = self.close("--dry-run")
@@ -363,7 +363,7 @@ class WorktreeFinderTest(unittest.TestCase):
 
     def test_scope_mode_takes_the_scope_branches_and_roster_names(self):
         (self.squad / "scopes" / "x").mkdir(parents=True)
-        (self.squad / "scopes" / "x" / "roster.md").write_text(HEAD + "| dev-b | dev | x | t | live | s2 |\n")
+        (self.squad / "scopes" / "x" / "roster.md").write_text(HEAD + "| dev-b | dev | x | t | live | s2 |\n", encoding="utf-8")
         r = self.close("--scope", "x")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse(self.wts["dev-b"].exists())
@@ -380,16 +380,16 @@ class InboxGuardTest(unittest.TestCase):
     """PI-06 (B-29): a scope or goal with open answer items is not closed unless --force."""
 
     def put(self, folder, text=ESC):
-        (self.squad / folder / "escalations.md").write_text(text)
+        (self.squad / folder / "escalations.md").write_text(text, encoding="utf-8")
 
     def inbox(self, folder, *args, body=""):
         env = {**self.env, "SQUAD_ROLE": "manager", "SQUAD_INBOX_NOW": "2026-10-15T10:00:00Z"}
         return subprocess.run([str(BIN / "squad-inbox"), "--home", str(self.squad / folder), *args], env=env,
-                              text=True, capture_output=True, timeout=30, input=body)
+                              text=True, encoding="utf-8", capture_output=True, timeout=30, input=body)
 
     def assertNothingDone(self, folder):
         self.assertTrue((self.squad / folder).exists())
-        self.assertFalse(self.log.exists() and self.log.read_text().strip())
+        self.assertFalse(self.log.exists() and self.log.read_text(encoding="utf-8").strip())
 
     def test_open_item_refuses_scope_close(self):
         self.put("scopes/sc1")
@@ -434,7 +434,7 @@ class InboxGuardTest(unittest.TestCase):
         r = self.close("--goal", "g1")
         self.assertEqual(r.returncode, 1)
         self.assertIn("goal g1 has 1 open answer items: E2 Ship it?", r.stderr)
-        (self.squad / "goals/g1/shared/decisions.md").write_text("# D\n\n- fact\n")
+        (self.squad / "goals/g1/shared/decisions.md").write_text("# D\n\n- fact\n", encoding="utf-8")
         self.assertIn("unpromoted", self.close("--goal", "g1").stderr)
         self.assertEqual(self.close("--goal", "g1", "--force").returncode, 0)
 
@@ -468,10 +468,10 @@ class InboxGuardTest(unittest.TestCase):
         lone = self.root / "lonebin"
         lone.mkdir()
         for n in ("squad-close", "squad-retire"):
-            (lone / n).write_text((BIN / n).read_text())
+            (lone / n).write_text((BIN / n).read_text(encoding="utf-8"))
             (lone / n).chmod(0o755)
         r = subprocess.run([str(lone / "squad-close"), "t", "--scope", "sc1"], env=self.env, cwd=self.root,
-                           text=True, capture_output=True, timeout=30)
+                           text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("warning", r.stderr)
 
@@ -480,11 +480,11 @@ class InboxGuardTest(unittest.TestCase):
         lone = self.root / "lonebin"
         lone.mkdir()
         for n in ("squad-close", "squad-retire"):
-            (lone / n).write_text((BIN / n).read_text())
+            (lone / n).write_text((BIN / n).read_text(encoding="utf-8"))
             (lone / n).chmod(0o755)
-        (lone / "squad-inbox").write_text("#!/bin/sh\necho not json\n")
+        (lone / "squad-inbox").write_text("#!/bin/sh\necho not json\n", encoding="utf-8")
         (lone / "squad-inbox").chmod(0o755)
         r = subprocess.run([str(lone / "squad-close"), "t", "--scope", "sc1"], env=self.env, cwd=self.root,
-                           text=True, capture_output=True, timeout=30)
+                           text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("did not answer with JSON", r.stderr)
