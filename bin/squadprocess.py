@@ -438,7 +438,7 @@ def compose(squad_dir, plugin_root, out, resolve=None):
         blocks.insert(at, [h, decided[h][0]])
     text = _render(blocks, pl["plugin"])
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(text, encoding="utf-8")
+    out.write_text(text, encoding="utf-8", newline="\n")
     return text
 
 
@@ -469,7 +469,7 @@ def _backup_path(squad_dir, today):
 def _atomic_write(path, text):
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
         if path.exists():
             shutil.copymode(path, tmp)

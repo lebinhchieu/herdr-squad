@@ -3,8 +3,12 @@
 lint(text, exceptions) -> ["line N: <check>: <detail>", ...].
 CLI: python3 bin/processlint.py FILE  (exit 1 on any problem).
 """
+import os
 import re
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
 
 MAX_WORDS = 60
 MAX_BOLD_WORDS = 15
@@ -145,6 +149,7 @@ def lint(text, exceptions=()):
 
 
 def main(argv):
+    squadio.utf8_stdio()
     if len(argv) != 2:
         print("usage: processlint.py FILE", file=sys.stderr)
         return 2
