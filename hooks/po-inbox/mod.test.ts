@@ -10,6 +10,8 @@ const MIXED = FIXTURES['contract-mixed']
 const EMPTY = FIXTURES['contract-empty']
 
 type Reply = { exitCode: number; stdout: string; stderr: string }
+// The host reports Windows paths as C:\h\scope\x; the expectations are POSIX.
+const posix = (p: string) => p.replace(/\\/g, '/').replace(/^[A-Za-z]:/, '')
 const ok = (stdout: string): Reply => ({ exitCode: 0, stdout, stderr: '' })
 
 // A world beneath the plugin: the CLI, the file system and the session are answered here and recorded.
@@ -42,7 +44,7 @@ function world(on: any, env: Record<string, string>, cli: (argv: string[], stdin
     }))
   })
   on('fs.stat', (_$: any, e: any) => {
-    w.stats.push(e.path)
+    w.stats.push(posix(e.path))
     return { value: { kind: 'file', size: w.size, mtimeMs: w.mtime, isLink: false } }
   })
   on('ui.toast', (_$: any, e: any) => (w.toasts.push(e.text), { value: undefined }))

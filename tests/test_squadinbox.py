@@ -45,8 +45,10 @@ def env(role="manager", **extra):
 
 
 def run(home, *args, stdin="", role="manager", **extra):
-    return subprocess.run([sys.executable, "-B", CLI, "--home", str(home)] + [a.encode("utf-8") if isinstance(a, str) else a for a in args], input=stdin, text=True,
-                          capture_output=True, env=env(role, **extra), encoding="utf-8")
+    # Bytes in, bytes out: a text-mode pipe would turn each \n into \r\n on Windows and a CRLF in `stdin` into \r\r\n.
+    r = subprocess.run([sys.executable, "-B", CLI, "--home", str(home)] + [a.encode("utf-8") if isinstance(a, str) else a for a in args], input=stdin.encode("utf-8"),
+                       capture_output=True, env=env(role, **extra))
+    return subprocess.CompletedProcess(r.args, r.returncode, r.stdout.decode("utf-8"), r.stderr.decode("utf-8"))
 
 
 def listing(home, *args):
