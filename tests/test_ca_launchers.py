@@ -1,5 +1,10 @@
 """claude-accounts: lib.sh functions and the c, c1-c3, cdefault, cswitch launchers, run against stub herdr/claude."""
 import json
+import os
+import shlex
+import shutil
+import subprocess
+import sys
 import time
 import unittest
 
@@ -354,6 +359,49 @@ class CswitchTest(Base):
         self.assertEqual(argv[-1], b"")
         self.assertIn("pZ ? -> account 1", (self.e.acct / "cswitch.log").read_text())
         self.assertIn("pane get pZ", self.e.herdr_calls())
+
+
+    def test_original_args_kept_and_earlier_resume_flags_dropped(self):
+        # a fake "claude" process (pgrep -x claude) in pane p1 carrying the original args
+        self.pane("sess-9")
+        fake = self.e.tmp / "claude"
+        shutil.copy(os.path.realpath(sys.executable), fake)
+        idle = self.e.tmp / "idle.py"
+        idle.write_text("import time; time.sleep(30)")
+        flags = ["--agent", "x y", "--resume", "old", "-r", "old2", "--continue", "-c", "--session-id", "u1",
+                 "--session-id=u2", "--resume=old3", "--model", "m"]
+        proc = subprocess.Popen([str(fake), str(idle), *flags], env=dict(os.environ, **HERDR, HERDR_PANE_ID="p1"))
+        self.addCleanup(proc.wait)
+        self.addCleanup(proc.kill)
+        time.sleep(0.3)
+        r = self.e.run("cswitch", "2", "p1", env=HERDR)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        cmd = self.nohup_argv()[-2].decode()
+        self.assertEqual(shlex.split(cmd), [f"{self.e.acct}/bin/c2", str(idle), "--agent", "x y", "--model", "m",
+                                            "--resume", "sess-9"])
+
+
+class BashrcLineTest(Base):
+    """The PO's .bashrc line (copied from ~/.bashrc) must find c and pick the account from cdefault."""
+    LINE = ('export PATH="$HOME/.claude-accounts/bin:$PATH"; '
+            'd=$("$HOME/.claude-accounts/bin/cdefault" 2>/dev/null); '
+            'case "$d" in 2|3) export CLAUDE_CONFIG_DIR="$HOME/.claude-$d" ;; *) unset CLAUDE_CONFIG_DIR ;; esac; unset d; '
+            'echo "cfg=${CLAUDE_CONFIG_DIR-<unset>}"; command -v c')
+
+    def run_line(self):
+        env = dict(self.e.env, CLAUDE_CONFIG_DIR="/stale")
+        r = subprocess.run(["bash", "-c", self.LINE], env=env, capture_output=True, text=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout.splitlines()
+
+    def test_default_picks_config_dir_and_path_finds_c(self):
+        for d, want in (("2", f"cfg={self.e.home}/.claude-2"), ("3", f"cfg={self.e.home}/.claude-3"),
+                        ("1", "cfg=<unset>")):
+            self.e.default_file(d)
+            self.assertEqual(self.run_line(), [want, f"{self.e.acct}/bin/c"], d)
+
+    def test_no_default_file_unsets(self):
+        self.assertEqual(self.run_line()[0], "cfg=<unset>")
 
 
 if __name__ == "__main__":
