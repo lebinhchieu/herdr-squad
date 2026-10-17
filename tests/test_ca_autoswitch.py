@@ -252,6 +252,28 @@ class AutoswitchTest(Base):
         self.assertIn("ok: no squad panes", r.stdout)
         self.assertNotIn("real-agent", r.stdout + self.log())
 
+    def test_claude_missing_pane_or_workspace_id_is_skipped_without_error(self):
+        for i, env in enumerate(({"SQUAD_NAME": "a", "HERDR_WORKSPACE_ID": "w1"},
+                                 {"SQUAD_NAME": "b", "HERDR_PANE_ID": "p5"})):
+            p = self.e.popen(["sleep", "100"], env=env)
+            with open(self.e.stub / "pids", "a", encoding="utf-8") as f:
+                f.write(f"{p.pid}\n")
+        self.usage_file(1, 50, 20)
+        self.pane("dev-1", "p1", "w1", "1")
+        r = self.auto("--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("ok: w1 -> c1 5h 50% 7d 20%", r.stdout)  # only the complete pane is found
+        self.assertNotIn("w2", r.stdout)
+        self.assertNotIn("error:", r.stdout + self.log())
+
+    def test_cache_younger_than_900s_is_used(self):
+        self.pane("dev-1", "p1", "w1", "1")
+        self.usage_file(2, 20, 10)
+        for age in (600, 899):
+            self.usage_file(1, 95, 80, age=age)
+            self.auto("--dry-run")
+            self.assertEqual(self.log().count("would set w1 default to c2"), 1 if age == 600 else 2, age)
+
     def test_account_comes_from_config_dir_and_unset_means_1(self):
         self.usage_file(1, 95, 80)
         self.usage_file(2, 20, 10)
