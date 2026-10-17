@@ -51,11 +51,21 @@ class BodyFileLineEndings(Base):
         self.assertEqual(got["cr"], got["lf"])
         self.assertNotIn("\r", got["cr"])
 
-    def test_stdin_is_not_normalised(self):
-        r = run(self.home, "add", "--kind", "read", "--title", "Tstdin", stdin="a\r\nb")
+    def test_stdin_body_is_normalised(self):
+        r = run(self.home, "add", "--kind", "read", "--title", "Tstdin", stdin="a\r\nb\rc")
         self.assertEqual(r.returncode, 0, r.stderr)
         body = [i for i in listing(self.home)["items"] if i["title"] == "Tstdin"][0]["body"]
-        self.assertEqual(body, "a\r\nb")
+        self.assertEqual(body, "a\nb\nc")
+
+    def test_empty_or_only_crlf_body_is_still_refused(self):
+        for name, data in (("empty", b""), ("crlf", b"\r\n\r\n"), ("cr", b"\r\r")):
+            f = Path(self.tmp) / name
+            f.write_bytes(data)
+            before = (self.home / "escalations.md").read_bytes()
+            r = run(self.home, "add", "--kind", "answer", "--title", "T", "--body-file", str(f))
+            self.assertNotEqual(r.returncode, 0, name)
+            self.assertIn("needs a body", r.stderr)
+            self.assertEqual((self.home / "escalations.md").read_bytes(), before)
 
 
 if __name__ == "__main__":
