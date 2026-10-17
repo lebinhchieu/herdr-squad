@@ -37,7 +37,9 @@ def mode_node(call, name, owner):
     """The mode argument of open() / Path.open() / os.fdopen(), or None when it is left out (text read)."""
     if (m := kw(call, "mode")) is not None:
         return m
-    pos = 0 if name == "open" and owner not in (None, "io", "builtins") else 1
+    # Path.open(mode) takes it first, whatever the receiver (p, Path(x), d / "f"); open(), io.open(), fdopen() second
+    method_open = name == "open" and isinstance(call.func, ast.Attribute) and owner not in ("io", "builtins")
+    pos = 0 if method_open else 1
     return call.args[pos] if len(call.args) > pos else None
 
 
@@ -65,8 +67,6 @@ def scan(source, name="<src>"):
         elif fn == "read_text" and method and not has_enc:
             bad(node, "read_text() without encoding=")
         elif fn in ("open", "fdopen") and not (owner == "os" and fn == "open"):
-            if fn == "open" and owner not in (None, "io", "builtins") and not isinstance(node.func.value, ast.Name):
-                pass  # e.g. a chained call result; the mode rules below still apply to Path.open()
             mode = mode_node(node, fn, owner)
             if isinstance(mode, ast.Constant) and isinstance(mode.value, str):
                 if "b" in mode.value:
@@ -141,6 +141,9 @@ class RulesCatchABadLine(unittest.TestCase):
         "open mode kwarg": "open(p, mode='a', encoding='utf-8')\n",
         "mode variable": "open(p, m, encoding='utf-8')\n",
         "Path.open": "p.open('w', encoding='utf-8')\n",
+        "Path(x).open": "Path(x).open('w', encoding='utf-8')\n",
+        "(d / f).open": "(d / 'f').open('a', encoding='utf-8')\n",
+        "chained read without encoding": "Path(x).open()\n",
         "read_text": "p.read_text()\n",
         "write_text": "p.write_text('x', encoding='utf-8')\n",
         "write_text newline": "p.write_text('x', encoding='utf-8', newline='\\n')\n",
@@ -154,6 +157,8 @@ class RulesCatchABadLine(unittest.TestCase):
     GOOD = {
         "read": "open(p, encoding='utf-8')\n",
         "write": "open(p, 'w', encoding='utf-8', newline='\\n')\n",
+        "chained read": "Path(x).open('r', encoding='utf-8')\n(d / 'f').open(encoding='utf-8')\n",
+        "chained write": "Path(x).open('w', encoding='utf-8', newline='\\n')\n",
         "binary": "open(p, 'rb')\nopen(p, 'wb')\nopen(p, 'ab')\nos.fdopen(fd, 'wb')\n",
         "os.open": "os.open(p, os.O_RDONLY)\n",
         "run": "subprocess.run(['x'], text=True, encoding='utf-8')\nsubprocess.run(['x'])\n",
