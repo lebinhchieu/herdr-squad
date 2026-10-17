@@ -34,6 +34,7 @@ def locking(fd, mode, n):
 EMOJI = "→ 🦀 é < |"
 
 
+@unittest.skipIf(sys.platform == "win32", "NoFcntl fakes Windows on top of a real fcntl, which real Windows does not have")
 class NoFcntl(Base):
     def setUp(self):
         super().setUp()

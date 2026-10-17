@@ -1,7 +1,6 @@
 """PI-02: squad-inbox answer, withdraw, delivered, the Answer-cell writer, options_raw."""
 import json
 import os
-import pty
 import stat
 import subprocess
 import sys
@@ -11,7 +10,7 @@ from argparse import Namespace
 from pathlib import Path
 from unittest import mock
 
-from test_squadinbox import Base, CLI, ROOT, env, listing, by_id, rows_of, run, digest
+from test_squadinbox import Base, CAN_SYMLINK, CLI, HAVE_PTY, ROOT, pty, env, listing, by_id, rows_of, run, digest
 
 sys.path.insert(0, str(ROOT / "bin"))
 import squadinbox  # noqa: E402
@@ -160,11 +159,14 @@ class AnswerTest(Base):
         r = subprocess.run(cmd, stdin=rd, capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
         os.close(rd)
         self.assertEqual(r.returncode, 2)
-        master, slave = pty.openpty()
-        r = subprocess.run(cmd, stdin=slave, capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
-        os.close(master)
-        os.close(slave)
-        self.assertEqual(r.returncode, 2)
+        with self.subTest("pty"):
+            if not HAVE_PTY:
+                self.skipTest("pty (termios) is not available on Windows")
+            master, slave = pty.openpty()
+            r = subprocess.run(cmd, stdin=slave, capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
+            os.close(master)
+            os.close(slave)
+            self.assertEqual(r.returncode, 2)
         # an open pipe nobody writes to, with --text given: not a wait
         rd, wr = os.pipe()
         r = subprocess.run(cmd + ["--text", "x"], stdin=rd, capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
@@ -176,7 +178,8 @@ class AnswerTest(Base):
         path = self.home / "escalations.md"
         os.chmod(path, 0o640)
         run(self.home, "answer", "E8", "--option", "a", "--source", "pane")
-        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
+        if sys.platform != "win32":  # Windows file modes differ (438 != 416); the temp-file checks below still run
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
         self.assertEqual([p.name for p in self.home.iterdir() if p.name.startswith(".escalations-")], [])
         with mock.patch.object(squadinbox.os, "replace", side_effect=OSError("boom")):
             with self.assertRaises(OSError):
@@ -231,6 +234,8 @@ class CellFailureTest(Base):
             ("no answer header", lambda: path.write_bytes(good.replace(b"| Answer |", b"| Reply  |"))),
         ):
             with self.subTest(name):
+                if name == "symlink" and not CAN_SYMLINK:
+                    self.skipTest("symlinks need a privilege on Windows (WinError 1314)")
                 setup()
                 r = run(self.home, "answer", "E8", "--option", "a", "--source", "pane")
                 self.assertEqual(r.returncode, 0, r.stderr)
@@ -256,6 +261,7 @@ class CellFailureTest(Base):
         self.assertEqual(row["answer"], "x | y")
         self.assertEqual(by_id(listing(self.home))[item["id"]]["flags"], [])
 
+    @unittest.skipIf(sys.platform == "win32", "os.geteuid and directory modes do not exist on Windows")
     def test_unwritable_home_is_one_clean_line(self):
         if os.geteuid() == 0:
             self.skipTest("root ignores modes")
