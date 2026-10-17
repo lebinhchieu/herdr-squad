@@ -358,6 +358,117 @@ class ProcessUpdateTest(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in self.squad.iterdir()), ["goals", "process.md", "scopes"])
 
 
+def load_squad_start():
+    from importlib.machinery import SourceFileLoader
+    return SourceFileLoader("squad_start_mod", str(SCRIPT)).load_module()
+
+
+class PickBashTest(unittest.TestCase):
+    """pick_bash is pure: which/exists are injected, so the Windows rules run on Linux."""
+
+    GIT = "C:\\Program Files\\Git"
+    ROOT = "C:\\Windows"
+
+    def pick(self, bash, git=None, existing=()):
+        mod = load_squad_start()
+        which = {"bash": bash, "git": git}.get
+        return mod.pick_bash(which, lambda p: p in existing, True, self.ROOT)
+
+    def test_a_path_bash_is_taken(self):
+        self.assertEqual(self.pick(self.GIT + "\\bin\\bash.exe"), self.GIT + "\\bin\\bash.exe")
+
+    def test_the_system32_and_windowsapps_hits_are_rejected(self):
+        for bad in ("C:\\Windows\\System32\\bash.exe", "c:/windows/system32/bash.exe",
+                    "C:\\Users\\x\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe"):
+            with self.subTest(bad=bad):
+                self.assertIsNone(self.pick(bad))
+
+    def test_the_fallback_finds_git_bash_from_each_git_exe_location(self):
+        want = self.GIT + "\\bin\\bash.exe"
+        for git in ("\\cmd\\git.exe", "\\bin\\git.exe", "\\mingw64\\bin\\git.exe"):
+            with self.subTest(git=git):
+                self.assertEqual(self.pick("C:\\Windows\\System32\\bash.exe", self.GIT + git, (want,)), want)
+
+    def test_no_bash_anywhere_is_none(self):
+        self.assertIsNone(self.pick(None))
+        self.assertIsNone(self.pick(None, self.GIT + "\\cmd\\git.exe"))
+
+    def test_off_windows_any_hit_is_taken(self):
+        mod = load_squad_start()
+        self.assertEqual(mod.pick_bash({"bash": "/usr/bin/bash"}.get, lambda p: False, False, ""), "/usr/bin/bash")
+
+
+class LauncherTest(unittest.TestCase):
+    """squad-start runs squad-spawn as [bash, <path>] and needs bash before it writes anything."""
+
+    def setUp(self):
+        StartTest.setUp(self)
+        self.real_bash = shutil.which("bash")
+        self.argv = self.root / "bash.argv"
+        stub = self.root / "fakebin" / "bash"
+        stub.write_text(f'#!{self.real_bash}\n[ -e "$BASH_ARGV_LOG" ] || printf "%s\\n" "$@" > "$BASH_ARGV_LOG"\nexec {self.real_bash} "$@"\n')
+        stub.chmod(0o755)
+        self.env["BASH_ARGV_LOG"] = str(self.argv)
+
+    tearDown = StartTest.tearDown
+    start = StartTest.start
+    herdr = StartTest.herdr
+
+    def test_new_scope_and_resume_run_squad_spawn_through_bash(self):
+        for args in (("Task one", "--name", "one", "--touches", "a"), ("--resume", "one")):
+            with self.subTest(args=args):
+                self.argv.unlink(missing_ok=True)
+                r = self.start(*args)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                lines = self.argv.read_text().splitlines()
+                self.assertEqual(lines[0], (SCRIPT.parent / "squad-spawn").as_posix())
+                self.assertEqual(lines[1:3], ["manager", "t-mgr-one"])
+
+    def test_no_bash_is_one_line_and_nothing_is_written(self):
+        self.env.update(HERDR_WORKSPACE_ID="wK", PATH=str(self.root / "fakebin"))
+        (self.root / "fakebin" / "bash").unlink()
+        for args in (("Task one", "--name", "one", "--touches", "a"),):
+            r = subprocess.run([shutil.which("python3"), str(SCRIPT), *args],
+                               env=self.env, text=True, capture_output=True, timeout=30)
+            self.assertNotEqual(r.returncode, 0)
+            lines = [l for l in r.stderr.splitlines() if not l.startswith("process update")]
+            self.assertEqual(len(lines), 1, r.stderr)
+            self.assertIn("bash", lines[0])
+            self.assertIn("Git for Windows", lines[0])
+            self.assertFalse((self.squad / "scopes" / "one").exists())
+            self.assertEqual(self.herdr(), "")
+
+    def test_dry_run_needs_no_bash(self):
+        self.env["PATH"] = str(self.root / "fakebin")
+        (self.root / "fakebin" / "bash").unlink()
+        r = subprocess.run([shutil.which("python3"), str(SCRIPT), "x", "--name", "one", "--dry-run"],
+                           env=self.env, text=True, capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("would run: ", r.stdout)
+
+    def test_a_c_locale_with_an_emoji_label_runs_clean_and_writes_utf8_lf(self):
+        self.env.update(PYTHONUTF8="0", LC_ALL="C", PYTHONIOENCODING="cp1252")
+        r = self.start("Fix 🦀 café", "--name", "one", "--touches", "a")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertEqual(json.loads(r.stdout)["manager"], "t-mgr-one")
+        raw = (self.squad / "scopes" / "one" / "scope.md").read_bytes()
+        self.assertIn("Fix 🦀 café".encode("utf-8"), raw)
+        self.assertNotIn(b"\r", raw)
+        self.assertEqual(self.start("--resume", "one").returncode, 0)
+
+    def test_a_project_dir_with_a_space_and_an_emoji_works_for_new_and_resume(self):
+        odd = self.root / "with space 🦀"
+        odd.mkdir()
+        squad = odd / ".claude" / "squads" / "t"
+        shutil.copytree(self.squad, squad)
+        self.env["SQUAD_DIR"] = str(squad)
+        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a").returncode, 0)
+        r = self.start("--resume", "one")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"SCOPE_DIR={squad / 'scopes' / 'one'}", self.herdr())
+
+
 class InstructionsTest(unittest.TestCase):
     def test_squad_init_names_the_stamp_check_and_never_overwrites_process_md(self):
         text = (ROOT / "skills" / "squad-init" / "SKILL.md").read_text()

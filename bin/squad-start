@@ -17,7 +17,9 @@ Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
 """
 import argparse
 import json
+import ntpath
 import os
+import posixpath
 import re
 import shutil
 import subprocess
@@ -26,6 +28,7 @@ from pathlib import Path
 
 PLUGIN = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PLUGIN / "bin"))
+import squadio  # noqa: E402
 import squadprocess  # noqa: E402
 STOP = {"the", "a", "an", "of", "to", "for", "and", "in", "on", "with", "from"}
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -37,10 +40,38 @@ def die(msg, code=1):
     sys.exit(code)
 
 
+def pick_bash(which, exists, nt, system_root):
+    """The bash that runs squad-spawn, or None. On Windows the System32 and WindowsApps hits are the WSL launcher
+    and the Store stub, the wrong bash; fall back to the Git for Windows bash found from git.exe."""
+    path = ntpath if nt else posixpath
+    found = which("bash")
+    if found:
+        low = found.replace("/", "\\").lower()
+        sys32 = path.join(system_root, "System32").replace("/", "\\").lower() + "\\" if system_root else None
+        if not nt or not (("\\windowsapps\\" in low) or (sys32 and low.startswith(sys32))):
+            return found
+    git = which("git")
+    if nt and git:
+        root = git
+        for _ in range(3):
+            root = path.dirname(root)
+            candidate = path.join(root, "bin", "bash.exe")
+            if exists(candidate):
+                return candidate
+    return None
+
+
+def need_bash():
+    bash = pick_bash(shutil.which, os.path.exists, os.name == "nt", os.environ.get("SystemRoot", ""))
+    if not bash:
+        die("bash not found: squad-start runs squad-spawn through bash; install Git for Windows or add its bin folder to PATH")
+    return bash
+
+
 def squad_dir(name):
     if os.environ.get("SQUAD_DIR"):
         return Path(os.environ["SQUAD_DIR"]).resolve()
-    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip() or os.getcwd()
+    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip() or os.getcwd()
     root = Path(top) / ".claude" / "squads"
     if name:
         return (root / name).resolve()
@@ -68,7 +99,8 @@ def name_workspace(name):
     if os.environ.get("HERDR_ENV") != "1" or not ws:
         return
     try:
-        r = subprocess.run(["herdr", "workspace", "rename", ws, name], capture_output=True, text=True, timeout=10)
+        r = subprocess.run(["herdr", "workspace", "rename", ws, name], capture_output=True, text=True, timeout=10,
+                           encoding="utf-8", errors="replace")
     except (OSError, subprocess.TimeoutExpired) as e:
         print(f"workspace not renamed: {e}", file=sys.stderr)
         return
@@ -100,17 +132,19 @@ def overlaps(a, b):
 
 def open_scope_touches(squad):
     for f in sorted((squad / "scopes").glob("*/scope.md")):
-        m = re.search(r"(?m)^touches:[ \t]*(.*)$", f.read_text())
+        m = re.search(r"(?m)^touches:[ \t]*(.*)$", f.read_text(encoding="utf-8", errors="replace"))
         yield f.parent.name, tokens(m.group(1)) if m else []
 
 
 def render(template_dir, target, values):
     shutil.copytree(template_dir, target)
     for f in target.glob("*.md"):
-        text = f.read_text()
+        with open(f, encoding="utf-8") as fh:
+            text = fh.read()
         for k, v in values.items():
             text = text.replace("{{" + k + "}}", v)
-        f.write_text(text)
+        with open(f, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
 
 
 def resume(squad, a, update):
@@ -123,14 +157,14 @@ def resume(squad, a, update):
     else:
         die(f"no open scope or goal named {a.resume} in {squad}")
     if kind == "scope":
-        m = re.search(r"(?m)^goal:[ \t]*(\S+)", (target / "scope.md").read_text()) if (target / "scope.md").exists() else None
+        m = re.search(r"(?m)^goal:[ \t]*(\S+)", (target / "scope.md").read_text(encoding="utf-8", errors="replace")) if (target / "scope.md").exists() else None
         if m:
             die(f"scope {a.resume} belongs to goal {m.group(1)} and is run by that goal's Manager: squad-start --resume {m.group(1)}")
     manager = f"{squad.name}-mgr-{a.resume}"
     home_var = "GOAL_DIR" if kind == "goal" else "SCOPE_DIR"
     prompt = (f"RESPAWN: you are {manager}, restarted for {kind} {a.resume}. Read $SQUAD_DIR/process.md, then your notes "
               f"${home_var}/roles/{manager}.notes.md if it exists, then the brief and the roster, and continue where the files say.")
-    spawn = [str(PLUGIN / "bin" / "squad-spawn"), "manager", manager, "--goal" if kind == "goal" else "--scope", a.resume, "--prompt", prompt]
+    spawn = [(PLUGIN / "bin" / "squad-spawn").as_posix(), "manager", manager, "--goal" if kind == "goal" else "--scope", a.resume, "--prompt", prompt]
     if a.model:
         spawn += ["--model", a.model]
     if a.effort:
@@ -138,7 +172,8 @@ def resume(squad, a, update):
     if a.dry_run:
         print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
         return
-    r = subprocess.run(spawn, env={**os.environ, "SQUAD_DIR": str(squad)}, capture_output=True, text=True)
+    r = subprocess.run([need_bash(), *spawn], env={**os.environ, "SQUAD_DIR": squad.as_posix()}, capture_output=True,
+                       text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
         die(f"could not start the Manager:\n{r.stderr.strip()}")
     try:
@@ -150,6 +185,7 @@ def resume(squad, a, update):
 
 
 def main():
+    squadio.utf8_stdio()
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("text", nargs="?")
     p.add_argument("--resume", metavar="NAME")
@@ -161,7 +197,8 @@ def main():
     p.add_argument("--effort")
     p.add_argument("--yes", action="store_true")
     p.add_argument("--dry-run", action="store_true")
-    a = p.parse_args()
+    # a non-UTF-8 locale decodes argv bytes as surrogate escapes; get the real text back before it is written
+    a = p.parse_args([os.fsencode(x).decode("utf-8", "replace") for x in sys.argv[1:]])
 
     squad = squad_dir(a.squad)
     if not (squad / "process.md").is_file():
@@ -209,7 +246,7 @@ def main():
                 "and dependencies in goal.md" if kind == "goal" else
                 "$SCOPE_DIR/scope.md (the PO's brief), do your start-of-session routine, size the scope")
         prompt = f"Start of run. Your {kind} is {name}: read {what}, and propose the plan to the PO (me) before spawning anyone."
-    spawn = [str(PLUGIN / "bin" / "squad-spawn"), "manager", manager or "", flag, name, "--prompt", prompt or ""]
+    spawn = [(PLUGIN / "bin" / "squad-spawn").as_posix(), "manager", manager or "", flag, name, "--prompt", prompt or ""]
     if a.model:
         spawn += ["--model", a.model]
     if a.effort:
@@ -221,13 +258,15 @@ def main():
             print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
         return
 
+    bash = need_bash() if manager else None
     render(PLUGIN / "templates" / kind, target, {"name": name, "brief": brief, "goal": a.in_goal or "", "touches": ", ".join(mine)})
     for d in (("shared/summaries", "shared/contracts", "roles") if kind == "goal" else ("tasks", "evidence", "roles", "iterations")):
         (target / d).mkdir(parents=True, exist_ok=True)
 
     tab = None
     if manager:
-        r = subprocess.run(spawn, env={**os.environ, "SQUAD_DIR": str(squad)}, capture_output=True, text=True)
+        r = subprocess.run([bash, *spawn], env={**os.environ, "SQUAD_DIR": squad.as_posix()}, capture_output=True,
+                           text=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             shutil.rmtree(target, ignore_errors=True)
             die(f"could not start the Manager, so {target.name} was not created:\n{r.stderr.strip()}")
