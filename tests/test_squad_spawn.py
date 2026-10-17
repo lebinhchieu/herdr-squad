@@ -472,6 +472,7 @@ class SpawnLabelTest(unittest.TestCase):
     def test_a_second_live_dev_renames_the_first_and_gets_number_two(self):
         self.spawn("dev", "t-dev-sc1-1")
         self.env["LIVE"] = "t-dev-sc1-1"
+        self.env["LC_ALL"] = "C.UTF-8"  # emoji argv to `herdr tab rename` needs a UTF-8 fs encoding (always so on Windows)
         self.spawn("dev", "t-dev-sc1-2")
         self.assertIn("tab rename t-t-dev-sc1-1 🤖 Dev 1", self.log.read_text(encoding="utf-8"))
         self.assertIn("--label 🤖 Dev 2 --no-focus", self.calls("tab create")[1])

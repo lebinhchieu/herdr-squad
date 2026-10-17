@@ -56,14 +56,14 @@ class LabelCliTest(unittest.TestCase):
 
     def test_self_relabel_renames_its_tab_and_prints_label(self):
         sl.write_entry(self.scope, "dev-2", "dev", 2, "old")
-        r = self.run_cli("TAB-02 tabs", **self.as_dev())
+        r = self.run_cli("TAB-02 tabs", LC_ALL="C.UTF-8", **self.as_dev())  # LC_ALL: emoji argv to `herdr tab rename` needs a UTF-8 fs encoding (always so on Windows)
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "🤖 Dev 2 · TAB-02 tabs"), r.stderr)
         self.assertIn("tab rename tab-dev-2 🤖 Dev 2 · TAB-02 tabs", self.calls())
         self.assertEqual(sl.read_entry(self.scope, "dev-2")["title"], "TAB-02 tabs")
 
     def test_blank_clears_title(self):
         sl.write_entry(self.scope, "dev-2", "dev", None, "old")
-        r = self.run_cli("", **self.as_dev())
+        r = self.run_cli("", LC_ALL="C.UTF-8", **self.as_dev())
         self.assertEqual(r.stdout.strip(), "🤖 Dev")
         self.assertEqual(sl.read_entry(self.scope, "dev-2")["title"], "")
         self.assertIn("tab rename tab-dev-2 🤖 Dev", self.calls())
@@ -90,7 +90,7 @@ class LabelCliTest(unittest.TestCase):
 
     def test_goal_manager_finds_entry_in_a_scope_home(self):
         sl.write_entry(self.scope, "dev-1", "dev", 1, "")
-        r = self.run_cli("--agent", "dev-1", "TAB-09", SQUAD_NAME="mgr", SQUAD_ROLE="manager", GOAL_DIR=str(self.goal))
+        r = self.run_cli("--agent", "dev-1", "TAB-09", SQUAD_NAME="mgr", SQUAD_ROLE="manager", GOAL_DIR=str(self.goal), LC_ALL="C.UTF-8")
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "🤖 Dev 1 · TAB-09"), r.stderr)
         self.assertIn("tab rename tab-dev-1 🤖 Dev 1 · TAB-09", self.calls())
         self.assertEqual(sl.read_entry(self.scope, "dev-1")["title"], "TAB-09")
@@ -110,7 +110,7 @@ class LabelCliTest(unittest.TestCase):
 
     def test_init_renames_newly_numbered_peer_and_prints_only_new_label(self):
         sl.write_entry(self.scope, "dev-1", "dev", None, "TAB-01")
-        r = self.run_cli("--init", "--home", str(self.scope), "--agent", "dev-2", "--role", "dev", "--title", "TAB-02")
+        r = self.run_cli("--init", "--home", str(self.scope), "--agent", "dev-2", "--role", "dev", "--title", "TAB-02", LC_ALL="C.UTF-8")
         self.assertEqual((r.returncode, r.stdout), (0, "🤖 Dev 2 · TAB-02\n"), r.stderr)
         self.assertEqual(self.calls()[1:], ["agent get dev-1", "tab rename tab-dev-1 🤖 Dev 1 · TAB-01"])
         self.assertEqual(self.calls()[0], "agent list")
