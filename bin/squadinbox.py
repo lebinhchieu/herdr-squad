@@ -5,16 +5,20 @@ the log as `seen` snapshots, so a deleted row stays listable. State is folded fr
 Writes happen under flock on inbox.jsonl.lock. `gone`/`filled` events record when sync first noticed a row vanish or get
 an Answer cell by hand, so their time is stable between calls.
 """
-import fcntl
 import hashlib
 import json
 import os
 import re
-import select
 import sys
 import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
+
+try:
+    import fcntl
+except ImportError:  # Windows: the lock is msvcrt.locking
+    fcntl = None
+IS_WINDOWS = os.name == "nt"
 
 LOG, TABLE, LOCK = "inbox.jsonl", "escalations.md", "inbox.jsonl.lock"
 EVENTS = {"add", "seen", "read", "answer", "withdraw", "delivered", "gone", "filled"}
@@ -192,7 +196,7 @@ def read_log(path):
 def append_events(path, events):
     """One O_APPEND write; a torn last line (no newline) is closed first so it cannot swallow ours."""
     data = "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events).encode("utf-8")
-    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_BINARY", 0), 0o644)
     try:
         if os.fstat(fd).st_size:
             with open(path, "rb") as f:
@@ -207,12 +211,25 @@ def append_events(path, events):
 @contextmanager
 def locked(home):
     try:
-        fd = os.open(os.path.join(home, LOCK), os.O_WRONLY | os.O_CREAT, 0o644)
+        fd = os.open(os.path.join(home, LOCK), os.O_WRONLY | os.O_CREAT | getattr(os, "O_BINARY", 0), 0o644)
     except OSError as e:
         raise Refused("cannot open %s: %s" % (os.path.join(home, LOCK), e.strerror or e), 1)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        yield
+        if fcntl is None:
+            import msvcrt  # LK_LOCK retries for about 10 s, then raises OSError
+            os.lseek(fd, 0, os.SEEK_SET)
+            try:
+                msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+            except OSError:
+                raise Refused("the inbox is locked by another squad-inbox", 1)
+            try:
+                yield
+            finally:
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
     finally:
         os.close(fd)
 
@@ -635,8 +652,12 @@ def stdin_text(only_if_ready):
     try:
         if sys.stdin is None or sys.stdin.isatty():
             return ""
-        if only_if_ready and not select.select([sys.stdin], [], [], 0)[0]:
-            return ""
+        if only_if_ready:
+            if IS_WINDOWS:
+                return ""  # select() fails on a Windows pipe, and --note/--text is already given
+            import select
+            if not select.select([sys.stdin], [], [], 0)[0]:
+                return ""
         data = sys.stdin.buffer.read(MAX_BODY + 1)
     except (OSError, ValueError):
         return ""
@@ -757,13 +778,17 @@ def cmd_delivered(home, args):
 
 
 def check_utf8(args):
-    """An argument holding a lone surrogate (invalid UTF-8 in os.argv) is bad input, not a traceback."""
+    """An argument holding a lone surrogate is bad input, not a traceback. A non-UTF-8 locale (cp1252, C)
+    smuggles valid UTF-8 argv bytes as surrogates: those are decoded back, the rest is refused."""
     for name, value in vars(args).items():
         if isinstance(value, str):
             try:
                 value.encode("utf-8")
             except UnicodeEncodeError:
-                raise Refused("--%s is not valid UTF-8" % name.replace("_", "-"))
+                try:
+                    setattr(args, name, value.encode("utf-8", "surrogateescape").decode("utf-8"))
+                except UnicodeError:
+                    raise Refused("--%s is not valid UTF-8" % name.replace("_", "-"))
 
 
 def decode_utf8(data, what):

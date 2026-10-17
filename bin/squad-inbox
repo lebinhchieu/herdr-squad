@@ -17,9 +17,11 @@ import os
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadinbox as si  # noqa: E402
+import squadio  # noqa: E402
 
 
 def main(argv=None):
+    squadio.utf8_stdio()
     p = argparse.ArgumentParser(prog="squad-inbox", description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     p.add_argument("--home", help="the Manager's home folder (default $SCOPE_DIR, then $GOAL_DIR)")
     sub = p.add_subparsers(dest="cmd", required=True)
