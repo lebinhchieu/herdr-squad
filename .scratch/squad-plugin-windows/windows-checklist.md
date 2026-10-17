@@ -13,7 +13,7 @@ If two Git Bash windows replace the same file at the same moment, Windows may re
 
 ## Before you start
 
-- **0a** `python3 --version` prints a version (a Microsoft Store stub that opens the Store is a fail). Python 3.10 or newer.
+- **0a** `python3 --version` prints a version (a Microsoft Store stub that opens the Store is a fail). (the PO has 3.14).
 - **0b** `jq --version` prints a version. `jq` is a documented prerequisite: if it is missing, install it first; that is not a plugin bug.
 - **0c** `bash --version` is Git's (`which bash` shows a `Git\...` path), not `C:\Windows\System32\bash.exe`. Also `git --version`.
 - Git Bash, herdr running (`HERDR_ENV=1`).
