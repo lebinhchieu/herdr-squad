@@ -354,6 +354,57 @@ class SpawnScopedTest(unittest.TestCase):
         self.assertEqual(g("-C", str(wt), "rev-parse", "HEAD"), g("rev-parse", "passed"))
         self.assertNotEqual(g("rev-parse", "main"), g("rev-parse", "passed"))
 
+    def test_base_with_an_existing_worktree_folder_is_refused(self):
+        wt = self.root / ".worktrees" / "t" / "sc1" / "t-dev-sc1-2"
+        wt.mkdir(parents=True)
+        r = self.run_spawn("dev", "t-dev-sc1-2", "--scope", "sc1", "--repo", str(self.root / "not-a-git-repo"), "--base", "main")
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn(str(wt), r.stderr)
+        self.assertIn("--base", r.stderr)
+        self.assertNotIn("worktree add", r.stdout)
+        self.assertNotIn("herdr", r.stdout)
+
+    def test_base_with_worktree_flag_is_refused(self):
+        old = self.root / ".worktrees" / "dev-board-1"
+        old.mkdir(parents=True)
+        r = self.run_spawn("dev", "t-dev-sc1-1", "--scope", "sc1", "--worktree", str(old), "--base", "main", "--repo", str(self.root))
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn(str(old), r.stderr)
+        self.assertIn("--base", r.stderr)
+        self.assertNotIn("herdr", r.stdout)
+
+    def test_existing_worktree_folder_without_base_is_reused(self):
+        wt = self.root / ".worktrees" / "t" / "sc1" / "t-dev-sc1-2"
+        wt.mkdir(parents=True)
+        r = self.run_spawn("dev", "t-dev-sc1-2", "--scope", "sc1", "--repo", str(self.root))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"--cwd {wt}", r.stdout)
+
+    def test_real_second_spawn_with_another_base_is_refused_and_keeps_the_commit(self):
+        repo = self.root / "code"
+        repo.mkdir()
+        g = lambda *a: subprocess.run(["git", *a], cwd=repo, check=True, capture_output=True, text=True, encoding="utf-8",
+                                      env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                                           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}).stdout.strip()
+        g("init", "-q", "-b", "main")
+        g("commit", "-q", "--allow-empty", "-m", "init")
+        g("branch", "passed")
+        g("checkout", "-q", "passed")
+        g("commit", "-q", "--allow-empty", "-m", "passed work")
+        g("checkout", "-q", "main")
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
+        (bin_dir / "herdr").chmod(0o755)
+        self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(self.root / "h.log"))
+        run = lambda base: subprocess.run([str(SCRIPT), "dev", "t-dev-sc1-2", "--scope", "sc1", "--repo", str(repo), "--base", base],
+                                          env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
+        self.assertEqual(run("passed").returncode, 0)
+        wt = self.root / ".worktrees" / "t" / "sc1" / "t-dev-sc1-2"
+        r = run("main")
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertEqual(g("-C", str(wt), "rev-parse", "HEAD"), g("rev-parse", "passed"))
+
     def test_base_needs_repo(self):
         self.assertNotEqual(self.run_spawn("dev", "t-dev-sc1-2", "--scope", "sc1", "--base", "main").returncode, 0)
 
