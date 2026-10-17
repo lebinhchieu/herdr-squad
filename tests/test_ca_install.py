@@ -20,7 +20,9 @@ class InstallTest(unittest.TestCase):
         self.acct = self.home / ".claude-accounts"
         self.skill = self.home / ".claude" / "skills" / "claude-accounts"
 
-    def run_install(self, *args):
+    def run_install(self, *args, worktree=True):
+        if worktree:
+            args = ("--allow-worktree", *args)
         env = {**os.environ, "HOME": str(self.home)}
         return subprocess.run(["bash", str(INSTALL), *args], env=env, capture_output=True, text=True)
 
@@ -31,13 +33,14 @@ class InstallTest(unittest.TestCase):
         for name, text in (("default", "3\n"), ("usage-1", "{}"), ("cswitch.log", "log\n")):
             (self.acct / name).write_text(text)
         for f in FILES:
-            (self.acct / f).write_text("old copy\n")
+            (self.acct / f).write_bytes((CA / f).read_bytes())
         for f in LEFTOVERS:
             (self.acct / f).write_text("x")
         (self.acct / "__pycache__").mkdir()
         (self.acct / "__pycache__" / "a.pyc").write_text("x")
         self.skill.mkdir(parents=True)
-        for n in ("SKILL.md", "SKILL.md.bak-t6", "SKILL.md.new"):
+        (self.skill / "SKILL.md").write_bytes((CA / "skill" / "SKILL.md").read_bytes())
+        for n in ("SKILL.md.bak-t6", "SKILL.md.new"):
             (self.skill / n).write_text("old")
 
     def test_fresh_home_links_every_script_and_the_skill_dir(self):
@@ -76,14 +79,14 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         after = sorted((str(p), os.readlink(p) if p.is_symlink() else "") for p in self.home.rglob("*"))
         self.assertEqual(before, after)
-        self.assertNotIn("ln -sfn", r.stdout)
+        self.assertNotIn("link:", r.stdout.replace("ok:", ""))
 
     def test_dry_run_prints_and_changes_nothing(self):
         self.seed_live()
         before = sorted((str(p), p.is_symlink(), p.read_text() if p.is_file() else "") for p in self.home.rglob("*"))
         r = self.run_install("--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("would:", r.stdout)
+        self.assertIn("would link:", r.stdout)
         after = sorted((str(p), p.is_symlink(), p.read_text() if p.is_file() else "") for p in self.home.rglob("*"))
         self.assertEqual(before, after)
 
@@ -99,11 +102,74 @@ class InstallTest(unittest.TestCase):
 
     def test_skill_dir_with_other_files_is_kept(self):
         self.skill.mkdir(parents=True)
-        (self.skill / "SKILL.md").write_text("old")
+        (self.skill / "SKILL.md").write_bytes((CA / "skill" / "SKILL.md").read_bytes())
         (self.skill / "mine.txt").write_text("keep")
+        (self.skill / "SKILL.md.new").write_text("leftover")
         r = self.run_install()
         self.assertNotEqual(r.returncode, 0)
         self.assertEqual((self.skill / "mine.txt").read_text(), "keep")
+        self.assertTrue((self.skill / "SKILL.md").is_file())
+        self.assertTrue((self.skill / "SKILL.md.new").exists())
+        self.assertFalse((self.acct / "lib.sh").exists())
+
+    def test_differing_real_file_stops_everything_until_force(self):
+        self.seed_live()
+        (self.acct / "bin" / "c1").write_text("my edit\n")
+        snap = sorted((str(p), p.is_symlink(), p.read_text() if p.is_file() else "") for p in self.home.rglob("*"))
+        for args in ((), ("--dry-run",)):
+            r = self.run_install(*args)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("diff", r.stderr)
+            self.assertIn(str(self.acct / "bin" / "c1"), r.stderr)
+        r = self.run_install()
+        self.assertEqual(sorted((str(p), p.is_symlink(), p.read_text() if p.is_file() else "") for p in self.home.rglob("*")), snap)
+        r = self.run_install("--force")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue((self.acct / "bin" / "c1").is_symlink())
+
+    def test_identical_real_file_and_stray_link_are_replaced_without_force(self):
+        self.seed_live()
+        (self.acct / "lib.sh").write_text((CA / "lib.sh").read_text())
+        (self.acct / "bin" / "c2").unlink()
+        (self.acct / "bin" / "c2").symlink_to("/nowhere")
+        r = self.run_install()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((self.acct / "lib.sh").resolve(), (CA / "lib.sh").resolve())
+        self.assertEqual((self.acct / "bin" / "c2").resolve(), (CA / "bin" / "c2").resolve())
+
+    def test_differing_skill_md_stops_the_install(self):
+        self.seed_live()
+        (self.skill / "SKILL.md").write_text("my edit")
+        r = self.run_install()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual((self.skill / "SKILL.md").read_text(), "my edit")
+        self.assertTrue((self.skill / "SKILL.md.new").exists())
+        self.assertFalse(self.skill.is_symlink())
+
+    def test_git_dir_and_extra_files_are_kept_and_named(self):
+        self.seed_live()
+        (self.acct / ".git").mkdir()
+        (self.acct / ".git" / "x.bak").write_text("h")
+        (self.acct / "mine.txt").write_text("m")
+        (self.acct / "bin" / "mytool").write_text("m")
+        r = self.run_install()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue((self.acct / ".git" / "x.bak").exists())
+        self.assertTrue((self.acct / "mine.txt").exists())
+        self.assertIn("kept: " + str(self.acct / "mine.txt"), r.stdout)
+        self.assertIn("kept: " + str(self.acct / "bin" / "mytool"), r.stdout)
+        self.assertNotIn("kept: " + str(self.acct / "default"), r.stdout)
+        self.assertEqual(r.stdout.strip().splitlines()[-1].split(" in ")[0], ".git")
+        self.assertIn("left alone", r.stdout.strip().splitlines()[-1])
+
+    def test_worktree_is_refused_without_the_flag(self):
+        r = self.run_install(worktree=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("worktree", r.stderr)
+        self.assertEqual(list(self.home.iterdir()), [])
+        r = self.run_install()
+        self.assertIn("warning", r.stdout)
+        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_launcher_runs_through_the_links(self):
         self.run_install()
