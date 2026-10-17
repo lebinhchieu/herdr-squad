@@ -8,7 +8,7 @@
 2. Read the diffs and every `refuse` or `unexpected:` line.
 3. Run `bash tools/claude-accounts/install.sh --force`. The first install needs `--force` on a home whose `HANDOFF.md` or `SKILL.md` differs from the repo copy (they do after this iteration's doc edits); without it the item is refused and nothing changes. `--force` moves each replaced original to `~/.claude-accounts/.install-backup/` first.
 
-The install deletes leftovers (`<managed name>.bak-*`, `.new`, `.orig` in `~/.claude-accounts` and `bin/`, and a `__pycache__` holding only `*.pyc`) and does not back them up, with or without `--force`; `--dry-run` lists each as `delete:`. (A differing skill folder moved by `--force` goes to `.install-backup/` whole, leftovers inside it included.)
+The install deletes leftovers (`<managed name>.bak-*`, `.new`, `.orig` in `~/.claude-accounts` and `bin/`, and a `__pycache__` holding only `*.pyc`) and does not back them up, with or without `--force`; `--dry-run --force` lists each as `delete:`. (A differing skill folder moved by `--force` goes to `.install-backup/` whole, leftovers inside it included.)
 
 **Deploy plan (the PO runs it; the squad never does):**
 
