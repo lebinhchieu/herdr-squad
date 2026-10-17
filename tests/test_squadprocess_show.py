@@ -80,7 +80,7 @@ class Squad(unittest.TestCase):
         self._t = tempfile.TemporaryDirectory()
         self.addCleanup(self._t.cleanup)
         self.dir = Path(self._t.name)
-        (self.dir / "process.md").write_text(SYN)
+        (self.dir / "process.md").write_text(SYN, encoding="utf-8")
 
 
 class ShowTest(Squad):
@@ -128,7 +128,7 @@ class ShowTest(Squad):
                               "## Notes", "## Notes from the PO", "## Cost rules", "## Safety"])
 
     def test_reworded_suffix_still_matches(self):
-        (self.dir / "process.md").write_text(SYN.replace("## Safety", "## Safety rules, local"))
+        (self.dir / "process.md").write_text(SYN.replace("## Safety", "## Safety rules, local"), encoding="utf-8")
         r = run("dev", squad=self.dir)
         self.assertEqual(r.stderr, "")
         self.assertIn("## Safety rules, local", r.stdout)
@@ -143,7 +143,7 @@ class ShowTest(Squad):
         self.assertEqual(r.stdout, SYN)
 
     def test_missing_wanted_section_whole_file_and_names_it(self):
-        (self.dir / "process.md").write_text(SYN.replace("## Task lifecycle", "## Something else"))
+        (self.dir / "process.md").write_text(SYN.replace("## Task lifecycle", "## Something else"), encoding="utf-8")
         r = run("dev", squad=self.dir)
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout, SYN.replace("## Task lifecycle", "## Something else"))
@@ -166,7 +166,7 @@ class ShowTest(Squad):
 
     def test_live_read_no_cache(self):
         run("dev", squad=self.dir)
-        (self.dir / "process.md").write_text(SYN.replace("safe\n", "safe\n\nnew rule line\n"))
+        (self.dir / "process.md").write_text(SYN.replace("safe\n", "safe\n\nnew rule line\n"), encoding="utf-8")
         self.assertIn("new rule line", run("dev", squad=self.dir).stdout)
 
 
@@ -189,7 +189,7 @@ class ErrorTest(Squad):
         self.assertIn("## Messages", r.stdout)
 
     def test_duplicate_heading_exit_2_and_writes_nothing(self):
-        (self.dir / "process.md").write_text(SYN + "\n## Safety\n\ndup\n")
+        (self.dir / "process.md").write_text(SYN + "\n## Safety\n\ndup\n", encoding="utf-8")
 
         def tree():
             return sorted((str(p), hashlib.sha256(p.read_bytes()).hexdigest()) for p in self.dir.rglob("*"))
@@ -202,7 +202,7 @@ class ErrorTest(Squad):
     def test_help_lists_show(self):
         r = subprocess.run([sys.executable, str(CLI), "--help"], capture_output=True, text=True)
         self.assertIn("show", r.stdout)
-        self.assertIn("squad-process show", CLI.read_text().split('"""')[1])
+        self.assertIn("squad-process show", CLI.read_text(encoding="utf-8").split('"""')[1])
 
     def test_show_help_has_purpose_and_roles(self):
         r = subprocess.run([sys.executable, str(CLI), "show", "--help"], capture_output=True, text=True)
@@ -217,7 +217,7 @@ class ErrorTest(Squad):
 class TemplatePinTest(unittest.TestCase):
     @staticmethod
     def _table_names(row_start):
-        for ln in TEMPLATE.read_text().splitlines():
+        for ln in TEMPLATE.read_text(encoding="utf-8").splitlines():
             if ln.startswith("| " + row_start):
                 return tuple(n.strip() for n in ln.split("|")[2].rsplit(";", 1)[1].split(".")[0].strip().split(","))
         raise AssertionError(row_start)
@@ -230,7 +230,7 @@ class TemplatePinTest(unittest.TestCase):
         self.assertEqual(set(sp.ROLE_SECTIONS), {"dev", "qa-whitebox", "qa-blackbox", "designer"})
 
     def test_every_mapped_name_matches_exactly_one_template_heading(self):
-        hs = [h for h, _ in sp.sections(TEMPLATE.read_text()) if h.startswith("## ")]
+        hs = [h for h, _ in sp.sections(TEMPLATE.read_text(encoding="utf-8")) if h.startswith("## ")]
         for names in sp.ROLE_SECTIONS.values():
             for n in names:
                 self.assertEqual(len([h for h in hs if h.startswith("## " + n)]), 1, n)
@@ -238,7 +238,7 @@ class TemplatePinTest(unittest.TestCase):
 
 class RealTemplateTest(unittest.TestCase):
     def test_template_views(self):
-        text = TEMPLATE.read_text()
+        text = TEMPLATE.read_text(encoding="utf-8")
         out, warn = sp.show(text, "dev")
         self.assertIsNone(warn)
         self.assertEqual(heads(out), ["# How this squad works", "## Messages", "## Task lifecycle",

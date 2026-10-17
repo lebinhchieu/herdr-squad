@@ -438,7 +438,8 @@ def compose(squad_dir, plugin_root, out, resolve=None):
         blocks.insert(at, [h, decided[h][0]])
     text = _render(blocks, pl["plugin"])
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(text, encoding="utf-8", newline="\n")
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
     return text
 
 

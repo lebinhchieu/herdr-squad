@@ -61,7 +61,8 @@ def write_entry(home, agent, role, number, title):
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(f".{p.name}.{os.getpid()}.tmp")
     try:
-        tmp.write_text(json.dumps({"role": role, "number": number, "title": title}, ensure_ascii=False), encoding="utf-8", newline="\n")
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps({"role": role, "number": number, "title": title}, ensure_ascii=False))
         os.replace(tmp, p)
     finally:
         tmp.unlink(missing_ok=True)
