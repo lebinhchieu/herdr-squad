@@ -16,3 +16,10 @@ Step 2 (promotion, same or a fresh Developer, based on the passed integration sh
 3. QAW and QAB record PASS on the exact final sha.
 
 ## Comments
+
+### Tech Lead amendment (2026-10-17)
+- ADR 0011 edits: D6 and the "also true" list (CRLF normalisation in `read_body`; Windows-only tests skipped with a reason). I write the wording in `promote.md`; the Dev copies it.
+- Role-instruction change (ticket 11) is listed for the PO in the hand-in; the PO already approved it (E5).
+- Receipt: `run_suite.py --tz` on the integration sha, then again on the promotion sha if it differs.
+
+- BA AC (spec.md story 18): `windows-checklist.md` stays at 12 steps or fewer, copied from `evidence/iter2/windows-checklist.md`; W7 extended (answer from the pane, then `answer` event with `source: pane` and a `delivered` event in `inbox.jsonl`), W8 extended (one CRLF `--body-file`, CR count 0). Add the D command line from `tests/RUNNING-ON-WINDOWS.md`. Also read spec.md "For promotion". Only Windows proves A's host launch and D's 0 failures: the PO runs both.

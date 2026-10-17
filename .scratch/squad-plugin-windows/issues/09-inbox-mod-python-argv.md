@@ -16,3 +16,11 @@ The 3 `$.process.run` argv builds (`delivered`, `answer`, and the third at the `
 4. Linux unchanged: `python3` is on PATH.
 
 ## Comments
+
+### Tech Lead amendment (2026-10-17) — binding, replaces AC 1-3 where they differ
+- **There are 4 `$.process.run` calls, not 3:** `list` (refresh), `delivered` (sendAndMark), `answer` (answerItem), `read` (markRead). All four change. Use one local helper `cliArgv(root, ...args)` returning `['python3', `${root}/bin/squad-inbox`, ...args]`.
+- **TA1** `grep -n "process.run" hooks/po-inbox/*.ts` (non-test) shows only `cliArgv` callers; stdin, timeout, error text unchanged.
+- **TA2** a new test asserts the raw argv of all four verbs as exact arrays (`list --json`; `delivered <id> --session <s>`; `answer <id> [--option k] --source pane`; `read <id>`). It fails on 59a8d1b.
+- **TA3** other harnesses record argv with the same shape, so touches widens to the three harnesses that index `argv[1]`/`slice(1)`: `hooks/po-inbox/testkit.ts`, `ui.test.ts`, `item.test.ts` (plus `mod.test.ts`). In each harness drop the leading `python3` when recording/passing argv, so the ~70 existing assertions stay unchanged. Do not rewrite them. Nothing else in `hooks/po-inbox/` changes.
+- **TA4** `claude plugin validate` clean; `tests/test_po_inbox_mod.py` and `test_po_inbox_contract.py` pass (do not edit them: ticket 12 owns them).
+- **TA5** `$.plugin.root` with backslashes is not normalised (Python accepts a mixed path). Evidence states: the host's `$.process.run` resolving `python3` on Windows is not provable here; the PO's pane check (issue section 1) stays.

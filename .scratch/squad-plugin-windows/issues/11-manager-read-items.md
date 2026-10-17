@@ -15,3 +15,11 @@ In `agents/manager.md` (The PO, Inbox bullet): an informational note, one that n
 3. Role-instruction change: Tech Lead lists it for the PO in `promote.md`/the summary. Clearing E5-E8 in scene-split is NOT ours.
 
 ## Comments
+
+### Tech Lead amendment (2026-10-17) — binding
+- **TC1** the Inbox bullet says: a note with nothing to decide ("READ, not blocking", a status, a resolved matter) goes through `squad-inbox add --kind read`, never a hand-written row in `escalations.md`; only `--kind answer` makes a row, and the command writes it.
+- **TC2** delete the sentence "rows written by hand still work." (it licenses the habit). Add one clause: a resolved question is withdrawn (`squad-inbox withdraw E<n> --reason "<why>"`), not left open.
+- **TC3** about two sentences net, no new bullet. Every string pinned by `ManagerInboxTest` in `tests/test_instructions.py` stays byte for byte (tokens, the heredoc sentence, M1-M3, "Never offer a merge, push or deploy as an item", `--blocks ""`), and `squad-inbox <word>` still only names CLI commands. The new test file also asserts the absence of "rows written by hand still work".
+- **TC4** no other `agents/` or `templates/` file changes; run `test_instructions`, `test_manager_m_l`, `test_process_writing`, `test_pod_contact_routes`, `test_process_citations`.
+
+- BA AC (spec.md story 16, F5): also REMOVE the sentence "rows written by hand still work" in `agents/manager.md` (line ~95), not only add the rule. No other file in `agents/` may change.

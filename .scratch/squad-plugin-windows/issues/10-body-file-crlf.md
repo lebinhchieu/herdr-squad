@@ -16,3 +16,12 @@ When `--body-file` is read, normalise `\r\n` and lone `\r` to `\n` before the `<
 4. Stdin bodies are untouched unless the same normalisation is already shared code (state which in the hand-in).
 
 ## Comments
+
+### Tech Lead amendment (2026-10-17) — binding
+- **Design:** in `read_body`, after `decode_utf8`, `return text.replace("\r\n", "\n").replace("\r", "\n")`. It is shared code, so a stdin body is normalised too (answers AC 4). `cell_text`/`BREAK_RE`, `rstrip("\n")` and the 64 KiB byte limit stay. The `answer` text is not touched.
+- **TB1** input `b"line one\r\nline two\r\n\r\n- bullet\r"` (written with `write_bytes`) stores `"line one\nline two\n\n- bullet"`: no `\r` in `inbox.jsonl` or `list --json`.
+- **TB2** same for a stdin body, and for a lone `\r` mid-text.
+- **TB3** an `--kind answer` item with a CRLF body: its `escalations.md` row has one `<br>` per line, no trailing `<br>`, no `\r` byte.
+- **TB4** an LF-only file is byte-identical to before; existing `test_body_file` and size-limit tests pass (run them, do not edit them). All new tests fail on 59a8d1b.
+
+- BA AC (spec.md "Iteration 2", story 15): an empty or only-CRLF body is still refused as on 0.3.3; answer-note, title, options and rec are out of scope.
