@@ -301,6 +301,19 @@ class SetWorkspaceDefaultTest(Base):
         self.assertEqual(self.e.sh("set_workspace_default 2 w26").returncode, 1)
         self.assertEqual(self.herdr_calls("workspace", "report-metadata"), [])
 
+    def test_mv_failure_after_mktemp_is_rc1_leaves_no_tmp_and_does_not_report(self):
+        # workspace-default/w26 is a directory the user cannot write: mktemp works, mv -f into it fails
+        wd = self.e.acct / "workspace-default"
+        (wd / "w26").mkdir(parents=True)
+        (wd / "w26").chmod(0o500)
+        try:
+            r = self.e.sh("set_workspace_default 2 w26")
+            self.assertEqual(r.returncode, 1, r.stderr)
+            self.assertEqual([p.name for p in wd.glob(".tmp.*")], [])
+            self.assertEqual(self.herdr_calls("workspace", "report-metadata"), [])
+        finally:
+            (wd / "w26").chmod(0o700)
+
 
 class LaunchersTest(Base):
     def last(self):
@@ -580,6 +593,49 @@ class CswitchTest(Base):
         self.assertEqual(new[0]["argv"], want[1:])
         self.assertEqual(new[0]["HERDR_PANE_ID"], PANE)
         self.assertEqual(self.e.ws_file("w26"), "2\n")  # c2 inside herdr records the workspace default
+
+
+    def _switch_and_wait(self, expect_name, others=()):
+        """cswitch 2 in PANE with one stub claude per pane in `others` registered first; returns the log text."""
+        self.e.set_pane()
+        self.e.set_workspaces_real()
+        for pane, args in others:
+            self.e.spawn_claude(pane, args)
+        self.e.spawn_claude(PANE, ["--agent", "target", "--model", "m"])
+        r = self.e.popen([str(self.e.acct / "bin" / "cswitch"), "2"], session=True,
+                         env=dict(HERDR, HERDR_PANE_ID=PANE, CLAUDE_STUB_MODE="sleep"),
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
+        r.communicate(timeout=30)
+        self.assertEqual(r.returncode, 0)
+        log = self.e.acct / "cswitch.log"
+        done = re.compile(rf" {re.escape(PANE)} {re.escape(expect_name)} done$", re.M)
+        self.e.wait_for(lambda: log.exists() and done.search(log.read_text(encoding="utf-8")),
+                        "no ' done' line in cswitch.log: " + (log.read_text(encoding="utf-8") if log.exists() else "<no log>"))
+        return log.read_text(encoding="utf-8")
+
+    def test_takes_the_args_of_the_target_pane_not_of_another_panes_claude(self):
+        self.e.set_agents()
+        self._switch_and_wait("plugin-tech-ca-repo",
+                              others=[("w26:p9", ["--agent", "other", "--model", "WRONG"])])
+        runs = self.herdr_calls("pane", "run")
+        self.assertEqual(len(runs), 1)
+        typed = shlex.split(runs[0][3])
+        self.assertIn("target", typed)
+        self.assertNotIn("other", typed)
+        self.assertNotIn("WRONG", typed)
+        # only the target pane's claude was told to exit
+        self.assertEqual(self.herdr_calls("agent", "prompt"), [["agent", "prompt", PANE, "/exit"]])
+
+    def test_pane_without_an_agent_name_is_not_renamed(self):
+        listing = json.loads((FIX / "agent-list.real.json").read_text(encoding="utf-8"))
+        for a in listing["result"]["agents"]:
+            if a["pane_id"] == PANE:
+                a.pop("name", None)
+        (self.e.stub / "agents.json").write_text(json.dumps(listing), encoding="utf-8")
+        text = self._switch_and_wait("?")
+        self.assertEqual(self.herdr_calls("agent", "rename"), [])
+        self.assertRegex(text.splitlines()[0], rf"^\S+ {re.escape(PANE)} \? -> account 2: ")
+        self.assertNotIn("FAILED", text)
 
 
 if __name__ == "__main__":
