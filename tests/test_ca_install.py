@@ -1,5 +1,6 @@
 """Ticket ca-repo/02: install.sh links the scripts per file into a temp HOME, keeps state files, deletes leftovers."""
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -9,7 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CA = ROOT / "tools" / "claude-accounts"
 INSTALL = CA / "install.sh"
 FILES = ["lib.sh", "usage-popup.sh", "record-usage.sh", "HANDOFF.md"] + [f"bin/{p.name}" for p in (CA / "bin").iterdir()]
-LEFTOVERS = ["lib.sh.bak-t6", "HANDOFF.md.new", "HANDOFF.md.bak", "bin/cswitch.orig", "bin/c1.bak-fix-autoswitch"]
+LEFTOVERS = ["lib.sh.bak-t6", "HANDOFF.md.new", "bin/cswitch.orig", "bin/c1.bak-fix-autoswitch"]
 
 
 class InstallTest(unittest.TestCase):
@@ -156,26 +157,113 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue((self.acct / ".git" / "x.bak").exists())
         self.assertTrue((self.acct / "mine.txt").exists())
-        self.assertIn("kept: " + str(self.acct / "mine.txt"), r.stdout)
-        self.assertIn("kept: " + str(self.acct / "bin" / "mytool"), r.stdout)
-        self.assertNotIn("kept: " + str(self.acct / "default"), r.stdout)
-        self.assertEqual(r.stdout.strip().splitlines()[-1].split(" in ")[0], ".git")
+        self.assertIn("unexpected: " + str(self.acct / "mine.txt"), r.stdout)
+        self.assertIn("unexpected: " + str(self.acct / "bin" / "mytool"), r.stdout)
+        self.assertNotIn("unexpected: " + str(self.acct / "default"), r.stdout)
+        self.assertTrue(r.stdout.strip().splitlines()[-1].startswith(str(self.acct / ".git")))
         self.assertIn("left alone", r.stdout.strip().splitlines()[-1])
 
-    def test_worktree_is_refused_without_the_flag(self):
-        r = self.run_install(worktree=False)
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn("worktree", r.stderr)
-        self.assertEqual(list(self.home.iterdir()), [])
+    def test_linked_worktree_is_refused_without_the_flag(self):
+        main = self.home / "main"
+        shutil.copytree(CA, main / "tools" / "claude-accounts")
+        g = lambda *a, cwd=main: subprocess.run(["git", *a], cwd=cwd, check=True, capture_output=True,
+                                                env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
+        g("init", "-q"); g("add", "-A"); g("commit", "-qm", "x"); g("worktree", "add", "-q", str(self.home / "wt"))
+        env = {**os.environ, "HOME": str(self.home)}
+        for src, rc in ((self.home / "wt", 1), (main, 0)):
+            r = subprocess.run(["bash", str(src / "tools/claude-accounts/install.sh")], env=env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, rc, r.stderr)
+            self.assertIn(f"installing from: {(src / 'tools/claude-accounts').resolve()}", r.stdout)
+            if rc:
+                self.assertIn("worktree", r.stderr)
+                self.assertFalse(self.acct.exists())
         r = self.run_install()
         self.assertIn("warning", r.stdout)
-        self.assertEqual(r.returncode, 0, r.stderr)
 
-    def test_launcher_runs_through_the_links(self):
+    def test_empty_or_non_directory_home_is_refused(self):
+        for home in ("", str(self.home / "nope")):
+            r = subprocess.run(["bash", str(INSTALL), "--allow-worktree"], env={**os.environ, "HOME": home}, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertEqual(list(self.home.iterdir()), [])
+
+    def test_force_moves_the_original_to_install_backup(self):
+        self.seed_live()
+        (self.acct / "bin" / "c1").write_text("my edit\n")
+        r = self.run_install("--force")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((self.acct / ".install-backup" / "bin" / "c1").read_text(), "my edit\n")
+        self.assertTrue((self.acct / "bin" / "c1").is_symlink())
+
+    def test_force_backs_up_a_differing_skill_dir(self):
+        self.seed_live()
+        (self.skill / "SKILL.md").write_text("my edit")
+        r = self.run_install("--force")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((self.acct / ".install-backup" / "skill" / "SKILL.md").read_text(), "my edit")
+        self.assertTrue(self.skill.is_symlink())
+
+    def test_second_run_keeps_every_link_mtime_and_leaves_no_temp(self):
+        self.seed_live()
         self.run_install()
-        r = subprocess.run(["bash", "-c", '. "$HOME/.claude-accounts/lib.sh"; default_account'],
-                           env={**os.environ, "HOME": str(self.home), "HERDR_ENV": ""}, capture_output=True, text=True)
-        self.assertEqual(r.stdout.strip(), "1")
+        links = [p for p in self.home.rglob("*") if p.is_symlink()]
+        before = {p: p.lstat().st_mtime_ns for p in links}
+        r = self.run_install()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(before, {p: p.lstat().st_mtime_ns for p in links})
+        self.assertEqual([p for p in self.home.rglob("*.install-tmp")], [])
+
+    def test_only_the_pos_leftover_names_are_deleted(self):
+        self.seed_live()
+        (self.acct / "notes.new").write_text("po")
+        (self.acct / "usage-1.bak").write_text("po")
+        (self.acct / "workspace-default" / "x.new").write_text("po")
+        (self.acct / "__pycache__" / "mine.txt").write_text("po")
+        r = self.run_install()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        for f, shown in (("notes.new", "notes.new"), ("usage-1.bak", "usage-1.bak"), ("workspace-default/x.new", "workspace-default/x.new"),
+                         ("__pycache__/mine.txt", "__pycache__")):
+            self.assertTrue((self.acct / f).exists(), f)
+            self.assertIn("unexpected: " + str(self.acct / shown), r.stdout)
+        self.assertFalse((self.acct / "lib.sh.bak-t6").exists())
+
+    def test_pyc_only_pycache_is_deleted(self):
+        self.seed_live()
+        (self.acct / "bin" / "__pycache__").mkdir()
+        (self.acct / "bin" / "__pycache__" / "a.pyc").write_text("x")
+        self.assertEqual(self.run_install().returncode, 0)
+        self.assertFalse((self.acct / "bin" / "__pycache__").exists())
+        self.assertFalse((self.acct / "__pycache__").exists())
+
+    def test_no_leftover_is_deleted_on_a_refused_run(self):
+        self.seed_live()
+        (self.acct / "bin" / "c1").write_text("my edit\n")
+        self.run_install()
+        self.assertTrue((self.acct / "lib.sh.bak-t6").exists())
+
+    def test_unlink_restores_regular_copies_and_is_idempotent(self):
+        self.seed_live()
+        self.run_install()
+        r = self.run_install("--dry-run", "--unlink")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue((self.acct / "lib.sh").is_symlink())
+        r = self.run_install("--unlink")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        for f in FILES:
+            p = self.acct / f
+            self.assertFalse(p.is_symlink(), f)
+            self.assertEqual(p.read_bytes(), (CA / f).read_bytes())
+            self.assertEqual(p.stat().st_mode & 0o777, (CA / f).stat().st_mode & 0o777, f)
+        self.assertTrue(self.skill.is_dir() and not self.skill.is_symlink())
+        self.assertEqual((self.skill / "SKILL.md").read_bytes(), (CA / "skill" / "SKILL.md").read_bytes())
+        self.assertEqual((self.acct / "default").read_text(), "3\n")
+        self.assertEqual(self.run_install("--unlink").returncode, 0)
+
+    def test_gitignore_names_the_state_files(self):
+        for name in ("default", "workspace-default/w1", "usage-1", "cswitch.log", ".install-backup/c1", "x.bak-1", "x.new", "x.orig"):
+            r = subprocess.run(["git", "check-ignore", "-q", "--no-index", "tools/claude-accounts/" + name], cwd=ROOT)
+            self.assertEqual(r.returncode, 0, name)
+        r = subprocess.run(["git", "check-ignore", "-q", "--no-index", "tools/claude-accounts/usage-popup.sh"], cwd=ROOT)
+        self.assertEqual(r.returncode, 1)
 
 
 if __name__ == "__main__":
