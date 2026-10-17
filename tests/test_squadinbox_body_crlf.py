@@ -43,7 +43,7 @@ class BodyFileLineEndings(Base):
         data = (self.home / "escalations.md").read_bytes()
         fixture = (Path(__file__).parent / "fixtures" / "inbox" / "home" / "escalations.md").read_bytes()
         self.assertEqual(data.count(b"\r"), fixture.count(b"\r"))
-        self.assertNotIn(b"- bullet<br>|", data)
+        self.assertEqual(data.count(b"line one<br>line two<br><br>- bullet |"), 2)
 
     def test_read_item_same_for_lf_crlf_cr(self):
         got = self.stored("read")
