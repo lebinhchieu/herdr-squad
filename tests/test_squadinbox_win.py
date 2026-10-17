@@ -39,21 +39,21 @@ class NoFcntl(Base):
         super().setUp()
         self.fake = Path(self.tmp) / "fake"
         self.fake.mkdir()
-        (self.fake / "sitecustomize.py").write_text(SITE)
-        (self.fake / "msvcrt.py").write_text(MSVCRT)
+        (self.fake / "sitecustomize.py").write_text(SITE, encoding="utf-8")
+        (self.fake / "msvcrt.py").write_text(MSVCRT, encoding="utf-8")
         self.log = Path(self.tmp) / "lock.log"
-        self.log.write_text("")
+        self.log.write_text("", encoding="utf-8")
 
     def fenv(self, **extra):
         return env(PYTHONPATH=str(self.fake), FAKE_MSVCRT_LOG=str(self.log), **extra)
 
     def cli(self, home, *args, **extra):
         return subprocess.run([sys.executable, "-B", CLI, "--home", str(home)] + list(args), text=True,
-                              capture_output=True, input="body", env=self.fenv(**extra))
+                              capture_output=True, input="body", env=self.fenv(**extra), encoding="utf-8")
 
     def test_imports_and_lists_without_fcntl(self):  # AC1
         r = subprocess.run([sys.executable, "-B", "-c", "import sys; sys.modules['fcntl']=None; sys.path.insert(0, %r); import squadinbox; assert squadinbox.fcntl is None" % str(ROOT / "bin")],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(r.returncode, 0, r.stderr)
         r = self.cli(self.home, "list", "--json")
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -61,7 +61,7 @@ class NoFcntl(Base):
     def test_eight_writers_through_the_windows_lock(self):  # AC2
         h = self.empty_home()
         procs = [subprocess.Popen([sys.executable, "-B", CLI, "--home", str(h), "add", "--kind", "read", "--title", "t%d" % i],
-                                  stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, env=self.fenv()) for i in range(8)]
+                                  stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, env=self.fenv(), encoding="utf-8") for i in range(8)]
         for p in procs:
             p.stdin.write("body")
             p.stdin.close()
@@ -71,7 +71,7 @@ class NoFcntl(Base):
         self.assertEqual(lines[-1], b"")
         titles = sorted(json.loads(l)["title"] for l in lines[:-1] if json.loads(l)["ev"] == "add")
         self.assertEqual(titles, sorted("t%d" % i for i in range(8)))
-        calls = self.log.read_text().split()
+        calls = self.log.read_text(encoding="utf-8").split()
         self.assertGreaterEqual(calls.count("2"), 8)
         self.assertGreaterEqual(calls.count("0"), 8)
 
@@ -132,7 +132,7 @@ class WindowsStdin(Base):
 
 class Cp1252(Base):
     def cp(self, *args, stdin=b""):
-        return subprocess.run([sys.executable, "-B", CLI, "--home", str(self.home)] + list(args), capture_output=True, input=stdin,
+        return subprocess.run([sys.executable, "-B", CLI, "--home", str(self.home)] + [a.encode("utf-8") for a in args], capture_output=True, input=stdin,
                               env=env(PYTHONUTF8="0", LC_ALL="C", PYTHONIOENCODING="cp1252"))
 
     def test_bytes_and_no_cr(self):  # AC5, AC6, B0, B4

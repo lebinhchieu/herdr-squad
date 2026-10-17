@@ -38,13 +38,13 @@ def list_json(home, now=fx.NOW, write=False):
     env = {k: v for k, v in os.environ.items() if k not in fx.AGENT_ENV}
     env.update(SQUAD_INBOX_NOW=now, PYTHONDONTWRITEBYTECODE="1")
     args = [sys.executable, fx.CLI, "--home", str(home), "list", "--json"] + ([] if write else ["--no-write"])
-    done = subprocess.run(args, capture_output=True, text=True, env=env)
+    done = subprocess.run(args, capture_output=True, text=True, env=env, encoding="utf-8")
     assert done.returncode == 0, done.stderr
     return json.loads(done.stdout)
 
 
 def unwrap(path):
-    m = re.fullmatch(r"//[^\n]*\nexport default (\".*\")\n", path.read_text(), re.S)
+    m = re.fullmatch(r"//[^\n]*\nexport default (\".*\")\n", path.read_text(encoding="utf-8"), re.S)
     assert m, "%s is not a generated fixture" % path
     return json.loads(m.group(1))
 
@@ -60,7 +60,7 @@ class ContractTest(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if k not in fx.AGENT_ENV}
         env.update(SQUAD_ROLE="manager", SQUAD_INBOX_NOW=fx.NOW, PYTHONDONTWRITEBYTECODE="1")
         done = subprocess.run([sys.executable, fx.CLI, "--home", str(home), "answer", "E30", "--option", "a", "--source", "pane"],
-                              input="", text=True, capture_output=True, env=env)
+                              input="", text=True, capture_output=True, env=env, encoding="utf-8")
         self.assertEqual(done.returncode, 0, done.stderr)
         return home
 
@@ -90,18 +90,18 @@ class ContractTest(unittest.TestCase):
         for name, build in fx.FIXTURES.items():
             with self.subTest(name):
                 path = fx.OUT / (name + ".ts")
-                self.assertEqual(path.read_text(), fx.ts_text(name, build()), "run python3 tests/po_inbox_fixtures.py")
+                self.assertEqual(path.read_text(encoding="utf-8"), fx.ts_text(name, build()), "run python3 tests/po_inbox_fixtures.py")
                 self.assertEqual(unwrap(path), build())
 
     def test_every_fixture_file_is_listed_for_the_mod_tests(self):
-        index = (fx.OUT / "index.ts").read_text()
+        index = (fx.OUT / "index.ts").read_text(encoding="utf-8")
         files = {p.stem for p in fx.OUT.glob("contract-*.ts")}
         self.assertEqual(files, set(fx.FIXTURES))
         for name in files:
             self.assertIn("'%s':" % name, index)
 
     def test_the_mod_parses_every_fixture_and_the_extra_key_case(self):  # (ii), (iii): run by `claude plugin test`
-        tests = "".join(p.read_text() for p in (ROOT / "hooks" / "po-inbox").glob("*.test.ts"))
+        tests = "".join(p.read_text(encoding="utf-8") for p in (ROOT / "hooks" / "po-inbox").glob("*.test.ts"))
         self.assertIn("Object.entries(FIXTURES)", tests)
         self.assertIn("an extra key anywhere is ignored", tests)
         self.assertIn("another version", tests)

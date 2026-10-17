@@ -21,7 +21,7 @@ BREAKS = ["\r\n", "\n", "\r", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "â
 
 def events(home, ev=None):
     p = Path(home) / "inbox.jsonl"
-    out = [json.loads(l) for l in p.read_text().split("\n") if l.strip()] if p.exists() else []
+    out = [json.loads(l) for l in p.read_text(encoding="utf-8").split("\n") if l.strip()] if p.exists() else []
     return [e for e in out if ev is None or e["ev"] == ev]
 
 
@@ -153,21 +153,21 @@ class AnswerTest(Base):
 
     def test_never_hangs(self):  # AC19
         cmd = [sys.executable, "-B", CLI, "--home", str(self.home), "answer", "E8", "--source", "pane"]
-        r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env(), timeout=20)
+        r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
         self.assertEqual(r.returncode, 2)
         rd, wr = os.pipe()
         os.close(wr)
-        r = subprocess.run(cmd, stdin=rd, capture_output=True, text=True, env=env(), timeout=20)
+        r = subprocess.run(cmd, stdin=rd, capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
         os.close(rd)
         self.assertEqual(r.returncode, 2)
         master, slave = pty.openpty()
-        r = subprocess.run(cmd, stdin=slave, capture_output=True, text=True, env=env(), timeout=20)
+        r = subprocess.run(cmd, stdin=slave, capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
         os.close(master)
         os.close(slave)
         self.assertEqual(r.returncode, 2)
         # an open pipe nobody writes to, with --text given: not a wait
         rd, wr = os.pipe()
-        r = subprocess.run(cmd + ["--text", "x"], stdin=rd, capture_output=True, text=True, env=env(), timeout=20)
+        r = subprocess.run(cmd + ["--text", "x"], stdin=rd, capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
         os.close(rd)
         os.close(wr)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -242,12 +242,12 @@ class CellFailureTest(Base):
                     self.assertEqual((self.home / "real.md").read_bytes(), good)
                     path.unlink()
                     (self.home / "real.md").rename(path)
-                (self.home / "inbox.jsonl").write_text("".join(l + "\n" for l in (self.home / "inbox.jsonl").read_text().split("\n")
-                                                              if '"answer", "id": "E8"' not in l and '"ev": "answer", "id": "E8"' not in l))
+                (self.home / "inbox.jsonl").write_text("".join(l + "\n" for l in (self.home / "inbox.jsonl").read_text(encoding="utf-8").split("\n")
+                                                              if '"answer", "id": "E8"' not in l and '"ev": "answer", "id": "E8"' not in l), encoding="utf-8")
 
     def test_short_row_is_padded_and_answered(self):
         path = self.home / "escalations.md"
-        path.write_text(path.read_text().rstrip("\n") + "\n| 9 | 2026-10-15 | Short row |\n")
+        path.write_text(path.read_text(encoding="utf-8").rstrip("\n") + "\n| 9 | 2026-10-15 | Short row |\n", encoding="utf-8")
         item = [i for i in listing(self.home)["items"] if i["title"] == "Short row"][0]
         r = run(self.home, "answer", item["id"], "--text", "x | y", "--source", "pane")
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -271,9 +271,9 @@ class CellFailureTest(Base):
 
     def test_duplicate_key_names_both_rows(self):
         path = self.home / "escalations.md"
-        txt = path.read_text()
+        txt = path.read_text(encoding="utf-8")
         row = [l for l in txt.splitlines() if "Ship the badge" in l][0]
-        path.write_text(txt + row + "\n")
+        path.write_text(txt + row + "\n", encoding="utf-8")
         r = run(self.home, "answer", "E8", "--option", "a", "--source", "pane")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertRegex(r.stderr, r"lines \d+, \d+")
@@ -348,7 +348,7 @@ class FileShapeTest(Base):
                 (h / "escalations.md").write_bytes(("# T\n\n" + head + short + tail).encode())
                 r = run(h, "answer", "E5", "--text", "t", "--source", "pane")
                 self.assertEqual((r.returncode, r.stderr), (0, ""))
-                got = (h / "escalations.md").read_text()
+                got = (h / "escalations.md").read_text(encoding="utf-8")
                 self.assertTrue(got.startswith("# T\n\n" + head), got)
                 rows = [l for l in got.splitlines() if l.startswith("| 5 ")]
                 self.assertEqual([c.strip() for c in rows[0].strip("|").split("|")], [c.strip() for c in want.strip("|").split("|")])
