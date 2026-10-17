@@ -197,7 +197,8 @@ def main():
     p.add_argument("--effort")
     p.add_argument("--yes", action="store_true")
     p.add_argument("--dry-run", action="store_true")
-    # a non-UTF-8 locale decodes argv bytes as surrogate escapes; get the real text back before it is written
+    # Only matters on POSIX under a non-UTF-8 locale (Windows decodes argv correctly): argv arrives as surrogate
+    # escapes, which cannot be written to scope.md; re-decode the original bytes. Identity on UTF-8.
     a = p.parse_args([os.fsencode(x).decode("utf-8", "replace") for x in sys.argv[1:]])
 
     squad = squad_dir(a.squad)
