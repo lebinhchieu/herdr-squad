@@ -1,6 +1,6 @@
 # Windows checklist for the PO
 
-Twelve steps (W1-W12) after the 0a-0c checks, about 15 minutes, in Git Bash. Stop at the first failure and send me the full error text.
+Twelve steps (W1-W12; W7 is the pane check from `issue-po-inbox.md` section 1) after the 0a-0c checks, about 15 minutes, in Git Bash. Stop at the first failure and send me the full error text.
 
 ## What the squad proved on Linux, and what only you can prove
 
@@ -13,7 +13,7 @@ If two Git Bash windows replace the same file at the same moment, Windows may re
 
 ## Before you start
 
-- **0a** `python3 --version` prints a version (a Microsoft Store stub that opens the Store is a fail). (the PO has 3.14).
+- **0a** `python3 --version` prints a version (a Microsoft Store stub that opens the Store is a fail). The Store alias that reports a real version (the PO has 3.14.6 this way) works; it is not a fail. The pane starts `python3 <plugin>/bin/squad-inbox`, so this is the `python3` the pane uses.
 - **0b** `jq --version` prints a version. `jq` is a documented prerequisite: if it is missing, install it first; that is not a plugin bug.
 - **0c** `bash --version` is Git's (`which bash` shows a `Git\...` path), not `C:\Windows\System32\bash.exe`. Also `git --version`.
 - Git Bash, herdr running (`HERDR_ENV=1`).
@@ -30,14 +30,18 @@ If two Git Bash windows replace the same file at the same moment, Windows may re
 | W2 | `squad-start "windows check scratch" --squad <squad> --touches docs --yes`, then the CR check on the new `scope.md` | New scope folder, Manager tab, no traceback. CR count `0`. | |
 | W3 | In that Manager (space-and-emoji path, no env vars exported), have it spawn a Tech Lead, a Developer, QA whitebox and QA blackbox. CR check on `roster.md`. | Four tabs with their emoji labels, each ready. No `UnicodeDecodeError`. CR count `0`. | |
 | W4 | `squad-spawn <role> <name> --scope <scope> --dry-run` for `manager`, `dev`, `qa-blackbox` | Each prints `would run:` and exits 0. | |
-| W5 | `squad-inbox list` in the scope folder (`SCOPE_DIR` set) | The list prints, including any `→` in a title. Not `squad-inbox list failed`. | |
+| W5 | `squad-inbox list` in the scope folder (`SCOPE_DIR` set). If you try `squad-inbox answer --option N` by hand, add `</dev/null`: with only `--option` it waits on stdin (same on Linux, by design). | The list prints, including any `→` in a title. Not `squad-inbox list failed`. | |
 | W6 | `squad-inbox list --json` | JSON prints, exit 0. | |
-| W7 | Open the PO inbox pane in Claude Code. | Items show. No `⚠` line. | |
-| W8 | `squad-inbox add --kind read --title "é → 🦀 check" --body-file <any file>`, then `squad-inbox list`, then `squad-inbox answer` on an answer item with a note holding an emoji. CR check on `inbox.jsonl` and `escalations.md`. | The title and note read back as typed. CR counts `0`. | |
+| W7 | **Pane check (iteration 2, the one that was never confirmed).** In a Manager session of the scratch squad, run `/inbox`. Note the item list. Answer one answer-item from the pane. Then run `tail -5 <scope>/inbox.jsonl` and read the last lines. | The pane lists the items with no `⚠ squad-inbox list failed` line. After the answer, `inbox.jsonl` has an `answer` event with `source: "pane"`, then a `delivered` event, and the Manager receives the answer. A pane that shows `⚠` or `ENOENT`/`WinError 193`, or an answer with no `source: pane` event, is a fail: send the full pane text and the last 10 lines of `inbox.jsonl`. |
+| W8 | `squad-inbox add --kind read --title "é → 🦀 check" --body-file <a file saved with CRLF endings, e.g. from Notepad>`, then `squad-inbox list`, then `squad-inbox answer <id> --source chat --option <letter> --note "é 🦀 note" </dev/null` on an answer item (do not pipe the note through `echo`: it adds a newline, so the row ends in `<br>`). CR check on `escalations.md`, and `grep -c '\\r' inbox.jsonl` (text `\r`, not a CR byte). | The title and note read back as typed. The body has no stray `\r`, and the answer row has no trailing `<br>`. CR counts `0`. | |
 | W9 | Open two Git Bash windows. In each run `for i in $(seq 20); do squad-inbox add --kind read --title "w9 $i" --body-file <file>; done` at the same time. Then `squad-inbox list --json` and count the `w9` titles. | 40 titles, none twice, no error from the lock. A `PermissionError` on a rename that clears on re-run is the known limit above. | |
 | W10 | `squad-process show qa-blackbox`, then `squad-usage` | Both print, no traceback. | |
 | W11 | `squad-retire <a name from W3>`, then `squad-close --scope <scratch scope>`. CR check on `process-log.md`. | Both finish, the tabs close, no traceback. If one says `jq` is missing (you skipped 0b), that is a fail unless the message names `jq` and what to install. | |
 | W12 | `git clone -c core.autocrlf=true <plugin repo> x && cd x && git ls-files --eol \| grep -v "w/lf"` | Nothing listed (binary files show `w/-text`: ignore those). | |
+
+## Test run (separate line, not a numbered step)
+
+- **T** In Git Bash, from the plugin folder: `cd tests && python3 -m unittest test_squadinbox test_squadinbox_win test_po_inbox_contract test_po_inbox_mod test_squadinbox_answer -v` (this is `tests/RUNNING-ON-WINDOWS.md`; `run_suite.py` needs `fcntl` and cannot run on Windows). You should see `OK` with some tests skipped, each with a reason, and **0 failures and 0 errors**. Send me the last 5 lines and every `skipped` line. A failure is not a skip: send its full text, it may be a product bug.
 
 ## Not on this list (decided by the PO in E3)
 
@@ -51,6 +55,6 @@ If two Git Bash windows replace the same file at the same moment, Windows may re
 
 ## What to send back
 
-- 0a-0c and W1-W12 as pass, fail or skipped.
+- 0a-0c, W1-W12 and T as pass, fail or skipped.
 - The full error text for each fail.
 - The sha from "Before you start" and the path form you used.

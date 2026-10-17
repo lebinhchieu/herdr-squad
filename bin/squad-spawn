@@ -20,7 +20,8 @@ Options:
                    <project>/.worktrees/<squad>/<agent-name> on branch squad/<squad>/<agent-name>
                    (per-scope squads: .worktrees/<squad>/<scope>/<agent> on squad/<squad>/<scope>/<agent>)
   --base REF       With --repo: start the new branch from REF (a passed branch or commit) instead of the
-                   repo's HEAD, so a task can build on work that is passed but not yet merged
+                   repo's HEAD, so a task can build on work that is passed but not yet merged. Refused
+                   (exit 2) when the worktree folder already exists or --worktree is given: use a new name
   --worktree DIR   Start in this existing worktree instead of making one (squad-respawn uses it so a
                    respawned Developer keeps its worktree wherever the old layout put it)
   --title TEXT     Task text shown after the role in the tab label (default: blank). The label is
@@ -126,12 +127,14 @@ settings=$squad_dir/settings/$role.json
 
 cwd=$project_dir
 if [[ -n $worktree ]]; then
+  [[ -z $base ]] || { echo "refused: --base $base would be ignored, $worktree is an existing worktree; drop --base to reuse it" >&2; exit 2; }
   [[ -d $worktree ]] || { echo "no worktree at $worktree" >&2; exit 1; }
   cwd=$(readlink -f "$worktree")
 elif [[ -n $repo ]]; then
   repo=$(readlink -f "$repo")
   wt=$project_dir/.worktrees/$squad/$name branch=squad/$squad/$name
   [[ -z $scope_dir ]] || { wt=$project_dir/.worktrees/$squad/$scope/$name branch=squad/$squad/$scope/$name; }
+  [[ -z $base || ! -d $wt ]] || { echo "refused: --base $base would be ignored, $wt already exists; use a new agent name, or drop --base to reuse the folder" >&2; exit 2; }
   if [[ ! -d $wt ]]; then
     if [[ $dry == 1 ]]; then echo "would run: git -C $repo worktree add $wt -b $branch ${base}"
     else git -C "$repo" worktree add "$wt" -b "$branch" ${base:+"$base"} >&2; fi

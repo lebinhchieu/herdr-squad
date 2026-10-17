@@ -23,7 +23,7 @@ Status: accepted (win-compat)
 - **D3 inbox lock:** `squadinbox.py` uses `msvcrt.locking` on byte 0 of `inbox.jsonl.lock` when `fcntl is None`; `flock` stays on Linux. Both `os.open` calls add `O_BINARY` so `os.write` never turns `\n` into `\r\n`.
 - **D4 stdin on Windows:** `select` on a pipe raises there, so `stdin_text(only_if_ready=True)` returns `""` when the `IS_WINDOWS` constant is true. The `--note` text is already given; with no note the pane's stdin is still read, and the "both given" refusal is not enforced on Windows.
 - **D5 launcher:** `squad-start` always runs `[bash, <squad-spawn as_posix>]`, with `SQUAD_DIR` as `as_posix()`. `pick_bash` rejects the System32 and WindowsApps launchers and falls back to the `bin/bash.exe` next to Git; with no bash it says so in one line before writing anything.
-- **D6 inbox mod unchanged:** `hooks/po-inbox/actions.ts` runs `bin/squad-inbox` by argv. The PO's error was a Python traceback, so the shebang script started; a spawn error on the checklist would open a T5 (`['python3', path, ...]` plus an argv test).
+- **D6 inbox mod runs `python3`:** `hooks/po-inbox/actions.ts` runs `['python3', <root>/bin/squad-inbox, ...]` for all four calls (`list`, `delivered`, `answer`, `read`). A script with no extension cannot be spawned by argv on Windows (`ENOENT` under Node). An argv test pins the arrays. Whether the Claude Code host resolves `python3` on Windows is checked by the PO's pane check, not by a test.
 - **D7 `python3` stays:** `squad-spawn` and `squad-close` keep calling `python3`; `squad-close`'s inline snippet runs `python3 -X utf8 -c`. A machine with only `python` fails the checklist's `python3 --version` step: a prerequisite, not a code change.
 - **D8 `jq` is a prerequisite:** `squad-respawn`, `squad-retire` and `squad-log-message` check `command -v jq` first. The first two stop with one line naming `jq` and how to install it; the hook logs nothing, prints one stderr line and exits 0.
 
@@ -31,5 +31,7 @@ Status: accepted (win-compat)
 
 - `squad-usage` and `squad-notify` do nothing, quietly, where the Linux paths (`/proc`, project transcripts) are missing (D9, D12).
 - `.gitattributes`: `* text=auto eol=lf` and `bin/* text eol=lf` (D11).
+- `squad-inbox add` normalises `\r\n` and lone `\r` to `\n` in the body (file and stdin) before storing; `answer` text is not touched.
+- A test that only fails on Windows (termios/pty, symlink privilege, file modes, `os.execv`, `NoFcntl` simulation, POSIX path fixtures) is skipped with a reason that names the cause; Linux skips none of them. The Windows suite run is the PO's, until a Windows runner exists.
 
 Design details: `.scratch/squad-plugin-windows/design.md` (D1-D12).

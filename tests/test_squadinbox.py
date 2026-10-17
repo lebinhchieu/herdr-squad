@@ -14,6 +14,23 @@ CLI = str(ROOT / "bin" / "squad-inbox")
 FIX = ROOT / "tests" / "fixtures" / "inbox"
 NOW = "2026-10-15T10:00:00Z"
 AGENT_ENV = ("SQUAD_DIR", "SCOPE_DIR", "GOAL_DIR", "SQUAD_NAME", "SQUAD_ROLE", "SQUAD_SCOPE", "SQUAD_INBOX_NOW")
+try:
+    import pty
+except ImportError:  # pty needs termios, which Windows lacks
+    pty = None
+HAVE_PTY = pty is not None
+
+
+def _can_symlink():
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.symlink(os.path.join(d, "t"), os.path.join(d, "l"))
+        except (OSError, NotImplementedError):  # WinError 1314: creating a symlink needs a privilege
+            return False
+    return True
+
+
+CAN_SYMLINK = _can_symlink()
 KEYS = {"id", "kind", "state", "title", "body", "options", "options_raw", "recommendation", "blocks", "created", "created_precision", "answer", "done", "flags"}
 
 
@@ -491,6 +508,7 @@ class RowWriterTest(Base):
                 self.assertFalse(out.endswith(b"\n"))
                 self.assertEqual(len(rows_of(h / "escalations.md")), 1)
 
+    @unittest.skipUnless(CAN_SYMLINK, "symlinks need a privilege on Windows (WinError 1314)")
     def test_symlink_refused(self):
         h = self.empty_home()
         real = Path(self.tmp) / "real.md"
@@ -506,7 +524,8 @@ class RowWriterTest(Base):
         p = self.home / "escalations.md"
         os.chmod(p, 0o640)
         run(self.home, "add", "--kind", "answer", "--title", "t", stdin="b")
-        self.assertEqual(p.stat().st_mode & 0o777, 0o640)
+        if sys.platform != "win32":  # Windows file modes differ (438 != 416); the temp-file check below still runs
+            self.assertEqual(p.stat().st_mode & 0o777, 0o640)
         self.assertEqual([f for f in os.listdir(self.home) if f.startswith(".escalations-")], [])
 
     def test_numbers_after_deleting_rows(self):  # AC17 (W7)
@@ -530,6 +549,7 @@ class RowWriterTest(Base):
 
 
 class RaceAndStdinTest(Base):
+    @unittest.skipIf(sys.platform == "win32", "os.execv on Windows returns early instead of replacing the process")
     def test_concurrent_adds_on_a_barrier(self):  # AC19
         script = ("import os,sys,time\nwhile not os.path.exists(sys.argv[1]): time.sleep(0.001)\n"
                   "os.execv(sys.executable, [sys.executable,'-B',%r,'--home',sys.argv[2],'add','--kind','read','--title','t'])" % CLI)
@@ -553,14 +573,16 @@ class RaceAndStdinTest(Base):
         self.assertEqual(r.returncode, 2)
         r = subprocess.run(args, input="", capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
         self.assertEqual(r.returncode, 2)
-        import pty
-        master, slave = pty.openpty()
-        try:
-            r = subprocess.run(args, stdin=slave, capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
-        finally:
-            os.close(master)
-            os.close(slave)
-        self.assertEqual(r.returncode, 2)
+        with self.subTest("pty"):
+            if not HAVE_PTY:
+                self.skipTest("pty (termios) is not available on Windows")
+            master, slave = pty.openpty()
+            try:
+                r = subprocess.run(args, stdin=slave, capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
+            finally:
+                os.close(master)
+                os.close(slave)
+            self.assertEqual(r.returncode, 2)
         self.assertEqual(os.listdir(h), [] if not (h / "inbox.jsonl.lock").exists() else ["inbox.jsonl.lock"])
 
     def test_body_cap(self):

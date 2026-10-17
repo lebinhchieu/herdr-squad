@@ -86,6 +86,7 @@ class ContractTest(unittest.TestCase):
             "read_open": sum(1 for i in items if i["kind"] == "read" and i["state"] == "open"),
             "waiting": sum(1 for i in items if i["state"] == "answered-waiting")})
 
+    @unittest.skipIf(sys.platform == "win32", "the fixtures hold POSIX /tmp/home paths; a Windows temp home is C:\\... and is not replaced")
     def test_fixture_files_are_the_cli_output_byte_for_byte(self):  # (ii)
         for name, build in fx.FIXTURES.items():
             with self.subTest(name):

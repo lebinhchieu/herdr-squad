@@ -29,8 +29,9 @@ export async function boot($: any, on: any, s: unknown, cli?: (argv: string[], s
   w.clock = mock.clock(on)
   on('session.start', (_$: any, e: any) => ({ cwd: e.cwd }))
   on('process.run', (_$: any, e: any) => {
-    w.runs.push({ argv: [...e.argv], stdin: e.init?.stdin })
-    const r = cli ? cli(e.argv.slice(1), e.init?.stdin) : undefined
+    if (e.argv[0] !== 'python3') throw new Error(`process.run argv must start with python3, got ${e.argv[0]}`)
+    w.runs.push({ argv: e.argv.slice(1), stdin: e.init?.stdin })
+    const r = cli ? cli(e.argv.slice(2), e.init?.stdin) : undefined
     const out = r ?? { exitCode: 0, stdout: JSON.stringify(w.current), stderr: '' }
     return { value: { ...out, isStdoutTruncated: false, isStderrTruncated: false } }
   })
