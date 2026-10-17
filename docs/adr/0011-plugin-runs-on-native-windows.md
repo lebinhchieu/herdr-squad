@@ -16,6 +16,11 @@ Status: accepted (win-compat)
 - No module-level `import fcntl`; POSIX-only modules are guarded.
 - **What `tests/test_windows_safe.py` enforces:** the first, third and fourth rules, and `encoding=` on `subprocess` calls that use text mode. The strict-versus-replace choice is **not** tested: it stays a review item.
 
+## Rules for roles
+
+- A role that edits a squad file (`roster.md`, `scope.md`, notes) by script opens it with `open(path, "w", encoding="utf-8", newline="\n")`: Windows text mode writes CRLF, and a `\r` breaks bash `$(...)` parsing. The Manager and Team Lead instructions say so.
+- Readers tolerate CRLF already on disk (`read_text`, stripped cells, `[[:space:]]` in bash); `tests/test_crlf_squad_files.py` pins it.
+
 ## The decisions (D1-D8)
 
 - **D1 stdio:** `bin/squadio.py` `utf8_stdio()` sets stdin to UTF-8 and stdout/stderr to UTF-8 with `newline="\n"`. A Windows pipe is cp1252 and writes `\r\n`; the `\r` breaks bash `$(...)` parsing.
