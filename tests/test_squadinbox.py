@@ -28,8 +28,8 @@ def env(role="manager", **extra):
 
 
 def run(home, *args, stdin="", role="manager", **extra):
-    return subprocess.run([sys.executable, "-B", CLI, "--home", str(home)] + list(args), input=stdin, text=True,
-                          capture_output=True, env=env(role, **extra))
+    return subprocess.run([sys.executable, "-B", CLI, "--home", str(home)] + [a.encode("utf-8") if isinstance(a, str) else a for a in args], input=stdin, text=True,
+                          capture_output=True, env=env(role, **extra), encoding="utf-8")
 
 
 def listing(home, *args):
@@ -125,7 +125,7 @@ class ProjectionTest(Base):
 
     def test_add_event_missing_fields_is_an_error(self):  # QA-B F2
         h = self.empty_home()
-        (h / "inbox.jsonl").write_text('{"ev":"add","id":"R2"}\n')
+        (h / "inbox.jsonl").write_text('{"ev":"add","id":"R2"}\n', encoding="utf-8")
         snap = listing(h)
         self.assertEqual(snap["items"], [])
         self.assertEqual([(e["file"], e["row"]) for e in snap["errors"]], [("inbox.jsonl", 1)])
@@ -134,8 +134,8 @@ class ProjectionTest(Base):
         h = self.home
         run(h, "add", "--kind", "answer", "--title", "Qlive?", "--options", "(a) x; (b) y", "--rec", "old rec", "--blocks", "PI-9", stdin="body")
         listing(h)
-        t = (h / "escalations.md").read_text()
-        (h / "escalations.md").write_text(t.replace("(a) x; (b) y", "(a) x; (b) y; (c) z").replace("PI-9", "").replace("old rec", "new rec"))
+        t = (h / "escalations.md").read_text(encoding="utf-8")
+        (h / "escalations.md").write_text(t.replace("(a) x; (b) y", "(a) x; (b) y; (c) z").replace("PI-9", "").replace("old rec", "new rec"), encoding="utf-8")
         it = [i for i in listing(h)["items"] if i["title"] == "Qlive?"][0]
         self.assertEqual(([o["key"] for o in it["options"]], it["blocks"]), (["a", "b", "c"], ""))
         self.assertEqual(it["recommendation"], "new rec")
@@ -144,13 +144,13 @@ class ProjectionTest(Base):
         h = self.home
         run(h, "add", "--kind", "answer", "--title", "Qev?", stdin="body")
         listing(h)
-        log = (h / "inbox.jsonl").read_text().splitlines()
+        log = (h / "inbox.jsonl").read_text(encoding="utf-8").splitlines()
         key = next(json.loads(l)["key"] for l in log if '"Qev?"' in l)
         bad = ['{"ev":"seen","id":"zz","key":"%s"}' % key, '{"ev":"seen","id":5,"key":"%s"}' % key, '{"ev":"seen","id":"E9"}',
                '{"ev":"answer","id":"x"}', '{"ev":"withdraw"}', '{"ev":"delivered","id":7}', '{"ev":"read","id":"R0x"}',
                '{"ev":"gone","id":null}', '{"ev":"frobnicate","id":"E1"}', '{"ev":"filled","id":"e1"}']
         before = len(listing(h)["items"])
-        with open(h / "inbox.jsonl", "a") as f:
+        with open(h / "inbox.jsonl", "a", encoding="utf-8") as f:
             f.write("\n".join(bad) + "\n")
         snap = listing(h)
         self.assertEqual(len(snap["items"]), before)
@@ -168,7 +168,7 @@ class ProjectionTest(Base):
 
     def test_short_row_reaching_the_question(self):  # AC29
         h = self.empty_home()
-        (h / "escalations.md").write_text("| # | Date | Question | Options | Recommendation | Blocks | Answer |\n|---|---|---|---|---|---|---|\n| 4 | 2026-10-12 | short one |\n")
+        (h / "escalations.md").write_text("| # | Date | Question | Options | Recommendation | Blocks | Answer |\n|---|---|---|---|---|---|---|\n| 4 | 2026-10-12 | short one |\n", encoding="utf-8")
         snap = listing(h)
         self.assertEqual(([i["title"] for i in snap["items"]], snap["errors"]), (["short one"], []))
 
@@ -182,7 +182,7 @@ class ProjectionTest(Base):
 
     def test_empty_file_and_no_table(self):
         h = self.empty_home()
-        (h / "escalations.md").write_text("")
+        (h / "escalations.md").write_text("", encoding="utf-8")
         self.assertEqual(listing(h)["items"], [])
         shutil.copy(FIX / "no-table" / "escalations.md", h / "escalations.md")
         snap = listing(h)
@@ -197,7 +197,7 @@ class ProjectionTest(Base):
     def test_list_writes_seen_once(self):
         listing(self.home)
         after = digest(self.home)
-        self.assertEqual(sum('"ev": "seen"' in l for l in (self.home / "inbox.jsonl").read_text().splitlines()), 15)
+        self.assertEqual(sum('"ev": "seen"' in l for l in (self.home / "inbox.jsonl").read_text(encoding="utf-8").splitlines()), 15)
         listing(self.home)
         self.assertEqual(digest(self.home), after)  # AC18: the second list writes zero bytes
 
@@ -208,15 +208,15 @@ class ProjectionTest(Base):
         self.assertNotIn("R2", r.stdout)
 
     def test_no_home(self):
-        r = subprocess.run([sys.executable, "-B", CLI, "list"], capture_output=True, text=True, env=env())
+        r = subprocess.run([sys.executable, "-B", CLI, "list"], capture_output=True, text=True, env=env(), encoding="utf-8")
         self.assertEqual(r.returncode, 2)
 
     def test_home_from_env(self):
         r = subprocess.run([sys.executable, "-B", CLI, "list", "--json", "--no-write"], capture_output=True, text=True,
-                           env=env(GOAL_DIR=str(self.home)))
+                           env=env(GOAL_DIR=str(self.home)), encoding="utf-8")
         self.assertEqual(json.loads(r.stdout)["home"], str(self.home))
         r = subprocess.run([sys.executable, "-B", CLI, "list", "--json", "--no-write"], capture_output=True, text=True,
-                           env=env(GOAL_DIR="/nonexistent", SCOPE_DIR=str(self.home)))
+                           env=env(GOAL_DIR="/nonexistent", SCOPE_DIR=str(self.home)), encoding="utf-8")
         self.assertEqual(json.loads(r.stdout)["home"], str(self.home))
 
     def test_control_characters_pass_through(self):  # the mod strips them, not the CLI
@@ -258,25 +258,25 @@ class AddReadTest(Base):
         self.assertEqual((r.returncode, r.stdout), (0, "1 new item in the inbox: Hello\n"))
         self.assertNotIn("the body", r.stdout + r.stderr)
         run(h, "add", "--kind", "read", "--title", "Two", stdin="b2")
-        lines = (h / "inbox.jsonl").read_text().splitlines()
+        lines = (h / "inbox.jsonl").read_text(encoding="utf-8").splitlines()
         evs = [json.loads(l) for l in lines]
         self.assertEqual([(e["ev"], e["id"]) for e in evs], [("add", "R1"), ("add", "R2")])
         self.assertEqual(evs[0]["body"], "the body")
 
     def test_body_file(self):
         h = self.empty_home()
-        (Path(self.tmp) / "b.txt").write_text("from file")
+        (Path(self.tmp) / "b.txt").write_text("from file", encoding="utf-8")
         run(h, "add", "--kind", "read", "--title", "T", "--body-file", str(Path(self.tmp) / "b.txt"))
         self.assertEqual(listing(h)["items"][0]["body"], "from file")
 
     def test_concurrent_adds(self):  # AC2
         h = self.empty_home()
         procs = [subprocess.Popen([sys.executable, "-B", CLI, "--home", str(h), "add", "--kind", "read", "--title", "t%d" % i],
-                                  stdin=subprocess.PIPE, text=True, stdout=subprocess.DEVNULL, env=env()) for i in range(8)]
+                                  stdin=subprocess.PIPE, text=True, stdout=subprocess.DEVNULL, env=env(), encoding="utf-8") for i in range(8)]
         for p in procs:
             p.communicate("body")
         self.assertEqual([p.returncode for p in procs], [0] * 8)
-        evs = [json.loads(l) for l in (h / "inbox.jsonl").read_text().splitlines()]
+        evs = [json.loads(l) for l in (h / "inbox.jsonl").read_text(encoding="utf-8").splitlines()]
         self.assertEqual(len({e["id"] for e in evs}), 8)
 
     def test_add_answer_row_on_top(self):  # AC3
@@ -301,7 +301,7 @@ class AddReadTest(Base):
         shutil.copy(self.home / "escalations.md", h / "escalations.md")
         listing(h)  # seen: E1..E17 now in the log
         run(h, "add", "--kind", "answer", "--title", "t", stdin="b")
-        self.assertTrue((h / "escalations.md").read_text().split("|---|---|---|---|---|---|---|\n")[1].startswith("| 18 |"))
+        self.assertTrue((h / "escalations.md").read_text(encoding="utf-8").split("|---|---|---|---|---|---|---|\n")[1].startswith("| 18 |"))
 
     def test_refusals_change_nothing(self):  # AC4
         cases = [(("--kind", "read"), "b", "manager"),  # no title
@@ -359,7 +359,7 @@ class AddReadTest(Base):
 class SyncTest(Base):
     def delete_row(self, text):
         p = self.home / "escalations.md"
-        p.write_text("".join(l for l in p.read_text().splitlines(keepends=True) if text not in l))
+        p.write_text("".join(l for l in p.read_text(encoding="utf-8").splitlines(keepends=True) if text not in l), encoding="utf-8")
 
     def test_deleted_row_is_kept(self):  # AC8
         listing(self.home)
@@ -389,8 +389,8 @@ class SyncTest(Base):
         self.assertEqual(items["E20"]["title"], "New one")
         # a hand-written row that reuses `#8` for a different question
         p = self.home / "escalations.md"
-        text = p.read_text()
-        p.write_text(text.replace("|---|---|---|---|---|---|---|\n", "|---|---|---|---|---|---|---|\n| 8 | 2026-10-15 | Reused eight | | | | |\n", 1))
+        text = p.read_text(encoding="utf-8")
+        p.write_text(text.replace("|---|---|---|---|---|---|---|\n", "|---|---|---|---|---|---|---|\n| 8 | 2026-10-15 | Reused eight | | | | |\n", 1), encoding="utf-8")
         items = by_id(listing(self.home))
         self.assertEqual(items["E8"]["title"], "Ship the badge?")
         self.assertEqual(items["E8"]["done"]["kind"], "removed")
@@ -399,23 +399,23 @@ class SyncTest(Base):
     def test_answer_filled_by_hand_later(self):
         listing(self.home)
         p = self.home / "escalations.md"
-        p.write_text(p.read_text().replace("(c) later | a | CART-04 | |", "(c) later | a | CART-04 | yes |"))
+        p.write_text(p.read_text(encoding="utf-8").replace("(c) later | a | CART-04 | |", "(c) later | a | CART-04 | yes |"), encoding="utf-8")
         it = by_id(listing(self.home))["E8"]
         self.assertEqual((it["done"]["kind"], it["done"]["reason"], it["flags"]), ("answered-file", "yes", ["answer-by-hand"]))
 
 
 class ErrorsTest(Base):
     def test_malformed_jsonl_line(self):  # AC11
-        with open(self.home / "inbox.jsonl", "a") as f:
+        with open(self.home / "inbox.jsonl", "a", encoding="utf-8") as f:
             f.write("{not json\n[1,2]\n")
         snap = listing(self.home)
         rows = {(e["file"], e["row"]) for e in snap["errors"]}
-        n = len((FIX / "home" / "inbox.jsonl").read_text().splitlines())
+        n = len((FIX / "home" / "inbox.jsonl").read_text(encoding="utf-8").splitlines())
         self.assertEqual(rows, {("inbox.jsonl", n + 1), ("inbox.jsonl", n + 2), ("escalations.md", 17)})
         self.assertIn("R1", by_id(snap))
 
     def test_torn_last_line_does_not_swallow_next_event(self):
-        with open(self.home / "inbox.jsonl", "a") as f:
+        with open(self.home / "inbox.jsonl", "a", encoding="utf-8") as f:
             f.write('{"ev": "add"')
         run(self.home, "add", "--kind", "read", "--title", "After", stdin="b")
         titles = [i["title"] for i in listing(self.home)["items"]]
@@ -423,7 +423,7 @@ class ErrorsTest(Base):
 
     def test_bad_header(self):
         h = self.empty_home()
-        (h / "escalations.md").write_text("| a | b |\n|---|---|\n| 1 | 2 |\n")
+        (h / "escalations.md").write_text("| a | b |\n|---|---|\n| 1 | 2 |\n", encoding="utf-8")
         snap = listing(h)
         self.assertEqual(snap["items"], [])
         self.assertEqual(len(snap["errors"]), 1)
@@ -436,7 +436,7 @@ class ReaderGoldenTest(Base):
         import squadinbox
         golden = json.loads((FIX / "board-reader-golden.json").read_text(encoding="utf-8"))
         for name, case in golden["tables"].items():
-            text = case["text"] if "text" in case else (FIX / name).read_text()
+            text = case["text"] if "text" in case else (FIX / name).read_text(encoding="utf-8")
             header, rows = squadinbox.first_table(text)
             self.assertEqual([dict(zip(header, c)) for _, c in rows] if header else [], case["rows"], name)
         for cell, want in golden["clean_cell"].items():
@@ -512,18 +512,18 @@ class RowWriterTest(Base):
     def test_numbers_after_deleting_rows(self):  # AC17 (W7)
         listing(self.home)
         p = self.home / "escalations.md"
-        p.write_text("".join(l for l in p.read_text().splitlines(keepends=True) if not l.startswith(("| 1 ", "| 2 ", "| 3 "))))
+        p.write_text("".join(l for l in p.read_text(encoding="utf-8").splitlines(keepends=True) if not l.startswith(("| 1 ", "| 2 ", "| 3 "))), encoding="utf-8")
         listing(self.home)
         run(self.home, "add", "--kind", "answer", "--title", "fresh", stdin="b")
         it = next(i for i in listing(self.home)["items"] if i["title"] == "fresh")
-        row = next(l for l in p.read_text().splitlines() if "fresh" in l)
+        row = next(l for l in p.read_text(encoding="utf-8").splitlines() if "fresh" in l)
         self.assertEqual(row.split("|")[1].strip(), it["id"][1:])
         self.assertGreaterEqual(int(it["id"][1:]), 4)
 
     def test_edited_question_changes_key(self):  # AC17 (W8)
         listing(self.home)
         p = self.home / "escalations.md"
-        p.write_text(p.read_text().replace("Ship the badge?", "Ship the badge now?"))
+        p.write_text(p.read_text(encoding="utf-8").replace("Ship the badge?", "Ship the badge now?"), encoding="utf-8")
         items = by_id(listing(self.home))
         self.assertEqual(items["E8"]["done"]["kind"], "removed")
         self.assertTrue(any(i["title"] == "Ship the badge now?" and i["state"] == "open" for i in items.values()))
@@ -538,25 +538,25 @@ class RaceAndStdinTest(Base):
             h.mkdir()
             go = h / "go"
             procs = [subprocess.Popen([sys.executable, "-c", script, str(go), str(h)], stdin=subprocess.PIPE, text=True,
-                                      stdout=subprocess.DEVNULL, env=env()) for _ in range(8)]
-            go.write_text("")
+                                      stdout=subprocess.DEVNULL, env=env(), encoding="utf-8") for _ in range(8)]
+            go.write_text("", encoding="utf-8")
             for p in procs:
                 p.communicate("body")
             self.assertEqual([p.returncode for p in procs], [0] * 8, rnd)
-            evs = [json.loads(l) for l in (h / "inbox.jsonl").read_text().splitlines()]
+            evs = [json.loads(l) for l in (h / "inbox.jsonl").read_text(encoding="utf-8").splitlines()]
             self.assertEqual(sorted(e["id"] for e in evs), sorted("R%d" % i for i in range(1, 9)), rnd)
 
     def test_stdin_never_hangs(self):  # AC20
         h = self.empty_home()
         args = [sys.executable, "-B", CLI, "--home", str(h), "add", "--kind", "read", "--title", "t"]
-        r = subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env(), timeout=20)
+        r = subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
         self.assertEqual(r.returncode, 2)
-        r = subprocess.run(args, input="", capture_output=True, text=True, env=env(), timeout=20)
+        r = subprocess.run(args, input="", capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
         self.assertEqual(r.returncode, 2)
         import pty
         master, slave = pty.openpty()
         try:
-            r = subprocess.run(args, stdin=slave, capture_output=True, text=True, env=env(), timeout=20)
+            r = subprocess.run(args, stdin=slave, capture_output=True, text=True, env=env(), timeout=20, encoding="utf-8")
         finally:
             os.close(master)
             os.close(slave)
@@ -616,7 +616,7 @@ class RepairTest(Base):
 
     def test_repair(self):
         p = self.home / "escalations.md"
-        p.write_text(p.read_text().replace("| PI-02 | (a) x |", "| PI-02 | |"))
+        p.write_text(p.read_text(encoding="utf-8").replace("| PI-02 | (a) x |", "| PI-02 | |"), encoding="utf-8")
         rows = len(rows_of(p))
         before = digest(self.home)
         it = by_id(listing(self.home, "--no-write"))["E11"]
@@ -624,7 +624,7 @@ class RepairTest(Base):
         self.assertEqual(digest(self.home), before)
         it = by_id(listing(self.home))["E11"]
         self.assertEqual((it["state"], it["answer"]["text"]), ("answered-waiting", "(a) x"))
-        self.assertIn("| PI-02 | (a) x |", p.read_text())
+        self.assertIn("| PI-02 | (a) x |", p.read_text(encoding="utf-8"))
         self.assertEqual(len(rows_of(p)), rows)
         after = digest(self.home)
         listing(self.home)
@@ -635,7 +635,7 @@ class Python39Test(unittest.TestCase):
     def test_sources_parse_as_3_9(self):  # AC24
         import ast
         for path in (ROOT / "bin" / "squadinbox.py", ROOT / "bin" / "squad-inbox", Path(__file__)):
-            src = path.read_text()
+            src = path.read_text(encoding="utf-8")
             tree = ast.parse(src, feature_version=(3, 9))
             for node in ast.walk(tree):
                 self.assertNotIsInstance(node, ast.Match, path.name)

@@ -53,7 +53,7 @@ class PoInboxModTest(unittest.TestCase):
         failed = re.search(r"^\s*(\d+) fail$", out, re.M)
         self.assertIsNotNone(passed, out)
         self.assertEqual(failed.group(1), "0", out)
-        declared = sum(len(re.findall(r"^\s*test\(", p.read_text(), re.M)) for p in MOD_DIR.glob("*.test.ts"))
+        declared = sum(len(re.findall(r"^\s*test\(", p.read_text(encoding="utf-8"), re.M)) for p in MOD_DIR.glob("*.test.ts"))
         self.assertGreaterEqual(int(passed.group(1)), declared)
         print("claude plugin test: %s pass, %s fail (not skipped)" % (passed.group(1), failed.group(1)))
 

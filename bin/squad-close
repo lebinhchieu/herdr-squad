@@ -82,8 +82,9 @@ fi
 inbox_blockers() {  # stdout: the blocking items; stderr: warnings
   local json
   json=$("$bin/squad-inbox" --home "$1" list --json --no-write 2>/dev/null) || { echo "warning: could not read the inbox of $1; not checked" >&2; return 0; }
-  python3 -c '
+  python3 -X utf8 -c '
 import json, sys
+sys.stdout.reconfigure(newline="\n")
 try:
     d = json.loads(sys.stdin.read())
     items, errors = d["items"], d.get("errors", [])

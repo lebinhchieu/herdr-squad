@@ -7,6 +7,7 @@ set -uo pipefail
 [[ -n ${SQUAD_NAME:-} && -n ${SQUAD_DIR:-} && -d ${SQUAD_DIR:-} ]] || exit 0
 home=${SCOPE_DIR:-${GOAL_DIR:-$SQUAD_DIR}}  # legacy flat layout: SQUAD_DIR
 [[ -d $home ]] || exit 0
+command -v jq >/dev/null || { echo "squad-log-message: jq not found, message not logged (Windows: winget install jqlang.jq)" >&2; exit 0; }
 input=$(cat) || exit 0
 
 max=-1

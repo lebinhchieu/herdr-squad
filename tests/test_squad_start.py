@@ -16,6 +16,13 @@ exit 0
 """
 
 
+def run_child(cmd, env, timeout=30):
+    """Run a child with UTF-8 bytes for argv and env: the parent may itself run under an ASCII locale."""
+    enc = lambda x: str(x).encode("utf-8", "surrogateescape")
+    return subprocess.run([enc(c) for c in cmd], env={enc(k): enc(v) for k, v in env.items()},
+                          encoding="utf-8", capture_output=True, timeout=timeout)
+
+
 class StartTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -23,10 +30,10 @@ class StartTest(unittest.TestCase):
         self.squad = self.root / ".claude" / "squads" / "t"
         (self.squad / "scopes").mkdir(parents=True)
         (self.squad / "goals").mkdir()
-        (self.squad / "process.md").write_text("x")
+        (self.squad / "process.md").write_text("x", encoding="utf-8")
         fake = self.root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR)
+        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
         (fake / "herdr").chmod(0o755)
         self.log = self.root / "herdr.log"
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
@@ -36,10 +43,10 @@ class StartTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def start(self, *args):
-        return subprocess.run([str(SCRIPT), *args], env=self.env, text=True, capture_output=True, timeout=30)
+        return run_child([str(SCRIPT), *args], env=self.env)
 
     def herdr(self):
-        return self.log.read_text() if self.log.exists() else ""
+        return self.log.read_text(encoding="utf-8") if self.log.exists() else ""
 
     def test_lone_task_creates_the_scope_folder_brief_and_a_fresh_manager(self):
         r = self.start("Fix SEC-04: remove the committed default bypass key", "--touches", "wpapi")
@@ -49,7 +56,7 @@ class StartTest(unittest.TestCase):
         self.assertEqual(set(out), {"kind", "name", "dir", "manager", "tab", "process_update"})
         self.assertNotIn("board", (r.stdout + r.stderr).replace(str(ROOT), "").lower())
         sc = self.squad / "scopes" / "sec04"
-        brief = (sc / "scope.md").read_text()
+        brief = (sc / "scope.md").read_text(encoding="utf-8")
         self.assertIn("Fix SEC-04: remove the committed default bypass key", brief)
         self.assertRegex(brief, r"(?m)^touches: wpapi$")
         self.assertRegex(brief, r"(?m)^goal:\s*$")
@@ -60,7 +67,7 @@ class StartTest(unittest.TestCase):
         self.assertIn("--label 🦀 Manager", h)
         self.assertIn(f"SCOPE_DIR={sc}", h)
         self.assertIn("scope.md", next(l for l in h.splitlines() if l.startswith("agent prompt")))
-        self.assertIn("| t-mgr-sec04 | manager | sec04 |", (sc / "roster.md").read_text())
+        self.assertIn("| t-mgr-sec04 | manager | sec04 |", (sc / "roster.md").read_text(encoding="utf-8"))
 
     def test_model_flag_sets_the_managers_model_else_the_role_default_applies(self):
         self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a", "--model", "sonnet", "--effort", "high").returncode, 0)
@@ -76,10 +83,9 @@ class StartTest(unittest.TestCase):
                 r = self.start(text, "--name", name, "--touches", name, "--model", "sonnet", "--effort", "low")
                 self.assertEqual(r.returncode, 0, r.stderr)
                 home = self.squad / kind / name
-                self.assertEqual((home / "roles" / f"t-mgr-{name}.overrides").read_text(), "model=sonnet\neffort=low\n")
+                self.assertEqual((home / "roles" / f"t-mgr-{name}.overrides").read_text(encoding="utf-8"), "model=sonnet\neffort=low\n")
                 env = {**self.env, var: str(home)}
-                d = subprocess.run([str(SCRIPT.parent / "squad-respawn"), f"t-mgr-{name}", "--dry-run"], env=env,
-                                   text=True, capture_output=True, timeout=30)
+                d = run_child([str(SCRIPT.parent / "squad-respawn"), f"t-mgr-{name}", "--dry-run"], env=env)
                 self.assertEqual(d.returncode, 0, d.stderr)
                 self.assertRegex(d.stdout, rf"squad-spawn manager t-mgr-{name} {flag} {name} .*--model sonnet --effort low ")
 
@@ -93,20 +99,20 @@ class StartTest(unittest.TestCase):
         out = json.loads(r.stdout)
         self.assertEqual((out["kind"], out["name"], out["manager"]), ("goal", "settings", "t-mgr-settings"))
         g = self.squad / "goals" / "settings"
-        self.assertIn("Rebuild the settings page", (g / "goal.md").read_text())
-        self.assertNotIn("goal:", (g / "goal.md").read_text().splitlines()[2])  # the prefix is not part of the brief
+        self.assertIn("Rebuild the settings page", (g / "goal.md").read_text(encoding="utf-8"))
+        self.assertNotIn("goal:", (g / "goal.md").read_text(encoding="utf-8").splitlines()[2])  # the prefix is not part of the brief
         for p in ("shared/decisions.md", "shared/summaries", "shared/contracts", "roles", "roster.md", "escalations.md"):
             self.assertTrue((g / p).exists(), p)
         self.assertIn(f"GOAL_DIR={g}", self.herdr())
         self.assertNotIn("SCOPE_DIR", self.herdr())
-        self.assertIn("| t-mgr-settings | manager |", (g / "roster.md").read_text())
+        self.assertIn("| t-mgr-settings | manager |", (g / "roster.md").read_text(encoding="utf-8"))
 
     def test_in_goal_creates_only_the_scope_folder_naming_its_goal(self):
         self.start("goal: Rebuild", "--name", "g1", "--touches", "wpfe")
         self.log.unlink()
         r = self.start("Tabs regroup", "--in-goal", "g1", "--name", "s1", "--touches", "wpfe/tabs", "--yes")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertRegex((self.squad / "scopes" / "s1" / "scope.md").read_text(), r"(?m)^goal: g1$")
+        self.assertRegex((self.squad / "scopes" / "s1" / "scope.md").read_text(encoding="utf-8"), r"(?m)^goal: g1$")
         self.assertNotIn("agent start", self.herdr())  # the goal Manager runs it, no Manager of its own
         self.assertEqual(json.loads(r.stdout)["manager"], None)
 
@@ -141,13 +147,13 @@ class StartTest(unittest.TestCase):
         self.start("first", "--name", "one", "--touches", "wpapi")
         done = self.squad / "scopes" / "_done" / "old"
         done.mkdir(parents=True)
-        (done / "scope.md").write_text("touches: wpfe\n")
+        (done / "scope.md").write_text("touches: wpfe\n", encoding="utf-8")
         self.assertEqual(self.start("second", "--name", "two", "--touches", "wpfe").returncode, 0)
 
     def test_a_flat_squad_is_refused_so_it_is_not_converted_by_accident(self):
         (self.squad / "scopes").rmdir()
         (self.squad / "goals").rmdir()
-        (self.squad / "roster.md").write_text("| Agent |\n|---|\n")
+        (self.squad / "roster.md").write_text("| Agent |\n|---|\n", encoding="utf-8")
         r = self.start("x", "--name", "one")
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("flat", r.stderr)
@@ -166,13 +172,13 @@ class StartTest(unittest.TestCase):
     def test_resume_starts_a_new_manager_for_an_existing_scope_without_touching_its_files(self):
         self.start("Fix it", "--name", "one", "--touches", "a")
         sc = self.squad / "scopes" / "one"
-        (sc / "tasks" / "T-1.md").write_text("keep me")
+        (sc / "tasks" / "T-1.md").write_text("keep me", encoding="utf-8")
         self.log.unlink()
         r = self.start("--resume", "one")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)["manager"], "t-mgr-one")
         self.assertNotIn("board", json.loads(r.stdout))
-        self.assertEqual((sc / "tasks" / "T-1.md").read_text(), "keep me")
+        self.assertEqual((sc / "tasks" / "T-1.md").read_text(encoding="utf-8"), "keep me")
         h = self.herdr()
         self.assertIn(f"SCOPE_DIR={sc}", h)
         prompt = next(l for l in h.splitlines() if l.startswith("agent prompt"))
@@ -220,7 +226,7 @@ class WorkspaceRenameTest(unittest.TestCase):
 
     def fake(self, extra):
         f = Path(self.tmp.name) / "fakebin" / "herdr"
-        f.write_text(FAKE_HERDR.replace("exit 0\n", "") + extra + "\nexit 0\n")
+        f.write_text(FAKE_HERDR.replace("exit 0\n", "") + extra + "\nexit 0\n", encoding="utf-8")
 
     def test_a_lone_scope_names_the_workspace_after_the_scope(self):
         self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a").returncode, 0)
@@ -303,13 +309,12 @@ class ProcessUpdateTest(unittest.TestCase):
         os.symlink(ROOT / "agents", plugin / "agents")
         shutil.copytree(ROOT / "templates", plugin / "templates")
         (plugin / "templates" / "squad" / "process.md").write_text(
-            "# T\n" + (f"\nprocess-version: {version}\n" if version else ""))
+            "# T\n" + (f"\nprocess-version: {version}\n" if version else ""), encoding="utf-8")
         return plugin / "bin" / "squad-start"
 
     def run_start(self, plugin_version, squad_text, *args):
-        (self.squad / "process.md").write_text(squad_text)
-        return subprocess.run([str(self.plugin(plugin_version)), *args], env=self.env, text=True,
-                              capture_output=True, timeout=30)
+        (self.squad / "process.md").write_text(squad_text, encoding="utf-8")
+        return run_child([str(self.plugin(plugin_version)), *args], env=self.env)
 
     def test_each_state_gives_its_one_line_and_the_json_key(self):
         for squad_text, plugin_v, words in (
@@ -352,21 +357,137 @@ class ProcessUpdateTest(unittest.TestCase):
         self.assertNotIn("Traceback", r.stderr)
 
     def test_the_warning_changes_no_file(self):
-        (self.squad / "process.md").write_text("process-version: 1\n")
+        (self.squad / "process.md").write_text("process-version: 1\n", encoding="utf-8")
         self.run_start(2, "process-version: 1\n", "x", "--name", "one", "--touches", "z", "--dry-run")
-        self.assertEqual((self.squad / "process.md").read_text(), "process-version: 1\n")
+        self.assertEqual((self.squad / "process.md").read_text(encoding="utf-8"), "process-version: 1\n")
         self.assertEqual(sorted(p.name for p in self.squad.iterdir()), ["goals", "process.md", "scopes"])
+
+
+def load_squad_start():
+    from importlib.machinery import SourceFileLoader
+    return SourceFileLoader("squad_start_mod", str(SCRIPT)).load_module()
+
+
+class PickBashTest(unittest.TestCase):
+    """pick_bash is pure: which/exists are injected, so the Windows rules run on Linux."""
+
+    GIT = "C:\\Program Files\\Git"
+    ROOT = "C:\\Windows"
+
+    def pick(self, bash, git=None, existing=()):
+        mod = load_squad_start()
+        which = {"bash": bash, "git": git}.get
+        return mod.pick_bash(which, lambda p: p in existing, True, self.ROOT)
+
+    def test_a_path_bash_is_taken(self):
+        self.assertEqual(self.pick(self.GIT + "\\bin\\bash.exe"), self.GIT + "\\bin\\bash.exe")
+
+    def test_the_system32_and_windowsapps_hits_are_rejected(self):
+        for bad in ("C:\\Windows\\System32\\bash.exe", "c:/windows/system32/bash.exe",
+                    "C:\\Users\\x\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe"):
+            with self.subTest(bad=bad):
+                self.assertIsNone(self.pick(bad))
+
+    def test_the_fallback_finds_git_bash_from_each_git_exe_location(self):
+        want = self.GIT + "\\bin\\bash.exe"
+        for git in ("\\cmd\\git.exe", "\\bin\\git.exe", "\\mingw64\\bin\\git.exe"):
+            with self.subTest(git=git):
+                self.assertEqual(self.pick("C:\\Windows\\System32\\bash.exe", self.GIT + git, (want,)), want)
+
+    def test_no_bash_anywhere_is_none(self):
+        self.assertIsNone(self.pick(None))
+        self.assertIsNone(self.pick(None, self.GIT + "\\cmd\\git.exe"))
+
+    def test_off_windows_any_hit_is_taken(self):
+        mod = load_squad_start()
+        self.assertEqual(mod.pick_bash({"bash": "/usr/bin/bash"}.get, lambda p: False, False, ""), "/usr/bin/bash")
+
+
+class LauncherTest(unittest.TestCase):
+    """squad-start runs squad-spawn as [bash, <path>] and needs bash before it writes anything."""
+
+    def setUp(self):
+        StartTest.setUp(self)
+        self.real_bash = shutil.which("bash")
+        self.argv = self.root / "bash.argv"
+        stub = self.root / "fakebin" / "bash"
+        stub.write_text(f'#!{self.real_bash}\n[ -e "$BASH_ARGV_LOG" ] || printf "%s\\n" "$@" > "$BASH_ARGV_LOG"\nexec {self.real_bash} "$@"\n', encoding="utf-8")
+        stub.chmod(0o755)
+        self.env["BASH_ARGV_LOG"] = str(self.argv)
+
+    tearDown = StartTest.tearDown
+    start = StartTest.start
+    herdr = StartTest.herdr
+
+    def test_new_scope_and_resume_run_squad_spawn_through_bash(self):
+        for args in (("Task one", "--name", "one", "--touches", "a"), ("--resume", "one")):
+            with self.subTest(args=args):
+                self.argv.unlink(missing_ok=True)
+                r = self.start(*args)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                lines = self.argv.read_text(encoding="utf-8").splitlines()
+                self.assertEqual(lines[0], (SCRIPT.parent / "squad-spawn").as_posix())
+                self.assertEqual(lines[1:3], ["manager", "t-mgr-one"])
+
+    def test_no_bash_is_one_line_and_nothing_is_written_for_a_new_scope_and_for_resume(self):
+        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a").returncode, 0)
+        self.log.unlink()
+        self.env.update(HERDR_WORKSPACE_ID="wK", PATH=str(self.root / "fakebin"))
+        (self.root / "fakebin" / "bash").unlink()
+        for args, made in ((("Task two", "--name", "two", "--touches", "b"), "two"), (("--resume", "one"), None)):
+            with self.subTest(args=args):
+                r = run_child([shutil.which("python3"), str(SCRIPT), *args], env=self.env)
+                self.assertNotEqual(r.returncode, 0)
+                lines = [l for l in r.stderr.splitlines() if not l.startswith("process update")]
+                self.assertEqual(len(lines), 1, r.stderr)
+                self.assertIn("bash", lines[0])
+                self.assertIn("Git for Windows", lines[0])
+                self.assertNotIn("Traceback", r.stderr)
+                if made:
+                    self.assertFalse((self.squad / "scopes" / made).exists())
+                self.assertEqual(self.herdr(), "")
+
+    def test_dry_run_needs_no_bash(self):
+        self.env["PATH"] = str(self.root / "fakebin")
+        (self.root / "fakebin" / "bash").unlink()
+        r = run_child([shutil.which("python3"), str(SCRIPT), "x", "--name", "one", "--dry-run"],
+                           env=self.env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("would run: ", r.stdout)
+
+    def test_a_c_locale_with_an_emoji_label_runs_clean_and_writes_utf8_lf(self):
+        self.env.update(PYTHONUTF8="0", LC_ALL="C", PYTHONIOENCODING="cp1252")
+        r = self.start("Fix 🦀 café", "--name", "one", "--touches", "a")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertEqual(json.loads(r.stdout)["manager"], "t-mgr-one")
+        raw = (self.squad / "scopes" / "one" / "scope.md").read_bytes()
+        self.assertIn("Fix 🦀 café".encode("utf-8"), raw)
+        self.assertNotIn(b"\r", raw)
+        self.assertEqual(self.start("--resume", "one").returncode, 0)
+
+    def test_a_project_dir_with_a_space_and_an_emoji_works_for_new_and_resume(self):
+        odd = self.root / os.fsdecode("with space 🦀".encode("utf-8"))
+        odd.mkdir()
+        squad = odd / ".claude" / "squads" / "t"
+        shutil.copytree(self.squad, squad)
+        self.env["SQUAD_DIR"] = str(squad)
+        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a").returncode, 0)
+        r = self.start("--resume", "one")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        want = str(squad / "scopes" / "one").encode("utf-8", "surrogateescape").decode("utf-8")
+        self.assertIn(f"SCOPE_DIR={want}", self.herdr())
 
 
 class InstructionsTest(unittest.TestCase):
     def test_squad_init_names_the_stamp_check_and_never_overwrites_process_md(self):
-        text = (ROOT / "skills" / "squad-init" / "SKILL.md").read_text()
+        text = (ROOT / "skills" / "squad-init" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("`process-version:` line", text)
         self.assertIn("never overwrite its `process.md`", text)
         self.assertIn("/squad:squad-process-update", text)
 
     def test_squad_start_skill_tells_the_user_and_never_runs_the_update_unasked(self):
-        text = (ROOT / "skills" / "squad-start" / "SKILL.md").read_text()
+        text = (ROOT / "skills" / "squad-start" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("`process_update`", text)
         self.assertIn("Never run it unasked", text)
 

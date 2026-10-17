@@ -54,7 +54,7 @@ FIX = Path(__file__).resolve().parent / "fixtures" / "squad-notify"
 
 
 def real(name):
-    return json.loads((FIX / name).read_text())
+    return json.loads((FIX / name).read_text(encoding="utf-8"))
 
 
 class RealPayloadTest(unittest.TestCase):
@@ -104,7 +104,7 @@ class DeliveryTest(unittest.TestCase):
             def proc(pid, comm, cmdline, fd1):
                 p = Path(d) / str(pid)
                 (p / "fd").mkdir(parents=True)
-                (p / "comm").write_text(comm + "\n")
+                (p / "comm").write_text(comm + "\n", encoding="utf-8")
                 (p / "cmdline").write_bytes(cmdline.encode())
                 os.symlink(fd1, p / "fd" / "1")
             proc(1, "herdr", "herdr\0", "/dev/pts/3")
@@ -118,7 +118,7 @@ class DeliveryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             def cfg(text):
                 p = Path(d) / "c.toml"
-                p.write_text(text)
+                p.write_text(text, encoding="utf-8")
                 return str(p)
             self.assertTrue(sn.delivery_off(cfg('[ui.toast]\ndelivery = "off"\n')))
             self.assertTrue(sn.delivery_off(cfg('[a]\nx=1\n[ui.toast]\n# c\ndelivery = "off" # no\n[keys]\n')))
@@ -138,11 +138,11 @@ class RunTest(unittest.TestCase):
         self.master, self.slave = os.openpty()
         p = self.d / "proc" / "1"
         (p / "fd").mkdir(parents=True)
-        (p / "comm").write_text("herdr\n")
+        (p / "comm").write_text("herdr\n", encoding="utf-8")
         (p / "cmdline").write_bytes(b"herdr\0")
         os.symlink(os.ttyname(self.slave), p / "fd" / "1")
         self.cfg = self.d / "config.toml"
-        self.cfg.write_text('[ui.toast]\ndelivery = "off"\n')
+        self.cfg.write_text('[ui.toast]\ndelivery = "off"\n', encoding="utf-8")
         self.state = {"focused": False, "active": "w:t2", "ws": "squad-tabs", "tab": "🦀 Manager"}
         self.fake = self.d / "herdr"
         self.fake.write_text(
@@ -152,7 +152,7 @@ class RunTest(unittest.TestCase):
             "if s.get('fail'): sys.exit(1)\n"
             "if sys.argv[1]=='workspace': r={'workspace':{'focused':s['focused'],'active_tab_id':s['active'],'label':s['ws']}}\n"
             "else: r={'tab':{'label':s['tab']}}\n"
-            "print(json.dumps({'result':r}))\n")
+            "print(json.dumps({'result':r}))\n", encoding="utf-8")
         self.fake.chmod(0o755)
         self.save()
         self.env = {**os.environ, "HERDR_ENV": "1", "SQUAD_NAME": "x", "SQUAD_ROLE": "manager",
@@ -165,7 +165,7 @@ class RunTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def save(self):
-        (self.d / "state.json").write_text(json.dumps(self.state))
+        (self.d / "state.json").write_text(json.dumps(self.state), encoding="utf-8")
 
     def fire(self, payload=None, env=None):
         sn.run(payload or {"hook_event_name": "Stop"}, env or self.env, str(self.d / "proc"))
@@ -195,7 +195,7 @@ class RunTest(unittest.TestCase):
             self.assertNotEqual(self.fire(), b"", (focused, active))
 
     def test_dormant_unless_off(self):
-        self.cfg.write_text('[ui.toast]\ndelivery = "terminal"\n')
+        self.cfg.write_text('[ui.toast]\ndelivery = "terminal"\n', encoding="utf-8")
         self.assertEqual(self.fire(), b"")
 
     def test_no_decision_no_toast(self):
@@ -213,17 +213,17 @@ class RunTest(unittest.TestCase):
 class CliTest(unittest.TestCase):
     def run_cli(self, stdin, env):
         t = time.time()
-        r = subprocess.run([sys.executable, str(SCRIPT)], input=stdin, capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(SCRIPT)], input=stdin, capture_output=True, text=True, encoding="utf-8",
                            env=env, timeout=20)
         return r, time.time() - t
 
     def test_garbage_and_hang_exit_zero_quiet(self):
         with tempfile.TemporaryDirectory() as d:
             fake = Path(d) / "herdr"
-            fake.write_text("#!/bin/sh\nsleep 30\n")
+            fake.write_text("#!/bin/sh\nsleep 30\n", encoding="utf-8")
             fake.chmod(0o755)
             cfg = Path(d) / "c.toml"
-            cfg.write_text('[ui.toast]\ndelivery = "off"\n')
+            cfg.write_text('[ui.toast]\ndelivery = "off"\n', encoding="utf-8")
             env = {**os.environ, "HERDR_ENV": "1", "HERDR_BIN_PATH": str(fake), "HERDR_CONFIG_PATH": str(cfg)}
             env.pop("SQUAD_NAME", None)
             r, took = self.run_cli('{"hook_event_name": "Stop"}', env)
