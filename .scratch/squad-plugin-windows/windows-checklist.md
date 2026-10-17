@@ -26,9 +26,9 @@ If two Git Bash windows replace the same file at the same moment, Windows may re
 
 | # | Run | You should see | ✓ |
 |---|---|---|---|
-| W1 | `squad-start --squad <squad> --resume <scope>` | A Manager tab titled `🦀 Manager`, ready. No `WinError 193`, no traceback. | |
+| W1 | From the space-and-emoji project path: `squad-start --squad <squad> --resume <scope>` | A Manager tab titled `🦀 Manager`, ready. No `WinError 193`, no traceback. | |
 | W2 | `squad-start "windows check scratch" --squad <squad> --touches docs --yes`, then the CR check on the new `scope.md` | New scope folder, Manager tab, no traceback. CR count `0`. | |
-| W3 | In that Manager (no env vars exported), have it spawn a Tech Lead, a Developer, QA whitebox and QA blackbox. CR check on `roster.md`. | Four tabs with their emoji labels, each ready. No `UnicodeDecodeError`. CR count `0`. | |
+| W3 | In that Manager (space-and-emoji path, no env vars exported), have it spawn a Tech Lead, a Developer, QA whitebox and QA blackbox. CR check on `roster.md`. | Four tabs with their emoji labels, each ready. No `UnicodeDecodeError`. CR count `0`. | |
 | W4 | `squad-spawn <role> <name> --scope <scope> --dry-run` for `manager`, `dev`, `qa-blackbox` | Each prints `would run:` and exits 0. | |
 | W5 | `squad-inbox list` in the scope folder (`SCOPE_DIR` set) | The list prints, including any `→` in a title. Not `squad-inbox list failed`. | |
 | W6 | `squad-inbox list --json` | JSON prints, exit 0. | |
