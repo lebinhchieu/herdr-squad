@@ -57,7 +57,7 @@ Three hooks keep working because the paths do not change:
 | `skill/` | the `claude-accounts` skill, linked as a directory |
 | `install.sh` | the installer |
 
-Windows is `windows/` (ca-win's); this README does not cover it.
+Windows is `windows/`: the PowerShell 7 port of the per-workspace default (`claude-accounts.ps1`) and `CHECKLIST.md`, the PO's Windows check; it is not installed by `install.sh`.
 
 ## Tests
 
