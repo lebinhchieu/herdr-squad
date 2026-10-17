@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from ca_stubs import Env, requires_linux
+
 ROOT = Path(__file__).resolve().parent.parent
 CA = ROOT / "tools" / "claude-accounts"
 INSTALL = CA / "install.sh"
@@ -264,6 +266,36 @@ class InstallTest(unittest.TestCase):
             self.assertEqual(r.returncode, 0, name)
         r = subprocess.run(["git", "check-ignore", "-q", "--no-index", "tools/claude-accounts/usage-popup.sh"], cwd=ROOT)
         self.assertEqual(r.returncode, 1)
+
+    def test_directory_at_a_link_path_is_refused_and_nothing_changes(self):
+        self.seed_live()
+        (self.acct / "bin" / "c1").unlink()
+        (self.acct / "bin" / "c1").mkdir()
+        (self.acct / "bin" / "c1" / "mine").write_text("po")
+        snap = sorted((str(p), p.is_symlink(), p.read_text() if p.is_file() else "") for p in self.home.rglob("*"))
+        for args in (("--dry-run",), (), ("--force",)):
+            r = self.run_install(*args)
+            self.assertNotEqual(r.returncode, 0, args)
+            self.assertIn(str(self.acct / "bin" / "c1"), r.stderr + r.stdout)
+            self.assertEqual(sorted((str(p), p.is_symlink(), p.read_text() if p.is_file() else "") for p in self.home.rglob("*")), snap, args)
+
+    @requires_linux
+    def test_launchers_run_through_the_installed_links(self):
+        env = Env()
+        self.addCleanup(env.cleanup)
+        shutil.rmtree(env.acct)  # the harness pre-links; start from the home the PO has: install builds the links
+        r = subprocess.run(["bash", str(INSTALL), "--allow-worktree"], env=env.env, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue((env.acct / "bin" / "c1").is_symlink())
+        env.default_file("2\n")
+        r = env.run("cdefault")
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "2"), r.stderr)
+        r = env.run("c1", "--version", env={"ACCT_NO_WS_DEFAULT": "1"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        calls = env.claude_calls()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["argv"], ["--version"])
+        self.assertIsNone(calls[0]["CLAUDE_CONFIG_DIR"])  # account 1 is ~/.claude itself
 
 
 if __name__ == "__main__":

@@ -8,6 +8,17 @@
 2. Read the diffs and every `refuse` or `unexpected:` line.
 3. Run `bash tools/claude-accounts/install.sh --force`. The first install needs `--force` on a home whose `HANDOFF.md` or `SKILL.md` differs from the repo copy (they do after this iteration's doc edits); without it the item is refused and nothing changes. `--force` moves each replaced original to `~/.claude-accounts/.install-backup/` first.
 
+The install deletes leftovers (`<managed name>.bak-*`, `.new`, `.orig` in `~/.claude-accounts` and `bin/`, and a `__pycache__` holding only `*.pyc`) and does not back them up, with or without `--force`; `--dry-run` lists each as `delete:`. (A differing skill folder moved by `--force` goes to `.install-backup/` whole, leftovers inside it included.)
+
+**Deploy plan (the PO runs it; the squad never does):**
+
+1. The PO asks the Manager to merge the integration branch into `main`.
+2. In the main checkout: `bash tools/claude-accounts/install.sh --dry-run`. Read the plan: nothing marked `refuse` and no `unexpected:` line you care about.
+3. `bash tools/claude-accounts/install.sh --force` (needed once: `HANDOFF.md` and `SKILL.md` differ from the repo copy). Safe while the statusline, popup or a running `cautoswitch` use the files (atomic swaps).
+4. Check: see "Post-install check" below, and open a new shell for `command -v c1`.
+5. Later, the PO's choice: retire `~/.claude-accounts/.git`.
+6. **Rollback:** `bash tools/claude-accounts/install.sh --unlink` (real copies again), or restore from `~/.claude-accounts.rar` / the live `.git`. Never `git checkout` another branch in the main checkout while linked (see Hazards).
+
 The install never edits `.bashrc`, the herdr config or the statusline. It swaps links atomically, so the statusline, the popup and a running `cautoswitch` keep working while it runs.
 
 | Flag | Does |

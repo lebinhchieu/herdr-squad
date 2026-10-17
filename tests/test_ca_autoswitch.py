@@ -409,6 +409,24 @@ class AutoswitchTest(Base):
         self.assertIsNone(self.e.ws_file("w1"))  # ACCT_NO_WS_DEFAULT: the refresh is not a workspace default
         self.assertEqual(self.log().count("c1 token still expired after claude -p"), 1)
 
+    def test_failed_refresh_is_retried_only_after_1800_seconds(self):
+        self.write_creds("1", int((time.time() - 3600) * 1000))
+        self.usage_file(1, 50, 20)
+        self.pane("dev-1", "p1", "w1", "1")
+        env = dict(self.e.env, HERDR_ENV="1", HERDR_WORKSPACE_ID="w1")
+        env.pop("CLAUDE_STUB_MODE", None)
+        refreshes = lambda: len([c for c in self.e.claude_calls() if c["argv"][:1] == ["-p"]])
+        with mock.patch.dict(os.environ, env):
+            mod = self.module()
+            mod.tick(90, True)
+            (acct,) = mod.REFRESH_FAILED
+            mod.REFRESH_FAILED[acct] -= 1700  # failed 1700 s ago: still inside the limit
+            mod.tick(90, True)
+            self.assertEqual(refreshes(), 1)
+            mod.REFRESH_FAILED[acct] -= 101  # now 1801 s ago: past it
+            mod.tick(90, True)
+            self.assertEqual(refreshes(), 2)
+
     def test_error_in_a_tick_is_logged_not_fatal(self):
         self.usage_file(1, 95, 80)
         self.usage_file(2, 20, 10)
