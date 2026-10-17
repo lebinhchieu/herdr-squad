@@ -52,19 +52,19 @@ def toy_plugin(root):
     skill = Path(root) / "skills" / "squad-process-update"
     (skill / "history").mkdir(parents=True)
     (Path(root) / "templates" / "squad").mkdir(parents=True)
-    (Path(root) / "templates" / "squad" / "process.md").write_text(V3)
+    (Path(root) / "templates" / "squad" / "process.md").write_text(V3, encoding="utf-8")
     for n, t in snaps.items():
-        (skill / "history" / f"process-v{n}.md").write_text(t)
-    (skill / "changelog.md").write_text(CHANGELOG)
+        (skill / "history" / f"process-v{n}.md").write_text(t, encoding="utf-8")
+    (skill / "changelog.md").write_text(CHANGELOG, encoding="utf-8")
     return Path(root)
 
 
 def make_squad(tmp, text, log=True):
     d = Path(tmp) / "proj" / ".claude" / "squads" / "s"
     (d / "scopes").mkdir(parents=True, exist_ok=True)
-    (d / "process.md").write_text(text)
+    (d / "process.md").write_text(text, encoding="utf-8")
     if log:
-        (d / "process-log.md").write_text(sp.LOG_HEADER + "| 2026-01-01 | old row | because |\n")
+        (d / "process-log.md").write_text(sp.LOG_HEADER + "| 2026-01-01 | old row | because |\n", encoding="utf-8")
     return d
 
 
@@ -176,12 +176,12 @@ class ComposeTest(Base):
         mine = "a1 mine, my own wording\nsecond line"
         d = self.squad(V1.replace("a1", mine).replace("e1", "e1 kept by me"))
         own = self.tmp / "own.txt"
-        own.write_text("my wording for E\n")
+        own.write_text("my wording for E\n", encoding="utf-8")
         out = self.tmp / "out.md"
         r = self.cli("compose", "--out", str(out), "--resolve", "## A=ours", "--resolve",
                      f"## E=file:{own}", d=d)
         self.assertEqual(r.returncode, 0, r.stderr)
-        text = out.read_text()
+        text = out.read_text(encoding="utf-8")
         self.assertIn(mine, text)
         self.assertIn("my wording for E", text)
         self.assertNotIn("e2", text)
@@ -194,24 +194,24 @@ class ComposeTest(Base):
         d = self.squad(V1.replace("a1", "a1 mine") + "\n## Mine\nown\n")
         out = self.tmp / "o.md"
         sp.compose(d, self.plugin, out, {"## A": "theirs"})
-        body = dict(sp.sections(out.read_text()))
+        body = dict(sp.sections(out.read_text(encoding="utf-8")))
         self.assertEqual(body["## A"], "a2")
         self.assertEqual(body["## Mine"], "own")
 
     def test_own_wording_with_its_heading_line_is_stripped_other_headings_refused(self):
         d = self.squad(V1.replace("a1", "a1 mine"))
         own = self.tmp / "own.txt"
-        own.write_text("## A\nmy A wording\n")
+        own.write_text("## A\nmy A wording\n", encoding="utf-8")
         out = self.tmp / "o.md"
         sp.compose(d, self.plugin, out, {"## A": f"file:{own}"})
-        self.assertEqual(out.read_text().count("## A"), 1)
-        self.assertEqual(dict(sp.sections(out.read_text()))["## A"], "my A wording")
+        self.assertEqual(out.read_text(encoding="utf-8").count("## A"), 1)
+        self.assertEqual(dict(sp.sections(out.read_text(encoding="utf-8")))["## A"], "my A wording")
         self.assertTrue(sp.apply(d, self.plugin, out)["diff"])  # apply accepts it
-        own.write_text("my A wording\n")  # body alone gives the same result
+        own.write_text("my A wording\n", encoding="utf-8")  # body alone gives the same result
         out2 = self.tmp / "oa.md"
         sp.compose(d, self.plugin, out2, {"## A": f"file:{own}"})
-        self.assertEqual(out2.read_text(), out.read_text())
-        own.write_text("my A\n\n## Other\nx\n")
+        self.assertEqual(out2.read_text(encoding="utf-8"), out.read_text(encoding="utf-8"))
+        own.write_text("my A\n\n## Other\nx\n", encoding="utf-8")
         with self.assertRaises(sp.ProcessError):
             sp.compose(d, self.plugin, self.tmp / "o2.md", {"## A": f"file:{own}"})
         self.assertFalse((self.tmp / "o2.md").exists())
@@ -232,9 +232,9 @@ class ComposeTest(Base):
         self.assertFalse((self.tmp / "o.md").exists())
         sp.compose(d, self.plugin, self.tmp / "o.md", {"## E": "theirs"})
         own = self.tmp / "own.txt"
-        own.write_text("own E\n")
+        own.write_text("own E\n", encoding="utf-8")
         sp.compose(d, self.plugin, self.tmp / "o2.md", {"## E": f"file:{own}"})
-        self.assertIn("own E", (self.tmp / "o2.md").read_text())
+        self.assertIn("own E", (self.tmp / "o2.md").read_text(encoding="utf-8"))
 
     def test_resolve_of_a_non_conflict_is_refused(self):
         with self.assertRaises(sp.ProcessError):
@@ -261,20 +261,20 @@ class ApplyTest(Base):
 
     def test_yes_writes_backup_file_log_and_nothing_else(self):
         d = self.squad(V1.replace("a1", "a1 mine"))
-        (d / "project.md").write_text("keep")
+        (d / "project.md").write_text("keep", encoding="utf-8")
         f = self.composed(d, {"## A": "ours"})
         proj = d.parent.parent.parent
         before = listing(proj)
-        original = (d / "process.md").read_text()
+        original = (d / "process.md").read_text(encoding="utf-8")
         r = self.cli("apply", "--file", str(f), "--yes", d=d)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual((d / "process.md").read_text(), f.read_text())
+        self.assertEqual((d / "process.md").read_text(encoding="utf-8"), f.read_text(encoding="utf-8"))
         backup = proj / ".claude" / "squad-backups" / f"s-process-{sp.datetime.date.today()}.md"
-        self.assertEqual(backup.read_text(), original)
+        self.assertEqual(backup.read_text(encoding="utf-8"), original)
         added = set(listing(proj)) - set(before)
         self.assertEqual(added, {".claude/squad-backups", str(backup.relative_to(proj))})
-        self.assertEqual((d / "project.md").read_text(), "keep")
-        log = (d / "process-log.md").read_text().splitlines()
+        self.assertEqual((d / "project.md").read_text(encoding="utf-8"), "keep")
+        log = (d / "process-log.md").read_text(encoding="utf-8").splitlines()
         head = log.index("|---|---|---|")
         self.assertIn("conflict ## A: kept ours", log[head + 1])
         self.assertIn("v3 Reword B", log[head + 2])
@@ -302,15 +302,15 @@ class ApplyTest(Base):
         today = sp.datetime.date.today()
         bdir = proj / ".claude" / "squad-backups"
         bdir.mkdir(parents=True)
-        (bdir / f"s-process-{today}.md").write_text("x")
-        (bdir / f"s-process-{today}-2.md").write_text("x")
+        (bdir / f"s-process-{today}.md").write_text("x", encoding="utf-8")
+        (bdir / f"s-process-{today}-2.md").write_text("x", encoding="utf-8")
         sp.apply(d, self.plugin, self.composed(d), yes=True)
         self.assertTrue((bdir / f"s-process-{today}-3.md").exists())
-        self.assertTrue((d / "process-log.md").read_text().startswith("# Process log"))
+        self.assertTrue((d / "process-log.md").read_text(encoding="utf-8").startswith("# Process log"))
 
     def test_invalid_file_refused_nothing_written(self):
         d = self.squad(V1)
-        good = self.composed(d).read_text()
+        good = self.composed(d).read_text(encoding="utf-8")
         cases = {
             "empty": "",
             "no version": good.replace("process-version: 3\n", ""),
@@ -322,21 +322,21 @@ class ApplyTest(Base):
         before = tree_hash(proj)
         for name, text in cases.items():
             f = self.tmp / "bad.md"
-            f.write_text(text)
+            f.write_text(text, encoding="utf-8")
             r = self.cli("apply", "--file", str(f), "--yes", d=d)
             self.assertEqual(r.returncode, 2, name)
             self.assertEqual(tree_hash(proj), before, name)
 
     def test_version_line_problems_are_refused_with_their_own_message(self):
         d = self.squad(V1)
-        good = self.composed(d).read_text()
+        good = self.composed(d).read_text(encoding="utf-8")
         proj = d.parent.parent.parent
         before = tree_hash(proj)
         for name, text in {"two lines": good.replace("## A", "process-version: 3\n\n## A"),
                            "not a number": good.replace("process-version: 3", "process-version: two"),
                            "missing": good.replace("process-version: 3\n", "")}.items():
             f = self.tmp / "bad.md"
-            f.write_text(text)
+            f.write_text(text, encoding="utf-8")
             r = self.cli("apply", "--file", str(f), "--yes", d=d)
             self.assertEqual(r.returncode, 2, name)
             self.assertIn("exactly one `process-version: 3` line", r.stderr, name)
@@ -344,12 +344,12 @@ class ApplyTest(Base):
 
     def test_missing_heading_allowed_when_a_remove_item_names_it(self):
         (self.plugin / "skills/squad-process-update/changelog.md").write_text(
-            CHANGELOG.replace("- change: reword\n- why: clearer", "- change: remove\n- why: gone"))
+            CHANGELOG.replace("- change: reword\n- why: clearer", "- change: remove\n- why: gone"), encoding="utf-8")
         (self.plugin / "skills/squad-process-update/history/process-v3.md").write_text(
-            V3.replace("## B\nb3\n\n", ""))
+            V3.replace("## B\nb3\n\n", ""), encoding="utf-8")
         d = self.squad(V2)
         f = self.composed(d)
-        self.assertNotIn("## B", f.read_text())
+        self.assertNotIn("## B", f.read_text(encoding="utf-8"))
         self.assertTrue(sp.apply(d, self.plugin, f, yes=True)["applied"])
 
     def test_lint_findings_warn_but_still_apply(self):
@@ -367,12 +367,12 @@ class ApplyTest(Base):
     def test_local_edit_in_untouched_section_survives(self):
         d = self.squad(V1.replace("\n## E", "\n## Mine\nmy own rule\n\n## E"))
         sp.apply(d, self.plugin, self.composed(d), yes=True)
-        self.assertEqual(dict(sp.sections((d / "process.md").read_text()))["## Mine"], "my own rule")
+        self.assertEqual(dict(sp.sections((d / "process.md").read_text(encoding="utf-8")))["## Mine"], "my own rule")
 
     def test_hand_edited_combined_file_is_logged_as_own_wording(self):
         d = self.squad(V1.replace("a1", "a1 mine"))
         f = self.composed(d, {"## A": "ours"})
-        f.write_text(f.read_text().replace("a1 mine", "reworded by the PO"))
+        f.write_text(f.read_text(encoding="utf-8").replace("a1 mine", "reworded by the PO"), encoding="utf-8")
         r = sp.apply(d, self.plugin, f, yes=True)
         self.assertIn("conflict ## A: kept own wording", "\n".join(r["log_rows"]))
 

@@ -53,9 +53,9 @@ class StoreTest(unittest.TestCase):
     def test_missing_and_bad_json_give_none(self):
         self.assertIsNone(sl.read_entry(self.home, "dev-1"))
         (self.home / "labels").mkdir(parents=True)
-        (self.home / "labels" / "dev-1.json").write_text("{not json")
+        (self.home / "labels" / "dev-1.json").write_text("{not json", encoding="utf-8")
         self.assertIsNone(sl.read_entry(self.home, "dev-1"))
-        (self.home / "labels" / "dev-1.json").write_text("[1]")
+        (self.home / "labels" / "dev-1.json").write_text("[1]", encoding="utf-8")
         self.assertIsNone(sl.read_entry(self.home, "dev-1"))
 
     def test_bad_names_refused_before_any_path(self):
@@ -103,9 +103,9 @@ class AssignNumberTest(unittest.TestCase):
     def test_retired_peer_is_ignored_and_never_rewritten(self):
         self.add("d1")
         f = Path(self.home, "labels", "d1.json")
-        before = f.read_text()
+        before = f.read_text(encoding="utf-8")
         self.assertEqual(sl.assign_number(self.home, "d2", "dev", {"d2"}), (None, []))
-        self.assertEqual(f.read_text(), before)
+        self.assertEqual(f.read_text(encoding="utf-8"), before)
 
     def test_numbers_never_move(self):
         self.add("d2", number=2)  # Dev 1 retired

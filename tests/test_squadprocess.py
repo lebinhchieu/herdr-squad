@@ -44,7 +44,7 @@ def squad(tmp, text):
     d = Path(tmp) / "squad"
     d.mkdir(exist_ok=True)
     if text is not None:
-        (d / "process.md").write_text(text)
+        (d / "process.md").write_text(text, encoding="utf-8")
     return d
 
 
@@ -72,7 +72,7 @@ class VersionTest(unittest.TestCase):
             f = root / "templates" / "squad" / "process.md"
             f.unlink(missing_ok=True)
             if text is not None:
-                f.write_text(text)
+                f.write_text(text, encoding="utf-8")
             with self.assertRaises(sp.ProcessError):
                 sp.plugin_version(root)
 
@@ -155,7 +155,7 @@ class ChangelogTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             p = Path(t) / "c.md"
             p.write_text("## v2 — 2026-10-14\n- snapshot: history/process-v2.md\n\n### T\n"
-                         "- sections: all\n- change: reword\n- why: w\n- old: snapshot\n- new: snapshot\n")
+                         "- sections: all\n- change: reword\n- why: w\n- old: snapshot\n- new: snapshot\n", encoding="utf-8")
             self.assertEqual(sp.read_changelog(p)[0].sections, "all")
 
     def test_empty_or_itemless_changelog_fails(self):
@@ -164,7 +164,7 @@ class ChangelogTest(unittest.TestCase):
                      "- sections: all\n- change: reword\n- why: w\n- old: -\n- new: -\n"):
             with tempfile.TemporaryDirectory() as t:
                 p = Path(t) / "c.md"
-                p.write_text(text)
+                p.write_text(text, encoding="utf-8")
                 with self.assertRaises(sp.ProcessError, msg=text):
                     sp.read_changelog(p)
 
@@ -180,7 +180,7 @@ class ChangelogTest(unittest.TestCase):
                      "## v2 — 2026-10-14\n\n### T\n- sections: A\n"):
             with tempfile.TemporaryDirectory() as t:
                 p = Path(t) / "c.md"
-                p.write_text(text)
+                p.write_text(text, encoding="utf-8")
                 with self.assertRaises(sp.ProcessError, msg=text):
                     sp.read_changelog(p)
 
@@ -237,7 +237,7 @@ class SnapshotTest(unittest.TestCase):
 
 
 def parse_none(p):
-    return sp.parse_version(p.read_text())
+    return sp.parse_version(p.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
