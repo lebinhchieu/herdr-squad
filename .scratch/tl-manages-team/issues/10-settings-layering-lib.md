@@ -1,0 +1,36 @@
+# T10 · settings layering: combine, validate and trim logic, and `squad-settings`
+Status: ready-for-agent
+Type: task
+Blocked by: none
+Repo: /home/chieule/workspace/squad
+Spec: PO E3/E4 (Manager DECISION T10+) · Design: ../design.md decisions 16-19 · Technical AC: AC-11 below (QA-W to confirm)
+
+## Files this task touches (and no others)
+`bin/squadsettings.py` (new), `bin/squad-settings` (new, executable), `tests/test_squadsettings.py` (new). Style: like `bin/squadprocess.py` + `bin/squad-process` (module holds the logic, the script is a thin CLI).
+
+## Do
+1. **`squadsettings.combine(template: dict, squad: dict) -> (effective: dict, warnings: list[str])`** exactly as design decision 16: lists under `permissions` are template entries not named in `remove.<list>`, then the squad's entries not present; every other key: the squad's value replaces the template's; `remove` and `squadSettings` are never in the result; unknown `remove` key refused (`SettingsError`); a `remove` entry matching no template rule gives a warning string (file, list, entry).
+2. **`squadsettings.load(squad_dir, role, plugin_root) -> (effective, warnings)`**: reads template and squad file; no squad file means the template alone; squad file without the stamp means a full copy, returned as is (validated) with one warning naming `squad-migrate <squad> --to layered-settings`; stamp `layer` above `SUPPORTED_LAYER = 1` is refused with "update the plugin"; no template for the role means the squad file alone. Constant `MIN_PLUGIN = "0.4.0"`.
+3. **`validate(obj)`**: top level an object; each `permissions.<list>` a list of non-empty strings; `remove` an object whose keys are `allow`/`deny` and whose values are lists of strings; stamp, when present, `{layer: int >= 1, minPlugin: str}`. Raises `SettingsError` with the file and the path of the bad value. Use it on the template, the squad file and the result.
+4. **`trim(template, squad, adopt=False) -> (trimmed, report)`** as design decision 19 (deny never trimmed; allow entries equal to the template dropped; scalars equal dropped; template rules the copy lacks go into `remove` unless `adopt`; stamp added with `layer: 1` and `minPlugin: MIN_PLUGIN`). `report` lists, per category, the entries kept, dropped, removed and adopted. `equivalent(original, template, trimmed, adopt)` is the check: `combine(template, trimmed)` equals the original as sets per list and equal scalars (with `adopt`: original plus the template's missing rules). `trim` itself does not touch files.
+5. **`bin/squad-settings`** subcommands, all with `--squad-dir D` (default `$SQUAD_DIR`) and `--plugin-root R`: `show <role>` prints the effective JSON (indent 2) on stdout, warnings on stderr, exit 2 on `SettingsError`; `build <role> --out FILE` writes the same JSON atomically (temp file in the target folder, then `os.replace`), creating the folder; `--check` instead of `--out` validates and writes nothing (used by `squad-spawn --dry-run`). `trim` is not a subcommand: `squad-migrate` (T13) imports `squadsettings`.
+6. **Tests** (`tests/test_squadsettings.py`, temp dirs, no network): every rule of decision 16-19, one test each: union order and dedupe; remove drops a template rule; remove of a squad's own entry does nothing; remove warning when unmatched; remove of anything but allow/deny refused; scalar replaced whole; `remove` and stamp absent from the result; full copy passes through unchanged with its warning; stamp layer 2 refused; bad JSON, a string where a list belongs, an empty entry all raise; `trim` then `combine` is equivalent for each of the 9 real template files taken as a full copy, for a copy missing a template allow (default: in `remove`; `adopt`: not), for a copy with an extra allow and extra deny; deny entries equal to the template are kept by `trim`; `show` and `build` through the script (exit codes, atomic write leaves no `.tmp` file, `--check` writes nothing).
+7. **Run only the test files you touched**; never the full suite. `PYTHONDONTWRITEBYTECODE=1` on every run.
+
+## Technical AC (AC-11)
+- AC-11.1 Every rule of design decisions 16-19 has a failing-first test (`dev-evidence.md` names the test per rule).
+- AC-11.2 Round trip: for each real `templates/squad/settings/*.json` taken as a full copy, `trim` then `combine` equals the original; same for the live `.claude/squads/plugin/settings/*.json` files (read-only check, output in `dev-evidence.md`; the live files are not changed).
+- AC-11.3 The result of `combine` for the 9 templates alone equals the template minus nothing (same allow, deny, model, effortLevel).
+- AC-11.4 `python3 -c 'import squadsettings'` has no side effect; no `eval`/`exec`/`shell=True`; no write outside `--out`.
+- AC-11.5 Real-tool check (Tech Lead's own design check, repeated by the Developer, saved in `dev-evidence.md`): `claude -p --settings <a generated file> --model haiku "reply ok" </dev/null` prints `ok` and not "did not load"; the same with a file that has `"permissions":{"allow":"x"}` prints "did not load" (so the detector in T12's live test is valid).
+
+## Business AC
+PO E3: plugin permission and model changes reach squads without a hand edit; a squad's own additions and removals survive; a squad's full-copy file keeps working until the PO migrates it (E4).
+
+## Amendments (Tech Lead, 2026-10-17, from QA-W v6; these bind, read them with the AC above)
+- **A7** `validate` also covers what Claude rejects outside the lists: `permissions.defaultMode` one of `acceptEdits|auto|bypassPermissions|default|dontAsk|plan`; `model` and `effortLevel` strings when present; `hooks` and `env` objects; every rule string in every `permissions` list balanced and closed (`Tool` or `Tool(content)`). A malformed rule in `deny` is an error (Claude silently skips it, which is a silent missing deny). One failing test per row.
+- **A8** The live detector (AC-11.5 and T12) matches "did not load", "were skipped" and "can't apply". Negative controls: the `"allow": "x"` file and the unclosed-paren deny file must both be detected; a valid file for each of the 9 roles prints neither.
+- **A9** Equivalence in `trim`/`equivalent` is on the whole object: `combine(template, trimmed)` equals the original for every key except `squadSettings` and `remove`. The round trip covers the 9 templates, the live squad's files (read-only) and a copy with a changed scalar.
+- **A10** No `.pyc`: `bin/squad-settings` sets `sys.dont_write_bytecode = True` before importing `squadsettings` (as `bin/squad-inbox:17` does). Test: run `squad-settings show dev` with `PYTHONDONTWRITEBYTECODE` unset; no `__pycache__` appears in `bin/`.
+- **A16 (trim, decision 19 changed, T13 uses it)** `trim` takes a second switch: a template **deny** the copy lacks is adopted (left out of `remove.deny`) by default; `keep_denies_off=True` puts it in `remove.deny` instead. A missing template **allow** still goes to `remove.allow` by default and `adopt=True` leaves it out. `report` lists the missing denies in their own category. `equivalent` accounts for it (original plus the adopted rules).
+- **A18** `remove` and `squadSettings` stay top-level (PO wording). Test pins that `combine` never emits either key; T14's ADR names the collision risk with a future Claude key.
