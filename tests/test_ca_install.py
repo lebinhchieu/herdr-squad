@@ -172,15 +172,17 @@ class InstallTest(unittest.TestCase):
                                                 env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
         g("init", "-q"); g("add", "-A"); g("commit", "-qm", "x"); g("worktree", "add", "-q", str(self.home / "wt"))
         env = {**os.environ, "HOME": str(self.home)}
-        for src, rc in ((self.home / "wt", 1), (main, 0)):
-            r = subprocess.run(["bash", str(src / "tools/claude-accounts/install.sh")], env=env, capture_output=True, text=True)
+        for src, rc, flags in ((self.home / "wt", 1, []), (main, 0, []), (self.home / "wt", 0, ["--allow-worktree"])):
+            r = subprocess.run(["bash", str(src / "tools/claude-accounts/install.sh"), *flags], env=env, capture_output=True, text=True)
             self.assertEqual(r.returncode, rc, r.stderr)
             self.assertIn(f"installing from: {(src / 'tools/claude-accounts').resolve()}", r.stdout)
-            if rc:
+            if rc == 1:
                 self.assertIn("worktree", r.stderr)
                 self.assertFalse(self.acct.exists())
-        r = self.run_install()
-        self.assertIn("warning", r.stdout)
+            elif flags:
+                self.assertIn("warning", r.stdout)
+            else:
+                self.assertNotIn("warning", r.stdout)
 
     def test_empty_or_non_directory_home_is_refused(self):
         for home in ("", str(self.home / "nope")):
