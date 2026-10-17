@@ -573,7 +573,8 @@ def read_body(path):
         raise Refused("cannot read the body: %s" % e)
     if len(data) > MAX_BODY:
         raise Refused("the body is over %d KiB" % (MAX_BODY // 1024))
-    return decode_utf8(data, "--body-file" if path else "the body on stdin")
+    text = decode_utf8(data, "--body-file" if path else "the body on stdin")
+    return text.replace("\r\n", "\n").replace("\r", "\n")  # a Windows file or pipe has CRLF
 
 
 def cmd_add(home, args):
