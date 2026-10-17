@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { answerItem } from './actions'
+import { answerItem, cliArgv, markRead } from './actions'
 import { FIXTURES } from './fixtures'
 
 const START = { cwd: '/w', surface: null, isInteractive: true } as const
@@ -16,6 +16,7 @@ const ok = (stdout: string): Reply => ({ exitCode: 0, stdout, stderr: '' })
 function world(on: any, env: Record<string, string>, cli: (argv: string[], stdin?: string) => Reply | Promise<Reply>) {
   const w = {
     runs: [] as { argv: string[]; stdin?: string }[],
+    raw: [] as string[][],
     stats: [] as string[],
     toasts: [] as string[],
     submits: [] as string[],
@@ -33,8 +34,10 @@ function world(on: any, env: Record<string, string>, cli: (argv: string[], stdin
   w.clock = mock.clock(on)
   on('session.start', (_$: any, e: any) => ({ cwd: e.cwd }))
   on('process.run', (_$: any, e: any) => {
-    w.runs.push({ argv: [...e.argv], stdin: e.init?.stdin })
-    return Promise.resolve(cli(e.argv.slice(1), e.init?.stdin)).then((r) => ({
+    if (e.argv[0] !== 'python3') throw new Error(`process.run argv must start with python3, got ${e.argv[0]}`)
+    w.raw.push([...e.argv])
+    w.runs.push({ argv: e.argv.slice(1), stdin: e.init?.stdin })
+    return Promise.resolve(cli(e.argv.slice(2), e.init?.stdin)).then((r) => ({
       value: { ...r, isStdoutTruncated: false, isStderrTruncated: false },
     }))
   })
@@ -66,8 +69,10 @@ function fakeDollar(w: any, cli: (argv: string[], stdin?: string) => Reply | Pro
     plugin: { name: 'squad', root: '/p' },
     process: {
       run: async (argv: string[], init?: { stdin?: string }) => {
-        w.runs.push({ argv: [...argv], stdin: init?.stdin })
-        return { ...(await cli(argv.slice(1), init?.stdin)), isStdoutTruncated: false, isStderrTruncated: false }
+        if (argv[0] !== 'python3') throw new Error(`process.run argv must start with python3, got ${argv[0]}`)
+        w.raw.push([...argv])
+        w.runs.push({ argv: argv.slice(1), stdin: init?.stdin })
+        return { ...(await cli(argv.slice(2), init?.stdin)), isStdoutTruncated: false, isStderrTruncated: false }
       },
     },
     prompt: {
@@ -445,4 +450,36 @@ test('timers: session.end stops the poll, a clear does not', async ($, on) => {
   w.stats.length = 0
   await w.clock.advance(10000)
   expect(w.stats.length).toBe(0)
+})
+
+// The harnesses drop the leading `python3`; these two tests see what the host is asked to spawn.
+const PY = 'python3'
+test('argv: list runs `python3 <root>/bin/squad-inbox list --json` (Windows cannot spawn the extensionless script)', async ($, on) => {
+  const w = world(on, MANAGER, () => ok(MIXED))
+  await $.session.start(START)
+  const list = w.raw[0]
+  expect(list[0]).toBe(PY)
+  expect(list[1].endsWith('/bin/squad-inbox')).toBe(true)
+  expect(list.slice(2)).toEqual(['list', '--json'])
+})
+
+test('argv: answer, delivered and read run through python3 with the flags unchanged', async (_$, on) => {
+  let answered = false
+  const cli = (argv: string[]) => {
+    if (argv[0] === 'answer') return (answered = true, ok(''))
+    if (argv[0] === 'delivered' || argv[0] === 'read') return ok('')
+    return ok(answered ? ANSWERED : MIXED)
+  }
+  const w = world(on, MANAGER, cli)
+  const d = fakeDollar(w, cli)
+  await answerItem(d, { id: 'E3', option: 'a', text: 'yes' })
+  await new Promise((r) => setTimeout(r, 20))
+  await markRead(d, 'R3')
+  const s = '/p/bin/squad-inbox'
+  expect(w.raw.filter((a) => a[2] !== 'list')).toEqual([
+    [PY, s, 'answer', 'E3', '--option', 'a', '--source', 'pane'],
+    [PY, s, 'delivered', 'E3', '--session', 'sess-1'],
+    [PY, s, 'read', 'R3'],
+  ])
+  expect(cliArgv('/p', 'x')).toEqual([PY, s, 'x'])
 })
