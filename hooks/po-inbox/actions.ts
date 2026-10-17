@@ -47,6 +47,11 @@ function failure(r: { exitCode: number; stdout: string; stderr: string }): strin
   return said || `squad-inbox exited ${r.exitCode}`
 }
 
+// `bin/squad-inbox` has no extension, so Windows cannot spawn it by argv; python3 runs it.
+export function cliArgv(root: string, ...args: string[]): string[] {
+  return ['python3', `${root}/bin/squad-inbox`, ...args]
+}
+
 async function setError($: any, message: string | null): Promise<void> {
   await update($, errorAtom, () => message)
 }
@@ -55,7 +60,7 @@ async function setError($: any, message: string | null): Promise<void> {
 // good snapshot and sets the error state; it never throws.
 export async function refresh($: any): Promise<boolean> {
   try {
-    const r = await $.process.run([`${$.plugin.root}/bin/squad-inbox`, 'list', '--json'], { timeoutMs: CLI_TIMEOUT_MS })
+    const r = await $.process.run(cliArgv($.plugin.root, 'list', '--json'), { timeoutMs: CLI_TIMEOUT_MS })
     if (r.exitCode !== 0) throw new Error(`squad-inbox list failed: ${failure(r)}`)
     const parsed = parseSnapshot(r.stdout)
     if (!parsed.ok) throw new Error(parsed.error)
@@ -111,7 +116,7 @@ async function sendAndMark($: any, id: string, text: string): Promise<void> {
       run.sent.add(id)
     }
     const r = await $.process.run(
-      [`${$.plugin.root}/bin/squad-inbox`, 'delivered', id, '--session', String(await $.session.id())],
+      cliArgv($.plugin.root, 'delivered', id, '--session', String(await $.session.id())),
       { timeoutMs: CLI_TIMEOUT_MS },
     )
     if (r.exitCode !== 0) throw new Error(`squad-inbox delivered failed: ${failure(r)}`)
@@ -169,7 +174,7 @@ export type AnswerResult = { ok: true; message?: string } | { ok: false; message
 // The pane's submit (PI-04): record the answer through the CLI (text by stdin), then hand it to the model.
 export async function answerItem($: any, input: AnswerInput): Promise<AnswerResult> {
   const sent = input.text ?? input.note ?? ''
-  const argv = [`${$.plugin.root}/bin/squad-inbox`, 'answer', input.id]
+  const argv = cliArgv($.plugin.root, 'answer', input.id)
   if (input.option) argv.push('--option', input.option)
   argv.push('--source', 'pane')
   let r
@@ -265,7 +270,7 @@ export async function markRead($: any, id: string): Promise<void> {
   let notice: InboxUi['notice']
   let next: Partial<InboxUi> = {}
   try {
-    const r = await $.process.run([`${$.plugin.root}/bin/squad-inbox`, 'read', id], { timeoutMs: CLI_TIMEOUT_MS })
+    const r = await $.process.run(cliArgv($.plugin.root, 'read', id), { timeoutMs: CLI_TIMEOUT_MS })
     await refresh($)
     if (r.exitCode === 0) {
       notice = { tone: 'ok', text: `${id} marked read.` }
