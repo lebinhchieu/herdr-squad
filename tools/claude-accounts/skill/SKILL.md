@@ -27,12 +27,12 @@ description: The user's two Claude accounts and their launchers c1 / c2 / c / cd
 
 - **Windows bash:** `~/.claude-accounts/bin/` + `lib.sh`, loaded from `~/.bash_profile`.
 - **PowerShell:** `~/.claude-accounts/claude-accounts.ps1`, dot-sourced from both PowerShell profiles. No `cswitch` there.
-- **WSL:** installed by `~/.claude-accounts/install-wsl.sh`; see `~/.claude-accounts/HANDOFF.md`.
+- **Source (WSL):** `tools/claude-accounts/` of the squad repo, installed by its `install.sh` as links into `~/.claude-accounts`; see `~/.claude-accounts/HANDOFF.md`.
 - **Default account:** global file `~/.claude-accounts/default` (`1|2|3`, shared by bash and PowerShell) plus one file per herdr workspace in `~/.claude-accounts/workspace-default/<workspace id>`.
 - **Account in the herdr spaces panel:** every write of a workspace default (`c1/c2/c3`, `cswitch`, `cdefault --ws`, `cautoswitch`) also reports the display-only token `account=c<N>` to herdr (`herdr workspace report-metadata`, source `claude-accounts`); it never renames a workspace and never changes an exit code. The panel shows it through the `$account` token in the `[ui.sidebar.spaces] rows` of `~/.config/herdr/config.toml` (that row is set). A workspace with no default write yet shows nothing; `cdefault N` (global) reports nothing.
 - **Usage popup (Herdr `prefix+u`):** `usage-popup.sh` fetches all three accounts' 5h/7d usage live from `api.anthropic.com/api/oauth/usage` (what `/usage` shows) with each account's own `.credentials.json` token — no session needed. It never refreshes an expired token (that could break Claude Code's login); it falls back to the status-line cache `usage-1|2` written by `record-usage.sh`. This is also the quickest way to answer "what's my usage?": run `echo x | ~/.claude-accounts/usage-popup.sh`. Key binding: `[[keys.command]]` in Herdr's `config.toml`.
 - **Switch log:** `~/.claude-accounts/cswitch.log`.
-- **`cswitch` keeps launch args:** it reads the pane's claude `/proc/<pid>/cmdline` (`--agent`, `--settings`, `--model`, `--plugin-dir`, …), resumes with them, and restores the herdr agent name. It drops `--session-id` from the reused args (claude 2.1.302 refuses it with `--resume`; the resume keeps the same session id). The original is kept as `bin/cswitch.orig`.
+- **`cswitch` keeps launch args:** it reads the pane's claude `/proc/<pid>/cmdline` (`--agent`, `--settings`, `--model`, `--plugin-dir`, …), resumes with them, and restores the herdr agent name. It drops `--session-id` from the reused args (claude 2.1.302 refuses it with `--resume`; the resume keeps the same session id).
 
 ## Gotchas
 

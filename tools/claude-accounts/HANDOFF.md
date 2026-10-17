@@ -1,6 +1,6 @@
 # Two Claude accounts on WSL — handoff
 
-**Run `bash /mnt/c/Users/84084/.claude-accounts/install-wsl.sh` inside WSL**, open a new shell, then `c2 auth login` with your second account. That's the whole setup.
+**Source: `tools/claude-accounts/` of the squad repo. Run `bash tools/claude-accounts/install.sh --dry-run` from the main checkout inside WSL, read the plan, then run it with `--force` the first time (it backs the originals up to `.install-backup/`)** (see `README.md`), open a new shell, then `c2 auth login` with your second account. That's the whole setup.
 
 ## Commands
 
