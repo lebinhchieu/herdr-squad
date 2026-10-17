@@ -46,7 +46,7 @@ def _path(home, agent):
 
 def read_entry(home, agent):
     try:
-        d = json.loads(_path(home, agent).read_text())
+        d = json.loads(_path(home, agent).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     if not isinstance(d, dict) or not isinstance(d.get("role"), str):
@@ -61,7 +61,8 @@ def write_entry(home, agent, role, number, title):
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(f".{p.name}.{os.getpid()}.tmp")
     try:
-        tmp.write_text(json.dumps({"role": role, "number": number, "title": title}, ensure_ascii=False))
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps({"role": role, "number": number, "title": title}, ensure_ascii=False))
         os.replace(tmp, p)
     finally:
         tmp.unlink(missing_ok=True)

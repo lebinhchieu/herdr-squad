@@ -20,6 +20,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
 import squadprocess as sp  # noqa: E402
 
 
@@ -83,6 +84,7 @@ def _show(a):
 
 
 def main(argv=None):
+    squadio.utf8_stdio()
     ap = argparse.ArgumentParser(prog="squad-process", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("version", "check"):

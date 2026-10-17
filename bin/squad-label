@@ -24,11 +24,13 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
 import squadlabel as sl  # noqa: E402
 
 
 def herdr(*args):
-    return subprocess.run(["herdr", *args], capture_output=True, text=True, timeout=15)
+    return subprocess.run(["herdr", *args], capture_output=True, text=True, timeout=15,
+                          encoding="utf-8", errors="replace")
 
 
 def rename_tab(agent, label):
@@ -78,6 +80,7 @@ def homes_for_lookup():
 
 
 def main():
+    squadio.utf8_stdio()
     ap = argparse.ArgumentParser(prog="squad-label")
     ap.add_argument("text", nargs="?")
     ap.add_argument("--agent")

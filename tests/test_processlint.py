@@ -155,7 +155,7 @@ class CliTest(unittest.TestCase):
     def run_cli(self, text):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "process.md"
-            path.write_text(text)
+            path.write_text(text, encoding="utf-8")
             return subprocess.run([sys.executable, str(BIN / "processlint.py"), str(path)],
                                   capture_output=True, text=True)
 
