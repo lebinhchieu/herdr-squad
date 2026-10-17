@@ -463,6 +463,16 @@ class InboxGuardTest(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("scope sc1 has 2 open answer items: E2 Ship it?, E1 Other one (answered, not yet read by the Manager) (answer", r.stderr)
 
+    def test_blocker_snippet_prints_lf_only_and_sets_it_first(self):
+        # On Windows a text-mode stdout turns "\n" into "\r\n", which would land in $blockers.
+        src = (BIN / "squad-close").read_text(encoding="utf-8")
+        snippet = src.split("python3 -X utf8 -c '", 1)[1].split("\n' \"$1\"", 1)[0]
+        self.assertTrue(snippet.lstrip().splitlines()[1].startswith('sys.stdout.reconfigure(newline="\\n")'), snippet[:120])
+        payload = b'{"items": [{"kind": "answer", "state": "open", "id": "E1", "title": "A"}, ' \
+                  b'{"kind": "answer", "state": "open", "id": "E2", "title": "B"}], "errors": []}'
+        r = subprocess.run(["python3", "-X", "utf8", "-c", snippet, "x"], input=payload, capture_output=True, timeout=30)
+        self.assertEqual((r.returncode, r.stdout), (0, b"E1 A\nE2 B\n"), r.stderr)
+
     def test_missing_cli_warns_and_does_not_block(self):
         self.put("scopes/sc1")
         lone = self.root / "lonebin"
