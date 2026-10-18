@@ -223,6 +223,16 @@ class CollectedScopeTest(unittest.TestCase):
         st.fill(d, c)
         t = {x["id"]: x for x in d["tasks"]}["07"]
         self.assertEqual((t["returns"], t["rework_s"], t["cycle_s"], t["status"]), (1, 300, 1950, "passed"))
+        self.assertEqual(t["iteration"], 1)
+        # iteration 1 rows: ASSIGN 07 @50, HANDIN @900 (FAIL copies are 2); iteration 2: rest (1500..2000)
+        its = {i["n"]: i for i in d["iterations"]}
+        self.assertEqual(sorted(its), [1, 2])
+        self.assertEqual((its[1]["window"]["start"], its[1]["window"]["end"]), (st.iso(rf.T0 + 50), st.iso(rf.T0 + 900)))
+        self.assertEqual(its[2]["returns"], 1)
+        self.assertEqual(its[1]["returns"], 0)
+        self.assertGreater(its[1]["agent_s"], 0)
+        self.assertGreater(its[1]["cost_usd"], 0)
+        self.assertEqual(d["scope"]["iterations"], [1, 2])
         self.assertEqual(d["totals"]["po_wait"]["count"], 2)
         self.assertEqual(d["totals"]["po_wait"]["items"][1]["answered_at"], None)
         self.assertAlmostEqual(sum(m["cost_usd"] for m in d["matrix"]), d["totals"]["cost_usd"], places=3)

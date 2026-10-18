@@ -134,7 +134,7 @@ class Fixture:
 # ---- ticket 03: tasks scope (appended block) ----
 def tasks_scope(fx):
     """dev and qa on tickets 07 (2 FAILs, one copied to a 3rd role) and 08; an overhead turn; one unanswered escalation."""
-    fx.session("dev", [[asst(0, usage={"input_tokens": 1000}), tool_result(100), asst(200), peer(1000, "x"),
+    fx.session("dev", [[asst(0, usage={"input_tokens": 1000}), tool_result(100), asst(200, usage={"input_tokens": 1000}), peer(1000, "x"),
                         asst(1100), asst(1700), peer(2100, "x"), asst(2200)]], role="developer")
     fx.session("qa", [[asst(0), peer(900, "x"), asst(1000), peer(1900, "x"), asst(2000)]], role="qa-whitebox")
     fx.messages([
@@ -145,4 +145,9 @@ def tasks_scope(fx):
         (1800, "dev", "qa", "HANDIN 07 again"),
         (2000, "qa", "dev", "PASS 07"),
     ])
+    f = fx.home / "messages.jsonl"   # iteration key as in real rows: 1 up to t=1500, 2 after
+    rows = [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines()]
+    for r in rows:
+        r["iteration"] = 1 if r["text"].split()[0] in ("ASSIGN", "HANDIN") and r["ts"] < stamp(1700) else 2
+    fx._write(f, rows)
     fx.inbox([("E1", "Which way", 300, 600), ("E2", "Open one", 2000, None)])
