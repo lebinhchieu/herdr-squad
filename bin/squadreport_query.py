@@ -36,7 +36,8 @@ def _usd(x):
 
 def _bk(b):
     b = b or {}
-    return " ".join("%s=%s" % (k[0], _dur(b.get(k))) for k in ("working", "waiting", "blocking", "idle"))
+    return " ".join("%s=%s" % (lbl, _dur(b.get(k)))
+                    for lbl, k in (("work", "working"), ("wait", "waiting"), ("block", "blocking"), ("idle", "idle")))
 
 
 def locate(name, squad):

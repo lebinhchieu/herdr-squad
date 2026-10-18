@@ -78,6 +78,14 @@ class Query(Base):
         self.assertIn("message window only", self.cli("sc", "iterations")[1])
         self.assertIn("dev (developer)", self.cli("sc", "role", "--role", "dev")[1])
 
+    def test_bucket_labels_unique(self):
+        for args in (("totals",), ("task", "--task", "07"), ("roles",)):
+            for l in self.cli("sc", *args)[1].splitlines():
+                if l.strip().startswith("buckets") or " work=" in l:
+                    labels = re.findall(r"(\w+)=", l)
+                    self.assertEqual(len(labels), len(set(labels)), l)
+                    self.assertTrue({"work", "wait"} <= set(labels), l)
+
     def test_json(self):
         rc, out, _ = self.cli("sc", "tasks", "--json")
         obj = json.loads(out)
