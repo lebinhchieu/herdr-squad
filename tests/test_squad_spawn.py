@@ -540,7 +540,7 @@ class SpawnLabelTest(unittest.TestCase):
     def test_a_failing_squad_label_still_starts_the_agent_with_the_name_and_a_warning(self):
         stub = self.root / "plugin"
         (stub / "bin").mkdir(parents=True)
-        for f in ("squad-spawn", "squad-usage", "squadlabel.py", "squadio.py"):  # copies: squad-spawn finds its plugin via the real path
+        for f in ("squad-spawn", "squad-usage", "squadlabel.py", "squadio.py", "squadtranscript.py"):  # copies: squad-spawn finds its plugin via the real path
             shutil.copy(BIN_DIR / f, stub / "bin" / f)
         os.symlink(BIN_DIR.parent / "agents", stub / "agents")
         os.symlink(BIN_DIR.parent / "templates", stub / "templates")
