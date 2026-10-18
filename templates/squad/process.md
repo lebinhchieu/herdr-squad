@@ -1,6 +1,6 @@
 # How this squad works
 
-process-version: 4
+process-version: 5
 
 Every role reads the sections its row names, at start and when the Manager says one changed. A Manager edits this file only after re-reading it, in small edits, each logged in `process-log.md`.
 
@@ -173,6 +173,7 @@ Send with `SendMessage` to the agent name in your scope's `roster.md`, as `<TYPE
 | `STATUS` | Answer a health check |
 
 - Point at files and lines; never paste them. `BLOCKED`, `HANDIN`, `PASS`, `FAIL` and `STATUS` name the task ID right after the type.
+- **Task ID:** every agent writes the ticket number `NN` alone as the task ID, never an alias, slug or prefix; a Developer's roster `Owns` reads `ticket NN`.
 - Ask the owner from `roster.md`; when it doesn't say, ask the Team Lead (S: the Manager).
 - **Pod contact (M, L):** the Team Lead spawns and retires Developers, runs health checks and routes questions. Pod members message it, not the Manager.
 - **Team Lead to Manager (M, L):** only an "Always goes to PO" item, a size-change signal, a plan or assignment dispute it is itself a party to (the parties send every other dispute to the Manager themselves) or 3 returns on one task (a budget line); plus the iteration summary.
