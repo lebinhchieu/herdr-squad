@@ -233,6 +233,41 @@ _Avoid_: badge, label
 `tools/claude-accounts/install.sh`, which the PO runs after merging: it makes `~/.claude-accounts` a real directory of per-file symlinks to the main checkout, links the skill folder, and leaves the state files (`default`, `workspace-default/`, `usage-*`, `cswitch.log`) alone.
 _Avoid_: setup, deploy
 
+## Squad report
+
+**Elapsed**:
+Wall clock from the scope's first event to its last.
+**Agent-time**:
+The sum over agents of their time in the four buckets.
+**Parallelism**:
+Agent-time / elapsed. A report never shows a bare "time": it says which.
+**Bucket**:
+Working / waiting / blocking / idle; sum of a scope's buckets = agent-time exactly (integer seconds). Working: model or tool running. Waiting: long tool call or background job. Blocking: BLOCKED/ASK sent, reply not yet in; or an escalation to the PO open. Idle: waiting for work from a peer, or for the PO's typed chat reply. A gap is classified by what ends it, not by its length; 5 min is only a stall guard.
+**Digest**:
+Up to 8 ranked signals inside `data.json`, the only part the analyze skill reads without a query.
+**Attribution layer**:
+How a second of agent-time got its task (message, branch, overhead).
+**PO wait**:
+An escalation open (`inbox.jsonl` `seen` to `answer`). Reported as elapsed intervals (count, total, longest), never as agent cost; any agent's time inside it is bucketed blocking with reason `po`. Agents sitting between the PO's typed chat messages with no escalation open are idle, reason "waiting for your chat reply", shown as a sub-line under idle.
+**Review wait**:
+A task's HANDIN to its PASS/FAIL verdict.
+**Return**:
+One FAIL message (label "returns (FAIL messages)": the Manager's own count can differ by one when a return came in another wording).
+**Rework**:
+FAIL to the task's next HANDIN (time and cost).
+**Returned reason**:
+The headline of the FAIL message (first line, cut to 200 characters), who returned it, and the pointer to the task's QA evidence file where the full findings are. Not classified (no LLM).
+**`data.json`**:
+The one shareable file of a scope. A teammate can send it; the PO's rollup reads only such files (no scope folder, no transcripts). A scope is identified by squad name + scope name.
+**Task** (in a report):
+A ticket id seen in messages/roster (e.g. `16`).
+**Scope overhead**:
+Agent-time and cost not attributable to any task.
+**% attributed**:
+Attributed non-idle seconds / non-idle seconds, i.e. working+waiting+blocking; cost share shown beside it; always shown; banner when under 60%.
+**Derived**:
+Every time figure in a report. **Estimated, list price**: every dollar figure. Labelled on the page.
+
 ## Relationships
 
 - A **Squad** holds many **Scopes** and **Goals** over time, each with its own folder and fresh **Manager** (a **Goal** has one **goal Manager** for all its **Scopes**).
