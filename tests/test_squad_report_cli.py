@@ -259,6 +259,21 @@ class FieldShape(Base):
                 self.assertGreaterEqual(i["wait_s"], 0)
         self.assertEqual(sum(d["totals"]["buckets_s"].values()), d["totals"]["agent_s"])
 
+    def test_digest_figures_reconcile_with_bucket_totals(self):
+        d = self.build()
+        blocking = {r["name"]: r["buckets_s"]["blocking"] for r in d["roles"]}
+        for a in d["agents"]:
+            self.assertLessEqual(sum(s[1] - s[0] for s in a["segments"] if s[2] == "b"), blocking[a["name"]], a["name"])
+        for x in d["digest"]:
+            if x["kind"] == "longest_block":
+                self.assertLessEqual(x["value"], blocking[x["target"]["id"]])
+                self.assertTrue(any(s[2] == "b" and s[1] - s[0] == x["value"]
+                                    for a in d["agents"] if a["name"] == x["target"]["id"] for s in a["segments"]))
+            if x["kind"] == "idle_share":
+                self.assertLessEqual(x["value"], 100)
+            if x["kind"] == "po_wait":
+                self.assertEqual(x["value"], d["totals"]["po_wait"]["total_s"])
+
     def test_one_agent_no_messages_constant_case(self):
         fx = Fixture(scope="solo")
         self.addCleanup(fx.close)
