@@ -1,6 +1,6 @@
 {
   "model": "sonnet",
-  "effortLevel": "medium",
+  "effortLevel": "high",
   "permissions": {
     "allow": [
       "SendMessage", "ListAgents", "Bash(squad-usage:*)", "Bash(echo:*)", "Bash(git log:*)",
