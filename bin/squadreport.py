@@ -29,6 +29,7 @@ class Msg:
     type: str      # first word of the text
     token: str     # first token after it
     text: str      # kept in memory only
+    iteration: "int | None" = None
 
 
 @dataclass
@@ -133,7 +134,8 @@ def read_messages(path):
             if key in seen and ts - seen[key] <= DEDUPE_S:
                 continue
             seen[key] = ts
-        out.append(Msg(ts, frm, to, typ, tok, text))
+        it = o.get("iteration")
+        out.append(Msg(ts, frm, to, typ, tok, text, it if isinstance(it, int) and not isinstance(it, bool) else None))
     return out
 
 
