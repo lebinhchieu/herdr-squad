@@ -497,14 +497,19 @@ def _segments(pcs, w0, min_seg):
     while changed and len(segs) > 1:
         changed = False
         for i, s in enumerate(segs):
-            if s[1] - s[0] < min_seg:
-                if i > 0:
-                    segs[i - 1][1] = s[1]
-                else:
-                    segs[1][0] = s[0]
-                del segs[i]
-                changed = True
-                break
+            if s[1] - s[0] >= min_seg:
+                continue
+            # absorb only into a contiguous neighbour (never across a hole such as a respawn gap) and never
+            # into a blocking segment, so display blocking never exceeds the real blocking seconds
+            if i > 0 and segs[i - 1][1] == s[0] and (segs[i - 1][2] != "b" or s[2] == "b"):
+                segs[i - 1][1] = s[1]
+            elif i + 1 < len(segs) and segs[i + 1][0] == s[1] and (segs[i + 1][2] != "b" or s[2] == "b"):
+                segs[i + 1][0] = s[0]
+            else:
+                continue
+            del segs[i]
+            changed = True
+            break
         out = []
         for s in segs:
             if out and out[-1][1] == s[0] and out[-1][2:] == s[2:]:

@@ -206,6 +206,27 @@ class TasksTest(unittest.TestCase):
             self.assertIsNone({x["id"]: x for x in d["tasks"]}["07-slug"]["title"])
 
 
+class SegmentsHole(unittest.TestCase):
+    """_segments: a short segment is absorbed only into a contiguous, non-blocking-growing neighbour."""
+
+    def test_short_b_after_a_hole_is_not_stretched(self):
+        # session 1 ends at 100, session 2 starts at 5000: hole 100..5000
+        pcs = [(0, 100, "working", None, None), (5000, 5010, "blocking", "PO", None), (5010, 5100, "working", None, None)]
+        segs = st._segments(pcs, 0, 60)
+        self.assertEqual(sum(x[1] - x[0] for x in segs if x[2] == "b"), 0)
+        self.assertEqual(segs, [[0, 100, "w", None, None], [5000, 5100, "w", None, None]])
+
+    def test_isolated_short_segment_across_hole_is_kept(self):
+        pcs = [(0, 100, "working", None, None), (5000, 5010, "blocking", "PO", None), (6000, 6100, "working", None, None)]
+        segs = st._segments(pcs, 0, 60)
+        self.assertEqual([x[:3] for x in segs], [[0, 100, "w"], [5000, 5010, "b"], [6000, 6100, "w"]])
+
+    def test_blocking_never_grows(self):
+        pcs = [(0, 100, "blocking", "dev", None), (100, 110, "working", None, None), (110, 300, "idle", None, None)]
+        segs = st._segments(pcs, 0, 60)
+        self.assertEqual([x[:3] for x in segs], [[0, 100, "b"], [100, 300, "i"]])
+
+
 if __name__ == "__main__":
     unittest.main()
 
