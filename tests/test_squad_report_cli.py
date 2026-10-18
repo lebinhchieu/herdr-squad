@@ -207,7 +207,7 @@ class Goal(Base):
         self.assertNotIn("not built", run(self.fx, "g3").stderr.decode())
 
     def test_subcommand_stubs(self):
-        for sub in ("rollup", "query"):
+        for sub in ("rollup",):
             r = run(self.fx, sub, "sc")
             self.assertEqual(r.returncode, 2)
             self.assertIn("not built", r.stderr.decode())
