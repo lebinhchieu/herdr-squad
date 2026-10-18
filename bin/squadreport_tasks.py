@@ -497,14 +497,17 @@ def _segments(pcs, w0, min_seg):
     while changed and len(segs) > 1:
         changed = False
         for i, s in enumerate(segs):
-            if s[1] - s[0] < min_seg:
-                if i > 0:
-                    segs[i - 1][1] = s[1]
-                else:
-                    segs[1][0] = s[0]
-                del segs[i]
-                changed = True
-                break
+            if s[1] - s[0] >= min_seg:
+                continue
+            # a short segment joins a contiguous neighbour of the SAME bucket; otherwise it is dropped (display
+            # only: its seconds are missing from the drawing, never given to another bucket or stretched over a hole)
+            if i > 0 and segs[i - 1][1] == s[0] and segs[i - 1][2] == s[2]:
+                segs[i - 1][1] = s[1]
+            elif i + 1 < len(segs) and segs[i + 1][0] == s[1] and segs[i + 1][2] == s[2]:
+                segs[i + 1][0] = s[0]
+            del segs[i]
+            changed = True
+            break
         out = []
         for s in segs:
             if out and out[-1][1] == s[0] and out[-1][2:] == s[2:]:
