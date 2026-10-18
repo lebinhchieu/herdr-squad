@@ -13,7 +13,7 @@ Status: accepted (squad-report)
 - Task id of a message = the first token after its type; the hook's `task` field is not used.
 - Report output: ids, names, numbers, titles cut at 120 chars; never message or transcript text; HTML built with `textContent`, data escaped inside the JSON script tag.
 - `bin/squadtranscript.py` is the one place that reads transcripts; `squad-usage` and `squad-report` import it.
-- `squad-report <scope>` with all transcripts gone: refuse, exit 2, existing `data.json` kept (a rebuild must not overwrite a good file with an empty report); some missing: builds partial (`no_transcript:<agent>`).
+- `squad-report <scope>` with all transcripts gone and the scope has messages: refuse (exit 2, "no transcripts left for <scope>"), existing `data.json` kept (a rebuild must not overwrite a good file with an empty report); no messages at all: empty report; some transcripts missing: builds partial (`no_transcript:<agent>`).
 - `redacted` in the rollup = some return has a null reason; `data.json` has no redact marker (schema v1).
 - `squad-close` passes `--squad <folder>` to `squad-report` (squad-close resolves the squad by git toplevel; squad-report only by `--squad`/`$SQUAD_DIR`).
 - A digest item's quotes (return reasons) live inside `text`; digest item fields are fixed.

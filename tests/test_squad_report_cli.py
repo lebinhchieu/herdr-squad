@@ -184,9 +184,29 @@ class Refusals(Base):
         raw = self.data_path.read_bytes()
         for p in self.fx.proj.glob("*.jsonl"):
             p.unlink()
+        html = self.data_path.with_name("report.html")
+        html.write_bytes(b"old html")
         r = run(self.fx, "sc", "--no-html")
         self.assertEqual(r.returncode, 2)
+        self.assertEqual(r.stderr.decode().splitlines(), ["squad-report: no transcripts left for sc"])
         self.assertEqual(self.data_path.read_bytes(), raw)
+        self.assertEqual(html.read_bytes(), b"old html")
+
+    def test_no_messages_no_transcripts_builds_empty_report(self):
+        fx = Fixture(scope="solo")
+        self.addCleanup(fx.close)
+        p = fx.home / "report" / "data.json"
+        r = run(fx, "solo")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = json.loads(p.read_text(encoding="utf-8"))
+        self.assertTrue(d["scope"]["partial"])
+        self.assertTrue(p.with_name("report.html").exists())
+        raw, h = p.read_bytes(), p.with_name("report.html").read_bytes()
+        run(fx, "solo")
+        d2 = json.loads(p.read_text(encoding="utf-8"))
+        d["scope"]["generated_at"] = d2["scope"]["generated_at"] = None
+        self.assertEqual(d, d2)
+        self.assertEqual(h, p.with_name("report.html").read_bytes())
 
     def test_deadline_exits_5_and_leaves_old_report(self):
         run(self.fx, "sc", "--no-html")

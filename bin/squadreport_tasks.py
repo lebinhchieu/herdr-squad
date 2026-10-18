@@ -246,7 +246,7 @@ def _z():
 
 
 def _wall(c):
-    return max(0, c.window[1] - c.window[0])
+    return max(0, c.window[1] - c.window[0]) if c.window[0] is not None else 0
 
 
 def fill(data, c, redact=False):

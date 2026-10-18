@@ -81,10 +81,10 @@ def _target(args):
 
 
 def build(home, sdir, plugin_root=PLUGIN_ROOT, final=False, redact=False, deadline=None, now=None):
-    """The data dict of one scope (not written). Raises Unsupported, Deadline, Refused (no transcripts)."""
+    """The data dict of one scope (not written). Raises Unsupported, Deadline, Refused (messages but no transcripts)."""
     c = sr.collect(home, sdir, plugin_root, final=final, deadline=deadline)
-    if c.sources["transcripts"] == 0:
-        raise Refused("no transcripts found for %s (existing report left as it is)" % c.name)
+    if c.sources["transcripts"] == 0 and c.sources["messages"] > 0:
+        raise Refused("no transcripts left for %s" % c.name)
     data = sr.base_data(c)
     tasks.fill(data, c, redact=redact)
     data["digest"] = dg.digest(data)
