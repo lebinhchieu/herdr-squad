@@ -219,6 +219,30 @@ class RealOutput(unittest.TestCase):
             self.assertEqual(sum(row["totals"]["tokens"].values()), sum(data["totals"]["tokens"].values()))
             self.assertEqual(sum(x["cost_usd"] for x in row["roles"]), sum(x["cost_usd"] for x in data["roles"]))
             self.assertEqual(out["totals"]["attributed_time_pct"], data["totals"]["attributed"]["time_pct"])
+            reasons = [r["reason"] for x in data["tasks"] for r in x["returns_list"]]
+            self.assertTrue(reasons and all(reasons))
+            self.assertFalse(row["redacted"])
+            self.assertEqual(row["top_reason"], reasons[0])
+
+    def test_redact_build_is_redacted(self):
+        fx = Fixture()
+        self.addCleanup(fx.close)
+        tasks_scope(fx)
+        with mock.patch.dict(os.environ, fx.env()):
+            data = bd.build(fx.home, fx.squad, redact=True, now=T0 + 5000)
+        with tempfile.TemporaryDirectory() as t:
+            rollup([write(t, "r/data.json", data)], str(Path(t) / "o"))
+            row = json.loads((Path(t) / "o" / "data.json").read_text(encoding="utf-8"))["scopes"][0]
+            self.assertTrue(row["redacted"])
+            self.assertIsNone(row["top_reason"])
+
+    def test_titleless_real_build_not_redacted(self):
+        d = scope_json("s", "n", 1.0, 100, returns=2)
+        for x in d["tasks"]:
+            x["title"] = None
+        row = ro.row_from(d)
+        self.assertFalse(row["redacted"])
+        self.assertEqual(row["top_reason"], "needs work")
 
 
 if __name__ == "__main__":

@@ -75,8 +75,7 @@ def row_from(d):
         buckets = {k: int(_num(t["buckets_s"].get(k))) for k in BUCKETS}
         tasks = d.get("tasks") or []
         reasons = [r.get("reason") for x in tasks for r in (x.get("returns_list") or [])]
-        redacted = bool(tasks) and all(x.get("title") is None for x in tasks) or any(
-            x.get("reason") is None for x in (r for tk in tasks for r in (tk.get("returns_list") or [])))
+        redacted = any(x.get("reason") is None for x in (r for tk in tasks for r in (tk.get("returns_list") or [])))
         shown = [r for r in reasons if r]
         roles = {}
         for r in d.get("roles") or []:
