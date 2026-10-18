@@ -313,12 +313,12 @@ def fill(data, c, redact=False):
         t = task_of(m)
         if t:
             mention_ts.setdefault(t, []).append(m.ts)
-    iters = {}
-    for m in msgs_all:
-        it = getattr(m, "iteration", None)
+    iters = {}   # task -> iteration of its earliest message
+    for m in sorted(msgs_all, key=lambda x: x.ts):
         t = task_of(m)
-        if it is not None and str(it).lstrip("-").isdigit():
-            iters.setdefault(t, []).append(int(it))
+        if t and t not in iters:
+            it = getattr(m, "iteration", None)
+            iters[t] = int(it) if it is not None and str(it).lstrip("-").isdigit() else None
 
     task_ids = set(mention_ts) | {t for (t, _a) in cells if t}
     tasks = []
@@ -379,7 +379,7 @@ def fill(data, c, redact=False):
             "id": tid, "aliases": res.aliases.get(tid, []),
             "title": None if redact or tid not in res.tickets else res.tickets[tid][:TITLE_CUT],
             "dev": dev, "status": "passed" if passes else "open",
-            "iteration": max(iters[tid]) if iters.get(tid) else None,
+            "iteration": iters.get(tid),
             "window": {"start": iso(first) if first is not None else None,
                        "end": iso(last) if last is not None else None},
             "cycle_s": cyc, "buckets_s": bs, "tokens": tok, "cost_usd": round(cost, 4),
@@ -399,25 +399,24 @@ def fill(data, c, redact=False):
     data["matrix"] = matrix
 
     # -- iterations
-    its = sorted({v for lst in iters.values() for v in lst})
-    first_ts = {}
+    span = {}
     for m in msgs_all:
         it = getattr(m, "iteration", None)
         if it is not None and str(it).lstrip("-").isdigit():
-            first_ts[int(it)] = min(first_ts.get(int(it), m.ts), m.ts)
+            lo, hi = span.get(int(it), (m.ts, m.ts))
+            span[int(it)] = (min(lo, m.ts), max(hi, m.ts))
+    its = sorted(span)
     it_rows = []
     fail_ts = [m.ts for m in dmsgs if _mtype(m) == "FAIL" and task_of(m)]
-    for i, n in enumerate(its):
-        s = w0 if i == 0 else first_ts[n]
-        e = first_ts[its[i + 1]] if i + 1 < len(its) else w1
+    for n in its:
+        s, e = span[n]
         agent_s = 0
         for lst in pieces.values():
             for (a, b, _bk, _on, _t) in lst:
                 agent_s += max(0, min(b, e) - max(a, s))
-        cost = sum(cs_ for (_t, ts, cs_) in turn_rows if s <= ts < e or (i + 1 == len(its) and ts == e))
+        cost = sum(cs_ for (_t, ts, cs_) in turn_rows if s <= ts <= e)
         it_rows.append({"n": n, "window": {"start": iso(s), "end": iso(e)}, "agent_s": agent_s,
-                        "cost_usd": round(cost, 4),
-                        "returns": sum(1 for x in fail_ts if s <= x < e or (i + 1 == len(its) and x == e))})
+                        "cost_usd": round(cost, 4), "returns": sum(1 for x in fail_ts if s <= x <= e)})
     data["iterations"] = it_rows
     sc = data.setdefault("scope", {})
     sc["iterations"] = its

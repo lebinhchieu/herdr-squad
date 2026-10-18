@@ -61,8 +61,8 @@ def build(tmp, origin=True):
         msg(4400, "qa", "dev", "PASS 08"),
         msg(4500, "tl", "dev", "ASSIGN T5 stray"),
     ]
-    msgs[10].iteration = msgs[13].iteration = 2
-    msgs[0].iteration = 1
+    for i, m in enumerate(msgs):
+        m.iteration = 1 if i < 10 else 2
     agents = {
         "dev": agent("dev", "developer",
                      [seg(0, 3000, "working"), seg(3000, 3300, "blocking", "qa"),
@@ -107,7 +107,7 @@ class TasksTest(unittest.TestCase):
         self.assertEqual(t["cycle_s"], 3200)
         self.assertEqual(t["cost_usd"], 3.0)
         self.assertEqual(t["dev"], "dev")
-        self.assertEqual(t["iteration"], 2)
+        self.assertEqual((t["iteration"], self.t["08"]["iteration"]), (1, 2))
         self.assertEqual([(w["wait_s"], w["verdict"]) for w in t["review_waits"]],
                          [(500, "FAIL"), (600, "FAIL"), (300, "PASS")])
         self.assertEqual([r["reason"] for r in t["returns_list"]],
@@ -135,7 +135,7 @@ class TasksTest(unittest.TestCase):
         its = self.d["iterations"]
         self.assertEqual(self.d["scope"]["iterations"], [1, 2])
         self.assertEqual([(i["n"], i["agent_s"], i["cost_usd"], i["returns"]) for i in its],
-                         [(1, 6500, 4.1875, 2), (2, 2800, 0.75, 0)])
+                         [(1, 5400, 2.875, 2), (2, 2800, 0.75, 0)])
 
     def test_invariants(self):
         total = self.d["totals"]["cost_usd"]
