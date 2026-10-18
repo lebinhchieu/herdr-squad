@@ -498,3 +498,70 @@ class InboxGuardTest(unittest.TestCase):
                            text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("did not answer with JSON", r.stderr)
+
+
+class ReportHookTest(unittest.TestCase):
+    """squad-close builds the report first (a stub squad-report in a copied bin/) and never fails because of it."""
+    setUp = ScopedCloseTest.setUp
+    tearDown = ScopedCloseTest.tearDown
+    closed_tabs = ScopedCloseTest.closed_tabs
+
+    REC = ("#!/usr/bin/env python3\n"
+           "import os, sys\n"
+           "d = sys.argv[sys.argv.index('--squad') + 1]\n"
+           "open(os.environ['CALLS'], 'a').write(' '.join(sys.argv[1:]) + '|' + str(os.path.isdir(d + '/scopes/sc1')) + '|' + "
+           "str(os.path.isdir(d + '/goals/g1')) + '|' + str(os.path.exists(os.environ['HERDR_LOG'])) + '\\n')\n")
+
+    def stub_bin(self, body):
+        lone = self.root / "stubbin"
+        lone.mkdir()
+        for n in ("squad-close", "squad-retire", "squad-inbox"):
+            (lone / n).write_text((BIN / n).read_text(encoding="utf-8"), encoding="utf-8")
+            (lone / n).chmod(0o755)
+        for p in BIN.glob("squad*.py"):
+            (lone / p.name).write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
+        (lone / "squad-report").write_text(body, encoding="utf-8")
+        self.calls = self.root / "report.calls"
+        self.env["CALLS"] = str(self.calls)
+        self.env.pop("SQUAD_DIR", None)  # squad-close finds the folder itself; the report must still get it
+        return lone
+
+    def run_close(self, lone, *args):
+        return subprocess.run([str(lone / "squad-close"), "t", *args], env=self.env, cwd=self.root,
+                              text=True, encoding="utf-8", capture_output=True, timeout=30)
+
+    def test_scope_close_builds_the_report_first_with_the_deadline(self):
+        r = self.run_close(self.stub_bin(self.REC), "--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.calls.read_text(encoding="utf-8").splitlines(), ["sc1 --squad %s --final --quiet --deadline 60|True|True|False" % self.squad.resolve()])
+        self.assertTrue((self.squad / "scopes/_done/sc1").exists())
+        self.assertNotIn("warning", r.stderr)
+
+    def test_goal_close_passes_the_goal_name(self):
+        for s in ("sc2", "sc3"):
+            (self.squad / "scopes" / "_done").mkdir(exist_ok=True)
+            (self.squad / "scopes" / s).rename(self.squad / "scopes" / "_done" / s)
+        r = self.run_close(self.stub_bin(self.REC), "--goal", "g1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.calls.read_text(encoding="utf-8").splitlines(), ["g1 --squad %s --final --quiet --deadline 60|True|True|False" % self.squad.resolve()])
+        self.assertTrue((self.squad / "goals/_done/g1").exists())
+
+    def test_failing_or_noisy_report_warns_once_and_changes_nothing_else(self):
+        base = self.run_close(self.stub_bin("#!/usr/bin/env python3\n"), "--scope", "sc1")  # stub exits 0: the no-hook close
+        base_out = base.stdout.replace(str(self.root), "ROOT")
+        self.assertEqual(base.returncode, 0, base.stderr)
+        self.tearDown()
+        self.setUp()
+        lone = self.stub_bin("#!/usr/bin/env python3\nimport sys\nprint('junk <<<')\nsys.exit(7)\n")
+        r = self.run_close(lone, "--scope", "sc1")
+        self.assertEqual(r.returncode, base.returncode)
+        self.assertEqual(r.stdout.replace(str(self.root), "ROOT"), base_out)
+        self.assertEqual(r.stderr.strip(), "warning: report not generated (squad-report exited 7)")
+        self.assertTrue((self.squad / "scopes/_done/sc1/evidence/proof.md").exists())
+        self.assertEqual(self.closed_tabs(), ["pane close p-t-dev-sc1-1", "pane close p-t-mgr-sc1"])
+
+    def test_dry_run_never_calls_the_report(self):
+        r = self.run_close(self.stub_bin(self.REC), "--scope", "sc1", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(self.calls.exists())
+        self.assertTrue((self.squad / "scopes/sc1").exists())
