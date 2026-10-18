@@ -196,21 +196,20 @@ class Refusals(Base):
 
 
 class Goal(Base):
-    def test_goal_name_goes_to_rollup_stub(self):
+    def test_goal_name_goes_to_rollup(self):
         for rel in ("goals/g1", "goals/_done/g2"):
             (self.fx.squad / rel).mkdir(parents=True)
         for g in ("g1", "g2"):
             r = run(self.fx, g)
-            self.assertEqual(r.returncode, 2)
-            self.assertIn("not built", r.stderr.decode())
+            self.assertEqual(r.returncode, 2)  # rollup ran: goal without scopes has nothing usable
+            self.assertNotIn("not built", r.stderr.decode())
         self.assertEqual(run(self.fx, "g3").returncode, 2)
         self.assertNotIn("not built", run(self.fx, "g3").stderr.decode())
 
     def test_subcommand_stubs(self):
-        for sub in ("rollup", "query"):
-            r = run(self.fx, sub, "sc")
-            self.assertEqual(r.returncode, 2)
-            self.assertIn("not built", r.stderr.decode())
+        r = run(self.fx, "query", "sc")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("not built", r.stderr.decode())
 
 
 class FieldShape(Base):

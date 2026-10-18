@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>squad-report rollup</title>
+<style>:root{--bg:#FCF8F1;--panel:#F4ECDD;--bd:#E7DBC8;--ink:#3E372E;--mut:#857A68;--faint:#A99C86;--mango:#E8820E;--mango-d:#CE7000;--teal:#0C8A80;--red:#DB3B22;--blue:#2A6DC0;--green:#368A1E;--purple:#9A40CF;--yellow:#9E7A00;--pink:#CE1D6C;--hover:#E8820E12;--sel:#E8820E25;
+--c-working:#368A1E;--c-waiting:#2A6DC0;--c-blocking:#DB3B22;--c-idle:#AFA48C;
+--k-input:#2A6DC0;--k-cache_read:#0C8A80;--k-cache_write:#9A40CF;--k-output:#E8820E}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+h1{font-size:22px;margin:0}h2{font-size:16px;margin:0}h3{font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.mut{color:var(--mut)}.faint{color:var(--faint)}.num{font-variant-numeric:tabular-nums;text-align:right}
+a{color:var(--blue)}
+code{background:var(--panel);padding:1px 5px;border-radius:4px;font-size:12.5px}
+:focus-visible{outline:2px solid var(--mango);outline-offset:2px}
+/* page */
+header.page{padding:18px 24px 10px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;border-bottom:1px solid var(--bd)}
+header.page .meta{margin-left:auto;text-align:right;font-size:12px;color:var(--mut)}
+nav.sections{position:sticky;top:0;z-index:40;background:var(--bg);border-bottom:1px solid var(--bd);padding:6px 24px;display:flex;gap:4px;flex-wrap:wrap}
+nav.sections a{color:var(--mut);text-decoration:none;padding:3px 10px;border-radius:14px;font-size:13px}
+nav.sections a:hover{background:var(--hover);color:var(--ink)}nav.sections a.on{background:var(--sel);color:var(--ink);font-weight:600}
+main{padding:14px 24px 60px;max-width:1280px;margin:auto}
+section{margin:22px 0;scroll-margin-top:80px}
+section>.sh{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+section>.sh .sub{color:var(--mut);font-size:12.5px}section>.sh .tools{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.card{background:var(--panel);border:1px solid var(--bd);border-radius:10px;padding:12px 14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:10px}
+.kpi .l{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.kpi .v{font-size:26px;font-weight:700;line-height:1.15;margin:2px 0}.kpi .s{font-size:12.5px;color:var(--mut)}
+.kpi.warn{border-color:var(--mango);box-shadow:inset 3px 0 0 var(--mango)}.kpi.bad{border-color:var(--red);box-shadow:inset 3px 0 0 var(--red)}
+.chip{display:inline-block;border-radius:12px;padding:1px 9px;font-size:12px;font-weight:600;border:1px solid var(--bd);background:var(--bg);color:var(--mut);white-space:nowrap}
+.chip.run{background:#E8820E22;border-color:var(--mango);color:var(--mango-d)}.chip.done{background:#368A1E18;border-color:var(--green);color:var(--green)}
+.chip.bad{background:#DB3B2218;border-color:var(--red);color:var(--red)}.chip.warn{background:#9E7A0018;border-color:var(--yellow);color:var(--yellow)}
+.chip.btn{cursor:pointer}.chip.btn:hover{border-color:var(--mango)}.chip.btn[aria-pressed=true]{background:var(--sel);border-color:var(--mango);color:var(--ink)}
+.banner{border:1px solid var(--bd);border-left:4px solid var(--mango);background:#fff;border-radius:8px;padding:9px 12px;margin:10px 0;display:flex;gap:10px;align-items:flex-start}
+.banner.bad{border-left-color:var(--red)}.banner.info{border-left-color:var(--blue)}.banner b{white-space:nowrap}
+.banner .ic{font-weight:800;color:var(--mango)}.banner.bad .ic{color:var(--red)}.banner.info .ic{color:var(--blue)}
+/* bars */
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--bd);min-width:60px}
+.bar.lg{height:16px;border-radius:8px}.bar i{display:block;height:100%}
+.bar i.b-working{background:var(--c-working)}.bar i.b-waiting{background:var(--c-waiting)}
+.bar i.b-blocking{background:repeating-linear-gradient(45deg,var(--c-blocking) 0 4px,#E9705B 4px 7px)}.bar i.b-idle{background:var(--c-idle);opacity:.55}
+.bar i.k-input{background:var(--k-input)}.bar i.k-cache_read{background:var(--k-cache_read)}.bar i.k-cache_write{background:var(--k-cache_write)}.bar i.k-output{background:var(--k-output)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:6px}
+.legend span{display:inline-flex;align-items:center;gap:5px}.sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+.sw.b-working{background:var(--c-working)}.sw.b-waiting{background:var(--c-waiting)}.sw.b-blocking{background:repeating-linear-gradient(45deg,var(--c-blocking) 0 3px,#E9705B 3px 5px)}.sw.b-idle{background:var(--c-idle);opacity:.55}
+.sw.k-input{background:var(--k-input)}.sw.k-cache_read{background:var(--k-cache_read)}.sw.k-cache_write{background:var(--k-cache_write)}.sw.k-output{background:var(--k-output)}
+.meter{height:8px;background:var(--bd);border-radius:4px;overflow:hidden;margin-top:6px}.meter i{display:block;height:100%;background:var(--teal)}.meter.warn i{background:var(--mango)}.meter.bad i{background:var(--red)}
+/* digest */
+.digest{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px}
+.dg{display:flex;gap:10px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.dg:hover{border-color:var(--mango);background:var(--hover)}.dg .n{font-weight:800;color:var(--mango-d);min-width:16px}.dg .t{font-size:13px}.dg .t small{display:block;color:var(--mut);font-size:12px}
+/* tables */
+.tw{overflow:auto;border:1px solid var(--bd);border-radius:10px;background:#fff}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 10px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:middle;white-space:nowrap}
+th{position:sticky;top:0;background:var(--panel);font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em;cursor:pointer;user-select:none}
+th.num,td.num{text-align:right}th[aria-sort=ascending]::after{content:" ▲";color:var(--mango)}th[aria-sort=descending]::after{content:" ▼";color:var(--mango)}
+th:hover{color:var(--ink)}tbody tr{cursor:pointer}tbody tr:hover{background:var(--hover)}tbody tr.sel{background:var(--sel)}
+tbody tr.flag{box-shadow:inset 3px 0 0 var(--red)}tfoot td{font-weight:700;background:var(--panel);cursor:default}
+td.tt{max-width:280px;overflow:hidden;text-overflow:ellipsis}td .bar{width:130px;display:inline-flex;vertical-align:middle}
+.ret{display:inline-block;min-width:22px;text-align:center;border-radius:11px;padding:0 7px;font-weight:700;background:var(--bd);color:var(--mut)}
+.ret.r1{background:#E8820E22;color:var(--mango-d)}.ret.r3{background:var(--red);color:#fff}
+.empty{padding:26px;text-align:center;color:var(--mut)}.empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+.tools input[type=search],.tools select{background:#fff;border:1px solid var(--bd);border-radius:6px;padding:4px 8px;font:inherit;color:var(--ink)}
+/* matrix */
+.mx td,.mx th{text-align:center;padding:5px 8px}.mx td.rl,.mx th.rl{text-align:left;position:sticky;left:0;background:#fff;z-index:1}.mx th.rl{background:var(--panel)}
+.mx td.cell{cursor:pointer;font-variant-numeric:tabular-nums;min-width:68px}.mx td.cell:hover{outline:2px solid var(--mango);outline-offset:-2px}.mx td.cell.sel{outline:2px solid var(--ink);outline-offset:-2px}
+.mx td.zero{color:var(--faint)}.mx tr{cursor:default}.mx th{cursor:default}
+/* timeline */
+.tl{background:#fff;border:1px solid var(--bd);border-radius:10px;padding:10px 12px;overflow:hidden}
+.tl svg{display:block;width:100%}.tl .lane-l{font-size:12px;fill:var(--ink);cursor:pointer}.tl .lane-l:hover{fill:var(--mango-d);font-weight:700}
+.tl .ax{font-size:11px;fill:var(--mut)}.tl .gap{font-size:11px;fill:var(--mut)}
+.tl .seg.dim{opacity:.18}.tl .seg-b-blocking{fill:url(#hatch)}
+.ev{cursor:pointer}
+/* drawer */
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(460px,100vw);background:var(--bg);border-left:1px solid var(--bd);box-shadow:-8px 0 24px #3E372E22;transform:translateX(105%);transition:transform .18s;z-index:60;overflow:auto;padding:14px 16px}
+#drawer.open{transform:none}#drawer .x{position:absolute;top:10px;right:12px;background:none;border:0;font-size:20px;cursor:pointer;color:var(--mut)}
+#drawer h2{padding-right:26px}#drawer table{font-size:12.5px}#drawer .tw{margin:6px 0 14px}
+button.act{background:var(--mango);color:#FCF8F1;border:0;border-radius:8px;padding:6px 12px;font-weight:600;cursor:pointer}button.act.ghost{background:var(--bg);color:var(--ink);border:1px solid var(--bd)}
+#tip{position:fixed;z-index:80;pointer-events:none;background:#3E372E;color:#FCF8F1;font-size:12px;padding:5px 8px;border-radius:6px;max-width:300px;display:none}
+.flash{animation:fl 1.4s}@keyframes fl{0%,60%{background:var(--sel)}100%{background:transparent}}
+.errbox{max-width:640px;margin:60px auto;text-align:center}.errbox pre{text-align:left;background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:10px;font-size:12.5px;overflow:auto}
+noscript .banner{margin:20px}
+@media (max-width:760px){main,header.page{padding-left:12px;padding-right:12px}nav.sections{padding:6px 12px}}
+@media print{nav.sections,#drawer,.tools{display:none}.tw{overflow:visible}}
+
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
+.sw.b-po{background:repeating-linear-gradient(45deg,#9A40CF 0 3px,#B966E8 3px 5px)}
+.idlesub{margin-top:2px;font-size:12px}
+tr.rsn td{border-top:0;padding-top:0;font-size:12.5px;color:var(--ink);white-space:normal;overflow-wrap:anywhere}
+.reason{display:block;max-width:100%}
+
+.sc-sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+.seg-bar{display:flex;height:18px;border-radius:9px;overflow:hidden;background:var(--bd)}.seg-bar i{display:block;height:100%}
+button.dg{width:100%}
+</style></head><body>
+<noscript><div class="banner bad"><b>JavaScript is off.</b> This rollup is drawn from its embedded data; enable scripts to view it.</div></noscript>
+<div id="app"></div>
+<script type="application/json" id="data">{"digest":[],"form":"files","generated_at":"2026-10-18T19:14:15Z","goal":{"name":null,"scopes":["tests"]},"kind":"rollup","roles":[],"schema_version":1,"scopes":[{"generated_at":null,"last_message_at":null,"name":"tests","reason":"This file could not be read (FileNotFoundError).","reasons_n":0,"redacted":false,"report_href":null,"roles":[],"size":null,"source":"../sc","squad":"","status":"unreadable","top_reason":null,"totals":null,"window":{"end":null,"start":null}}],"title":"Teammates' scopes","totals":{"agent_s":0,"attributed_time_pct":null,"buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":0},"cost_per_passed_task_usd":null,"cost_usd":0.0,"flagged_tasks":0,"included":0,"listed":1,"mixed_prices":false,"parallelism":null,"partial":true,"partial_reasons":["unreadable"],"passed":0,"po_wait_s":0,"returns":0,"span_s":0,"tasks":0,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0},"under_60":0,"wall_s":0}}</script>
+<script>(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("data").textContent);
+  var app = document.getElementById("app");
+  var BK = ["working", "waiting", "blocking", "idle"], KINDS = ["input", "cache_read", "cache_write", "output"];
+  var PAL = ["#E8820E", "#0C8A80", "#2A6DC0", "#9A40CF", "#368A1E", "#CE1D6C", "#9E7A00", "#DB3B22"];
+  var INC = ["done", "running", "stale"];
+  var CHIP = { done: ["done", "done"], running: ["running · partial", "run"], stale: ["stale", "warn"], no_data: ["no data", "bad"],
+    schema_mismatch: ["old schema", "bad"], skipped: ["skipped", ""], unreadable: ["unreadable", "bad"] };
+
+  function h(tag, attrs) {
+    var e = document.createElement(tag), i, c;
+    for (var k in (attrs || {})) {
+      if (k === "class") e.className = attrs[k];
+      else if (k === "title") e.title = attrs[k];
+      else e.setAttribute(k, attrs[k]);
+    }
+    for (i = 2; i < arguments.length; i++) {
+      c = arguments[i];
+      if (c === null || c === undefined || c === false) continue;
+      if (Array.isArray(c)) c.forEach(function (x) { if (x) e.appendChild(typeof x === "object" ? x : document.createTextNode(String(x))); });
+      else e.appendChild(typeof c === "object" ? c : document.createTextNode(String(c)));
+    }
+    return e;
+  }
+  function dur(s) { if (s == null) return "–"; s = Math.round(s); if (s < 60) return s + "s"; var m = Math.round(s / 60); if (m < 60) return m + "m";
+    var hh = Math.floor(m / 60), mm = m % 60; if (hh < 48) return hh + "h" + (mm ? " " + mm + "m" : ""); return Math.floor(hh / 24) + "d " + (hh % 24) + "h"; }
+  function usd(x) { return x == null ? "–" : "$" + (x >= 100 ? Math.round(x) : x.toFixed(2)); }
+  function tok(n) { if (n == null) return "–"; if (n >= 1e9) return (n / 1e9).toFixed(2) + "B"; if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"; if (n >= 1e3) return Math.round(n / 1e3) + "k"; return String(n); }
+  function sum(o) { return Object.keys(o).reduce(function (a, k) { return a + o[k]; }, 0); }
+  function pc(x) { return x == null ? "–" : Math.round(x * 100) + "%"; }
+  function name(r) { return h("span", null, r.name, r.squad ? h("span", { class: "mut" }, " · " + r.squad) : null); }
+  function key(r) { return r.squad + "/" + r.name; }
+  function chip(r) { var c = CHIP[r.status] || [r.status, ""]; var t = c[0];
+    if (r.status === "stale" && r.age_s != null) t += " · " + dur(r.age_s) + " old";
+    return h("span", { class: "chip " + c[1] }, t); }
+  function banner(cls, ic, head, text, cmd) { return h("div", { class: "banner " + cls }, h("span", { class: "ic" }, ic), h("div", null, h("b", null, head + " "), text, cmd ? [" ", h("code", null, cmd)] : null)); }
+  function link(r) {
+    if (r.report_href) { var a = h("a", { title: r.report_href }, "open report →"); a.setAttribute("href", r.report_href); return a; }
+    return h("span", { class: "faint", title: "built from a data.json file: no report.html beside it" }, "no report");
+  }
+
+  var rows = D.scopes, inc = rows.filter(function (r) { return INC.indexOf(r.status) >= 0; }), T = D.totals;
+  var color = {}; rows.forEach(function (r, i) { color[key(r) + "|" + i] = PAL[i % PAL.length]; });
+  function col(r) { return PAL[rows.indexOf(r) % PAL.length]; }
+
+  /* ---- drawer ---- */
+  var drawer = h("aside", { id: "drawer", "aria-label": "Scope details" });
+  function bars(map, keys, cls) { var tot = sum(map) || 1;
+    return h("div", { class: "bar" }, keys.map(function (k) { var i = h("i", { class: cls + k, title: k + " " + pc(map[k] / tot) }); i.style.width = (map[k] / tot * 100).toFixed(2) + "%"; return i; })); }
+  function openDrawer(r) {
+    drawer.textContent = "";
+    var x = h("button", { class: "x", "aria-label": "Close" }, "×"); x.onclick = function () { drawer.classList.remove("open"); };
+    drawer.appendChild(x); drawer.appendChild(h("h2", null, name(r))); drawer.appendChild(h("p", null, chip(r), " ", r.size ? "size " + r.size : ""));
+    if (INC.indexOf(r.status) < 0) {
+      drawer.appendChild(h("p", null, r.reason || ""));
+      if (r.command) { drawer.appendChild(h("p", null, "Create it: ", h("code", null, r.command))); if (D.form === "goal") drawer.appendChild(h("p", null, "Then: ", h("code", null, "squad-report " + D.title))); }
+      if (r.source) drawer.appendChild(h("p", { class: "mut" }, "File: " + r.source));
+    } else {
+      var t = r.totals, att = t.attributed_time_pct;
+      drawer.appendChild(h("p", { class: "mut" }, "Elapsed " + dur(t.wall_s) + " · agent-time " + dur(t.agent_s) + " · cost " + usd(t.cost_usd) + " · tokens " + tok(sum(t.tokens))));
+      drawer.appendChild(bars(t.buckets_s, BK, "b-")); drawer.appendChild(h("div", { style: "height:6px" })); drawer.appendChild(bars(t.tokens, KINDS, "k-"));
+      drawer.appendChild(h("p", null, "Tasks passed " + t.passed + "/" + t.tasks + " · returns (FAIL messages) " + t.returns + " · PO wait " + dur(t.po_wait_s) + " · attributed " + (att == null ? "–" : att + "%")));
+      if (r.redacted) drawer.appendChild(h("p", { class: "mut" }, "Not shared: task titles and return reasons."));
+      var rt = h("table", null, h("thead", null, h("tr", null, h("th", null, "Role"), h("th", { class: "num" }, "Cost"), h("th", { class: "num" }, "Agent-time"))),
+        h("tbody", null, r.roles.map(function (q) { return h("tr", null, h("td", null, q.role), h("td", { class: "num" }, usd(q.cost_usd)), h("td", { class: "num" }, dur(q.agent_s))); })));
+      drawer.appendChild(h("div", { class: "tw" }, rt));
+      if (r.report_href) drawer.appendChild(link(r));
+    }
+    drawer.classList.add("open");
+  }
+  function drawerByKey(k) { var r = rows.filter(function (q) { return key(q) === k; })[0]; if (r) openDrawer(r); }
+
+  /* ---- sections ---- */
+  function kpi(l, v, s, cls) { return h("div", { class: "card kpi " + (cls || "") }, h("div", { class: "l" }, l), h("div", { class: "v" }, v), h("div", { class: "s" }, s)); }
+  function overview() {
+    var empty = !inc.length, att = T.attributed_time_pct;
+    var cards = [
+      kpi("Calendar span", empty ? "–" : dur(T.span_s), empty ? "" : "agent-time " + dur(T.agent_s) + (T.parallelism ? " · ×" + T.parallelism + " parallel" : "")),
+      kpi("Cost (est.)", empty ? "–" : usd(T.cost_usd), empty || T.cost_per_passed_task_usd == null ? "" : usd(T.cost_per_passed_task_usd) + " per passed task"),
+      kpi("Tokens", empty ? "–" : tok(sum(T.tokens)), empty ? "" : "output " + tok(T.tokens.output)),
+      kpi("Returns (FAIL messages)", empty ? "–" : String(T.returns), empty ? "" : T.flagged_tasks + " flagged task" + (T.flagged_tasks === 1 ? "" : "s"), T.flagged_tasks ? "bad" : ""),
+      kpi("PO wait (summed)", empty ? "–" : dur(T.po_wait_s), "elapsed, not cost"),
+      kpi("Attributed", empty ? "–" : (att == null ? "–" : att + "%"), empty ? "" : T.under_60 + " scope" + (T.under_60 === 1 ? "" : "s") + " under 60%", T.under_60 ? "warn" : "")
+    ];
+    var s = h("section", { id: "overview" }, h("div", { class: "sh" }, h("h2", null, "Overview"), h("span", { class: "sub" }, "included scopes only: " + T.included + " of " + T.listed)), h("div", { class: "kpis" }, cards));
+    if (D.digest.length) s.appendChild(h("div", null, h("h3", { style: "margin-top:14px" }, "Worth a look"),
+      h("div", { class: "digest" }, D.digest.slice(0, 4).map(function (d, i) { var b = h("button", { class: "dg" }, h("span", { class: "n" }, i + 1), h("span", { class: "t" }, d.text)); b.onclick = function () { drawerByKey(d.target.id); }; return b; }))));
+    return s;
+  }
+  var COLS = [
+    { k: "name", label: "Scope", val: function (r) { return r.name.toLowerCase(); }, fmt: function (r) { return h("span", null, h("i", { class: "sc-sw", style: "background:" + col(r) }), r.report_href ? name(r) : name(r)); } },
+    { k: "status", label: "Status", val: function (r) { return r.status; }, fmt: function (r) { return INC.indexOf(r.status) >= 0 ? chip(r) : h("span", null, chip(r), " ", h("span", { class: "mut" }, r.reason)); } },
+    { k: "wall", label: "Elapsed", num: 1, val: function (r) { return r.totals ? r.totals.wall_s : -1; }, fmt: function (r) { return r.totals ? dur(r.totals.wall_s) : "–"; } },
+    { k: "agent", label: "Agent-time", num: 1, val: function (r) { return r.totals ? r.totals.agent_s : -1; }, fmt: function (r) { return r.totals ? h("span", null, bars(r.totals.buckets_s, BK, "b-"), " ", dur(r.totals.agent_s)) : "–"; } },
+    { k: "cost", label: "Cost", num: 1, val: function (r) { return r.totals ? r.totals.cost_usd : -1; }, fmt: function (r) { return r.totals ? usd(r.totals.cost_usd) + (T.cost_usd ? " (" + pc(r.totals.cost_usd / T.cost_usd) + ")" : "") : "–"; } },
+    { k: "tokens", label: "Tokens", num: 1, val: function (r) { return r.totals ? sum(r.totals.tokens) : -1; }, fmt: function (r) { return r.totals ? tok(sum(r.totals.tokens)) : "–"; } },
+    { k: "tasks", label: "Tasks passed", num: 1, val: function (r) { return r.totals ? r.totals.passed : -1; }, fmt: function (r) { return r.totals ? r.totals.passed + "/" + r.totals.tasks : "–"; } },
+    { k: "ret", label: "Returns (FAIL)", num: 1, val: function (r) { return r.totals ? r.totals.returns : -1; }, fmt: function (r) { if (!r.totals) return "–"; var n = r.totals.returns; return h("span", { class: "ret " + (r.totals.flagged_tasks ? "r3" : n ? "r1" : "") }, n + (r.totals.flagged_tasks ? " ⚑" : "")); } },
+    { k: "po", label: "PO wait", num: 1, val: function (r) { return r.totals ? r.totals.po_wait_s : -1; }, fmt: function (r) { return r.totals ? dur(r.totals.po_wait_s) : "–"; } },
+    { k: "att", label: "Attributed", num: 1, val: function (r) { return r.totals && r.totals.attributed_time_pct != null ? r.totals.attributed_time_pct : -1; }, fmt: function (r) { var p = r.totals && r.totals.attributed_time_pct; if (p == null) return "–"; return h("span", { style: p < 60 ? "color:var(--mango-d);font-weight:700" : "" }, p + "%"); } },
+    { k: "rep", label: "Report", val: function (r) { return r.report_href ? 1 : 0; }, fmt: function (r) { return INC.indexOf(r.status) >= 0 ? link(r) : "–"; } }
+  ];
+  function scopesSection() {
+    var sk = "cost", desc = true, fText = "", fStatus = "", fSize = "";
+    var host = h("div"), q = h("input", { type: "search", placeholder: "Filter scope or squad", "aria-label": "Filter" });
+    var st = h("select", { "aria-label": "Status" }, h("option", { value: "" }, "All statuses"), h("option", { value: "done" }, "done"), h("option", { value: "running" }, "running"), h("option", { value: "out" }, "not included"));
+    var sizes = {}; rows.forEach(function (r) { if (r.size) sizes[r.size] = 1; });
+    var sz = h("select", { "aria-label": "Size" }, h("option", { value: "" }, "All sizes"), Object.keys(sizes).sort().map(function (s) { return h("option", { value: s }, s); }));
+    function draw() {
+      var list = rows.filter(function (r) {
+        if (fText && (r.name + " " + r.squad).toLowerCase().indexOf(fText) < 0) return false;
+        if (fStatus === "out" ? INC.indexOf(r.status) >= 0 : fStatus && r.status !== fStatus) return false;
+        return !fSize || r.size === fSize;
+      });
+      var c = COLS.filter(function (x) { return x.k === sk; })[0];
+      list.sort(function (a, b) { var x = c.val(a), y = c.val(b); return (x > y ? 1 : x < y ? -1 : 0) * (desc ? -1 : 1); });
+      host.textContent = "";
+      if (!list.length) { host.appendChild(h("div", { class: "empty" }, h("b", null, rows.length ? "No scope matches the filter." : "Nothing to show."), rows.length ? "Clear the filter." : "No scopes were given.")); return; }
+      var head = h("tr", null, COLS.map(function (x) { var th = h("th", { class: x.num ? "num" : "", tabindex: "0" }, x.label); if (x.k === sk) th.setAttribute("aria-sort", desc ? "descending" : "ascending");
+        var go = function () { if (sk === x.k) desc = !desc; else { sk = x.k; desc = !!x.num; } draw(); }; th.onclick = go; th.onkeydown = function (e) { if (e.key === "Enter") go(); }; return th; }));
+      var body = list.map(function (r) { var tr = h("tr", { class: r.totals && r.totals.flagged_tasks ? "flag" : "", tabindex: "0" }, COLS.map(function (x) { var td = h("td", { class: x.num ? "num" : "" }, x.fmt(r)); if (x.k === "rep") td.onclick = function (e) { e.stopPropagation(); }; return td; }));
+        tr.onclick = function () { openDrawer(r); }; tr.onkeydown = function (e) { if (e.key === "Enter") openDrawer(r); }; return tr; });
+      var foot = h("tr", null, h("td", null, "Total · " + T.included + " of " + T.listed), h("td"), h("td", { class: "num" }, dur(T.span_s)), h("td", { class: "num" }, dur(T.agent_s)), h("td", { class: "num" }, usd(T.cost_usd)),
+        h("td", { class: "num" }, tok(sum(T.tokens))), h("td", { class: "num" }, T.passed + "/" + T.tasks), h("td", { class: "num" }, String(T.returns)), h("td", { class: "num" }, dur(T.po_wait_s)),
+        h("td", { class: "num" }, T.attributed_time_pct == null ? "–" : T.attributed_time_pct + "%"), h("td"));
+      host.appendChild(h("div", { class: "tw" }, h("table", null, h("thead", null, head), h("tbody", null, body), h("tfoot", null, foot))));
+    }
+    q.oninput = function () { fText = q.value.toLowerCase(); draw(); }; st.onchange = function () { fStatus = st.value; draw(); }; sz.onchange = function () { fSize = sz.value; draw(); };
+    draw();
+    return h("section", { id: "scopes" }, h("div", { class: "sh" }, h("h2", null, "Scopes"), h("span", { class: "tools" }, q, st, sz)), host);
+  }
+  function stacked(title, get, fmt) {
+    var tot = 0, items = inc.filter(function (r) { return get(r) > 0; }); items.forEach(function (r) { tot += get(r); });
+    var card = h("div", { class: "card" }, h("h3", null, title));
+    if (!tot) { card.appendChild(h("div", { class: "empty" }, "Nothing to show.")); return card; }
+    card.appendChild(h("div", { class: "seg-bar" }, items.map(function (r) { var i = h("i", { title: label(r) + ": " + fmt(get(r)) + " (" + pc(get(r) / tot) + ")" }); i.style.width = (get(r) / tot * 100).toFixed(2) + "%"; i.style.background = col(r); return i; })));
+    card.appendChild(h("div", { class: "legend" }, items.map(function (r) { return h("span", null, h("i", { class: "sw", style: "background:" + col(r) }), label(r) + " " + pc(get(r) / tot)); })));
+    return card;
+  }
+  function label(r) { return r.name + (r.squad ? " · " + r.squad : ""); }
+  function share() {
+    return h("section", { id: "share" }, h("div", { class: "sh" }, h("h2", null, "Share"), h("span", { class: "sub" }, "one colour per scope")),
+      h("div", { class: "two" }, stacked("Cost", function (r) { return r.totals.cost_usd; }, usd), stacked("Agent-time", function (r) { return r.totals.agent_s; }, dur), stacked("Returns", function (r) { return r.totals.returns; }, String)));
+  }
+  function rolesSection() {
+    var metric = "cost", host = h("div");
+    var sel = h("select", { "aria-label": "Metric" }, h("option", { value: "cost" }, "Cost"), h("option", { value: "time" }, "Agent-time"), h("option", { value: "tokens" }, "Tokens"));
+    function get(q) { return metric === "cost" ? q.cost_usd : metric === "time" ? q.agent_s : q.tokens; }
+    function f(v) { return metric === "cost" ? usd(v) : metric === "time" ? dur(v) : tok(v); }
+    function draw() {
+      host.textContent = "";
+      var names = D.roles.map(function (r) { return r.role; });
+      if (!names.length || !inc.length) { host.appendChild(h("div", { class: "empty" }, h("b", null, "Nothing to show."))); return; }
+      var max = 0; inc.forEach(function (r) { r.roles.forEach(function (q) { max = Math.max(max, get(q)); }); });
+      var head = h("tr", null, h("th", { class: "rl" }, "Role"), inc.map(function (r) { return h("th", { title: label(r) }, h("i", { class: "sc-sw", style: "background:" + col(r) }), r.name); }), h("th", null, "Total"));
+      var body = names.map(function (n) { var tot = D.roles.filter(function (r) { return r.role === n; })[0];
+        return h("tr", null, h("td", { class: "rl" }, n), inc.map(function (r) { var q = r.roles.filter(function (z) { return z.role === n; })[0], v = q ? get(q) : 0;
+          var td = h("td", { class: "cell" + (v ? "" : " zero") }, v ? f(v) : "–"); if (v) { td.style.background = "rgba(232,130,14," + (0.08 + 0.4 * v / (max || 1)).toFixed(2) + ")"; td.onclick = function () { openDrawer(r); }; } return td; }), h("td", { class: "cell" }, f(get(tot)))); });
+      host.appendChild(h("div", { class: "tw" }, h("table", { class: "mx" }, h("thead", null, head), h("tbody", null, body))));
+    }
+    sel.onchange = function () { metric = sel.value; draw(); }; draw();
+    return h("section", { id: "roles" }, h("div", { class: "sh" }, h("h2", null, "Roles"), h("span", { class: "tools" }, sel)), host);
+  }
+
+  /* ---- page ---- */
+  function page() {
+    var goal = D.form === "goal";
+    var header = h("header", { class: "page" }, h("div", null, h("h1", null, D.title), h("div", { class: "mut" }, T.listed + " listed · " + T.included + " included")),
+      h("span", { class: "chip" }, goal ? "goal rollup" : "from files"), h("span", { class: "chip " + (T.partial ? "warn" : "done") }, T.partial ? "partial" : "complete"),
+      h("div", { class: "meta" }, "generated " + D.generated_at));
+    app.appendChild(header);
+    var bad = rows.filter(function (r) { return r.status === "schema_mismatch" || r.status === "unreadable"; });
+    if (!inc.length && bad.length) {
+      app.appendChild(h("div", { class: "errbox card" }, h("h2", null, "No file could be read"), h("p", null, bad[0].reason), h("p", null, "Check the file was written by ", h("code", null, "squad-report <scope>"), " (kind scope, schema_version 1), then run the rollup again.")));
+      return;
+    }
+    var main = h("main");
+    if (!inc.length) main.appendChild(banner("info", "i", "Nothing to roll up.", D.form === "goal" ? "No scope of this goal has a data.json. Run" : "No scope data.json was given. Run", D.form === "goal" ? "squad-report <scope>" : "squad-report rollup <data.json>..."));
+    if (T.mixed_prices) main.appendChild(banner("info", "i", "Mixed price tables.", "These scopes were priced with different squad price settings. Each cost is that scope's own estimate, summed as is."));
+    var out = rows.filter(function (r) { return INC.indexOf(r.status) < 0; });
+    if (out.length) main.appendChild(banner("", "!", "Totals are partial.", "Left out: " + out.map(function (r) { return label(r) + " (" + r.status + ")"; }).join(", ") + "."));
+    var run = rows.filter(function (r) { return r.status === "running"; });
+    if (run.length) main.appendChild(banner("info", "i", "Still running.", run.map(label).join(", ") + " is included as it stands now."));
+    var stale = rows.filter(function (r) { return r.status === "stale"; });
+    if (stale.length) main.appendChild(banner("", "!", "Stale data.", stale.map(label).join(", ") + " changed after its data.json was written. Re-run", "squad-report <scope>"));
+    var nav = h("nav", { class: "sections" }, ["overview", "scopes", "share", "roles"].map(function (s) { return h("a", { href: "#" + s }, s.charAt(0).toUpperCase() + s.slice(1)); }));
+    app.appendChild(nav);
+    main.appendChild(overview()); main.appendChild(scopesSection()); main.appendChild(share()); main.appendChild(rolesSection());
+    app.appendChild(main);
+  }
+  page();
+  document.body.appendChild(drawer);
+})();
+</script>
+</body></html>
