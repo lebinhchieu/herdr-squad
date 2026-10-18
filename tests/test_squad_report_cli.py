@@ -135,10 +135,11 @@ class Cli(Base):
             d = bd.build(self.fx.home, self.fx.squad)
         self.assertEqual(d["schema_version"], 1)
 
-    def test_html_renderer_missing_is_skipped(self):
+    def test_html_written_next_to_data(self):  # ticket 05 supplies the renderer (04 skipped it while absent)
         r = run(self.fx, "sc")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(out(r).splitlines()[0], str(self.data_path))
+        self.assertEqual(out(r).splitlines()[0], str(self.data_path.with_name("report.html")))
+        self.assertTrue(self.data_path.with_name("report.html").exists())
 
 
 class Status(Base):
