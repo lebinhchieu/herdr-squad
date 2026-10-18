@@ -159,7 +159,7 @@ class RespawnTest(unittest.TestCase):
     def test_a_failing_spawn_renames_the_old_agent_back(self):
         stub = self.root / "plugin"
         (stub / "bin").mkdir(parents=True)
-        for f in ("squad-respawn", "squad-usage", "squad-label", "squadlabel.py", "squadio.py"):
+        for f in ("squad-respawn", "squad-usage", "squad-label", "squadlabel.py", "squadio.py", "squadtranscript.py"):
             shutil.copy(BIN / f, stub / "bin" / f)
         (stub / "bin" / "squad-spawn").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
         (stub / "bin" / "squad-spawn").chmod(0o755)

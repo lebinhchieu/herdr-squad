@@ -10,8 +10,6 @@
 Env: SCOPE_DIR, else GOAL_DIR, else SQUAD_DIR: the folder holding roster.md. CLAUDE_CONFIG_DIR (default ~/.claude).
 """
 import argparse
-import glob
-import json
 import os
 import sys
 from datetime import datetime, timezone
@@ -19,112 +17,10 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadio  # noqa: E402
+from squadtranscript import CACHE_TTL_S, agent_sessions, find_transcript, is_expiry, read_session  # noqa: E402
 
-CACHE_TTL_S = 3600           # the 1h cache lifetime
-EXPIRY_MIN_WRITE = 10_000    # a cache write this big after a gap counts as an expiry
 FRESH_CTX = 120_000          # process.md: fresh when context is over 120k
 IDLE_CTX = 100_000           # process.md: idle over 1h and context over 100k
-
-
-def config_dir():
-    return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-
-
-def projects_glob(pattern):
-    """Transcript paths under projects/, symlinks resolved and deduped: ~/.claude-2/projects links to ~/.claude/projects."""
-    return sorted({os.path.realpath(p) for p in glob.glob(str(config_dir() / "projects" / pattern))})
-
-
-def find_transcript(session):
-    hits = projects_glob(f"*/{session}.jsonl")
-    return Path(hits[0]) if hits else None
-
-
-def agent_name(path, limit=50):
-    """The agentName of a transcript's `agent-name` record (written at the top), or None."""
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for _, line in zip(range(limit), f):
-            if '"agent-name"' in line:
-                try:
-                    o = json.loads(line)
-                except ValueError:
-                    continue
-                if o.get("type") == "agent-name":
-                    return o.get("agentName")
-    return None
-
-
-WORKTREES = "--worktrees-"
-
-
-def agent_sessions(name, roster_path):
-    """Transcripts of agent `name`: only the project dirs of its roster session (and the squad's main dir) and of its worktree.
-    Another squad's agent of the same bare name lives in another project dir and is never read. Returns (paths, certain)."""
-    if not roster_path:
-        return [], False
-    base = Path(roster_path).parent.name.split(WORKTREES)[0]
-    projects = config_dir() / "projects"
-    dirs = {base, Path(roster_path).parent.name}
-    dirs |= {d.name for d in projects.glob(base + WORKTREES + "*") if d.name.endswith("-" + name)}
-    out = []
-    for d in sorted(dirs):
-        for p in projects_glob(f"{d}/*.jsonl"):
-            if agent_name(p) == name:
-                out.append(p)
-    return out, True
-
-
-def parse_ts(s):
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
-
-
-TOKEN_FIELDS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "output_tokens")
-
-
-def read_lines(path, turns, side_file):
-    """Fold one file into `turns`, keyed by message id. A message spans several lines whose usage only grows: keep the max per field."""
-    boundaries = summaries = 0
-    for line in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            o = json.loads(line)
-        except ValueError:
-            continue
-        if o.get("isCompactSummary"):
-            summaries += 1
-        elif o.get("type") == "system" and o.get("subtype") == "compact_boundary":
-            boundaries += 1
-        if o.get("type") != "assistant":
-            continue
-        m = o.get("message") or {}
-        u = m.get("usage")
-        if not u or m.get("model") == "<synthetic>":
-            continue
-        side = side_file or bool(o.get("isSidechain"))
-        t = turns.setdefault(m.get("id") or o.get("uuid"), {"side": side, **dict.fromkeys(TOKEN_FIELDS, 0)})
-        t["side"] = t["side"] and side
-        for f in TOKEN_FIELDS:
-            t[f] = max(t[f], u.get(f, 0))
-        if "ts" not in t or parse_ts(o["timestamp"]) >= t["ts"]:
-            t.update(ts=parse_ts(o["timestamp"]), model=m.get("model"), effort=o.get("effort") or m.get("effort"))
-    return boundaries, summaries
-
-
-def read_session(path):
-    """Per-turn rows of a session and of its subagents/*.jsonl (flagged side), plus the compaction count of the session itself."""
-    turns = {}
-    boundaries, summaries = read_lines(path, turns, False)
-    for sub in sorted(glob.glob(str(Path(path).with_suffix("") / "subagents" / "*.jsonl"))):
-        read_lines(sub, turns, True)
-    for t in turns.values():
-        t["ctx"] = t["input_tokens"] + t["cache_read_input_tokens"] + t["cache_creation_input_tokens"]
-        t["write"], t["out"] = t["cache_creation_input_tokens"], t["output_tokens"]
-    rows = sorted(turns.values(), key=lambda t: t["ts"])
-    # one compaction may leave both a boundary and a summary line
-    return rows, max(boundaries, summaries)
-
-
-def is_expiry(a, b):
-    return (b["ts"] - a["ts"]).total_seconds() > CACHE_TTL_S and b["write"] >= EXPIRY_MIN_WRITE
 
 
 def summarize(path):
