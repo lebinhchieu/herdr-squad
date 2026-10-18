@@ -116,7 +116,12 @@ def digest(data):
     top = max(tasks, key=lambda x: (x["returns"], [-ord(c) for c in x["id"]]), default=None)
     if top and top["returns"] >= RETURNS_FLAG:
         w = top["returns"] / total_returns
-        out.append(_item("most_returns", w, "Task %s came back %d times (%d returns in all)" % (top["id"], top["returns"], total_returns),
+        text = "Task %s came back %d times (%d returns in all)" % (top["id"], top["returns"], total_returns)
+        quotes = ['"%s"' % (r.get("reason") if r.get("reason") is not None else "not shared")
+                  for r in top.get("returns_list", []) if r.get("reason") != ""]
+        if quotes:
+            text += ": " + " / ".join(quotes)
+        out.append(_item("most_returns", w, text,
                          top["returns"], "count", "returns", top["id"]))
 
     att = t.get("attributed") or {}
