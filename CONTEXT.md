@@ -211,6 +211,28 @@ The option whose key the Manager's `--rec` text starts with, exactly one existin
 **Colour meaning**:
 In the inbox green = passed, recommended, delivered; red = blocks work, failed, error; amber = warning, waiting, not verified; dim = metadata. One meaning per colour on every screen, as theme keys (`success`, `error`, `warning`, dim), never RGB; structure is carried by weight and shape, and meaning is never by colour alone. `blocks X` is red while the work is still blocked (open, or answered and waiting) and dim once released (delivered, answered in chat, withdrawn, read).
 
+## Claude accounts
+
+**Account launcher**:
+One of the PO's shell commands that starts Claude Code on one of three Claude accounts: `c1`, `c2`, `c3`, `c` (the default account), plus `cswitch` and `cautoswitch` (bash only). Kept in `tools/claude-accounts/`; it is the PO's tooling, not a squad Role, and nothing in the plugin runs it.
+_Avoid_: account script, switcher
+
+**Global default**:
+The account `c` and a plain shell use when no Workspace default applies; the one-digit file `default` in `~/.claude-accounts`, set by `cdefault 1|2|3`. Anything that is not 1, 2 or 3 reads as 1.
+_Avoid_: default account (alone)
+
+**Workspace default**:
+The account a herdr workspace uses, kept as one file `workspace-default/<workspace id>` holding `1`, `2` or `3`. It wins over the Global default only inside herdr (`HERDR_ENV=1` and a valid id: `w` plus letters and digits). `c1`, `c2` and `c3` write it for the current workspace; `cdefault --ws [<id|panel number|label>] <1|2|3>` writes it for any workspace; files of workspaces herdr no longer lists are removed on the next write.
+_Avoid_: pane default, per-tab default
+
+**Account token**:
+The display-only mark `account=c<N>` the launchers report to herdr for a workspace, shown in the spaces panel. A failed report is ignored; it never changes what a launcher does.
+_Avoid_: badge, label
+
+**Account install**:
+`tools/claude-accounts/install.sh`, which the PO runs after merging: it makes `~/.claude-accounts` a real directory of per-file symlinks to the main checkout, links the skill folder, and leaves the state files (`default`, `workspace-default/`, `usage-*`, `cswitch.log`) alone.
+_Avoid_: setup, deploy
+
 ## Relationships
 
 - A **Squad** holds many **Scopes** and **Goals** over time, each with its own folder and fresh **Manager** (a **Goal** has one **goal Manager** for all its **Scopes**).
@@ -220,3 +242,4 @@ In the inbox green = passed, recommended, delivered; red = blocks work, failed, 
 - A **Home** belongs to one **Goal** or **Scope**.
 - An **Inbox** shows the open **Escalations** of its **Home** (answer items) and its own read items; the PO's answer is written into the escalation's Answer cell.
 - Rendering never drops or changes the Manager's or the PO's text: unknown markup shows as plain text and every word stays reachable.
+- An **Account launcher** starts Claude Code on one account; the **Workspace default**, inside herdr, else the **Global default**, decides which one `c` picks, and the launchers report an **Account token** for the workspace.
