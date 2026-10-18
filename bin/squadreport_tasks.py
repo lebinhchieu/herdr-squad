@@ -499,14 +499,12 @@ def _segments(pcs, w0, min_seg):
         for i, s in enumerate(segs):
             if s[1] - s[0] >= min_seg:
                 continue
-            # absorb only into a contiguous neighbour (never across a hole such as a respawn gap) and never
-            # into a blocking segment, so display blocking never exceeds the real blocking seconds
-            if i > 0 and segs[i - 1][1] == s[0] and (segs[i - 1][2] != "b" or s[2] == "b"):
+            # a short segment joins a contiguous neighbour of the SAME bucket; otherwise it is dropped (display
+            # only: its seconds are missing from the drawing, never given to another bucket or stretched over a hole)
+            if i > 0 and segs[i - 1][1] == s[0] and segs[i - 1][2] == s[2]:
                 segs[i - 1][1] = s[1]
-            elif i + 1 < len(segs) and segs[i + 1][0] == s[1] and (segs[i + 1][2] != "b" or s[2] == "b"):
+            elif i + 1 < len(segs) and segs[i + 1][0] == s[1] and segs[i + 1][2] == s[2]:
                 segs[i + 1][0] = s[0]
-            else:
-                continue
             del segs[i]
             changed = True
             break

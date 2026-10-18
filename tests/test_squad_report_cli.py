@@ -262,8 +262,17 @@ class FieldShape(Base):
     def test_digest_figures_reconcile_with_bucket_totals(self):
         d = self.build()
         blocking = {r["name"]: r["buckets_s"]["blocking"] for r in d["roles"]}
+        roles = {r["name"]: r["buckets_s"] for r in d["roles"]}
+        min_seg = d["config"]["min_segment_s"]
         for a in d["agents"]:
-            self.assertLessEqual(sum(s[1] - s[0] for s in a["segments"] if s[2] == "b"), blocking[a["name"]], a["name"])
+            for bk, code in (("working", "w"), ("waiting", "a"), ("blocking", "b"), ("idle", "i")):
+                got = sum(s[1] - s[0] for s in a["segments"] if s[2] == code)
+                diff = roles[a["name"]][bk] - got
+                self.assertGreaterEqual(diff, 0, (a["name"], bk))  # segments never exceed the bucket
+                # the shortfall is only dropped short segments: each dropped one is < min_seg
+                self.assertLess(diff, min_seg * 1000)
+            for s1, s2 in zip(a["segments"], a["segments"][1:]):
+                self.assertLessEqual(s1[1], s2[0])
         for x in d["digest"]:
             if x["kind"] == "longest_block":
                 self.assertLessEqual(x["value"], blocking[x["target"]["id"]])
