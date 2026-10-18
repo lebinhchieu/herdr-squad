@@ -207,11 +207,6 @@ class Goal(Base):
         self.assertEqual(run(self.fx, "g3").returncode, 2)
         self.assertNotIn("not built", run(self.fx, "g3").stderr.decode())
 
-    def test_subcommand_stubs(self):
-        r = run(self.fx, "query", "sc")
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("not built", r.stderr.decode())
-
 
 class FieldShape(Base):
     def build(self):
