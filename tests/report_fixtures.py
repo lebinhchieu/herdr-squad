@@ -129,3 +129,20 @@ class Fixture:
     def snapshot(self):
         """Bytes of every file in the scope home and the claude dir, to prove a run is read-only."""
         return {str(p): p.read_bytes() for d in (self.home, self.claude) for p in sorted(d.rglob("*")) if p.is_file()}
+
+
+# ---- ticket 03: tasks scope (appended block) ----
+def tasks_scope(fx):
+    """dev and qa on tickets 07 (2 FAILs, one copied to a 3rd role) and 08; an overhead turn; one unanswered escalation."""
+    fx.session("dev", [[asst(0, usage={"input_tokens": 1000}), tool_result(100), asst(200), peer(1000, "x"),
+                        asst(1100), asst(1700), peer(2100, "x"), asst(2200)]], role="developer")
+    fx.session("qa", [[asst(0), peer(900, "x"), asst(1000), peer(1900, "x"), asst(2000)]], role="qa-whitebox")
+    fx.messages([
+        (50, "tl", "dev", "ASSIGN 07 go"),
+        (900, "dev", "qa", "HANDIN 07 branch a"),
+        (1500, "qa", "dev", "FAIL 07: one   blocking\n finding"),
+        (1503, "qa", "tl", "FAIL 07: one   blocking\n finding"),
+        (1800, "dev", "qa", "HANDIN 07 again"),
+        (2000, "qa", "dev", "PASS 07"),
+    ])
+    fx.inbox([("E1", "Which way", 300, 600), ("E2", "Open one", 2000, None)])

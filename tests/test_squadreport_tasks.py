@@ -6,7 +6,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin"))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, "..", "bin"))
 import squadreport as sr  # noqa: E402
 import squadreport_tasks as st  # noqa: E402
 
@@ -206,3 +208,23 @@ class TasksTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CollectedScopeTest(unittest.TestCase):
+    def test_fill_on_fixture_scope(self):
+        import report_fixtures as rf
+        from unittest import mock
+        fx = rf.Fixture()
+        self.addCleanup(fx.close)
+        rf.tasks_scope(fx)
+        with mock.patch.dict(os.environ, fx.env()):
+            c = sr.collect(fx.home, fx.squad, rf.PLUGIN_ROOT, final=True)
+        d = sr.base_data(c)
+        st.fill(d, c)
+        t = {x["id"]: x for x in d["tasks"]}["07"]
+        self.assertEqual((t["returns"], t["rework_s"], t["cycle_s"], t["status"]), (1, 300, 1950, "passed"))
+        self.assertEqual(d["totals"]["po_wait"]["count"], 2)
+        self.assertEqual(d["totals"]["po_wait"]["items"][1]["answered_at"], None)
+        self.assertAlmostEqual(sum(m["cost_usd"] for m in d["matrix"]), d["totals"]["cost_usd"], places=3)
+        self.assertEqual(sum(m["time_s"] for m in d["matrix"]), d["totals"]["agent_s"])
+        json.dumps(d, sort_keys=True)

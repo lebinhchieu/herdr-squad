@@ -253,6 +253,8 @@ def fill(data, c, redact=False):
     cfg = c.cfg or {}
     min_seg = int(cfg.get("min_segment_s", data.get("config", {}).get("min_segment_s", MIN_SEGMENT_DEFAULT)))
     w0, w1 = c.window
+    if w0 is None:
+        w0 = w1 = 0
     msgs_all = list(c.msgs)
     res = _Resolver(c, msgs_all)
     ctx = _Ctx(c, res)
