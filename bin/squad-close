@@ -161,7 +161,7 @@ retire() {
 
 # The report is built before anything is retired or moved; a failure only warns and never changes the close.
 if [[ $dry == 0 && ( $mode == scope || $mode == goal ) ]]; then
-  python3 "$bin/squad-report" "${scope:-$goal}" --final --quiet --deadline 60 >/dev/null || echo "warning: report not generated (squad-report exited $?)" >&2
+  python3 "$bin/squad-report" "${scope:-$goal}" --squad "$squad_dir" --final --quiet --deadline 60 >/dev/null || echo "warning: report not generated (squad-report exited $?)" >&2
 fi
 
 echo "== agents"

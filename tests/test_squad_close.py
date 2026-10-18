@@ -508,7 +508,7 @@ class ReportHookTest(unittest.TestCase):
 
     REC = ("#!/usr/bin/env python3\n"
            "import os, sys\n"
-           "d = os.environ['SQUAD_DIR']\n"
+           "d = sys.argv[sys.argv.index('--squad') + 1]\n"
            "open(os.environ['CALLS'], 'a').write(' '.join(sys.argv[1:]) + '|' + str(os.path.isdir(d + '/scopes/sc1')) + '|' + "
            "str(os.path.isdir(d + '/goals/g1')) + '|' + str(os.path.exists(os.environ['HERDR_LOG'])) + '\\n')\n")
 
@@ -523,6 +523,7 @@ class ReportHookTest(unittest.TestCase):
         (lone / "squad-report").write_text(body, encoding="utf-8")
         self.calls = self.root / "report.calls"
         self.env["CALLS"] = str(self.calls)
+        self.env.pop("SQUAD_DIR", None)  # squad-close finds the folder itself; the report must still get it
         return lone
 
     def run_close(self, lone, *args):
@@ -532,7 +533,7 @@ class ReportHookTest(unittest.TestCase):
     def test_scope_close_builds_the_report_first_with_the_deadline(self):
         r = self.run_close(self.stub_bin(self.REC), "--scope", "sc1")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.calls.read_text(encoding="utf-8").splitlines(), ["sc1 --final --quiet --deadline 60|True|True|False"])
+        self.assertEqual(self.calls.read_text(encoding="utf-8").splitlines(), ["sc1 --squad %s --final --quiet --deadline 60|True|True|False" % self.squad.resolve()])
         self.assertTrue((self.squad / "scopes/_done/sc1").exists())
         self.assertNotIn("warning", r.stderr)
 
@@ -542,7 +543,7 @@ class ReportHookTest(unittest.TestCase):
             (self.squad / "scopes" / s).rename(self.squad / "scopes" / "_done" / s)
         r = self.run_close(self.stub_bin(self.REC), "--goal", "g1")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.calls.read_text(encoding="utf-8").splitlines(), ["g1 --final --quiet --deadline 60|True|True|False"])
+        self.assertEqual(self.calls.read_text(encoding="utf-8").splitlines(), ["g1 --squad %s --final --quiet --deadline 60|True|True|False" % self.squad.resolve()])
         self.assertTrue((self.squad / "goals/_done/g1").exists())
 
     def test_failing_or_noisy_report_warns_once_and_changes_nothing_else(self):
