@@ -139,6 +139,14 @@ class Messages(Base):
         self.assertEqual([(x.ts - T0, x.type, x.token) for x in m],
                          [(0, "HANDIN", "02"), (5, "HANDIN", "03"), (6, "", ""), (130, "HANDIN", "02")])
 
+    def test_iteration_read(self):
+        self.fx.messages([(0, "a", "b", "ASSIGN 02 x"), (5, "a", "b", "ASSIGN 03 y")])
+        f = self.fx.home / "messages.jsonl"
+        rows = [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines()]
+        rows[0]["iteration"] = 2
+        f.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        self.assertEqual([x.iteration for x in sr.read_messages(f)], [2, None])
+
     def test_escalations_seen_to_answer(self):
         self.fx.inbox([("E1", "one", 10, 40), ("E2", "two", 50, None)])
         e = sr.read_escalations(self.fx.home / "inbox.jsonl")
