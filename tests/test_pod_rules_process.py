@@ -59,7 +59,7 @@ class PodRulesTest(unittest.TestCase):
         line = row(T, "- **Team Lead to Manager (M, L):**")
         self.assertIn("a plan or assignment dispute it is itself a party to (the parties send every other dispute to the Manager themselves)", line)
         self.assertNotIn("cannot settle", line)
-        h = ROOT / "skills/squad-process-update/history/process-v5.md"
+        h = ROOT / "skills/squad-process-update/history/process-v6.md"
         self.assertEqual(h.read_text(), T)
 
 
