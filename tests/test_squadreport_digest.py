@@ -106,6 +106,15 @@ class Digest(unittest.TestCase):
         self.assertIsNotNone(m)
         self.assertEqual(set(m.group(1).split("|")), set(dg.MESSAGE_TYPES))
 
+    def test_po_wait_singular(self):
+        d = data(tasks=[task("07", 6.0)])
+        d["totals"]["po_wait"] = {"total_s": 100, "count": 1, "pct_of_elapsed": 20.0}
+        t = [i["text"] for i in dg.digest(d) if i["kind"] == "po_wait"][0]
+        self.assertIn("over 1 escalation (", t)
+        d["totals"]["po_wait"]["count"] = 2
+        t = [i["text"] for i in dg.digest(d) if i["kind"] == "po_wait"][0]
+        self.assertIn("over 2 escalations (", t)
+
 
 if __name__ == "__main__":
     unittest.main()

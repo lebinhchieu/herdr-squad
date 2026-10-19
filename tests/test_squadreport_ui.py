@@ -70,6 +70,16 @@ class OverviewCss(unittest.TestCase):
         self.assertIn("minmax(min(340px,100%),1fr)", rule(".two"))
         self.assertIn("flex-wrap:wrap", rule(".legend"))
 
+    def test_section_h2_16px(self):
+        self.assertIn("section h2{margin:8px 0;font-size:16px}", CSS)
+
+    def test_digest_card_rules_merged(self):
+        self.assertEqual(len(re.findall(r"\.digest button,\.digest>li>div\{", CSS)), 1)
+        self.assertIn("display:flex", rule(".digest button,.digest>li>div"))
+
+    def test_escalation_singular_in_js(self):
+        self.assertIn('" escalation" + (po.count === 1 ? "" : "s")', JS)
+
 
 @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser DOM test skipped")
 class OverviewDom(unittest.TestCase):

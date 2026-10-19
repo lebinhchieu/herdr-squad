@@ -108,7 +108,7 @@ def digest(data):
     po = t.get("po_wait") or {}
     if po.get("total_s", 0) > 0 and wall > 0:
         w = po["pct_of_elapsed"] / 100.0
-        out.append(_item("po_wait", w, "PO wait %s over %d escalations (%s%% of elapsed)" % (fmt_dur(po["total_s"]), po["count"], po["pct_of_elapsed"]),
+        out.append(_item("po_wait", w, "PO wait %s over %d escalation%s (%s%% of elapsed)" % (fmt_dur(po["total_s"]), po["count"], "" if po["count"] == 1 else "s", po["pct_of_elapsed"]),
                          po["total_s"], "s", "waits", "po"))
 
     waits = [x["wait_s"] for k in tasks for x in k["review_waits"]]

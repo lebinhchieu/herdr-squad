@@ -163,7 +163,7 @@ function overview() {
     add(c1, el("div", "sub", roles.length + " agents · bars are shares of agent-time"));
   }
   var po = T.po_wait || { count: 0, total_s: 0, longest_s: 0 }, open = (po.items || []).some(function (i) { return !i.answered_at; });
-  var c2 = card("PO wait · elapsed (derived)", nd ? "–" : dur(po.total_s), nd ? "no data" : po.count + " escalations · longest " + dur(po.longest_s) + (open ? " (open now)" : "") + " · " + (po.pct_of_elapsed || 0) + "% of elapsed · not agent cost");
+  var c2 = card("PO wait · elapsed (derived)", nd ? "–" : dur(po.total_s), nd ? "no data" : po.count + " escalation" + (po.count === 1 ? "" : "s") + " · longest " + dur(po.longest_s) + (open ? " (open now)" : "") + " · " + (po.pct_of_elapsed || 0) + "% of elapsed · not agent cost");
   var c3 = card("Estimated cost · list price", nd ? "–" : usd(T.cost_usd), nd ? "no data" : usd(T.cost_per_passed_task_usd) + " per passed task (" + (T.tasks_passed || 0) + " passed) · estimated, list price");
   if (!nd && T.cost_reported_usd !== null && T.cost_reported_usd !== undefined)
     add(c3, el("div", "sub", "Claude Code reported " + usd(T.cost_reported_usd) + (T.cost_delta_pct !== null && T.cost_delta_pct !== undefined ? " (estimate off by " + Math.abs(T.cost_delta_pct) + "%)" : "")));
