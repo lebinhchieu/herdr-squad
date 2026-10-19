@@ -68,7 +68,7 @@ tbody tr{cursor:pointer}tbody tr:hover{background:#E8820E12}tbody tr.sel{backgro
 tr.over td{color:var(--muted)}tr.flag{box-shadow:inset 3px 0 var(--block)}
 td .chip{margin-left:0}td b+.chip{margin-left:6px}
 td.ell{max-width:280px;overflow:hidden;text-overflow:ellipsis}
-td .tb{display:inline-flex;align-items:center;gap:8px}td .bar{width:130px;display:inline-flex;vertical-align:middle;margin:0}td .tb .d{min-width:48px;text-align:right}
+td .tb{display:inline-flex;align-items:center;gap:8px}td .bar{width:90px;display:inline-flex;vertical-align:middle;margin:0}td .tb .d{min-width:48px;text-align:right}
 .pill{display:inline-block;min-width:22px;text-align:center;border-radius:11px;padding:0 7px;font-weight:700;background:var(--border);color:var(--muted)}
 .pill.m{background:#E8820E22;color:var(--mangotxt)}.pill.r{background:var(--block);color:#fff}
 tfoot td{font-weight:700;background:var(--panel);cursor:default}
@@ -110,3 +110,5 @@ code{background:var(--panel);padding:1px 5px;border-radius:4px;font-size:12.5px}
 .hidden{display:none!important}
 @media(max-width:700px){.errbox{margin:30px 12px}}
 @media print{nav.sections,.drawer,.tools{display:none!important}.frame{max-height:none;overflow:visible}}
+
+#tasks th{white-space:normal;line-height:1.2;vertical-align:bottom}
