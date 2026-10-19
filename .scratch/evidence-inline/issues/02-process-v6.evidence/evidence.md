@@ -1,5 +1,5 @@
 # Evidence: 02 process v6, evidence next to the ticket
-sha: e816f431b2771dcb3be98d299b8523a12e6419a2
+sha: 53501538c89dc74b9dbdd15b36c35b4545bd41a3
 
 ## Behaviour
 
@@ -113,7 +113,7 @@ Sections:
 The three v6 items list sections that are `clean` (preamble, Files table, Task lifecycle, Safety).
 
 ### Return 1 (F1): Sizes rows
-Changed both `dev-evidence.md` in the Sizes table to `evidence.md`, re-copied the v6 snapshot (`cmp` clean), added changelog item for `## Sizes: not every scope runs the full pod`. Re-ran the same checks: 149 OK, `processlint` exit 0. `grep -c dev-evidence templates/squad/process.md` → 0. Plan on the v5 copy:
+Changed both `dev-evidence.md` in the Sizes table to `evidence.md`, re-copied the v6 snapshot (`cmp` clean), added a changelog item. The table sits under the `###` subsection, so the item names `### When a role is left out, its duties move. They are never dropped.` (the `## Sizes` heading alone showed `already`, not `clean`). Re-ran: 149 OK, `processlint` exit 0, `grep -c dev-evidence templates/squad/process.md` → 0. Plan on the v5 copy, no conflict:
 ```
 process.md is version 5; the plugin's is 6. Nothing is written until you confirm.
 
@@ -121,7 +121,7 @@ Changelog items:
 - v6 Files table: evidence next to the ticket [## Files are the truth, messages are the talk] rule: PO wants evidence next to each ticket with screenshots shown in the markdown
 - v6 Evidence rules in the task lifecycle [## Task lifecycle] rule: PO wants evidence next to each ticket with screenshots shown in the markdown
 - v6 Merge accepts the evidence sha; receipts stay in the scope folder [## Safety] rule: PO wants evidence next to each ticket with screenshots shown in the markdown
-- v6 Sizes rows name `evidence.md` [## Sizes: not every scope runs the full pod] rule: PO wants evidence next to each ticket with screenshots shown in the markdown
+- v6 Sizes rows name `evidence.md` [### When a role is left out, its duties move. They are never dropped.] rule: PO wants evidence next to each ticket with screenshots shown in the markdown
 
 Sections:
   clean         # How this squad works
