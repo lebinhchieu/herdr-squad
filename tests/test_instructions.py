@@ -183,5 +183,31 @@ class SectionViewTest(unittest.TestCase):
         self.assertIn("both QAs", after[0])
 
 
+    def test_dev_writes_evidence_md_with_inline_screenshots_and_assembles_it(self):
+        dev = (ROOT / "agents/dev.md").read_text()
+        for needle in ("evidence.md", "img/", "squad-evidence add", "squad-evidence check", "evidence sha"):
+            self.assertIn(needle, dev)
+
+    def test_tech_lead_checks_evidence_md_and_the_evidence_sha(self):
+        tl = (ROOT / "agents/tech-lead.md").read_text()
+        self.assertIn("squad-evidence check", tl)
+        self.assertIn("--base", tl)
+        self.assertIn("evidence.md", tl)
+
+    def test_qas_write_findings_to_scope_evidence_and_embed_screenshots(self):
+        for name in ("qa-whitebox", "qa-blackbox"):
+            text = (ROOT / f"agents/{name}.md").read_text()
+            self.assertIn("$SCOPE_DIR/evidence/", text, name)
+            self.assertIn("![alt](path)", text, name)
+
+    def test_manager_and_team_lead_link_each_tickets_evidence_md(self):
+        for name in ("manager", "team-lead"):
+            self.assertIn("evidence.md", (ROOT / f"agents/{name}.md").read_text(), name)
+
+    def test_no_role_file_still_says_dev_evidence(self):
+        for f in AGENTS:
+            self.assertNotIn("dev-evidence", f.read_text(), f.name)
+
+
 if __name__ == "__main__":
     unittest.main()
