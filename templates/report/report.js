@@ -39,9 +39,9 @@ function bar(vals, keys, cls, total) {
   return b;
 }
 function sw(cls, text) { var s = el("span"); add(s, el("i", "sw " + cls), document.createTextNode(text)); return s; }
-function legend(extra) {
+function legend(extra, durs) {
   var l = el("div", "legend");
-  BK.forEach(function (k) { add(l, sw("b-" + k, BN[k])); });
+  BK.forEach(function (k) { add(l, sw("b-" + k, durs ? k.charAt(0).toUpperCase() + k.slice(1) + " " + dur(durs[k]) : BN[k])); });
   if (extra) add(l, sw("b-po", "Blocking on the PO (timeline)"));
   return l;
 }
@@ -140,13 +140,13 @@ function overview() {
   var k = el("div", "kpis");
   var par = T.wall_s ? (T.agent_s / T.wall_s) : 0;
   var nd = !hasData;
-  var c1 = card("Elapsed · derived", nd ? "–" : dur(T.wall_s), nd ? "no data" : "agent-time " + dur(T.agent_s) + " (derived) · parallelism ×" + par.toFixed(1) + " · " + roles.length + " agents");
+  var c1 = card("Elapsed · derived", nd ? "–" : dur(T.wall_s), nd ? "no data" : "agent-time " + dur(T.agent_s) + " (derived) · parallelism ×" + par.toFixed(1) + "");
   if (!nd) {
-    add(c1, bar(T.buckets_s, BK, function (b) { return "b-" + b; }), legend(false));
+    add(c1, bar(T.buckets_s, BK, function (b) { return "b-" + b; }), legend(false, T.buckets_s || {}));
     var l = el("div", "sub");
     l.textContent = "Idle: waiting for work " + dur((T.idle_s || {}).peer) + " · waiting for your chat reply " + dur((T.idle_s || {}).human_input) + " (not PO wait)";
     add(c1, l);
-    BK.forEach(function (b) { add(c1, el("div", "sub", b + " " + dur((T.buckets_s || {})[b]))); });
+    add(c1, el("div", "sub", roles.length + " agents · bars are shares of agent-time"));
   }
   var po = T.po_wait || { count: 0, total_s: 0, longest_s: 0 }, open = (po.items || []).some(function (i) { return !i.answered_at; });
   var c2 = card("PO wait · elapsed (derived)", nd ? "–" : dur(po.total_s), nd ? "no data" : po.count + " escalations · longest " + dur(po.longest_s) + (open ? " (open now)" : "") + " · " + (po.pct_of_elapsed || 0) + "% of elapsed · not agent cost");
@@ -171,14 +171,17 @@ function overview() {
   (D.digest || []).slice(0, 8).forEach(function (d, i) {
     var li = el("li"), inner;
     if (d.target) { inner = el("button"); inner.addEventListener("click", function () { go(d.target); }); } else inner = el("div");
-    add(inner, el("span", "n", i + 1), el("span", null, d.text || ""));
-    if (d.target && d.target.id) add(inner, el("div", "sub muted", d.target.view + " " + d.target.id));
+    var tx = d.text || "", q = tx.indexOf(': "'), sb = q >= 0 ? tx.slice(q + 2) : (d.target && d.target.id ? d.target.view + " " + d.target.id : "");
+    if (q >= 0) tx = tx.slice(0, q);
+    var t = el("span", "t", tx);
+    if (sb) add(t, el("small", null, sb));
+    add(inner, el("span", "n", i + 1), t);
     add(li, inner); ul.appendChild(li);
   });
   if (!(D.digest || []).length) add(ul, el("li", "nodata", "Nothing stands out yet."));
   add(s, ul);
 
-  var cols = el("div", "cols");
+  var cols = el("div", "two");
   var lb = el("div"); add(lb, el("h2", null, "Longest blocks"));
   var blocks = longestBlocks();
   if (!blocks.length) add(lb, el("div", "nodata", "No blocks yet."));

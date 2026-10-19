@@ -54,6 +54,36 @@ class ShellCss(unittest.TestCase):
         self.assertIn("@media(max-width:760px){main,header.page{padding-left:12px;padding-right:12px}", CSS)
 
 
+class OverviewCss(unittest.TestCase):
+    def test_grids(self):
+        self.assertIn("minmax(min(360px,100%),1fr)", rule(".kpis"))
+        self.assertIn("minmax(min(250px,100%),1fr)", rule(".digest"))
+        self.assertIn("minmax(min(340px,100%),1fr)", rule(".two"))
+        self.assertIn("flex-wrap:wrap", rule(".legend"))
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser DOM test skipped")
+class OverviewDom(unittest.TestCase):
+    def test_kpis_digest_blocks_no_banner(self):
+        d = fxs.base()
+        d["digest"] = [{"id": "k%d" % i, "kind": "k", "weight": 1, "text": "Item %d" % i, "value": 1, "unit": "x",
+                        "target": {"view": "tasks", "id": "07"} if i % 2 else None} for i in range(8)]
+        dom = dump_dom(d)
+        sec = dom[dom.index('id="overview"'):]
+        self.assertEqual(len(re.findall(r'<div class="card[ "]', sec[:sec.index('class="digest"')])), 6)
+        self.assertEqual(len(re.findall(r"<li>", sec[sec.index('class="digest"'):sec.index('class="two"')])), 8)
+        self.assertIn('class="two"', dom)
+        self.assertIn("Longest blocks", dom)
+        self.assertIn("By iteration", dom)
+
+    def test_reason_sub_line(self):
+        d = fxs.base()
+        d["digest"] = [{"id": "m", "kind": "most_returns", "weight": 1, "text": 'Task 07 came back 3 times (3 returns in all): "tests missing"',
+                        "value": 3, "unit": "count", "target": {"view": "returns", "id": "07"}}]
+        dom = dump_dom(d)
+        self.assertIn("<small>\"tests missing\"</small>", dom)
+
+
 @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser DOM test skipped")
 class ShellDom(unittest.TestCase):
     def test_header_pills_and_rollup_link(self):

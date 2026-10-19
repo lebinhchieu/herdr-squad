@@ -27,6 +27,13 @@ def _item(kind, weight, text, value, unit, view, tid):
             "value": value, "unit": unit, "target": {"view": view, "id": tid}}
 
 
+REASON_CAP = 120
+
+
+def _cap(s):
+    return s if len(s) <= REASON_CAP else s[:REASON_CAP] + "\u2026"
+
+
 def _median(xs):
     xs = sorted(xs)
     n = len(xs)
@@ -117,7 +124,7 @@ def digest(data):
     if top and top["returns"] >= RETURNS_FLAG:
         w = top["returns"] / total_returns
         text = "Task %s came back %d times (%d returns in all)" % (top["id"], top["returns"], total_returns)
-        quotes = ['"%s"' % (r.get("reason") if r.get("reason") is not None else "not shared")
+        quotes = ['"%s"' % (_cap(r["reason"]) if r.get("reason") is not None else "not shared")
                   for r in top.get("returns_list", []) if r.get("reason") != ""]
         if quotes:
             text += ": " + " / ".join(quotes)

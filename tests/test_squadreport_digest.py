@@ -62,6 +62,17 @@ class Digest(unittest.TestCase):
                          '"one blocking finding" / "tests missing" / "not shared"')
         self.assertEqual(set(by["most_returns"]), ITEM_KEYS)
 
+    def _quote(self, reason):
+        t = task("07", 6.0, returns=3)
+        t["returns_list"] = [{"reason": reason}]
+        return {i["kind"]: i for i in dg.digest(data(tasks=[t]))}["most_returns"]["text"].split(": ", 1)[1]
+
+    def test_reason_cap_120(self):
+        self.assertEqual(self._quote("x" * 120), '"%s"' % ("x" * 120))
+        self.assertEqual(self._quote("x" * 121), '"%s\u2026"' % ("x" * 120))
+        self.assertEqual(self._quote("é😀" * 61), '"%s\u2026"' % ("é😀" * 60))
+        self.assertEqual(self._quote("short"), '"short"')
+
     def test_attribution_low_only_below_60(self):
         d = data()
         self.assertNotIn("attribution_low", [i["kind"] for i in dg.digest(d)])
