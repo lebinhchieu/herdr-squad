@@ -27,6 +27,13 @@ def _item(kind, weight, text, value, unit, view, tid):
             "value": value, "unit": unit, "target": {"view": view, "id": tid}}
 
 
+REASON_CAP = 120
+
+
+def _cap(s):
+    return s if len(s) <= REASON_CAP else s[:REASON_CAP] + "\u2026"
+
+
 def _median(xs):
     xs = sorted(xs)
     n = len(xs)
@@ -101,7 +108,7 @@ def digest(data):
     po = t.get("po_wait") or {}
     if po.get("total_s", 0) > 0 and wall > 0:
         w = po["pct_of_elapsed"] / 100.0
-        out.append(_item("po_wait", w, "PO wait %s over %d escalations (%s%% of elapsed)" % (fmt_dur(po["total_s"]), po["count"], po["pct_of_elapsed"]),
+        out.append(_item("po_wait", w, "PO wait %s over %d escalation%s (%s%% of elapsed)" % (fmt_dur(po["total_s"]), po["count"], "" if po["count"] == 1 else "s", po["pct_of_elapsed"]),
                          po["total_s"], "s", "waits", "po"))
 
     waits = [x["wait_s"] for k in tasks for x in k["review_waits"]]
@@ -117,10 +124,10 @@ def digest(data):
     if top and top["returns"] >= RETURNS_FLAG:
         w = top["returns"] / total_returns
         text = "Task %s came back %d times (%d returns in all)" % (top["id"], top["returns"], total_returns)
-        quotes = ['"%s"' % (r.get("reason") if r.get("reason") is not None else "not shared")
+        quotes = ['"%s"' % (_cap(r["reason"]) if r.get("reason") is not None else "not shared")
                   for r in top.get("returns_list", []) if r.get("reason") != ""]
         if quotes:
-            text += ": " + " / ".join(quotes)
+            text += ": " + quotes[0] + (" (+%d more)" % (len(quotes) - 1) if len(quotes) > 1 else "")
         out.append(_item("most_returns", w, text,
                          top["returns"], "count", "returns", top["id"]))
 

@@ -55,6 +55,61 @@ class Base(unittest.TestCase):
         return d["totals"]["buckets_s"]
 
 
+class DuplicateRoster(Base):
+    def _two_rows(self, session_first):
+        recs = [peer(0), asst(10), tool_result(25), system(30)]
+        if session_first:
+            self.fx.session("dev-x", [recs])
+            self.fx.session("dev-x", [], role="ticket 13", transcript=False)
+        else:
+            self.fx.session("dev-x", [], role="ticket 13", transcript=False)
+            self.fx.session("dev-x", [recs])
+        # make the empty row unable to find the transcript by agent name
+        return self.data()
+
+    def test_session_row_first(self):
+        d = self._two_rows(True)
+        self.assertNotIn("no_transcript:dev-x", d["scope"]["partial_reasons"])
+        self.assertEqual(len(d["roles"]), 1)
+        self.assertTrue(all(r["transcript_found"] for r in d["roles"]))
+
+    def test_session_row_second(self):
+        d = self._two_rows(False)
+        self.assertNotIn("no_transcript:dev-x", d["scope"]["partial_reasons"])
+        self.assertTrue(all(r["transcript_found"] for r in d["roles"]))
+        self.assertEqual(d["sources"]["agents_total"], 1)
+
+    def test_no_transcript_anywhere_still_flagged(self):
+        self.fx.session("dev-y", [], transcript=False)
+        self.fx.session("dev-y", [], transcript=False)
+        d = self.data()
+        self.assertEqual(d["scope"]["partial_reasons"].count("no_transcript:dev-y"), 1)
+
+
+class RealDataShape(unittest.TestCase):
+    """AC16: read-only build of two real scopes (skipped when this squad's scopes are not on the machine)."""
+    KEYS = {"id", "returns", "flag", "rework_s", "rework_cost_usd"}
+
+    def shape(self, home):
+        import squadreport_build as build
+        home = Path(home)
+        if not (home / "roster.md").exists():
+            self.skipTest("no real scope at %s" % home)
+        d = build.build(home, home.parent.parent if home.parent.name != "_done" else home.parent.parent.parent, plugin_root=PLUGIN_ROOT)
+        self.assertTrue(d["tasks"])
+        for t in d["tasks"]:
+            self.assertTrue(self.KEYS <= set(t), t.get("id"))
+
+    def squad(self):
+        return Path(os.environ.get("SQUAD_DIR", "/nonexistent"))
+
+    def test_done_scope(self):
+        self.shape(self.squad() / "scopes" / "_done" / "squad-report")
+
+    def test_running_scope(self):
+        self.shape(self.squad() / "scopes" / "report-ui-fix")
+
+
 class TimeModel(Base):
     def test_working(self):
         d = self.one([peer(0), asst(10), tool_result(25), system(30)])
@@ -268,6 +323,51 @@ class Config(Base):
         c = sr.load_config(PLUGIN_ROOT, self.fx.squad)
         self.assertEqual(c["stall_s"], 300)
         self.assertEqual(set(c["prices"]), {"model-a", "default"})
+
+
+class GoalLink(Base):
+    def setgoal(self, goal, rollup=None):
+        (self.fx.home / "scope.md").write_text("# Scope: sc\n\nsize: M\ngoal: %s\n" % goal, encoding="utf-8")
+        if rollup:
+            f = self.fx.squad / rollup / "report" / "report.html"
+            f.parent.mkdir(parents=True)
+            f.write_text("x", encoding="utf-8")
+        self.fx.session("dev1", [[asst(0), asst(10)]])
+        return self.data()["scope"]
+
+    def test_no_goal(self):
+        s = self.setgoal("")
+        self.assertIsNone(s["goal"])
+        self.assertIsNone(s["rollup_href"])
+
+    def test_goal_with_rollup(self):
+        s = self.setgoal("g1", "goals/g1")
+        self.assertEqual((s["goal"], s["rollup_href"]), ("g1", "../../../goals/g1/report/report.html"))
+        self.assertTrue((self.fx.home / "report" / s["rollup_href"]).resolve().is_file())
+
+    def test_goal_rollup_in_done(self):
+        s = self.setgoal("g1", "goals/_done/g1")
+        self.assertEqual(s["rollup_href"], "../../../goals/_done/g1/report/report.html")
+
+    def test_goal_without_rollup_file(self):
+        s = self.setgoal("g1")
+        self.assertEqual((s["goal"], s["rollup_href"]), ("g1", None))
+
+    def test_done_scope_href(self):
+        fx = Fixture(done=True)
+        self.addCleanup(fx.close)
+        (fx.home / "scope.md").write_text("size: M\ngoal: g1\n", encoding="utf-8")
+        f = fx.squad / "goals" / "g1" / "report" / "report.html"
+        f.parent.mkdir(parents=True)
+        f.write_text("x", encoding="utf-8")
+        fx.session("dev1", [[asst(0), asst(10)]])
+        s = sr.base_data(self.run_collect(fx=fx))["scope"]
+        self.assertEqual(s["rollup_href"], "../../../../goals/g1/report/report.html")
+
+    def test_bad_goal_names_rejected(self):
+        for bad in ("../x", ".hidden", "a..b", "a\\b"):
+            s = self.setgoal(bad)
+            self.assertEqual((s["goal"], s["rollup_href"]), (None, None), bad)
 
 
 if __name__ == "__main__":

@@ -255,6 +255,14 @@ A task's HANDIN to its PASS/FAIL verdict.
 One FAIL message (label "returns (FAIL messages)": the Manager's own count can differ by one when a return came in another wording).
 **Rework**:
 FAIL to the task's next HANDIN (time and cost).
+**Returns banner**:
+The 3-return banner (`N task(s) reached 3 or more returns (Task 04: 3) of T in all`) counts tasks at 3 or more returns and gives each task's own count; the Returns KPI (T) counts all FAIL messages; every place showing a task's returns shows the same number.
+**Closed scope**:
+Never shows "still running"/partial, and never "no transcript" for an agent whose transcript exists; only agents with really no transcript are named.
+**Worth-a-look reason**:
+A return reason cut at 120 characters plus "…"; the full reason (≤ 200) is in the task drawer.
+**Design check**:
+The report is checked against the design mock per screen and state at 1440, 700 and 400 px: layout, copy, order and colour tokens, not pixel diff.
 **Returned reason**:
 The headline of the FAIL message (first line, cut to 200 characters), who returned it, and the pointer to the task's QA evidence file where the full findings are. Not classified (no LLM).
 **`data.json`**:

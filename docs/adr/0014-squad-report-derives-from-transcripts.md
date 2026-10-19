@@ -20,3 +20,11 @@ Status: accepted (squad-report)
 - Browser check of `report.html`: `playwright-cli` blocks `file:`; serve the folder with `python3 -m http.server` on 127.0.0.1.
 
 **Alternative rejected:** counting a gap as working when <= 5 min; a new activity hook (ADR 0009 removed the stream); CSV; TOML config (no `tomllib` on the Python floor).
+
+## Addendum (report-ui-fix)
+
+- `data.json` v1 gains additive `scope.goal` and `scope.rollup_href` (relative path to the goal's rollup report.html, null when no goal or the file is missing). schema_version stays 1.
+- Roster rows with the same agent name are folded into one agent; a row with a session wins over an empty one.
+- The scope banner "partial" shows only when `scope.status == "running"`; other `partial_reasons` have their own banners.
+- Layout and DOM of report.html are tested with headless Chrome `--dump-dom` (skipped without Chrome) plus CSS-string asserts; pixel comparison is QA screenshots against the mock, not in the suite.
+- `scope.goal` is validated (no `/`, `\`, `..`, leading `.`); `rollup_href` shown only when the rollup report exists at build time; stale until the scope is rebuilt.
