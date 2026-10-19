@@ -95,7 +95,7 @@ The PO's teammates run their own squads and send `data.json`; the PO rolls them 
 
 **S9. A chosen older scope, on demand (Q19: no backfill).**
 - AC9.1 Given an existing scope, live or in `_done`, whose transcripts still exist, when `squad-report <scope>` runs, then its `data.json` and `report.html` are built in that scope's folder (`report/`), whatever its state; no other scope is touched. There is no `--all`.
-- AC9.2 Given a closed scope whose transcripts are gone, then it builds with the agents listed "no transcript" and totals marked partial (AC7.2), not an error; a scope that has no messages at all is AC7.3.
+- AC9.2 Given a closed scope where some agents' transcripts are gone, then it builds with those agents listed "no transcript" and totals marked partial (AC7.2), not an error. Given a scope that has messages but whose transcripts are ALL gone, then the command refuses with a one-line "no transcripts left for <scope>" message and a non-zero exit, writes nothing, and leaves any existing `data.json` and `report.html` untouched (a rebuild never replaces a good report with an empty one). A scope with no messages at all is AC7.3 (empty report), not a refusal. (BA decision 2026-10-19, TL request.)
 - AC9.3 Given an existing `data.json`, then a new run replaces it with the identical result of the same inputs (AC1.5), so the PO can rebuild any time.
 
 **S10. Process help for the report (Q23, optional).**

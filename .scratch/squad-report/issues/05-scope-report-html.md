@@ -25,4 +25,5 @@ Blocked by: 04. Parallel with 06, 07, 08, 09.
 5. `--redact` data: the page has no reason/title text and shows "not shared" where the design says so.
 6. Reduced scope is allowed only with the Team Lead's `FINAL:` on the Could views.
 7. Real-output input: at least one test input is the real output of `squad-report` (a build of the 02/03 fixture scope through `squadreport_build.build`), not a hand-written `data.json`, so a renamed field fails here and not in production.
-8. Primary behaviour only (qa: light): QA blackbox opens the report from `file://`, checks the Must views and the 7 states.
+8. **Timeline reconciles:** the lane/segment widths drawn and the 'longest blocks' list come from `data.json` as is; a test on a real build output asserts no drawn block is longer than its agent's bucket total.
+9. Primary behaviour only (qa: light): QA blackbox opens the report from `file://`, checks the Must views and the 7 states.

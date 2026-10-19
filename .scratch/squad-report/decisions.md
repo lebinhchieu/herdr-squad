@@ -29,3 +29,5 @@ Q14-Q18, Q20, Q21, Q24: yes (as proposed in `round3.html`). Changed or added:
 - **Q23:** "could change process to include naming tasks/tickets or anything else to support the report"; wants it if cheap in effort and tokens. Tech Lead priced it (one `process.md` line + roster template sentence, about 40 tokens per role per session): recommendation yes, PO approval as a role-instruction change.
 - **Q25:** teammates have their own squads; the PO asks them for `data.json` and does the rollup. So `data.json` must be self-contained and shareable (`--redact` for titles and return reasons).
 - **New question:** "Do we have data to show what was failed (returned reason)?" Yes: FAIL message text (`returns_list[].reason`, 200 chars), who returned it, and the long findings in `evidence/<task>/qa-*.md` (named, not read). Spec AC4.3-4.6.
+
+- 2026-10-19 BA: AC9.2 narrowed (TL request): some transcripts gone = partial report (AC7.2); all gone (scope has messages) = refuse, one line, nothing written, existing data.json/report.html kept; no messages = AC7.3 empty report.

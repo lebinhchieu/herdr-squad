@@ -20,4 +20,5 @@ Blocked by: 04. Parallel with 05, 06, 08, 09.
 2. It reads `data.json` only: running it with transcripts and squad folders deleted works.
 3. Both skills pass the repo's skill/instruction tests (frontmatter, name = folder, referenced commands exist); the analyze skill text contains no write step (a test greps for `Write`/`Edit` instructions and `process.md` edits).
 4. Real-output input: at least one test input is the real output of `squad-report` (a build of the 02/03 fixture scope through `squadreport_build.build`), not a hand-written `data.json`, so a renamed field fails here and not in production.
-5. Primary behaviour only (qa: light).
+5. **Blocks reconcile:** `blocks` / `task` output on a real build never reports a block longer than the bucket total it belongs to.
+6. Primary behaviour only (qa: light).

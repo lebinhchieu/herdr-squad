@@ -26,4 +26,5 @@ Blocked by: 02 (interface only; may start on 02's first commit)
 4. Canary: a planted string in a non-FAIL message body appears nowhere in the output; the only message text present is the FAIL reasons.
 5. Legacy: transcripts with no `origin` (harness_origin false) still produce tasks (gaps classify idle) and set `partial_reasons` entry `no_origin`.
 6. Field shape: see 04 AC9 (full build output); here every task row and `returns_list[]` item produced by `fill` has the spec's fields on the fixtures above.
-7. Primary behaviour only (qa: light).
+7. **Segments reconcile with buckets (defect class from 04's FAIL):** on every fixture and on the full build output, per agent and per bucket, the sum of `segments` durations equals `agents[].buckets_s` up to the seconds of absorbed short segments (the test computes that difference and asserts it equals the absorbed total, never more), no segment crosses a respawn hole or an idle gap (its bucket would not be the record-classified one), and every `blocks[]` / `longest_block` duration is <= the bucket total it is drawn from. Short-segment absorb must never merge across a different bucket or a hole. Regression test: respawn hole between two short working segments (the 10 h vs 39 s case).
+8. Primary behaviour only (qa: light).
