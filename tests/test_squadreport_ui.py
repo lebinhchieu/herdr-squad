@@ -50,6 +50,11 @@ class ShellCss(unittest.TestCase):
         self.assertIn("border-radius:14px", rule("nav.sections a"))
         self.assertIn("#E8820E25", CSS)
 
+    def test_chip_colours_as_mock(self):
+        self.assertIn("background:var(--bg);color:var(--muted)", rule(".chip"))
+        self.assertIn(".chip.done{background:#368A1E18;border-color:var(--work);color:var(--work)}", CSS)
+        self.assertIn(".chip.run{background:#E8820E22;border-color:var(--mango)", CSS)
+
     def test_narrow_padding(self):
         self.assertIn("@media(max-width:760px){main,header.page{padding-left:12px;padding-right:12px}", CSS)
 
