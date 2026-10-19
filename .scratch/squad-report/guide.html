@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>squad-report: how teammates send data, how the PO rolls it up</title>
+<style>
+:root{--bg:#fffaf0;--ink:#2a2418;--mut:#6f6650;--line:#e6dcc3;--tm:#2f7d6d;--po:#d9822b;--ok:#2e8b57;--warn:#b7791f;--bad:#c0392b;--card:#fff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+main{max-width:1380px;margin:0 auto;padding:20px 24px 48px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:0 0 8px}
+.ans{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--po);padding:10px 14px;border-radius:8px;margin:10px 0 18px;max-width:900px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:18px;align-items:start}
+.lane{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.lane.tm{border-top:5px solid var(--tm)}.lane.po{border-top:5px solid var(--po)}
+.step{display:flex;gap:10px;margin:0 0 12px}
+.n{flex:none;width:26px;height:26px;border-radius:50%;color:#fff;text-align:center;line-height:26px;font-weight:700;font-size:13px}
+.tm .n{background:var(--tm)}.po .n{background:var(--po)}
+pre{margin:6px 0 0;background:#2a2418;color:#fdf3dc;padding:8px 10px;border-radius:6px;overflow:auto;font-size:13px}
+code{background:#f5ecd6;padding:1px 4px;border-radius:3px;font-size:13px}pre code{background:none;padding:0}
+.hand{display:flex;align-items:center;justify-content:center;margin:14px 0;padding:10px;border:2px dashed var(--mut);border-radius:8px;background:#fff3d6;text-align:center}
+table{border-collapse:collapse;width:100%;font-size:13.5px}td,th{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}th{background:#f5ecd6}
+.tag{font-size:11px;padding:1px 6px;border-radius:9px;color:#fff;margin-left:4px}.v{background:var(--ok)}.i{background:var(--warn)}
+.small{color:var(--mut);font-size:13px}
+footer{margin-top:22px;border-top:1px solid var(--line);padding-top:10px;font:12px/1.5 ui-monospace,monospace;color:var(--mut);white-space:pre-wrap}
+</style></head><body><main>
+<h1>Scope report and rollup: how it works</h1>
+<div class="small">squad plugin 0.4.0 · tool <code>bin/squad-report</code> · zero LLM tokens, no network</div>
+<div class="ans"><b>Each teammate builds one <code>data.json</code> per scope in their own squad and sends it to you (with <code>--redact</code> if the text is private). You put the files in one folder and run one rollup command.</b> Nothing leaves their machine except that file.</div>
+
+<div class="grid">
+<section class="lane tm"><h2>Teammate (own squad)</h2>
+<div class="step"><div class="n">1</div><div><b>Finish or pause a scope</b> (running scopes work too; the report is marked <i>partial</i>).<br><span class="small">The squad-close hook also builds the report automatically; a failure only warns, never blocks.</span><span class="tag v">verified</span></div></div>
+<div class="step"><div class="n">2</div><div><b>Build the report</b> from the scope's squad:
+<pre><code>squad-report &lt;scope&gt;            # report/data.json + report.html
+squad-report &lt;scope&gt; --redact   # same, no titles, no return reasons</code></pre>
+<span class="small">Prints the path of <code>report.html</code> and a 5-line summary. Refuses (exit 2) when the scope has messages but no transcripts.</span><span class="tag v">verified</span></div></div>
+<div class="step"><div class="n">3</div><div><b>Check it is current</b>
+<pre><code>squad-report status &lt;scope&gt;   # fresh 0 | stale 3 | missing 4</code></pre></div></div>
+<div class="step"><div class="n">4</div><div><b>Send only <code>data.json</code></b> (from <code>&lt;scope folder&gt;/report/</code>). Add <code>report.html</code> next to it if you want the rollup to link to it.<span class="tag v">verified</span></div></div>
+<div class="step"><div class="n">5</div><div><b>Optional, on their side:</b> ask what the numbers say: <code>/squad:squad-report-analyze</code> (chat only, reads the digest).</div></div>
+</section>
+
+<section class="lane po"><h2>PO (you)</h2>
+<div class="step"><div class="n">1</div><div><b>Collect the files</b> into one folder, one subfolder or file per scope:
+<pre><code>team/alice-invoices/data.json
+team/bob-login/data.json</code></pre></div></div>
+<div class="step"><div class="n">2</div><div><b>Run the rollup</b> (folders are searched for <code>data.json</code>):
+<pre><code>squad-report rollup team/ --out ./squad-rollup
+# or in Claude: /squad:squad-report team/alice-invoices/data.json team/bob-login/data.json</code></pre>
+<span class="small">Output: <code>./squad-rollup/</code> with a rollup <code>report.html</code>. It never opens transcripts, squads or paths.</span><span class="tag v">verified</span></div></div>
+<div class="step"><div class="n">3</div><div><b>Read it:</b> totals (time, cost, tokens), one row per scope, working / blocking / waiting split, returns per scope.</div></div>
+<div class="step"><div class="n">4</div><div><b>Your own scopes or a goal:</b> <code>squad-report &lt;scope|goal&gt;</code>; a goal rolls up its scopes from the squad folder.</div></div>
+</section>
+</div>
+
+<div class="hand">⇄ handover: <code>data.json</code> (portable: ids, numbers, roles, times; no absolute path, no transcript text)</div>
+
+<div class="grid">
+<section class="lane"><h2>What the rollup does with odd files</h2>
+<table><tr><th>File</th><th>Row shows</th></tr>
+<tr><td>Same (squad, scope) twice</td><td>Newest <code>generated_at</code> kept; older listed as <i>skipped</i></td></tr>
+<tr><td>Other <code>schema_version</code> / kind</td><td><i>schema_mismatch</i>; run continues</td></tr>
+<tr><td>Made with <code>--redact</code></td><td>Reason/title columns show "not shared"</td></tr>
+<tr><td>Different price tables</td><td>Each file's own cost summed; "mixed price tables" note</td></tr>
+<tr><td>Scope still running</td><td>status <i>running</i>, report <i>partial</i></td></tr></table>
+<span class="tag v">verified: spec.md:276 and AC5.7</span></section>
+
+<section class="lane"><h2>What is in the file (privacy)</h2>
+<table><tr><th>Included</th><th>Left out</th></tr>
+<tr><td>Ids, counts, roles, durations, cost, ticket/escalation titles, return reason (first 200 chars of each FAIL)</td><td>Prompts, transcripts, other messages, absolute paths</td></tr>
+<tr><td colspan="2"><b>With <code>--redact</code></b>: titles and return reasons removed too. Use it when the work is private. A reason can name a path or secret an agent typed, so redact when unsure.</td></tr></table>
+<span class="tag v">verified: spec.md:134</span>
+<p class="small">Prices come from the teammate's config, so cost differs if their price table differs. Other Claude accounts' transcripts are invisible to the tool<span class="tag i">known gap, backlog</span>.</p></section>
+</div>
+
+<div class="ans" style="margin-top:18px"><b>Ask teammates for this one thing:</b> "Run <code>squad-report &lt;scope&gt; --redact</code> and send me <code>report/data.json</code>." Tip: tell them to name the file <code>&lt;squad&gt;-&lt;scope&gt;.json</code> when sending, since all files are called <code>data.json</code>.</div>
+<footer>Reader:     PO → ask teammates for data, run rollup
+Question:   How do teammates produce and send report data, and how does the PO roll it up?
+Dimension:  Time (who does what, in order)
+Form:       two-lane swimlane with a handover marker, not a flat command list: two actors and one file crossing between them
+Source:     bin/squad-report --help, skills/squad-report/SKILL.md, .scratch/squad-report/spec.md (AC4.6, AC5.7, lines 134, 276). Commands run only via --help this session: not run end to end here.</footer>
+</main></body></html>
