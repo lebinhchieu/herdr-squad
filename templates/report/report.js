@@ -105,25 +105,39 @@ function header() {
   add(h, l, m);
   return h;
 }
-function banner(cls, text, links) {
-  var b = el("div", "banner " + cls, text);
-  (links || []).forEach(function (l) { add(b, document.createTextNode(" "), l); });
+function banner(kind, title, text, links) {
+  var b = el("div", "banner " + kind, null, { role: kind === "bad" ? "alert" : "status" });
+  var d = el("div");
+  add(d, el("b", null, title));
+  if (text) add(d, document.createTextNode(" " + text));
+  (links || []).forEach(function (l, i) { add(d, document.createTextNode(i ? ", " : " "), l); });
+  add(b, el("span", "ic", kind === "info" ? "i" : "!"), d);
   return b;
 }
+// order as the mock: partial, empty, missing, low attribution, flag; each only when true for the data
 function banners() {
   var box = el("div");
-  if (!hasData) add(box, banner("", "No session data found for this scope. Cause: no transcripts or messages matched its roster. Run `squad-report " + S.name + "` again after the agents have run."));
-  else if (S.partial) add(box, banner("", "Numbers cover up to " + hm(S.window && S.window.end) + ". The scope is still running (" + (S.partial_reasons || []).join(", ") + "); re-run `squad-report " + S.name + "`, rebuilt on `squad-close`."));
+  if (S.status === "running")
+    add(box, banner("info", "Partial: the scope is still running.", "Numbers cover up to " + hm(S.window && S.window.end) + ". Open tasks show their time so far. Re-run `squad-report " + S.name + "` to refresh; it is rebuilt on `squad-close`."));
+  if (!hasData)
+    add(box, banner("info", "No session data found for this scope.", "No transcript matched the roster and there are no messages yet. Nothing to chart. Check that the scope ran under this project, then run `squad-report " + S.name + "` again."));
+  var miss = hasData ? roles.filter(function (a) { return a.transcript_found === false; }).map(function (a) { return a.name; }) : [];
+  if (miss.length) add(box, banner("warn", "Transcripts missing:", miss.join(", ") + ". Their time and cost are not in the totals (shown as \u201cno transcript\u201d)."));
   var pct = T.attributed ? T.attributed.time_pct : null;
-  if (hasData && pct !== null && pct < 60) add(box, banner("amber", "Only " + Math.round(pct) + "% of agent-time is attributed to tasks. Most work lands in Scope overhead, so the task table understates real task cost. Roles and totals are still right."));
+  if (hasData && pct !== null && pct < 60) add(box, banner("warn", "Only " + Math.round(pct) + "% of agent-time is attributed to tasks.", "Most work lands in Scope overhead, so the task table understates real task cost. Roles and totals are still right."));
   var flagged = tasks.filter(function (t) { return t.flag; });
   if (flagged.length) {
-    var links = flagged.map(function (t) { var b = el("button", "btn", "Task " + t.id); b.addEventListener("click", function () { openTask(t.id); }); return b; });
     var rw = tasks.reduce(function (a, t) { return a + (t.rework_s || 0); }, 0), rc = tasks.reduce(function (a, t) { return a + (t.rework_cost_usd || 0); }, 0);
-    add(box, banner("red", flagged.length + " task" + (flagged.length > 1 ? "s" : "") + " reached 3 returns. Rework " + dur(rw) + " · " + usd(rc) + " (estimated, list price).", links));
+    var n = flagged.length, fb = banner("bad", n + " task" + (n > 1 ? "s" : "") + " reached 3 or more returns", ""), bd = fb.querySelector("div");
+    add(bd, document.createTextNode(" ("));
+    flagged.forEach(function (t, i) {
+      var a = el("a", null, "Task " + t.id, { href: "#tasks" });
+      a.addEventListener("click", function (e) { e.preventDefault(); openTask(t.id); });
+      add(bd, i ? document.createTextNode(", ") : null, a, document.createTextNode(": " + t.returns));
+    });
+    add(bd, document.createTextNode(") of " + (T.returns || 0) + " in all. Rework so far " + dur(rw) + ", about " + usd(rc) + "."));
+    add(box, fb);
   }
-  var miss = roles.filter(function (a) { return a.transcript_found === false; }).map(function (a) { return a.name; });
-  if (miss.length) add(box, banner("amber", "No transcript found for: " + miss.join(", ") + ". Totals exclude them."));
   return box;
 }
 function nav() {

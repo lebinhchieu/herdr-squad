@@ -376,10 +376,16 @@ def collect(scope_home, squad_dir, plugin_root, final=False, deadline=None):
     any_reported = False
     all_cost = 0.0
     extra = cfg.get("claude_config_dirs") or []
-    for row in roster:
+    by_name = {}
+    for row in roster:  # a name listed twice is one agent: keep the row that finds transcripts, else one with a session
         _check(deadline)
+        paths = _find_sessions(row["name"], row["session"], extra)
+        old = by_name.get(row["name"])
+        if old is None or (not old[1] and paths) or (not old[1] and not old[0]["session"] and row["session"]):
+            by_name[row["name"]] = (row, paths)
+    roster = [r for r, _ in by_name.values()]
+    for row, paths in by_name.values():
         name = row["name"]
-        paths = _find_sessions(name, row["session"], extra)
         tl = AgentTL(name, row["role"], bool(paths), running and row["status"].startswith("live"), len(paths))
         if not paths:
             reasons.append("no_transcript:" + name)

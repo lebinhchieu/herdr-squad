@@ -55,6 +55,61 @@ class Base(unittest.TestCase):
         return d["totals"]["buckets_s"]
 
 
+class DuplicateRoster(Base):
+    def _two_rows(self, session_first):
+        recs = [peer(0), asst(10), tool_result(25), system(30)]
+        if session_first:
+            self.fx.session("dev-x", [recs])
+            self.fx.session("dev-x", [], role="ticket 13", transcript=False)
+        else:
+            self.fx.session("dev-x", [], role="ticket 13", transcript=False)
+            self.fx.session("dev-x", [recs])
+        # make the empty row unable to find the transcript by agent name
+        return self.data()
+
+    def test_session_row_first(self):
+        d = self._two_rows(True)
+        self.assertNotIn("no_transcript:dev-x", d["scope"]["partial_reasons"])
+        self.assertEqual(len(d["roles"]), 1)
+        self.assertTrue(all(r["transcript_found"] for r in d["roles"]))
+
+    def test_session_row_second(self):
+        d = self._two_rows(False)
+        self.assertNotIn("no_transcript:dev-x", d["scope"]["partial_reasons"])
+        self.assertTrue(all(r["transcript_found"] for r in d["roles"]))
+        self.assertEqual(d["sources"]["agents_total"], 1)
+
+    def test_no_transcript_anywhere_still_flagged(self):
+        self.fx.session("dev-y", [], transcript=False)
+        self.fx.session("dev-y", [], transcript=False)
+        d = self.data()
+        self.assertEqual(d["scope"]["partial_reasons"].count("no_transcript:dev-y"), 1)
+
+
+class RealDataShape(unittest.TestCase):
+    """AC16: read-only build of two real scopes (skipped when this squad's scopes are not on the machine)."""
+    KEYS = {"id", "returns", "flag", "rework_s", "rework_cost_usd"}
+
+    def shape(self, home):
+        import squadreport_build as build
+        home = Path(home)
+        if not (home / "roster.md").exists():
+            self.skipTest("no real scope at %s" % home)
+        d = build.build(home, home.parent.parent if home.parent.name != "_done" else home.parent.parent.parent, plugin_root=PLUGIN_ROOT)
+        self.assertTrue(d["tasks"])
+        for t in d["tasks"]:
+            self.assertTrue(self.KEYS <= set(t), t.get("id"))
+
+    def squad(self):
+        return Path(os.environ.get("SQUAD_DIR", "/nonexistent"))
+
+    def test_done_scope(self):
+        self.shape(self.squad() / "scopes" / "_done" / "squad-report")
+
+    def test_running_scope(self):
+        self.shape(self.squad() / "scopes" / "report-ui-fix")
+
+
 class TimeModel(Base):
     def test_working(self):
         d = self.one([peer(0), asst(10), tool_result(25), system(30)])

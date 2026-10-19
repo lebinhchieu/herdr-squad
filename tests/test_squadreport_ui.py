@@ -129,5 +129,64 @@ class ShellDom(unittest.TestCase):
         self.assertNotIn("Rollup:", dump_dom(d))
 
 
+def banners(dom):
+    dom = re.sub(r"<noscript>.*?</noscript>", "", dom, flags=re.S)
+    return re.findall(r'<div class="banner (\w+)"[^>]*>(.*?)</div></div>', dom, flags=re.S)
+
+
+def text(frag):
+    return re.sub(r"<[^>]+>", "", frag).lstrip("!i")
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser DOM test skipped")
+class BannersDom(unittest.TestCase):
+    def test_f_a_closed_retired_agent_no_banner(self):
+        d, exp = fxs.f_a_retired_with_transcript()
+        dom = dump_dom(d)
+        self.assertEqual(banners(dom), [])
+        for t in exp["absent_text"]:
+            self.assertNotIn(t, dom)
+        self.assertIn("dev-x", dom)
+        self.assertNotIn('class="chip run"', dom[dom.index('id="roles"'):dom.index('id="grid"')])
+
+    def test_f_b_only_missing_banner(self):
+        d, _ = fxs.f_b_retired_no_transcript()
+        bs = banners(dump_dom(d))
+        self.assertEqual([k for k, _ in bs], ["warn"])
+        self.assertIn("dev-y", text(bs[0][1]))
+        self.assertNotIn("still running", text(bs[0][1]))
+
+    def test_f_c_flag_banner_numbers_from_data(self):
+        d, exp = fxs.f_c_eight_returns()
+        dom = dump_dom(d)
+        bs = banners(dom)
+        self.assertEqual([k for k, _ in bs], ["bad"])
+        self.assertTrue(text(bs[0][1]).startswith(exp["banner_text_start"]), text(bs[0][1]))
+        self.assertIn(">Task 04</a>", bs[0][1])
+        self.assertIn("8 \u2691", dom)
+
+    def test_flag_banner_plural_and_order_independent(self):
+        d, _ = fxs.f_c_eight_returns()
+        d["tasks"].append(fxs._task("05", 4))
+        d["totals"]["returns"] = 12
+        t = text(banners(dump_dom(d))[0][1])
+        self.assertTrue(t.startswith("2 tasks reached 3 or more returns (Task 04: 3, Task 05: 4) of 12 in all."), t)
+
+    def test_f_d_running_partial_and_live(self):
+        d, _ = fxs.f_d_running_live()
+        dom = dump_dom(d)
+        self.assertEqual([k for k, _ in banners(dom)], ["info"])
+        self.assertIn("still running", dom)
+
+    def test_banner_order_missing_then_flag(self):
+        d, _ = fxs.f_c_eight_returns()
+        d["roles"][0]["transcript_found"] = False
+        self.assertEqual([k for k, _ in banners(dump_dom(d))], ["warn", "bad"])
+
+    def test_closed_scope_with_other_partial_reason_not_running(self):
+        d, _ = fxs.f_b_retired_no_transcript()
+        self.assertNotIn("Partial:", dump_dom(d))
+
+
 if __name__ == "__main__":
     unittest.main()
