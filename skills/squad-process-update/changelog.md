@@ -1,3 +1,13 @@
+## v5 — 2026-10-19
+- snapshot: history/process-v5.md
+
+### Task ID is the ticket number
+- sections: ## Messages
+- change: rule
+- why: every agent writes the bare ticket number as the task ID, so messages and roster rows name one thing
+- old: snapshot
+- new: snapshot
+
 ## v4 — 2026-10-17
 - snapshot: history/process-v4.md
 

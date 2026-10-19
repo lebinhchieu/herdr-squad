@@ -45,6 +45,7 @@ A lone scope sees nothing of other scopes. The scopes of a goal share only `goal
 | `bin/squad-respawn` | Replaces an agent's session with a fresh one from its notes; keeps its name, scope and worktree |
 | `bin/squad-retire` | Asks an agent to save its notes, then closes its pane (worktree and branch are kept) |
 | `bin/squad-usage` and the Stop hook | Token usage per agent, and the cost rules that tell an agent to start fresh. The table counts every session of an agent (matched by its `agent-name` record, so respawns are included) and its subagents' output tokens (`subagents` column); context, expiries, model/effort and `--check` read the main thread only. |
+| `bin/squad-report`, `/squad:squad-report`, `/squad:squad-report-analyze` | Time and cost of a scope or goal (per task, role and bucket), derived from transcripts with no model call. `squad-report <scope>` writes `data.json` and `report.html` to `<scope>/report/` (local, git-ignored); `/squad:squad-report <scope>` builds it, `/squad:squad-report-analyze` answers questions from it. Example: `squad-report squad-report --squad plugin`. See `docs/adr/0014-squad-report-derives-from-transcripts.md`. |
 | `skills/squad-init`, `skills/squad-start` | The two commands you run |
 | `templates/squad/` | The standing layer: `process.md`, `project.md`, `process-log.md`, per-role `settings/*.json` |
 | `templates/scope/`, `templates/goal/` | What `squad-start` copies into a new scope or goal |
