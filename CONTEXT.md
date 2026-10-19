@@ -169,6 +169,13 @@ _Avoid_: finished, complete
 A file that proves a task works, such as a QA report or a Developer's run output.
 _Avoid_: proof, report
 
+**Evidence folder**:
+The folder `<ticket path minus .md>.evidence/` next to a ticket, holding `evidence.md` (the one file the PO reads) and `img/`. The reviewers' working files (`qa-w.md`, `qa-b.md`, `tl-review.md`) and suite receipts stay in `$SCOPE_DIR/evidence/<task>/`.
+_Avoid_: evidence dir, proof folder
+
+**Evidence sha**:
+The commit where the Developer assembled the reviewers' files into `evidence.md` after every checker passed; its diff to the passed sha touches only evidence folders, and the Manager may merge it as the passed sha.
+
 **Handover**:
 A plan section the Tech Lead writes when a scope moves up in size: what was decided, built and left open. Not the same as a HANDIN.
 _Avoid_: handoff
