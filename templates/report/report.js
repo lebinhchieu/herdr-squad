@@ -93,7 +93,7 @@ function poOnBlock(rr) { return 0; }
 function header() {
   var h = el("header", "page"), l = el("div"), t = el("h1", null, S.name);
   var running = S.status === "running";
-  add(t, document.createTextNode(" "), el("span", "chip" + (running ? " run" : ""), running ? "running · partial" : (S.status || "done")),
+  add(t, document.createTextNode(" "), el("span", "chip " + (running ? "run" : "done"), running ? "running · partial" : (S.status || "done")),
     document.createTextNode(" "), el("span", "chip", "size " + (S.size || "?")));
   add(l, t, el("div", "muted", "Scope report · " + hm(S.window && S.window.start) + " → " + (running ? "now" : hm(S.window && S.window.end))));
   var m = el("div", "meta");
