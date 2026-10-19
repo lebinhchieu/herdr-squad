@@ -91,11 +91,18 @@ function poOnBlock(rr) { return 0; }
 
 // ---------- header + banners ----------
 function header() {
-  var h = el("header", "top"), t = el("h1", null, "Scope " + S.name);
+  var h = el("header", "page"), l = el("div"), t = el("h1", null, S.name);
   var running = S.status === "running";
-  add(t, el("span", "chip" + (running ? " run" : ""), running ? "running · partial" : (S.status || "done")), el("span", "chip", "size " + (S.size || "?")));
-  add(h, t, el("div", "meta", hm(S.window && S.window.start) + " → " + hm(S.window && S.window.end) + " · generated " + hm(S.generated_at)),
-    el("div", "meta", "Derived from transcripts, gaps classified by what ends them · cost estimated at list price · schema v" + D.schema_version));
+  add(t, document.createTextNode(" "), el("span", "chip" + (running ? " run" : ""), running ? "running · partial" : (S.status || "done")),
+    document.createTextNode(" "), el("span", "chip", "size " + (S.size || "?")));
+  add(l, t, el("div", "muted", "Scope report · " + hm(S.window && S.window.start) + " → " + (running ? "now" : hm(S.window && S.window.end))));
+  var m = el("div", "meta");
+  add(m, document.createTextNode("Generated " + hm(S.generated_at)), el("br"),
+    document.createTextNode("Derived from transcripts, gaps classified by what ends them · cost estimated at list price · schema v" + D.schema_version));
+  var href = S.rollup_href;
+  if (S.goal && typeof href === "string" && /^[\w.\/-]+\.html$/.test(href) && href.indexOf("//") < 0)
+    add(m, el("br"), el("a", null, "Rollup: " + S.goal + " goal →", { href: href }));
+  add(h, l, m);
   return h;
 }
 function banner(cls, text, links) {
@@ -120,7 +127,7 @@ function banners() {
   return box;
 }
 function nav() {
-  var n = el("nav", "tabs");
+  var n = el("nav", "sections", null, { "aria-label": "Sections" });
   [["overview", "Overview"], ["tasks", "Tasks"], ["roles", "Roles"], ["grid", "Task × role"], ["timeline", "Timeline"]].forEach(function (p) {
     add(n, el("a", null, p[1], { href: "#" + p[0], "data-nav": p[0] }));
   });
@@ -617,10 +624,14 @@ function scrollTo(id) { var n = document.getElementById(id); if (n) n.scrollInto
 document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeDrawer(); });
 
 // ---------- assemble ----------
-add(app, header(), banners(), nav(), overview(), tasksSection(), rolesSection(), gridSection(), timelineSection());
-window.addEventListener("scroll", function () {
+var mainEl = el("main");
+add(mainEl, banners(), overview(), tasksSection(), rolesSection(), gridSection(), timelineSection());
+add(app, header(), nav(), mainEl);
+function spy() {
   var cur = "overview";
-  ["overview", "tasks", "roles", "grid", "timeline"].forEach(function (id) { var n = document.getElementById(id); if (n && n.getBoundingClientRect().top < 80) cur = id; });
-  Array.prototype.forEach.call(document.querySelectorAll("nav.tabs a"), function (a) { a.classList.toggle("on", a.getAttribute("data-nav") === cur); });
-});
+  ["overview", "tasks", "roles", "grid", "timeline"].forEach(function (id) { var n = document.getElementById(id); if (n && n.getBoundingClientRect().top < 90) cur = id; });
+  Array.prototype.forEach.call(document.querySelectorAll("nav.sections a"), function (a) { a.classList.toggle("on", a.getAttribute("data-nav") === cur); });
+}
+window.addEventListener("scroll", spy);
+spy();
 })();

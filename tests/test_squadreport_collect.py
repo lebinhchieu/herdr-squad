@@ -270,5 +270,50 @@ class Config(Base):
         self.assertEqual(set(c["prices"]), {"model-a", "default"})
 
 
+class GoalLink(Base):
+    def setgoal(self, goal, rollup=None):
+        (self.fx.home / "scope.md").write_text("# Scope: sc\n\nsize: M\ngoal: %s\n" % goal, encoding="utf-8")
+        if rollup:
+            f = self.fx.squad / rollup / "report" / "report.html"
+            f.parent.mkdir(parents=True)
+            f.write_text("x", encoding="utf-8")
+        self.fx.session("dev1", [[asst(0), asst(10)]])
+        return self.data()["scope"]
+
+    def test_no_goal(self):
+        s = self.setgoal("")
+        self.assertIsNone(s["goal"])
+        self.assertIsNone(s["rollup_href"])
+
+    def test_goal_with_rollup(self):
+        s = self.setgoal("g1", "goals/g1")
+        self.assertEqual((s["goal"], s["rollup_href"]), ("g1", "../../../goals/g1/report/report.html"))
+        self.assertTrue((self.fx.home / "report" / s["rollup_href"]).resolve().is_file())
+
+    def test_goal_rollup_in_done(self):
+        s = self.setgoal("g1", "goals/_done/g1")
+        self.assertEqual(s["rollup_href"], "../../../goals/_done/g1/report/report.html")
+
+    def test_goal_without_rollup_file(self):
+        s = self.setgoal("g1")
+        self.assertEqual((s["goal"], s["rollup_href"]), ("g1", None))
+
+    def test_done_scope_href(self):
+        fx = Fixture(done=True)
+        self.addCleanup(fx.close)
+        (fx.home / "scope.md").write_text("size: M\ngoal: g1\n", encoding="utf-8")
+        f = fx.squad / "goals" / "g1" / "report" / "report.html"
+        f.parent.mkdir(parents=True)
+        f.write_text("x", encoding="utf-8")
+        fx.session("dev1", [[asst(0), asst(10)]])
+        s = sr.base_data(self.run_collect(fx=fx))["scope"]
+        self.assertEqual(s["rollup_href"], "../../../../goals/g1/report/report.html")
+
+    def test_bad_goal_names_rejected(self):
+        for bad in ("../x", ".hidden", "a..b", "a\\b"):
+            s = self.setgoal(bad)
+            self.assertEqual((s["goal"], s["rollup_href"]), (None, None), bad)
+
+
 if __name__ == "__main__":
     unittest.main()

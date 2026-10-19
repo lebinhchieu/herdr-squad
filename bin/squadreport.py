@@ -192,6 +192,21 @@ def _scope_field(scope_md, key):
     return ""
 
 
+def _goal_link(scope_home):
+    """-> (goal, rollup_href): goal from scope.md, href relative to <scope>/report/ only if that goal's report.html exists now."""
+    goal = _scope_field(Path(scope_home) / "scope.md", "goal")
+    if not goal or "/" in goal or "\\" in goal or ".." in goal or goal.startswith("."):
+        return None, None
+    squad_dir = next((p.parent for p in Path(scope_home).parents if p.name == "scopes"), None)
+    if squad_dir is None:
+        return goal, None
+    for rel in ("goals", "goals/_done"):
+        target = squad_dir / rel / goal / "report" / "report.html"
+        if target.is_file():
+            return goal, os.path.relpath(target, Path(scope_home) / "report").replace(os.sep, "/")
+    return goal, None
+
+
 def _price(prices, model, unpriced):
     m = re.sub(r"\[.*?\]$", "", model or "")
     if m in prices:
@@ -457,12 +472,14 @@ def base_data(c):
     delta = round((rep[1] - rep[0]) / rep[0] * 100, 1) if rep and rep[0] else None
     sources = {k: v for k, v in c.sources.items() if not k.startswith("_")}
     msgs = c.msgs
+    goal, rollup_href = _goal_link(c.scope_home)
     return {"schema_version": 1, "kind": "scope",
             "scope": {"name": c.name, "squad": c.squad, "size": c.size,
                       "status": "running" if "running" in c.partial_reasons else "done",
                       "partial": bool(c.partial_reasons), "partial_reasons": list(c.partial_reasons),
                       "generated_at": None, "window": {"start": iso(t0), "end": iso(t1)},
-                      "last_message_at": iso(msgs[-1].ts) if msgs else None, "iterations": []},
+                      "last_message_at": iso(msgs[-1].ts) if msgs else None, "iterations": [],
+                      "goal": goal, "rollup_href": rollup_href},
             "config": c.cfg, "sources": sources,
             "totals": {"wall_s": wall, "agent_s": agent_s, "parallelism": round(agent_s / wall, 2) if wall else 0,
                        "buckets_s": tot_b, "stalled_s": stalled, "respawn_gap_s": gap,

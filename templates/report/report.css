@@ -4,17 +4,24 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 a{color:var(--mangotxt)}
 .muted{color:var(--muted)}
-header.top{padding:16px 24px 8px}
-header.top h1{margin:0;font-size:22px}
-header.top .meta{color:var(--muted);font-size:12px;margin-top:4px}
+/* shell */
+html{scroll-behavior:smooth}
+header.page{padding:18px 24px 10px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+header.page h1{margin:0;font-size:22px}
+header.page .meta{margin-left:auto;text-align:right;font-size:12px;color:var(--muted)}
+nav.sections{position:sticky;top:0;z-index:40;background:var(--bg);border-bottom:1px solid var(--border);padding:6px 24px;display:flex;gap:4px;flex-wrap:wrap}
+nav.sections a{color:var(--muted);text-decoration:none;padding:3px 10px;border-radius:14px;font-size:13px}
+nav.sections a:hover{background:#E8820E12;color:var(--ink)}nav.sections a.on{background:#E8820E25;color:var(--ink);font-weight:600}
+main{padding:14px 24px 60px;max-width:1280px;margin:auto}
+main section{margin:22px 0;padding:0;scroll-margin-top:80px}
+main .banner{margin:8px 0}
+main .cols>*,main .kpis>*,main .digest>*{min-width:0}
+@media(max-width:760px){main,header.page{padding-left:12px;padding-right:12px}nav.sections{padding:6px 12px}}
+/* overview */
 .chip{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;border:1px solid var(--border);background:var(--panel);margin-left:6px}
 .chip.run{border-color:var(--wait);color:var(--wait)}.chip.amber{border-color:var(--mango);color:var(--mangotxt)}
-.banner{margin:8px 24px;padding:8px 12px;border-radius:6px;border-left:4px solid var(--wait);background:#E9F0FA}
+.banner{margin:8px 0;padding:8px 12px;border-radius:6px;border-left:4px solid var(--wait);background:#E9F0FA}
 .banner.amber{border-color:var(--mango);background:#FBEBD3}.banner.red{border-color:var(--block);background:#FBE3DE}
-nav.tabs{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--border);padding:6px 24px;display:flex;gap:16px}
-nav.tabs a{text-decoration:none;color:var(--muted);padding:2px 4px}
-nav.tabs a.on{color:var(--mangotxt);border-bottom:2px solid var(--mango)}
-section{padding:12px 24px}
 section h2{margin:8px 0;font-size:17px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
@@ -68,4 +75,4 @@ td.ell{max-width:260px;overflow:hidden;text-overflow:ellipsis}
 .drawer h4{margin:12px 0 4px}
 .reason{padding:2px 8px 6px;color:var(--ink);white-space:normal;word-break:break-word}
 .hidden{display:none!important}
-@media print{nav.tabs,.drawer,.tools{display:none!important}.frame{max-height:none;overflow:visible}}
+@media print{nav.sections,.drawer,.tools{display:none!important}.frame{max-height:none;overflow:visible}}
