@@ -1,5 +1,5 @@
 # Evidence: 02 process v6, evidence next to the ticket
-sha: 32a970a5258e8c302030bc4db0fa8072e0972e55
+sha: e816f431b2771dcb3be98d299b8523a12e6419a2
 
 ## Behaviour
 
@@ -111,3 +111,36 @@ Sections:
   clean         ## Safety
 ```
 The three v6 items list sections that are `clean` (preamble, Files table, Task lifecycle, Safety).
+
+### Return 1 (F1): Sizes rows
+Changed both `dev-evidence.md` in the Sizes table to `evidence.md`, re-copied the v6 snapshot (`cmp` clean), added changelog item for `## Sizes: not every scope runs the full pod`. Re-ran the same checks: 149 OK, `processlint` exit 0. `grep -c dev-evidence templates/squad/process.md` → 0. Plan on the v5 copy:
+```
+process.md is version 5; the plugin's is 6. Nothing is written until you confirm.
+
+Changelog items:
+- v6 Files table: evidence next to the ticket [## Files are the truth, messages are the talk] rule: PO wants evidence next to each ticket with screenshots shown in the markdown
+- v6 Evidence rules in the task lifecycle [## Task lifecycle] rule: PO wants evidence next to each ticket with screenshots shown in the markdown
+- v6 Merge accepts the evidence sha; receipts stay in the scope folder [## Safety] rule: PO wants evidence next to each ticket with screenshots shown in the markdown
+- v6 Sizes rows name `evidence.md` [## Sizes: not every scope runs the full pod] rule: PO wants evidence next to each ticket with screenshots shown in the markdown
+
+Sections:
+  clean         # How this squad works
+  already       ## Work is grouped by scope
+  clean         ## Files are the truth, messages are the talk
+  already       ## Defaults
+  already       ## Starting work
+  already       ## Lifetimes: every scope starts fresh
+  already       ## Sizes: not every scope runs the full pod
+  clean         ### When a role is left out, its duties move. They are never dropped.
+  already       ### Changing size
+  already       ## Inside a goal
+  already       ## Promotion: knowledge goes up to the project
+  already       ## Closing
+  already       ## Messages
+  already       ## Who decides
+  clean         ## Task lifecycle
+  already       ## Iterations
+  already       ## Cost rules
+  already       ## Notes
+  clean         ## Safety
+```
