@@ -287,5 +287,44 @@ class TabsDom(unittest.TestCase):
         self.assertIn('querySelectorAll("tr.sel,td.sel")', JS)
 
 
+class ReturnOneFixes(unittest.TestCase):
+    """qa-b F1-F5 of ticket 17."""
+
+    def test_space_and_enter_open_rows_and_cells(self):
+        self.assertEqual(JS.count('e.key === "Enter" || e.key === " "'), 3)  # task/role rows, grid cell, list rows
+        self.assertIn("r.onclick(); } }", JS)
+
+    def test_lane_labels_use_role(self):
+        self.assertIn("function shortLane(name, mc)", JS)
+        self.assertIn("roleOf(name)", JS)
+        self.assertIn("name.length > mc ? shortLane(name, mc) : name", JS)
+
+    def test_empty_kpis(self):
+        d = fxs.base()
+        d["sources"]["transcripts"] = 0
+        d["totals"].update(agent_s=0, wall_s=0)
+        d.update(tasks=[], agents=[], matrix=[], digest=[], iterations=[])
+        for r in d["roles"]:
+            r["transcript_found"] = False
+        dom = dump_dom(d)
+        self.assertIn("none yet", dom)
+        self.assertIn("agents \u00b7 bars are shares of agent-time", dom)
+        self.assertRegex(dom, r"Attributed to tasks.*?class=\"bar")
+
+    def test_banner_bold_wraps(self):
+        r = rule(".banner b")
+        self.assertIn("overflow-wrap:anywhere", r)
+        self.assertNotIn("nowrap", r)
+
+    def test_dev_label_short_with_title(self):
+        self.assertIn('t.dev.replace(/^[^-]+-/, "")', JS)
+        self.assertIn("{ title: t.dev }", JS)
+
+    def test_tasks_table_width_budget(self):
+        self.assertIn("width:90px", rule("td .bar") or re.search(r"td \.bar\{[^}]*\}", CSS).group(0))
+        self.assertIn("white-space:normal", rule("#tasks th"))
+        self.assertIn("padding:6px 8px", rule("th,td"))
+
+
 if __name__ == "__main__":
     unittest.main()

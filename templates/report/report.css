@@ -21,7 +21,7 @@ main .two>*,main .kpis>*,main .digest>*{min-width:0}
 .chip.bad{background:#DB3B2218;border-color:var(--block);color:var(--block)}.chip.warn,.chip.amber{background:#9E7A0018;border-color:#9E7A00;color:#9E7A00}
 /* banners */
 .banner{border:1px solid var(--border);border-left:4px solid var(--mango);background:#fff;border-radius:8px;padding:9px 12px;margin:10px 0;display:flex;gap:10px;align-items:flex-start}
-.banner.bad,.banner.red{border-left-color:var(--block)}.banner.info{border-left-color:var(--wait)}.banner b{white-space:nowrap}
+.banner.bad,.banner.red{border-left-color:var(--block)}.banner.info{border-left-color:var(--wait)}.banner b{overflow-wrap:anywhere}
 .banner .ic{font-weight:800;color:var(--mango)}.banner.bad .ic{color:var(--block)}.banner.info .ic{color:var(--wait)}
 .banner a{color:var(--mangotxt);font-weight:600;cursor:pointer}
 /* overview */
@@ -57,7 +57,7 @@ section>.sh .sub{color:var(--muted);font-size:12.5px}
 section>.sh .tools{margin:0 0 0 auto}
 .frame{overflow:auto;border:1px solid var(--border);border-radius:10px;background:#fff}
 table{border-collapse:collapse;width:100%;font-size:13px}
-th,td{padding:6px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle;white-space:nowrap}
+th,td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle;white-space:nowrap}
 th{position:sticky;top:0;background:var(--panel);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;cursor:pointer;user-select:none}
 th:hover{color:var(--ink)}th.nosort{cursor:default}th.nosort:hover{color:var(--muted)}
 th[aria-sort=ascending]::after{content:" \25B2";color:var(--mango)}th[aria-sort=descending]::after{content:" \25BC";color:var(--mango)}
@@ -68,7 +68,7 @@ tbody tr{cursor:pointer}tbody tr:hover{background:#E8820E12}tbody tr.sel{backgro
 tr.over td{color:var(--muted)}tr.flag{box-shadow:inset 3px 0 var(--block)}
 td .chip{margin-left:0}td b+.chip{margin-left:6px}
 td.ell{max-width:280px;overflow:hidden;text-overflow:ellipsis}
-td .tb{display:inline-flex;align-items:center;gap:8px}td .bar{width:130px;display:inline-flex;vertical-align:middle;margin:0}td .tb .d{min-width:48px;text-align:right}
+td .tb{display:inline-flex;align-items:center;gap:8px}td .bar{width:90px;display:inline-flex;vertical-align:middle;margin:0}td .tb .d{min-width:48px;text-align:right}
 .pill{display:inline-block;min-width:22px;text-align:center;border-radius:11px;padding:0 7px;font-weight:700;background:var(--border);color:var(--muted)}
 .pill.m{background:#E8820E22;color:var(--mangotxt)}.pill.r{background:var(--block);color:#fff}
 tfoot td{font-weight:700;background:var(--panel);cursor:default}
@@ -110,3 +110,5 @@ code{background:var(--panel);padding:1px 5px;border-radius:4px;font-size:12.5px}
 .hidden{display:none!important}
 @media(max-width:700px){.errbox{margin:30px 12px}}
 @media print{nav.sections,.drawer,.tools{display:none!important}.frame{max-height:none;overflow:visible}}
+
+#tasks th{white-space:normal;line-height:1.2;vertical-align:bottom}
