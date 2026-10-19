@@ -23,7 +23,7 @@
 - new: snapshot
 
 ### Sizes rows name `evidence.md`
-- sections: ## Sizes: not every scope runs the full pod
+- sections: ### When a role is left out, its duties move. They are never dropped.
 - change: rule
 - why: PO wants evidence next to each ticket with screenshots shown in the markdown
 - old: snapshot
