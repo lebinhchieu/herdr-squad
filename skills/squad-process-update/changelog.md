@@ -1,3 +1,27 @@
+## v6 — 2026-10-19
+- snapshot: history/process-v6.md
+
+### Files table: evidence next to the ticket
+- sections: ## Files are the truth, messages are the talk
+- change: rule
+- why: PO wants evidence next to each ticket with screenshots shown in the markdown
+- old: snapshot
+- new: snapshot
+
+### Evidence rules in the task lifecycle
+- sections: ## Task lifecycle
+- change: rule
+- why: PO wants evidence next to each ticket with screenshots shown in the markdown
+- old: snapshot
+- new: snapshot
+
+### Merge accepts the evidence sha; receipts stay in the scope folder
+- sections: ## Safety
+- change: rule
+- why: PO wants evidence next to each ticket with screenshots shown in the markdown
+- old: snapshot
+- new: snapshot
+
 ## v5 — 2026-10-19
 - snapshot: history/process-v5.md
 

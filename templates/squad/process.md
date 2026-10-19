@@ -1,12 +1,12 @@
 # How this squad works
 
-process-version: 5
+process-version: 6
 
 Every role reads the sections its row names, at start and when the Manager says one changed. A Manager edits this file only after re-reading it, in small edits, each logged in `process-log.md`.
 
 | Role | Reads at start |
 |---|---|
-| Developer, QA whitebox, QA blackbox | its task and AC (QA: also the task's evidence folder); the design sections the task cites (grep the heading); Messages, Task lifecycle, Cost rules, Safety. Not the whole spec, not other tasks |
+| Developer, QA whitebox, QA blackbox | its task and AC (QA: also the task's `evidence.md`); the design sections the task cites (grep the heading); Messages, Task lifecycle, Cost rules, Safety. Not the whole spec, not other tasks |
 | UI/UX Designer | the UI tasks and AC, the UI conventions row of `project.md`; Messages, Cost rules, Safety |
 | Token Coach | what the Manager's briefing names |
 | BA, Team Lead, Tech Lead, Manager | everything |
@@ -52,7 +52,8 @@ Your folder is `$SCOPE_DIR` (`$GOAL_DIR` for the goal Manager); your roster, not
 | `iterations/<n>.summary.md` | Team Lead (M, L) | Pod summary for the retro and check-in, at most 40 lines |
 | `iterations/<n>.md`, `iterations/<n>.log.md` | Manager | Goal, plan, status, retro, check-in, at most 80 lines; per-ticket event log (nobody reads it at start) |
 | `tasks/<id>.md` | Plan owner (Team Lead; Tech Lead in S) | Task state, if the project has no ticket files |
-| `evidence/<task>/` | QAs, Developer, Tech Lead | `qa-w.md`, `qa-b.md`, `dev-evidence.md`, `tl-review.md`, screenshots, output |
+| `<ticket path minus .md>.evidence/` | Developer | `evidence.md`, the one file the PO reads; `img/` holds its screenshots |
+| `evidence/<task>/` | QAs, Tech Lead | Reviewers' working files `qa-w.md`, `qa-b.md`, `tl-review.md` and suite receipts; the PO never needs it |
 | `ui-design/<task>.md` | Designer | One UI task's design (`.html` optional) |
 | `promote.md` | Tech Lead | For the project docs |
 | `roles/<agent>.notes.md` | each agent | Under 80 lines |
@@ -215,7 +216,9 @@ Questions for an outside decision maker `project.md` names go to the place it sa
 - **QA mode** (`qa:` in `scope.md`): `full` (default) or `light`. In `light`, QA runs the targeted tests, skims the diff and PASSes; a task returns only for wrong behaviour, a spec-rule defect, a failing test or a security finding.
 - In `light`, test-strength gaps go in `qa-w.md` as "follow-up"; the Tech Lead batches them into one last, droppable ticket.
 - After 3 returns on one task the Team Lead (S: the Manager) steps in and decides whether the task, the AC or the Developer is the problem.
-- Evidence goes where `project.md` says (default `$SCOPE_DIR/evidence/<task>/`); `qa-b.md` exists in M and L, `tl-review.md` in S.
+- Evidence lives next to the ticket in `evidence.md`: folder = ticket path with `.md` → `.evidence/` (a project without ticket files: next to `tasks/<id>.md`). Embed screenshots as `![alt](img/<file>)`; a screenshot only named or linked is not evidence.
+- The Developer writes `## Behaviour` and commits it with its code. After every checker passed, the Developer adds each reviewer file with `squad-evidence add` and commits; the Tech Lead checks that commit with `squad-evidence check --base <passed sha>`.
+- `qa-b.md` exists in M and L, `tl-review.md` in S.
 
 ## Iterations
 
@@ -259,14 +262,14 @@ A Stop hook (`squad-usage --check`) tells you when rule 2 or 3 fires and logs it
 - **No push or deploy.** Developers commit to their own `squad/<squad>/<scope>/<agent>` branch and worktree and `git merge` only inside it. Their settings deny `git push`, `git rebase`, `git reset --hard` and checking out `main` or `dev`.
 - **Merge only on the PO's request.** Only the Manager merges into the PO's branch, and only when the PO asks in the Manager's own session. A passed branch, a green suite or an approved check-in is not a request.
   - **Which merge:** only what the PO names, into the branch checked out in the project root; the Manager never switches branches.
-  - **Before:** check the target as in Stacked branches and that both checkers passed the sha. Refuse, with the reason, if the project root has uncommitted changes or the sha is not the passed one. Use `git merge --no-ff`.
+  - **Before:** check the target as in Stacked branches and that both checkers passed the sha, or the evidence sha after it (a later sha whose diff to the passed sha touches only `*.evidence/` folders, as `squad-evidence check --base` shows). Refuse, with the reason, if the project root has uncommitted changes or the sha is neither. Use `git merge --no-ff`.
   - **Conflict or failure:** `git merge --abort`, then tell the PO the files in conflict. The Manager never resolves a conflict and never uses `--force`, `rebase`, `reset --hard` or `push`.
   - **After:** quote `git log --oneline -1` and the result to the PO; note it in the iteration file.
 - **No writes to Jira or Confluence.** Read only.
 - **Suites: only the Tech Lead runs the full suite.** `project.md` may name the runner; it locks only its browser files and skips phases the diff cannot affect.
   - Developers and QAs run only the test files their diff touches. They never run the full suite, and two suite runs never overlap.
   - The Tech Lead decides when it runs: once for a batch of tasks, or at the end of the scope or iteration. A scope reaches the PO only with a passing run (`--tz` where `project.md` names it) on its integration sha.
-  - Run it in the background and wait for its completion notice (never `pgrep -f` or `pkill -f`). Commit every fix first; never restart a run. Save a receipt in the evidence folder: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the OK line.
+  - Run it in the background and wait for its completion notice (never `pgrep -f` or `pkill -f`). Commit every fix first; never restart a run. Save a receipt in `$SCOPE_DIR/evidence/`: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the OK line.
   - On a failing run the Tech Lead names the task whose files fail; it returns to its Developer and counts as a return.
   - QA reads the receipt when it covers the sha (same sha, clean, OK). With none, it checks the targeted tests and the diff, and never runs the suite.
 - **Close what you open.** Before you report, end every browser session and stop every server or process you started, by PID. Never `pkill` or `killall` by name or pattern.
