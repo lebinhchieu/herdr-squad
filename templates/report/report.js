@@ -155,6 +155,7 @@ function overview() {
   var par = T.wall_s ? (T.agent_s / T.wall_s) : 0;
   var nd = !hasData;
   var c1 = card("Elapsed · derived", nd ? "–" : dur(T.wall_s), nd ? "no data" : "agent-time " + dur(T.agent_s) + " (derived) · parallelism ×" + par.toFixed(1) + "");
+  if (nd) add(c1, el("div", "sub", roles.length + " agents · bars are shares of agent-time"));
   if (!nd) {
     add(c1, bar(T.buckets_s, BK, function (b) { return "b-" + b; }), legend(false, T.buckets_s || {}));
     var l = el("div", "sub");
@@ -172,10 +173,11 @@ function overview() {
   if (!nd) add(c4, tokbar(tk));
   var anyFlag = tasks.some(function (t) { return t.flag; });
   var rw = tasks.reduce(function (a, t) { return a + (t.rework_s || 0); }, 0), rc = tasks.reduce(function (a, t) { return a + (t.rework_cost_usd || 0); }, 0);
-  var c5 = card("Returns (FAIL messages)", nd ? "–" : (T.returns || 0) + (anyFlag ? " ⚑" : ""), nd ? "no data" : "rework " + dur(rw) + " (derived) · ≈" + usd(rc) + " (estimated, list price)", anyFlag ? "red" : (T.returns ? "amber" : ""));
+  var c5 = card("Returns (FAIL messages)", nd ? "0" : (T.returns || 0) + (anyFlag ? " ⚑" : ""), nd ? "none yet" : "rework " + dur(rw) + " (derived) · ≈" + usd(rc) + " (estimated, list price)", anyFlag ? "red" : (T.returns ? "amber" : ""));
   var pct = T.attributed ? T.attributed.time_pct : null;
   var c6 = card("Attributed to tasks", nd || pct === null ? "–" : Math.round(pct) + "%", nd ? "no data" : "of agent-time (not idle)", !nd && pct !== null && pct < 60 ? "amber" : "");
   c6.setAttribute("title", "Developer time by roster and branch; other roles by the window first mention → PASS.");
+  if (nd) add(c6, bar({ a: 0, b: 100 }, ["a"], function () { return "b-working"; }, 100));
   if (!nd && pct !== null) add(c6, bar({ a: pct, b: 100 - pct }, ["a"], function () { return "b-working"; }, 100));
   [c1, c2, c3, c4, c5, c6].forEach(function (c) { k.appendChild(c); });
   add(s, el("h2", null, "Overview"), k);
@@ -288,7 +290,7 @@ function table(cols, rows, sortState, rerender, onRow, emptyNode) {
     });
     var open = function () { setSel(r.key); onRow(r.item); };
     row.addEventListener("click", open);
-    row.addEventListener("keydown", function (e) { if (e.key === "Enter") open(); });
+    row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
     tbd.appendChild(row);
   });
   tb.appendChild(tbd);
@@ -336,7 +338,7 @@ function taskCols() {
     { h: "Task", k: "id", sort: 1, cell: function (t) { return t.over ? "—" : el("b", null, t.id); } },
     { h: "Title", k: "title", sort: 1, ell: 1, cell: function (t) { var s = t.title || ""; return el("span", t.over ? "muted" : "", s.length > 34 ? s.slice(0, 33) + "…" : (s || "–")); }, ttip: function (t) { return t.title; } },
     { h: "Iter", k: "iter", sort: 1, num: 1, cell: function (t) { return t.over ? "" : t.iteration; } },
-    { h: "Dev", k: "dev", sort: 1, cell: function (t) { return t.over || !t.dev ? faint("–") : t.dev; } },
+    { h: "Dev", k: "dev", sort: 1, cell: function (t) { return t.over || !t.dev ? faint("–") : el("span", null, t.dev.replace(/^[^-]+-/, ""), { title: t.dev }); } },
     { h: "Status", k: "status", sort: 1, cell: function (t) { return t.over ? "" : el("span", "chip " + (t.status === "passed" ? "done" : t.status === "running" ? "run" : ""), t.status); } },
     { h: "Returns (FAIL)", k: "returns", sort: 1, num: 1, cell: function (t) { return t.over ? "" : ret(t.returns || 0, t.flag); } },
     { h: "Time by bucket", k: "time", sort: 1, num: 1, cell: function (t) { return tb(t.buckets_s || {}, ttime(t)); } },
@@ -466,7 +468,7 @@ function drawGrid() {
       if (v) {
         td.setAttribute("tabindex", "0");
         var f = function () { setSel(null); openCell(r.id, c); td.classList.add("sel"); };
-        td.addEventListener("click", f); td.addEventListener("keydown", function (e) { if (e.key === "Enter") f(); });
+        td.addEventListener("click", f); td.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); f(); } });
       }
       tr.appendChild(td);
     });
@@ -572,9 +574,13 @@ function drawTimeline() {
     var ha = Math.max(ts(hiT.window.start) - t0, 0), hb = Math.min(ts(hiT.window.end) - t0, T1);
     if (hb > ha) add(svg, sv("rect", { x: X(ha), y: TOP - 4, width: Math.max(2, X(hb) - X(ha)), height: H - TOP, fill: "#E8820E", opacity: ".08" }));
   }
+  function shortLane(name, mc) {
+    var rl = roleOf(name), m = /-(\d+)$/.exec(name), lb = rl && rl !== name ? rl + (m && !/\d$/.test(rl) ? " " + m[1] : "") : name;
+    return lb.length > mc ? lb.slice(0, Math.ceil((mc - 1) / 2)) + "…" + lb.slice(lb.length - Math.floor((mc - 1) / 2)) : lb;
+  }
   function lane(i, name, cls, onName, full) {
     var y = TOP + i * (LH + GAP), mc = Math.floor((LW - 12) / 6.4);
-    var lbl = sv("text", { "class": "lane-l" + (cls ? " " + cls : ""), x: LW - 8, y: y + LH / 2 + 4, "text-anchor": "end" }, name.length > mc ? name.slice(0, Math.ceil((mc - 1) / 2)) + "…" + name.slice(name.length - Math.floor((mc - 1) / 2)) : name);
+    var lbl = sv("text", { "class": "lane-l" + (cls ? " " + cls : ""), x: LW - 8, y: y + LH / 2 + 4, "text-anchor": "end" }, name.length > mc ? shortLane(name, mc) : name);
     if (name.length > mc || full) lbl.setAttribute("data-tip", full || name);
     if (onName) { lbl.setAttribute("tabindex", "0"); lbl.addEventListener("click", onName); lbl.addEventListener("keydown", function (e) { if (e.key === "Enter") onName(); }); }
     add(svg, lbl, sv("rect", { x: LW, y: y, width: W - LW, height: LH, fill: "#FCF8F1", stroke: "#E7DBC8", rx: 3 }));
@@ -639,7 +645,7 @@ function mini(rows, heads, nums) {
   rows.forEach(function (r) {
     var row = el("tr");
     r.cells.forEach(function (c, i) { var td = el("td", nums.indexOf(i) >= 0 ? "num" : ""); if (c && c.nodeType) td.appendChild(c); else td.textContent = c === undefined || c === null ? "" : c; row.appendChild(td); });
-    if (r.onclick) { row.setAttribute("tabindex", "0"); row.addEventListener("click", r.onclick); row.addEventListener("keydown", function (e) { if (e.key === "Enter") r.onclick(); }); }
+    if (r.onclick) { row.setAttribute("tabindex", "0"); row.addEventListener("click", r.onclick); row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); r.onclick(); } }); }
     else row.style.cursor = "default";
     tbd.appendChild(row);
   });
