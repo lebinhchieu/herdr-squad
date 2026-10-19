@@ -11,7 +11,7 @@
 | Decisions | <decisions file / ADR folder> |
 | Open questions for outside people | <open-points file; who answers it> |
 | Tasks / tickets | <ticket folder, or $SCOPE_DIR/tasks/> |
-| Evidence | <evidence folder, default $SCOPE_DIR/evidence/> |
+| Evidence | next to the ticket: <ticket path minus .md>.evidence/ (reviewers' working files and receipts: $SCOPE_DIR/evidence/) |
 | Code repos | <repo paths; Developers get a worktree of these> |
 | Test and lint commands | <per repo> |
 | UI conventions / design system | <style guide, component folder, palette file; or none> |

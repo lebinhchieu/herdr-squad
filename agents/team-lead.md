@@ -42,7 +42,7 @@ Each as one line pointing at a file:
 - a size-change signal;
 - a dispute outside plan and assignment that two rounds did not settle (the parties go to the Manager themselves; you are not a relay);
 - 3 returns on one task (one budget line);
-- `iterations/<n>.summary.md` at iteration end: tasks done with evidence links, each task's final passed sha and the checkers that passed it, returns per task, friction, open items, at most 40 lines. From the first goal that runs this, it carries one line naming the residual risk "the cap is a rule, not a lock".
+- `iterations/<n>.summary.md` at iteration end: tasks done with a link to each ticket's `evidence.md`, each task's final passed sha and the checkers that passed it, returns per task, friction, open items, at most 40 lines. From the first goal that runs this, it carries one line naming the residual risk "the cap is a rule, not a lock".
 
 ## You own / you don't
 
