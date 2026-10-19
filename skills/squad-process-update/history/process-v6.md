@@ -113,9 +113,9 @@ Work bigger than one L scope is a goal. A `design:` line in `scope.md` (`yes|no`
 | Business AC | Ticket as written; business doubt moves it to M | BA | BA |
 | Plan, order, assignment | Tech Lead | Team Lead | Team Lead |
 | Code and test check | Tech Lead reads the diff, runs tests and lint | QA whitebox | QA whitebox |
-| Behaviour check | Developer saves Playwright/API evidence (`dev-evidence.md`); Tech Lead checks it | QA blackbox | QA blackbox |
+| Behaviour check | Developer saves Playwright/API evidence (`evidence.md`); Tech Lead checks it | QA blackbox | QA blackbox |
 | UI/UX design (only when `design: yes`) | Designer | Designer | Designer |
-| Built UI vs the design | Developer screenshots each screen and state in `dev-evidence.md`; Tech Lead checks them | QA blackbox | QA blackbox |
+| Built UI vs the design | Developer screenshots each screen and state in `evidence.md`; Tech Lead checks them | QA blackbox | QA blackbox |
 | Outside questions (open-points place in `project.md`) | Tech Lead writes it; scope moves to M | BA | BA |
 
 The plan file has the same format in every size; only its owner changes.

@@ -22,6 +22,13 @@
 - old: snapshot
 - new: snapshot
 
+### Sizes rows name `evidence.md`
+- sections: ## Sizes: not every scope runs the full pod
+- change: rule
+- why: PO wants evidence next to each ticket with screenshots shown in the markdown
+- old: snapshot
+- new: snapshot
+
 ## v5 — 2026-10-19
 - snapshot: history/process-v5.md
 
