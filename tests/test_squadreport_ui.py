@@ -17,6 +17,7 @@ import report_ui_fixtures as fxs  # noqa: E402
 import squadreport_html as html  # noqa: E402
 
 CHROME = shutil.which("google-chrome") or shutil.which("chromium") or shutil.which("chromium-browser")
+JS = open(os.path.join(HERE, "..", "templates", "report", "report.js"), encoding="utf-8").read()
 CSS = open(os.path.join(HERE, "..", "templates", "report", "report.css"), encoding="utf-8").read()
 
 
@@ -92,6 +93,21 @@ class OverviewDom(unittest.TestCase):
         self.assertEqual(re.findall(r"<th[^>]*>([^<]*)</th>", blk), ["Who", "Waited on", "Task", "For"])
         self.assertIn('<span class="chip po">PO</span>', blk)
         self.assertEqual(blk.count("<tr>"), 3)
+
+    def test_digest_sub_lines_not_raw_targets(self):
+        d = fxs.base()
+        kinds = [("top_cost_task", "tasks", "07"), ("idle_share", "timeline", "idle"), ("top_cost_role", "roles", "dev"),
+                 ("scope_overhead", "matrix", "overhead"), ("po_wait", "waits", "po"), ("attribution_low", "matrix", "overhead")]
+        d["digest"] = [{"id": k, "kind": k, "weight": 1, "text": "T " + k, "value": 1, "unit": "x", "target": {"view": v, "id": i}}
+                       for k, v, i in kinds]
+        dom = dump_dom(d)
+        dg = dom[dom.index('class="digest"'):dom.index('class="two"')]
+        for raw in ("timeline idle", "roles dev", "tasks 07", "waits po", "matrix overhead"):
+            self.assertNotIn(">" + raw + "<", dg)
+        self.assertEqual(len(re.findall(r"<small>", dg)), 6)
+
+    def test_returns_card_opens_task_drawer(self):
+        self.assertIn('target.view === "returns") && target.id && taskById(target.id)) { scrollTo("tasks"); openTask', JS)
 
     def test_reason_sub_line(self):
         d = fxs.base()

@@ -185,7 +185,7 @@ function overview() {
   (D.digest || []).slice(0, 8).forEach(function (d, i) {
     var li = el("li"), inner;
     if (d.target) { inner = el("button"); inner.addEventListener("click", function () { go(d.target); }); } else inner = el("div");
-    var tx = d.text || "", q = tx.indexOf(': "'), sb = q >= 0 ? tx.slice(q + 2) : (d.target && d.target.id ? d.target.view + " " + d.target.id : "");
+    var tx = d.text || "", q = tx.indexOf(': "'), sb = q >= 0 ? tx.slice(q + 2) : digestSub(d);
     if (q >= 0) tx = tx.slice(0, q);
     var t = el("span", "t", tx);
     if (sb) add(t, el("small", null, sb));
@@ -229,6 +229,21 @@ function overview() {
   }
   add(cols, lb, bi); s.appendChild(cols);
   return s;
+}
+function digestSub(d) {
+  var id = d.target && d.target.id, t = id ? taskById(id) : null, pw = T.po_wait || {};
+  if (d.kind === "top_cost_task" && t) return usd(t.cost_usd) + " · " + t.returns + " return" + (t.returns === 1 ? "" : "s");
+  if (d.kind === "top_cost_role") return "roles · " + id;
+  if (d.kind === "scope_overhead") return "no task";
+  if (d.kind === "rework_cost") return "rework " + dur(tasks.reduce(function (a, x) { return a + (x.rework_s || 0); }, 0)) + " · estimated";
+  if (d.kind === "respawns") return "cache writes after idle > 5 min";
+  if (d.kind === "idle_share" || d.kind === "parallelism") return "parallelism ×" + (T.wall_s ? T.agent_s / T.wall_s : 0).toFixed(1);
+  if (d.kind === "longest_block") return "see Timeline";
+  if (d.kind === "po_wait") return "longest " + dur(pw.longest_s) + " · " + (pw.pct_of_elapsed || 0) + "% of elapsed";
+  if (d.kind === "review_wait") return "HANDIN to PASS/FAIL";
+  if (d.kind === "most_returns") return "no reason recorded";
+  if (d.kind === "attribution_low") return "the rest is in Scope overhead";
+  return "";
 }
 function longestBlocks() {
   var out = [];
@@ -636,7 +651,7 @@ function openCell(task, role) {
   if (t) add(d, btn("← Task " + task, function () { openTask(task); }), btn("Show in timeline", function () { st.hi = task; var s = document.getElementById("hi"); if (s) s.value = task; drawTimeline(); scrollTo("timeline"); }));
 }
 function go(target) {
-  if (target.view === "tasks" && target.id) openTask(target.id);
+  if ((target.view === "tasks" || target.view === "returns") && target.id && taskById(target.id)) { scrollTo("tasks"); openTask(target.id); }
   else if (target.view === "roles" && target.id) { scrollTo("roles"); openRole(target.id); }
   else if (target.view === "tasks") scrollTo("tasks");
   else if (target.view === "roles") scrollTo("roles");
