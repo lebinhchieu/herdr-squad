@@ -127,7 +127,7 @@ def digest(data):
         quotes = ['"%s"' % (_cap(r["reason"]) if r.get("reason") is not None else "not shared")
                   for r in top.get("returns_list", []) if r.get("reason") != ""]
         if quotes:
-            text += ": " + " / ".join(quotes)
+            text += ": " + quotes[0] + (" (+%d more)" % (len(quotes) - 1) if len(quotes) > 1 else "")
         out.append(_item("most_returns", w, text,
                          top["returns"], "count", "returns", top["id"]))
 

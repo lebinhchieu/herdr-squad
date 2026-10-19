@@ -54,12 +54,12 @@ class Digest(unittest.TestCase):
             self.assertEqual(set(i), ITEM_KEYS)
             self.assertEqual(set(i["target"]), {"view", "id"})
 
-    def test_most_returns_quotes_each_reason(self):
+    def test_most_returns_quotes_first_reason_plus_count(self):
         t = task("07", 6.0, returns=3)
         t["returns_list"] = [{"reason": "one blocking finding"}, {"reason": "tests missing"}, {"reason": None}]
         by = {i["kind"]: i for i in dg.digest(data(tasks=[t]))}
         self.assertEqual(by["most_returns"]["text"], 'Task 07 came back 3 times (3 returns in all): '
-                         '"one blocking finding" / "tests missing" / "not shared"')
+                         '"one blocking finding" (+2 more)')
         self.assertEqual(set(by["most_returns"]), ITEM_KEYS)
 
     def _quote(self, reason):
@@ -72,6 +72,13 @@ class Digest(unittest.TestCase):
         self.assertEqual(self._quote("x" * 121), '"%s\u2026"' % ("x" * 120))
         self.assertEqual(self._quote("é😀" * 61), '"%s\u2026"' % ("é😀" * 60))
         self.assertEqual(self._quote("short"), '"short"')
+
+    def test_most_returns_text_short(self):
+        t = task("07", 6.0, returns=3)
+        t["returns_list"] = [{"reason": "r" * 200}] * 3
+        text = {i["kind"]: i for i in dg.digest(data(tasks=[t]))}["most_returns"]["text"]
+        self.assertLessEqual(len(text), 200)
+        self.assertTrue(text.endswith('\u2026" (+2 more)'))
 
     def test_attribution_low_only_below_60(self):
         d = data()
