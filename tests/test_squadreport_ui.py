@@ -70,6 +70,12 @@ class OverviewCss(unittest.TestCase):
         self.assertIn("minmax(min(340px,100%),1fr)", rule(".two"))
         self.assertIn("flex-wrap:wrap", rule(".legend"))
 
+    def test_matrix_row_label_one_background_each(self):
+        line = [l for l in CSS.splitlines() if ".mx td.rl,.mx th.rl{" in l][0]
+        self.assertNotIn("#fff", line)
+        self.assertEqual(line.count("background:"), 2)
+        self.assertEqual(len(re.findall(r"\.mx th\.rl\{[^}]*background", line)), 1)
+
     def test_section_h2_16px(self):
         self.assertIn("section h2{margin:8px 0;font-size:16px}", CSS)
 

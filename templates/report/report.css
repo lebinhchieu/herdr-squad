@@ -80,7 +80,7 @@ tfoot td{font-weight:700;background:var(--panel);cursor:default}
 .chip.btn[aria-pressed=true]{background:#E8820E25;border-color:var(--mango);color:var(--ink)}
 .nodata{color:var(--muted);padding:16px;text-align:center}
 .mx td,.mx th{text-align:center;padding:5px 8px}.mx th{cursor:default}.mx tr{cursor:default}
-.mx td.rl,.mx th.rl{text-align:left;position:sticky;left:0;background:#fff;z-index:1}.mx th.rl{background:var(--panel)}
+.mx td.rl,.mx th.rl{text-align:left;position:sticky;left:0;z-index:1}.mx td.rl{background:var(--bg)}.mx th.rl{background:var(--panel)}
 .mx td.cell{cursor:pointer;font-variant-numeric:tabular-nums;min-width:68px}.mx td.cell:hover{outline:2px solid var(--mango);outline-offset:-2px}
 .mx td.cell.sel{outline:2px solid var(--ink);outline-offset:-2px}.mx td.zero{color:var(--muted2)}.mx td.tot{cursor:default}
 .mx tfoot td.rl{background:var(--panel)}
