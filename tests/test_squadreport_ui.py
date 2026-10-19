@@ -55,6 +55,9 @@ class ShellCss(unittest.TestCase):
         self.assertIn(".chip.done{background:#368A1E18;border-color:var(--work);color:var(--work)}", CSS)
         self.assertIn(".chip.run{background:#E8820E22;border-color:var(--mango)", CSS)
 
+    def test_chips_in_table_cells_keep_a_gap(self):
+        self.assertIn("margin-left:6px", rule(".chip"))
+
     def test_narrow_padding(self):
         self.assertIn("@media(max-width:760px){main,header.page{padding-left:12px;padding-right:12px}", CSS)
 
