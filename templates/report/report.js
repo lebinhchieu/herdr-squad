@@ -27,14 +27,14 @@ function sum(o) { var t = 0; for (var k in o) t += o[k] || 0; return t; }
 function ts(iso) { return iso ? Date.parse(iso) / 1000 : null; }
 function hm(iso) { return iso ? iso.replace("T", " ").replace(/:\d\dZ$/, "Z") : "–"; }
 var BK = ["working", "waiting", "blocking", "idle"];
-var BN = { working: "Working (model/tool running)", waiting: "Waiting (long tool call or background job)", blocking: "Blocking (waiting on a reply or on the PO)", idle: "Idle (waiting for work, or for the PO's chat reply)" };
+var BN = { working: "Working", waiting: "Waiting (long tool call or background job)", blocking: "Blocking (waiting on a reply or the PO)", idle: "Idle (waiting for work, or for the PO's chat reply)" };
 
 function bar(vals, keys, cls, total) {
   var b = el("div", "bar"), t = total || sum(vals) || 1;
   keys.forEach(function (k) {
     var v = vals[k] || 0;
     if (v <= 0) return;
-    add(b, el("i", cls(k), null, { style: "width:" + (v / t * 100).toFixed(2) + "%", title: k + " " + dur(v) }));
+    add(b, el("i", cls(k), null, { style: "width:" + (v / t * 100).toFixed(2) + "%", "data-tip": k + " " + dur(v) }));
   });
   return b;
 }
@@ -52,20 +52,21 @@ function card(lbl, big, sub, cls) {
 }
 
 // ---------- error state ----------
-function fail(why) {
-  var c = el("div", "card red", null, { style: "margin:24px" });
-  add(c, el("h2", null, "The report data could not be read"), el("p", null, why),
-    el("p", "muted", "Fix: re-run `squad-report <scope>` with a squad-report of the same version as this page."));
-  app.appendChild(c);
+function fail(title, text, detail) {
+  var e = el("div", "errbox"), b = el("div", "banner bad", null, { role: "alert" });
+  add(b, el("span", "ic", "!"), add(el("div"), el("b", null, title), document.createTextNode(" " + text)));
+  add(e, el("h1", null, "The report data could not be read"), add(el("p", "muted"), document.createTextNode("This page shows "), el("code", null, "data.json"), document.createTextNode(", and it failed a check.")), b,
+    el("pre", null, detail + "\nFix: run  squad-report <scope>  to rebuild report.html with the installed plugin."));
+  app.appendChild(e);
 }
-if (!D || typeof D !== "object") { fail("the embedded data is not valid JSON"); return; }
-if (D.schema_version !== 1) { fail("schema_version " + D.schema_version + " not supported (this page reads 1)"); return; }
-if (D.kind !== "scope" || !D.totals || !D.scope) { fail("the data is not a scope report"); return; }
+if (!D || typeof D !== "object") { fail("The embedded data is not valid JSON.", "The report cannot be drawn.", "report/data.json  not valid JSON"); return; }
+if (D.schema_version !== 1) { fail("schema_version " + D.schema_version + " not supported.", "This report was written by a newer squad-report; this page understands version 1.", "report/data.json  schema_version: " + D.schema_version + "\nexpected: 1"); return; }
+if (D.kind !== "scope" || !D.totals || !D.scope) { fail("The data is not a scope report.", "Expected kind scope with totals and scope blocks.", "report/data.json  kind: " + D.kind); return; }
 
 var S = D.scope, T = D.totals, tasks = D.tasks || [], roles = D.roles || [], agents = D.agents || [];
 var hasData = (D.sources && D.sources.transcripts > 0) || T.agent_s > 0;
 var selected = null, drawerEl = null;
-var st = { sort: { k: "cost", dir: -1 }, rsort: { k: "cost", dir: -1 }, q: "", chip: "", iter: "", metric: "cost", compress: true, hi: "" };
+var st = { sort: { k: "cost", dir: -1 }, rsort: { k: "cost", dir: -1 }, q: "", f: { ret: 0, flag: 0, run: 0 }, iter: "", metric: "cost", compress: true, hi: "" };
 
 // ---------- helpers on data ----------
 function roleRows() {
@@ -87,7 +88,6 @@ function taskById(id) { return tasks.filter(function (t) { return t.id === id; }
 function tLabel(t) { return t.id + (t.title ? " " + t.title : ""); }
 function share(c) { return T.cost_usd ? Math.round(c / T.cost_usd * 100) + "%" : "–"; }
 function ttime(t) { return sum(t.buckets_s || {}); }
-function poOnBlock(rr) { return 0; }
 
 // ---------- header + banners ----------
 function header() {
@@ -256,15 +256,17 @@ function longestBlocks() {
   return out.slice(0, 3);
 }
 
-// ---------- sortable table ----------
-function table(cols, rows, sortState, rerender, onRow, opts) {
-  opts = opts || {};
+// ---------- tables ----------
+function faint(t) { return el("span", "faint", t); }
+function fa(v, f) { return v ? f(v) : faint("–"); }
+function table(cols, rows, sortState, rerender, onRow, emptyNode) {
   var tb = el("table"), th = el("thead"), tr = el("tr");
   cols.forEach(function (c) {
-    var h = el("th", (c.num ? "num " : "") + (c.sort ? "" : "nosort"), c.h + (sortState && sortState.k === c.k ? (sortState.dir < 0 ? " ▼" : " ▲") : ""));
+    var h = el("th", (c.num ? "num " : "") + (c.sort ? "" : "nosort"), c.h);
+    if (c.tip) h.setAttribute("title", c.tip);
     if (c.sort) {
       h.setAttribute("tabindex", "0"); h.setAttribute("role", "columnheader");
-      h.setAttribute("aria-sort", sortState.k === c.k ? (sortState.dir < 0 ? "descending" : "ascending") : "none");
+      if (sortState.k === c.k) h.setAttribute("aria-sort", sortState.dir < 0 ? "descending" : "ascending");
       var f = function () { if (sortState.k === c.k) sortState.dir = -sortState.dir; else { sortState.k = c.k; sortState.dir = c.num ? -1 : 1; } rerender(); };
       h.addEventListener("click", f);
       h.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); f(); } });
@@ -273,22 +275,31 @@ function table(cols, rows, sortState, rerender, onRow, opts) {
   });
   add(th, tr); tb.appendChild(th);
   var tbd = el("tbody");
+  if (!rows.length && emptyNode) add(tbd, add(el("tr", null, null, { style: "cursor:default" }), add(el("td", null, null, { colspan: String(cols.length) }), emptyNode)));
   rows.forEach(function (r) {
-    var row = el("tr", (r.cls || ""), null, { tabindex: "0" });
+    var row = el("tr", (r.cls || ""), null, { tabindex: "0", "data-key": r.key });
     if (selected === r.key) row.classList.add("sel");
     cols.forEach(function (c) {
-      var v = c.cell(r.item), td = el("td", (c.num ? "num " : "") + (c.ell ? "ell" : ""));
+      var v = c.cell(r.item), td = el("td", c.num ? "num" : "");
+      if (c.ell) td.classList.add("ell");
       if (v && v.nodeType) td.appendChild(v); else td.textContent = v === undefined || v === null ? "–" : v;
-      if (c.tip) td.setAttribute("title", c.tip(r.item) || "");
+      if (c.ttip) td.setAttribute("title", c.ttip(r.item) || "");
       row.appendChild(td);
     });
-    var open = function () { selected = r.key; onRow(r.item); };
+    var open = function () { setSel(r.key); onRow(r.item); };
     row.addEventListener("click", open);
     row.addEventListener("keydown", function (e) { if (e.key === "Enter") open(); });
     tbd.appendChild(row);
   });
   tb.appendChild(tbd);
   return tb;
+}
+function frame(t) { return add(el("div", "frame"), t); }
+function emptyBox(b, msg) { return add(el("div", "empty"), el("b", null, b), document.createTextNode(msg)); }
+function setSel(key) {
+  selected = key;
+  Array.prototype.forEach.call(document.querySelectorAll("tr.sel,td.sel"), function (x) { x.classList.remove("sel"); });
+  if (key) Array.prototype.forEach.call(document.querySelectorAll('tr[data-key="' + String(key).replace(/"/g, "") + '"]'), function (x) { x.classList.add("sel"); });
 }
 function sortRows(items, key, dir, getters, pinLast) {
   var g = getters[key];
@@ -300,74 +311,82 @@ function sortRows(items, key, dir, getters, pinLast) {
   });
   return main.concat(pin);
 }
+function tb(buckets, total) { return add(el("span", "tb"), bar(buckets, BK, function (b) { return "b-" + b; }), el("span", "d", dur(total))); }
+function costCell(c) { var w = el("span"); add(w, document.createTextNode(usd(c) + " "), faint(share(c))); return w; }
+function ret(n, flag) {
+  var p = el("span", "pill" + (n >= 3 ? " r" : n ? " m" : ""), n + (flag ? " ⚑" : ""));
+  if (n >= 3) p.setAttribute("title", "3 or more returns: flagged");
+  return p;
+}
+function sh(title, sub, tools) { return add(el("div", "sh"), el("h2", null, title), el("span", "sub", sub), tools); }
 
 // ---------- tasks ----------
 function overheadItem() {
-  var row = { id: "overhead", over: true, title: "Scope overhead", buckets_s: { working: 0, waiting: 0, blocking: 0, idle: 0 }, tokens: {}, cost_usd: 0 };
+  var row = { id: "overhead", over: true, title: "Scope overhead (unattributed)", buckets_s: { working: 0, waiting: 0, blocking: 0, idle: 0 }, tokens: { input: 0, cache_read: 0, cache_write: 0, output: 0 }, cost_usd: 0 };
   (D.matrix || []).filter(function (m) { return !m.task; }).forEach(function (m) {
     BK.forEach(function (b) { row.buckets_s[b] += (m.buckets_s || {})[b] || 0; });
+    for (var k in row.tokens) row.tokens[k] += (m.tokens || {})[k] || 0;
     row.cost_usd += m.cost_usd || 0;
   });
   return row;
 }
+function reviewWait(t) { return (t.review_waits || []).reduce(function (a, r) { return a + (r.wait_s || 0); }, 0); }
 function taskCols() {
   return [
-    { h: "Task", k: "id", sort: 1, cell: function (t) { return t.over ? "Overhead" : t.id; } },
-    { h: "Title", k: "title", sort: 1, ell: 1, cell: function (t) { var s = t.title || ""; return t.over ? t.title : (s.length > 34 ? s.slice(0, 33) + "…" : (s || "–")); }, tip: function (t) { return t.title; } },
-    { h: "Iter", k: "iter", sort: 1, num: 1, cell: function (t) { return t.over ? "–" : t.iteration; } },
-    { h: "Dev", k: "dev", sort: 1, cell: function (t) { return t.over ? "–" : t.dev; } },
-    { h: "Status", k: "status", sort: 1, cell: function (t) { return t.over ? "–" : el("span", "chip", t.status); } },
-    { h: "Returns (FAIL)", k: "returns", sort: 1, num: 1, cell: function (t) { if (t.over) return "–"; var r = t.returns || 0; return el("span", "pill" + (r >= 3 ? " r" : r ? " m" : ""), r + (t.flag ? " ⚑" : "")); } },
-    { h: "Time by bucket", k: "time", sort: 1, num: 1, cell: function (t) { var w = el("div"); add(w, bar(t.buckets_s, BK, function (b) { return "b-" + b; }), el("span", "muted", dur(ttime(t)) + " (derived)")); return w; } },
-    { h: "Cycle", k: "cycle", sort: 1, num: 1, cell: function (t) { return t.over ? "–" : (t.status === "running" ? dur(t.cycle_s) + " …" : t.cycle_s ? dur(t.cycle_s) : "–"); } },
-    { h: "Review wait", k: "rw", sort: 1, num: 1, cell: function (t) { if (t.over) return "–"; var w = (t.review_waits || []).reduce(function (a, r) { return a + (r.wait_s || 0); }, 0); return w ? dur(w) : "–"; } },
-    { h: "Tokens", k: "tokens", sort: 1, num: 1, cell: function (t) { var n = sum(t.tokens || {}); return n ? tok(n) : "–"; } },
-    { h: "Cost (est., list price)", k: "cost", sort: 1, num: 1, cell: function (t) { return t.cost_usd ? usd(t.cost_usd) + " · " + share(t.cost_usd) : "–"; } },
-    { h: "Rework", k: "rework", sort: 1, num: 1, cell: function (t) { return t.rework_s ? dur(t.rework_s) + " · " + usd(t.rework_cost_usd) : "–"; } }
+    { h: "Task", k: "id", sort: 1, cell: function (t) { return t.over ? "—" : el("b", null, t.id); } },
+    { h: "Title", k: "title", sort: 1, ell: 1, cell: function (t) { var s = t.title || ""; return el("span", t.over ? "muted" : "", s.length > 34 ? s.slice(0, 33) + "…" : (s || "–")); }, ttip: function (t) { return t.title; } },
+    { h: "Iter", k: "iter", sort: 1, num: 1, cell: function (t) { return t.over ? "" : t.iteration; } },
+    { h: "Dev", k: "dev", sort: 1, cell: function (t) { return t.over || !t.dev ? faint("–") : t.dev; } },
+    { h: "Status", k: "status", sort: 1, cell: function (t) { return t.over ? "" : el("span", "chip " + (t.status === "passed" ? "done" : t.status === "running" ? "run" : ""), t.status); } },
+    { h: "Returns (FAIL)", k: "returns", sort: 1, num: 1, cell: function (t) { return t.over ? "" : ret(t.returns || 0, t.flag); } },
+    { h: "Time by bucket", k: "time", sort: 1, num: 1, cell: function (t) { return tb(t.buckets_s || {}, ttime(t)); } },
+    { h: "Cycle", k: "cycle", sort: 1, num: 1, cell: function (t) { return t.over || !t.cycle_s ? faint("–") : document.createTextNode(dur(t.cycle_s) + (t.status === "running" ? " …" : "")); } },
+    { h: "Review wait", k: "rw", sort: 1, num: 1, cell: function (t) { return fa(t.over ? 0 : reviewWait(t), dur); } },
+    { h: "Tokens", k: "tokens", sort: 1, num: 1, cell: function (t) { return tok(sum(t.tokens || {})); } },
+    { h: "Cost", k: "cost", sort: 1, num: 1, tip: "Estimated cost at list price", cell: function (t) { return costCell(t.cost_usd || 0); } },
+    { h: "Rework", k: "rework", sort: 1, num: 1, cell: function (t) { return t.rework_s ? dur(t.rework_s) + " · " + usd(t.rework_cost_usd) : faint("–"); } }
   ];
 }
 var TG = {
   id: function (t) { return t.id; }, title: function (t) { return t.title || ""; }, iter: function (t) { return t.iteration; }, dev: function (t) { return t.dev || ""; },
   status: function (t) { return t.status || ""; }, returns: function (t) { return t.returns; }, time: ttime, cycle: function (t) { return t.cycle_s; },
-  rw: function (t) { return (t.review_waits || []).reduce(function (a, r) { return a + (r.wait_s || 0); }, 0); },
-  tokens: function (t) { return sum(t.tokens || {}); }, cost: function (t) { return t.cost_usd; }, rework: function (t) { return t.rework_s; }
+  rw: reviewWait, tokens: function (t) { return sum(t.tokens || {}); }, cost: function (t) { return t.cost_usd; }, rework: function (t) { return t.rework_s; }
 };
 function tasksSection() {
   var s = el("section", null, null, { id: "tasks" }), body = el("div");
-  add(s, el("h2", null, "Tasks"));
   function draw() {
     body.textContent = "";
     var q = st.q.toLowerCase();
     var list = tasks.filter(function (t) {
       if (q && (t.id + " " + (t.title || "") + " " + (t.dev || "")).toLowerCase().indexOf(q) < 0) return false;
-      if (st.chip === "returns" && !t.returns) return false;
-      if (st.chip === "flag" && !t.flag) return false;
-      if (st.chip === "open" && t.status === "passed") return false;
+      if (st.f.ret && !t.returns) return false;
+      if (st.f.flag && !t.flag) return false;
+      if (st.f.run && (!t.status || t.status === "passed")) return false;
       if (st.iter && String(t.iteration) !== st.iter) return false;
       return true;
     });
-    if (!tasks.length) { add(body, el("div", "nodata", "No tasks yet")); return; }
     var rows = sortRows(list, st.sort.k, st.sort.dir, TG).map(function (t) { return { item: t, key: "t" + t.id, cls: t.flag ? "flag" : "" }; });
-    if (!q && !st.chip && !st.iter) { var o = overheadItem(); rows.push({ item: o, key: "over", cls: "over" }); }
-    if (!rows.length) { add(body, el("div", "nodata", "No task matches the filter")); return; }
-    add(body, add(el("div", "frame"), table(taskCols(), rows, st.sort, draw, function (t) { if (t.over) openOverhead(); else openTask(t.id); })));
+    if (tasks.length && !q && !st.f.ret && !st.f.flag && !st.f.run && !st.iter) { var o = overheadItem(); rows.push({ item: o, key: "over", cls: "over" }); }
+    var none = tasks.length ? emptyBox("No task matches the filter.", "Clear the filter or chips.") : emptyBox("No tasks yet.", "Tasks appear when the scope has sessions and messages.");
+    add(body, frame(table(taskCols(), rows, st.sort, draw, function (t) { if (t.over) openTask("overhead"); else openTask(t.id); }, none)));
   }
   var tools = el("div", "tools");
-  var inp = el("input", null, null, { type: "search", placeholder: "Filter id, title, dev", "aria-label": "Filter tasks" });
+  var inp = el("input", null, null, { type: "search", id: "tq", placeholder: "Filter tasks…", "aria-label": "Filter tasks" });
   inp.addEventListener("input", function () { st.q = inp.value; draw(); });
   add(tools, inp);
-  [["returns", "Has returns"], ["flag", "Flagged"], ["open", "Not passed"]].forEach(function (c) {
-    var b = el("button", null, c[1], { type: "button", "aria-pressed": "false" });
-    b.addEventListener("click", function () { st.chip = st.chip === c[0] ? "" : c[0]; Array.prototype.forEach.call(tools.querySelectorAll("button"), function (x) { x.classList.remove("on"); x.setAttribute("aria-pressed", "false"); }); if (st.chip) { b.classList.add("on"); b.setAttribute("aria-pressed", "true"); } draw(); });
+  [["ret", "Has returns"], ["flag", "Flagged"], ["run", "Not passed"]].forEach(function (c) {
+    var b = el("button", "chip btn", c[1], { type: "button", "aria-pressed": "false" });
+    b.addEventListener("click", function () { st.f[c[0]] = !st.f[c[0]]; b.setAttribute("aria-pressed", String(!!st.f[c[0]])); draw(); });
     tools.appendChild(b);
   });
   var iters = {}; tasks.forEach(function (t) { if (t.iteration !== null && t.iteration !== undefined) iters[t.iteration] = 1; });
-  var sel = el("select", null, null, { "aria-label": "Iteration" });
-  add(sel, el("option", null, "All iterations", { value: "" }));
-  Object.keys(iters).sort().forEach(function (i) { add(sel, el("option", null, "Iteration " + i, { value: i })); });
+  var sel = el("select", null, null, { "aria-label": "Iteration", id: "itf" });
+  add(sel, el("option", null, "all", { value: "" }));
+  Object.keys(iters).sort().forEach(function (i) { add(sel, el("option", null, i, { value: i })); });
   sel.addEventListener("change", function () { st.iter = sel.value; draw(); drawGrid(); });
-  add(tools, sel);
-  add(s, tools, body); draw();
+  add(tools, add(el("label"), document.createTextNode("Iteration "), sel));
+  add(s, sh("Tasks", "click a row for the task × role detail", tools), body, legend(false));
+  draw();
   return s;
 }
 
@@ -378,277 +397,376 @@ var RG = {
 };
 function rolesSection() {
   var s = el("section", null, null, { id: "roles" }), body = el("div");
-  add(s, el("h2", null, "Roles"), body);
+  add(s, sh("Roles", "scope-wide, per agent"), body);
   var rr = roleRows();
-  var poBy = {};
-  agents.forEach(function (a) { var k = roleOf(a.name); (a.segments || []).forEach(function (g) { if (g[2] === "b" && g[4] === "PO") poBy[k] = (poBy[k] || 0) + g[1] - g[0]; }); });
-  rr.forEach(function (r) { r.po = poBy[r.role] || 0; });
+  rr.forEach(function (r) { r.po = poByRole()[r.role] || 0; r.gone = r.agents.every(function (a) { return a.transcript_found === false; }); });
   var cols = [
-    { h: "Role", k: "role", sort: 1, cell: function (r) { var w = el("span", null, r.role); if (r.live) add(w, el("span", "chip run", "live")); if (r.missing) add(w, el("span", "chip amber", "no transcript")); return w; } },
-    { h: "Agents", k: "agents", sort: 1, num: 1, cell: function (r) { return r.agents.length; } },
-    { h: "Respawns", k: "resp", sort: 1, num: 1, cell: function (r) { return RG.resp(r); } },
-    { h: "Time by bucket", k: "time", sort: 1, num: 1, cell: function (r) { var w = el("div"); add(w, bar(r.buckets, BK, function (b) { return "b-" + b; }), el("span", "muted", dur(sum(r.buckets)) + " (derived)")); return w; } },
-    { h: "Blocked on PO", k: "po", sort: 1, num: 1, cell: function (r) { return r.po ? dur(r.po) : "–"; } },
-    { h: "Tokens", k: "tokens", sort: 1, num: 1, cell: function (r) { var n = sum(r.tokens); return n ? tok(n) : "–"; } },
-    { h: "Cost (est., list price)", k: "cost", sort: 1, num: 1, cell: function (r) { return r.cost ? usd(r.cost) + " · " + share(r.cost) : "–"; } }
+    { h: "Role", k: "role", sort: 1, cell: function (r) { var w = el("span"); add(w, el("b", null, r.role)); if (r.live) add(w, el("span", "chip run", "live")); return w; } },
+    { h: "Agents", k: "agents", sort: 1, num: 1, cell: function (r) { return r.gone ? el("span", "chip warn", "no transcript") : r.agents.length; } },
+    { h: "Respawns", k: "resp", sort: 1, num: 1, cell: function (r) { return r.gone ? "–" : RG.resp(r); } },
+    { h: "Time by bucket", k: "time", sort: 1, num: 1, cell: function (r) { return r.gone ? faint("–") : tb(r.buckets, sum(r.buckets)); } },
+    { h: "Blocked on PO", k: "po", sort: 1, num: 1, cell: function (r) { return fa(r.po, dur); } },
+    { h: "Tokens", k: "tokens", sort: 1, num: 1, cell: function (r) { return r.gone ? "–" : tok(sum(r.tokens)); } },
+    { h: "Cost", k: "cost", sort: 1, num: 1, tip: "Estimated cost at list price", cell: function (r) { return r.gone ? "–" : costCell(r.cost); } }
   ];
   function draw() {
     body.textContent = "";
-    if (!rr.length) { add(body, el("div", "nodata", "No roles listed")); return; }
     var rows = sortRows(rr, st.rsort.k, st.rsort.dir, RG).map(function (r) { return { item: r, key: "r" + r.role }; });
-    add(body, add(el("div", "frame"), table(cols, rows, st.rsort, draw, function (r) { openRole(r.role); })));
+    add(body, frame(table(cols, rows, st.rsort, draw, function (r) { openRole(r.role); }, emptyBox("No roles.", "")))); 
   }
   draw();
   return s;
 }
+var poBy = null;
+function poByRole() {
+  if (poBy) return poBy;
+  poBy = {};
+  agents.forEach(function (a) { var k = roleOf(a.name); (a.segments || []).forEach(function (g) { if (g[2] === "b" && g[4] === "PO") poBy[k] = (poBy[k] || 0) + g[1] - g[0]; }); });
+  return poBy;
+}
 
-// ---------- grid (Could) ----------
+// ---------- grid ----------
 var gridBody;
 function cellVal(m) { return st.metric === "cost" ? m.cost_usd : st.metric === "time" ? sum(m.buckets_s || {}) : sum(m.tokens || {}); }
-function fmtVal(v) { return !v ? "·" : st.metric === "cost" ? usd(v) : st.metric === "time" ? dur(v) : tok(v); }
+function fmtVal(v) { return st.metric === "cost" ? usd(v) : st.metric === "time" ? dur(v) : tok(v); }
 function drawGrid() {
   if (!gridBody) return;
   gridBody.textContent = "";
-  var ms = (D.matrix || []).filter(function (m) { var t = m.task ? taskById(m.task) : null; return !st.iter || !m.task || (t && String(t.iteration) === st.iter); });
-  if (!ms.length) { add(gridBody, el("div", "nodata", "Nothing to cross yet")); return; }
-  var rl = []; ms.forEach(function (m) { var r = roleOf(m.agent); if (rl.indexOf(r) < 0) rl.push(r); });
-  var tl = []; ms.forEach(function (m) { var k = m.task || ""; if (tl.indexOf(k) < 0) tl.push(k); });
-  var cells = {}, mx = 0, rt = {}, ct = {};
-  ms.forEach(function (m) {
-    var k = (m.task || "") + "|" + roleOf(m.agent); cells[k] = cells[k] || { sum: 0, items: [] };
-    var v = cellVal(m); cells[k].sum += v; cells[k].items.push(m);
-    rt[m.task || ""] = (rt[m.task || ""] || 0) + v; ct[roleOf(m.agent)] = (ct[roleOf(m.agent)] || 0) + v;
+  var mat = D.matrix || [];
+  var trs = tasks.filter(function (t) { return !st.iter || String(t.iteration) === st.iter; }).map(function (t) { return { id: t.id, t: t }; });
+  if (mat.some(function (m) { return !m.task; })) trs.push({ id: "", t: null });
+  var rl = roleRows().map(function (r) { return r.role; });
+  if (!tasks.length || !rl.length) { add(gridBody, add(el("div", "card empty"), el("b", null, "Nothing to cross yet."), document.createTextNode("The grid needs at least one task and one agent with a transcript."))); return; }
+  var cells = {}, mx = 0;
+  mat.forEach(function (m) {
+    var k = (m.task || "") + "|" + roleOf(m.agent); cells[k] = (cells[k] || 0) + cellVal(m);
   });
-  for (var k in cells) mx = Math.max(mx, cells[k].sum);
-  var tb = el("table", "grid"), h = el("tr");
-  add(h, el("th", "nosort", "Task"));
-  rl.forEach(function (r) { add(h, el("th", "nosort num", r)); });
-  add(h, el("th", "nosort num", "Total")); add(tb, add(el("thead"), h));
+  var rows = trs.map(function (r) { return rl.map(function (c) { var v = cells[r.id + "|" + c] || 0; mx = Math.max(mx, v); return v; }); });
+  var rt = rows.map(function (a) { return a.reduce(function (x, y) { return x + y; }, 0); });
+  var ct = rl.map(function (c, j) { return rows.reduce(function (x, a) { return x + a[j]; }, 0); });
+  var tbl = el("table", "mx"), h = el("tr");
+  add(h, el("th", "rl nosort"));
+  rl.forEach(function (r) {
+    var n = roleRows().filter(function (x) { return x.role === r; })[0].agents.length;
+    add(h, el("th", "nosort", r, { title: n + " agent(s)" }));
+  });
+  add(h, el("th", "nosort", "Total")); add(tbl, add(el("thead"), h));
   var tbd = el("tbody");
-  tl.forEach(function (t) {
-    var tr = el("tr"); add(tr, el("td", null, t || "Overhead"));
-    rl.forEach(function (r) {
-      var c = cells[t + "|" + r], v = c ? c.sum : 0, td = el("td", "cell" + (v ? " hot" : ""), fmtVal(v));
+  trs.forEach(function (r, i) {
+    var tr = el("tr", null, null, { "data-key": "g" + r.id }), lab = el("td", "rl");
+    if (r.t) {
+      var ti = r.t.title || "";
+      add(lab, el("b", null, r.t.id), document.createTextNode(" "), el("span", "muted", ti.slice(0, 22) + (ti.length > 22 ? "…" : "")));
+      if (r.t.flag) lab.appendChild(document.createTextNode(" ⚑"));
+    } else add(lab, el("span", "muted", "overhead"));
+    tr.appendChild(lab);
+    rl.forEach(function (c, j) {
+      var v = rows[i][j], a = mx ? Math.min(0.85, v / mx * 0.85) : 0;
+      var td = el("td", "cell" + (v ? "" : " zero"), v ? fmtVal(v) : "·", { style: "background:rgba(232,130,14," + a.toFixed(2) + ")" });
       if (v) {
-        td.setAttribute("style", "background:rgba(232,130,14," + (0.12 + 0.6 * v / (mx || 1)).toFixed(2) + ")");
         td.setAttribute("tabindex", "0");
-        var f = function () { openCell(t, r); };
+        var f = function () { setSel(null); openCell(r.id, c); td.classList.add("sel"); };
         td.addEventListener("click", f); td.addEventListener("keydown", function (e) { if (e.key === "Enter") f(); });
       }
       tr.appendChild(td);
     });
-    add(tr, el("td", "cell", fmtVal(rt[t]))); tbd.appendChild(tr);
+    add(tr, add(el("td", "cell zero tot"), el("b", null, fmtVal(rt[i])))); tbd.appendChild(tr);
   });
-  var fr = el("tr"); add(fr, el("td", null, "Total"));
-  rl.forEach(function (r) { add(fr, el("td", "cell", fmtVal(ct[r]))); });
-  add(fr, el("td", "cell", fmtVal(Object.keys(rt).reduce(function (a, k) { return a + rt[k]; }, 0))));
-  tbd.appendChild(fr); tb.appendChild(tbd);
-  add(gridBody, add(el("div", "frame"), tb));
+  tbl.appendChild(tbd);
+  var fr = el("tr"); add(fr, el("td", "rl", "Total"));
+  ct.forEach(function (v) { add(fr, el("td", null, fmtVal(v))); });
+  add(fr, el("td", null, fmtVal(rt.reduce(function (a, b) { return a + b; }, 0))));
+  add(tbl, add(el("tfoot"), fr));
+  add(gridBody, frame(tbl), el("div", "hint", "Cell colour = share of the largest cell. “·” = no activity."));
 }
 function gridSection() {
   var s = el("section", null, null, { id: "grid" });
-  add(s, el("h2", null, "Task × role"));
   var tools = el("div", "tools");
-  [["cost", "Cost"], ["time", "Time"], ["tokens", "Tokens"]].forEach(function (m) {
-    var b = el("button", st.metric === m[0] ? "on" : "", m[1], { type: "button" });
-    b.addEventListener("click", function () { st.metric = m[0]; Array.prototype.forEach.call(tools.querySelectorAll("button"), function (x) { x.classList.remove("on"); }); b.classList.add("on"); drawGrid(); });
-    tools.appendChild(b);
-  });
-  gridBody = el("div"); add(s, tools, gridBody);
+  var sel = el("select", null, null, { id: "mx", "aria-label": "Metric" });
+  [["cost", "Cost"], ["time", "Time"], ["tokens", "Tokens"]].forEach(function (m) { add(sel, el("option", null, m[1], { value: m[0] })); });
+  sel.value = st.metric;
+  sel.addEventListener("change", function () { st.metric = sel.value; drawGrid(); });
+  add(tools, add(el("label"), document.createTextNode("Show "), sel));
+  gridBody = el("div");
+  add(s, sh("Task × role", "who spent what on which task; click a cell. Follows the iteration filter", tools), gridBody);
   drawGrid();
   return s;
 }
 
-// ---------- timeline (Could) ----------
+// ---------- timeline ----------
 var tlBody;
+var SVGNS = "http:" + "//www.w3.org/2000/svg";
+function sv(tag, attrs, text) {
+  var n = document.createElementNS(SVGNS, tag);
+  if (attrs) for (var k in attrs) n.setAttribute(k, attrs[k]);
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+function dt(sec) {
+  return new Date(sec * 1000).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+}
 function timelineSection() {
   var s = el("section", null, null, { id: "timeline" });
-  add(s, el("h2", null, "Timeline"));
   var tools = el("div", "tools");
-  var cb = el("input", null, null, { type: "checkbox", id: "compress", "aria-label": "Compress idle gaps over 1 h" });
+  var cb = el("input", null, null, { type: "checkbox", id: "cmp" });
   cb.checked = st.compress;
   cb.addEventListener("change", function () { st.compress = cb.checked; drawTimeline(); });
-  var lab = el("label", null, " Compress idle gaps > 1 h (off = true scale)", { "for": "compress" });
   var sel = el("select", null, null, { "aria-label": "Highlight task", id: "hi" });
-  add(sel, el("option", null, "Highlight task: none", { value: "" }));
-  tasks.forEach(function (t) { add(sel, el("option", null, "Task " + t.id, { value: t.id })); });
+  add(sel, el("option", null, "none", { value: "" }));
+  tasks.forEach(function (t) { add(sel, el("option", null, t.id, { value: t.id })); });
   sel.addEventListener("change", function () { st.hi = sel.value; drawTimeline(); });
-  add(tools, cb, lab, sel); add(s, tools, legend(true));
-  tlBody = el("div"); s.appendChild(tlBody);
-  drawTimeline();
+  add(tools, add(el("label"), cb, document.createTextNode(" Compress idle gaps > 1 h")), add(el("label"), document.createTextNode("Highlight task "), sel));
+  tlBody = el("div", "tl");
+  var lg = legend(false), gl = el("div", "legend");
+  add(gl, el("span", null, "▲ blocked"), el("span", null, "✕ FAIL (return)", { style: "color:var(--fail)" }), el("span", null, "▸ HANDIN", { style: "color:var(--mangotxt)" }), el("span", null, "✓ PASS", { style: "color:var(--work)" }), sw("b-po", "blocking, waiting on the PO"));
+  add(s, sh("Timeline", "one lane per agent, coloured by bucket", tools), tlBody, lg, gl);
   return s;
 }
 function drawTimeline() {
   tlBody.textContent = "";
-  var total = T.wall_s || 0;
-  var any = agents.some(function (a) { return (a.segments || []).length; });
-  if (!any && !((T.po_wait || {}).items || []).length) { add(tlBody, el("div", "nodata", "No timeline")); return; }
+  var items = (T.po_wait || {}).items || [];
+  if (!agents.some(function (a) { return (a.segments || []).length; })) { add(tlBody, emptyBox("No timeline.", "No agent has transcript activity in this scope yet.")); return; }
   var t0 = ts(S.window && S.window.start) || 0;
-  var end = total || Math.max.apply(null, agents.map(function (a) { var s = a.segments || []; return s.length ? s[s.length - 1][1] : 0; }));
-  // active stretches (non-idle) for compression
+  var T1 = T.wall_s || Math.max.apply(null, agents.map(function (a) { var g = a.segments || []; return g.length ? g[g.length - 1][1] : 0; }));
+  var wend = ts(S.window && S.window.end) ? ts(S.window.end) - t0 : T1;
+  var W = Math.max(300, tlBody.clientWidth - 24), LW = W > 700 ? 150 : 90, LH = 22, GAP = 6, TOP = 22, H = TOP + (agents.length + 1) * (LH + GAP) + 8;
   var act = [];
   agents.forEach(function (a) { (a.segments || []).forEach(function (g) { if (g[2] !== "i") act.push([g[0], g[1]]); }); });
-  var items = (T.po_wait || {}).items || [];
-  items.forEach(function (i) { var a = ts(i.raised_at) - t0, b = (i.answered_at ? ts(i.answered_at) : ts(S.window.end)) - t0; act.push([a, b]); });
+  pw = items.map(function (i) { var a = ts(i.raised_at) - t0; return [a, (i.answered_at ? ts(i.answered_at) - t0 : wend), !i.answered_at, i]; });
+  var pw = items.map(function (i) { var a = ts(i.raised_at) - t0; return [a, (i.answered_at ? ts(i.answered_at) - t0 : wend), !i.answered_at, i]; });
+  pw.forEach(function (p) { act.push([p[0], p[1]]); });
   act.sort(function (a, b) { return a[0] - b[0]; });
-  var merged = [];
-  act.forEach(function (r) { var l = merged[merged.length - 1]; if (l && r[0] - l[1] <= 3600) l[1] = Math.max(l[1], r[1]); else merged.push([r[0], r[1]]); });
-  var PX = 0.04, GAP = 34, map, width, gaps = [];
-  if (st.compress && merged.length) {
-    var acc = 0, pts = [];
-    merged.forEach(function (m, i) {
-      if (i > 0) { gaps.push({ x: acc, from: merged[i - 1][1], to: m[0] }); acc += GAP; }
-      pts.push({ a: m[0], b: m[1], x: acc }); acc += (m[1] - m[0]) * PX;
-    });
-    width = acc;
-    map = function (t) {
-      for (var i = 0; i < pts.length; i++) { if (t <= pts[i].b || i === pts.length - 1) { return pts[i].x + Math.min(Math.max(t - pts[i].a, 0), pts[i].b - pts[i].a) * PX; } }
-      return width;
-    };
-    // segments inside a gap collapse onto its edge; only idle ones live there
-  } else { width = end * PX; map = function (t) { return t * PX; }; }
-  width = Math.max(width, 200);
-  var wrap = el("div", "tl");
+  var un = [];
+  act.forEach(function (g) { var l = un[un.length - 1]; if (l && g[0] <= l[1] + 3600) l[1] = Math.max(l[1], g[1]); else un.push([g[0], g[1]]); });
+  var pcs = [], c = 0;
+  if (st.compress) {
+    un.forEach(function (u) { if (u[0] > c + 3600) pcs.push({ a: c, b: u[0], z: 1 }); pcs.push({ a: Math.max(c, u[0] > c + 3600 ? u[0] : c), b: u[1] }); c = u[1]; });
+    if (T1 > c + 3600) pcs.push({ a: c, b: T1, z: 1 }); else pcs.push({ a: c, b: T1 });
+  } else pcs = [{ a: 0, b: T1 }];
+  var CW = 34, nz = pcs.filter(function (p) { return p.z; }).length, usable = W - LW - nz * CW;
+  var secs = pcs.filter(function (p) { return !p.z; }).reduce(function (a, p) { return a + p.b - p.a; }, 0) || 1, k = usable / secs, x = LW;
+  pcs.forEach(function (p) { p.x = x; p.w = p.z ? CW : (p.b - p.a) * k; x += p.w; });
+  function X(t) { var p = pcs.filter(function (q) { return t >= q.a && t <= q.b; })[0] || pcs[pcs.length - 1]; return p.x + (t - p.a) / (p.b - p.a || 1) * p.w; }
   var hiT = st.hi ? taskById(st.hi) : null;
-  function lane(name, onName) {
-    var l = el("div", "lane"), nm = el("div", "nm", name, { title: name, tabindex: onName ? "0" : "-1" });
-    if (onName) { nm.addEventListener("click", onName); nm.addEventListener("keydown", function (e) { if (e.key === "Enter") onName(); }); }
-    var tr = el("div", "track", null, { style: "width:" + width.toFixed(0) + "px" });
-    add(l, nm, tr); wrap.appendChild(l);
-    gaps.forEach(function (g) { add(tr, el("div", "gap", "⋯ " + dur(g.to - g.from), { style: "left:" + g.x.toFixed(1) + "px;width:" + GAP + "px", title: "idle gap " + dur(g.to - g.from) })); });
-    return tr;
-  }
-  // PO lane
-  var pl = lane("PO wait", null);
-  items.forEach(function (i) {
-    var a = ts(i.raised_at) - t0, b = (i.answered_at ? ts(i.answered_at) : ts(S.window.end)) - t0, x = map(a);
-    add(pl, el("div", "seg b-po", null, { style: "left:" + x.toFixed(1) + "px;width:" + Math.max(2, map(b) - x).toFixed(1) + "px", title: "escalation " + i.id + " " + (i.title || "") + " · " + dur(b - a) + (i.answered_at ? "" : " (open now)") }));
+  var svg = sv("svg", { viewBox: "0 0 " + W + " " + H, height: H, role: "img", "aria-label": "Per-agent timeline" });
+  var defs = sv("defs");
+  [["hatch", "#DB3B22", "#E9705B"], ["hatchpo", "#9A40CF", "#B966E8"]].forEach(function (p) {
+    var pt = sv("pattern", { id: p[0], width: 6, height: 6, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" });
+    add(pt, sv("rect", { width: 6, height: 6, fill: p[1] }), sv("rect", { width: 3, height: 6, fill: p[2] }));
+    defs.appendChild(pt);
   });
-  var CLS = { w: "working", a: "waiting", b: "blocking", i: "idle" };
-  agents.forEach(function (a) {
-    var tr = lane(a.name + (a.live ? " ▸ live" : ""), function () { openAgent(a.name); });
-    if (a.transcript_found === false) { add(tr, el("span", "muted", "no transcript")); return; }
+  svg.appendChild(defs);
+  pcs.forEach(function (p) {
+    if (p.z) {
+      var cx = p.x + p.w / 2;
+      add(svg, sv("rect", { x: p.x, y: TOP - 4, width: p.w, height: H - TOP, fill: "#F4ECDD" }),
+        sv("text", { "class": "gaptx", x: cx, y: TOP + 14, "text-anchor": "middle", transform: "rotate(-90 " + cx + " " + (TOP + 14) + ")", dy: 3, "data-tip": "Idle gap " + dur(p.b - p.a) + " compressed" }, "⋯ " + dur(p.b - p.a)));
+    } else {
+      add(svg, sv("line", { x1: p.x, x2: p.x, y1: TOP - 4, y2: H, stroke: "#E7DBC8" }));
+      if (st.compress && !(S.status === "running" && p.x > W - 100)) { var late = p.x > W - 100; add(svg, sv("text", { "class": "ax", x: late ? p.x - 3 : p.x + 3, y: 12, "text-anchor": late ? "end" : "start" }, dt(t0 + p.a).replace(" UTC", ""))); }
+    }
+  });
+  if (!st.compress) for (var t = Math.ceil(t0 / 21600) * 21600; t < t0 + T1; t += 21600)
+    add(svg, sv("line", { x1: X(t - t0), x2: X(t - t0), y1: TOP - 4, y2: H, stroke: "#E7DBC8", "stroke-dasharray": "2 4" }), sv("text", { "class": "ax", x: X(t - t0) + 3, y: 12 }, new Date(t * 1000).toISOString().slice(5, 16).replace("T", " ")));
+  if (hiT && hiT.window) {
+    var ha = Math.max(ts(hiT.window.start) - t0, 0), hb = Math.min(ts(hiT.window.end) - t0, T1);
+    if (hb > ha) add(svg, sv("rect", { x: X(ha), y: TOP - 4, width: Math.max(2, X(hb) - X(ha)), height: H - TOP, fill: "#E8820E", opacity: ".08" }));
+  }
+  function lane(i, name, cls, onName, full) {
+    var y = TOP + i * (LH + GAP), mc = Math.floor((LW - 12) / 6.4);
+    var lbl = sv("text", { "class": "lane-l" + (cls ? " " + cls : ""), x: LW - 8, y: y + LH / 2 + 4, "text-anchor": "end" }, name.length > mc ? name.slice(0, Math.ceil((mc - 1) / 2)) + "…" + name.slice(name.length - Math.floor((mc - 1) / 2)) : name);
+    if (name.length > mc || full) lbl.setAttribute("data-tip", full || name);
+    if (onName) { lbl.setAttribute("tabindex", "0"); lbl.addEventListener("click", onName); lbl.addEventListener("keydown", function (e) { if (e.key === "Enter") onName(); }); }
+    add(svg, lbl, sv("rect", { x: LW, y: y, width: W - LW, height: LH, fill: "#FCF8F1", stroke: "#E7DBC8", rx: 3 }));
+    return y;
+  }
+  var py = lane(0, "PO wait", "po");
+  pw.forEach(function (p) {
+    add(svg, sv("rect", { x: X(p[0]), y: py + 2, width: Math.max(2, X(p[1]) - X(p[0])), height: LH - 4, fill: "url(#hatchpo)", "data-tip": "Escalation open " + dur(p[1] - p[0]) + (p[2] ? " (still open)" : "") + " · " + dt(t0 + p[0]) }));
+  });
+  var CLS = { w: "working", a: "waiting", b: "blocking", i: "idle" }, FILL = { w: "var(--work)", a: "var(--wait)", i: "var(--idle)" };
+  var GL = { FAIL: ["✕", "#CE1D6C"], HANDIN: ["▸", "#CE7000"], PASS: ["✓", "#368A1E"] };
+  agents.forEach(function (a, i0) {
+    var y = lane(i0 + 1, a.name, "", function () { openAgent(a.name); });
+    if (a.transcript_found === false) { add(svg, sv("text", { "class": "gaptx", x: LW + 8, y: y + LH / 2 + 4 }, "no transcript")); return; }
     (a.segments || []).forEach(function (g) {
-      var x0 = map(g[0]), x1 = map(g[1]);
-      if (x1 - x0 < 0.5 && g[2] === "i") return;
-      var cls = CLS[g[2]] === "blocking" && g[4] === "PO" ? "b-po" : "b-" + CLS[g[2]];
+      var x1 = X(g[0]), x2 = X(g[1]), w = Math.max(1, x2 - x1), po = g[2] === "b" && g[4] === "PO";
+      if (g[2] === "i" && x2 - x1 < 0.5) return;
       var dim = hiT && g[3] !== hiT.id;
-      add(tr, el("div", "seg " + cls + (dim ? " dim" : ""), null, { style: "left:" + x0.toFixed(1) + "px;width:" + Math.max(1, x1 - x0).toFixed(1) + "px", title: CLS[g[2]] + " " + dur(g[1] - g[0]) + (g[3] ? " · task " + g[3] : "") + (g[4] ? " · on " + g[4] : "") + " · +" + dur(g[0]) }));
+      var r = sv("rect", { "class": "seg" + (dim ? " dim" : ""), x: x1.toFixed(1), y: y + 2, width: w.toFixed(1), height: LH - 4, fill: g[2] === "b" ? (po ? "url(#hatchpo)" : "url(#hatch)") : FILL[g[2]],
+        "data-tip": a.name + " · " + BN[CLS[g[2]]] + (po ? " – waiting on the PO" : g[4] ? " – on " + g[4] : "") + " · " + dur(g[1] - g[0]) + (g[3] ? " · task " + g[3] : "") + " · " + dt(t0 + g[0]) });
+      if (g[2] === "i") r.setAttribute("opacity", ".35");
+      svg.appendChild(r);
     });
     (a.events || []).forEach(function (e) {
-      var sym = e[1] === "FAIL" ? "✕" : e[1] === "PASS" ? "✓" : "▸";
-      add(tr, el("span", "ev " + e[1], sym, { style: "left:" + map(e[0]).toFixed(1) + "px;opacity:" + (hiT && e[2] !== hiT.id ? ".25" : "1"), title: e[1] + " " + (e[2] || "") + " · +" + dur(e[0]) }));
+      var g = GL[e[1]]; if (!g) return;
+      var dim = hiT && e[2] !== hiT.id;
+      var ev = sv("text", { "class": "ev", x: X(e[0]), y: y + LH / 2 + 5, "text-anchor": "middle", "font-size": 14, "font-weight": 800, fill: g[1], stroke: "#fff", "stroke-width": 2.5, "paint-order": "stroke", "data-tip": e[1] + (e[2] ? " task " + e[2] : "") + " · " + dt(t0 + e[0]) }, g[0]);
+      if (dim) ev.setAttribute("opacity", ".25");
+      svg.appendChild(ev);
     });
-    if (S.partial) add(tr, el("div", "nowline", null, { style: "left:" + map(end).toFixed(1) + "px", title: "now" }));
+    if (a.live) add(svg, sv("text", { x: W - 6, y: y + LH / 2 + 4, "text-anchor": "end", "font-size": 11, fill: "#CE7000" }, "▸ live"));
   });
-  tlBody.appendChild(wrap);
+  if (S.status === "running") add(svg, sv("line", { x1: X(T1), x2: X(T1), y1: TOP - 4, y2: H, stroke: "#E8820E", "stroke-width": 2, "stroke-dasharray": "4 3" }), sv("text", { "class": "ax", x: X(T1) - 4, y: 12, "text-anchor": "end", fill: "#CE7000" }, "now"));
+  tlBody.appendChild(svg);
 }
 
 // ---------- drawer ----------
-function closeDrawer() { if (drawerEl) { drawerEl.remove(); drawerEl = null; } selected = null; }
-function drawer(title) {
-  closeDrawer();
-  var d = el("aside", "drawer", null, { role: "dialog", "aria-label": title });
-  var x = el("button", "x", "×", { "aria-label": "Close" });
-  x.addEventListener("click", closeDrawer);
-  add(d, x, el("h3", null, title));
-  document.body.appendChild(d); drawerEl = d; x.focus();
-  return d;
+var closeT = 0;
+drawerEl = el("aside", "drawer", null, { role: "dialog", "aria-label": "Details", "aria-hidden": "true" });
+function closeDrawer() {
+  drawerEl.classList.remove("open"); drawerEl.setAttribute("aria-hidden", "true");
+  setSel(null);
+  clearTimeout(closeT);
+  closeT = setTimeout(function () { if (!drawerEl.classList.contains("open")) drawerEl.textContent = ""; }, 300);
 }
-function mini(rows, heads) {
-  var tb = el("table"), tr = el("tr");
-  heads.forEach(function (h) { add(tr, el("th", "nosort", h)); });
-  add(tb, add(el("thead"), tr));
+function drawer(label) {
+  clearTimeout(closeT);
+  drawerEl.textContent = "";
+  drawerEl.setAttribute("aria-label", label); drawerEl.removeAttribute("aria-hidden");
+  var x = el("button", "x", "×", { "aria-label": "Close", type: "button" });
+  x.addEventListener("click", closeDrawer);
+  drawerEl.appendChild(x);
+  drawerEl.classList.add("open"); drawerEl.scrollTop = 0; x.focus();
+  return drawerEl;
+}
+function h3(text, extra) { var h = el("h3", null, text); if (extra) add(h, document.createTextNode(" "), extra); return h; }
+function mini(rows, heads, nums) {
+  nums = nums || [];
+  var t = el("table");
+  if (heads) { var tr = el("tr"); heads.forEach(function (h, i) { add(tr, el("th", "nosort" + (nums.indexOf(i) >= 0 ? " num" : ""), h)); }); add(t, add(el("thead"), tr)); }
   var tbd = el("tbody");
   rows.forEach(function (r) {
     var row = el("tr");
-    r.cells.forEach(function (c) { var td = el("td", null, c); if (r.wrap) td.setAttribute("style", "white-space:normal"); row.appendChild(td); });
+    r.cells.forEach(function (c, i) { var td = el("td", nums.indexOf(i) >= 0 ? "num" : ""); if (c && c.nodeType) td.appendChild(c); else td.textContent = c === undefined || c === null ? "" : c; row.appendChild(td); });
     if (r.onclick) { row.setAttribute("tabindex", "0"); row.addEventListener("click", r.onclick); row.addEventListener("keydown", function (e) { if (e.key === "Enter") r.onclick(); }); }
+    else row.style.cursor = "default";
     tbd.appendChild(row);
   });
-  tb.appendChild(tbd); return tb;
+  t.appendChild(tbd); return frame(t);
 }
-function btn(text, f) { var b = el("button", "btn", text, { type: "button" }); b.addEventListener("click", f); return b; }
+function btn(text, f, ghost) { var b = el("button", "act" + (ghost ? " ghost" : ""), text, { type: "button" }); b.addEventListener("click", f); return b; }
+function idleSub(peer, human) {
+  var d = el("div", "idlesub", "Idle: waiting for work " + dur(peer) + " · waiting for your chat reply " + dur(human) + " ");
+  return add(d, faint("(not PO wait)"));
+}
+function legendK() {
+  var l = el("div", "legend"), L = { input: "Input", cache_read: "Cache read", cache_write: "Cache write", output: "Output" };
+  ["input", "cache_read", "cache_write", "output"].forEach(function (k) { add(l, sw("t-" + k, L[k])); });
+  return l;
+}
+function showInTimeline(task) {
+  if (task) { st.hi = task; var s = document.getElementById("hi"); if (s) s.value = task; drawTimeline(); }
+  closeDrawer(); scrollTo("timeline");
+}
+function byTaskRows(filter, role) {
+  var by = {};
+  (D.matrix || []).forEach(function (m) {
+    if (!filter(m)) return;
+    var k = m.task || "overhead", o = by[k] = by[k] || { b: { working: 0, waiting: 0, blocking: 0, idle: 0 }, c: 0 };
+    BK.forEach(function (b) { o.b[b] += (m.buckets_s || {})[b] || 0; }); o.c += m.cost_usd || 0;
+  });
+  return Object.keys(by).sort(function (a, b) { return by[b].c - by[a].c; }).map(function (k) {
+    var o = by[k];
+    return { cells: [k === "overhead" ? "overhead" : "Task " + k, bar(o.b, BK, function (b) { return "b-" + b; }), dur(sum(o.b)), usd(o.c)], onclick: role && k !== "overhead" ? function () { openCell(k, role); } : role ? function () { openCell("", role); } : null };
+  });
+}
 function openTask(id) {
-  var t = taskById(id); if (!t) return;
-  var d = drawer("Task " + t.id + (t.title ? " · " + t.title : ""));
-  selected = "t" + id;
-  add(d, el("div", "muted", t.status + " · dev " + (t.dev || "–") + " · " + hm(t.window && t.window.start) + " → " + hm(t.window && t.window.end)));
-  if ((t.aliases || []).length) add(d, el("div", "muted", "also named " + t.aliases.join(", ")));
-  var c = el("div", "card", null, { style: "margin-top:8px" });
-  add(c, el("div", null, "Agent-time " + dur(ttime(t)) + " (derived) · cycle " + (t.cycle_s ? dur(t.cycle_s) : "–") + " · cost " + usd(t.cost_usd) + " (estimated, list price) · tokens " + tok(sum(t.tokens || {}))),
-    bar(t.buckets_s, BK, function (b) { return "b-" + b; }), legend(false), tokbar(t.tokens || {}));
-  d.appendChild(c);
-  var rw = (t.review_waits || []).reduce(function (a, r) { return a + (r.wait_s || 0); }, 0);
-  if (rw) add(d, el("div", "muted", "Review wait " + dur(rw) + " (derived)"));
-  add(d, el("h4", null, "Returns (FAIL messages)"));
+  var over = id === "overhead", t = over ? overheadItem() : taskById(id); if (!t) return;
+  var d = drawer(over ? "Scope overhead" : "Task " + t.id);
+  setSel(over ? "over" : "t" + id);
+  var h = el("h2", null, over ? "Scope overhead " : "Task " + t.id + " ");
+  add(h, over ? el("span", "chip", "unattributed") : el("span", "chip " + (t.status === "passed" ? "done" : t.status === "running" ? "run" : ""), t.status));
+  add(d, h);
+  var info = el("div", "muted", null, { style: "margin:2px 0 10px" });
+  add(info, document.createTextNode((t.title || "") + (t.dev ? " · dev " + t.dev : "")));
+  if (t.window && t.window.start) add(info, el("br"), document.createTextNode(dt(ts(t.window.start)) + " → " + dt(ts(t.window.end))));
+  if ((t.aliases || []).length) add(info, el("br"), faint("also named " + t.aliases.join(", ")));
+  add(d, info);
+  var c = el("div", "card"), b = function (x) { return el("b", null, x); };
+  add(c, b(dur(ttime(t))), document.createTextNode(" agent-time" + (t.cycle_s ? " · cycle " + dur(t.cycle_s) : "") + (!over && reviewWait(t) ? " · review wait " + dur(reviewWait(t)) : "") + " · "), b(usd(t.cost_usd)), document.createTextNode(" · "), b(tok(sum(t.tokens || {}))), document.createTextNode(" tokens "),
+    bar(t.buckets_s, BK, function (k) { return "b-" + k; }), el("div", null, null, { style: "height:6px" }), tokbar(t.tokens || {}));
+  add(d, c);
+  add(d, h3("Returns (FAIL messages)", t.flag ? el("span", "chip bad", "3+ flagged") : null));
   var rl = t.returns_list || [];
-  if (!rl.length) add(d, el("div", "nodata", "No returns"));
+  if (!rl.length) add(d, el("div", "muted", "No returns."));
   else {
-    var tb = el("table"), tr = el("tr");
-    ["#", "FAIL at", "Next HANDIN", "Rework"].forEach(function (h) { add(tr, el("th", "nosort", h)); });
-    add(tb, add(el("thead"), tr));
+    var tbl = el("table"), hr = el("tr");
+    [["#", 0], ["FAIL · by", 0], ["Next HANDIN", 0], ["Rework", 1]].forEach(function (x) { add(hr, el("th", "nosort" + (x[1] ? " num" : ""), x[0])); });
+    add(tbl, add(el("thead"), hr));
     var tbd = el("tbody");
     rl.forEach(function (r, i) {
-      var row = el("tr"); add(row, el("td", null, i + 1), el("td", null, hm(r.fail_at) + (r.fail_by ? " by " + r.fail_by : "")), el("td", null, hm(r.handin_at)), el("td", null, r.rework_s ? dur(r.rework_s) : "–"));
+      var row = el("tr", null, null, { style: "cursor:default" }), f = el("td");
+      add(f, document.createTextNode(r.fail_at ? dt(ts(r.fail_at)) : "–"));
+      if (r.fail_by) add(f, el("br"), faint("by " + r.fail_by));
+      add(row, el("td", null, i + 1), f, el("td", null, r.handin_at ? dt(ts(r.handin_at)) : "–"), el("td", "num", r.rework_s ? dur(r.rework_s) : "–"));
       tbd.appendChild(row);
-      var rr = el("tr"), td = el("td", "reason", r.reason === null || r.reason === undefined ? "not shared" : r.reason, { colspan: "4" });
-      if (r.reason === null || r.reason === undefined) td.classList.add("muted");
-      add(rr, td); tbd.appendChild(rr);
+      var rr = el("tr", "rsn", null, { style: "cursor:default" }), td = el("td", null, null, { colspan: "3" }), hide = r.reason === null || r.reason === undefined;
+      add(td, hide ? faint("not shared") : el("span", "reason", r.reason));
+      add(rr, el("td"), td); tbd.appendChild(rr);
     });
-    tb.appendChild(tbd); d.appendChild(tb);
-    add(d, el("div", "muted", "Total rework " + dur(t.rework_s) + " · " + usd(t.rework_cost_usd) + " (estimated, list price)"));
+    add(tbl, tbd, add(el("tfoot"), add(el("tr"), el("td", null, "Total rework", { colspan: "3" }), el("td", "num", dur(t.rework_s) + " · " + usd(t.rework_cost_usd)))));
+    add(d, frame(tbl));
   }
-  add(d, el("h4", null, "By role"));
+  add(d, h3("By role"));
   var byRole = {};
-  (D.matrix || []).filter(function (m) { return m.task === t.id; }).forEach(function (m) {
-    var r = roleOf(m.agent), o = byRole[r] = byRole[r] || { t: 0, c: 0 };
-    o.t += sum(m.buckets_s || {}); o.c += m.cost_usd || 0;
+  (D.matrix || []).filter(function (m) { return over ? !m.task : m.task === t.id; }).forEach(function (m) {
+    var r = roleOf(m.agent), o = byRole[r] = byRole[r] || { b: { working: 0, waiting: 0, blocking: 0, idle: 0 }, c: 0 };
+    BK.forEach(function (k) { o.b[k] += (m.buckets_s || {})[k] || 0; }); o.c += m.cost_usd || 0;
   });
-  var rows = Object.keys(byRole).map(function (r) { return { cells: [r, dur(byRole[r].t), usd(byRole[r].c)], onclick: function () { openCell(t.id, r); } }; });
-  add(d, rows.length ? mini(rows, ["Role", "Time", "Cost"]) : el("div", "nodata", "No role data"));
-  var bt = el("div", "tools");
-  add(bt, btn("Show in timeline", function () { st.hi = t.id; var s = document.getElementById("hi"); if (s) s.value = t.id; drawTimeline(); scrollTo("timeline"); }), btn("Show in grid", function () { scrollTo("grid"); }));
-  add(d, bt, el("div", "muted", "Developer time is attributed by roster and branch; other roles by the window from first mention to PASS."));
+  var rows = Object.keys(byRole).sort(function (p, q) { return byRole[q].c - byRole[p].c; }).map(function (r) {
+    return { cells: [r, tb(byRole[r].b, sum(byRole[r].b)), usd(byRole[r].c)], onclick: function () { openCell(over ? "" : t.id, r); } };
+  });
+  add(d, rows.length ? mini(rows, ["Role", "Time", "Cost"], [2]) : el("div", "muted", "No agent time."));
+  add(d, add(el("div", "acts"), btn("Show in timeline", function () { if (over) { closeDrawer(); scrollTo("timeline"); } else showInTimeline(t.id); }), btn("Show in grid", function () { closeDrawer(); scrollTo("grid"); }, true)));
+  add(d, el("p", "note", over ? "Time that no rule could attach to a task: planning, BA, Manager, retro." : "Developer time by roster and branch; other roles by the window first mention → PASS."));
 }
-function openOverhead() {
-  var d = drawer("Scope overhead"); selected = "over";
-  var o = overheadItem();
-  add(d, el("p", null, "Work that no task claims: agent turns outside any task window, plus idle time. It is a real cost, not an error."),
-    el("div", null, "Agent-time " + dur(ttime(o)) + " (derived) · cost " + usd(o.cost_usd) + " (estimated, list price)"), bar(o.buckets_s, BK, function (b) { return "b-" + b; }));
-}
+function openOverhead() { openTask("overhead"); }
 function openRole(name) {
   var r = roleRows().filter(function (x) { return x.role === name; })[0]; if (!r) return;
-  var d = drawer("Role " + name); selected = "r" + name;
-  add(d, el("div", "muted", r.agents.length + " agents · " + r.sessions + " sessions · cost " + usd(r.cost) + " (estimated, list price)"),
-    bar(r.buckets, BK, function (b) { return "b-" + b; }), legend(false),
-    el("div", "sub muted", "Idle: waiting for work " + dur(r.idle_s.peer) + " · waiting for your chat reply " + dur(r.idle_s.human_input) + " (not PO wait)"));
-  add(d, el("h4", null, "Agents"));
-  add(d, mini(r.agents.map(function (a) { return { cells: [a.name + (a.live ? " (live)" : "") + (a.transcript_found === false ? " (no transcript)" : ""), a.sessions, dur(sum(a.buckets_s || {})), usd(a.cost_usd)], onclick: function () { openAgent(a.name); } }; }), ["Agent", "Sessions", "Time", "Cost"]));
-  add(d, el("h4", null, "By task"));
-  var byT = {};
-  (D.matrix || []).forEach(function (m) { if (roleOf(m.agent) !== name) return; var k = m.task || "overhead"; var o = byT[k] = byT[k] || { t: 0, c: 0 }; o.t += sum(m.buckets_s || {}); o.c += m.cost_usd || 0; });
-  add(d, mini(Object.keys(byT).map(function (k) { return { cells: [k, dur(byT[k].t), usd(byT[k].c)], onclick: k === "overhead" ? null : function () { openCell(k, name); } }; }), ["Task", "Time", "Cost"]));
+  if (r.agents.every(function (a) { return a.transcript_found === false; })) return;
+  var d = drawer("Role " + name); setSel("r" + name);
+  var respawns = Math.max(0, r.sessions - r.agents.length);
+  add(d, add(el("h2", null, name + " "), el("span", "chip", r.agents.length + " agent" + (r.agents.length > 1 ? "s" : "") + " · " + respawns + " respawns")));
+  var c = el("div", "card", null, { style: "margin-top:8px" });
+  add(c, el("b", null, dur(sum(r.buckets))), document.createTextNode(" · "), el("b", null, usd(r.cost)), document.createTextNode(" "), bar(r.buckets, BK, function (b) { return "b-" + b; }), idleSub(r.idle_s.peer, r.idle_s.human_input));
+  add(d, c, h3("Agents"));
+  add(d, mini(r.agents.map(function (a) {
+    var ok = a.transcript_found !== false;
+    return { cells: [a.name, ok ? a.sessions + " session" + (a.sessions > 1 ? "s" : "") : el("span", "chip warn", "no transcript"), ok ? dur(sum(a.buckets_s || {})) : "", ok ? usd(a.cost_usd) : ""], onclick: function () { openAgent(a.name); } };
+  }), null, [2, 3]));
+  add(d, h3("By task"), mini(byTaskRows(function (m) { return roleOf(m.agent) === name; }, name), null, [2, 3]));
 }
 function openAgent(name) {
-  var a = roles.filter(function (x) { return x.name === name; })[0]; if (!a) return;
-  var d = drawer("Agent " + name);
-  add(d, el("div", "muted", (a.role || "") + " · " + a.sessions + " sessions" + (a.transcript_found === false ? " · no transcript" : "")),
-    bar(a.buckets_s, BK, function (b) { return "b-" + b; }),
-    el("div", "sub muted", "Idle: waiting for work " + dur((a.idle_s || {}).peer) + " · waiting for your chat reply " + dur((a.idle_s || {}).human_input) + " (not PO wait)"));
-  add(d, btn("← " + (a.role || "role"), function () { openRole(a.role || name); }));
-  var byT = {};
-  (D.matrix || []).forEach(function (m) { if (m.agent !== name) return; var k = m.task || "overhead"; var o = byT[k] = byT[k] || { t: 0, c: 0 }; o.t += sum(m.buckets_s || {}); o.c += m.cost_usd || 0; });
-  add(d, el("h4", null, "By task"), mini(Object.keys(byT).map(function (k) { return { cells: [k, dur(byT[k].t), usd(byT[k].c)] }; }), ["Task", "Time", "Cost"]));
+  var a = roles.filter(function (x) { return x.name === name; })[0]; if (!a || a.transcript_found === false) return;
+  var d = drawer("Agent " + name); setSel(null);
+  add(d, el("h2", null, name), el("div", "muted", (a.role || "") + " · " + a.sessions + " session" + (a.sessions > 1 ? "s" : "")));
+  var c = el("div", "card", null, { style: "margin-top:8px" });
+  add(c, el("b", null, dur(sum(a.buckets_s || {}))), document.createTextNode(" · "), el("b", null, usd(a.cost_usd)), document.createTextNode(" "), bar(a.buckets_s, BK, function (b) { return "b-" + b; }), idleSub((a.idle_s || {}).peer, (a.idle_s || {}).human_input));
+  add(d, c, h3("By task"), mini(byTaskRows(function (m) { return m.agent === name; }, null), null, [2, 3]));
+  add(d, add(el("div", "acts"), btn("← " + (a.role || "role"), function () { openRole(a.role || name); }, true), btn("Show lane in timeline", function () { closeDrawer(); scrollTo("timeline"); })));
 }
 function openCell(task, role) {
-  var d = drawer((task ? "Task " + task : "Overhead") + " × " + role);
+  var d = drawer((task ? "Task " + task : "Scope overhead") + " × " + role); setSel(null);
+  add(d, el("h2", null, (task ? "Task " + task : "Scope overhead") + " × " + role));
   var ms = (D.matrix || []).filter(function (m) { return (m.task || "") === (task || "") && roleOf(m.agent) === role; });
   var b = { working: 0, waiting: 0, blocking: 0, idle: 0 }, tk = { input: 0, cache_read: 0, cache_write: 0, output: 0 }, c = 0;
   ms.forEach(function (m) { BK.forEach(function (k) { b[k] += (m.buckets_s || {})[k] || 0; }); for (var k in tk) tk[k] += (m.tokens || {})[k] || 0; c += m.cost_usd || 0; });
-  add(d, el("div", null, "Time " + dur(sum(b)) + " (derived) · cost " + usd(c) + " (estimated, list price)"), bar(b, BK, function (k) { return "b-" + k; }), tokbar(tk));
-  var t = task ? taskById(task) : null;
-  if (t) add(d, btn("← Task " + task, function () { openTask(task); }), btn("Show in timeline", function () { st.hi = task; var s = document.getElementById("hi"); if (s) s.value = task; drawTimeline(); scrollTo("timeline"); }));
+  if (!ms.length) add(d, emptyBox("No activity.", "This agent did not work on this task."));
+  else {
+    var cd = el("div", "card");
+    add(cd, el("b", null, dur(sum(b))), document.createTextNode(" · "), el("b", null, usd(c)), document.createTextNode(" · "), el("b", null, tok(sum(tk))), document.createTextNode(" tokens "),
+      bar(b, BK, function (k) { return "b-" + k; }), el("div", null, null, { style: "height:6px" }), tokbar(tk), legendK());
+    add(d, cd);
+  }
+  var t0 = ts(S.window && S.window.start) || 0, evs = [];
+  agents.forEach(function (a) { if (roleOf(a.name) === role) (a.events || []).forEach(function (e) { if (e[1] !== "BLOCKED" && (e[2] || "") === (task || "")) evs.push(e); }); });
+  evs.sort(function (p, q) { return p[0] - q[0]; });
+  if (evs.length) add(d, h3("Messages"), mini(evs.map(function (e) { return { cells: [dt(t0 + e[0]), el("b", null, e[1])] }; }), null));
+  var acts = el("div", "acts", null, { style: "margin-top:10px" });
+  if (task && taskById(task)) add(acts, btn("← Task " + task, function () { openTask(task); }, true));
+  add(acts, btn("Show in timeline", function () { showInTimeline(task && taskById(task) ? task : ""); }));
+  add(d, acts);
 }
 function go(target) {
   if ((target.view === "tasks" || target.view === "returns") && target.id && taskById(target.id)) { scrollTo("tasks"); openTask(target.id); }
@@ -659,14 +777,28 @@ function go(target) {
   else if (target.view === "timeline" || target.view === "waits" || target.view === "returns") scrollTo(target.view === "returns" ? "tasks" : "timeline");
   else scrollTo("overview");
 }
-function scrollTo(id) { var n = document.getElementById(id); if (n) n.scrollIntoView(); }
+function scrollTo(id) {
+  var n = document.getElementById(id); if (!n) return;
+  n.scrollIntoView({ block: "start" });
+  n.classList.remove("flash"); void n.offsetWidth; n.classList.add("flash");
+}
 
+var tipEl = el("div", null, null, { id: "tip" });
+document.addEventListener("mousemove", function (e) {
+  var t = e.target.closest && e.target.closest("[data-tip]");
+  if (!t) { tipEl.style.display = "none"; return; }
+  tipEl.textContent = t.getAttribute("data-tip"); tipEl.style.display = "block";
+  tipEl.style.left = Math.max(4, Math.min(e.clientX + 12, innerWidth - 310)) + "px"; tipEl.style.top = (e.clientY + 14) + "px";
+});
 document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeDrawer(); });
 
 // ---------- assemble ----------
 var mainEl = el("main");
 add(mainEl, banners(), overview(), tasksSection(), rolesSection(), gridSection(), timelineSection());
 add(app, header(), nav(), mainEl);
+document.body.appendChild(drawerEl); document.body.appendChild(tipEl);
+drawTimeline();
+var rzT; window.addEventListener("resize", function () { clearTimeout(rzT); rzT = setTimeout(drawTimeline, 120); });
 function spy() {
   var cur = "overview";
   ["overview", "tasks", "roles", "grid", "timeline"].forEach(function (id) { var n = document.getElementById(id); if (n && n.getBoundingClientRect().top < 90) cur = id; });

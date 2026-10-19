@@ -204,5 +204,78 @@ class BannersDom(unittest.TestCase):
         self.assertNotIn("Partial:", dump_dom(d))
 
 
+class TabsCss(unittest.TestCase):
+    def test_mock_values(self):
+        self.assertIn("border-radius:10px", rule(".frame"))
+        self.assertIn("background:#fff", rule(".frame"))
+        self.assertIn("text-transform:uppercase", rule("th"))
+        self.assertIn("min-width:22px", rule(".pill"))
+        self.assertIn("width:min(460px,100vw)", rule(".drawer"))
+        self.assertIn("translateX(105%)", rule(".drawer"))
+        self.assertIn("border-radius:10px", rule(".tl"))
+        self.assertIn("position:sticky", rule(".mx td.rl,.mx th.rl"))
+        self.assertIn("th[aria-sort=descending]::after", CSS)
+
+    def test_no_dark_background(self):
+        self.assertNotRegex(CSS, r"background:#[0-3][0-9A-Fa-f]{5}\b")
+
+    def test_timeline_svg_no_url_in_js(self):
+        self.assertNotRegex(JS, r"https?://")
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser DOM test skipped")
+class TabsDom(unittest.TestCase):
+    def test_tasks_table_columns_sort_and_overhead_last(self):
+        dom = dump_dom(fxs.f_c_eight_returns()[0])
+        sec = dom[dom.index('id="tasks"'):dom.index('id="roles"')]
+        heads = re.findall(r"<th[^>]*>([^<]*)</th>", sec)
+        self.assertEqual(heads, ["Task", "Title", "Iter", "Dev", "Status", "Returns (FAIL)", "Time by bucket", "Cycle",
+                                 "Review wait", "Tokens", "Cost", "Rework"])
+        self.assertIn('aria-sort="descending"', sec)
+        self.assertEqual(len(re.findall(r'<span class="pill', sec)), 5)
+        self.assertIn('<span class="pill r" title="3 or more returns: flagged">3 \u2691</span>', sec)
+        self.assertIn('<tr class="flag"', sec)
+        self.assertLess(sec.rindex("<tr "), sec.index("Scope overhead"))
+        self.assertIn('aria-pressed="false"', sec)
+
+    def test_roles_grid_timeline_render(self):
+        dom = dump_dom(fxs.f_c_eight_returns()[0])
+        self.assertIn('<table class="mx">', dom)
+        self.assertIn('id="mx"', dom)
+        self.assertIn("<svg", dom[dom.index('id="timeline"'):])
+        self.assertIn("PO wait", dom)
+        self.assertIn("blocking, waiting on the PO", dom)
+        self.assertIn('<aside class="drawer"', dom)
+
+    def test_missing_role_row_chip(self):
+        d, _ = fxs.f_b_retired_no_transcript()
+        sec = dump_dom(d)
+        sec = sec[sec.index('id="roles"'):sec.index('id="grid"')]
+        self.assertIn('<span class="chip warn">no transcript</span>', sec)
+
+    def test_empty_states(self):
+        d = fxs.base()
+        d["sources"]["transcripts"] = 0
+        d["totals"].update(agent_s=0, wall_s=0)
+        d.update(tasks=[], agents=[], matrix=[], digest=[], iterations=[], roles=[])
+        dom = dump_dom(d)
+        for t in ("No tasks yet.", "No roles.", "Nothing to cross yet.", "No timeline."):
+            self.assertIn(t, dom)
+
+    def test_error_state_single_card(self):
+        d = fxs.base()
+        d["schema_version"] = 3
+        dom = dump_dom(d)
+        self.assertIn("The report data could not be read", dom)
+        self.assertIn("schema_version 3 not supported.", dom)
+        self.assertIn("squad-report &lt;scope&gt;", dom)
+        self.assertNotIn('id="tasks"', dom)
+
+    def test_drawer_open_and_close(self):
+        self.assertIn('if (e.key === "Escape") closeDrawer()', JS)
+        self.assertIn('drawerEl.classList.remove("open")', JS)
+        self.assertIn('querySelectorAll("tr.sel,td.sel")', JS)
+
+
 if __name__ == "__main__":
     unittest.main()
