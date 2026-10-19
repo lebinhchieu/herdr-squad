@@ -75,3 +75,18 @@ Ran 138 tests ... OK
 - `# Evidence: <NN> <title>` drops a leading `<NN>:` from the ticket title (`# 01: x` gives `# Evidence: 01 x`, not `01 01: x`).
 - `--root DIR` resolves a relative ticket path against DIR; `--sha` sets the `sha:` line.
 - `add` removes an `img/` file only when the replaced section used it and no remaining embed does.
+
+## Tech Lead review
+
+### Tech Lead review: ticket 01
+
+sha: 6069e835d320823802e8e60e695a6f9864a78f66 (single commit; evidence folder rides it)
+
+**PASS**
+
+- Diff inside Touches (bin/squad-evidence, bin/squadevidence.py, tests/test_squad_evidence.py, dev.json, tech-lead.json); file mode 755; allow rules as specced, nothing else changed in settings.
+- Harness on the branch: 138 OK (test_squad_evidence, test_windows_safe, test_squad_respawn, test_squad_spawn, test_templates, test_model_effort_settings).
+- Every ticket AC has a named test: path (4), add (copy/rewrite, idempotent, clash, missing image, title, Behaviour untouched, CRLF), check (each problem class, fences, 1 MB, --base pass/fail). `squad-evidence check` on the ticket's own folder: exit 0.
+- Choices 1-4 accepted (title drops "NN:"; --root/--sha; image removal only for the replaced section; ticket .md not committed).
+- Note for 04: `check --base` diffs `<base>..HEAD` of the folder's repo, so run it from the branch's worktree (or checked-out branch), not the project root on `main`.
+- Note for 04: `test_instructions` command-exists test must be green once 01-03 are merged.

@@ -52,3 +52,17 @@ Edited bullets: `agents/dev.md` (Design, S-size, new "Assemble the evidence."), 
  tests/test_instructions.py | 26 ++++++++++++++++++++++++++
  7 files changed, 35 insertions(+), 8 deletions(-)
 ```
+
+## Tech Lead review
+
+### Tech Lead review: ticket 03
+
+sha: 3557ec8e7600d780b56dc1f02c73e5f74c477e3a (evidence-only follow-up 0572249; `git diff --name-only 3557ec8 0572249` lists only `.scratch/evidence-inline/issues/03-role-files.evidence/evidence.md`)
+
+**PASS**
+
+- Diff stays inside Touches (6 agent files + `tests/test_instructions.py`); `grep -rn dev-evidence agents/` empty.
+- Ran the harness on the branch: 65 OK, 1 expected failure: `test_every_command_an_instruction_tells_agents_to_run_exists` names `squad-evidence`, which is ticket 01's file. It must be green on the merge in ticket 04 (AC there).
+- Each edited bullet names who acts, when, outcome; no process.md rule copied; no new process.md section cited.
+- `evidence.md` follows the layout contract; no screenshots (none apply), command output fenced.
+- Follow-up for 04: after 01 is merged, `squad-evidence add` this file as `## Tech Lead review`.

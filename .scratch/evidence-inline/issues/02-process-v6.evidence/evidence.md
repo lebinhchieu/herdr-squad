@@ -144,3 +144,16 @@ Sections:
   already       ## Notes
   clean         ## Safety
 ```
+
+## Tech Lead review
+
+### Tech Lead review: ticket 02
+
+sha: 53501538c89dc74b9dbdd15b36c35b4545bd41a3 (evidence-only follow-up d13660c; diff 5350153..squad/plugin/evidence-inline/plugin-dev-evidence-inline-2 touches only the ticket's .evidence/ folder)
+
+**PASS** (return 1; F1 fixed)
+
+- Sizes rows 116/118 now say `evidence.md`; `grep dev-evidence templates/squad/process.md` empty; v6 snapshot == template (cmp).
+- Changelog v6 has 4 items; the Sizes item names the `###` subsection that holds the table (plan shows `clean`).
+- Harness 149 OK, `processlint` exit 0. Diff inside Touches plus the one-line version hard-code in tests/test_pod_rules_process.py.
+- Follow-up for 04: after 01 merges, `test_instructions` command-exists test must be green; `squad-evidence add` this file as `## Tech Lead review`.
