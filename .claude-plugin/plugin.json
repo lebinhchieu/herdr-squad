@@ -1,7 +1,7 @@
 {
   "name": "squad",
   "displayName": "Squad",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "A self-managing dev team of Claude Code sessions: a Manager runs BA, Team Lead, Tech Lead, two QAs and Developers per scope, in herdr panes, with you as PO.",
   "author": { "name": "Chieu Le" },
   "license": "MIT",
