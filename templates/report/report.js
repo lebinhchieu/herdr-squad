@@ -185,11 +185,19 @@ function overview() {
   var lb = el("div"); add(lb, el("h2", null, "Longest blocks"));
   var blocks = longestBlocks();
   if (!blocks.length) add(lb, el("div", "nodata", "No blocks yet."));
-  blocks.forEach(function (b) {
-    var d = el("div", "card", null, { style: "margin-bottom:6px" });
-    add(d, el("div", null, b.agent + " · " + b.bucket + " " + dur(b.len) + " (derived)"), el("div", "sub", (b.task ? "task " + b.task + " · " : "") + (b.on ? "on " + b.on + " · " : "") + "at +" + dur(b.start)));
-    lb.appendChild(d);
-  });
+  if (blocks.length) {
+    var bt = el("table"), bh = el("thead"), br = el("tr");
+    ["Who", "Waited on", "Task", "For"].forEach(function (h) { add(br, el("th", h === "For" ? "nosort num" : "nosort", h)); });
+    add(bh, br); add(bt, bh);
+    var bb = el("tbody");
+    blocks.forEach(function (b) {
+      var r = el("tr"), on = el("td");
+      if (b.on === "PO") add(on, el("span", "chip po", "PO")); else on.textContent = b.on || "?";
+      add(r, add(el("td"), el("b", null, b.agent)), on, el("td", null, b.task || "–"), el("td", "num", dur(b.len)));
+      bb.appendChild(r);
+    });
+    add(bt, bb); add(lb, add(el("div", "frame"), bt));
+  }
   var bi = el("div"); add(bi, el("h2", null, "By iteration"), el("div", "sub muted", "Each row covers the iteration's message window only, not a full breakdown."));
   var its = D.iterations || [];
   if (!its.length) add(bi, el("div", "nodata", "No iterations."));

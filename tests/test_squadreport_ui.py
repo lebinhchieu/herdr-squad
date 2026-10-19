@@ -81,6 +81,15 @@ class OverviewDom(unittest.TestCase):
         self.assertIn("Longest blocks", dom)
         self.assertIn("By iteration", dom)
 
+    def test_longest_blocks_table_po_chip(self):
+        d = fxs.base()
+        d["agents"][0]["segments"] = [[0, 600, "b", None, "PO"], [700, 900, "b", None, "qa"]]
+        dom = dump_dom(d)
+        blk = dom[dom.index("Longest blocks"):dom.index("By iteration")]
+        self.assertEqual(re.findall(r"<th[^>]*>([^<]*)</th>", blk), ["Who", "Waited on", "Task", "For"])
+        self.assertIn('<span class="chip po">PO</span>', blk)
+        self.assertEqual(blk.count("<tr>"), 3)
+
     def test_reason_sub_line(self):
         d = fxs.base()
         d["digest"] = [{"id": "m", "kind": "most_returns", "weight": 1, "text": 'Task 07 came back 3 times (3 returns in all): "tests missing"',
