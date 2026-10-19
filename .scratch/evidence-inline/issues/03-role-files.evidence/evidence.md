@@ -66,3 +66,6 @@ sha: 3557ec8e7600d780b56dc1f02c73e5f74c477e3a (evidence-only follow-up 0572249; 
 - Each edited bullet names who acts, when, outcome; no process.md rule copied; no new process.md section cited.
 - `evidence.md` follows the layout contract; no screenshots (none apply), command output fenced.
 - Follow-up for 04: after 01 is merged, `squad-evidence add` this file as `## Tech Lead review`.
+
+#### Return 1 — PASS (Tech Lead)
+Code sha cd368f4 (diff vs b398258: agents/manager.md and agents/dev.md, one line each). Restores "evidence links" in the Check-in bullet and "hand in to the **Tech Lead** instead of the QAs" in dev.md; stray .pyc deleted; tests untouched. Ran test_manager_inbox_read, test_pod_contact_routes, test_squadinbox, test_instructions: 99 OK. Full suite --tz re-runs on the final evidence tip.
