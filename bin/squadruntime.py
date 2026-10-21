@@ -160,6 +160,7 @@ def _extract(plugin_root, sha, dest):
     """git archive <sha> into dest through tarfile (no `tar` binary, exec bits kept, no links outside dest)."""
     proc = subprocess.Popen(["git", "-C", plugin_root, "archive", "--format=tar", sha],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    ok = True
     try:
         with tarfile.open(fileobj=proc.stdout, mode="r|", encoding="utf-8") as tf:
             if hasattr(tarfile, "data_filter"):
@@ -170,13 +171,13 @@ def _extract(plugin_root, sha, dest):
                         raise tarfile.TarError(f"refusing {m.name}")
                     tf.extract(m, dest)
     except tarfile.TarError:
+        ok = False
+    finally:
         proc.stdout.close()
-        proc.wait()
-        return False
-    err = proc.stderr.read()
-    proc.stdout.close()
-    proc.stderr.close()
-    return proc.wait() == 0 and not err.strip().startswith(b"fatal")
+        err = proc.stderr.read()
+        proc.stderr.close()
+        code = proc.wait()
+    return ok and code == 0 and not err.strip().startswith(b"fatal")
 
 
 def materialise(squad_dir, version, sha, plugin_root=DEFAULT_ROOT, dry_run=False):

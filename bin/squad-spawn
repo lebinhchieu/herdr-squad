@@ -135,7 +135,7 @@ if [[ $smode == composed ]]; then
   plugin_dir=$runtime
   rules_args=(--append-system-prompt-file "$rules")
   runtime_env=(--env "PATH=$runtime/bin:$PATH")
-  [[ -z $prompt ]] || prompt="$prompt Your process rules are attached to this session ($rules); do not read process.md."
+  [[ -z $prompt ]] || prompt="$prompt Your process rules are attached to this session ($rules); read no other process file."
 fi
 
 # The Manager hears about a process.md that is behind through its first prompt. Never stops the spawn.
