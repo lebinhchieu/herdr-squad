@@ -1,9 +1,9 @@
 Status: ready-for-agent
 Type: task
 Task ID: 05
-Touches: `bin/squad-spawn`, `bin/squad-respawn`, `bin/squad-start`, `tests/test_squad_spawn.py`, `tests/test_squad_respawn.py`, `tests/test_squad_start.py`
+Touches: `bin/squadruntime.py` (new), `bin/squad-process` (`mode`, `runtime`, `compose --help`), `bin/squad-spawn`, `bin/squad-respawn`, `bin/squad-start`, `tests/test_squadruntime.py` (new; holds the composed spawn/respawn/start tests, the three existing test files are unchanged)
 Does not touch: `agents/*` (06), settings merging (08), `bin/squadcompose.py` beyond calling it
-Harness: `cd tests; PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_squad_spawn test_squad_respawn test_squad_start test_windows_safe`
+Harness: `cd tests; PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_squadruntime test_squad_spawn test_squad_respawn test_squad_start test_windows_safe`
 Blocked by: 01, 04
 
 # 05: Spawn and respawn attach the composed rules; scopes run on a pinned plugin
