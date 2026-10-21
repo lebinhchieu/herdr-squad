@@ -1,7 +1,7 @@
 Status: ready-for-agent
 Type: task
 Task ID: 04
-Touches: `bin/squadcompose.py` (new), `bin/squad-process` (add `compose`, `rule`, `who`), `tests/test_squadcompose.py` (new), `tests/fixtures/rules/` (extend)
+Touches: `bin/squadcompose.py` (new), `bin/squadrules_cli.py` (add `compose`, `rule`, `who`; `bin/squad-process` already delegates, 02), `tests/test_squadcompose.py` (new), `tests/fixtures/rules/compose/` (new)
 Does not touch: `bin/squadrules.py` beyond imports (02 owns it; a needed parser change is an ASK to the Tech Lead), `templates/`, `agents/*`, `bin/squad-spawn`
 Harness: `cd tests; PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_squadcompose test_squadrules test_windows_safe`
 Blocked by: 02
