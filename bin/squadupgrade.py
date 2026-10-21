@@ -223,7 +223,7 @@ def _changelog_why(root, version):
             cur = int(m.group(1))
             continue
         m = re.match(rf"^- ({sr._ID}): (.+)$", line)
-        if m and cur is not None and cur >= 7:
+        if m and cur is not None and cur >= 7 and str(cur) == str(version):
             out[m.group(1)] = m.group(2)
     return out
 
@@ -465,7 +465,7 @@ def cmd_apply(a):
         print(format_check(plan, old_pin, new_pin).rstrip("\n"))
         print(f"\noverlay after: {len(new_ops)} operations; pin moves to {' '.join(new_pin)}")
         print("NOT APPLIED (add --yes after the PO confirms).")
-        return 0
+        return 3
     today = a.today or str(datetime.date.today())
     backup = _backup(squad_dir, today)
     sp._atomic_write(Path(squad_dir) / sr.OVERLAY_FILE, text)

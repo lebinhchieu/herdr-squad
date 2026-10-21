@@ -128,7 +128,7 @@ class WriteGuards(Base):
         sq = self.squad("change-stale")
         before = self.snapshot(sq)
         r = run(*self.args("--apply", "change-stale", sq, "--resolve", "REV-2=keep"))
-        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.returncode, 3)
         self.assertIn("NOT APPLIED", r.stdout)
         self.assertEqual(self.snapshot(sq), before)
 

@@ -35,7 +35,7 @@ Same session, same promise: nothing is written until the PO confirms. Mechanics:
    - **stale** (plugin changed a rule the squad replaced): `keep` = squad text stays, re-checked against the new rule; `take` = squad text dropped, plugin text used; `file:<path>` = the PO's new wording (write it to a temp file first).
    - **removed** (plugin removed a rule the squad replaced): `drop` = squad text dropped; `retarget:<ID>` = squad text moves to the named new rule (offer the plugin's `replaced_by` IDs); `local` = squad text becomes a squad-only rule `SQ-n`.
    Items under "review (not blocking)" are only mentioned: a squad rule shares a topic with a plugin change.
-3. **The answer** comes back from the inbox as one choice per ID; pass each as `--resolve <ID>=<choice>`. Run `squad-process upgrade --apply --squad-dir <squad> --resolve ... ` **without** `--yes`, show the result, ask for the PO's yes, then run it again with `--yes`. A no or no answer: stop; nothing was written.
+3. **The answer** comes back from the inbox as one choice per ID; pass each as `--resolve <ID>=<choice>`. Run `squad-process upgrade --apply --squad-dir <squad> --resolve ... ` **without** `--yes`, show the result (it exits 3 with `NOT APPLIED` and writes nothing; only exit 0 means applied), ask for the PO's yes, then run it again with `--yes`. A no or no answer: stop; nothing was written.
 4. **Report:** the backup path, log rows and new pin from the output. Open scopes keep their `scope.md` pin; they move at the next scope.
 5. **Upstream:** `squad-process upstream` lists the squad's `upstream: proposed` operations (why and body) for a plugin ticket. Offer it; never file it for the PO.
 

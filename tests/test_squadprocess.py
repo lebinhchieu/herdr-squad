@@ -151,6 +151,19 @@ class ChangelogTest(unittest.TestCase):
         self.assertEqual((d.old_kind, d.new_kind, d.manual), ("snapshot", "none", "delete section D by hand"))
         self.assertEqual(a.manual, "")
 
+    def test_rule_format_blocks_skipped_anywhere(self):
+        v2 = ("## v2 — 2026-10-14\n- snapshot: history/process-v2.md\n\n### T\n"
+              "- sections: all\n- change: reword\n- why: w\n- old: snapshot\n- new: snapshot\n")
+        rule = "## v7 — 2026-10-22\n- snapshot: history/process-v7/\n\nadded:\n- CORE-1: why\n"
+        v1 = v2.replace("v2", "v1")
+        for name, text in (("top", rule + "\n" + v2), ("middle", v2 + "\n" + rule + "\n" + v1),
+                           ("two", rule + "\n" + rule.replace("v7", "v8") + "\n" + v2)):
+            with tempfile.TemporaryDirectory() as t:
+                p = Path(t) / "c.md"
+                p.write_text(text, encoding="utf-8")
+                got = sp.read_changelog(p)
+                self.assertEqual([i.version for i in got], [2, 1] if name == "middle" else [2], name)
+
     def test_all_sections(self):
         with tempfile.TemporaryDirectory() as t:
             p = Path(t) / "c.md"
