@@ -7,6 +7,9 @@
   squad-process show <role> [--also "<Heading>" ...] [--squad-dir D]
                                         read-only: the role's sections of process.md, or the whole file
 
+  squad-process lint [--squad-dir D] [--plugin-root R] [--cards error|warn] [--hashes]
+                                        check the rule files (templates/squad/process/) and the squad's process.local.md
+
   squad-process plan [--json]            read-only: changelog items, section states, conflicts
   squad-process compose --out FILE [--resolve "<heading>=ours|theirs|file:<path>" ...]
   squad-process apply --file FILE [--yes] without --yes: diff, "NOT APPLIED"; with it: backup, write, log
@@ -85,6 +88,11 @@ def _show(a):
 
 def main(argv=None):
     squadio.utf8_stdio()
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and (argv[0] in ("lint", "rule", "who")
+                 or (argv[0] == "compose" and len(argv) > 1 and not argv[1].startswith("-"))):
+        import squadrules_cli  # rule files: ticket 02; compose <role> is ticket 04
+        return squadrules_cli.main(argv)
     ap = argparse.ArgumentParser(prog="squad-process", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("version", "check"):
