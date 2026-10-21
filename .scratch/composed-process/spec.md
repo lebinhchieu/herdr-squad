@@ -9,7 +9,7 @@ PO answers: D1–D7, 2026-10-21 (below). Also covers the 9 findings of the 2026-
 - A plugin process change reaches a squad between scopes. It never loses a squad rule, and it asks the PO only about the rules the squad itself changed.
 - A pod runs on one pinned plugin version from start to close.
 
-## PO decisions (2026-10-21)
+## PO decisions (D1-D7 2026-10-21; D8-D16 round 1, 2026-10-22)
 
 | # | Decision |
 |---|---|
@@ -20,6 +20,15 @@ PO answers: D1–D7, 2026-10-21 (below). Also covers the 9 findings of the 2026-
 | D5 | Squad changes live in `process.local.md` as hashed operations; `upstream: proposed` operations flow to the plugin |
 | D6 | Upgrades apply between scopes; a running scope keeps its pin |
 | D7 | ADR 0016 replaces ADR 0005; this spec and its tickets live here |
+| D8 | Sizes: S = Manager + Developers; M = + QA whitebox, QA blackbox; L = every role (Designer only with `design: yes`) |
+| D9 | S done = Developer's checks + `evidence.md` + one fresh-context Opus review subagent before HANDIN; the Manager only confirms both exist |
+| D10 | In S and M the Manager plans and spawns Developers (exception to "never does a role's work"); each Developer writes its design notes in the task file |
+| D11 | M: QA whitebox writes technical AC (agreed with the Developer) and keeps `promote.md`; business AC = the ticket as written, tested by QA blackbox; a business doubt moves the scope to L. S: the Developer keeps `promote.md` |
+| D12 | Full suite: S the Developer, M QA whitebox, L the Tech Lead, once on the final sha; the rule (and `CLAUDE.md`) says "the size's suite owner" |
+| D13 | Every risk flag forces L |
+| D14 | Signals: S 1-2 tasks, nothing user-visible, no risk flag, existing tests cover it; M 1-6 tasks, user-visible, clear ticket or AC, no business question, no risk flag; L business questions, risk flag, cross-repo or ordering matters; unsure: size up |
+| D15 | Built-in Opus advisor (`advisorModel: opus`) for every role, Manager included. Done 2026-10-22 in `templates/squad/settings/*.json` and the live squad's settings |
+| D16 | Required advisor calls: the Developer on a task's 3rd FAIL before handing in again; anyone after 2 failed attempts at the same error or a BLOCKED unanswered for 2 rounds; the Tech Lead or Manager before an irreversible design choice. Each required call leaves a 3-line note in the task file |
 
 ## Contracts (every ticket builds on these; change one only by re-issuing the tickets that use it)
 
@@ -124,9 +133,9 @@ rules: CORE-1 … REV-3 SQ-1 (ids in order)
 
 ## PO requests 2026-10-21 (tickets 17–20)
 
-- **Sizes:** XS = Manager + Developers; S = Manager + Developers + both QAs. Who takes the Tech Lead's duties is open: round 1 Q1–Q6 in `round1-sizes-advisor.html`. Ticket 17.
+- **Sizes:** S = Manager + Developers; M = + both QAs; L = every role. Duty owners in D9-D14. Ticket 17.
 - **Manager model:** default Sonnet, effort high. Done 2026-10-21 in `templates/squad/settings/manager.json`; `tests/test_squad_start.py` updated.
-- **Opus advisor for the whole team:** the built-in Claude Code advisor (`advisorModel: opus`), with required triggers. Mechanism and triggers are open in round 1 Q7–Q9. Ticket 18.
+- **Opus advisor for the whole team:** settings done (D15); required triggers (D16) and the 3rd-FAIL notice in ticket 18.
 - **`squad-start` confirms the Manager's model and effort** before spawning, and on resume. Ticket 19.
 - **The Manager confirms the team's model and effort** per role together with the size, and records it in `scope.md`. Ticket 20.
 - **Until 19 and 20 ship, the starter and the Manager do both confirmations by hand.**
@@ -149,8 +158,8 @@ rules: CORE-1 … REV-3 SQ-1 (ids in order)
 | 12 ledger | 03, 06 | |
 | 13 retro loop | 06, 07, 10 | |
 | 14 `qa-b: no` | 03, 04 | |
-| 17 sizes XS, S | 03, 04 + PO round 1 | process rule files |
-| 18 Opus advisor | 03, 12 + PO round 1 | `bin/squad-log-message` (after 12) |
+| 17 sizes S, M, L | 03, 04 | process rule files |
+| 18 Opus advisor rules | 03, 12 | `bin/squad-log-message` (after 12) |
 | 19 start confirms Manager model | none | `bin/squad-start` (20 later) |
 | 20 Manager confirms team models | 03, 08, 19 | `bin/squad-spawn` (after 08) |
 | 15 integration | 01–14, 17–20 | |

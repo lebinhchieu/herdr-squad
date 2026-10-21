@@ -1,6 +1,7 @@
 {
   "model": "sonnet",
   "effortLevel": "high",
+  "advisorModel": "opus",
   "permissions": {
     "allow": [
       "SendMessage", "ListAgents", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git branch:*)", "Bash(git merge:*)", "Bash(echo:*)", "Bash(squad-start:*)", "Bash(squad-spawn:*)", "Bash(squad-retire:*)", "Bash(squad-respawn:*)", "Bash(squad-close:*)", "Bash(squad-usage:*)", "Bash(herdr agent list:*)", "Bash(herdr agent get:*)", "Bash(herdr agent read:*)", "Bash(herdr tab list:*)"

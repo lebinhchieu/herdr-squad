@@ -33,7 +33,7 @@ class ModelEffortSettingsTest(unittest.TestCase):
                 self.assertIn(d["effortLevel"], EFFORTS)
 
     def test_nothing_from_the_base_permissions_was_removed_or_changed(self):
-        # Later tasks may add allow/deny entries (T5 did); T9 itself may only add model and effortLevel.
+        # Later tasks may add allow/deny entries (T5 did); T9 added model and effortLevel, composed-process advisorModel.
         for role in ROLES:
             with self.subTest(role=role):
                 rel = f"templates/squad/settings/{role}.json"
@@ -44,7 +44,14 @@ class ModelEffortSettingsTest(unittest.TestCase):
                 self.assertLessEqual(set(old) - {"permissions"}, set(now))
                 for kind, entries in old["permissions"].items():
                     self.assertLessEqual(set(entries), set(now["permissions"].get(kind, [])), f"{kind} lost entries")
-                self.assertEqual(set(now) - set(old), {"model", "effortLevel"})
+                self.assertEqual(set(now) - set(old), {"model", "effortLevel", "advisorModel"})
+
+    def test_every_role_has_the_opus_advisor(self):
+        # PO 2026-10-21 (composed-process round 1 Q7, Q9): the whole team, Manager included, can consult Opus.
+        for role in ROLES:
+            with self.subTest(role=role):
+                d = json.loads((ROOT / "templates/squad/settings" / f"{role}.json").read_text())
+                self.assertEqual(d.get("advisorModel"), "opus")
 
 
 if __name__ == "__main__":

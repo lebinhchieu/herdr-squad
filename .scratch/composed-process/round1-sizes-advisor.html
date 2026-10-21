@@ -73,9 +73,9 @@ footer pre{margin:0;font-family:var(--f-mono);font-size:12px;white-space:pre-wra
 <div class="wrap">
 
 <header>
-  <div class="eyebrow">Round 1 · team sizes, Manager model, Opus advisor · 2026-10-21</div>
+  <div class="eyebrow">Round 1 (updated: S/M/L, no XS) · team sizes, Manager model, Opus advisor · 2026-10-21</div>
   <h1>Sizes and Advisor</h1>
-  <p class="lead"><b>Done already:</b> the Manager now defaults to Sonnet at effort high <span class="tag done">templates/squad/settings/manager.json</span>. <b>Verified:</b> Claude Code has a built-in Opus advisor, and <code>claude --advisor opus</code> worked on your 2.1.306. <b>Your call:</b> the new XS and S drop the Tech Lead, so its duties (plan, technical AC, review, full suite) need new owners. The questions below settle that and when the advisor is used.</p>
+  <p class="lead"><b>Done already:</b> the Manager now defaults to Sonnet at effort high <span class="tag done">templates/squad/settings/manager.json</span>. <b>Verified:</b> Claude Code has a built-in Opus advisor, and <code>claude --advisor opus</code> worked on your 2.1.306. <b>New sizes (your update):</b> S = Manager + Developers; M = Manager + Developers + both QAs; L = every role. S and M have no Tech Lead, so its duties (plan, technical AC, review, full suite, migrations) need new owners. The questions below settle that and when the advisor is used.</p>
 </header>
 
 <div class="grid">
@@ -84,25 +84,26 @@ footer pre{margin:0;font-family:var(--f-mono);font-size:12px;white-space:pre-wra
     <section class="panel">
       <h2>Who is in each size</h2>
       <div class="tbl"><table>
-        <tr><th>Role</th><th class="old">S today</th><th class="new">XS new</th><th class="new">S new</th><th>M</th><th>L</th></tr>
-        <tr><td>Manager</td><td class="old"><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td></tr>
-        <tr><td>Developers</td><td class="old"><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td></tr>
-        <tr><td>QA whitebox</td><td class="old off">–</td><td class="off">–</td><td><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td></tr>
-        <tr><td>QA blackbox</td><td class="old off">–</td><td class="off">–</td><td><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td></tr>
-        <tr><td>Tech Lead</td><td class="old"><span class="on"></span></td><td class="off">–</td><td class="off">–</td><td class="q-cell">Q5</td><td><span class="on"></span></td></tr>
-        <tr><td>BA, Team Lead</td><td class="old off">–</td><td class="off">–</td><td class="off">–</td><td class="q-cell">Q5</td><td><span class="on"></span></td></tr>
+        <tr><th>Role</th><th class="old">S today</th><th class="old">M, L today</th><th class="new">S new</th><th class="new">M new</th><th class="new">L new</th></tr>
+        <tr><td>Manager</td><td class="old"><span class="on"></span></td><td class="old"><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td></tr>
+        <tr><td>Developers</td><td class="old"><span class="on"></span></td><td class="old"><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td></tr>
+        <tr><td>QA whitebox, QA blackbox</td><td class="old off">–</td><td class="old"><span class="on"></span></td><td class="off">–</td><td><span class="on"></span></td><td><span class="on"></span></td></tr>
+        <tr><td>Tech Lead</td><td class="old"><span class="on"></span></td><td class="old"><span class="on"></span></td><td class="off">–</td><td class="off">–</td><td><span class="on"></span></td></tr>
+        <tr><td>BA, Team Lead</td><td class="old off">–</td><td class="old"><span class="on"></span></td><td class="off">–</td><td class="off">–</td><td><span class="on"></span></td></tr>
+        <tr><td>Designer</td><td colspan="5" style="text-align:center;color:var(--muted)">only with <code>design: yes</code>, any size (unchanged)</td></tr>
       </table></div>
-      <h3>Tech Lead duties that need a new owner</h3>
+      <h3>Tech Lead, Team Lead and BA duties that need a new owner</h3>
       <div class="tbl"><table>
-        <tr><th>Duty</th><th class="new">XS</th><th class="new">S</th></tr>
-        <tr><td>Plan, order, assignment</td><td class="q-cell">Q2</td><td class="q-cell">Q2</td></tr>
-        <tr><td>Technical design and AC</td><td class="q-cell">Q2</td><td class="q-cell">Q3</td></tr>
-        <tr><td>Check the code ("done")</td><td class="q-cell">Q1</td><td>QA whitebox</td></tr>
-        <tr><td>Check behaviour</td><td>Dev's <code>evidence.md</code></td><td>QA blackbox</td></tr>
-        <tr><td>Full suite before PO merge</td><td class="q-cell">Q4</td><td class="q-cell">Q4</td></tr>
-        <tr><td><code>promote.md</code>, migrations, deploy notes</td><td class="q-cell">Q3</td><td class="q-cell">Q3</td></tr>
+        <tr><th>Duty</th><th class="new">S</th><th class="new">M</th><th>L</th></tr>
+        <tr><td>Plan, order, assignment, spawning Devs</td><td class="q-cell">Q2</td><td class="q-cell">Q2</td><td>Team Lead</td></tr>
+        <tr><td>Technical design and AC</td><td class="q-cell">Q2</td><td class="q-cell">Q3</td><td>Tech Lead</td></tr>
+        <tr><td>Business AC</td><td>ticket as written</td><td class="q-cell">Q3</td><td>BA</td></tr>
+        <tr><td>Check the code ("done")</td><td class="q-cell">Q1</td><td>QA whitebox</td><td>QA whitebox</td></tr>
+        <tr><td>Check behaviour</td><td>Dev's <code>evidence.md</code></td><td>QA blackbox</td><td>QA blackbox</td></tr>
+        <tr><td>Full suite before PO merge</td><td class="q-cell">Q4</td><td class="q-cell">Q4</td><td>Tech Lead</td></tr>
+        <tr><td><code>promote.md</code>, migrations, deploy notes</td><td class="q-cell">Q3</td><td class="q-cell">Q3</td><td>Tech Lead</td></tr>
       </table></div>
-      <p class="note"><b>Rules this changes:</b> "only the Tech Lead runs the full suite", which is in both <code>process.md</code> and the repo's <code>CLAUDE.md</code>, and "the Manager never does a role's work" if the Manager plans. A risk flag still forces at least M.</p>
+      <p class="note"><b>Rules this changes:</b> "only the Tech Lead runs the full suite", which is in both <code>process.md</code> and the repo's <code>CLAUDE.md</code>, and "the Manager never does a role's work" if the Manager plans. Who owns a migration without a Tech Lead is why Q5 asks whether risk flags now force L.</p>
     </section>
 
     <section class="panel">
@@ -124,40 +125,40 @@ footer pre{margin:0;font-family:var(--f-mono);font-size:12px;white-space:pre-wra
   </div>
 
   <div class="qs" id="qs">
-    <fieldset><legend>Q1 · XS: who checks a task is done?</legend>
-      <p class="why">XS has no QA and no Tech Lead. The research says a fresh-context reviewer is the strongest quality lever.</p>
+    <fieldset><legend>Q1 · S: who checks a task is done?</legend>
+      <p class="why">S now has no QA and no Tech Lead. The research says a fresh-context reviewer is the strongest quality lever.</p>
       <label class="opt"><input type="radio" name="q1" value="Developer's checks + evidence.md, plus one fresh-context review subagent (Opus) before HANDIN; Manager only confirms evidence.md and review exist" checked>The Developer's own checks plus <code>evidence.md</code>, and <b>one fresh-context Opus review subagent</b> before HANDIN. The Manager only confirms both exist<span class="rec">rec</span></label>
       <label class="opt"><input type="radio" name="q1" value="Manager reads the diff and evidence.md and PASSes">The Manager reads the diff and <code>evidence.md</code> and PASSes</label>
       <label class="opt"><input type="radio" name="q1" value="Developer's own checks + evidence.md only; PO reviews at merge">The Developer's own checks only; the PO reviews at merge</label>
     </fieldset>
 
-    <fieldset><legend>Q2 · XS and S: who plans and designs?</legend>
-      <p class="why">Today the Tech Lead plans in S and the Team Lead in M and L. XS is usually one task.</p>
-      <label class="opt"><input type="radio" name="q2" value="Manager writes the plan (tasks, order, files touched); each Developer writes its own design notes in the task file; the Manager-never-does-role-work rule gets an XS/S exception for planning" checked>The <b>Manager plans</b> (tasks, order, files touched); each Developer writes its own design notes in the task file. Adds an XS/S exception to "the Manager never does a role's work"<span class="rec">rec</span></label>
+    <fieldset><legend>Q2 · S and M: who plans, designs and spawns Developers?</legend>
+      <p class="why">Today the Tech Lead plans in S and the Team Lead in M and L. In the new sizes the Team Lead exists only in L.</p>
+      <label class="opt"><input type="radio" name="q2" value="Manager plans and spawns Devs in S and M (tasks, order, files touched); each Developer writes its own design notes in the task file; the Manager-never-does-role-work rule gets an S/M exception for planning" checked>The <b>Manager plans and spawns Developers</b> in S and M (tasks, order, files touched); each Developer writes its own design notes in the task file. Adds an S/M exception to "the Manager never does a role's work"<span class="rec">rec</span></label>
       <label class="opt"><input type="radio" name="q2" value="The first Developer plans and the Manager approves">The first Developer plans; the Manager approves</label>
     </fieldset>
 
-    <fieldset><legend>Q3 · S: who owns technical AC, migrations and promote.md?</legend>
-      <label class="opt"><input type="radio" name="q3" value="QA whitebox writes technical AC (agreed with the Developer) and keeps promote.md; migrations/breaking changes are a risk flag, so the scope is M" checked><b>QA whitebox</b> writes the technical AC, agreed with the Developer, and keeps <code>promote.md</code>. A migration or breaking change is a risk flag, so the scope goes to M<span class="rec">rec</span></label>
+    <fieldset><legend>Q3 · M: who owns technical AC, business AC and promote.md?</legend>
+      <label class="opt"><input type="radio" name="q3" value="M: QA whitebox writes technical AC (agreed with the Developer) and keeps promote.md; business AC = the ticket as written, QA blackbox tests against it; a business doubt moves the scope to L" checked><b>QA whitebox</b> writes the technical AC, agreed with the Developer, and keeps <code>promote.md</code>. Business AC = the ticket as written; QA blackbox tests against it. A business doubt moves the scope to L<span class="rec">rec</span></label>
       <label class="opt"><input type="radio" name="q3" value="Developer writes technical AC, QA whitebox agrees; Manager keeps promote.md">The Developer writes the technical AC and QA whitebox agrees; the Manager keeps <code>promote.md</code></label>
-      <p class="why" style="margin-top:6px">XS: no technical AC beyond the ticket. <code>promote.md</code> is kept by the Developer: one line per lasting fact, or "nothing to promote".</p>
+      <p class="why" style="margin-top:6px">S: no technical AC beyond the ticket. <code>promote.md</code> is kept by the Developer: one line per lasting fact, or "nothing to promote".</p>
     </fieldset>
 
-    <fieldset><legend>Q4 · XS and S: who runs the full suite?</legend>
-      <label class="opt"><input type="radio" name="q4" value="S: QA whitebox runs it once on the final sha; XS: the Developer runs it once on its final sha; CLAUDE.md and process rule updated to 'the suite owner of the size'" checked>S: <b>QA whitebox</b> once on the final sha. XS: <b>the Developer</b> once on its final sha. The rule becomes "the size's suite owner", in process and <code>CLAUDE.md</code><span class="rec">rec</span></label>
-      <label class="opt"><input type="radio" name="q4" value="Only targeted tests in XS/S; the PO runs the full suite before merge">Only targeted tests in XS and S; the PO runs the full suite before merging</label>
+    <fieldset><legend>Q4 · S and M: who runs the full suite?</legend>
+      <label class="opt"><input type="radio" name="q4" value="M: QA whitebox runs it once on the final sha; S: the Developer runs it once on its final sha; L: Tech Lead (unchanged); CLAUDE.md and process rule updated to 'the suite owner of the size'" checked>M: <b>QA whitebox</b> once on the final sha. S: <b>the Developer</b> once on its final sha. L: the Tech Lead, as today. The rule becomes "the size's suite owner", in process and <code>CLAUDE.md</code><span class="rec">rec</span></label>
+      <label class="opt"><input type="radio" name="q4" value="Only targeted tests in S/M; the PO runs the full suite before merge">Only targeted tests in S and M; the PO runs the full suite before merging</label>
     </fieldset>
 
-    <fieldset><legend>Q5 · M and L</legend>
-      <p class="why">The research suggests at most about 5 long-lived sessions. M today runs up to 9.</p>
-      <label class="opt"><input type="radio" name="q5" value="Unchanged: M and L = Manager, BA, Team Lead, Tech Lead, both QAs, Devs" checked>Unchanged: Manager, BA, Team Lead, Tech Lead, both QAs and Developers<span class="rec">rec for now</span></label>
-      <label class="opt"><input type="radio" name="q5" value="M drops the Team Lead (Manager runs the pod); L keeps it">M drops the Team Lead (the Manager runs the pod); L keeps it</label>
-      <label class="opt"><input type="radio" name="q5" value="M drops the Team Lead and makes BA on-demand">M drops the Team Lead, and the BA becomes on-demand</label>
+    <fieldset><legend>Q5 · Risk flags: do they now force L?</legend>
+      <p class="why">Today a risk flag (data migration, breaking API change, security, anything another team sees) forces at least M, because M had a Tech Lead to own migrations and compatibility. The new M has no Tech Lead.</p>
+      <label class="opt"><input type="radio" name="q5" value="Every risk flag forces L (the Tech Lead owns migrations, compatibility and deploy notes)" checked>Every risk flag forces <b>L</b>, so a Tech Lead always owns migrations, compatibility and deploy notes<span class="rec">rec</span></label>
+      <label class="opt"><input type="radio" name="q5" value="Data migration and breaking API force L; security or other-team visibility force at least M">Data migration and breaking API changes force L; security or anything another team sees forces at least M</label>
+      <label class="opt"><input type="radio" name="q5" value="Risk flags force at least M; QA whitebox owns migration checks in M">Risk flags force at least M; QA whitebox owns the migration checks in M</label>
     </fieldset>
 
-    <fieldset><legend>Q6 · When is it XS, when S?</legend>
-      <label class="opt"><input type="radio" name="q6" value="XS: 1 task, no user-visible change, no risk flag, existing tests cover it. S: 1-3 tasks, may be user-visible, clear ticket, no business question. Unsure: size up" checked><b>XS:</b> 1 task, no user-visible change, no risk flag, existing tests cover it. <b>S:</b> 1–3 tasks, may be user-visible, clear ticket, no business question. When unsure, size up<span class="rec">rec</span></label>
-      <label class="opt"><input type="radio" name="q6" value="XS only when the PO asks for it">XS only when the PO asks for it</label>
+    <fieldset><legend>Q6 · When is it S, M or L?</legend>
+      <label class="opt"><input type="radio" name="q6" value="S: 1-2 tasks, no user-visible change, no risk flag, existing tests cover it. M: 1-6 tasks, user-visible behaviour, clear ticket or AC, no business question, no risk flag. L: business questions, risk flag, cross-repo, or ordering matters. Unsure: size up" checked><b>S:</b> 1–2 tasks, nothing user-visible, no risk flag, covered by existing tests. <b>M:</b> up to ~6 tasks, user-visible, clear ticket or AC, no business question, no risk flag. <b>L:</b> business questions, a risk flag, cross-repo, or ordering matters. When unsure, size up<span class="rec">rec</span></label>
+      <label class="opt"><input type="radio" name="q6" value="Same signals, but S only when the PO asks for it">Same signals, but S only when the PO asks for it</label>
     </fieldset>
 
     <fieldset><legend>Q7 · Advisor: mechanism</legend>
@@ -189,7 +190,7 @@ footer pre{margin:0;font-family:var(--f-mono);font-size:12px;white-space:pre-wra
 
 <footer>
 <pre>Reader:     you (PO, plugin author) → settle the new sizes and advisor policy
-Question:   Who takes the Tech Lead's duties in XS/S, and when must the Opus advisor be used?
+Question:   Who takes the Tech Lead's, Team Lead's and BA's duties in the new S and M, and when must the Opus advisor be used?
 Dimension:  Structure (role × size matrix, duty owners), then Comparison (options)
 Form:       pinned role/duty matrix + preset-answer questions, not prose: every open
             duty is a cell, so a gap is visible</pre>

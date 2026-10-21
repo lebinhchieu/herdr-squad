@@ -1,6 +1,7 @@
 {
   "model": "sonnet",
   "effortLevel": "high",
+  "advisorModel": "opus",
   "permissions": {
     "allow": [
       "SendMessage",
