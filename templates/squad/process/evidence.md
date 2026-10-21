@@ -11,7 +11,7 @@ roles: dev
 when: size in M, L
 topic: evidence
 
-You write `## Behaviour` in the ticket's `evidence.md` and commit it with your code. A screenshot only named is not evidence.
+You write `## Behaviour` in the ticket's `evidence.md` and commit it with your code; embed screenshots as `![alt](img/<file>)`.
 
 ## EVID-2b Assemble evidence
 roles: dev
@@ -44,7 +44,7 @@ roles: dev
 when: size = S
 topic: evidence
 
-Write `## Behaviour` in the ticket's `evidence.md` and commit it with the code: Playwright or API checks per AC, what you ran and saw, each screenshot as `![alt](img/<file>)` under its AC (naming one is not evidence).
+Write `## Behaviour` in the ticket's `evidence.md` and commit it with the code: Playwright or API checks per AC, what you ran and saw, each screenshot embedded as `![alt](img/<file>)` under its AC.
 
 ## EVID-5 Design shots, S
 roles: tech-lead
