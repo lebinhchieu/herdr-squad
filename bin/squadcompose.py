@@ -70,13 +70,12 @@ def read_home(home):
         m = re.search(r"\b[SML]\b", kv["size"][0])
         if m:
             facts["size"] = m.group(0)
-    if kv or not is_goal_home:
-        for key in ("design", "qa", "qa-b"):
-            value, n = kv.get(key, (_FACT_DEFAULT[key], 0))
-            tok = (value.split() or [_FACT_DEFAULT[key]])[0].lower()
-            if tok not in _FACT_VALUES[key]:
-                raise ComposeError(f"scope.md:{n}: {key} must be {' | '.join(_FACT_VALUES[key])}, got {value!r}")
-            facts[key] = tok
+    for key in ("design", "qa", "qa-b"):  # a goal home takes the scope defaults; only size can be missing
+        value, n = kv.get(key, (_FACT_DEFAULT[key], 0))
+        tok = (value.split() or [_FACT_DEFAULT[key]])[0].lower()
+        if tok not in _FACT_VALUES[key]:
+            raise ComposeError(f"scope.md:{n}: {key} must be {' | '.join(_FACT_VALUES[key])}, got {value!r}")
+        facts[key] = tok
     pin_line = (gkv if is_goal_home else kv).get("plugin") or kv.get("plugin") or gkv.get("plugin")
     pin = None
     if pin_line:
@@ -90,7 +89,10 @@ def read_home(home):
 
 def effective_rules(plugin_root, overlay_path):
     """-> (effective rules in compose order, number of overlay operations). Raises ComposeError (nothing written)."""
-    rules, _tombs, problems = sr.load_rules(sr.process_dir(plugin_root), plugin_root)
+    pdir = sr.process_dir(plugin_root)
+    if not os.path.isdir(pdir) or not [n for n in os.listdir(pdir) if n.endswith(".md")]:
+        raise ComposeError(f"no rule files in {pdir}")
+    rules, _tombs, problems = sr.load_rules(pdir, plugin_root)
     ops = []
     if overlay_path and os.path.isfile(overlay_path):
         ops = sr.parse_overlay(_slurp(overlay_path), sr.OVERLAY_FILE, problems)

@@ -19,3 +19,10 @@ when: size in M, L
 topic: messages
 
 The Manager sends the Team Lead every answer to a status question.
+
+## MSG-3 Manager relays design questions
+roles: manager
+when: design = yes
+topic: messages
+
+The Manager sends every design question to the Designer and the PO answer back.

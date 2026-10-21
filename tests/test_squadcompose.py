@@ -15,6 +15,7 @@ import squadcompose as sc  # noqa: E402
 
 NOW = "2026-10-22T10:00:00Z"
 RUNNING = sc.running_version()
+PIN_V = "9.9.9"  # fixed pin version for goldens; PinTest uses RUNNING where the version check matters
 PROC = "templates/squad/process"
 
 
@@ -34,7 +35,7 @@ class Base(unittest.TestCase):
         self.squad = self.root / "squad"
         self.overlay_path = self.squad / "process.local.md"
 
-    def home(self, size="M", design="no", goal="no", pin=f"{RUNNING} abc1234", extra="", name="scope-a"):
+    def home(self, size="M", design="no", goal="no", pin=f"{PIN_V} abc1234", extra="", name="scope-a"):
         h = self.tmp / "scopes" / name
         h.mkdir(parents=True, exist_ok=True)
         lines = [f"goal: {goal}" if goal != "no" else "goal:"]
@@ -49,7 +50,7 @@ class Base(unittest.TestCase):
     def goal_home(self):
         h = self.tmp / "goals" / "g1"
         h.mkdir(parents=True, exist_ok=True)
-        (h / "goal.md").write_text(f"# Goal\n\nplugin: {RUNNING} abc1234\n", encoding="utf-8", newline="\n")
+        (h / "goal.md").write_text(f"# Goal\n\nplugin: {PIN_V} abc1234\n", encoding="utf-8", newline="\n")
         return h
 
     def overlay(self, text):
@@ -57,7 +58,7 @@ class Base(unittest.TestCase):
 
     def compose(self, role, home, **kw):
         return sc.compose(role, str(home), str(self.root), str(self.overlay_path), kw.get("agent", role), NOW,
-                          kw.get("pinned", (RUNNING, "abc1234")))
+                          kw.get("pinned", (PIN_V, "abc1234")))
 
     def run_cli(self, *args, home=None, squad=True, root=True):
         cmd = list(args)
@@ -154,6 +155,22 @@ class OverlayFailTest(Base):
         self.assertNotIn("REV-8", self.ids("dev", h))
 
 
+class NoRulesTest(Base):
+    def test_plugin_without_rule_files_exits_2_not_a_traceback(self):
+        empty = self.tmp / "empty"
+        empty.mkdir()
+        for args in (("compose", "dev", "--home", str(self.home())), ("rule", "CORE-1"), ("who", "CORE-1")):
+            with self.subTest(args=args):
+                r = cli(*args, "--plugin-root", str(empty), "--squad-dir", str(self.squad))
+                self.assertEqual(r.returncode, 2)
+                self.assertIn("no rule files", r.stderr)
+                self.assertNotIn("Traceback", r.stderr)
+
+    def test_template_folder_missing_exits_2(self):
+        shutil.rmtree(self.root / PROC)
+        self.assertEqual(self.run_cli("rule", "CORE-1").returncode, 2)
+
+
 class DeterminismTest(Base):
     def test_repeat_runs_are_byte_identical(self):
         h = self.home()
@@ -210,7 +227,8 @@ class FactsMatrixTest(Base):
 
     def test_goal_manager_gets_both_variants(self):
         got = self.ids("manager", self.goal_home())
-        self.assertEqual(got, ["CORE-1", "MSG-1", "MSG-2a", "MSG-2b"])
+        self.assertEqual(got, ["CORE-1", "MSG-1", "MSG-2a", "MSG-2b"])  # MSG-3 (design = yes) is not among them
+        self.assertIn("MSG-3", self.ids("manager", self.home(design="yes")))
 
     def test_goal_manager_titles_carry_if_tags_only_for_missing_facts(self):
         t = self.compose("manager", self.goal_home())
@@ -223,9 +241,9 @@ class FactsMatrixTest(Base):
         t = self.compose("dev", self.home(size="L", design="yes", goal="composed-process"))
         self.assertIn("(size L, design yes, qa full, goal yes)", t)
 
-    def test_header_of_goal_manager_prints_na_and_goal_name(self):
+    def test_header_of_goal_manager_prints_na_size_defaults_and_goal_name(self):
         t = self.compose("manager", self.goal_home(), agent="mgr")
-        self.assertIn("agent: mgr · role: manager · scope: goal g1 (size n/a, design n/a, qa n/a, goal yes)", t)
+        self.assertIn("agent: mgr · role: manager · scope: goal g1 (size n/a, design no, qa full, goal yes)", t)
 
     def test_size_token_is_first_upper_case_sml(self):
         h = self.home(size="M (confirmed)")
@@ -360,7 +378,7 @@ class PinTest(Base):
 
     def test_goal_home_pin_is_read_from_goal_md(self):
         r = self.run_cli("compose", "manager", "--now", NOW, home=self.goal_home())
-        self.assertIn(f"plugin: {RUNNING} abc1234 ·", r.stdout)
+        self.assertIn(f"plugin: {PIN_V} abc1234 ·", r.stdout)
 
 
 if __name__ == "__main__":
