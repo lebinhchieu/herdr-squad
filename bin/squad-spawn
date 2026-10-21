@@ -76,14 +76,21 @@ if [[ -n ${SQUAD_DIR:-} ]]; then
 else
   squads_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/squads
   if [[ -z $squad ]]; then
-    found=("$squads_root"/*/process.md)
-    [[ ${#found[@]} == 1 && -f ${found[0]} ]] || { echo "pick a squad with --squad (found: $(ls "$squads_root" 2>/dev/null | xargs))" >&2; exit 2; }
-    squad=$(basename "$(dirname "${found[0]}")")
+    found=()
+    for f in "$squads_root"/*/process.md "$squads_root"/*/process.local.md; do  # a composed squad has only process.local.md
+      [[ -f $f ]] && [[ " ${found[*]:-} " != *" $(dirname "$f") "* ]] && found+=("$(dirname "$f")")
+    done
+    [[ ${#found[@]} == 1 ]] || { echo "pick a squad with --squad (found: $(ls "$squads_root" 2>/dev/null | xargs))" >&2; exit 2; }
+    squad=$(basename "${found[0]}")
   fi
   squad_dir=$squads_root/$squad
 fi
 squad_dir=$(readlink -f "$squad_dir")
-[[ -f $squad_dir/process.md ]] || { echo "no squad folder at $squad_dir (run /squad:squad-init)" >&2; exit 1; }
+# composed = process.local.md present (rules come from the plugin pin), legacy = process.md only, none = not a squad.
+smode=none  # same rule as squadruntime.mode
+[[ ! -f $squad_dir/process.md ]] || smode=legacy
+[[ ! -f $squad_dir/process.local.md ]] || smode=composed
+[[ $smode != none ]] || { echo "no squad folder at $squad_dir (run /squad:squad-init)" >&2; exit 1; }
 squad=$(basename "$squad_dir")
 project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
 
@@ -110,6 +117,25 @@ if [[ -d $squad_dir/scopes ]]; then
       [[ -d $goal_dir ]] || { echo "scope $scope names goal $in_goal, but $goal_dir does not exist" >&2; exit 1; }
     fi
   fi
+fi
+
+# Composed mode: the pinned runtime and this agent's composed rules come first, before any herdr call, worktree or
+# label, so a refusal (no pin: exit 2, runtime missing: exit 1, compose error: exit 2) leaves nothing behind.
+plugin_dir=${SQUAD_PLUGIN_DIR:-} rules_args=() runtime_env=()
+if [[ $smode == composed ]]; then
+  rt_args=(--squad-dir "$squad_dir" --home "$home" --plugin-root "$plugin_root")
+  [[ $dry != 1 ]] || rt_args+=(--dry-run)
+  runtime=$("$plugin_root/bin/squad-process" runtime "${rt_args[@]}") || exit $?
+  rules=$home/roles/$name.rules.md
+  if [[ $dry != 1 ]]; then
+    mkdir -p "$home/roles"
+    "$plugin_root/bin/squad-process" compose "$role" --home "$home" --agent "$name" --squad-dir "$squad_dir" \
+      --plugin-root "$runtime" --out "$rules" >&2 || exit $?
+  fi
+  plugin_dir=$runtime
+  rules_args=(--append-system-prompt-file "$rules")
+  runtime_env=(--env "PATH=$runtime/bin:$PATH")
+  [[ -z $prompt ]] || prompt="$prompt Your process rules are attached to this session ($rules); do not read process.md."
 fi
 
 # The Manager hears about a process.md that is behind through its first prompt. Never stops the spawn.
@@ -168,7 +194,8 @@ session=$(python3 -c 'import uuid; print(uuid.uuid4())')
 claude_args=(--agent "squad:$role" --name "$name" --session-id "$session" --permission-mode auto --settings "$settings")
 [[ -n $model ]] && claude_args+=(--model "$model")
 [[ -n $effort ]] && claude_args+=(--effort "$effort")
-[[ -n ${SQUAD_PLUGIN_DIR:-} ]] && claude_args+=(--plugin-dir "$SQUAD_PLUGIN_DIR")
+[[ -n $plugin_dir ]] && claude_args+=(--plugin-dir "$plugin_dir")
+claude_args+=("${rules_args[@]}")
 
 # Without --workspace herdr uses the focused workspace, which may not be the caller's.
 ws_args=()
@@ -177,7 +204,8 @@ ws_args=()
 env_args=(--env "SQUAD=$squad" --env "SQUAD_DIR=$squad_dir" --env "SQUAD_NAME=$name" --env "SQUAD_ROLE=$role" --env "SQUAD_SCOPE=$scope")
 [[ -z $scope_dir ]] || env_args+=(--env "SCOPE_DIR=$scope_dir")
 [[ -z $goal_dir ]] || env_args+=(--env "GOAL_DIR=$goal_dir")
-[[ -n ${SQUAD_PLUGIN_DIR:-} ]] && env_args+=(--env "SQUAD_PLUGIN_DIR=$SQUAD_PLUGIN_DIR")
+[[ -n $plugin_dir ]] && env_args+=(--env "SQUAD_PLUGIN_DIR=$plugin_dir")
+env_args+=("${runtime_env[@]}")
 
 # Agents are addressed by bare name, so a second live agent with this name would be unreachable or misrouted.
 # Checked before the label store is written: a refused spawn must not overwrite the live agent's stored label.

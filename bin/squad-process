@@ -10,6 +10,12 @@
   squad-process lint [--squad-dir D] [--plugin-root R] [--cards error|warn] [--hashes]
                                         check the rule files (templates/squad/process/) and the squad's process.local.md
 
+  squad-process compose <role> --home D [--agent A] [--out F] [--plugin-root R] [--squad-dir D]
+                                        composed rules for one role (the <role> --home form)
+  squad-process mode --squad-dir D       composed | legacy | none
+  squad-process runtime --squad-dir D --home H [--dry-run]
+                                        materialise and print the home's pinned plugin runtime
+
   squad-process plan [--json]            read-only: changelog items, section states, conflicts
   squad-process compose --out FILE [--resolve "<heading>=ours|theirs|file:<path>" ...]
   squad-process apply --file FILE [--yes] without --yes: diff, "NOT APPLIED"; with it: backup, write, log
@@ -89,6 +95,9 @@ def _show(a):
 def main(argv=None):
     squadio.utf8_stdio()
     argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] in ("mode", "runtime"):
+        import squadruntime  # squad mode and the pinned runtime: ticket 05
+        return squadruntime.main(argv)
     if argv and (argv[0] in ("lint", "rule", "who")
                  or (argv[0] == "compose" and len(argv) > 1 and not argv[1].startswith("-"))):
         import squadrules_cli  # rule files: ticket 02; compose <role> is ticket 04
@@ -111,7 +120,10 @@ def main(argv=None):
     sh.add_argument("--also", action="append", default=[], metavar="HEADING")
     sh.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
     pl = sub.add_parser("plan")
-    co = sub.add_parser("compose")
+    co = sub.add_parser(
+        "compose", usage="squad-process compose --out FILE [--resolve ...] | compose <role> --home D [--agent A] [--out F]",
+        description="Without a role: the v6 process.md merge (--out FILE). With a role: `squad-process compose <role> "
+        "--home D [--agent A] [--out F] [--plugin-root R] [--squad-dir D] [--now ISO]` composes that role's rules.")
     ap_ = sub.add_parser("apply")
     for p in (pl, co, ap_):
         p.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
@@ -122,6 +134,12 @@ def main(argv=None):
     ap_.add_argument("--file", required=True)
     ap_.add_argument("--yes", action="store_true")
     a = ap.parse_args(argv)
+    if a.cmd in ("version", "check") and a.squad_dir:
+        import squadruntime
+        if squadruntime.mode(a.squad_dir) == "composed":  # rules come from the plugin pin: no process.md to check
+            if a.cmd == "version" or not a.quiet:
+                print("composed squad: rules come from the plugin pin; nothing to check.")
+            return 0
     if a.cmd == "show":
         return _show(a)
     if a.cmd in ("plan", "compose", "apply"):
