@@ -98,7 +98,7 @@ ROOT=/tmp/spike01/snap  PATH=/tmp/spike01/snap/bin:/home/chieule/.claude-account
      --settings "$settings" ...
    ```
 
-   `$settings` is what `bin/squad-spawn:125-126,168` already passes today (`$squad_dir/settings/$role.json`, else the plugin template), together with `--agent squad:$role --name --session-id --permission-mode auto`, `--model`, `--effort`; and `bin/squad-spawn:170` already turns `$SQUAD_PLUGIN_DIR` into `--plugin-dir`, so 05 sets that to `<runtime>` rather than adding a flag. Ticket 08 later swaps `"$settings"` for its merged `<home>/roles/<agent>.settings.json`.
+   `$settings` is what `bin/squad-spawn:125-126,168` already passes today (`$squad_dir/settings/$role.json`, else the plugin template), together with `--agent squad:$role --name --session-id --permission-mode auto`, `--model`, `--effort`; and `bin/squad-spawn:171` already turns `$SQUAD_PLUGIN_DIR` into `--plugin-dir`, so 05 sets that to `<runtime>` rather than adding a flag. Ticket 08 later swaps `"$settings"` for its merged `<home>/roles/<agent>.settings.json`.
 
    - `PATH` prefixed so `squad-*` tools and hooks run the pinned version (Q4).
    - No `enabledPlugins` override: `--plugin-dir` replaces the installed `squad` (Q1), so no double hooks.
