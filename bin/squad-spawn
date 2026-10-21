@@ -154,7 +154,7 @@ tpl_root=$plugin_root
 # --dry-run does not materialise the pinned runtime: preview with the running plugin's template.
 [[ $dry != 1 || -d $tpl_root/templates ]] || tpl_root=$plugin_root
 eff_json="" settings_mode=template
-settings=$plugin_root/templates/squad/settings/$role.json
+settings=$tpl_root/templates/squad/settings/$role.json
 if [[ -f $squad_dir/settings/$role.local.json ]]; then
   eff_json=$(python3 "$plugin_root/bin/squadsettings.py" effective --role "$role" --squad-dir "$squad_dir" --template-root "$tpl_root" --project-dir "$project_dir") || exit $?
   settings_mode=overlay settings=$home/roles/$name.settings.json
@@ -195,7 +195,7 @@ key_of() { # key -> value from the effective settings (overlay) or the squad fil
       printf '%s' "$v"; return
     fi
   else
-    for f in "$squad_dir/settings/$role.json" "$plugin_root/templates/squad/settings/$role.json"; do
+    for f in "$squad_dir/settings/$role.json" "$tpl_root/templates/squad/settings/$role.json"; do
       [[ -f $f ]] || continue
       v=$(jq -r --arg k "$k" '.[$k] // empty | if type=="string" then . else error("not a string") end' "$f") || { echo "cannot read $k from $f (needs jq, valid JSON, a string value)" >&2; exit 2; }
       if [[ -n $v ]]; then

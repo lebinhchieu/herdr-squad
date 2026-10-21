@@ -251,6 +251,19 @@ class ComposedSpawnTest(Base):
         self.assertEqual(self.run_spawn().returncode, 0)
         self.assertIn("Bash(added-later:*)", out.read_text(encoding="utf-8"))
 
+    def test_no_local_file_still_uses_the_pinned_template(self):
+        # QA blackbox 08 finding: model/effort and --settings came from the running plugin's template.
+        rt = self.squad / "_runtime" / f"{self.VERSION}-{self.SHA[:12]}"
+        f = rt / "templates/squad/settings/ba.json"
+        d = json.loads(f.read_text(encoding="utf-8"))
+        d["model"] = "pinnedmodel"
+        f.write_text(json.dumps(d), encoding="utf-8")
+        r = subprocess.run([str(SPAWN), "ba", "x", "--scope", "sc1", "--dry-run"], env=self.env, text=True,
+                           encoding="utf-8", capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"--settings {f}", r.stdout)
+        self.assertIn("--model pinnedmodel", r.stdout)
+
     def test_missing_pinned_template_exits_1_naming_the_path(self):
         rt = self.squad / "_runtime" / f"{self.VERSION}-{self.SHA[:12]}"
         (rt / "templates/squad/settings/dev.json").unlink()
