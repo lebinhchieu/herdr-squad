@@ -152,3 +152,276 @@
   - The Developer runs the full suite once, on the final sha after every fix, in the background, waits for its completion notice (never `pgrep -f` or `pkill -f`) and saves a receipt: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the suite's OK line. While building, only touched files.
   - QA checks the receipt (same sha as the `HANDIN`, clean tree, OK, its skipped-phase lines), then runs only targeted tests for the diff's files and reads the diff. It runs the full suite only when the receipt is missing or its sha differs, integration tasks included. Targeted runs are free.
 ```
+
+## v7 — 2026-10-22
+- snapshot: history/process-v7/
+
+Format from v7: `added:`, `changed:`, `removed:`, `retargeted:` list rule IDs with the why per item; `none` when empty.
+`squad-process upgrade` reads the rule files themselves; these lines are the PO-facing reason.
+
+added:
+- CORE-1: converted from P:206
+- CORE-2: converted from P:164, P:168, P:169 ...
+- CORE-3: converted from P:192
+- CORE-4: converted from P:181
+- CORE-5: converted from P:40
+- FILE-1: converted from P:16, P:17, P:18 ...
+- FILE-2: converted from P:31, P:32, P:33 ...
+- FILE-3: converted from P:41, P:43
+- FILE-4: converted from P:42, agents/manager.md:28, agents/team-lead.md:28
+- FILE-5a: converted from agents/manager.md:28
+- FILE-5b: converted from agents/manager.md:28
+- FILE-5c: converted from agents/team-lead.md:28
+- FILE-6: converted from P:47, P:48, P:49 ...
+- FILE-7: converted from P:53, P:54
+- FILE-8: converted from P:52
+- FILE-9: converted from P:55, P:56, P:57
+- FILE-10: converted from P:61, P:62, P:63
+- START-1: converted from P:67, P:70, P:71
+- START-2a: converted from P:69, agents/manager.md:27
+- START-2b: converted from P:69, P:79, agents/team-lead.md:24
+- START-2c: converted from agents/manager.md:27, agents/manager.md:52
+- START-2d: converted from fix b
+- START-3: converted from P:75, P:78, P:79
+- START-4: converted from P:76, P:77
+- START-5: converted from P:85, P:86, P:87 ...
+- START-6: converted from agents/team-lead.md:12, agents/tech-lead.md:10, agents/ba.md:10 ...
+- START-7: converted from agents/team-lead.md:12, agents/tech-lead.md:10, agents/ba.md:10 ...
+- START-8: converted from agents/qa-blackbox.md:10
+- START-9: converted from agents/team-lead.md:13, agents/tech-lead.md:12, agents/ba.md:11 ...
+- START-10: converted from agents/dev.md:11, agents/dev.md:12, agents/dev.md:13
+- START-11: converted from agents/ba.md:12
+- START-12: converted from agents/designer.md:12
+- START-13: converted from agents/qa-blackbox.md:11
+- START-14: converted from agents/qa-whitebox.md:11
+- START-15: converted from agents/team-lead.md:14
+- START-16: converted from agents/tech-lead.md:11
+- START-17: converted from agents/token-coach.md:10, agents/token-coach.md:11
+- START-18: converted from agents/manager.md:10, agents/manager.md:11, agents/manager.md:12 ...
+- START-19: converted from agents/manager.md:20, agents/manager.md:21
+- SIZE-1: converted from P:95
+- SIZE-2: converted from P:99, P:100, P:101
+- SIZE-3: converted from P:103
+- SIZE-4: converted from P:105, P:106, P:107
+- SIZE-5a: converted from P:113
+- SIZE-5b: converted from P:113
+- SIZE-6a: converted from P:114, agents/tech-lead.md:18
+- SIZE-6b: converted from P:114, P:121
+- SIZE-7a: converted from P:115
+- SIZE-7b: converted from P:115
+- SIZE-8a: converted from P:116, agents/dev.md:24
+- SIZE-8b: converted from P:116
+- SIZE-9: converted from P:117
+- SIZE-10a: converted from P:118, agents/dev.md:20
+- SIZE-10b: converted from P:118
+- SIZE-11a: converted from P:119, agents/tech-lead.md:19
+- SIZE-11b: converted from P:119, agents/ba.md:23
+- SIZE-12: converted from P:109 (heading)
+- SIZE-13: converted from P:125, agents/manager.md:25
+- SIZE-14: converted from P:125, agents/tech-lead.md:19
+- SIZE-15: converted from P:126, agents/manager.md:25
+- SIZE-16: converted from P:127, P:128, agents/manager.md:25 ...
+- SIZE-17a: converted from agents/ba.md:21
+- SIZE-17b: converted from agents/team-lead.md:6
+- SIZE-17c: converted from agents/qa-whitebox.md:25
+- SIZE-17d: converted from agents/qa-blackbox.md:22
+- SIZE-18: converted from agents/manager.md:26
+- GOAL-1: converted from P:132, P:133, agents/manager.md:62 ...
+- GOAL-2: converted from P:134, P:135, P:136
+- GOAL-3a: converted from P:136, agents/tech-lead.md:21
+- GOAL-3b: converted from P:136, agents/qa-whitebox.md:23
+- GOAL-4: converted from P:142
+- GOAL-5: converted from P:137, P:138, agents/manager.md:55
+- GOAL-6a: converted from P:139, P:140, agents/tech-lead.md:24
+- GOAL-6b: converted from agents/dev.md:30
+- GOAL-6c: converted from P:139
+- GOAL-7: converted from P:141, agents/manager.md:32
+- PROMO-1: converted from P:146
+- PROMO-2: converted from P:148, agents/tech-lead.md:22
+- PROMO-3a: converted from P:148, agents/ba.md:22
+- PROMO-3b: converted from P:148
+- PROMO-4: converted from P:149
+- PROMO-5: converted from agents/dev.md:30
+- PROMO-6: converted from P:150, P:151, agents/manager.md:67
+- PROMO-7: converted from P:152
+- PROMO-8: converted from agents/qa-whitebox.md:24
+- CLOSE-1: converted from P:156, agents/manager.md:72
+- CLOSE-2: converted from P:157, agents/manager.md:72
+- CLOSE-3a: converted from P:158, agents/tech-lead.md:23
+- CLOSE-3b: converted from P:158, agents/manager.md:66
+- CLOSE-4: converted from P:159, agents/manager.md:68
+- CLOSE-5: converted from P:160
+- MSG-1: converted from P:164, P:168, P:169 ...
+- MSG-2: converted from P:176
+- MSG-3: converted from P:177, log row 46
+- MSG-4a: converted from P:178
+- MSG-4b: converted from P:178
+- MSG-5: converted from P:179
+- MSG-6: converted from P:180, agents/team-lead.md:35, agents/team-lead.md:39 ...
+- MSG-7a: converted from P:182, agents/manager.md:32
+- MSG-7b: converted from P:182, agents/manager.md:32
+- MSG-8a: converted from P:183
+- MSG-8b: converted from P:183, agents/team-lead.md:26
+- MSG-9: converted from P:184
+- MSG-10: converted from P:185
+- MSG-11a: converted from agents/dev.md:21
+- MSG-11b: converted from agents/dev.md:21
+- MSG-12: converted from agents/ba.md:20
+- MSG-13: converted from agents/team-lead.md:20
+- MSG-14: converted from agents/tech-lead.md:30
+- MSG-15: converted from agents/tech-lead.md:33
+- MSG-16a: converted from agents/designer.md:20
+- MSG-16b: converted from agents/designer.md:20
+- MSG-17: converted from agents/designer.md:19
+- MSG-18: converted from agents/manager.md:29
+- MSG-19: converted from agents/team-lead.md:27
+- WHO-1a: converted from P:193, P:197
+- WHO-1b: converted from P:191, P:193, P:197
+- WHO-2: converted from P:192, P:198
+- WHO-2b: converted from P:196
+- WHO-2c: converted from P:196
+- WHO-3a: converted from P:194
+- WHO-3b: converted from P:194
+- WHO-4: converted from P:195
+- WHO-5: converted from P:199, P:200, agents/manager.md:31
+- WHO-6: converted from P:5, agents/manager.md:30
+- WHO-7: converted from P:202
+- WHO-8: converted from agents/manager.md:32
+- WHO-8a: converted from agents/manager.md:32
+- WHO-8b: converted from agents/manager.md:32
+- WHO-8c: converted from agents/team-lead.md:29
+- LC-1: converted from P:208
+- LC-2: converted from P:209
+- LC-3a: converted from P:210, agents/dev.md:31
+- LC-3b: converted from P:210, log row 35
+- LC-4: converted from P:211
+- LC-5: converted from P:212
+- LC-6: converted from P:213
+- LC-7a: converted from P:218, agents/manager.md:90
+- LC-7b: converted from P:218, agents/manager.md:90, agents/team-lead.md:26
+- LC-8: converted from log row 39
+- LC-9: converted from log row 42
+- LC-10: converted from agents/tech-lead.md:17
+- LC-11: converted from agents/tech-lead.md:29
+- LC-12: converted from agents/tech-lead.md:31
+- LC-13: converted from agents/tech-lead.md:32
+- LC-14: converted from agents/tech-lead.md:18, agents/tech-lead.md:26
+- LC-15: converted from agents/team-lead.md:21, agents/team-lead.md:22
+- LC-16: converted from agents/team-lead.md:21, agents/team-lead.md:22
+- LC-17: converted from agents/team-lead.md:25, agents/team-lead.md:54
+- LC-18: converted from agents/dev.md:18, agents/dev.md:19, agents/dev.md:22
+- LC-19: converted from agents/dev.md:20
+- LC-20a: converted from agents/dev.md:35
+- LC-20b: converted from agents/dev.md:35
+- LC-21: converted from P:216
+- LC-22a: converted from P:217
+- LC-22b: converted from P:217
+- LC-23: converted from agents/designer.md:17, agents/designer.md:18
+- REV-1: converted from agents/tech-lead.md:19, agents/tech-lead.md:29
+- REV-2: converted from agents/qa-whitebox.md:17, agents/qa-whitebox.md:18, agents/qa-whitebox.md:19 ...
+- REV-3: converted from log row 38
+- REV-4: converted from P:214, agents/tech-lead.md:27, agents/qa-whitebox.md:22
+- REV-5a: converted from P:214, agents/tech-lead.md:27
+- REV-5b: converted from P:214, agents/tech-lead.md:27, agents/qa-whitebox.md:22
+- REV-6: converted from P:215, agents/tech-lead.md:27, agents/qa-whitebox.md:22
+- REV-7: converted from agents/tech-lead.md:28, agents/qa-whitebox.md:16
+- REV-8: converted from agents/ba.md:19, agents/qa-blackbox.md:20
+- REV-9: converted from agents/qa-blackbox.md:21
+- REV-10: converted from agents/qa-whitebox.md:26
+- REV-11: converted from agents/qa-blackbox.md:23
+- REV-12: converted from agents/qa-whitebox.md:27, agents/qa-blackbox.md:24
+- REV-13a: converted from agents/dev.md:24, agents/dev.md:26
+- REV-13b: converted from agents/dev.md:26
+- REV-14a: converted from agents/dev.md:28
+- REV-14b: converted from agents/dev.md:28
+- REV-15: converted from agents/dev.md:27
+- REV-16: converted from log row 48
+- REV-17: converted from log row 48
+- REV-18a: converted from log row 49
+- REV-18b: converted from log row 49
+- EVID-1: converted from P:219
+- EVID-2a: converted from P:220
+- EVID-2b: converted from P:220, agents/dev.md:29
+- EVID-2c: converted from P:220, agents/tech-lead.md:19
+- EVID-3a: converted from P:221
+- EVID-3b: converted from P:221
+- EVID-4: converted from agents/dev.md:24
+- EVID-5: converted from agents/dev.md:20
+- ITER-1: converted from P:225, P:227, P:228 ...
+- ITER-2: converted from agents/manager.md:94
+- ITER-3: converted from agents/team-lead.md:45
+- ITER-4: converted from agents/manager.md:95
+- ITER-5: converted from agents/manager.md:96, agents/manager.md:97
+- ITER-6: converted from P:234
+- ITER-6a: converted from P:234
+- ITER-6b: converted from P:234
+- ITER-7: converted from P:235, agents/token-coach.md:16, agents/token-coach.md:18
+- ITER-8: converted from agents/token-coach.md:15, agents/token-coach.md:16, agents/token-coach.md:17
+- ITER-9: converted from P:237, agents/token-coach.md:22, agents/token-coach.md:23 ...
+- ITER-10: converted from P:236
+- ITER-11: converted from agents/manager.md:98, agents/manager.md:99
+- ITER-12: converted from agents/manager.md:100
+- COST-1: converted from P:241, agents/team-lead.md:15, agents/tech-lead.md:13 ...
+- COST-2: converted from P:243
+- COST-3: converted from P:244
+- COST-4a: converted from log row 37
+- COST-4b: converted from log row 34
+- COST-5: converted from P:244, log row 40
+- COST-6a: converted from log row 40, log row 47
+- COST-6b: converted from log row 40, log row 47
+- COST-7: converted from log row 44
+- COST-8: converted from P:245, log row 33, log row 41
+- COST-9: converted from P:246
+- COST-10a: converted from log row 45
+- COST-10b: converted from log row 45
+- COST-11: converted from P:247
+- COST-12: converted from P:248
+- NOTE-1: converted from P:59, P:252, P:254 ...
+- NOTE-2: converted from P:257, P:258, agents/manager.md:111
+- NOTE-3: converted from agents/team-lead.md:54
+- SAFE-1a: converted from P:262, agents/dev.md:25
+- SAFE-1b: converted from agents/manager.md:104
+- SAFE-2: converted from P:268, agents/manager.md:31
+- SAFE-3: converted from P:275
+- SAFE-4: converted from P:276
+- SAFE-5: converted from log row 43
+- SAFE-6: converted from agents/manager.md:105
+- SAFE-7: converted from agents/manager.md:14, agents/manager.md:106
+- SAFE-8: converted from agents/designer.md:25
+- SAFE-9: converted from agents/qa-whitebox.md:35
+- SAFE-10: converted from agents/qa-blackbox.md:16
+- SUITE-1: converted from P:269
+- SUITE-2a: converted from P:270, agents/dev.md:23
+- SUITE-2b: converted from P:270
+- SUITE-3: converted from P:271, agents/tech-lead.md:25
+- SUITE-4: converted from P:272, agents/tech-lead.md:25
+- SUITE-5: converted from P:273, agents/tech-lead.md:25
+- SUITE-6: converted from P:274
+- MRG-1: converted from P:263, P:264
+- MRG-2: converted from P:265
+- MRG-3: converted from P:266
+- MRG-4: converted from P:267
+- SPAWN-1: converted from agents/manager.md:44, agents/manager.md:46, agents/manager.md:47 ...
+- SPAWN-2a: converted from agents/manager.md:50
+- SPAWN-2b: converted from agents/manager.md:50
+- SPAWN-3: converted from agents/manager.md:51
+- SPAWN-4: converted from agents/manager.md:54
+- SPAWN-5a: converted from agents/manager.md:55
+- SPAWN-5b: converted from agents/team-lead.md:23
+- SPAWN-6: converted from agents/manager.md:56
+- SPAWN-7: converted from agents/manager.md:57
+- SPAWN-8a: converted from agents/manager.md:58
+- SPAWN-8b: converted from agents/manager.md:58, agents/team-lead.md:23
+- SPAWN-9: converted from agents/team-lead.md:33
+- SPAWN-10a: converted from agents/manager.md:84, agents/manager.md:86, agents/manager.md:87 ...
+- SPAWN-10b: converted from agents/manager.md:78, agents/manager.md:80, agents/manager.md:81 ...
+- SPAWN-11: converted from agents/manager.md:76
+
+changed:
+- none
+
+removed:
+- none
+
+retargeted:
+- none

@@ -12,6 +12,10 @@
 
   squad-process compose <role> --home D [--agent A] [--out F] [--plugin-root R] [--squad-dir D]
                                         composed rules for one role (the <role> --home form)
+  squad-process upgrade --check | --apply [--resolve ID=choice ...] [--yes] [--squad-dir D] [--plugin-root R]
+                                        composed squads: move the overlay to the running plugin one rule at a time
+                                        (exit 0 nothing to decide, 3 a decision is needed, 2 refused)
+  squad-process upstream [--squad-dir D] the overlay's `upstream: proposed` operations, ready for a plugin ticket
   squad-process mode --squad-dir D       composed | legacy | none
   squad-process runtime --squad-dir D --home H [--dry-run]
                                         materialise and print the home's pinned plugin runtime
@@ -98,6 +102,9 @@ def main(argv=None):
     if argv and argv[0] in ("mode", "runtime"):
         import squadruntime  # squad mode and the pinned runtime: ticket 05
         return squadruntime.main(argv)
+    if argv and argv[0] in ("upgrade", "upstream"):
+        import squadupgrade  # upgrade one rule at a time: ticket 07
+        return squadupgrade.main(argv)
     if argv and (argv[0] in ("lint", "rule", "who")
                  or (argv[0] == "compose" and len(argv) > 1 and not argv[1].startswith("-"))):
         import squadrules_cli  # rule files: ticket 02; compose <role> is ticket 04

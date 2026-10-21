@@ -144,10 +144,13 @@ def _installed_cache(version, sha, plugin_json_paths=None):
                 data = json.load(f)
         except (OSError, ValueError):
             continue
-        for key, entries in (data.get("plugins") or {}).items():
+        plugins = data.get("plugins") if isinstance(data, dict) else None
+        for key, entries in (plugins.items() if isinstance(plugins, dict) else ()):
             if not key.startswith("squad@") or not isinstance(entries, list):
                 continue
             for e in entries:
+                if not isinstance(e, dict):
+                    continue
                 have = str(e.get("gitCommitSha") or "")
                 path = e.get("installPath")
                 if have and path and (have.startswith(sha) or sha.startswith(have)) and os.path.isdir(path) \
