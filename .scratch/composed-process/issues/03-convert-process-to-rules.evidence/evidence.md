@@ -40,6 +40,29 @@ $ echo $?
 
 **AC 6** is the checkers' audit of `mapping.md` against the sources.
 
+## Restored from the log, absent from the live process.md
+
+Log rows 47, 48 and 49 are accepted changes the live `process.md` does not carry. Row 47 is `COST-6a`/`COST-6b`, row 48 is `REV-16`/`REV-17`, row 49 is `REV-18a`/`REV-18b` (Tech Lead ANSWER 03).
+
+## BD4: the Developer size target is NOT met
+
+Developer composed size is 9.5 KB at S, M and L against the spec's 3-4 KB (BD4: outcome gap, not a 03 defect; 03 does not trim, meaning change is forbidden). Developer M bytes per topic file (heading plus body, total 9517):
+
+| Topic file | Bytes |
+|---|---|
+| messages | 1942 |
+| review | 1176 |
+| lifecycle | 1102 |
+| cost | 1078 |
+| safety | 848 |
+| starting | 785 |
+| core | 780 |
+| evidence | 779 |
+| notes | 484 |
+| goal | 219 |
+| promotion | 187 |
+| suites | 137 |
+
 ## Where the collapsed duplicates landed (AC 03-2)
 
 | Duplicate group | Surviving rule(s) | Dropped or split rows |
