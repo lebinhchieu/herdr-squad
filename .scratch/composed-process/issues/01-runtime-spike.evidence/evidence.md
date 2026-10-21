@@ -11,7 +11,7 @@ Q1 (4 probes + `init` plugin list), Q2 (2 probes), Q3 (measured in a clone: work
 Doc "Recommendation": `git archive` runtime at `$SQUAD_DIR/_runtime/<version>-<sha12>/`; `PATH="<runtime>/bin:$PATH" claude --plugin-dir <runtime> --agent squad:<role> --append-system-prompt-file <home>/roles/<agent>.rules.md --settings <home>/roles/<agent>.settings.json`.
 
 ### AC 3: no plugin file, setting or live squad changed
-`git diff --stat main..HEAD` lists only the doc, this folder, and the already-committed ticket/spec files of earlier commits (see below).
+`git diff --stat main..HEAD` lists exactly two files: the doc and this `evidence.md`.
 
 ### Probe spend
 Haiku (`claude-haiku-5-5`), `--max-budget-usd 0.03` on each run, 15 runs. Cost per run `total_cost_usd` from the JSON: first run $0.0054, later cached runs $0.0003 to $0.0054; the five `stream-json` init probes were not summed individually and are counted at $0.0035 each. **Total about $0.042 (cap $0.10).** Log: `/tmp/spike01/cost.log` (not committed).
