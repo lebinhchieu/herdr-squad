@@ -81,3 +81,48 @@ Tests outside the ticket's Touches that also read cards and had to move: `test_m
 
 ### Not checked here
 B06-6 (legacy squad gets its duties) is ticket 24 / integration. The closing line "rules are attached" is true in composed mode only until then.
+
+## QA whitebox
+
+### QA whitebox: ticket 06 (sha 822e219) — PASS
+
+Checked read-only in plugin-dev-rcu-1; worktree clean after every run.
+
+| Technical AC | Result |
+|---|---|
+| 1 lint incl. card duplication, `--cards` default error (`bin/squadrules_cli.py:102`) | `bin/squad-process lint` exit 0, no output; `test_squadrules.test_cards_default_is_error` |
+| 2 each card ≤ 30 lines after frontmatter | 13-21 lines (manager 21 incl. blank lines); `CardShapeTest` tests pass |
+| 3 assertion map | Diffed `def test_*` names of the 12 touched test files, `b66036b` vs `822e219`: every removed name appears in the evidence map (renamed or `deleted: reason`). Read `test_pod_contact_routes.py` and `tests/rulesview.py`: assertions moved onto composed rules / `who` targeting, not weakened. |
+| 4 `test_process_citations` via lint | `test_lint_resolves_every_pointer`, `test_an_unknown_pointer_is_reported` |
+| 5 Haiku probe ≤ $0.20 | Dev: 9 roles YES/NO, total ≈ $0.017. I re-ran qa-whitebox (own REV-2 phrase YES, BA's REV-8 phrase NO, $0.0015) |
+| Tests | 223 OK: the ticket's 9 + test_squadrules test_manager_inbox_read test_process_writing test_crlf_squad_files test_model_effort_settings test_squadcompose test_process_conversion |
+| Every moved sentence has a rule | Script over `03/mapping.md`: 246 card-line → rule-ID pairs, each ID exists and `squad-process who <ID>` lists the card's role (acts or aware) in some size. 5 not listed, all accepted: manager:58 SPAWN-8b (8a carries manager), manager:64/65 "dropped: duplicate of GOAL-6a / CLOSE-3a" (03's decision, scope A), tech-lead:27 REV-5b (REV-4/5a/6 carry tech-lead), ba:28 CORE-3 (acts: all). |
+| No composed path calls `squad-process show` | `grep -rn "squad-process show" agents skills bin templates`: only the command's own header/usage, the four settings `allow` entries (stay until 09) and `bin/squad-respawn:59`, which `squad-respawn:61` overrides in composed mode. Legacy path = ticket 24. |
+| Size claim (B06-7) | Recomputed worst-of-12 composed size and card size for manager, dev, qa-whitebox, tech-lead: equal to the table. Baseline note: against the live squad's longer `process.md` (`show` dev 9859 B, manager 25682 B) the totals are further under; against the template (dev's table) manager is under by 153 B. Passes either way. |
+
+#### Follow-ups (not blocking)
+- B06-6 (legacy squad gets its duties; closing line "rules are attached" true in composed mode only) is ticket 24 / integration. Not checkable on 06 alone.
+- Settings `allow` entries for `show` stay until 09 (design.md).
+
+## QA blackbox
+
+### QA blackbox: ticket 06 (ability-only role cards), sha 822e219
+
+Verdict: **PASS** for the [handin] AC. B06-6 is [integ] (needs ticket 24) and is **not** checked here. Method: scratch composed squad in /tmp (stub herdr), `bin/` of branch rcu-1; cards not read (blind); rules read through `compose`/`rule`/`who`. No screenshots (CLI).
+
+| AC | Did | Saw | Result |
+|---|---|---|---|
+| B06-1 card + rules, start steps in rules | `compose <role> --home <scope>` for the 9 roles at M; `squad-spawn <role> --dry-run` for each | every role's argv has `--append-system-prompt-file …/roles/<agent>.rules.md`; START-6 (echo vars, read project.md, scope.md, roster, notes) is in the rules of ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev; Manager has START-1..5; Token Coach START-17. Designer refused with design: no ("only the PO turns the designer on"); with `design: yes` it attaches rules | pass |
+| B06-2 no `show` / missing process.md | grep composed rules of 9 roles; `squad-respawn --dry-run` for 8 agents | 0 mentions of `squad-process show` in all rules; respawn prompt is only "RESPAWN: … read your notes" and re-runs `squad-spawn`, which attaches the rules; squad has no `process.md` and everything ran | pass |
+| B06-3 cards ≤30 lines, lint | line counts after frontmatter (13-21); `squad-process lint` | exit 0 with `--cards error` default. Probed lint on a scratch copy: a card sentence copied from MSG-3 → error + exit 1 (`--cards warn` → warning, exit 0); a card citing `[REV-99]` → error; restored → exit 0 | pass |
+| B06-4 duties reachable | `who REV-3`, `who START-2d` | REV-3: M/L act tech-lead, qa-whitebox, qa-blackbox, aware dev, team-lead; S nobody. START-2d (parallel tasks): S acts tech-lead (as 03 shipped; M/L go to the Team Lead's own rules). Mapping completeness left to QA whitebox | pass |
+| B06-5 probe | `claude -p --model haiku --agent squad:<role> --plugin-dir <branch> --append-system-prompt-file <composed rules>`: "SUITE-2a=YES\|NO SIZE-8b=YES\|NO" | dev: `SUITE-2a=YES SIZE-8b=NO`; qa-blackbox: `SUITE-2a=NO SIZE-8b=YES` (cost $0.006 + $0.004). Dev's own evidence holds the 9-role probe | pass |
+| B06-7 size | developer's table in 06 evidence checked against my own M sizes (manager 36,114; ba 9,526; team-lead 16,735; tech-lead 23,172; qa-w 9,685; qa-b 8,944; designer 5,873; dev 10,014; coach 3,216) | consistent with the table's worst-of-12; every role ≤ card + `show` before; Manager under by only 153 B | pass |
+| B06-8 finding 4 | grep composed rules | no "label shape", no "(Retro)"; `escalations.md` is mentioned in manager, ba, team-lead, tech-lead rules (tech-lead: one mention, in a list of the goal Manager's own files); ready-tasks duty = START-2d | pass (see note) |
+
+Notes (no FAIL):
+- Composed rules still large: dev 10,014 B at M (the trim, ticket 22, handles it); Manager 36 KB.
+- Until ticket 24 a legacy squad (only `process.md`) has cards whose closing line says "rules are attached" but no rules file; the Developer says so in 06's evidence. 06 must not reach the PO without 24 (B06-6).
+- Tech Lead `escalations.md` mention: confirm it is a read, not a write (finding 4); I could not check without reading the card.
+
+Cleanup: scratch dirs deleted, no sessions or servers left.
