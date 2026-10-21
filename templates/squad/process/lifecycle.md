@@ -175,3 +175,11 @@ when: qa = light
 topic: lifecycle
 
 Batch the follow-ups of `qa-w.md` into one last, droppable ticket.
+
+## LC-23 Design files
+roles: designer
+when: design = yes
+topic: lifecycle
+
+- Write `$SCOPE_DIR/ui-design/<task>.md` for each UI task, with a `Status: draft|final` line, then: the screens, every state (empty, loading, error, edge, long or missing data), the flows between screens, the copy, and what to reuse from the existing UI.
+- Optionally add `ui-design/<task>.html`: one self-contained file, no network, opens from disk.

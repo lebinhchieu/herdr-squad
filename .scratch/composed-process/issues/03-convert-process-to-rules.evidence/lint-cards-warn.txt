@@ -7,6 +7,7 @@ warning: agents/ba.md:22: sentence repeats PROMO-3a (templates/squad/process/pro
 warning: agents/designer.md:10: sentence repeats START-7 (templates/squad/process/starting.md:87)
 warning: agents/designer.md:10: sentence repeats START-6 (templates/squad/process/starting.md:80)
 warning: agents/designer.md:12: sentence repeats START-12 (templates/squad/process/starting.md:120)
+warning: agents/designer.md:17: sentence repeats LC-23 (templates/squad/process/lifecycle.md:184)
 warning: agents/designer.md:19: sentence repeats MSG-17 (templates/squad/process/messages.md:170)
 warning: agents/dev.md:10: sentence repeats START-7 (templates/squad/process/starting.md:87)
 warning: agents/dev.md:10: sentence repeats START-6 (templates/squad/process/starting.md:80)

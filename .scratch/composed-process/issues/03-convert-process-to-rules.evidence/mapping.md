@@ -387,8 +387,8 @@ Source = `templates/squad/process.md` (v6), `agents/<role>.md` or `log row <N>` 
 | agents/designer.md:11 | START-9 | 2. Read the Manager's briefing: the UI tasks and their AC. |
 | agents/designer.md:12 | START-12 | 3. **Read the existing UI conventions** that `project.md` li |
 | agents/designer.md:13 | COST-1 | 4. **Cost rules** (`process.md`): if a Stop-hook message say |
-| agents/designer.md:17 | stays in card | - **Write `$SCOPE_DIR/ui-design/<task>.md` for each UI task* |
-| agents/designer.md:18 | stays in card | - **Optional `ui-design/<task>.html`:** one self-contained f |
+| agents/designer.md:17 | LC-23 | - **Write `$SCOPE_DIR/ui-design/<task>.md` for each UI task* |
+| agents/designer.md:18 | LC-23 | - **Optional `ui-design/<task>.html`:** one self-contained f |
 | agents/designer.md:19 | MSG-17 | - **When a design is final,** send `DECISION <task>: design  |
 | agents/designer.md:20 | MSG-16a, MSG-16b | - **Doubts:** business → `ASK` the BA (M, L) or the Tech Lea |
 | agents/designer.md:24 | dropped: duplicate of FILE-9 | - **Own:** the design files in `$SCOPE_DIR/ui-design/`. |

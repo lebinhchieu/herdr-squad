@@ -272,7 +272,7 @@ designer 10-10 START-6, START-7
 designer 11-11 START-9
 designer 12-12 START-12
 designer 13-13 COST-1
-designer 17-18 stays in card
+designer 17-18 LC-23
 designer 24-24 dropped: duplicate of FILE-9
 designer 25-25 SAFE-8
 designer 29-29 dropped: duplicate of NOTE-1

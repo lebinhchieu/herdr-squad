@@ -54,7 +54,7 @@ Before spawning for a ticket touching at most 2 files, give it to a live Develop
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
 topic: cost
 
-After a respawn read your notes, the files they name, and Messages, Cost rules and Safety; never the whole spec again.
+After a respawn read your notes and the files they name; your rules are already attached. Never read the whole spec again.
 
 ## COST-8 Manager reads its usage
 roles: manager

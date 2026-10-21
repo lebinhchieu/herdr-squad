@@ -93,7 +93,7 @@ class Fixes(unittest.TestCase):
         self.assertIn("style-contract.md", self.by["REV-16"].body)
         self.assertEqual(self.by["REV-16"].roles, ["tech-lead"])
         self.assertIn("all style findings", self.by["REV-17"].body)
-        self.assertIn("never assert presentational values", self.by["REV-18a"].body.lower().replace("never assert", "never assert"))
+        self.assertIn("never assert presentational values", self.by["REV-18a"].body.lower())
         self.assertEqual(self.by["REV-18a"].roles, ["qa-whitebox"])
         self.assertEqual(self.by["REV-18b"].roles, ["qa-blackbox"])
 

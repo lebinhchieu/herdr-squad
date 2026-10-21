@@ -159,6 +159,7 @@ added:
 - LC-21 <- P:216
 - LC-22a <- P:217
 - LC-22b <- P:217
+- LC-23 <- agents/designer.md:17, agents/designer.md:18
 - REV-1 <- agents/tech-lead.md:19, agents/tech-lead.md:29
 - REV-2 <- agents/qa-whitebox.md:17, agents/qa-whitebox.md:18, agents/qa-whitebox.md:19 ...
 - REV-3 <- log row 38

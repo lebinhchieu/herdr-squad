@@ -28,7 +28,7 @@ topic: owners
 
 | Topic | Owner | Breaks a dispute | Always goes to PO |
 |---|---|---|---|
-| Technical design, quality, security | Tech Lead | Manager | Irreversible tech choice (data model, vendor) |
+| Technical design, quality, security | Tech Lead | Manager | Irreversible tech choice (data model, new dependency, vendor) |
 | Migration, backward compatibility, deploy plan (order, rollback) | Tech Lead | Manager | Destructive data migration, breaking change for other teams |
 
 ## WHO-2b Promotion owners in S
