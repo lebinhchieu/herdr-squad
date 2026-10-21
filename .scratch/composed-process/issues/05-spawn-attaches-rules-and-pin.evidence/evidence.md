@@ -51,3 +51,45 @@ control (same question, `--agent squad:dev` only, no pin, no rules file): RULES=
 ```
 
 Total spend $0.0068. The rules marker comes from the composed file, the card marker only from the pinned runtime's `agents/dev.md`; the init event names the runtime as the one `squad` plugin (`squad@inline`).
+
+## QA whitebox
+
+### QA whitebox 05: PASS on eaecf39 (diff 7e2b83a..eaecf39; 04 and 01 merged in)
+
+#### Checked
+- Diff read: bin/squadruntime.py (new), squad-process (mode/runtime dispatch, composed check/version), squad-spawn, squad-respawn, squad-start. Legacy path untouched (SQUAD_PLUGIN_DIR kept, prompt unchanged).
+- Harness plus 04/02 files: test_squadruntime test_squad_spawn test_squad_respawn test_squad_start test_windows_safe test_squadprocess(+_apply,_show) test_squadcompose test_squadrules test_processlint: 378 OK.
+- Real run (temp squad /tmp/qaw05, plugin worktree at eaecf39): `runtime` materialised `_runtime/0.4.1-eaecf39b8872`; `diff -r` against `git archive` = identical; 0 symlinks; exec bits kept; second run idempotent, no `.tmp-*` left. Bad pins: `--upload-pack=x`, `../1` exit 2; unknown sha exit 1 with pin + restore command; no pin exit 2.
+- 9 mutations, each caught (test_squadruntime): no `--append-system-prompt-file`; exit-code remap; plugin.json version check off; respawn notes-only prompt off; 6-char sha accepted; repo-root guard off; PATH env off; older-pin warning off; rename replaced by copy.
+- AC1-10 map to tests (see evidence.md); AC9 live probe recorded ($0.0068, `squad@inline`, path = runtime), read as the Developer's claim; the real-argv, tmp-squad, no-herdr-call parts are covered by tests.
+- Contract (rules-and-compose.md), 05 side: `compose <role> --home --agent --plugin-root <runtime> --out` called as the contract says; pin line `plugin: <version> <sha>`. Both sides (04 + 05) checked.
+
+#### Developer deviations
+1 (goal.md not edited, pin inserted by code), 2, 3, 4, 7: accepted, Tech Lead updates Touches. 5 (herdr `--env PATH=` keeps runtime first) and Windows: unverified, report only, not a FAIL bar per design.
+6: confirmed: composed cards say `squad-process show`, which exits with "cannot read process.md" when a squad has none (checked). Depends on 06; Team Lead must keep it in 06's AC.
+
+#### Follow-up (non-blocking)
+- `_runtime` archived with the squad until the cleanup ticket (4.6 MB per pin).
+
+## QA blackbox
+
+### QA blackbox 05: spawn attaches rules and pin
+
+Build tested: `git archive eaecf39` of branch squad/plugin/runtime-compose/plugin-dev-runtime-compose-5 (HEAD verified = eaecf39). Own scratch plugin repo (own rule files with markers, committed pin) and own scratch squads in /tmp/qab05; stub `herdr` logging argv; no Developer fixtures. Verdict: **PASS** (05-1..05-8). 05-9 [integ] open.
+
+| AC | What I did | What I saw | Result |
+| --- | --- | --- | --- |
+| 05-1 | composed squad (`process.local.md`), scope pin `plugin: 0.4.1 <sha>`, `squad-spawn dev d1 --scope s1 --model haiku` | `agent start … --plugin-dir <squad>/_runtime/0.4.1-<sha12> --append-system-prompt-file …/roles/d1.rules.md`, tab env `SQUAD_PLUGIN_DIR` and `PATH=<runtime>/bin:…`. File starts `# Your process rules`, header `agent: d1 · role: dev · scope: s1 (size M, design no, qa full, goal no)` / `plugin: 0.4.1 6fd14ce…` matching scope.md; only core + M variant rules present | pass |
+| 05-2 | legacy squad (live `process.md`, no `process.local.md`): base 7e2b83a vs eaecf39 `--dry-run` for spawn dev (prompt "Read process.md go"), spawn qa-blackbox, respawn, start; ids/paths normalised | `diff` empty (11 lines, no `--append-system-prompt-file`; respawn prompt still "Run `squad-process show dev`…"). Existing `test_squad_spawn/respawn/start` + `test_squadruntime`: 164 OK | pass |
+| 05-3 | composed respawn-style spawn with `--prompt`; plain spawn | prompt: `RESPAWN: … Read your notes … Your process rules are attached to this session (<file>); read no other process file.` No "process.md" anywhere in herdr log. Plain spawn sends no prompt (as today) | pass |
+| 05-4 | `size: M` → `S`, spawn d1 as respawn does (also `squad-respawn --dry-run`) | rules header `size S`, `REV-1a` (QABSIZE-S) replaces `REV-1b`; back to M restores QABSIZE-M. RESPAWN prompt names only `roles/d1.notes.md` | pass |
+| 05-5 | removed `plugin:` line, spawn + respawn | exit 2 "composed mode needs a pin; add the line `plugin: <version> <sha>` …"; herdr log empty, no rules file for d3 | pass |
+| 05-6 | pin to unknown sha; pin `garbage` | unknown sha: exit 1 naming the pin and `mkdir -p … && git -C <plugin checkout> archive <sha> \| tar -x -C …`; unparseable: exit 2 `expected plugin: <version> <sha>`; herdr log empty | pass |
+| 05-7 | `squad-start "…"` in composed squad; older `plugin.pin`; junk `plugin.pin`; dirty plugin tree; goal start; `--in-goal` | scope.md gets `plugin: 0.4.1 <sha>`; plugin.pin `0.0.1 <B>` older than running 0.4.1 → warning "plugin.pin is 0.0.1, older … scope runs on 0.0.1", scope started with `plugin: 0.0.1 <B>`; junk pin exit 2, no scope folder; dirty tree → "warning: plugin tree has uncommitted changes, pin uses commit 6fd14ce7fc07 without them", pin = commit; goal.md carries `plugin:`; `--in-goal` scope copied the goal's pin, not plugin.pin | pass |
+| 05-8 | replay of the spawn argv (incl. `--settings`) with `claude -p --model haiku`; HEAD commit adds `CARD-QAB-NEWER`, pinned commit has `CARD-QAB-PEAR` and rules marker `QABSIZE-M` | init: one `squad` plugin, `squad@inline`, path = `_runtime/0.4.1-6fd14ce7fc07`; answer `SIZEM=YES PEAR=YES NEWER=NO` (cost $0.004). The pin wins over the newer checkout | pass |
+
+#### Observations (not FAIL)
+- Without `--settings`, the user's installed `squad@herdr-squad` shadows `--plugin-dir` (init shows /home/chieule/workspace/squad); with the spawn's own `--settings` the runtime wins. Real spawns always pass `--settings`.
+- `--settings` path still points at the running plugin's `templates/squad/settings/<role>.json`, not the pinned runtime's copy.
+- Composed cards still mention `squad-process show` (06, Developer noted).
+- Failed compose leaves `_runtime/<pin>` built (cache, no pod state).
