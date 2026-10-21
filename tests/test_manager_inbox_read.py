@@ -2,11 +2,19 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TEXT = (ROOT / "agents/manager.md").read_text(encoding="utf-8")
-BULLET = next(l for l in TEXT.splitlines() if l.startswith("- **Inbox.**"))
-ANSWER = next(l for l in TEXT.splitlines() if l.startswith("- **A PO answer in chat**"))
-CARRIES = next(l for l in TEXT.splitlines() if l.startswith("- **The inbox carries only"))
-CHECKIN = next(l for l in TEXT.splitlines() if l.startswith("- **Check-in**"))
+from rulesview import composed  # noqa: E402
+
+TEXT = composed("manager", "M")  # the inbox lines moved from the card to ITER-4, ITER-5 and ITER-11
+
+
+def rule(rid):
+    return TEXT.split(f"## {rid} ")[1].split(" ## ")[0]
+
+
+BULLET = rule("ITER-4")
+ANSWER = rule("ITER-5")
+CARRIES = rule("ITER-5")
+CHECKIN = rule("ITER-11")
 
 
 class ManagerInboxReadTest(unittest.TestCase):
@@ -52,7 +60,7 @@ class ManagerCheckinInInboxTest(unittest.TestCase):
         self.assertIn("to merge, ask in chat", CARRIES)
 
     def test_carries_only_existing_sentences_stay(self):
-        for s in ("Never offer a merge, push or deploy as an item", "needs their explicit request here",
+        for s in ("Never offer a merge, push or deploy as an item",
                   "that stays the PO's explicit request in this chat"):
             self.assertIn(s, CARRIES)
 

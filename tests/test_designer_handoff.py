@@ -1,24 +1,21 @@
-"""The roles that consume a UI design know where it is."""
+"""The roles that consume a UI design know where it is (now: through rules targeting, not card text)."""
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-
-
-def read(rel):
-    return (ROOT / rel).read_text()
+from rulesview import ROOT, acts, composed
 
 
 class DesignerHandoffTest(unittest.TestCase):
     def test_consuming_roles_mention_the_design_folder(self):
-        for rel in ("agents/dev.md", "agents/qa-blackbox.md", "agents/tech-lead.md"):
-            self.assertIn("ui-design/", read(rel), rel)
+        for role in ("dev", "qa-blackbox", "tech-lead"):
+            self.assertIn("ui-design/", composed(role, "M", design="yes"), role)
 
     def test_tech_lead_keys_on_design_yes(self):
-        self.assertIn("design: yes", read("agents/tech-lead.md"))
+        self.assertIn("tech-lead", acts("LC-11", "S"))
+        self.assertIn("## LC-11 Design with a UI", composed("tech-lead", "M", design="yes"))
+        self.assertNotIn("## LC-11 ", composed("tech-lead", "M", design="no"))
 
     def test_readme_counts_nine_roles_and_names_the_designer(self):
-        text = read("README.md")
+        text = (ROOT / "README.md").read_text()
         self.assertIn("9 role definitions", text)
         self.assertIn("Designer", text)
 
