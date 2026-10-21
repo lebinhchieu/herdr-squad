@@ -34,3 +34,29 @@ roles: dev
 topic: safety
 
 One short sentence here.
+
+## SAFE-5 Bullet too long
+roles: dev
+topic: safety
+
+- word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word
+
+## SAFE-6 Unknown when value
+roles: dev
+when: size = XL
+topic: safety
+
+One short sentence here.
+
+## SAFE-7 Order
+when: size = S
+roles: dev
+topic: safety
+
+One short sentence here.
+
+## SAFE-9 Removed but back
+roles: dev
+topic: safety
+
+One short sentence here.

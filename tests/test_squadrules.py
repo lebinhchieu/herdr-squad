@@ -85,7 +85,7 @@ class ParseTest(Clean):
     def test_two_topic_files_and_overlay(self):
         ops = sr.parse_overlay(sr.read_text(str(self.squad / "process.local.md")), "process.local.md", [])
         self.assertEqual([(o.kind, o.id, o.hash, o.line) for o in ops],
-                         [("replace", "REV-3", "203fa130", 1), ("add", "SQ-1", "", 6), ("remove", "SAFE-1", "00000000", 15)])
+                         [("replace", "REV-3", "203fa130", 1), ("add", "SQ-1", "", 6), ("remove", "SAFE-1", "22f7e05d", 15)])
         self.assertEqual((ops[0].why, ops[0].upstream), ("report-ui-fix: 8 style returns", "proposed"))
         self.assertTrue(ops[0].body.startswith("The Tech Lead names one final sha"))
         self.assertEqual((ops[1].title, ops[1].attrs["roles"], ops[1].attrs["topic"]), ("Style contract", "tech-lead, qa-blackbox", "review"))
@@ -111,6 +111,14 @@ class ParseTest(Clean):
         rules, _t, problems = sr.load_rules(str(self.root / PROC), str(self.root))
         self.assertEqual(problems, [])
         self.assertEqual([r.id for r in rules if r.topic == "safety"], ["SAFE-1", "SAFE-2"])
+
+    def test_load_rules_reports_what_compose_must_refuse(self):
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: colour = red\ntopic: safety"))
+        _r, _t, problems = sr.load_rules(str(self.root / PROC), str(self.root))
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("unknown when key 'colour'", problems[0])
+        self.append(f"{PROC}/safety.md", "\n## SAFE-1 Again\nroles: dev\ntopic: safety\n\nShort.\n")
+        self.assertTrue(any("duplicate ID SAFE-1" in p for p in sr.load_rules(str(self.root / PROC), str(self.root))[2]))
 
     def test_clean_fixture_lints_clean(self):
         self.assertEqual(self.lint(), ([], [], True))
@@ -302,14 +310,37 @@ class CliTest(unittest.TestCase):
         r = cli("lint", root=FIX / "clean", squad=FIX / "clean" / "squad")
         self.assertEqual((r.returncode, r.stdout), (0, ""))
 
-    def test_errors_fixture_prints_file_line_problem_and_exits_1(self):
-        r = cli("lint", root=FIX / "errors", squad=FIX / "errors" / "squad")
+    def test_errors_fixture_prints_every_class_as_file_line_problem(self):
+        r = cli("lint", "--cards", "error", root=FIX / "errors", squad=FIX / "errors" / "squad")
         self.assertEqual(r.returncode, 1)
         lines = r.stdout.splitlines()
-        self.assertGreaterEqual(len(lines), 8)
         for ln in lines:
             self.assertRegex(ln, r"^[\w./-]+:\d+: \S")
-        self.assertIn("bin/tool.py:1: [REV-8] cites a rule that does not exist", lines)
+        p, s = PROC, "templates/squad/process/safety.md"
+        expected = [
+            f"{s}:9: duplicate ID SAFE-1 (first at {s}:3)",
+            f"{s}:15: missing roles:",
+            f"{s}:20: missing topic:",
+            f"{s}:25: unknown role 'wizard' in roles:",
+            f"{s}:25: unknown when key 'colour'",
+            f"{s}:44: unknown value 'XL' for when key 'size'",
+            f"{s}:32: ID REV-9 does not match the file prefix SAFE",
+            f"{s}:42: length: 61 words > 60",
+            f"{s}:51: attribute lines out of order (expected roles, aware, when, topic)",
+            f"{s}:13: sentence repeats SAFE-1 ({s}:7)",
+            f"agents/x.md:6: sentence repeats SAFE-1 ({s}:7)",
+            f"{p}/_removed.md:3: removed ID SAFE-9 is still a rule ({s}:58)",
+            f"{p}/_removed.md:7: replaced_by names missing ID SAFE-77",
+            f"{p}/core.md:1: core.md has 47 lines, over 40",
+            f"{p}/misc.md:1: unknown file stem 'misc' (not in FILE_ORDER)",
+            f"{p}/misc.md:3: text outside a rule (before the first `## ` heading)",
+            "process.local.md:1: remove of NOPE-1, which does not exist",
+            "process.local.md:8: second operation on SAFE-1 (first at line 5)",
+            "process.local.md:5: remove SAFE-1 has no upstream:",
+            "process.local.md:8: remove SAFE-1 has no why:",
+            "bin/tool.py:1: [REV-8] cites a rule that does not exist",
+        ]
+        self.assertEqual(sorted(lines), sorted(expected))
         self.assertFalse([ln for ln in lines if "SEC-04" in ln or "UTF-8" in ln])
 
     def test_cards_warn_exits_0_error_exits_1(self):

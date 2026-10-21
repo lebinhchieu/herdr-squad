@@ -301,6 +301,7 @@ def load_rules(pdir, rel_root=None):
                     if r.roles != ["all"]:
                         problems.append(f"{rel}:{r.line}: core rule {r.id} needs `roles: all`")
         rules.extend(found)
+    _structure(rules, tombs, problems)
     return rules, tombs, problems
 
 
@@ -327,6 +328,26 @@ def _check_attrs(vals, rel, n, out, need):
             out.append(f"{rel}:{n}: {e}")
     if vals.get("topic") and not _TOPIC.match(vals["topic"]):
         out.append(f"{rel}:{n}: topic {vals['topic']!r} is not [a-z][a-z0-9-]*")
+
+
+def _structure(rules, tombs, out):
+    """Checks compose depends on: unique IDs, tombstones, attributes of each rule."""
+    first = {}
+    for r in rules:
+        if r.id in first:
+            out.append(f"{r.file}:{r.line}: duplicate ID {r.id} (first at {first[r.id].file}:{first[r.id].line})")
+        else:
+            first[r.id] = r
+    for t in tombs:
+        if t.id in first:
+            out.append(f"{t.file}:{t.line}: removed ID {t.id} is still a rule ({first[t.id].file}:{first[t.id].line})")
+        for rb in t.replaced_by:
+            if rb not in first:
+                out.append(f"{t.file}:{t.line}: replaced_by names missing ID {rb}")
+    for r in rules:
+        raw = {k: v for k, v in (("roles", ", ".join(r.roles)), ("aware", ", ".join(r.aware)),
+                                 ("when", r.when), ("topic", r.topic)) if v}
+        _check_attrs(raw, r.file, r.line, out, ("roles", "topic"))
 
 
 def _writing(body, body_line, rel, out):
@@ -369,27 +390,8 @@ def lint(plugin_root, squad_dir=None, cards="warn"):
     rules, tombs, errs = load_rules(pdir, plugin_root)
     warns = []
 
-    # IDs: unique; tombstones
-    first = {}
+    first = {r.id: r for r in reversed(rules)}
     for r in rules:
-        if r.id in first:
-            errs.append(f"{r.file}:{r.line}: duplicate ID {r.id} (first at {first[r.id].file}:{first[r.id].line})")
-        else:
-            first[r.id] = r
-    for t in tombs:
-        if t.id in first:
-            errs.append(f"{t.file}:{t.line}: removed ID {t.id} is still a rule ({first[t.id].file}:{first[t.id].line})")
-        for rb in t.replaced_by:
-            if rb not in first:
-                errs.append(f"{t.file}:{t.line}: replaced_by names missing ID {rb}")
-
-    # per rule: attributes, Writing rule
-    for r in rules:
-        raw = {k: v for k, v in (("roles", ", ".join(r.roles)), ("aware", ", ".join(r.aware)),
-                                 ("when", r.when), ("topic", r.topic)) if v}
-        if not r.roles:
-            raw.pop("roles", None)
-        _check_attrs(raw, r.file, r.line, errs, ("roles", "topic"))
         _writing(r.body, r.body_line, r.file, errs)
 
     # cross-rule duplicates: a sentence of 12 or more words in two rules

@@ -12,6 +12,6 @@ why: report-ui-fix it.1 #2
 upstream: proposed
 The Tech Lead writes the style contract before the UI tasks start.
 
-## remove SAFE-1 @00000000
+## remove SAFE-1 @22f7e05d
 why: not needed here
 upstream: local-only
