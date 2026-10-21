@@ -53,13 +53,8 @@ title=$("$bin/squad-label" --get-title --home "$home" --agent "$name" 2>/dev/nul
 title_args=()
 [[ -z $title ]] || title_args=(--title "$title")
 
-prompt="RESPAWN: you are $name, restarted fresh. Read \$SQUAD_DIR/process.md, then your notes \$$home_var/roles/$name.notes.md, and continue from them."
-case $role in
-  dev|qa-whitebox|qa-blackbox|designer)
-    prompt="RESPAWN: you are $name, restarted fresh. Run \`squad-process show $role\` (your sections of \$SQUAD_DIR/process.md), then your notes \$$home_var/roles/$name.notes.md, and continue from them." ;;
-esac
-# A composed agent has its rules attached (squad-spawn recomposes them, so a size change shows); only the notes remain to read.
-[[ $smode != composed ]] || prompt="RESPAWN: you are $name, restarted fresh. Read your notes \$$home_var/roles/$name.notes.md and continue from them."
+# Every agent has its rules attached (squad-spawn composes them, so a size change shows); only the notes remain to read.
+prompt="RESPAWN: you are $name, restarted fresh. Read your notes \$$home_var/roles/$name.notes.md and continue from them."
 # --model/--effort recorded by squad-spawn survive the respawn. Values are checked, never evaluated.
 ovr_args=()
 if [[ -f $home/roles/$name.overrides ]]; then
@@ -94,7 +89,6 @@ herdr agent rename "$name" "$prev" >/dev/null
 SQUAD_DIR=$squad_dir "${spawn[@]}" || {
   rc=$?
   herdr agent rename "$prev" "$name" >/dev/null
-  [[ $smode == composed ]] && exit "$rc"  # 2 = refused (no pin, compose error), 1 = runtime missing
-  exit 1
+  exit "$rc"  # 2 = refused (no pin, compose error), 1 = runtime missing or other
 }
 herdr pane close "$old_pane" >/dev/null

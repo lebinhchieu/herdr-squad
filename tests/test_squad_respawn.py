@@ -116,19 +116,27 @@ class RespawnTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout
 
-    def test_the_four_section_roles_are_told_to_run_squad_process_show_with_their_role(self):
-        for agent, role in (("d2", "Dev"), ("w1", "QA whitebox"), ("b1", "QA blackbox"), ("ux", "Designer")):
+    def test_legacy_prompt_names_the_notes_and_neither_process_md_nor_show(self):
+        for agent, role in (("d2", "Dev"), ("w1", "QA whitebox"), ("b1", "QA blackbox"), ("ux", "Designer"),
+                            ("m1", "Manager"), ("t1", "Tech Lead"), ("l1", "Team Lead")):
             out = self.dry_prompt(agent, role)
-            name = role.lower().replace(" ", "-")
-            self.assertIn(f"squad-process show {name}", out)
-            self.assertIn(f"roles/{agent}.notes.md", out)
-            self.assertNotIn("Read $SQUAD_DIR/process.md", out)
+            self.assertIn(f"Read your notes $SQUAD_DIR/roles/{agent}.notes.md and continue from them.", out)
+            self.assertNotIn("process.md", out)
+            self.assertNotIn("show", out)
 
-    def test_other_roles_keep_the_whole_process_md_prompt(self):
-        for agent, role in (("m1", "Manager"), ("t1", "Tech Lead"), ("b2", "BA"), ("l1", "Team Lead"), ("c1", "Token Coach")):
-            out = self.dry_prompt(agent, role)
-            self.assertIn(f"Read $SQUAD_DIR/process.md, then your notes $SQUAD_DIR/roles/{agent}.notes.md, and continue from them.", out)
-            self.assertNotIn("squad-process", out)
+    def test_respawn_never_names_squad_process_show(self):
+        self.assertNotIn("squad-process show", (BIN / "squad-respawn").read_text(encoding="utf-8"))
+        self.assertNotIn("squad-process show", (BIN / "squad-spawn").read_text(encoding="utf-8"))
+
+    def test_respawn_of_a_legacy_agent_reproduces_the_rules_attachment(self):
+        r = self.respawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        rules = self.squad / "roles" / "dev-1.rules.md"
+        start = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent start dev-1"))
+        self.assertIn(f"--append-system-prompt-file {rules}", start)
+        self.assertNotIn("--plugin-dir", start)
+        self.assertTrue(rules.read_text(encoding="utf-8").startswith("# Your process rules"))
+        self.assertEqual(r.stderr.count("legacy squad: plugin rules attached"), 1)
 
     def test_respawn_brings_back_the_title_and_the_number(self):
         init = subprocess.run([str(BIN / "squad-label"), "--init", "--home", str(self.squad), "--agent", "dev-1",
