@@ -204,7 +204,7 @@ Source = `templates/squad/process.md` (v6), `agents/<role>.md` or `log row <N>` 
 | agents/manager.md:28 | FILE-4, FILE-5a, FILE-5b | - **The roster.** Edit `roster.md`, notes and other structur |
 | agents/manager.md:29 | MSG-18 | - **Routing (S only).** In S, when an agent asks you who own |
 | agents/manager.md:30 | WHO-6 | - **Process.** `process.md` is shared by every scope. Re-rea |
-| agents/manager.md:31 | SAFE-2, WHO-5 | - **Merging.** Only when the PO asks you to, in your session |
+| agents/manager.md:31 | MRG-1 | - **Merging.** Only when the PO asks you to, in your session |
 | agents/manager.md:32 | WHO-8, WHO-8a, WHO-8b, MSG-7a, MSG-7b, GOAL-7 | - **Disputes between owners** (see the table in `process.md` |
 | agents/manager.md:34 | stays in card | **Writing rule for `process.md`.** Every agent reads it, so: |
 | agents/manager.md:35 | stays in card | - **Decide a rule's level first.** A rule a teammate without |

@@ -85,7 +85,7 @@ topic: files
 | File | Owner | Holds |
 |---|---|---|
 | `iterations/<n>.md`, `iterations/<n>.log.md` | Manager | Goal, plan, status, retro, check-in, at most 80 lines; per-ticket event log (nobody reads it at start) |
-| `tasks/<id>.md` | Plan owner | Task state, if the project has no ticket files |
+| `tasks/<id>.md` | Plan owner (Team Lead; Tech Lead in S) | Task state, if the project has no ticket files |
 
 ## FILE-8 Pod summary file
 roles: team-lead, manager

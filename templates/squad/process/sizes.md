@@ -119,7 +119,7 @@ roles: ba
 when: size in M, L
 topic: sizes
 
-The BA writes a question for an outside decision maker to the open-points place `project.md` names, never to that person.
+The BA writes a question for an outside decision maker to the open-points place `project.md` names, never to that person, with the BA's proposed answer. The BA marks the affected work blocked and tells the Team Lead.
 
 ## SIZE-12 Duties of a missing role
 roles: manager

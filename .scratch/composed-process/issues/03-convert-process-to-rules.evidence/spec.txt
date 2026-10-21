@@ -103,7 +103,7 @@ P 202-202 WHO-7
 manager 28-28 FILE-4, FILE-5a, FILE-5b
 manager 29-29 MSG-18
 manager 30-30 WHO-6
-manager 31-31 SAFE-2, WHO-5
+manager 31-31 MRG-1
 manager 32-32 WHO-8, WHO-8a, WHO-8b, MSG-7a, MSG-7b, GOAL-7
 team-lead 20-20 MSG-13
 team-lead 27-27 MSG-19
