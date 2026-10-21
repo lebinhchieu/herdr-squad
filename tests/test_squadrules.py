@@ -120,6 +120,14 @@ class ParseTest(Clean):
         self.append(f"{PROC}/safety.md", "\n## SAFE-1 Again\nroles: dev\ntopic: safety\n\nShort.\n")
         self.assertTrue(any("duplicate ID SAFE-1" in p for p in sr.load_rules(str(self.root / PROC), str(self.root))[2]))
 
+    def test_pointer_in_rule_body_must_name_a_base_rule(self):
+        self.append(f"{PROC}/core.md", "\n## CORE-2 Points\nroles: all\ntopic: core\n\nSee [REV-3], [SEC-04] and [REV-99].\n")
+        errs = self.lint()[0]
+        bad = [e for e in errs if "unknown pointer" in e]
+        self.assertEqual(len(bad), 1, errs)
+        self.assertIn("[REV-99]", bad[0])
+        self.assertRegex(bad[0], r"^templates/squad/process/core\.md:\d+: unknown pointer")
+
     def test_clean_fixture_lints_clean(self):
         self.assertEqual(self.lint(), ([], [], True))
 

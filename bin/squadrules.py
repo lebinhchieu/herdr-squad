@@ -393,6 +393,11 @@ def lint(plugin_root, squad_dir=None, cards="warn"):
     first = {r.id: r for r in reversed(rules)}
     for r in rules:
         _writing(r.body, r.body_line, r.file, errs)
+        for i, line in enumerate((r.body or "").split("\n")):
+            for m in _CITE.finditer(line):
+                rid = m.group(1)
+                if rid.split("-")[0] in PREFIXES | {"SQ"} and rid not in first:
+                    errs.append(f"{r.file}:{r.body_line + i}: unknown pointer [{rid}]")
 
     # cross-rule duplicates: a sentence of 12 or more words in two rules
     seen = {}
