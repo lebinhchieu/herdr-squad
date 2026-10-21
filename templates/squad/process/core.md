@@ -10,22 +10,28 @@ topic: lifecycle
 roles: all
 topic: messages
 
-Send with `SendMessage` as `<TYPE> <TASK-ID>: <text>`. Types: `ASK`, `ANSWER`, `DECISION`, `BLOCKED`, `HANDIN`, `PASS`, `FAIL`, `STATUS`. Rules: [MSG-1].
+Send with `SendMessage` to the agent name in `roster.md`, as `<TYPE> <TASK-ID>: <text>`. Types: `ASK`, `ANSWER`, `DECISION`, `BLOCKED`, `HANDIN`, `PASS`, `FAIL`, `STATUS`.
 
 ## CORE-3 Who owns what
 roles: all
 topic: owners
 
-Technical design, quality, security: Tech Lead. Process, roster, spawning, scope size: Manager. UI design: Designer. Business AC, plan and done depend on the size: [WHO-1a], [WHO-1b].
+Tech Lead: design, quality, security. Manager: process, roster, scope size. Designer: UI. Business AC, plan, done by size: [WHO-1a], [WHO-1b].
 
 ## CORE-4 Two-round rule
 roles: all
 topic: messages
 
-Agents who have not agreed after 2 exchanges send the topic to its owner, or to the Manager when the owner is one of them.
+No agreement after 2 exchanges: send the topic to its owner, or to the Manager when the owner is one of you.
 
 ## CORE-5 Files are the truth
 roles: all
 topic: files
 
-Write a durable thing to a file first, then send a message pointing at it.
+Write a durable thing to a file first, then message a pointer to it.
+
+## CORE-6 Rules not attached
+roles: all
+topic: rules
+
+A rule cited as `[ID]` that is not in this file: run `squad-process rule <ID>`. `squad-process who <ID>` shows which roles it binds.

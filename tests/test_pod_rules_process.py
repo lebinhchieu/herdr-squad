@@ -19,7 +19,9 @@ class PodRulesTest(unittest.TestCase):
     # deleted: test_s_row_is_unchanged (compared the v6 size table with V3; the table is in SIZE rules, covered by test_squadrules)
 
     def test_pod_contact_and_team_lead_to_manager(self):  # was test_pod_contact_and_team_lead_to_manager_bullets
-        self.assertIn("Pod members message it, not the Manager.", composed("dev", "M"))
+        # 22: MSG-5 left the Developer (carrier: MSG-4b/MSG-11b name the Team Lead); the QAs still get it as aware
+        self.assertIn("Pod members message it, not the Manager.", composed("qa-whitebox", "M"))
+        self.assertNotIn("MSG-5", composed("dev", "M"))
         tl = composed("team-lead", "M")
         self.assertIn("MSG-6 Team Lead to Manager", tl)
         self.assertIn('an "Always goes to PO" item', tl)

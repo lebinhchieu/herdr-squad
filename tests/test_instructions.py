@@ -3,7 +3,7 @@ import re
 import unittest
 from pathlib import Path
 
-from rulesview import composed
+from rulesview import composed, run
 
 ROOT = Path(__file__).resolve().parent.parent
 AGENTS = sorted((ROOT / "agents").glob("*.md"))
@@ -173,9 +173,10 @@ class RuleDutiesTest(unittest.TestCase):
 
     def test_dev_copies_reports_to_evidence_and_sends_a_diff_check_after_a_pass(self):
         dev = composed("dev", "M")
-        self.assertIn("## REV-15 Report deliverables", dev)
-        self.assertIn("evidence/<task>/", dev.split("## REV-15")[1].split("##")[0])
-        self.assertIn("hand in", dev.split("## REV-15")[1].split("##")[0])
+        rev15 = run("rule", "REV-15").stdout  # 22: on demand for the Developer; the Tech Lead's task file cites it
+        self.assertIn("## REV-15 Report deliverables", composed("tech-lead", "M"))
+        self.assertIn("evidence/<task>/", rev15)
+        self.assertIn("hand in", rev15)
         after = dev.split("## REV-14b")[1].split("##")[0]
         self.assertIn("diff check", after)
         self.assertIn("both QAs", after)

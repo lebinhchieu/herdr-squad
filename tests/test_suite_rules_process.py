@@ -1,7 +1,7 @@
 """Suite rules: only the Tech Lead runs the full suite (PO note 2026-10-17); now checked on the SUITE rules."""
 import unittest
 
-from rulesview import ROOT, acts, composed, who
+from rulesview import ROOT, acts, composed, run, who
 
 
 class SuiteRulesTest(unittest.TestCase):
@@ -9,7 +9,7 @@ class SuiteRulesTest(unittest.TestCase):
 
     def test_tech_lead_runs_it_and_others_never(self):
         self.assertIn("Only the Tech Lead runs the full suite.", composed("tech-lead", "M"))
-        self.assertIn("The full suite is the Tech Lead's", composed("dev", "M"))
+        self.assertIn("the full suite is the Tech Lead's", composed("dev", "M"))
         self.assertIn("never runs the suite", composed("qa-whitebox", "M"))
         self.assertEqual(acts("SUITE-3", "M"), ("tech-lead",))
 
@@ -27,8 +27,9 @@ class SuiteRulesTest(unittest.TestCase):
         self.assertIn("name the task whose files fail", composed("tech-lead", "M"))
 
     def test_integration_and_light_lines_do_not_make_dev_or_qa_run_it(self):
-        self.assertIn("runs the targeted tests", composed("dev", "M", goal="yes"))
-        self.assertNotIn("and runs the full suite", composed("dev", "M", goal="yes"))
+        # 22: GOAL-6b is on demand for the Developer (the task file cites it): read it with `squad-process rule`
+        self.assertIn("runs the targeted tests", run("rule", "GOAL-6b").stdout)
+        self.assertNotIn("and runs the full suite", run("rule", "GOAL-6b").stdout)
         self.assertIn("QA runs the targeted tests", composed("qa-whitebox", "M", qa="light"))
         self.assertNotIn("failing suite", composed("qa-whitebox", "M", qa="light"))
 
@@ -43,7 +44,7 @@ class SuiteRulesTest(unittest.TestCase):
             self.assertNotIn("Long suites", (ROOT / f"agents/{f}.md").read_text())
 
     def test_integration_task_runs_targeted_tests(self):  # was test_integration_task_in_role_files_runs_targeted_tests
-        dev = composed("dev", "M", goal="yes")
+        dev = run("rule", "GOAL-6b").stdout  # 22: on demand for the Developer
         self.assertIn("runs the targeted tests for the changed files and hands in", dev)
         self.assertIn("the Tech Lead runs the full suite after", dev)
         tl = composed("tech-lead", "M", goal="yes")

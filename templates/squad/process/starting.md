@@ -75,12 +75,11 @@ A lone scope sees nothing of other scopes; a scope in a goal also reads `goal.md
 roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
 topic: start
 
-1. `echo $SQUAD_DIR $SCOPE_DIR $GOAL_DIR $SQUAD_NAME $SQUAD_SCOPE`; when a variable is empty, ask the Manager.
-2. Read `project.md`, then `$SCOPE_DIR/scope.md` (the PO's brief), `roster.md` and your notes `roles/$SQUAD_NAME.notes.md` when they exist.
-3. You start fresh: nothing from other scopes reaches you except the project docs and, inside a goal, the goal's `shared/` folder.
+1. `echo $SQUAD_DIR $SCOPE_DIR $GOAL_DIR $SQUAD_NAME $SQUAD_SCOPE`; a variable is empty → ask the Manager.
+2. Read `project.md`, `$SCOPE_DIR/scope.md`, `roster.md`, your `roles/$SQUAD_NAME.notes.md` if it exists; in a goal also `$GOAL_DIR/goal.md` and `$GOAL_DIR/shared/`.
 
 ## START-7 Start inside a goal
-roles: ba, team-lead, tech-lead, qa-whitebox, designer, dev
+roles: ba, team-lead, tech-lead, qa-whitebox, designer
 when: goal = yes
 topic: start
 
@@ -103,9 +102,9 @@ Read the Manager's briefing: your scope, your tasks and AC where it names them, 
 roles: dev
 topic: start
 
-1. Read your briefing: the task, its AC, the Tech Lead's design notes, your peers.
-2. `git status` and `git branch --show-current`: you are on `squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME` in your own worktree `.worktrees/<squad>/$SQUAD_SCOPE/$SQUAD_NAME`. Work only here.
-3. Read the repo's CLAUDE.md and the conventions `project.md` lists.
+1. Read your briefing: task, AC, design notes, peers.
+2. `git status`, `git branch --show-current`: you are on `squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME`; work only there.
+3. Read CLAUDE.md and the conventions `project.md` lists.
 
 ## START-11 BA start
 roles: ba

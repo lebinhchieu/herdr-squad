@@ -31,7 +31,7 @@ topic: sizes
 - When unsure, size up.
 
 ## SIZE-5a Business AC, S
-roles: tech-lead, dev
+roles: tech-lead
 when: size = S
 topic: sizes
 
@@ -73,7 +73,7 @@ topic: sizes
 QA whitebox checks the code and the tests of every task ([REV-2]).
 
 ## SIZE-8a Behaviour check, S
-roles: dev
+roles: tech-lead
 when: size = S
 topic: sizes
 
@@ -94,7 +94,7 @@ topic: sizes
 The Designer designs the screens, states and flows of the scope's UI tasks, in every size.
 
 ## SIZE-10a Built UI against the design, S
-roles: dev, tech-lead
+roles: tech-lead
 when: size = S and design = yes
 topic: sizes
 

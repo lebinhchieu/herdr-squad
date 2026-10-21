@@ -1,20 +1,20 @@
 # Task lifecycle
 
 ## LC-1 Own checks are not done
-roles: dev
+roles: tech-lead
 topic: lifecycle
 
 A Developer's own checks are required but never enough for done ([SIZE-2]).
 
 ## LC-2 UI ticket waits for its design
-roles: dev, tech-lead, team-lead
+roles: tech-lead, team-lead
 when: design = yes
 topic: lifecycle
 
 A UI ticket with a `Design:` line stays `ready` until its design is `Status: final`. The Developer does not start the UI part before that.
 
 ## LC-3a Returned task
-roles: dev
+roles: team-lead
 topic: lifecycle
 
 A returned task stays with its Developer and task file. On `FAIL`: fix every finding, re-verify, hand in again; same task, same branch.
@@ -34,14 +34,14 @@ topic: lifecycle
 QA never pre-writes test points before the Developer starts; the Tech Lead's AC are the bar.
 
 ## LC-5 Next ticket
-roles: dev, team-lead
+roles: team-lead
 when: size in M, L
 topic: lifecycle
 
 The next ticket starts on the last sha that passed QA whitebox, without waiting for QA blackbox, when it touches different files; a blackbox return is merged in afterwards.
 
 ## LC-6 Queued tickets
-roles: dev
+roles: team-lead
 topic: lifecycle
 
 A Developer with queued tickets in its area takes the next, and retires per [COST-5].
@@ -130,30 +130,30 @@ Move task state as `HANDIN`, `PASS` and `FAIL` messages arrive (you are copied o
 roles: dev
 topic: lifecycle
 
-- Run `squad-label "<ticket id> <few words>"` when you take a ticket; when your last ticket is done and you wait, `squad-label ""`.
-- Implement the task as designed. Reuse what exists; follow the repo's patterns.
-- Verify before handing in: the tests, linters and checks `project.md` lists for "done", on your changed files. Add tests for new behaviour.
+- `squad-label "<ticket id> <few words>"` on taking a ticket, `squad-label ""` when idle after your last.
+- Implement as designed; reuse what exists.
+- Before hand-in run the tests, linters and checks `project.md` lists for "done" on changed files; add tests for new behaviour.
 
-## LC-19 Developer with a design
+## LC-19 Design
 roles: dev
 when: design = yes
 topic: lifecycle
 
-If the ticket has a `Design:` line, read `$SCOPE_DIR/ui-design/<task>.md` (and the `.html` prototype if present) before building the UI, and build every screen and state in it. A difference from the design is an `ASK` to the Tech Lead, not a silent choice.
+A `Design:` ticket waits for `Status: final`; build every screen and state of `$SCOPE_DIR/ui-design/<task>.md`; a difference is an `ASK` to the Tech Lead. In S add one screenshot per screen and state under its design item.
 
-## LC-20a Done, Developer in S
+## LC-20a Done, S
 roles: dev
 when: size = S
 topic: lifecycle
 
-Your task is done when the Tech Lead sent `PASS`. Then tell the Tech Lead and wait; the Manager retires you.
+Done when the Tech Lead sent `PASS`. Tell the Tech Lead and wait; the Manager retires you.
 
-## LC-20b Done, Developer in M and L
+## LC-20b Done, M and L
 roles: dev
 when: size in M, L
 topic: lifecycle
 
-Your task is done when both QAs sent `PASS`. Then tell the Team Lead and wait; the Team Lead retires you.
+Done when both QAs sent `PASS`. Tell the Team Lead and wait; the Team Lead retires you.
 
 ## LC-21 QA light mode
 roles: qa-whitebox, qa-blackbox

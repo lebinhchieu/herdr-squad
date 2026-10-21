@@ -42,7 +42,7 @@ class ProcessCitationsTest(unittest.TestCase):
             root = Path(d) / "plugin"
             shutil.copytree(ROOT / "templates/squad/process", root / "templates/squad/process")
             f = root / "templates/squad/process/core.md"
-            f.write_text(f.read_text().replace("Rules: [MSG-1].", "Rules: [MSG-99]."))
+            f.write_text(f.read_text().replace("[WHO-1a]", "[MSG-99]"))
             r = run("lint", "--plugin-root", str(root))
         self.assertEqual(r.returncode, 1)
         self.assertIn("unknown pointer [MSG-99]", r.stdout)

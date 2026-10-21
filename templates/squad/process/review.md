@@ -20,14 +20,14 @@ On `HANDIN`, check out the Developer's branch (read-only), then:
 
 ## REV-3 One verdict per final sha
 roles: tech-lead, qa-whitebox, qa-blackbox
-aware: dev, team-lead
+aware: team-lead
 when: size in M, L
 topic: review
 
 The Tech Lead names one final sha per task before QA verdicts; doc-only edits wait until every finding is in, and each QA gives one verdict on that sha.
 
 ## REV-4 Real samples
-roles: dev, qa-whitebox, tech-lead
+roles: qa-whitebox, tech-lead
 topic: review
 
 Code that parses another tool's output (pane text, logs, an API) needs two real samples, including the constant or idle case, before a pattern is trusted. The Tech Lead's technical AC require them.
@@ -47,7 +47,7 @@ topic: review
 QA whitebox runs code that parses another tool's output once, read-only, on live data.
 
 ## REV-6 Payload shape
-roles: dev, qa-whitebox, tech-lead
+roles: qa-whitebox, tech-lead
 topic: review
 
 A ticket that changes a payload is checked on its field shape (every row has the fields the consumer reads, every closed item has its end), not only on totals.
@@ -108,22 +108,22 @@ topic: review
 
 `HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA whitebox and QA blackbox, copy the Team Lead.
 
-## REV-14a Diff check after a PASS, S
+## REV-14a Diff check, S
 roles: dev
 when: size = S
 topic: review
 
-A later commit goes to the Tech Lead as `HANDIN <task>: diff check <passed sha>..<new sha>`; the Tech Lead checks that diff only.
+After `FAIL` fix every finding and re-verify; a later commit goes to the Tech Lead as `HANDIN <task>: diff check <passed sha>..<new sha>`.
 
-## REV-14b Diff check after a PASS, M and L
+## REV-14b Diff check, M and L
 roles: dev
 when: size in M, L
 topic: review
 
-A later commit goes to both QAs as `HANDIN <task>: diff check <passed sha>..<new sha>`; they check that diff only. Tell the Team Lead only after both pass it.
+After `FAIL` fix every finding and re-verify; a later commit goes to both QAs as `HANDIN <task>: diff check <passed sha>..<new sha>`; tell the Team Lead after both pass it.
 
 ## REV-15 Report deliverables
-roles: dev
+roles: tech-lead
 topic: review
 
 A report or doc deliverable is also copied into `$SCOPE_DIR/evidence/<task>/` at the sha you hand in; the `HANDIN` names that path (QA blackbox cannot read worktrees).

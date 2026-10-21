@@ -3,8 +3,7 @@ from pathlib import Path
 
 from rulesview import ROOT, acts, composed
 
-BULLET = ("Every agent writes the ticket number `NN` alone as the task ID, "
-          "never an alias, slug or prefix; a Developer's roster `Owns` reads `ticket NN`.")
+BULLET = "the ticket number `NN` alone, never an alias or slug"  # 22 shortened MSG-3
 
 
 class TaskIdRule(unittest.TestCase):

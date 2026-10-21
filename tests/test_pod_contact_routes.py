@@ -24,7 +24,7 @@ class PodContactRoutes(unittest.TestCase):
         dev, qw, qb = (composed(r, "M") for r in ("dev", "qa-whitebox", "qa-blackbox"))
         self.assertIn("copy the Team Lead", dev)
         self.assertIn("the Team Lead retires you", dev)
-        self.assertIn("Plan or order → the Team Lead", dev)
+        self.assertIn("the Team Lead (plan or order)", dev)
         self.assertIn("copy the Team Lead", qw)
         self.assertIn("copy the Team Lead", qb)
         self.assertIn("tells the Team Lead", composed("ba", "M"))
@@ -36,7 +36,7 @@ class PodContactRoutes(unittest.TestCase):
     def test_s_paths_stay(self):
         dev, tl = composed("dev", "S"), composed("tech-lead", "S")
         self.assertIn("to the Tech Lead", dev.split("## REV-13a")[1])
-        self.assertIn("Then tell the Tech Lead and wait; the Manager retires you", dev)
+        self.assertIn("Tell the Tech Lead and wait; the Manager retires you", dev)
         self.assertIn("tl-review.md", tl)
         self.assertIn("tech-lead", acts("REV-1", "S"))
         self.assertNotIn("the Team Lead retires you", dev)
@@ -45,8 +45,8 @@ class PodContactRoutes(unittest.TestCase):
         qb = composed("qa-blackbox", "M")
         self.assertIn("copy the Team Lead", qb)
         self.assertNotIn("and the BA", qb.split("## REV-12")[1].split("##")[0])
-        self.assertIn("`BLOCKED <task>` and answers to `STATUS?` go to the Team Lead", composed("dev", "M"))
-        self.assertIn("a permission prompt is not sent anywhere", composed("dev", "M"))
+        self.assertIn("`BLOCKED <task>` and `STATUS?` answers go to the Team Lead", composed("dev", "M"))
+        self.assertIn("a permission prompt goes nowhere", composed("dev", "M"))
 
 
 if __name__ == "__main__":
