@@ -20,6 +20,7 @@ squad_dir=$(readlink -f "$SQUAD_DIR")
 smode=none  # same rule as squadruntime.mode
 [[ ! -f $squad_dir/process.md ]] || smode=legacy
 [[ ! -f $squad_dir/process.local.md ]] || smode=composed
+[[ $smode != none ]] || { echo "no squad folder at $squad_dir (neither process.md nor process.local.md)" >&2; exit 1; }
 # Composed squad: refuse before any herdr call when the pin or its runtime is missing (exit 2 / 1, nothing renamed).
 if [[ $smode == composed ]]; then
   rt_args=(--squad-dir "$squad_dir" --home "$home")

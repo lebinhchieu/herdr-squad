@@ -137,7 +137,9 @@ def main(argv=None):
     if a.cmd in ("version", "check") and a.squad_dir:
         import squadruntime
         if squadruntime.mode(a.squad_dir) == "composed":  # rules come from the plugin pin: no process.md to check
-            if a.cmd == "version" or not a.quiet:
+            if a.json:
+                print(json.dumps({"state": "composed", "message": ""}))
+            elif a.cmd == "version" or not a.quiet:
                 print("composed squad: rules come from the plugin pin; nothing to check.")
             return 0
     if a.cmd == "show":

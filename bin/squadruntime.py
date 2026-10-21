@@ -187,9 +187,10 @@ def materialise(squad_dir, version, sha, plugin_root=DEFAULT_ROOT, dry_run=False
     if dry_run:
         return target
     if os.path.isdir(target):
-        if _plugin_version(target) != version:
+        held = _plugin_version(target)
+        if held != version:
             shutil.rmtree(target, ignore_errors=True)
-            raise RuntimeError_(1, f"runtime {target} holds plugin {_plugin_version(target)}, not {version}; removed it.",
+            raise RuntimeError_(1, f"runtime {target} holds plugin {held}, not {version}; removed it.",
                                 _restore_hint(version, sha, target, plugin_root))
         return target
     base = os.path.dirname(target)

@@ -457,6 +457,41 @@ class RespawnComposedTest(Base):
         self.assertEqual(self.herdr(), "")
 
 
+    def test_the_none_layout_is_not_a_squad(self):
+        (self.squad / "process.local.md").unlink()
+        r = self.respawn()
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertEqual(self.herdr(), "")
+
+    def test_a_goal_manager_respawns_with_the_goal_pin_and_a_notes_only_prompt(self):
+        g = self.squad / "goals" / "g1"
+        (g / "roles").mkdir(parents=True)
+        (g / "goal.md").write_text(f"# Goal: g1\n\nplugin: {self.version} {self.sha}\n", encoding="utf-8")
+        (g / "roster.md").write_text("| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
+                                     "| t-mgr-g1 | Manager | | x | live | old |\n", encoding="utf-8")
+        env = {k: v for k, v in self.env.items() if k != "SCOPE_DIR"}
+        env.update(GOAL_DIR=str(g), LIVE="t-mgr-g1")
+        subprocess.run([str(self.plugin / "bin" / "squad-usage"), "--squad-dir", str(g), "--set-session", "t-mgr-g1",
+                        "00000000-0000-0000-0000-000000000002", "--role", "manager", "--scope", ""], env=env, check=True)
+        r = subprocess.run([str(self.plugin / "bin" / "squad-respawn"), "t-mgr-g1"], env=env, text=True,
+                           encoding="utf-8", capture_output=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        text = (g / "roles" / "t-mgr-g1.rules.md").read_text(encoding="utf-8")
+        self.assertIn("scope: goal g1", text)
+        self.assertIn("## Index of other rules", text)
+        start = [ln for ln in self.herdr().splitlines() if ln.startswith("agent start")][0]
+        self.assertIn("--append-system-prompt-file", start)
+        prompt = [ln for ln in self.herdr().splitlines() if ln.startswith("agent prompt")][0]
+        self.assertIn("goals/g1/roles/t-mgr-g1.notes.md".replace("goals/g1", "$GOAL_DIR"), prompt)
+        self.assertNotIn("process.md", prompt)
+
+    def test_check_and_version_json_stay_json_in_a_composed_squad(self):
+        self.composed()
+        r = subprocess.run([sys.executable, str(BIN / "squad-process"), "check", "--json", "--squad-dir", str(self.squad)],
+                           capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(json.loads(r.stdout)["state"], "composed")
+
+
 class StartComposedTest(Base):
     def setUp(self):
         super().setUp()
