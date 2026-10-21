@@ -70,11 +70,11 @@ class StartTest(unittest.TestCase):
         self.assertIn("| t-mgr-sec04 | manager | sec04 |", (sc / "roster.md").read_text(encoding="utf-8"))
 
     def test_model_flag_sets_the_managers_model_else_the_role_default_applies(self):
-        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a", "--model", "sonnet", "--effort", "high").returncode, 0)
-        self.assertRegex(self.herdr(), r"--model sonnet --effort high\b")
+        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a", "--model", "opus", "--effort", "medium").returncode, 0)
+        self.assertRegex(self.herdr(), r"--model opus --effort medium\b")
         self.log.unlink()
         self.assertEqual(self.start("Task two", "--name", "two", "--touches", "b").returncode, 0)
-        self.assertRegex(self.herdr(), r"--model opus\b")
+        self.assertRegex(self.herdr(), r"--model sonnet --effort high\b")
 
     def test_the_managers_model_override_survives_a_respawn_for_a_scope_and_a_goal(self):
         for text, kind, var, flag in (("Task one", "scopes", "SCOPE_DIR", "--scope"), ("goal: Big thing", "goals", "GOAL_DIR", "--goal")):

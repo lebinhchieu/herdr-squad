@@ -2,6 +2,8 @@
 
 Status: accepted (refine-process)
 
+Superseded by 0016 once accepted (composed-process): squads keep an overlay, not a copy; the per-section update is retired.
+
 **Decision:** `process.md` carries an integer `process-version:` line; the plugin ships `skills/squad-process-update/changelog.md` and `history/process-v<N>.md`, a pristine copy of each version, so a squad's own edits can be told from the plugin's text.
 
 **Why:** the squad's `process.md` is edited by its Managers and drifts from the template; a blind merge or a replace loses rules or edits.
