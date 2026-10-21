@@ -5,9 +5,10 @@
 Layouts of <squad>/settings/:
   <role>.local.json  overlay: merged over <P>/templates/squad/settings/<role>.json; prints the effective JSON
   <role>.json        old full file: no overlay, exit 3 tells the caller to use the file as-is
-Merge, per key: scalars - the local value wins; permissions.allow / permissions.deny - union (template order,
-then new local entries, duplicates dropped); objects - recursive. `codePaths` (a list in the local file) replaces
-the placeholder deny entry of the template and is never written to the result.
+Merge, per key: scalars - the local value wins; permissions.allow / deny / ask - union (template order,
+then new local entries, duplicates dropped); other arrays - local replaces; objects - recursive. `codePaths` (a list
+in the local file) replaces the placeholder deny entry by one Read deny per path, plus the project's .worktrees;
+the placeholder with no codePaths is a refusal (exit 2, fail closed). `codePaths` is never written to the result.
 Exit: 0 ok, 1 template missing, 2 unreadable or bad JSON, 3 no overlay (old layout or none).
 """
 import argparse
@@ -19,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadio  # noqa: E402
 
 PLACEHOLDER = "CODE_PATHS_SET_BY_SQUAD_INIT"
-UNION_KEYS = {("permissions", "allow"), ("permissions", "deny")}
+UNION_KEYS = {("permissions", "allow"), ("permissions", "deny"), ("permissions", "ask")}
 
 
 class SettingsError(Exception):
@@ -50,15 +51,23 @@ def merge(template, local, path=()):
     return out
 
 
-def expand_code_paths(settings, code_paths):
-    """Replace the placeholder deny entry by one Read deny per code path; none given drops the entry."""
+def expand_code_paths(settings, code_paths, project_dir=None, where="the local file"):
+    """Replace the placeholder deny entry by one Read deny per code path (plus <project>/.worktrees).
+
+    Fails closed: the placeholder present and no code path is a refusal, never a silent drop."""
     deny = settings.get("permissions", {}).get("deny")
     if not isinstance(deny, list):
         return settings
+    paths = list(code_paths)
+    if project_dir:
+        paths.append(project_dir.rstrip("/") + "/.worktrees")
     entries = []
     for e in deny:
         if isinstance(e, str) and PLACEHOLDER in e:
-            entries += [e.replace(PLACEHOLDER, p.strip("/")) for p in code_paths]
+            if not code_paths:
+                raise SettingsError(2, f"{where} needs a non-empty codePaths list: the template denies reading "
+                                       f"code paths ({PLACEHOLDER}) and none are given")
+            entries += [e.replace(PLACEHOLDER, p.strip("/")) for p in paths]
         else:
             entries.append(e)
     settings["permissions"]["deny"] = _union(entries, [])
@@ -78,7 +87,7 @@ def _load(path, code, what):
     return d
 
 
-def effective(role, squad_dir, template_root):
+def effective(role, squad_dir, template_root, project_dir=None):
     """The merged settings dict, or None when the squad has no overlay for the role."""
     local_path = os.path.join(squad_dir, "settings", f"{role}.local.json")
     if not os.path.isfile(local_path):
@@ -90,7 +99,7 @@ def effective(role, squad_dir, template_root):
     code_paths = local.pop("codePaths", [])
     if not isinstance(code_paths, list) or not all(isinstance(p, str) and p.startswith("/") for p in code_paths):
         raise SettingsError(2, f"codePaths in {local_path} must be a list of absolute paths")
-    return expand_code_paths(merge(template, local), code_paths)
+    return expand_code_paths(merge(template, local), code_paths, project_dir, local_path)
 
 
 def main(argv=None):
@@ -101,10 +110,11 @@ def main(argv=None):
     p.add_argument("--role", required=True)
     p.add_argument("--squad-dir", required=True)
     p.add_argument("--template-root", required=True)
+    p.add_argument("--project-dir")
     p.add_argument("--out")
     a = ap.parse_args(argv)
     try:
-        eff = effective(a.role, a.squad_dir, a.template_root)
+        eff = effective(a.role, a.squad_dir, a.template_root, a.project_dir)
     except SettingsError as e:
         print(str(e), file=sys.stderr)
         return e.code
@@ -113,8 +123,10 @@ def main(argv=None):
     text = json.dumps(eff, indent=2) + "\n"
     if a.out:
         os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
-        with open(a.out, "w", encoding="utf-8", newline="\n") as f:
+        tmp = a.out + ".tmp"
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
+        os.replace(tmp, a.out)
     else:
         sys.stdout.write(text)
     return 0

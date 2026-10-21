@@ -151,11 +151,14 @@ fi
 # <home>/roles/<agent>.settings.json; else the old full settings/<role>.json (warns once); else the template.
 tpl_root=$plugin_root
 [[ $smode != composed ]] || tpl_root=$runtime
+# --dry-run does not materialise the pinned runtime: preview with the running plugin's template.
+[[ $dry != 1 || -d $tpl_root/templates ]] || tpl_root=$plugin_root
 eff_json="" settings_mode=template
 settings=$plugin_root/templates/squad/settings/$role.json
 if [[ -f $squad_dir/settings/$role.local.json ]]; then
-  eff_json=$(python3 "$plugin_root/bin/squadsettings.py" effective --role "$role" --squad-dir "$squad_dir" --template-root "$tpl_root") || exit $?
+  eff_json=$(python3 "$plugin_root/bin/squadsettings.py" effective --role "$role" --squad-dir "$squad_dir" --template-root "$tpl_root" --project-dir "$project_dir") || exit $?
   settings_mode=overlay settings=$home/roles/$name.settings.json
+  [[ ! -f $squad_dir/settings/$role.json ]] || echo "warning: $squad_dir/settings/$role.json is ignored: $role.local.json wins" >&2
 elif [[ -f $squad_dir/settings/$role.json ]]; then
   settings_mode=legacy settings=$squad_dir/settings/$role.json
   echo "warning: $settings is a full settings file, not an overlay; ticket 09 (adopt) converts it to $role.local.json" >&2
@@ -211,7 +214,7 @@ session=$(python3 -c 'import uuid; print(uuid.uuid4())')
 
 if [[ $settings_mode == overlay && $dry != 1 ]]; then
   mkdir -p "$home/roles"
-  printf '%s\n' "$eff_json" > "$settings"
+  printf '%s\n' "$eff_json" > "$settings.tmp" && mv "$settings.tmp" "$settings"
 fi
 
 claude_args=(--agent "squad:$role" --name "$name" --session-id "$session" --permission-mode auto --settings "$settings")
