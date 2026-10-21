@@ -1,7 +1,7 @@
 Status: ready-for-agent
 Type: task
 Task ID: 03
-Touches: `templates/squad/process/*.md` (new: core, files, starting, sizes, goal, promotion, closing, messages, who, lifecycle, review, evidence, iterations, cost, notes, safety, suites, merge, spawning), `templates/squad/process/_removed.md` (new), `skills/squad-process-update/changelog.md` (v7 entry), `tests/test_process_conversion.py` (new), this ticket's evidence folder (`mapping.md`)
+Touches: `templates/squad/process/*.md` (new: core, files, starting, sizes, goal, promotion, closing, messages, who, lifecycle, review, evidence, iterations, cost, notes, safety, suites, merge, spawning), `templates/squad/process/_removed.md` (new), `skills/squad-process-update/changelog-v7.md` (new, draft v7 entry; `changelog.md` stays: a v7 block there breaks `test_process_history`; Tech Lead ANSWER 03), `tests/test_squadrules.py` (the 02 test that expected no rule files), `tests/test_process_conversion.py` (new), this ticket's evidence folder (`mapping.md`)
 Does not touch: `templates/squad/process.md` (kept for squads not yet migrated; retired in 09), `agents/*` (06 deletes the moved text), any `bin/` file
 Harness: `squad-process lint`; `cd tests; PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_process_conversion test_squadrules`
 Blocked by: 02
@@ -21,12 +21,12 @@ Blocked by: 02
 - Fixes (review 2026-10-20, finding 4):
   - (a) HANDIN goes to the Tech Lead in S and to both QAs in M and L.
   - (b) In S the Tech Lead tells the Manager which tasks are ready in parallel. This duty is currently only in `manager.md:27`.
-  - (c) A business doubt the Designer raises goes to the Manager as an `ASK`. The Tech Lead never hand-writes `escalations.md` (ADR 0007).
+  - (c) A business doubt the Designer raises goes to the BA as an `ASK` in M and L, and to the Manager in S (BA decision BD6, Team Lead DECISION 03). Only the Manager writes `escalations.md` (ADR 0007).
   - (d) Drop "The label shape is in process.md"; `squad-label` owns it.
   - (e) Token Coach rules sit in `iterations.md`; nothing cites a "Retro" section.
 - Duplicates collapse into one rule: "two real samples" (process, qa-whitebox, tech-lead); the roster write recipe (manager, team-lead); the cost-rule reaction (7 cards); the start boilerplate (9 cards).
 - `core.md` stays at or under 40 lines: task states, message types, the who-owns-what table in short form, the two-round rule, files-are-truth.
-- The v7 changelog entry is machine-readable, as ticket 07 defines. Until 07 lands, list added IDs and the source of each.
+- The v7 changelog entry is machine-readable, as ticket 07 defines. Until 07 lands, `skills/squad-process-update/changelog-v7.md` lists added IDs and the source of each; 07 folds it into `changelog.md`.
 
 ## Technical AC
 1. `squad-process lint` exits 0 on `templates/squad/process/`.

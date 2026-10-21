@@ -310,9 +310,11 @@ class CliTest(unittest.TestCase):
             r = cli("lint", root=d)
         self.assertEqual((r.returncode, r.stdout.strip(), r.stderr), (0, "no rule files", ""))
 
-    def test_template_has_no_rule_files_yet(self):
-        r = cli("lint")
-        self.assertEqual((r.returncode, r.stdout.strip()), (0, "no rule files"))
+    def test_template_rule_files_lint_clean(self):
+        """Ticket 03 added the rule files: lint exits 0; only card-duplicate warnings may print (--cards warn until 06)."""
+        r = cli("lint", root=ROOT)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertEqual([ln for ln in r.stdout.splitlines() if not ln.startswith("warning: ")], [])
 
     def test_clean_fixture_exit_0_prints_nothing(self):
         r = cli("lint", root=FIX / "clean", squad=FIX / "clean" / "squad")

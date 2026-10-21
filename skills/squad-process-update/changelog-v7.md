@@ -1,0 +1,261 @@
+# v7 (draft until ticket 07 defines the format)
+
+Converted from `templates/squad/process.md` v6 (`P`), the live squad's Coach changes (`log row N`) and the process text in `agents/*.md`. Full source lines: `.scratch/composed-process/issues/03-convert-process-to-rules.evidence/mapping.md`.
+
+added:
+- CORE-1 <- P:206
+- CORE-2 <- P:164, P:168, P:169 ...
+- CORE-3 <- P:192
+- CORE-4 <- P:181
+- CORE-5 <- P:40
+- FILE-1 <- P:16, P:17, P:18 ...
+- FILE-2 <- P:31, P:32, P:33 ...
+- FILE-3 <- P:41, P:43
+- FILE-4 <- P:42, agents/manager.md:28, agents/team-lead.md:28
+- FILE-5a <- agents/manager.md:28
+- FILE-5b <- agents/manager.md:28
+- FILE-5c <- agents/team-lead.md:28
+- FILE-6 <- P:47, P:48, P:49 ...
+- FILE-7 <- P:53, P:54
+- FILE-8 <- P:52
+- FILE-9 <- P:55, P:56, P:57
+- FILE-10 <- P:61, P:62, P:63
+- START-1 <- P:67, P:70, P:71
+- START-2a <- P:69, agents/manager.md:27
+- START-2b <- P:69, P:79, agents/team-lead.md:24
+- START-2c <- agents/manager.md:27, agents/manager.md:52
+- START-2d <- fix b
+- START-3 <- P:75, P:78, P:79
+- START-4 <- P:76, P:77
+- START-5 <- P:85, P:86, P:87 ...
+- START-6 <- agents/team-lead.md:12, agents/tech-lead.md:10, agents/ba.md:10 ...
+- START-7 <- agents/team-lead.md:12, agents/tech-lead.md:10, agents/ba.md:10 ...
+- START-8 <- agents/qa-blackbox.md:10
+- START-9 <- agents/team-lead.md:13, agents/tech-lead.md:12, agents/ba.md:11 ...
+- START-10 <- agents/dev.md:11, agents/dev.md:12, agents/dev.md:13
+- START-11 <- agents/ba.md:12
+- START-12 <- agents/designer.md:12
+- START-13 <- agents/qa-blackbox.md:11
+- START-14 <- agents/qa-whitebox.md:11
+- START-15 <- agents/team-lead.md:14
+- START-16 <- agents/tech-lead.md:11
+- START-17 <- agents/token-coach.md:10, agents/token-coach.md:11
+- START-18 <- agents/manager.md:10, agents/manager.md:11, agents/manager.md:12 ...
+- START-19 <- agents/manager.md:20, agents/manager.md:21
+- SIZE-1 <- P:95
+- SIZE-2 <- P:99, P:100, P:101
+- SIZE-3 <- P:103
+- SIZE-4 <- P:105, P:106, P:107
+- SIZE-5a <- P:113
+- SIZE-5b <- P:113
+- SIZE-6a <- P:114, agents/tech-lead.md:18
+- SIZE-6b <- P:114, P:121
+- SIZE-7a <- P:115
+- SIZE-7b <- P:115
+- SIZE-8a <- P:116, agents/dev.md:24
+- SIZE-8b <- P:116
+- SIZE-9 <- P:117
+- SIZE-10a <- P:118, agents/dev.md:20
+- SIZE-10b <- P:118
+- SIZE-11a <- P:119, agents/tech-lead.md:19
+- SIZE-11b <- P:119, agents/ba.md:23
+- SIZE-12 <- P:109 (heading)
+- SIZE-13 <- P:125, agents/manager.md:25
+- SIZE-14 <- P:125, agents/tech-lead.md:19
+- SIZE-15 <- P:126, agents/manager.md:25
+- SIZE-16 <- P:127, P:128, agents/manager.md:25 ...
+- SIZE-17a <- agents/ba.md:21
+- SIZE-17b <- agents/team-lead.md:6
+- SIZE-17c <- agents/qa-whitebox.md:25
+- SIZE-17d <- agents/qa-blackbox.md:22
+- SIZE-18 <- agents/manager.md:26
+- GOAL-1 <- P:132, P:133, agents/manager.md:62 ...
+- GOAL-2 <- P:134, P:135, P:136
+- GOAL-3a <- P:136, agents/tech-lead.md:21
+- GOAL-3b <- P:136, agents/qa-whitebox.md:23
+- GOAL-4 <- P:142
+- GOAL-5 <- P:137, P:138, agents/manager.md:55
+- GOAL-6a <- P:139, P:140, agents/tech-lead.md:24
+- GOAL-6b <- agents/dev.md:30
+- GOAL-6c <- P:139
+- GOAL-7 <- P:141, agents/manager.md:32
+- PROMO-1 <- P:146
+- PROMO-2 <- P:148, agents/tech-lead.md:22
+- PROMO-3a <- P:148, agents/ba.md:22
+- PROMO-3b <- P:148
+- PROMO-4 <- P:149
+- PROMO-5 <- agents/dev.md:30
+- PROMO-6 <- P:150, P:151, agents/manager.md:67
+- PROMO-7 <- P:152
+- PROMO-8 <- agents/qa-whitebox.md:24
+- CLOSE-1 <- P:156, agents/manager.md:72
+- CLOSE-2 <- P:157, agents/manager.md:72
+- CLOSE-3a <- P:158, agents/tech-lead.md:23
+- CLOSE-3b <- P:158, agents/manager.md:66
+- CLOSE-4 <- P:159, agents/manager.md:68
+- CLOSE-5 <- P:160
+- MSG-1 <- P:164, P:168, P:169 ...
+- MSG-2 <- P:176
+- MSG-3 <- P:177, log row 46
+- MSG-4a <- P:178
+- MSG-4b <- P:178
+- MSG-5 <- P:179
+- MSG-6 <- P:180, agents/team-lead.md:35, agents/team-lead.md:39 ...
+- MSG-7a <- P:182, agents/manager.md:32
+- MSG-7b <- P:182, agents/manager.md:32
+- MSG-8a <- P:183
+- MSG-8b <- P:183, agents/team-lead.md:26
+- MSG-9 <- P:184
+- MSG-10 <- P:185
+- MSG-11a <- agents/dev.md:21
+- MSG-11b <- agents/dev.md:21
+- MSG-12 <- agents/ba.md:20
+- MSG-13 <- agents/team-lead.md:20
+- MSG-14 <- agents/tech-lead.md:30
+- MSG-15 <- agents/tech-lead.md:33
+- MSG-16a <- agents/designer.md:20
+- MSG-16b <- agents/designer.md:20
+- MSG-17 <- agents/designer.md:19
+- MSG-18 <- agents/manager.md:29
+- MSG-19 <- agents/team-lead.md:27
+- WHO-1a <- P:193, P:197
+- WHO-1b <- P:191, P:193, P:197
+- WHO-2 <- P:192, P:198
+- WHO-2b <- P:196
+- WHO-2c <- P:196
+- WHO-3a <- P:194
+- WHO-3b <- P:194
+- WHO-4 <- P:195
+- WHO-5 <- P:199, P:200, agents/manager.md:31
+- WHO-6 <- P:5, agents/manager.md:30
+- WHO-7 <- P:202
+- WHO-8 <- agents/manager.md:32
+- WHO-8a <- agents/manager.md:32
+- WHO-8b <- agents/manager.md:32
+- WHO-8c <- agents/team-lead.md:29
+- LC-1 <- P:208
+- LC-2 <- P:209
+- LC-3a <- P:210, agents/dev.md:31
+- LC-3b <- P:210, log row 35
+- LC-4 <- P:211
+- LC-5 <- P:212
+- LC-6 <- P:213
+- LC-7a <- P:218, agents/manager.md:90
+- LC-7b <- P:218, agents/manager.md:90, agents/team-lead.md:26
+- LC-8 <- log row 39
+- LC-9 <- log row 42
+- LC-10 <- agents/tech-lead.md:17
+- LC-11 <- agents/tech-lead.md:29
+- LC-12 <- agents/tech-lead.md:31
+- LC-13 <- agents/tech-lead.md:32
+- LC-14 <- agents/tech-lead.md:18, agents/tech-lead.md:26
+- LC-15 <- agents/team-lead.md:21, agents/team-lead.md:22
+- LC-16 <- agents/team-lead.md:21, agents/team-lead.md:22
+- LC-17 <- agents/team-lead.md:25, agents/team-lead.md:54
+- LC-18 <- agents/dev.md:18, agents/dev.md:19, agents/dev.md:22
+- LC-19 <- agents/dev.md:20
+- LC-20a <- agents/dev.md:35
+- LC-20b <- agents/dev.md:35
+- LC-21 <- P:216
+- LC-22a <- P:217
+- LC-22b <- P:217
+- LC-23 <- agents/designer.md:17, agents/designer.md:18
+- REV-1 <- agents/tech-lead.md:19, agents/tech-lead.md:29
+- REV-2 <- agents/qa-whitebox.md:17, agents/qa-whitebox.md:18, agents/qa-whitebox.md:19 ...
+- REV-3 <- log row 38
+- REV-4 <- P:214, agents/tech-lead.md:27, agents/qa-whitebox.md:22
+- REV-5a <- P:214, agents/tech-lead.md:27
+- REV-5b <- P:214, agents/tech-lead.md:27, agents/qa-whitebox.md:22
+- REV-6 <- P:215, agents/tech-lead.md:27, agents/qa-whitebox.md:22
+- REV-7 <- agents/tech-lead.md:28, agents/qa-whitebox.md:16
+- REV-8 <- agents/ba.md:19, agents/qa-blackbox.md:20
+- REV-9 <- agents/qa-blackbox.md:21
+- REV-10 <- agents/qa-whitebox.md:26
+- REV-11 <- agents/qa-blackbox.md:23
+- REV-12 <- agents/qa-whitebox.md:27, agents/qa-blackbox.md:24
+- REV-13a <- agents/dev.md:24, agents/dev.md:26
+- REV-13b <- agents/dev.md:26
+- REV-14a <- agents/dev.md:28
+- REV-14b <- agents/dev.md:28
+- REV-15 <- agents/dev.md:27
+- REV-16 <- log row 48
+- REV-17 <- log row 48
+- REV-18a <- log row 49
+- REV-18b <- log row 49
+- EVID-1 <- P:219
+- EVID-2a <- P:220
+- EVID-2b <- P:220, agents/dev.md:29
+- EVID-2c <- P:220, agents/tech-lead.md:19
+- EVID-3a <- P:221
+- EVID-3b <- P:221
+- EVID-4 <- agents/dev.md:24
+- EVID-5 <- agents/dev.md:20
+- ITER-1 <- P:225, P:227, P:228 ...
+- ITER-2 <- agents/manager.md:94
+- ITER-3 <- agents/team-lead.md:45
+- ITER-4 <- agents/manager.md:95
+- ITER-5 <- agents/manager.md:96, agents/manager.md:97
+- ITER-6 <- P:234
+- ITER-6a <- P:234
+- ITER-6b <- P:234
+- ITER-7 <- P:235, agents/token-coach.md:16, agents/token-coach.md:18
+- ITER-8 <- agents/token-coach.md:15, agents/token-coach.md:16, agents/token-coach.md:17
+- ITER-9 <- P:237, agents/token-coach.md:22, agents/token-coach.md:23 ...
+- ITER-10 <- P:236
+- ITER-11 <- agents/manager.md:98, agents/manager.md:99
+- ITER-12 <- agents/manager.md:100
+- COST-1 <- P:241, agents/team-lead.md:15, agents/tech-lead.md:13 ...
+- COST-2 <- P:243
+- COST-3 <- P:244
+- COST-4a <- log row 37
+- COST-4b <- log row 34
+- COST-5 <- P:244, log row 40
+- COST-6a <- log row 40, log row 47
+- COST-6b <- log row 40, log row 47
+- COST-7 <- log row 44
+- COST-8 <- P:245, log row 33, log row 41
+- COST-9 <- P:246
+- COST-10a <- log row 45
+- COST-10b <- log row 45
+- COST-11 <- P:247
+- COST-12 <- P:248
+- NOTE-1 <- P:59, P:252, P:254 ...
+- NOTE-2 <- P:257, P:258, agents/manager.md:111
+- NOTE-3 <- agents/team-lead.md:54
+- SAFE-1a <- P:262, agents/dev.md:25
+- SAFE-1b <- agents/manager.md:104
+- SAFE-2 <- P:268, agents/manager.md:31
+- SAFE-3 <- P:275
+- SAFE-4 <- P:276
+- SAFE-5 <- log row 43
+- SAFE-6 <- agents/manager.md:105
+- SAFE-7 <- agents/manager.md:14, agents/manager.md:106
+- SAFE-8 <- agents/designer.md:25
+- SAFE-9 <- agents/qa-whitebox.md:35
+- SAFE-10 <- agents/qa-blackbox.md:16
+- SUITE-1 <- P:269
+- SUITE-2a <- P:270, agents/dev.md:23
+- SUITE-2b <- P:270
+- SUITE-3 <- P:271, agents/tech-lead.md:25
+- SUITE-4 <- P:272, agents/tech-lead.md:25
+- SUITE-5 <- P:273, agents/tech-lead.md:25
+- SUITE-6 <- P:274
+- MRG-1 <- P:263, P:264
+- MRG-2 <- P:265
+- MRG-3 <- P:266
+- MRG-4 <- P:267
+- SPAWN-1 <- agents/manager.md:44, agents/manager.md:46, agents/manager.md:47 ...
+- SPAWN-2a <- agents/manager.md:50
+- SPAWN-2b <- agents/manager.md:50
+- SPAWN-3 <- agents/manager.md:51
+- SPAWN-4 <- agents/manager.md:54
+- SPAWN-5a <- agents/manager.md:55
+- SPAWN-5b <- agents/team-lead.md:23
+- SPAWN-6 <- agents/manager.md:56
+- SPAWN-7 <- agents/manager.md:57
+- SPAWN-8a <- agents/manager.md:58
+- SPAWN-8b <- agents/manager.md:58, agents/team-lead.md:23
+- SPAWN-9 <- agents/team-lead.md:33
+- SPAWN-10a <- agents/manager.md:84, agents/manager.md:86, agents/manager.md:87 ...
+- SPAWN-10b <- agents/manager.md:78, agents/manager.md:80, agents/manager.md:81 ...
+- SPAWN-11 <- agents/manager.md:76
