@@ -311,10 +311,22 @@ class CliTest(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout.strip(), r.stderr), (0, "no rule files", ""))
 
     def test_template_rule_files_lint_clean(self):
-        """Ticket 03 added the rule files: lint exits 0; only card-duplicate warnings may print (--cards warn until 06)."""
+        """Ticket 06: the cards hold no rule text, so the default `--cards error` lint exits 0 and prints nothing."""
         r = cli("lint", root=ROOT)
         self.assertEqual(r.returncode, 0, r.stdout)
-        self.assertEqual([ln for ln in r.stdout.splitlines() if not ln.startswith("warning: ")], [])
+        self.assertEqual(r.stdout.strip(), "")
+
+    def test_cards_default_is_error(self):
+        r = cli("lint", "--cards", "warn", root=ROOT)
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, ""))
+        cli_src = (ROOT / "bin/squadrules_cli.py").read_text(encoding="utf-8")
+        self.assertIn('"--cards", choices=("error", "warn"), default="error"', cli_src)
+
+    def test_no_card_calls_squad_process_show(self):  # 06: composed squads have no process.md for `show`
+        for f in sorted((ROOT / "agents").glob("*.md")):
+            self.assertNotIn("squad-process show", f.read_text(encoding="utf-8"), f.name)
+        for f in sorted((ROOT / "skills").glob("*/SKILL.md")):
+            self.assertNotIn("squad-process show", f.read_text(encoding="utf-8"), f.name)
 
     def test_clean_fixture_exit_0_prints_nothing(self):
         r = cli("lint", root=FIX / "clean", squad=FIX / "clean" / "squad")

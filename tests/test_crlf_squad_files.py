@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from rulesview import composed
 from test_squad_close import FAKE_HERDR, git
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,22 +27,22 @@ def bullet(rel, label):
 
 
 class InstructionWordingTest(unittest.TestCase):
-    FILES = (("agents/manager.md", "- **The roster.**", "small script that keeps the rest of the file"),
-             ("agents/team-lead.md", "- **Roster:**", "re-reads the file just before writing"))
+    """The roster/LF wording moved from the Manager and Team Lead cards to FILE-4 and FILE-5* (ticket 06)."""
+    FILES = (("manager", "small script that keeps the rest"), ("team-lead", "small script that keeps the rest"))
 
     def test_roster_bullet_names_the_lf_write_and_the_cr_check(self):
-        for rel, label, kept in self.FILES:
-            with self.subTest(file=rel):
-                b = bullet(rel, label)
+        for role, kept in self.FILES:
+            with self.subTest(role=role):
+                b = composed(role, "M")
                 for needle in ('newline="\\n"', 'encoding="utf-8"', "$'\\r'", "small script"):
                     self.assertIn(needle, b)
                 self.assertIn(kept, b)
-        self.assertIn("never `command > file`", bullet("agents/manager.md", "- **The roster.**"))
+                self.assertIn("never `command > file`", b)
 
     def test_the_named_call_writes_no_cr_and_changes_only_the_edited_line(self):
-        for rel, label, _ in self.FILES:
-            with self.subTest(file=rel):
-                self.assertIn(CALL, bullet(rel, label))
+        for role, _ in self.FILES:
+            with self.subTest(role=role):
+                self.assertIn(CALL, composed(role, "M"))
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "roster.md"
             path.write_bytes(ROSTER.encode("utf-8"))

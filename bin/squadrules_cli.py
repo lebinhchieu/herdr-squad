@@ -99,7 +99,7 @@ def main(argv=None):
     lp = sub.add_parser("lint", help="check the rule files and the squad's overlay")
     lp.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
     lp.add_argument("--plugin-root", default=DEFAULT_ROOT)
-    lp.add_argument("--cards", choices=("error", "warn"), default="warn")
+    lp.add_argument("--cards", choices=("error", "warn"), default="error")
     lp.add_argument("--hashes", action="store_true", help="after any problems print `<ID> <hash>` per rule")
     cp = sub.add_parser("compose", help="composed rules for one role")
     cp.add_argument("role")
