@@ -422,9 +422,10 @@ class DelegationTest(unittest.TestCase):
         self.assertEqual(seen, [["compose", "dev", "--home", "D"], ("v6", "compose", "F"), ("v6", "compose", "F"),
                                 ["lint"], ["rule", "REV-3"], ["who", "REV-3"]])
 
-    def test_compose_by_role_is_refused_until_04(self):
+    def test_compose_by_role_without_home_exits_2(self):
         r = cli("compose", "dev")
         self.assertEqual(r.returncode, 2)
+        self.assertIn("--home", r.stderr)
 
 
 if __name__ == "__main__":
