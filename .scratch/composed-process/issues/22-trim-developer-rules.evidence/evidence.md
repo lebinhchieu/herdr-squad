@@ -6,7 +6,7 @@ Tests: `cd tests; PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_dev_rules_s
 
 ### Technical AC
 1. **Size test.** `tests/test_dev_rules_size.py::test_every_combination_fits_5_kib` composes `dev` at the 12 size x design x goal cells (home pinned, agent `plugin-dev-role-cards-upgrade-12`, scope `role-cards-upgrade`, `--now` injected, no `--plugin-root`) and asserts `<= 5120`. That is the live-length header; the plain fixture header (`dev`, `s`, unpinned) is about 70 B smaller. `test_must_keep_duties_by_rule_id` asserts a marker per must-keep duty by rule ID in every cell (CORE-1/2/6, START-6/10, MSG-3, MSG-4a ("Manager", S) / MSG-4b ("Team Lead", M, L), MSG-11a/b, LC-3a, LC-18, LC-19 (design), LC-20a/b, REV-13a/b, REV-14a/b, EVID-2b, COST-3, COST-5, SAFE-1a/3/4/11, SUITE-2a).
-2. **Table.** Totals and per-rule table below. Worst cell with live-length header: 5106 B (S, design, goal), slack 14 B; with the plain fixture header 5031 B.
+2. **Table.** Totals and per-rule table below. Worst cell with live-length header: 5106 B (S, design, goal), slack 14 B; with the plain fixture header 5036 B.
 3. **IDs.** None removed, renamed or reused; `_removed.md` unchanged; lint exit 0. Other eight roles: below.
 4. **Wording tests.** Assertion map below.
 5. **Probe.** Below (AC 5 and BA's BT-4).
