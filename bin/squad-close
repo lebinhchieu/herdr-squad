@@ -45,7 +45,9 @@ if [[ -n ${SQUAD_DIR:-} && $(basename "$SQUAD_DIR") == "$squad" ]]; then
 else
   squad_dir=$(git rev-parse --show-toplevel)/.claude/squads/$squad
 fi
-[[ -f $squad_dir/process.md ]] || { echo "no squad folder at $squad_dir" >&2; exit 1; }
+# A squad folder holds process.local.md (composed) or process.md (legacy); same rule as squadruntime.mode.
+[[ -f $squad_dir/process.md || -f $squad_dir/process.local.md ]] \
+  || { echo "no squad folder at $squad_dir (neither process.md nor process.local.md)" >&2; exit 1; }
 squad_dir=$(readlink -f "$squad_dir")
 squads_root=$(dirname "$squad_dir")
 project_dir=$(dirname "$(dirname "$squads_root")")

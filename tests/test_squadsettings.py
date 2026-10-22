@@ -125,7 +125,7 @@ class SpawnTest(Base):
         self.dir = Path(self.tmp.name)
 
     def spawn(self, role="dev"):
-        return subprocess.run([str(SPAWN), role, "x", "--dry-run"], env=self.env, text=True,
+        return subprocess.run([str(SPAWN), role, "x", "--dry-run", "--prompt", "hello"], env=self.env, text=True,
                               encoding="utf-8", capture_output=True, timeout=10)
 
     def test_overlay_passes_the_effective_file_and_model_from_the_local_file(self):
