@@ -63,6 +63,26 @@ class CloseTest(unittest.TestCase):
         return subprocess.run([str(BIN / "squad-close"), "t", *args], env=self.env, cwd=self.root,
                               text=True, encoding="utf-8", capture_output=True, timeout=30)
 
+    def test_composed_squad_without_process_md_closes(self):
+        (self.squad / "process.md").rename(self.squad / "process.local.md")
+        r = self.close()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(self.squad.exists())
+        self.assertTrue((self.root / ".claude" / "squads" / "_done" / "t").is_dir())
+
+    def test_legacy_squad_with_only_process_md_closes(self):
+        self.assertFalse((self.squad / "process.local.md").exists())
+        r = self.close()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(self.squad.exists())
+
+    def test_folder_with_neither_process_file_is_refused(self):
+        (self.squad / "process.md").unlink()
+        r = self.close()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no squad folder at", r.stderr)
+        self.assertTrue(self.squad.exists())
+
     def test_closes_squad_and_reports_each_branch(self):
         r = self.close()
         self.assertEqual(r.returncode, 0, r.stderr)
