@@ -14,7 +14,7 @@ Run: `squad-process lint` (silent, exit 0). `cd tests; PYTHONDONTWRITEBYTECODE=1
 8. Retargeted IDs (for the changelog, slice 31): SIZE-2, 4, 5a, 5b, 5c(new), 6a, 6b, 6c(new, was 6c none), 7a, 8a, 10a, 11a, 11b, 13, 14, 15, 16, 17a-e (17e new), 21 → 21a/21b, 22 (new), 23b (new); WHO-1a, 1b, 2, 2d(new), 2b, 2c, 3a, 3b, 8a, 8b, 8c; START-2a, 2b, 2c, 2d; SPAWN-2a, 2b, 2c(new), 5a, 5b, 8a, 8b, 9, 10a, 10b.
 
 ### Decisions I took
-- Developer 5 KiB cap (test_dev_rules_size): S design notes/technical AC/`promote.md`/BLOCKED duties reach the Developer in the Manager's first prompt (SIZE-6c, Manager rule) instead of a new Developer rule; no Developer rule grew (S 4912 → 4912 + header only).
+- Developer 5 KiB cap (test_dev_rules_size): S design notes/technical AC/`promote.md`/BLOCKED duties reach the Developer through a `Duties:` line the Manager writes at the top of each task file (SIZE-6c S, SIZE-6d M; Manager rules), so a respawned Developer keeps them; no Developer rule grew. `test_duties_line_is_written_into_the_task_file`. Return 1: SIZE-6c split S/M (M no longer sends user-visible change to BLOCKED); L business AC owner with qa-b no is REV-21 (BA alone), with yes SIZE-5b (`test_l_business_ac_owner_with_and_without_qa_blackbox`); SIZE-11b heading says L.
 - WHO-2 (Technical owners) now L only; WHO-2d gives S and M the Manager (irreversible choice after an advisor call) and the Developer (design notes).
 - Pinning tests moved from M to L where they read Team Lead / Tech Lead rules (`composed("team-lead", "L")`).
 
@@ -25,3 +25,5 @@ Rules that still act on a role absent at S or M (from `who`, my files excluded):
 - In my files, accepted (join-on-move-up, composed only when that role exists): SIZE-17a-e.
 - Stale pins to fix in 29/30: `test_pod_contact_routes.test_s_paths_stay` (REV-13a/REV-1 still name the Tech Lead until 29).
 - Developer S rules still say "to the Tech Lead" (REV-13a, 14a, LC-20a, MSG-4a/11a, EVID-4): slice 29/30.
+
+- From QA blackbox (qa-b.md), still naming Team Lead / BA / Tech Lead at S/M: SPAWN-1, 6, 7; START-4, 5, 6, 9, 15, 16; WHO-7. Also CLAUDE.md:46 and SUITE-1/3/4/5 (suite owner per SIZE-22), older Team Lead rules still composing at S/M: slices 29-31.

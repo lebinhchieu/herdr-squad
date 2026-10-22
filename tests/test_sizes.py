@@ -2,7 +2,7 @@
 and spawning. The whole-template orphan-duty checks land in ticket 31."""
 import unittest
 
-from rulesview import acts, composed, who
+from rulesview import ROOT, acts, composed, who
 
 PRESENT = {"S": {"manager", "dev"}, "M": {"manager", "dev", "qa-whitebox", "qa-blackbox"},
            "L": {"manager", "dev", "qa-whitebox", "qa-blackbox", "ba", "team-lead", "tech-lead"}}
@@ -11,7 +11,7 @@ ONLY_L = ("ba", "team-lead", "tech-lead")
 OWNERS = {
     "plan and Developer spawning": {"S": ("SIZE-6a", "manager"), "M": ("SIZE-6a", "manager"), "L": ("SIZE-6b", "team-lead")},
     "Developer spawning (cap)": {"S": ("START-2a", "manager"), "M": ("START-2a", "manager"), "L": ("START-2b", "team-lead")},
-    "Developer briefing (design notes, AC)": {"S": ("SIZE-6c", "manager"), "M": ("SIZE-6c", "manager")},
+    "Developer briefing (design notes, AC)": {"S": ("SIZE-6c", "manager"), "M": ("SIZE-6d", "manager")},
     "technical AC": {"S": ("SIZE-6c", "manager"), "M": ("SIZE-23b", "qa-whitebox"), "L": ("REV-7", "tech-lead")},
     "business AC": {"S": ("SIZE-5a", "manager"), "M": ("SIZE-5c", "qa-blackbox"), "L": ("SIZE-5b", "ba")},
     "code check": {"S": ("SIZE-7a", "manager"), "M": ("SIZE-7b", "qa-whitebox"), "L": ("SIZE-7b", "qa-whitebox")},
@@ -31,7 +31,7 @@ class DutyOwners(unittest.TestCase):
                     self.assertIn(role, PRESENT[size], "owner is absent at this size")
 
     def test_rules_of_this_slice_never_act_on_an_absent_role(self):
-        ids = ("SIZE-1", "SIZE-3", "SIZE-4", "SIZE-5a", "SIZE-5b", "SIZE-5c", "SIZE-6a", "SIZE-6b", "SIZE-6c",
+        ids = ("SIZE-1", "SIZE-3", "SIZE-4", "SIZE-5a", "SIZE-5b", "SIZE-5c", "SIZE-6a", "SIZE-6b", "SIZE-6c", "SIZE-6d",
                "SIZE-7a", "SIZE-7b", "SIZE-8a", "SIZE-8b", "SIZE-10a", "SIZE-10b", "SIZE-11a", "SIZE-11b",
                "SIZE-13", "SIZE-14", "SIZE-15", "SIZE-16", "SIZE-21a", "SIZE-21b", "SIZE-23b",
                "WHO-1a", "WHO-1b", "WHO-2", "WHO-2d", "WHO-2b", "WHO-2c", "WHO-3a", "WHO-3b", "WHO-8a", "WHO-8b", "WHO-8c",
@@ -55,6 +55,24 @@ class DutyOwners(unittest.TestCase):
                 with self.subTest(rule=rid, size=size):
                     self.assertIn("manager", acts(rid, size))
             self.assertNotIn("manager", acts(rid, "L") if rid in ("SPAWN-5a", "SPAWN-8a") else ("x",))
+
+
+class RespawnReadable(unittest.TestCase):
+    def test_l_business_ac_owner_with_and_without_qa_blackbox(self):
+        # qa-b yes: SIZE-5b; qa-b no: REV-21 (the BA alone). Either way the BA owns it at L.
+        self.assertIn("ba", acts("SIZE-5b", "L"))
+        self.assertIn("ba", acts("REV-21", "L"))
+        self.assertEqual(acts("REV-21", "S"), ())
+
+    def test_duties_line_is_written_into_the_task_file(self):
+        # a respawned Developer reads the task file, not the first prompt; the dev rules are at their size cap
+        sm, mm = composed("manager", "S"), composed("manager", "M")
+        for text, need in ((sm, ("start each task file with `Duties:`", "technical AC are yours", "`promote.md`", "BLOCKED <task>", "user-visible change")),
+                           (mm, ("start each task file with `Duties:`", "technical AC are QA whitebox's", "BLOCKED <task>"))):
+            for n in need:
+                self.assertIn(n, text)
+        self.assertNotIn("Duties:", composed("dev", "S"))
+        self.assertNotIn("user-visible change or business doubt", mm.split("SIZE-6d")[1].split("##")[0])
 
 
 class SizeRules(unittest.TestCase):

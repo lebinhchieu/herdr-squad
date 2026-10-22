@@ -59,12 +59,19 @@ topic: sizes
 
 The Manager owns the plan, task order and Developer spawning, in the plan file format used in every size: an exception to "never does a role's work". Each task file cites the on-demand rules its Developer needs: [GOAL-6b] integration, [PROMO-5] promotion, [REV-15] report deliverable.
 
-## SIZE-6c Developer briefing, S and M
+## SIZE-6c Developer duties, S
 roles: manager
-when: size in S, M
+when: size = S
 topic: sizes
 
-Every Developer's first prompt says: put design notes in the task file; the technical AC are yours in S and QA whitebox's, agreed with you, in M; the business AC are the ticket; a risk flag, user-visible change or business doubt goes to the Manager as `BLOCKED <task>` ([SIZE-14]); in S also keep `promote.md`.
+Manager: start each task file with `Duties:` (a respawned Developer reads it): put design notes in the task file; technical AC are yours; business AC are the ticket; keep `promote.md`; risk flag, user-visible change or business doubt: `BLOCKED <task>` ([SIZE-14]).
+
+## SIZE-6d Developer duties, M
+roles: manager
+when: size = M
+topic: sizes
+
+Manager: start each task file with `Duties:`: put design notes in the task file; technical AC are QA whitebox's; business AC are the ticket; risk flag or business doubt: `BLOCKED <task>` ([SIZE-14]).
 
 ## SIZE-6b Plan owner, L
 roles: team-lead
@@ -129,7 +136,7 @@ topic: sizes
 
 Write a question for an outside decision maker to the open-points place `project.md` names, never to that person; the scope moves to L.
 
-## SIZE-11b Outside questions, M and L
+## SIZE-11b Outside questions, L
 roles: ba
 when: size = L
 topic: sizes
