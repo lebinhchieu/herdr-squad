@@ -1,0 +1,311 @@
+#!/usr/bin/env python3
+"""cwake <pane> [--text T] [--old N --new N]
+cwake --mark <pane> [--clauses 13|2] [--since EPOCH]
+
+Wake step of an account switch (design: scopes/autoswitch/tasks/01.md ## Design).
+
+  cwake <pane>   once the pane is idle (60 s gate), send ONE short wake prompt, log it, delete its marker.
+                 A pane without SQUAD_NAME (a person's own pane) or without a live claude is skipped.
+  cwake --mark   sample whether the pane has pending work and, if so, write wake-pending/<pane>
+                 ("epoch name reason"). Clauses 1 (cut off / blocked) and 3 (unanswered message) are sampled by
+                 cswitch right before /exit; clause 2 (failed SendMessage since --since) by cautoswitch after the
+                 batch. Unreadable transcript/messages.jsonl/herdr = not pending + one log line, never wake-all.
+
+CSWITCH_WAKE=off: both modes do nothing. CSWITCH_WAKE_TEXT overrides the text. CWAKE_TIMEOUT_MS (default 60000)
+is the idle gate.
+"""
+import datetime, glob, json, os, subprocess, sys, tempfile, time
+
+H = os.path.expanduser("~/.claude-accounts")
+PENDING_DIR = f"{H}/wake-pending"
+TAIL_LINES = 200
+
+
+def now():
+    return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def log(line):
+    with open(f"{H}/cswitch.log", "a") as f:
+        f.write(line + "\n")
+
+
+def herdr(*args, timeout=None):
+    try:
+        r = subprocess.run(["herdr", *args], capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return r
+
+
+def agent_get(pane):
+    """The herdr agent row of the pane, or None."""
+    r = herdr("agent", "get", pane, timeout=10)
+    if r is None or r.returncode != 0:
+        return None
+    try:
+        return json.loads(r.stdout)["result"]["agent"]
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+def pane_env(pane):
+    """Environment of the pane's live claude (not the `claude daemon run` child), else None."""
+    try:
+        pids = subprocess.run(["pgrep", "-u", str(os.getuid()), "-x", "claude"],
+                              capture_output=True, text=True).stdout.split()
+    except OSError:
+        return None
+    for pid in pids:
+        try:
+            if open(f"/proc/{pid}/cmdline").read().split("\0")[1:2] == ["daemon"]:
+                continue
+            env = dict(kv.split("=", 1) for kv in open(f"/proc/{pid}/environ").read().split("\0") if "=" in kv)
+        except OSError:
+            continue
+        if env.get("HERDR_PANE_ID") == pane:
+            return env
+    return None
+
+
+def ts_epoch(s):
+    try:
+        return datetime.datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+    except (ValueError, AttributeError):
+        return None
+
+
+def tail_records(path):
+    """Last TAIL_LINES JSON records of a jsonl file (unparsable lines dropped); raises OSError."""
+    with open(path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        size = f.tell()
+        f.seek(max(0, size - 4_000_000))
+        data = f.read()
+    lines = data.split(b"\n")
+    if size > 4_000_000:
+        lines = lines[1:]  # first line is cut
+    out = []
+    for l in lines[-TAIL_LINES:]:
+        try:
+            out.append(json.loads(l))
+        except ValueError:
+            pass
+    return out
+
+
+def transcript_path(sid):
+    # projects/ is shared between the accounts (lib.sh SHARED), but look in all three config dirs
+    for base in ("~/.claude", "~/.claude-2", "~/.claude-3"):
+        hits = glob.glob(os.path.expanduser(f"{base}/projects/*/{sid}.jsonl"))
+        if hits:
+            return hits[0]
+    return None
+
+
+def msg(r):
+    return r.get("message") if isinstance(r.get("message"), dict) else {}
+
+
+def last_turn(recs):
+    """(index, epoch) of the last assistant record with stop_reason end_turn, else (-1, 0)."""
+    idx, t = -1, 0
+    for i, r in enumerate(recs):
+        if r.get("type") == "assistant" and msg(r).get("stop_reason") == "end_turn":
+            idx, t = i, ts_epoch(r.get("timestamp")) or 0
+    return idx, t
+
+
+def clause1(recs):
+    """Cut off: the last assistant record is a tool_use, or a user record follows the last end_turn."""
+    idx, _ = last_turn(recs)
+    asst = [r for r in recs if r.get("type") == "assistant"]
+    if asst and msg(asst[-1]).get("stop_reason") == "tool_use":
+        return True
+    return any(r.get("type") == "user" for r in recs[idx + 1:])
+
+
+def items(r):
+    c = msg(r).get("content")
+    return [i for i in c if isinstance(i, dict)] if isinstance(c, list) else []
+
+
+def send_failed(rec, item):
+    if item.get("is_error") is True:
+        return True
+    tur = rec.get("toolUseResult")
+    if isinstance(tur, dict) and tur.get("success") is False:
+        return True
+    c = item.get("content")
+    texts = [c] if isinstance(c, str) else [i.get("text") for i in c if isinstance(i, dict)] if isinstance(c, list) else []
+    for x in texts:
+        try:
+            v = json.loads(x)
+        except (TypeError, ValueError):
+            continue
+        if isinstance(v, dict) and v.get("success") is False:
+            return True
+    return False
+
+
+def clause2(recs, since):
+    """A failed SendMessage result since `since`, with no later successful SendMessage to the same recipient.
+    Real failure shape (no is_error): the user record has toolUseResult.success == false and the tool_result text is
+    JSON {"success":false,...}; is_error:true is also accepted."""
+    calls, failed = {}, {}  # tool_use_id -> recipient ; recipient -> epoch of the last failure
+    ok = {}  # recipient -> epoch of the last success
+    for r in recs:
+        t = ts_epoch(r.get("timestamp")) or 0
+        for it in items(r):
+            if it.get("type") == "tool_use" and it.get("name") == "SendMessage":
+                inp = it.get("input") if isinstance(it.get("input"), dict) else {}
+                calls[it.get("id")] = inp.get("to") or inp.get("recipient")
+            elif it.get("type") == "tool_result" and it.get("tool_use_id") in calls:
+                to = calls[it["tool_use_id"]]
+                if send_failed(r, it):
+                    if t >= since:
+                        failed[to] = t
+                else:
+                    ok[to] = t
+    return any(ok.get(to, 0) <= t for to, t in failed.items())
+
+
+def clause3(name, env, last_t):
+    """messages.jsonl (same folder order as bin/squad-log-message) has a row to `name` newer than the last turn.
+    Raises OSError when the file cannot be read."""
+    home = env.get("SCOPE_DIR") or env.get("GOAL_DIR") or env.get("SQUAD_DIR")
+    if not home:
+        raise OSError("no SCOPE_DIR/GOAL_DIR/SQUAD_DIR in the pane env")
+    path = f"{home}/messages.jsonl"
+    for l in open(path, encoding="utf-8").read().splitlines()[-500:]:
+        try:
+            row = json.loads(l)
+        except ValueError:
+            continue
+        if row.get("to") == name and (ts_epoch(row.get("ts")) or 0) > last_t:
+            return True
+    return False
+
+
+def sample(pane, clauses, since):
+    """Reason string ('' = not pending). Never raises; a missing source logs one line and counts as not pending."""
+    env = pane_env(pane)
+    name = (env or {}).get("SQUAD_NAME")
+    if not name:
+        return "", ""
+    reasons = []
+    row = agent_get(pane)
+    if row is None:
+        log(f"{now()} wake: {pane} {name} herdr agent get failed; not pending")
+    transcript = None
+    sid = ((row or {}).get("agent_session") or {}).get("value")
+    path = transcript_path(sid) if sid else None
+    try:
+        if not path:
+            raise OSError(f"no transcript for session {sid}")
+        transcript = tail_records(path)
+    except OSError as e:
+        if clauses != "2":  # the clause 1/3 sample before /exit already logged it
+            log(f"{now()} wake: {pane} {name} transcript unreadable ({e}); not pending")
+    if "1" in clauses:
+        if row and row.get("agent_status") == "blocked":
+            reasons.append("blocked")
+        if transcript is not None and clause1(transcript):
+            reasons.append("cut-off")
+    if "2" in clauses and transcript is not None and clause2(transcript, since):
+        reasons.append("failed-send")
+    if "3" in clauses and transcript is not None:
+        try:
+            if clause3(name, env, last_turn(transcript)[1]):
+                reasons.append("unanswered-message")
+        except OSError as e:
+            log(f"{now()} wake: {pane} {name} messages.jsonl unreadable ({e}); not pending")
+    return name, ",".join(reasons)
+
+
+def write_marker(pane, name, reason):
+    os.makedirs(PENDING_DIR, exist_ok=True)
+    path = f"{PENDING_DIR}/{pane}"
+    epoch, old = int(time.time()), ""
+    try:
+        parts = open(path).read().strip().split(" ", 2)
+        epoch, old = int(parts[0]), parts[2] if len(parts) > 2 else ""
+    except (OSError, ValueError):
+        pass
+    reason = ",".join(dict.fromkeys([*old.split(","), *reason.split(",")])).strip(",")
+    fd, tmp = tempfile.mkstemp(dir=PENDING_DIR, prefix=".tmp.")
+    with os.fdopen(fd, "w") as f:
+        f.write(f"{epoch} {name} {reason}\n")
+    os.replace(tmp, path)
+
+
+def mark(pane, clauses, since):
+    name, reason = sample(pane, clauses, since)
+    if reason:
+        write_marker(pane, name, reason)
+    return 0
+
+
+def wake(pane, text, old, new):
+    env = pane_env(pane)
+    name = (env or {}).get("SQUAD_NAME")
+    def done():
+        try:
+            os.remove(f"{PENDING_DIR}/{pane}")
+        except OSError:
+            pass
+    if env is None or not name:
+        log(f"{now()} {pane} {name or '?'} wake skipped")
+        done()
+        return 1
+    if text is None:
+        text = os.environ.get("CSWITCH_WAKE_TEXT") or (
+            "Your Claude account changed" + (f" ({old} -> {new})" if old and new else "")
+            + " and this session was resumed. A message sent to you or by you in the last minutes may have failed"
+            ' ("not reachable"). Resend what failed and carry on; if nothing is pending, answer with one line.')
+    ms = os.environ.get("CWAKE_TIMEOUT_MS", "60000")
+    r = herdr("agent", "wait", pane, "--until", "idle", "--timeout", ms, timeout=int(ms) / 1000 + 30)
+    if r is not None and r.returncode == 0:
+        r = herdr("agent", "prompt", pane, text, timeout=30)
+        if r is not None and r.returncode == 0:
+            log(f"{now()} {pane} {name} wake sent")
+            done()
+            return 0
+        log(f"{now()} WAKE SKIPPED {pane} state=prompt-failed")
+    else:
+        row = agent_get(pane)
+        log(f"{now()} WAKE SKIPPED {pane} state={(row or {}).get('agent_status', 'unknown')}")
+    log(f"{now()} {pane} {name} wake skipped")
+    done()
+    return 1
+
+
+def main(argv):
+    if os.environ.get("CSWITCH_WAKE", "on") == "off":
+        return 0
+    a = list(argv)
+    opt = {"--text": None, "--old": None, "--new": None, "--clauses": "13", "--since": "0"}
+    ismark = "--mark" in a
+    if ismark:
+        a.remove("--mark")
+    pos = []
+    while a:
+        x = a.pop(0)
+        if x in opt and a:
+            opt[x] = a.pop(0)
+        else:
+            pos.append(x)
+    if len(pos) != 1:
+        print("usage: cwake <pane> [--text T] | cwake --mark <pane> [--clauses 13|2] [--since EPOCH]", file=sys.stderr)
+        return 2
+    try:
+        if ismark:
+            return mark(pos[0], opt["--clauses"], float(opt["--since"]))
+        return wake(pos[0], opt["--text"], opt["--old"], opt["--new"])
+    except Exception as e:  # a wake problem never breaks a switch
+        log(f"{now()} wake: {pos[0]} error: {e}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

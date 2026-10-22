@@ -10,6 +10,7 @@
 | `c` | Start Claude on the default of this herdr workspace, else the global default |
 | `cdefault` / `cdefault 2` / `cdefault --ws [<workspace id|panel number|label>] 2` | Show the effective default here / set the global default / set one herdr workspace's default (ref = id, panel number or label, first match in that order; two equal labels = `ambiguous`, rc 2; the account is the last argument; no ref = the current workspace) |
 | `cswitch 1\|2 [pane]` | Herdr only: wait for the pane's Claude to go idle, `/exit`, resume the same session on that account |
+| `cwake <pane>` | Herdr only: once the pane is idle (60 s gate), send it ONE short wake prompt; a pane without `SQUAD_NAME` (a person's own pane) or without a live claude is skipped. `cwake --mark <pane>` samples whether the pane has pending work and writes its marker. Called by `cswitch` and `cautoswitch`; rarely by hand |
 
 **Usage pattern:** ask Claude "if 5-hour usage > 90%, run `cswitch 2`". The status-line JSON carries `rate_limits.five_hour.used_percentage` and `seven_day`, so Claude can read the condition.
 
@@ -33,9 +34,42 @@
 
 ### Hazards
 
+- **Restart `cautoswitch` after install:** it is a long-running python process; an `install.sh` run replaces the file on disk but the running tick loop keeps the old code (no wake step) until restarted. `cwake`, `cswitch` are read fresh each call.
 - **No workspace file = global default.** On a machine where panes already run on other accounts, run `cdefault --ws <ws> <N>` for each live workspace (ids from `herdr workspace list`), then `cautoswitch --once --dry-run`, before the first real tick; otherwise it moves every off-global pane.
 - **Panel token, not observed:** the spaces panel itself, and whether a cold herdr restart drops the tokens (they would come back at each workspace's next default write). A workspace with no default write yet shows nothing.
 - **In herdr, `cdefault N` changes only the global file**, not the current workspace; use `cdefault --ws N` (current workspace) or `cdefault --ws <ws> N`.
+
+## Autoswitch: who is woken after a switch (built 2026-10-23)
+
+**Rule (PO, E1): every off-default squad pane moves to the new account silently; only a pane with pending work is woken, once, after its workspace's batch is back.** A bare `--resume` sends no prompt, so an idle pane is not asked anything.
+
+- **Move:** `cautoswitch` runs `cswitch` on each off-default squad pane, one at a time (unchanged). `cswitch` never wakes. It now waits for `--until idle --until done`, so `/exit` is never typed into a `blocked` permission dialog; a blocked pane is waited on (up to the 10 min `cswitch` already allows).
+- **Pending work** is sampled by `cwake --mark` from the pane's session transcript (`~/.claude*/projects/<cwd>/<session>.jsonl`, last 200 lines), herdr `agent get` and `messages.jsonl`. A pane is pending when ANY of:
+  1. **Cut off:** herdr says `blocked`, or the last assistant record is a `tool_use`, or a user record follows the last `end_turn`. Sampled by `cswitch`'s detached block right after the pane went idle/done and before `/exit`, so a pane that was only mid-turn when the tick started (it finishes its turn first) is not marked.
+  2. **Failed send:** the pane's own transcript has a `SendMessage` whose result failed (`toolUseResult.success == false`, or the result text is JSON with `success:false`, or `is_error:true`) since the batch started (first `-> account` line of the workspace in `cswitch.log`, at most 30 min old), with no later successful `SendMessage` to the same recipient. Sampled by `cautoswitch` after the batch, because failures happen while other panes are down.
+  3. **Unanswered message:** `messages.jsonl` (`SCOPE_DIR`, else `GOAL_DIR`, else `SQUAD_DIR` of the pane) has a row `to == <name>` newer than the pane's last `end_turn`.
+- **Marker:** a pending pane gets `~/.claude-accounts/wake-pending/<pane>` = `epoch name reason` (reasons `blocked`, `cut-off`, `failed-send`, `unanswered-message`, comma-joined). A marker older than 30 min (from its first write) is deleted unsent with a log line. Keep the dir: the installer treats it as state.
+- **Wake:** `cautoswitch` runs the wake step after its per-pane loop, per workspace. It skips a workspace while one of its panes is inside the 15 min "cswitch in flight" window; it samples clause 2 for each pane that is back on target; then calls `cwake <pane>` for each marked pane that is back, oldest marker first, `CSWITCH_WAKE_GAP` seconds apart (default 3). A pane whose move `FAILED` or is still off-default keeps its marker, is not woken, and does not hold up the others; the next tick retries the move and wakes it only if it is back within the 30 min.
+- **`cwake <pane>`:** `herdr agent wait <pane> --until idle --timeout 60000` (override `CWAKE_TIMEOUT_MS`); idle → `herdr agent prompt` with the wake text, log `<ts> <pane> <name> wake sent`, marker deleted. Not idle in 60 s → no prompt, log `WAKE SKIPPED <pane> state=<s>` and `... wake skipped`, marker deleted, no retry. No `SQUAD_NAME` (a person's own pane) or no live claude (retired) → skipped and logged, never prompted. The `(<old> -> <new>)` account numbers are in the text only when this `cautoswitch` process did the move.
+- **Wake text:** "Your Claude account changed (1 -> 2) and this session was resumed. A message sent to you or by you in the last minutes may have failed ("not reachable"). Resend what failed and carry on; if nothing is pending, answer with one line." `CSWITCH_WAKE_TEXT` replaces it.
+- **Switches:** `CSWITCH_WAKE=on` (default) | `off`. `off` = the old behaviour: move every off-default pane, sample nothing, write no marker, wake nobody (`cwake` does nothing). Set it in the `cautoswitch` tab's environment. `cautoswitch --dry-run` writes no marker and sends no prompt.
+- **Fail direction:** an unreadable transcript, `messages.jsonl` or herdr call = not pending, one line in `cswitch.log`; it never wakes everyone.
+- **Not built:** no wake from `cswitch`; no PostToolUseFailure hook (a failed send is read from the sender's transcript instead); no task-file signal (an idle Dev waiting on QA would always look pending).
+
+### Unverified until a live sample
+
+- **Bare `--resume` cost:** not measured. Expected: the resume loads the local transcript and waits at an empty prompt with no model call. If it did cost a turn, it costs the same for every moved pane; the rule only avoids a second turn on idle panes.
+- **Clause 2 on a live batch:** the failure shape (`toolUseResult.success:false`, no `is_error`) was read from a real failed `SendMessage` in a transcript from 2026-10-16 and is covered by stub tests, but clause 2 has not yet fired in a real account switch. The `blocked` herdr row used in the tests is `.derived` (no real one was on disk).
+- **Whole chain on live panes:** all tests use stub `herdr`/`claude`; no live pane was touched.
+
+### PO live-probe checklist (first real batch)
+
+1. Throwaway pane first: start a squad-style claude (`SQUAD_NAME` set) in a spare herdr pane of the workspace, off the workspace default.
+2. `cautoswitch --once --dry-run`: it prints the tick status line (`HH:MM:SS ok: <ws> -> cN ...`) and `[dry-run] would cswitch ...` for that pane (plus `[dry-run] would set ... default` if over the threshold); `cswitch.log` gets no `wake`/`WAKE` line and `ls ~/.claude-accounts/wake-pending` is unchanged.
+3. Pick one **idle** pane. Run `~/.claude-accounts/usage-popup.sh` (or `squad-usage`) and note the totals; run the real tick (`cautoswitch --once`); after the pane is back, compare again. No increase beyond the move itself = a bare `--resume` costs nothing.
+4. `grep -E 'wake|WAKE' ~/.claude-accounts/cswitch.log`: only panes that had pending work show `wake sent`; idle panes show nothing; your own panes never.
+5. Clause 2 live sample: from a squad pane (the sender) message a pane that is down during the batch (the send fails with "not reachable"). The marker is deleted at the wake and the `wake sent` line carries no reason, so prove clause 2 one of two ways: (a) any time after the batch (the transcript survives the wake), run `cwake --mark <sender pane> --clauses 2 --since <epoch of the first `-> account` line in cswitch.log>` and `cat ~/.claude-accounts/wake-pending/<sender pane>`: it must end in `failed-send`; then `rm` that marker, or the next tick wakes the sender again; or (b) after the real tick, read the sender's transcript for the failed `SendMessage` (`toolUseResult.success:false`) and check the sender's pane received the wake prompt while it had no cut-off turn or unanswered message (otherwise `wake sent` could come from clause 1 or 3). Report whether it fired.
+6. Rollback if wrong: restart `cautoswitch` with `CSWITCH_WAKE=off`.
 
 ## Agent skill
 

@@ -577,7 +577,7 @@ class CswitchTest(Base):
         # order of the herdr calls of the detached part
         kinds = [c[:2] for c in self.e.herdr_calls() if c[0] in ("agent", "pane")]
         self.assertEqual(kinds[:3], [["pane", "get"], ["agent", "list"], ["agent", "wait"]])
-        self.assertEqual(self.herdr_calls("agent", "wait"), [["agent", "wait", PANE, "--timeout", "600000"]])
+        self.assertEqual(self.herdr_calls("agent", "wait"), [["agent", "wait", PANE, "--until", "idle", "--until", "done", "--timeout", "600000"]])
         self.assertEqual(self.herdr_calls("agent", "prompt"), [["agent", "prompt", PANE, "/exit"]])
         self.assertEqual(self.herdr_calls("agent", "rename"), [["agent", "rename", PANE, "plugin-tech-ca-repo"]])
         order = [c[:2] for c in self.e.herdr_calls()]
@@ -636,6 +636,213 @@ class CswitchTest(Base):
         self.assertEqual(self.herdr_calls("agent", "rename"), [])
         self.assertRegex(text.splitlines()[0], rf"^\S+ {re.escape(PANE)} \? -> account 2: ")
         self.assertNotIn("FAILED", text)
+
+
+class CswitchBlockedTest(Base):
+    """The wait before /exit is `--until idle --until done`: a blocked pane (permission dialog) is waited on."""
+
+    def test_blocked_pane_gets_no_exit_until_it_is_idle(self):
+        self.e.set_pane()
+        self.e.set_agents()
+        self.e.set_workspaces_real()
+        self.e.spawn_claude(PANE, ["--agent", "x"])
+        self.e.set_status(PANE, "blocked")
+        r = self.e.popen([str(self.e.acct / "bin" / "cswitch"), "2"], session=True,
+                         env=dict(HERDR, HERDR_PANE_ID=PANE, CLAUDE_STUB_MODE="sleep", CSWITCH_WAKE="off"),
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
+        r.communicate(timeout=30)
+        self.e.wait_for(lambda: self.herdr_calls("agent", "wait"), "cswitch never waited")
+        time.sleep(1.5)
+        self.assertEqual(self.herdr_calls("agent", "prompt"), [])  # still blocked: no /exit typed
+        self.e.set_status(PANE, "done")
+        self.e.wait_for(lambda: self.herdr_calls("agent", "prompt") == [["agent", "prompt", PANE, "/exit"]],
+                        "no /exit after the pane reached done")
+        wait = self.herdr_calls("agent", "wait")[0]
+        self.assertEqual(wait, ["agent", "wait", PANE, "--until", "idle", "--until", "done", "--timeout", "600000"])
+
+
+class CwakeTest(Base):
+    SID = json.loads((FIX / "agent-list.real.json").read_text(encoding="utf-8"))["result"]["agents"][2]["agent_session"]["value"]
+
+    def setUp(self):
+        super().setUp()
+        self.e.env["CWAKE_TIMEOUT_MS"] = "300"
+        self.e.set_agents()
+        self.scope = self.e.tmp / "scope"
+        self.scope.mkdir()
+
+    def claude(self, name="plugin-tech-ca-repo"):
+        extra = {"SCOPE_DIR": str(self.scope)}
+        if name:
+            extra["SQUAD_NAME"] = name
+        return self.e.spawn_claude(PANE, extra_env=extra)
+
+    def cwake(self, *args, env=None):
+        return self.e.run("cwake", *args, env=env)
+
+    def prompts(self):
+        return [c for c in self.herdr_calls("agent", "prompt") if c[3] != "/exit"]
+
+    def log(self):
+        p = self.e.acct / "cswitch.log"
+        return p.read_text(encoding="utf-8") if p.exists() else ""
+
+    def marker(self):
+        p = self.e.acct / "wake-pending" / PANE
+        return p.read_text(encoding="utf-8").split() if p.exists() else None
+
+    def test_syntax(self):
+        import py_compile, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            py_compile.compile(str(SRC / "bin" / "cwake"), cfile=os.path.join(d, "c.pyc"), doraise=True)
+        self.assertFalse((SRC / "bin" / "__pycache__").exists())
+
+    def test_usage_error_is_rc2(self):
+        r = self.cwake()
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("usage: cwake", r.stderr)
+
+    def test_idle_pane_gets_the_default_text_marker_removed_and_logged(self):
+        self.claude()
+        (self.e.acct / "wake-pending").mkdir()
+        (self.e.acct / "wake-pending" / PANE).write_text("1 plugin-tech-ca-repo cut-off\n", encoding="utf-8")
+        self.e.set_status(PANE, "idle")
+        r = self.cwake(PANE, "--old", "2", "--new", "3")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        (call,) = self.prompts()
+        self.assertEqual(call[:3], ["agent", "prompt", PANE])
+        self.assertEqual(call[3], 'Your Claude account changed (2 -> 3) and this session was resumed. A message sent '
+                         'to you or by you in the last minutes may have failed ("not reachable"). Resend what failed '
+                         'and carry on; if nothing is pending, answer with one line.')
+        self.assertEqual(self.herdr_calls("agent", "wait"),
+                         [["agent", "wait", PANE, "--until", "idle", "--timeout", "300"]])
+        self.assertRegex(self.log(), rf"^\S+ {re.escape(PANE)} plugin-tech-ca-repo wake sent$")
+        self.assertIsNone(self.marker())
+
+    def test_text_flag_and_env_override(self):
+        self.claude()
+        self.e.set_status(PANE, "idle")
+        self.cwake(PANE, "--text", "hello")
+        self.cwake(PANE, env={"CSWITCH_WAKE_TEXT": "from env"})
+        self.assertEqual([c[3] for c in self.prompts()], ["hello", "from env"])
+
+    def test_default_text_has_no_path_or_token(self):
+        self.claude()
+        self.e.set_status(PANE, "idle")
+        self.cwake(PANE)
+        text = self.prompts()[0][3]
+        self.assertNotRegex(text, r"/home|/tmp|token|sk-")
+
+    def test_not_idle_in_the_gate_is_skipped_rc1_and_marker_removed(self):
+        self.claude()
+        (self.e.acct / "wake-pending").mkdir()
+        (self.e.acct / "wake-pending" / PANE).write_text("1 n r\n", encoding="utf-8")
+        self.e.set_status(PANE, "working")
+        r = self.cwake(PANE)
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(self.prompts(), [])
+        self.assertIn(f"WAKE SKIPPED {PANE} state=working", self.log())
+        self.assertRegex(self.log(), rf" {re.escape(PANE)} plugin-tech-ca-repo wake skipped$")
+        self.assertIsNone(self.marker())
+
+    def test_pane_without_squad_name_is_skipped_without_a_prompt(self):
+        self.claude(name=None)
+        self.e.set_status(PANE, "idle")
+        r = self.cwake(PANE)
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(self.herdr_calls("agent", "prompt"), [])
+        self.assertEqual(self.herdr_calls("agent", "wait"), [])
+        self.assertRegex(self.log(), rf" {re.escape(PANE)} \? wake skipped$")
+
+    def test_pane_with_no_live_claude_is_skipped(self):
+        self.e.set_status(PANE, "idle")
+        r = self.cwake(PANE)
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(self.herdr_calls("agent", "prompt"), [])
+        self.assertIn("wake skipped", self.log())
+
+    def test_wake_off_does_nothing(self):
+        self.claude()
+        self.e.set_status(PANE, "idle")
+        r = self.cwake(PANE, env={"CSWITCH_WAKE": "off"})
+        self.assertEqual((r.returncode, self.herdr_calls("agent")), (0, []))
+        r = self.cwake("--mark", PANE, env={"CSWITCH_WAKE": "off"})
+        self.assertEqual((r.returncode, self.e.herdr_calls()), (0, []))
+        self.assertEqual(self.log(), "")
+
+    # --mark on the derived fixtures (real nesting: message.stop_reason, message.content[])
+    def test_mark_clause2_on_the_failed_send_fixture_and_a_later_success_clears_it(self):
+        self.claude()
+        self.e.set_status(PANE, "idle")
+        for fix, want in (("error", ["plugin-tech-ca-repo", "failed-send"]), ("ok", None)):
+            self.e.set_transcript(self.SID, (FIX / f"transcript-tail-sendmessage-{fix}.derived.jsonl")
+                                  .read_text(encoding="utf-8").splitlines())
+            (self.e.acct / "wake-pending" / PANE).unlink(missing_ok=True)
+            self.cwake("--mark", PANE, "--clauses", "2", "--since", "0")
+            self.assertEqual(self.marker() and self.marker()[1:], want, fix)
+
+    def test_mark_clause2_fires_on_content_json_alone_without_is_error_or_toolUseResult(self):
+        self.claude()
+        lines = []
+        for l in (FIX / "transcript-tail-sendmessage-error.derived.jsonl").read_text(encoding="utf-8").splitlines():
+            r = json.loads(l)
+            r.pop("toolUseResult", None)
+            lines.append(json.dumps(r))
+        self.assertNotIn("is_error", "".join(lines))
+        self.e.set_transcript(self.SID, lines)
+        self.cwake("--mark", PANE, "--clauses", "2", "--since", "0")
+        self.assertEqual(self.marker() and self.marker()[1:], ["plugin-tech-ca-repo", "failed-send"])
+
+    def test_mark_clause2_ignores_a_failure_older_than_since(self):
+        self.claude()
+        self.e.set_transcript(self.SID, (FIX / "transcript-tail-sendmessage-error.derived.jsonl")
+                              .read_text(encoding="utf-8").splitlines())
+        self.cwake("--mark", PANE, "--clauses", "2", "--since", "9999999999")
+        self.assertIsNone(self.marker())
+
+    def test_mark_clause1_on_the_derived_tails(self):
+        self.claude()
+        (self.scope / "messages.jsonl").write_text("", encoding="utf-8")
+        for fix, want in (("idle", None), ("working", "cut-off")):
+            self.e.set_transcript(self.SID, (FIX / f"transcript-tail-{fix}.derived.jsonl")
+                                  .read_text(encoding="utf-8").splitlines())
+            (self.e.acct / "wake-pending" / PANE).unlink(missing_ok=True)
+            self.cwake("--mark", PANE, "--clauses", "13")
+            self.assertEqual(self.marker() and self.marker()[2], want, fix)
+
+    def test_mark_clause3_uses_the_real_messages_row(self):
+        row = json.loads((FIX / "messages.real.jsonl").read_text(encoding="utf-8").splitlines()[0])
+        self.claude(name=row["to"])
+        self.e.set_transcript(self.SID, (FIX / "transcript-tail-idle.derived.jsonl").read_text(encoding="utf-8").splitlines())
+        shutil.copy(FIX / "messages.real.jsonl", self.scope / "messages.jsonl")
+        self.cwake("--mark", PANE, "--clauses", "3")
+        # the row (2026-10-22T21:45:39Z) is older than the idle fixture's last end_turn (21:47:44Z)
+        self.assertIsNone(self.marker())
+        self.e.set_transcript(self.SID, [{"type": "assistant", "timestamp": "2026-10-22T21:00:00.000Z",
+                                          "message": {"stop_reason": "end_turn"}}])
+        self.cwake("--mark", PANE, "--clauses", "3")
+        self.assertEqual(self.marker()[1:], [row["to"], "unanswered-message"])
+
+    def test_mark_blocked_row_from_the_derived_agent_list(self):
+        listing = json.loads((FIX / "agent-list-blocked.derived.json").read_text(encoding="utf-8"))
+        blocked = next(a for a in listing["result"]["agents"] if a["agent_status"] == "blocked")
+        (self.e.stub / "agents.json").write_text(json.dumps(
+            {"result": {"agents": [dict(blocked, pane_id=PANE)]}}), encoding="utf-8")
+        self.claude()
+        self.cwake("--mark", PANE, "--clauses", "1")
+        self.assertEqual(self.marker()[1:], ["plugin-tech-ca-repo", "blocked"])
+
+    def test_mark_with_no_transcript_logs_one_line_and_marks_nothing(self):
+        self.claude()
+        self.cwake("--mark", PANE, "--clauses", "13")
+        self.assertIsNone(self.marker())
+        self.assertEqual(self.log().count("transcript unreadable"), 1)
+
+    def test_mark_skips_a_pane_without_squad_name(self):
+        self.claude(name=None)
+        self.e.set_transcript(self.SID, (FIX / "transcript-tail-working.derived.jsonl").read_text(encoding="utf-8").splitlines())
+        self.cwake("--mark", PANE, "--clauses", "13")
+        self.assertIsNone(self.marker())
 
 
 if __name__ == "__main__":
