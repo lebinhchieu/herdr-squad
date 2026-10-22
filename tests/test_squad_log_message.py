@@ -94,6 +94,12 @@ class LogMessageTest(unittest.TestCase):
         [rec] = self.records()
         self.assertEqual((rec["type"], rec["task"]), ("STATUS", "SET-01"))
 
+    def test_bare_number_ids_after_the_type(self):
+        for text, want in (("HANDIN 03: commit abc123", "03"), ("HANDIN SET-13: x", "SET-13"), ("FAIL 3: x", "3"),
+                           ("PASS 12", "12"), ("STATUS: building SET-01", "SET-01"), ("hello 03", None)):
+            self.run_hook(payload(text))
+        self.assertEqual([r["task"] for r in self.records()], ["03", "SET-13", "3", "12", "SET-01", None])
+
     def test_first_task_id_wins(self):
         self.run_hook(payload("BLOCKED SET-01: AC-033 contradicts spec §4"))
         self.assertEqual(self.records()[0]["task"], "SET-01")

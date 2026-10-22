@@ -1,7 +1,7 @@
 Status: ready-for-agent
 Type: task
 Task ID: 02
-Touches: `bin/squadrules.py` (new), `bin/squad-process` (add `lint`), `tests/test_squadrules.py` (new), `tests/fixtures/rules/` (new)
+Touches: `bin/squadrules.py` (new), `bin/squadrules_cli.py` (new), `bin/squad-process` (thin delegation, `lint`), `tests/test_squadrules.py` (new), `tests/fixtures/rules/` (new)
 Does not touch: `templates/squad/process.md`, `templates/squad/process/` (ticket 03), `agents/*`, `bin/squad-spawn`
 Harness: `cd tests; PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_squadrules test_processlint test_windows_safe`
 Blocked by: none

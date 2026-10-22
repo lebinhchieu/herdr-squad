@@ -63,7 +63,7 @@ class Base(unittest.TestCase):
         self.home = self.root / "home"
         self.home.mkdir()
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR", "HERDR"))}
-        self.env.update(WIN, HERDR_ENV="1", HERDR_LOG=str(self.log), HOME=str(self.home), SQUAD_DIR=str(self.squad),
+        self.env.update(WIN, HERDR_ENV="1", PYTHONDONTWRITEBYTECODE="1", HERDR_LOG=str(self.log), HOME=str(self.home), SQUAD_DIR=str(self.squad),
                         SCOPE_DIR=str(self.scope), PATH=f"{fake}:{os.environ['PATH']}")
 
     def tearDown(self):
@@ -74,7 +74,11 @@ class Base(unittest.TestCase):
 
     def assert_clean(self, r):
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stderr, b"", r.stderr)
+        # a legacy squad fixture prints exactly these two notices (ticket 24 / squad-process), nothing else
+        notices = (b"squad-process: no `plugin:` pin in the home; composing from the running plugin",
+                   b"legacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run")
+        extra = [ln for ln in r.stderr.split(b"\n") if ln and ln not in notices]
+        self.assertEqual(extra, [], r.stderr)
 
 
 class LabelAndSpawnTest(Base):

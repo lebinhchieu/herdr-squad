@@ -17,6 +17,17 @@ else home=${SQUAD_DIR:-} home_var=SQUAD_DIR; fi  # legacy flat layout
 [[ -n ${SQUAD_DIR:-} && -f $home/roster.md ]] || { echo "SQUAD_DIR is not set, or $home_var has no roster.md" >&2; exit 1; }
 squad_dir=$(readlink -f "$SQUAD_DIR")
 
+smode=none  # same rule as squadruntime.mode
+[[ ! -f $squad_dir/process.md ]] || smode=legacy
+[[ ! -f $squad_dir/process.local.md ]] || smode=composed
+[[ $smode != none ]] || { echo "no squad folder at $squad_dir (neither process.md nor process.local.md)" >&2; exit 1; }
+# Composed squad: refuse before any herdr call when the pin or its runtime is missing (exit 2 / 1, nothing renamed).
+if [[ $smode == composed ]]; then
+  rt_args=(--squad-dir "$squad_dir" --home "$home")
+  [[ $dry != 1 ]] || rt_args+=(--dry-run)
+  "$bin/squad-process" runtime "${rt_args[@]}" >/dev/null || exit $?
+fi
+
 # Split by hand: `read` with a tab IFS collapses an empty scope (the Manager has none) and shifts the columns.
 row=$("$bin/squad-usage" --squad-dir "$home" --get "$name")
 role=${row%%$'\t'*}
@@ -42,11 +53,8 @@ title=$("$bin/squad-label" --get-title --home "$home" --agent "$name" 2>/dev/nul
 title_args=()
 [[ -z $title ]] || title_args=(--title "$title")
 
-prompt="RESPAWN: you are $name, restarted fresh. Read \$SQUAD_DIR/process.md, then your notes \$$home_var/roles/$name.notes.md, and continue from them."
-case $role in
-  dev|qa-whitebox|qa-blackbox|designer)
-    prompt="RESPAWN: you are $name, restarted fresh. Run \`squad-process show $role\` (your sections of \$SQUAD_DIR/process.md), then your notes \$$home_var/roles/$name.notes.md, and continue from them." ;;
-esac
+# Every agent has its rules attached (squad-spawn composes them, so a size change shows); only the notes remain to read.
+prompt="RESPAWN: you are $name, restarted fresh. Read your notes \$$home_var/roles/$name.notes.md and continue from them."
 # --model/--effort recorded by squad-spawn survive the respawn. Values are checked, never evaluated.
 ovr_args=()
 if [[ -f $home/roles/$name.overrides ]]; then
@@ -78,5 +86,9 @@ old_pane=$(herdr agent get "$name" | jq -r '.result.agent.pane_id // .result.pan
 [[ -n $old_pane ]] || { echo "no live agent named $name" >&2; exit 1; }
 
 herdr agent rename "$name" "$prev" >/dev/null
-SQUAD_DIR=$squad_dir "${spawn[@]}" || { herdr agent rename "$prev" "$name" >/dev/null; exit 1; }
+SQUAD_DIR=$squad_dir "${spawn[@]}" || {
+  rc=$?
+  herdr agent rename "$prev" "$name" >/dev/null
+  exit "$rc"  # 2 = refused (no pin, compose error), 1 = runtime missing or other
+}
 herdr pane close "$old_pane" >/dev/null

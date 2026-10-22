@@ -28,8 +28,8 @@ Options:
                    "<emoji> <Role>[ n][ · title]", built and numbered by squad-label --init; the agent's
                    address name (env, herdr agent, roster) is unchanged.
   --prompt TEXT    First message to send once the session is ready
-  --model M        Model override (default: settings/<role>.json "model", else Claude's default)
-  --effort E       Effort override (low|medium|high|xhigh|max; default: settings/<role>.json "effortLevel")
+  --model M        Model override (default: scope.md "model <role>: <model> <effort>", else settings/<role>.json "model", else Claude's default)
+  --effort E       Effort override (low|medium|high|xhigh|max; default: scope.md line, else settings/<role>.json "effortLevel")
   --dry-run        Print what would run, start nothing
 
 Env:
@@ -76,14 +76,21 @@ if [[ -n ${SQUAD_DIR:-} ]]; then
 else
   squads_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/squads
   if [[ -z $squad ]]; then
-    found=("$squads_root"/*/process.md)
-    [[ ${#found[@]} == 1 && -f ${found[0]} ]] || { echo "pick a squad with --squad (found: $(ls "$squads_root" 2>/dev/null | xargs))" >&2; exit 2; }
-    squad=$(basename "$(dirname "${found[0]}")")
+    found=()
+    for f in "$squads_root"/*/process.md "$squads_root"/*/process.local.md; do  # a composed squad has only process.local.md
+      [[ -f $f ]] && [[ " ${found[*]:-} " != *" $(dirname "$f") "* ]] && found+=("$(dirname "$f")")
+    done
+    [[ ${#found[@]} == 1 ]] || { echo "pick a squad with --squad (found: $(ls "$squads_root" 2>/dev/null | xargs))" >&2; exit 2; }
+    squad=$(basename "${found[0]}")
   fi
   squad_dir=$squads_root/$squad
 fi
 squad_dir=$(readlink -f "$squad_dir")
-[[ -f $squad_dir/process.md ]] || { echo "no squad folder at $squad_dir (run /squad:squad-init)" >&2; exit 1; }
+# composed = process.local.md present (rules come from the plugin pin), legacy = process.md only, none = not a squad.
+smode=none  # same rule as squadruntime.mode
+[[ ! -f $squad_dir/process.md ]] || smode=legacy
+[[ ! -f $squad_dir/process.local.md ]] || smode=composed
+[[ $smode != none ]] || { echo "no squad folder at $squad_dir (run /squad:squad-init)" >&2; exit 1; }
 squad=$(basename "$squad_dir")
 project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
 
@@ -112,6 +119,58 @@ if [[ -d $squad_dir/scopes ]]; then
   fi
 fi
 
+# scope.md `model <role>: <model> <effort>` lines (ticket 20): the level between a flag/recorded override and the
+# squad settings. A malformed line refuses (exit 2) before anything is made; an unknown role only warns.
+# A value read here is never written to roles/<agent>.overrides.
+scope_model="" scope_effort="" scope_seen=" "
+if [[ -n $scope_dir && -f $scope_dir/scope.md ]]; then
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    [[ $line =~ ^model[[:space:]]*: || $line =~ ^model[[:space:]]+[a-z][a-z-]*[[:space:]]*: || $line =~ ^model[[:space:]]+(manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer)([[:space:]]|$) ]] || continue
+    if [[ $line =~ ^model[[:space:]]+([a-z][a-z-]*):[[:space:]]+([A-Za-z0-9][][A-Za-z0-9._-]*)[[:space:]]+(low|medium|high|xhigh|max)[[:space:]]*$ ]]; then
+      r=${BASH_REMATCH[1]}
+      case $r in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer) ;;
+        *) echo "warning: $scope_dir/scope.md: unknown role '$r' in: $line (ignored)" >&2; continue ;; esac
+      [[ $scope_seen != *" $r "* ]] || { echo "malformed line in $scope_dir/scope.md: role $r given twice: $line" >&2; exit 2; }
+      scope_seen+="$r "
+      [[ $r != "$role" ]] || { scope_model=${BASH_REMATCH[2]} scope_effort=${BASH_REMATCH[3]}; }
+    else
+      echo "malformed line in $scope_dir/scope.md: $line (expected: model <role>: <model> <low|medium|high|xhigh|max>)" >&2
+      exit 2
+    fi
+  done < "$scope_dir/scope.md"
+fi
+
+# Composed mode: the pinned runtime and this agent's composed rules come first, before any herdr call, worktree or
+# label, so a refusal (no pin: exit 2, runtime missing: exit 1, compose error: exit 2) leaves nothing behind.
+plugin_dir=${SQUAD_PLUGIN_DIR:-} rules_args=() runtime_env=()
+if [[ $smode == composed ]]; then
+  rt_args=(--squad-dir "$squad_dir" --home "$home" --plugin-root "$plugin_root")
+  [[ $dry != 1 ]] || rt_args+=(--dry-run)
+  runtime=$("$plugin_root/bin/squad-process" runtime "${rt_args[@]}") || exit $?
+  rules=$home/roles/$name.rules.md
+  if [[ $dry != 1 ]]; then
+    mkdir -p "$home/roles"
+    "$plugin_root/bin/squad-process" compose "$role" --home "$home" --agent "$name" --squad-dir "$squad_dir" \
+      --plugin-root "$runtime" --out "$rules" >&2 || exit $?
+  fi
+  plugin_dir=$runtime
+  rules_args=(--append-system-prompt-file "$rules")
+  runtime_env=(--env "PATH=$runtime/bin:$PATH")
+  [[ -z $prompt ]] || prompt="$prompt Your process rules are attached to this session ($rules); read no other process file."
+elif [[ $smode == legacy ]]; then
+  # Legacy squad: the cards are ability-only, so attach the running plugin's rules (no overlay, no pin, no runtime).
+  rules=$home/roles/$name.rules.md
+  if [[ $dry != 1 ]]; then
+    mkdir -p "$home/roles"
+    "$plugin_root/bin/squad-process" compose "$role" --home "$home" --agent "$name" \
+      --plugin-root "$plugin_root" --out "$rules" >&2 || exit $?
+  fi
+  rules_args=(--append-system-prompt-file "$rules")
+  echo "legacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run" >&2
+  [[ -z $prompt ]] || prompt="$prompt Your process rules are attached to this session ($rules); read no other process file."
+fi
+
 # The Manager hears about a process.md that is behind through its first prompt. Never stops the spawn.
 if [[ $role == manager ]]; then
   notice=$("$plugin_root/bin/squad-process" check --squad-dir "$squad_dir" --quiet 2>/dev/null) || notice=""
@@ -121,9 +180,22 @@ if [[ $role == manager ]]; then
   fi
 fi
 
-# Project-tuned permissions first, plugin defaults as fallback.
-settings=$squad_dir/settings/$role.json
-[[ -f $settings ]] || settings=$plugin_root/templates/squad/settings/$role.json
+# Settings: the squad's overlay settings/<role>.local.json merged over the (pinned) template into
+# <home>/roles/<agent>.settings.json; else the old full settings/<role>.json (warns once); else the template.
+tpl_root=$plugin_root
+[[ $smode != composed ]] || tpl_root=$runtime
+# --dry-run does not materialise the pinned runtime: preview with the running plugin's template.
+[[ $dry != 1 || -d $tpl_root/templates ]] || tpl_root=$plugin_root
+eff_json="" settings_mode=template
+settings=$tpl_root/templates/squad/settings/$role.json
+if [[ -f $squad_dir/settings/$role.local.json ]]; then
+  eff_json=$(python3 "$plugin_root/bin/squadsettings.py" effective --role "$role" --squad-dir "$squad_dir" --template-root "$tpl_root" --project-dir "$project_dir") || exit $?
+  settings_mode=overlay settings=$home/roles/$name.settings.json
+  [[ ! -f $squad_dir/settings/$role.json ]] || echo "warning: $squad_dir/settings/$role.json is ignored: $role.local.json wins" >&2
+elif [[ -f $squad_dir/settings/$role.json ]]; then
+  settings_mode=legacy settings=$squad_dir/settings/$role.json
+  echo "warning: $settings is a full settings file, not an overlay; ticket 09 (adopt) converts it to $role.local.json" >&2
+fi
 
 cwd=$project_dir
 if [[ -n $worktree ]]; then
@@ -147,28 +219,44 @@ ovr_model=$model ovr_effort=$effort
 
 # Role defaults come from "model" and "effortLevel" in settings/<role>.json, per key: the squad's file, then the
 # template. --model/--effort win. Still passed as flags: an --agent frontmatter model would beat --settings.
-key_of() { # key -> value from the squad file, else the template; refuses a bad value
+key_of() { # key -> value from the effective settings (overlay) or the squad file, else the template; refuses a bad value
   local k=$1 f v
-  for f in "$squad_dir/settings/$role.json" "$plugin_root/templates/squad/settings/$role.json"; do
-    [[ -f $f ]] || continue
-    v=$(jq -r --arg k "$k" '.[$k] // empty | if type=="string" then . else error("not a string") end' "$f") || { echo "cannot read $k from $f (needs jq, valid JSON, a string value)" >&2; exit 2; }
+  if [[ $settings_mode == overlay ]]; then
+    v=$(jq -r --arg k "$k" '.[$k] // empty | if type=="string" then . else error("not a string") end' <<<"$eff_json") || { echo "cannot read $k from the effective settings of $role (needs jq, valid JSON, a string value)" >&2; exit 2; }
     if [[ -n $v ]]; then
-      [[ $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad $k value in $f: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
+      [[ $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad $k value in $squad_dir/settings/$role.local.json: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
       printf '%s' "$v"; return
     fi
-  done
+  else
+    for f in "$squad_dir/settings/$role.json" "$tpl_root/templates/squad/settings/$role.json"; do
+      [[ -f $f ]] || continue
+      v=$(jq -r --arg k "$k" '.[$k] // empty | if type=="string" then . else error("not a string") end' "$f") || { echo "cannot read $k from $f (needs jq, valid JSON, a string value)" >&2; exit 2; }
+      if [[ -n $v ]]; then
+        [[ $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad $k value in $f: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
+        printf '%s' "$v"; return
+      fi
+    done
+  fi
   echo "warning: no $k for $role in $squad_dir/settings/$role.json or the template; it runs on Claude Code's default" >&2
 }
+[[ -n $model ]] || model=$scope_model
+[[ -n $effort ]] || effort=$scope_effort
 [[ -n $model ]] || model=$(key_of model)
 [[ -n $effort ]] || effort=$(key_of effortLevel)
 
 # Known up front so roster.md can point at the transcript <config dir>/projects/<cwd>/<session>.jsonl.
 session=$(python3 -c 'import uuid; print(uuid.uuid4())')
 
+if [[ $settings_mode == overlay && $dry != 1 ]]; then
+  mkdir -p "$home/roles"
+  printf '%s\n' "$eff_json" > "$settings.tmp" && mv "$settings.tmp" "$settings"
+fi
+
 claude_args=(--agent "squad:$role" --name "$name" --session-id "$session" --permission-mode auto --settings "$settings")
 [[ -n $model ]] && claude_args+=(--model "$model")
 [[ -n $effort ]] && claude_args+=(--effort "$effort")
-[[ -n ${SQUAD_PLUGIN_DIR:-} ]] && claude_args+=(--plugin-dir "$SQUAD_PLUGIN_DIR")
+[[ -n $plugin_dir ]] && claude_args+=(--plugin-dir "$plugin_dir")
+claude_args+=("${rules_args[@]}")
 
 # Without --workspace herdr uses the focused workspace, which may not be the caller's.
 ws_args=()
@@ -177,7 +265,8 @@ ws_args=()
 env_args=(--env "SQUAD=$squad" --env "SQUAD_DIR=$squad_dir" --env "SQUAD_NAME=$name" --env "SQUAD_ROLE=$role" --env "SQUAD_SCOPE=$scope")
 [[ -z $scope_dir ]] || env_args+=(--env "SCOPE_DIR=$scope_dir")
 [[ -z $goal_dir ]] || env_args+=(--env "GOAL_DIR=$goal_dir")
-[[ -n ${SQUAD_PLUGIN_DIR:-} ]] && env_args+=(--env "SQUAD_PLUGIN_DIR=$SQUAD_PLUGIN_DIR")
+[[ -n $plugin_dir ]] && env_args+=(--env "SQUAD_PLUGIN_DIR=$plugin_dir")
+env_args+=("${runtime_env[@]}")
 
 # Agents are addressed by bare name, so a second live agent with this name would be unreachable or misrouted.
 # Checked before the label store is written: a refused spawn must not overwrite the live agent's stored label.

@@ -12,7 +12,7 @@ SETTINGS = ROOT / "templates" / "squad" / "settings" / "team-lead.json"
 TL_ALLOW = {
     "SendMessage", "ListAgents", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)",
     "Bash(git branch:*)", "Bash(echo:*)", "Bash(squad-respawn:*)",
-    "Bash(squad-spawn dev:*)", "Bash(squad-retire:*)", "Bash(herdr agent list:*)", "Bash(herdr agent get:*)",
+    "Bash(squad-spawn dev:*)", "Bash(squad-retire:*)", "Bash(squad-process rule:*)", "Bash(squad-process who:*)", "Bash(herdr agent list:*)", "Bash(herdr agent get:*)",
     "Bash(herdr agent read:*)",
 }
 FAKE_HERDR = """#!/usr/bin/env bash

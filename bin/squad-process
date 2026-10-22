@@ -4,12 +4,31 @@
   squad-process version [--json]        squad version, plugin version, state, stamp
   squad-process check [--quiet] [--json]  one-line warning when the squad's process.md is not current
 
-  squad-process show <role> [--also "<Heading>" ...] [--squad-dir D]
-                                        read-only: the role's sections of process.md, or the whole file
+  squad-process lint [--squad-dir D] [--plugin-root R] [--cards error|warn] [--hashes]
+                                        check the rule files (templates/squad/process/) and the squad's process.local.md
 
+  squad-process compose <role> --home D [--agent A] [--out F] [--plugin-root R] [--squad-dir D]
+                                        composed rules for one role (the <role> --home form)
+  squad-process upgrade --check | --apply [--resolve ID=choice ...] [--yes] [--squad-dir D] [--plugin-root R]
+                                        composed squads: move the overlay to the running plugin one rule at a time
+                                        (exit 0 nothing to decide, 3 a decision is needed, 2 refused)
+  squad-process upstream [--squad-dir D] the overlay's `upstream: proposed` operations, ready for a plugin ticket
+  squad-process mode --squad-dir D       composed | legacy | none
+  squad-process runtime --squad-dir D --home H [--dry-run]
+                                        materialise and print the home's pinned plugin runtime
+  squad-process prune --squad-dir D (--home H | --all) [--dry-run] [--protect PATH ...]
+                                        delete the pinned runtimes no open scope, goal or plugin.pin holds
+
+  squad-process adopt --squad-dir D [--dry-run] [--resolve KEY=CHOICE ...] [--yes]
+                                        v6 squad -> composed: overlay, plugin.pin, local settings, open scopes pinned
+                                        (exit 3: a PO item is open or --yes is missing; nothing written)
+  squad-process scaffold --squad-dir D [--code-path P ...]
+                                        new squad: process.local.md, plugin.pin, settings/*.local.json, project.md
+
+  Legacy squads (a process.md that has not adopted yet):
   squad-process plan [--json]            read-only: changelog items, section states, conflicts
   squad-process compose --out FILE [--resolve "<heading>=ours|theirs|file:<path>" ...]
-  squad-process apply --file FILE [--yes] without --yes: diff, "NOT APPLIED"; with it: backup, write, log
+  squad-process apply --legacy --file FILE [--yes] without --yes: diff, "NOT APPLIED"; with it: backup, write, log
 
 version and check take --squad-dir D (default $SQUAD_DIR) and --plugin-root R. Exit 0 always for these two:
 a bad file is reported, never a failure of the caller. plan, compose and apply exit 2 when they refuse.
@@ -51,6 +70,9 @@ def _mutating(a):
             sp.compose(a.squad_dir, a.plugin_root, a.out, _resolutions(a.resolve, conflicts))
             print(f"composed {a.out}; check it with: squad-process apply --file {a.out}")
         else:
+            if not a.legacy:
+                raise sp.ProcessError("apply is the legacy v6 merge; add --legacy for a squad that has not adopted "
+                                      "(`squad-process adopt` moves it to the composed layout)")
             r = sp.apply(a.squad_dir, a.plugin_root, a.file, a.yes)
             if "diff" in r:
                 print(r["diff"].rstrip("\n"))
@@ -67,24 +89,22 @@ def _mutating(a):
     return 0
 
 
-def _show(a):
-    if not a.squad_dir:
-        print("squad-process: no --squad-dir and $SQUAD_DIR is not set", file=sys.stderr)
-        return 2
-    try:
-        text = sp._read(os.path.join(a.squad_dir, "process.md"), "the squad's process.md")
-        out, warn = sp.show(text, a.role, a.also)
-    except sp.ProcessError as e:
-        print(f"squad-process: {e}", file=sys.stderr)
-        return 2
-    if warn:
-        print(f"squad-process: {warn}", file=sys.stderr)
-    sys.stdout.write(out if out.endswith("\n") else out + "\n")
-    return 0
-
-
 def main(argv=None):
     squadio.utf8_stdio()
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] in ("mode", "runtime", "prune"):
+        import squadruntime  # squad mode and the pinned runtime: ticket 05
+        return squadruntime.main(argv)
+    if argv and argv[0] in ("adopt", "scaffold"):
+        import squadadopt  # composed squads from old ones, and new ones: ticket 09
+        return squadadopt.main(argv)
+    if argv and argv[0] in ("upgrade", "upstream"):
+        import squadupgrade  # upgrade one rule at a time: ticket 07
+        return squadupgrade.main(argv)
+    if argv and (argv[0] in ("lint", "rule", "who")
+                 or (argv[0] == "compose" and len(argv) > 1 and not argv[1].startswith("-"))):
+        import squadrules_cli  # rule files: ticket 02; compose <role> is ticket 04
+        return squadrules_cli.main(argv)
     ap = argparse.ArgumentParser(prog="squad-process", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("version", "check"):
@@ -94,16 +114,11 @@ def main(argv=None):
         p.add_argument("--json", action="store_true")
         if name == "check":
             p.add_argument("--quiet", action="store_true", help="print nothing when current and stamped")
-    sh = sub.add_parser(
-        "show", help="print the sections of process.md a role needs",
-        description="Prints the sections of process.md a role needs. Valid roles: "
-        + ", ".join(list(sp.ROLE_SECTIONS) + list(sp.WHOLE_FILE_ROLES))
-        + ". The first four read a section view; any other role gets the whole file.")
-    sh.add_argument("role")
-    sh.add_argument("--also", action="append", default=[], metavar="HEADING")
-    sh.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
     pl = sub.add_parser("plan")
-    co = sub.add_parser("compose")
+    co = sub.add_parser(
+        "compose", usage="squad-process compose --out FILE [--resolve ...] | compose <role> --home D [--agent A] [--out F]",
+        description="Without a role: the v6 process.md merge (--out FILE). With a role: `squad-process compose <role> "
+        "--home D [--agent A] [--out F] [--plugin-root R] [--squad-dir D] [--now ISO]` composes that role's rules.")
     ap_ = sub.add_parser("apply")
     for p in (pl, co, ap_):
         p.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
@@ -112,10 +127,17 @@ def main(argv=None):
     co.add_argument("--out", required=True)
     co.add_argument("--resolve", action="append", default=[])
     ap_.add_argument("--file", required=True)
+    ap_.add_argument("--legacy", action="store_true", help="required: apply is the v6 merge for a squad that has not adopted")
     ap_.add_argument("--yes", action="store_true")
     a = ap.parse_args(argv)
-    if a.cmd == "show":
-        return _show(a)
+    if a.cmd in ("version", "check") and a.squad_dir:
+        import squadruntime
+        if squadruntime.mode(a.squad_dir) == "composed":  # rules come from the plugin pin: no process.md to check
+            if a.json:
+                print(json.dumps({"state": "composed", "message": ""}))
+            elif a.cmd == "version" or not a.quiet:
+                print("composed squad: rules come from the plugin pin; nothing to check.")
+            return 0
     if a.cmd in ("plan", "compose", "apply"):
         return _mutating(a)
     if not a.squad_dir:

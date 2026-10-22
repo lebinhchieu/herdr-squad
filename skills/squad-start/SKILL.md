@@ -10,9 +10,10 @@ disable-model-invocation: true
 
 1. Check `HERDR_ENV` is `1`. If not, tell the user to open herdr and run this from a pane there.
 2. Pick the squad: the name the user gives, else the only folder in `.claude/squads/` (several and none named: ask). Check it has a `scopes/` folder. A squad with a `roster.md` at its top and no `scopes/` folder is the old flat layout: stop, don't convert it, and tell the user to talk to its running Manager instead.
-3. **Resuming?** If the user means unfinished work whose Manager is gone, list the open folders in `scopes/` and `goals/` (not `_done/`), then run `squad-start --resume <name>` and go to step 7. A scope inside a goal is resumed through its goal.
+3. **Resuming?** If the user means unfinished work whose Manager is gone, list the open folders in `scopes/` and `goals/` (not `_done/`), then do step 5a for it, run `squad-start --resume <name> [--model M] [--effort E]` and go to step 7. A scope inside a goal is resumed through its goal.
 4. **Take the request.** The text the user gave is the brief, as they wrote it. Plain text is a lone task. If it names several deliverables, or the user calls it a goal, suggest a goal and prefix it with `goal:`. Ask for what you can't tell: **what repos or paths the work touches** (propose them from `project.md` → Code repos), as a comma list for `--touches`.
 5. **Name it.** Run the command below with `--dry-run` first. It prints the folder it would create; the last part is the name (a ticket id like SEC-04 becomes `sec04`, otherwise a short slug). Show it to the user in one line and let them change it with `--name`. The Manager name `<squad>-mgr-<name>` must stay within 32 characters.
+   **5a. Confirm the Manager's model and effort** (also before `--resume`). The `--dry-run` output (for a resume: `squad-start --resume <name> --dry-run`) ends with `manager model: … (from …)` and `manager effort: … (from …)`. Ask the PO once, with these options: **keep** (show the default, e.g. `sonnet / high`), **change model** (`opus`, `sonnet`, `haiku`), **change effort** (`low`, `medium`, `high`, `xhigh`, `max`). Pass a change as `--model` / `--effort` on the run below; the choice is recorded in the Manager's `.overrides` (ADR 0008), so a respawn keeps it. Keep means no flags. Never start the Manager before the PO answers.
 6. Run:
 
    ```bash

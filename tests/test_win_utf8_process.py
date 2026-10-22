@@ -12,7 +12,7 @@ import squadprocess as sp  # noqa: E402
 import test_squadprocess_apply as ap  # noqa: E402
 
 TEXT = "→ 🦀 é"
-WIN_ENV = {**os.environ, "PYTHONUTF8": "0", "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0", "PYTHONIOENCODING": "cp1252"}
+WIN_ENV = {**os.environ, "PYTHONUTF8": "0", "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "cp1252"}
 
 
 def run(*cmd):
@@ -26,15 +26,13 @@ class SquadProcessWinTest(ap.Base):
     def cli_win(self, *args, d):
         return run(ap.CLI, *args, "--squad-dir", d, "--plugin-root", self.plugin)
 
-    def test_show_check_version_exit_0_and_print_utf8(self):
+    def test_check_version_exit_0_and_print_utf8(self):  # `show` is retired (ticket 09)
         d = self.squad_with_text()
-        for cmd in (("show", "dev"), ("check",), ("version",)):
-            extra = () if cmd[0] == "show" else ("--plugin-root", self.plugin)
-            r = run(ap.CLI, *cmd, "--squad-dir", d, *extra)
+        for cmd in (("check",), ("version",)):
+            r = run(ap.CLI, *cmd, "--squad-dir", d, "--plugin-root", self.plugin)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertNotIn(b"\r", r.stdout)
             self.assertNotIn(b"Traceback", r.stderr)
-        self.assertIn(TEXT.encode("utf-8"), run(ap.CLI, "show", "manager", "--squad-dir", d).stdout)
 
     def test_apply_writes_utf8_lf_bytes(self):
         d = self.squad_with_text()
@@ -42,7 +40,7 @@ class SquadProcessWinTest(ap.Base):
         sp.compose(d, self.plugin, f, {"## A": "ours"})
         self.assertIn(TEXT, f.read_text(encoding="utf-8"))
         before_log = (d / "process-log.md").read_bytes()
-        r = self.cli_win("apply", "--file", f, "--yes", d=d)
+        r = self.cli_win("apply", "--legacy", "--file", f, "--yes", d=d)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual((d / "process.md").read_bytes(), f.read_bytes())
         log = (d / "process-log.md").read_bytes()

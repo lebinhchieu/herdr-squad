@@ -18,18 +18,22 @@ claude --plugin-dir ~/workspace/squad
 /squad:squad-start "goal: rebuild the settings page"      # several scopes under one goal Manager
 ```
 
-`squad-start` makes the scope (or goal) folder and brief and starts a fresh Manager in its own herdr tab; you talk to it there. The Manager sizes the work (**S**: Tech Lead + Developers; **M**: + BA and both QAs; **L**: + Team Lead), proposes a plan, spawns only the roles that size needs, and checks in with you at the end of each iteration. Several scopes can run side by side, each in its own tab. A Manager that is gone can be restarted with `squad-start --resume <name>`. The Designer delivers a design before build (screens, states, flows, optional HTML prototype) and no post-build check; the built UI is checked against it by the Developer's screenshots (S) or QA blackbox (M, L).
+`squad-start` makes the scope (or goal) folder and brief and starts a fresh Manager in its own herdr tab; you talk to it there. The Manager sizes the work (**S**: Manager + Developers; **M**: + QA whitebox and QA blackbox; **L**: every role, + BA, Team Lead and Tech Lead; a risk flag or a business doubt means L), proposes a plan, spawns only the roles that size needs, and checks in with you at the end of each iteration. Several scopes can run side by side, each in its own tab. A Manager that is gone can be restarted with `squad-start --resume <name>`. The Designer delivers a design before build (screens, states, flows, optional HTML prototype) and no post-build check; the built UI is checked against it by the Developer's screenshots (S) or QA blackbox (M, L).
+
+## The process
+
+The team's process is not a document each squad copies. It is a folder of rules, `templates/squad/process/*.md`, each tagged with an ID and the roles, sizes and options it applies to. When the Manager starts a role, `squad-process compose` picks that role's rules and the session reads only them, so a Developer's start-up reads a few KB, not the whole process. A squad's own changes live in `process.local.md` as `replace`, `add` and `remove` operations on rule IDs (`squad-process rule <ID>` and `who <ID>` show any rule). Each scope records the plugin version it started on (`plugin:` in `scope.md`) and runs on that pinned runtime until it closes, so a plugin update never changes a pod mid-scope. Between scopes `squad-process upgrade` applies every rule your overlay does not touch and asks you only about the few it cannot decide. A squad that still has a `process.md` keeps working: `squad-process adopt` converts it. Sizes decide who is in the pod: S Manager + Developers, M + both QAs, L every role.
 
 ## The layers
 
 | Level | Where | Lives | Holds |
 |---|---|---|---|
 | **Project** | your repo | for good | Domain and goal knowledge, in the project's own docs |
-| **Squad** | `.claude/squads/<squad>/` | for good | How the team works: `process.md`, `project.md` (a map into your docs), `process-log.md`, `settings/` |
+| **Squad** | `.claude/squads/<squad>/` | for good | How the team works: `process.local.md` (overlay on the plugin's rules), `project.md` (a map into your docs), `process-log.md`, `settings/` |
 | **Goal** | `goals/<goal>/` | until it closes | What a goal's scopes share: `goal.md`, `shared/decisions.md`, summaries, contracts |
 | **Scope** | `scopes/<scope>/` | until it closes | Everything for one piece of work: brief, roster, iterations, tasks, evidence, notes, logs |
 
-A lone scope sees nothing of other scopes. The scopes of a goal share only `goals/<goal>/`, and may build on each other's passed branches. What a scope or goal finds that must outlive it is **promoted**: a reviewed task commits it into your project docs. The full protocol is `templates/squad/process.md`.
+A lone scope sees nothing of other scopes. The scopes of a goal share only `goals/<goal>/`, and may build on each other's passed branches. What a scope or goal finds that must outlive it is **promoted**: a reviewed task commits it into your project docs. The full protocol is the rule files in `templates/squad/process/`.
 
 ## What's inside
 
@@ -40,14 +44,14 @@ A lone scope sees nothing of other scopes. The scopes of a goal share only `goal
 | `bin/squad-spawn` | Opens a herdr tab, makes a git worktree for Developers (`.worktrees/<squad>/<scope>/<agent>`, branch `squad/<squad>/<scope>/<agent>`; `--base` starts it from a passed branch), starts `claude --agent squad:<role> --name <agent> --permission-mode auto --settings <role settings>` |
 | `bin/squad-close` | `--scope S` retires a scope's agents, removes merged, clean worktrees (found by branch `squad/...`, wherever they sit) and moves the folder to `scopes/_done/`. `--goal G` does the same for a goal and refuses while a scope is open or its shared decisions were never promoted. With neither it archives the whole squad. Every branch is reported; none is deleted |
 | `bin/squad-migrate` | `<squad> --to per-scope --scope NAME` turns a flat squad folder into a per-scope one; `<squad> --scope-to-goal NAME --goal G` wraps a scope in a goal and moves its Manager row to the goal roster. Both back up the folder first, take `--dry-run`, and check the result |
-| `bin/squad-process` | `version`, `check`, `plan`, `compose`, `apply` for a squad's `process.md` version and update (read-only except `apply --yes`); skill `/squad:squad-process-update` drives it |
-| `bin/processlint.py` | Lint a `process.md` against the Writing rule (`python3 bin/processlint.py FILE`, exit 1 on a finding). |
+| `bin/squad-process` | `compose [role]`, `rule <ID>`, `who <ID>`, `lint`, `upgrade --check\|--apply`, `adopt`, `upstream` for the composed process (read-only except `upgrade --apply --yes` and `adopt`; `upstream` prints the proposed operations; `apply --legacy` is the old v6 merge); skill `/squad:squad-process-update` drives it |
+| `bin/processlint.py` | Lint the rule files against the Writing rule (`python3 bin/processlint.py`, exit 1 on a finding). |
 | `bin/squad-respawn` | Replaces an agent's session with a fresh one from its notes; keeps its name, scope and worktree |
 | `bin/squad-retire` | Asks an agent to save its notes, then closes its pane (worktree and branch are kept) |
 | `bin/squad-usage` and the Stop hook | Token usage per agent, and the cost rules that tell an agent to start fresh. The table counts every session of an agent (matched by its `agent-name` record, so respawns are included) and its subagents' output tokens (`subagents` column); context, expiries, model/effort and `--check` read the main thread only. |
 | `bin/squad-report`, `/squad:squad-report`, `/squad:squad-report-analyze` | Time and cost of a scope or goal (per task, role and bucket), derived from transcripts with no model call. `squad-report <scope>` writes `data.json` and `report.html` to `<scope>/report/` (local, git-ignored); `/squad:squad-report <scope>` builds it, `/squad:squad-report-analyze` answers questions from it. Example: `squad-report squad-report --squad plugin`. See `docs/adr/0014-squad-report-derives-from-transcripts.md`. |
 | `skills/squad-init`, `skills/squad-start` | The two commands you run |
-| `templates/squad/` | The standing layer: `process.md`, `project.md`, `process-log.md`, per-role `settings/*.json` |
+| `templates/squad/` | The standing layer: `process.local.md` (a squad's overlay), `project.md`, `process-log.md`, per-role `settings/*.json` |
 | `templates/scope/`, `templates/goal/` | What `squad-start` copies into a new scope or goal |
 
 `bin/` is on the Bash tool's PATH while the plugin is enabled, so the Manager runs `squad-spawn` as a plain command.

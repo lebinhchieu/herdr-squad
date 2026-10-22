@@ -1,5 +1,6 @@
 """squad-close: retire the squad's agents, remove merged worktrees, archive the folder, report branches."""
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -214,6 +215,25 @@ class ScopedCloseTest(unittest.TestCase):
         self.assertEqual(self.closed_tabs(), ["pane close p-t-dev-sc1-1", "pane close p-t-mgr-sc1"])  # the scope's Manager last
         self.assertTrue((self.squad / "scopes/sc2").exists())
         self.assertIn("squad/t/sc1/t-dev-sc1-1", git("branch", "--list", "squad/t/sc1/*", cwd=self.root))  # branches kept
+
+    def test_scope_close_lists_untracked_root_files_and_still_closes(self):
+        stray = self.root / ".scratch" / "x" / "issues"
+        stray.mkdir(parents=True)
+        (stray / "01.md").write_text("draft", encoding="utf-8")
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("WARNING: untracked files in the project root", r.stdout)
+        self.assertIn(".scratch/x/issues/01.md", r.stdout)
+        listed = [l for l in r.stdout.split("== agents")[0].splitlines() if l.startswith("  ")]
+        self.assertIn("  .scratch/x/issues/01.md", listed)
+        self.assertFalse([l for l in listed if ".claude/squads" in l or ".worktrees" in l])  # not reported
+        self.assertFalse((self.squad / "scopes/sc1").exists())               # the close went through
+
+    def test_scope_close_without_stray_files_prints_no_warning(self):
+        (self.root / ".gitignore").write_text("fakebin/\nherdr.log\n.gitignore\n", encoding="utf-8")
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("WARNING: untracked", r.stdout)
 
     def test_scope_close_dry_run_changes_nothing(self):
         r = self.close("--scope", "sc1", "--dry-run")
@@ -565,3 +585,223 @@ class ReportHookTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse(self.calls.exists())
         self.assertTrue((self.squad / "scopes/sc1").exists())
+
+
+FILLED = """# Iteration 1
+
+## Log
+- 2026-10-22 started
+
+## Retro
+- **Went well:** shipped
+- **Friction:** loops
+- **Process changes made:** none
+"""
+
+
+class RetroCloseTest(ScopedCloseTest):
+    """Ticket 13: no scope closes with a blank retro (ITER-16)."""
+
+    def iter_file(self, text, n="1"):
+        d = self.squad / "scopes/sc1/iterations"
+        d.mkdir(exist_ok=True)
+        (d / f"{n}.md").write_text(text, encoding="utf-8", newline="\n")
+        return d / f"{n}.md"
+
+    def refused(self, text, label):
+        self.iter_file(text)
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(label, r.stderr)
+        self.assertTrue((self.squad / "scopes/sc1").exists())      # nothing moved
+        self.assertEqual(self.closed_tabs(), [])                    # nothing retired
+
+    def test_each_empty_label_refuses_and_is_named(self):
+        for label in ("Went well", "Friction", "Process changes made"):
+            with self.subTest(label=label):
+                line = next(l for l in FILLED.splitlines() if f"**{label}:**" in l)
+                self.refused(FILLED.replace(line, f"- **{label}:**"), label)
+
+    def test_placeholder_alone_is_empty_but_text_with_brackets_is_not(self):
+        self.refused(FILLED.replace("loops", "<loops, blocked panes>"), "Friction")
+        self.iter_file(FILLED.replace("loops", "<2> loops"))
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+
+    def test_none_dash_and_continuation_lines_count_as_text(self):
+        for text in ("none", "-", "n/a"):
+            with self.subTest(text=text):
+                self.tearDown(); self.setUp()
+                self.iter_file(FILLED.replace("shipped", text))
+                self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+        self.tearDown(); self.setUp()
+        self.iter_file(FILLED.replace("- **Friction:** loops", "- **Friction:**\n  slow review\n- **Other:** x"))
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+        self.tearDown(); self.setUp()
+        self.iter_file(FILLED.replace("- **Friction:** loops", "- **Friction:**\n  - one sub-bullet"))
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+
+    def test_free_retro_heading_and_label_missing(self):
+        self.iter_file(FILLED.replace("## Retro", "## Retro / Coach"))
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+        self.tearDown(); self.setUp()
+        self.refused(FILLED.replace("- **Went well:** shipped\n", ""), "Went well")
+
+    def test_no_iteration_file_and_flat_squad_are_not_checked(self):
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+
+    def test_last_iteration_is_the_highest_number_and_aux_files_are_ignored(self):
+        self.iter_file(FILLED.replace("loops", ""), "9")            # blank, but not the last
+        self.iter_file(FILLED, "10")
+        d = self.squad / "scopes/sc1/iterations"
+        for aux in ("10.log.md", "10.summary.md", "10.coach.md"):
+            (d / aux).write_text("# blank\n- **Friction:**\n", encoding="utf-8")
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+        self.tearDown(); self.setUp()
+        self.iter_file(FILLED, "9")
+        self.iter_file(FILLED.replace("loops", ""), "10")        # 10 > 9 numerically, "10" < "9" as a string
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("Friction", r.stderr)
+
+
+    def test_force_closes_and_logs_with_and_without_a_log_section(self):
+        blank = FILLED.replace("loops", "")
+        f = self.iter_file(blank)
+        r = self.close("--scope", "sc1", "--force")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("Friction", r.stdout)
+        done = (self.squad / "scopes/_done/sc1/iterations/1.md").read_text(encoding="utf-8")
+        self.assertRegex(done, r"## Log\n- 2026-10-22 started\n- \d{4}-\d\d-\d\d squad-close --force: empty retro \(Friction\)\n\n## Retro")
+        self.tearDown(); self.setUp()
+        f = self.iter_file(blank.replace("## Log\n- 2026-10-22 started\n\n", ""))
+        self.assertEqual(self.close("--scope", "sc1", "--force").returncode, 0)
+        done = (self.squad / "scopes/_done/sc1/iterations/1.md").read_text(encoding="utf-8")
+        self.assertRegex(done, r"\n## Log\n- \d{4}-\d\d-\d\d squad-close --force: empty retro")
+
+    def test_force_on_a_filled_retro_and_dry_run_write_nothing(self):
+        f = self.iter_file(FILLED)
+        self.assertEqual(self.close("--scope", "sc1", "--force").returncode, 0)
+        self.assertEqual((self.squad / "scopes/_done/sc1/iterations/1.md").read_text(encoding="utf-8"), FILLED)
+        self.tearDown(); self.setUp()
+        f = self.iter_file(FILLED.replace("loops", ""))
+        before = f.read_text(encoding="utf-8")
+        self.assertEqual(self.close("--scope", "sc1", "--force", "--dry-run").returncode, 0)
+        self.assertEqual(f.read_text(encoding="utf-8"), before)
+
+
+X, Y, Z = "1.0-" + "a" * 12, "1.0-" + "b" * 12, "1.0-" + "c" * 12
+
+
+class RuntimePruneCloseTest(ScopedCloseTest):
+    """Ticket 25: closing frees the pinned runtimes nobody holds, never the one the script runs from."""
+
+    def setUp(self):
+        super().setUp()
+        (self.squad / "scopes/sc1/scope.md").write_text(f"# Scope\n\ngoal:\nplugin: 1.0 {'a' * 12}\n", encoding="utf-8")
+        (self.squad / "scopes/sc2/scope.md").write_text(f"# Scope\n\ngoal: g1\nplugin: 1.0 {'b' * 12}\n", encoding="utf-8")
+        self.rt = self.squad / "_runtime"
+        for n in (X, Y, Z):
+            (self.rt / n / "bin").mkdir(parents=True)
+            (self.rt / n / "bin" / "f").write_text("x" * 1048576, encoding="utf-8")
+        # the fake herdr records whether runtime X still exists when a pane is closed
+        fake = self.root / "fakebin" / "herdr"
+        fake.write_text(FAKE_HERDR.replace('echo "$@" >> "$HERDR_LOG"',
+                        'echo "$@ rt=$([ -d "$RT_X" ] && echo yes || echo no)" >> "$HERDR_LOG"'), encoding="utf-8")
+        self.env["RT_X"] = str(self.rt / X)
+
+    def test_scope_close_removes_its_runtime_and_the_orphan_and_keeps_the_held_one(self):
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("== runtimes", r.stdout)
+        self.assertIn(f"removed {X} (1.0 MB)", r.stdout)
+        self.assertIn(f"removed {Z} (1.0 MB)", r.stdout)          # an orphan
+        self.assertIn(f"kept {Y} (held by scope sc2)", r.stdout)
+        self.assertIn("freed 2.0 MB in 2 runtimes", r.stdout)
+        self.assertEqual(sorted(p.name for p in self.rt.iterdir()), [Y])
+
+    def test_prune_runs_after_the_agents_and_before_the_managers_pane_is_closed(self):
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        closes = [l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("pane close")]
+        self.assertEqual(len(closes), 2, closes)
+        self.assertTrue(closes[0].startswith("pane close p-t-dev-sc1-1") and closes[0].endswith("rt=yes"))   # before the prune
+        self.assertTrue(closes[1].startswith("pane close p-t-mgr-sc1") and closes[1].endswith("rt=no"))     # after it
+        self.assertLess(r.stdout.index("== branches"), r.stdout.index("== runtimes"))
+        self.assertLess(r.stdout.index("== runtimes"), r.stdout.index("== folder"))
+
+    def test_goal_pin_keeps_a_scope_runtime_until_the_goal_closes(self):
+        (self.squad / "goals/g1/goal.md").write_text(f"# Goal\nplugin: 1.0 {'b' * 12}\n", encoding="utf-8")
+        r = self.close("--scope", "sc2")
+        self.assertIn(f"kept {Y} (held by goal g1)", r.stdout)
+        self.assertTrue((self.rt / Y).exists())
+        (self.squad / "scopes/_done").mkdir(exist_ok=True)
+        (self.squad / "scopes/sc3").rename(self.squad / "scopes/_done/sc3")
+        r = self.close("--goal", "g1")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn(f"removed {Y}", r.stdout)                   # the goal's own pin is not a holder
+        self.assertEqual(sorted(p.name for p in self.rt.iterdir()), [X])   # X is still held by sc1
+
+    def test_dry_run_removes_nothing_and_says_would_remove(self):
+        r = self.close("--scope", "sc1", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"would remove {X} (1.0 MB)", r.stdout)
+        self.assertIn("would free 2.0 MB in 2 runtimes", r.stdout)
+        self.assertEqual(sorted(p.name for p in self.rt.iterdir()), [X, Y, Z])
+
+    def test_whole_squad_close_prunes_all_before_the_archive(self):
+        r = self.close()
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn(f"removed {Y} (1.0 MB)", r.stdout)          # even though sc2 pins it
+        self.assertFalse((self.root / ".claude/squads/_done/t/_runtime").exists())
+        self.assertLess(r.stdout.index("== runtimes"), r.stdout.index("== folder"))
+
+    def test_runtime_the_script_runs_from_is_kept_and_archived_with_a_whole_squad(self):
+        shutil.copytree(BIN, self.rt / Z / "bin", dirs_exist_ok=True)
+        script = self.rt / Z / "bin" / "squad-close"
+
+        def run(*a):
+            return subprocess.run([str(script), "t", *a], env=self.env, cwd=self.root, text=True,
+                                  encoding="utf-8", capture_output=True, timeout=30)
+        r = run("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"kept {Z} (running)", r.stdout)
+        self.assertTrue(script.exists())
+        self.assertFalse((self.rt / X).exists())
+        r = run()
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn(f"kept {Z} (running)", r.stdout)
+        self.assertEqual([p.name for p in (self.root / ".claude/squads/_done/t/_runtime").iterdir()], [Z])
+
+    def test_a_failed_prune_only_warns_and_the_close_completes(self):
+        bad = self.root / "badbin"
+        shutil.copytree(BIN, bad)
+        (bad / "squad-process").write_text("import sys\nprint(\"boom\", file=sys.stderr)\nsys.exit(7)\n", encoding="utf-8")
+        r = subprocess.run([str(bad / "squad-close"), "t", "--scope", "sc1"], env=self.env, cwd=self.root, text=True,
+                           encoding="utf-8", capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("warning: runtime cleanup failed (exit 7)", r.stderr)
+        self.assertTrue((self.squad / "scopes/_done/sc1").exists())
+
+    def test_undeletable_runtime_is_reported_and_the_close_completes(self):
+        if os.name == "nt" or os.geteuid() == 0:
+            self.skipTest("needs permissions to deny")
+        self.rt.chmod(0o555)
+        try:
+            r = self.close("--scope", "sc1")
+        finally:
+            self.rt.chmod(0o755)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"could not remove {X}", r.stdout)
+        self.assertTrue((self.squad / "scopes/_done/sc1").exists())
+
+    def test_a_squad_without_runtimes_prints_nothing_new(self):
+        shutil.rmtree(self.rt)
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("runtimes", r.stdout)
+        self.assertNotIn("freed", r.stdout)
+
+
+# the scoped-layout tests inherited from ScopedCloseTest are not re-run under the runtime fixture
+for _name in [n for n in dir(ScopedCloseTest) if n.startswith("test_")]:
+    setattr(RuntimePruneCloseTest, _name, None)

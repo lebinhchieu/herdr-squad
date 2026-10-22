@@ -6,7 +6,7 @@
     "allow": [
       "SendMessage",
       "ListAgents",
-      "Bash(squad-respawn:*)", "Bash(squad-process show:*)",
+      "Bash(squad-respawn:*)", "Bash(squad-process rule:*)", "Bash(squad-process who:*)",
       "Bash(echo:*)",
       "Bash(git log:*)",
       "Write(/.claude/squads/*/scopes/*/ui-design/**)",

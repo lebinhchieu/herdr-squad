@@ -252,7 +252,7 @@ class ApplyTest(Base):
         f = self.composed(d)
         proj = d.parent.parent.parent
         before, listed = tree_hash(proj), listing(proj)
-        r = self.cli("apply", "--file", str(f), d=d)
+        r = self.cli("apply", "--legacy", "--file", str(f), d=d)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("NOT APPLIED", r.stdout)
         self.assertIn("+process-version: 3", r.stdout)
@@ -266,7 +266,7 @@ class ApplyTest(Base):
         proj = d.parent.parent.parent
         before = listing(proj)
         original = (d / "process.md").read_text(encoding="utf-8")
-        r = self.cli("apply", "--file", str(f), "--yes", d=d)
+        r = self.cli("apply", "--legacy", "--file", str(f), "--yes", d=d)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual((d / "process.md").read_text(encoding="utf-8"), f.read_text(encoding="utf-8"))
         backup = proj / ".claude" / "squad-backups" / f"s-process-{sp.datetime.date.today()}.md"
@@ -287,10 +287,10 @@ class ApplyTest(Base):
     def test_second_run_is_a_noop(self):
         d = self.squad(V1)
         f = self.composed(d)
-        self.assertEqual(self.cli("apply", "--file", str(f), "--yes", d=d).returncode, 0)
+        self.assertEqual(self.cli("apply", "--legacy", "--file", str(f), "--yes", d=d).returncode, 0)
         proj = d.parent.parent.parent
         before = tree_hash(proj)
-        r = self.cli("apply", "--file", str(f), "--yes", d=d)
+        r = self.cli("apply", "--legacy", "--file", str(f), "--yes", d=d)
         self.assertEqual(r.returncode, 0)
         self.assertIn("up to date", r.stdout)
         self.assertEqual(tree_hash(proj), before)
@@ -323,7 +323,7 @@ class ApplyTest(Base):
         for name, text in cases.items():
             f = self.tmp / "bad.md"
             f.write_text(text, encoding="utf-8")
-            r = self.cli("apply", "--file", str(f), "--yes", d=d)
+            r = self.cli("apply", "--legacy", "--file", str(f), "--yes", d=d)
             self.assertEqual(r.returncode, 2, name)
             self.assertEqual(tree_hash(proj), before, name)
 
@@ -337,7 +337,7 @@ class ApplyTest(Base):
                            "missing": good.replace("process-version: 3\n", "")}.items():
             f = self.tmp / "bad.md"
             f.write_text(text, encoding="utf-8")
-            r = self.cli("apply", "--file", str(f), "--yes", d=d)
+            r = self.cli("apply", "--legacy", "--file", str(f), "--yes", d=d)
             self.assertEqual(r.returncode, 2, name)
             self.assertIn("exactly one `process-version: 3` line", r.stderr, name)
             self.assertEqual(tree_hash(proj), before, name)
@@ -354,14 +354,14 @@ class ApplyTest(Base):
 
     def test_lint_findings_warn_but_still_apply(self):
         d = self.squad(V1.replace("e1", "e1 " + "word " * 70))
-        r = self.cli("apply", "--file", str(self.composed(d, {"## E": "ours"})), "--yes", d=d)
+        r = self.cli("apply", "--legacy", "--file", str(self.composed(d, {"## E": "ours"})), "--yes", d=d)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("WARNING lint:", r.stdout)
         self.assertEqual(sp.check(d, self.plugin)["state"], "current")
 
     def test_no_findings_no_warning(self):
         d = self.squad(V1)
-        r = self.cli("apply", "--file", str(self.composed(d)), d=d)
+        r = self.cli("apply", "--legacy", "--file", str(self.composed(d)), d=d)
         self.assertNotIn("WARNING", r.stdout)
 
     def test_local_edit_in_untouched_section_survives(self):

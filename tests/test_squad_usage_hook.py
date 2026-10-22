@@ -48,10 +48,22 @@ class HookTest(unittest.TestCase):
         r = self.run_hook()
         self.assertEqual(r.returncode, 2)
         self.assertIn("'fresh'", r.stderr)
-        self.assertIn("squad-respawn dev-1", r.stderr)
+        self.assertIn("tell the Team Lead and stop ([COST-5], no squad-respawn)", r.stderr)
+        self.assertIn("mid-ticket, run once: squad-respawn dev-1", r.stderr)
         [ev] = [json.loads(l) for l in self.events.read_text(encoding="utf-8").splitlines()]
         self.assertEqual((ev["agent"], ev["role"], ev["session"], ev["rule"]), ("dev-1", "dev", "sid-1", "fresh"))
-        self.assertIn("squad-respawn dev-1", ev["action"])
+        self.assertIn("tell the Team Lead and stop ([COST-5], no squad-respawn)", ev["action"])
+        self.assertIn("mid-ticket, run once: squad-respawn dev-1", ev["action"])
+        self.assertNotEqual(ev["action"], "write roles/dev-1.notes.md, then run: squad-respawn dev-1")
+
+    def test_tech_lead_text_is_unchanged(self):
+        self.transcript("sid-1", 130_000)
+        r = self.run_hook(role="tech-lead")
+        want = "write roles/dev-1.notes.md, then run: squad-respawn dev-1"
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual(r.stderr, "Cost rule 'fresh' fired: your context is over 120k or was compacted. Finish the step you are on, then " + want + "\n")
+        [ev] = [json.loads(l) for l in self.events.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(ev["action"], want)
 
     def test_event_goes_to_the_scope_folder_when_the_agent_has_one(self):
         scope = Path(self.tmp.name) / "squad" / "scopes" / "sc1"

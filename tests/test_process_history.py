@@ -32,7 +32,7 @@ class RealHistoryTest(unittest.TestCase):
         self.assertEqual(sp.parse_version(TEMPLATE.read_text()), (self.P, "ok"))
 
     def test_snapshots_run_1_to_P_without_gaps(self):
-        found = sorted(int(p.stem.split("-v")[1]) for p in HISTORY.glob("process-v*.md"))
+        found = sorted(int(p.stem.split("-v")[1]) for p in HISTORY.glob("process-v*.md") if not p.name.endswith(".map.md"))
         self.assertEqual(found, list(range(1, self.P + 1)))
 
     def test_changelog_blocks_run_2_to_P_without_gaps(self):

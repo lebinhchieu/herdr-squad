@@ -210,6 +210,64 @@ class StartTest(unittest.TestCase):
         self.assertNotIn("board", (r.stdout + r.stderr).replace(str(ROOT), "").lower())
 
 
+    def dry_lines(self, *args):
+        r = self.start(*args, "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.herdr(), "")
+        return [l for l in r.stdout.splitlines() if l.startswith("manager ")]
+
+    def test_dry_run_shows_the_managers_model_and_effort_with_their_source(self):
+        new = ("x", "--name", "one", "--touches", "z")
+        self.assertEqual(self.dry_lines(*new), ["manager model: sonnet (from template)", "manager effort: high (from template)"])
+        (self.squad / "settings").mkdir()
+        (self.squad / "settings" / "manager.local.json").write_text('{"model": "haiku"}', encoding="utf-8")
+        self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from squad settings)", "manager effort: high (from template)"])
+        self.assertEqual(self.dry_lines(*new, "--model", "opus", "--effort", "low"),
+                         ["manager model: opus (from flag)", "manager effort: low (from flag)"])
+        self.assertEqual(self.dry_lines(*new, "--model", "opus"), ["manager model: opus (from flag)", "manager effort: high (from template)"])
+        self.assertEqual(len(self.dry_lines("goal: Big", "--name", "g")), 2)
+
+    def test_dry_run_resolves_like_squad_spawn_overlay_beats_the_full_file_and_the_pinned_template_is_used(self):
+        st = self.squad / "settings"
+        st.mkdir()
+        (st / "manager.json").write_text('{"model": "haiku", "effortLevel": "low"}', encoding="utf-8")
+        (st / "manager.local.json").write_text('{"model": "opus"}', encoding="utf-8")
+        new = ("x", "--name", "one", "--touches", "z")
+        # overlay present: manager.json is ignored (squad-spawn warns), so effort comes from the template
+        self.assertEqual(self.dry_lines(*new), ["manager model: opus (from squad settings)", "manager effort: high (from template)"])
+        (st / "manager.local.json").unlink()
+        self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from squad settings)", "manager effort: low (from squad settings)"])
+        (st / "manager.json").unlink()
+        # composed squad: the template is the pinned runtime's, not the running plugin's
+        (self.squad / "process.local.md").write_text("", encoding="utf-8")
+        sha = "a" * 40
+        version = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
+        (self.squad / "plugin.pin").write_text(f"{version} {sha}\n", encoding="utf-8")
+        tpl = self.squad / "_runtime" / f"{version}-{sha[:12]}" / "templates" / "squad" / "settings"
+        tpl.mkdir(parents=True)
+        (tpl / "manager.json").write_text('{"model": "haiku", "effortLevel": "max"}', encoding="utf-8")
+        self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from template)", "manager effort: max (from template)"])
+
+    def test_resume_dry_run_shows_them_too_and_in_goal_has_no_manager_lines(self):
+        (self.squad / "scopes" / "one").mkdir()
+        self.assertEqual(self.dry_lines("--resume", "one", "--model", "opus"),
+                         ["manager model: opus (from flag)", "manager effort: high (from template)"])
+        roles = self.squad / "scopes" / "one" / "roles"
+        roles.mkdir()
+        (roles / "t-mgr-one.overrides").write_text("model=opus\neffort=low\n", encoding="utf-8")
+        self.assertEqual(self.dry_lines("--resume", "one"), ["manager model: opus (from recorded override)", "manager effort: low (from recorded override)"])
+        self.assertEqual(self.dry_lines("--resume", "one", "--effort", "max"), ["manager model: opus (from recorded override)", "manager effort: max (from flag)"])
+        self.start("Two", "--name", "two", "--touches", "q", "--model", "opus", "--effort", "low")  # keep: recorded choice is passed on
+        self.log.unlink()
+        r = self.start("--resume", "two")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertRegex(self.herdr(), r"--model opus --effort low\b")
+        self.assertTrue((self.squad / "scopes" / "two" / "roles" / "t-mgr-two.overrides").exists())
+        (self.squad / "goals" / "g1").mkdir()
+        self.log.unlink()
+        self.assertEqual(self.dry_lines("x", "--in-goal", "g1", "--name", "three"), [])
+
+
 class WorkspaceRenameTest(unittest.TestCase):
     """squad-start names the caller's herdr workspace after the goal or lone scope; failures never stop the start."""
 
@@ -480,16 +538,26 @@ class LauncherTest(unittest.TestCase):
 
 
 class InstructionsTest(unittest.TestCase):
-    def test_squad_init_names_the_stamp_check_and_never_overwrites_process_md(self):
+    def test_squad_init_scaffolds_a_composed_squad_and_never_copies_process_md(self):  # ticket 09
         text = (ROOT / "skills" / "squad-init" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("`process-version:` line", text)
-        self.assertIn("never overwrite its `process.md`", text)
-        self.assertIn("/squad:squad-process-update", text)
+        self.assertIn("squad-process scaffold", text)
+        self.assertIn("never copies `process.md`", text)
+        self.assertIn("squad-process adopt", text)
+        self.assertNotIn("Copy everything from", text)
 
     def test_squad_start_skill_tells_the_user_and_never_runs_the_update_unasked(self):
         text = (ROOT / "skills" / "squad-start" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("`process_update`", text)
         self.assertIn("Never run it unasked", text)
+
+    def test_skill_confirms_the_managers_model_and_effort_before_the_run_for_start_and_resume(self):  # ticket 19
+        text = (ROOT / "skills" / "squad-start" / "SKILL.md").read_text(encoding="utf-8")
+        confirm = text.index("Confirm the Manager's model and effort")
+        self.assertLess(confirm, text.index("6. Run:"))
+        self.assertIn("also before `--resume`", text)
+        self.assertIn("then do step 5a", text)
+        for word in ("keep", "change model", "change effort", "`--model`", "`--effort`", "`opus`", "`max`", ".overrides"):
+            self.assertIn(word, text)
 
 
 if __name__ == "__main__":

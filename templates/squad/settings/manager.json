@@ -4,7 +4,7 @@
   "advisorModel": "opus",
   "permissions": {
     "allow": [
-      "SendMessage", "ListAgents", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git branch:*)", "Bash(git merge:*)", "Bash(echo:*)", "Bash(squad-start:*)", "Bash(squad-spawn:*)", "Bash(squad-retire:*)", "Bash(squad-respawn:*)", "Bash(squad-close:*)", "Bash(squad-usage:*)", "Bash(herdr agent list:*)", "Bash(herdr agent get:*)", "Bash(herdr agent read:*)", "Bash(herdr tab list:*)"
+      "SendMessage", "ListAgents", "Bash(squad-process rule:*)", "Bash(squad-process who:*)", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git branch:*)", "Bash(git merge:*)", "Bash(echo:*)", "Bash(squad-start:*)", "Bash(squad-spawn:*)", "Bash(squad-retire:*)", "Bash(squad-respawn:*)", "Bash(squad-close:*)", "Bash(squad-usage:*)", "Bash(herdr agent list:*)", "Bash(herdr agent get:*)", "Bash(herdr agent read:*)", "Bash(herdr tab list:*)"
     ],
     "deny": [
       "Bash(git push:*)", "Bash(git rebase:*)", "Bash(git reset --hard:*)", "Bash(git checkout main:*)", "Bash(git checkout dev:*)",

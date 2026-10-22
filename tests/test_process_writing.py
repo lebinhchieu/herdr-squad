@@ -35,14 +35,17 @@ class ProcessWritingTest(unittest.TestCase):
             self.assertEqual(len(exc), 3, exc)
             self.assertTrue(exc[2].strip(), exc)
 
-    def test_manager_holds_the_rule_verbatim(self):
-        self.assertIn(RULE, MANAGER.read_text())
+    def test_manager_card_holds_the_writing_stance(self):  # was test_manager_holds_the_rule_verbatim: the card keeps a short stance, lint enforces the rest
+        text = MANAGER.read_text()
+        self.assertIn("## Writing a rule", text)
+        self.assertIn("Decide a rule's level first", text)
+        self.assertIn("`squad-process lint`", text)
 
     def test_level_bullet_is_first_in_manager_and_rule(self):
         first = "- **Decide a rule's level first.**"
-        for text in (MANAGER.read_text(), RULE):
-            block = text.split("Every agent reads it, so:\n", 1)[1]
-            self.assertTrue(block.startswith(first), text[:80])
+        block = RULE.split("Every agent reads it, so:\n", 1)[1]
+        self.assertTrue(block.startswith(first), RULE[:80])
+        self.assertIn("level first", MANAGER.read_text())
 
     def test_rule_block_lints_clean_as_text(self):
         self.assertEqual(processlint.lint("# Rule\n\n## Block\n\n" + RULE), [])

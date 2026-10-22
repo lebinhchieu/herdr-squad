@@ -12,7 +12,9 @@
 The name is the first ticket id in the text (SEC-04 -> sec04), else a short slug; --name overrides it.
 --touches lists the repos or paths the work changes. If it overlaps an open scope's `touches:` the script lists
 the overlaps and exits 3 without creating anything; the PO decides, and --yes goes ahead.
+scope.md lines `model <role>: <model> <effort>` set a role's model for every spawn in that scope (flags and a recorded override win; settings and template lose).
 --model and --effort set the Manager's model and effort (default: the model and effort in settings/manager.json); it does not change the roles the Manager spawns.
+--dry-run prints the Manager's model and effort and where each came from (flag, recorded override on --resume, scope.md `model manager:` on --resume, squad settings, template).
 Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
 """
 import argparse
@@ -30,6 +32,7 @@ PLUGIN = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PLUGIN / "bin"))
 import squadio  # noqa: E402
 import squadprocess  # noqa: E402
+import squadruntime  # noqa: E402
 STOP = {"the", "a", "an", "of", "to", "for", "and", "in", "on", "with", "from"}
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 MAX_AGENT = 32  # herdr's limit on an agent name
@@ -75,14 +78,96 @@ def squad_dir(name):
     root = Path(top) / ".claude" / "squads"
     if name:
         return (root / name).resolve()
-    found = [p.parent for p in root.glob("*/process.md")]
+    found = sorted({p.parent for n in ("process.md", "process.local.md") for p in root.glob(f"*/{n}")})
     if len(found) != 1:
         die(f"pick a squad with --squad (found: {' '.join(p.name for p in found)})", 2)
     return found[0].resolve()
 
 
+def recorded_overrides(home, manager):
+    """{model, effort} from <home>/roles/<manager>.overrides (ADR 0008); {} when absent or unreadable."""
+    out = {}
+    try:
+        for line in (home / "roles" / f"{manager}.overrides").read_text(encoding="utf-8").splitlines():
+            k, _, v = line.partition("=")
+            if k.strip() in ("model", "effort") and v.strip():
+                out[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return out
+
+
+def scope_md_models(target, manager_role="manager"):
+    """{model, effort} from the `model manager: <model> <effort>` line of <target>/scope.md ({} when absent; squad-spawn
+    refuses a malformed line)."""
+    try:
+        text = (target / "scope.md").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return {}
+    m = re.search(rf"(?m)^model[ \t]+{manager_role}:[ \t]+(\S+)[ \t]+(\S+)[ \t]*$", text)
+    return {"model": m.group(1), "effort": m.group(2)} if m else {}
+
+
+def manager_defaults(squad, model=None, effort=None, recorded=None, pin=None, scope_md=None):
+    """The Manager's model and effort as {key: (value, source)}, resolved as squad-spawn does: the flag, the recorded
+    override, then scope.md's `model manager:` line, then the settings -- the overlay merged over the template when manager.local.json exists (the full
+    manager.json is then ignored), else the full manager.json, else the template. In a composed squad the template is
+    the pinned runtime's when it exists (a dry run does not build it), else the plugin's. Read-only."""
+    tpl_root = PLUGIN
+    if pin and squadruntime.mode(str(squad)) == "composed":
+        rt = squadruntime.runtime_path(str(squad), pin[0], pin[1])
+        if os.path.isdir(os.path.join(rt, "templates")):
+            tpl_root = Path(rt)
+    tpl = None
+    try:
+        tpl = json.loads((tpl_root / "templates" / "squad" / "settings" / "manager.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    local = squad / "settings" / "manager.local.json"
+    full = squad / "settings" / "manager.json"
+    layers = []  # (source, dict), first hit per key wins
+    try:
+        if local.is_file():
+            layers.append(("squad settings", json.loads(local.read_text(encoding="utf-8"))))
+        elif full.is_file():
+            layers.append(("squad settings", json.loads(full.read_text(encoding="utf-8"))))
+    except (OSError, ValueError):
+        pass
+    if isinstance(tpl, dict):
+        layers.append(("template", tpl))
+    layers = [(src, d) for src, d in layers if isinstance(d, dict)]
+    out = {}
+    for key, name, flag in (("model", "model", model), ("effort", "effortLevel", effort)):
+        if flag:
+            out[key] = (flag, "flag")
+        elif recorded and recorded.get(key):
+            out[key] = (recorded[key], "recorded override")
+        elif scope_md and scope_md.get(key):
+            out[key] = (scope_md[key], "scope.md")
+        else:
+            out[key] = next(((d[name], src) for src, d in layers if isinstance(d.get(name), str) and d[name]), ("Claude's default", "none"))
+    return out
+
+
+def resume_pin(squad, target):
+    """The pin of the resumed scope or goal in a composed squad, else None (a bad pin is squad-spawn's to refuse)."""
+    if squadruntime.mode(str(squad)) != "composed":
+        return None
+    try:
+        return squadruntime.home_pin(str(target))
+    except squadruntime.RuntimeError_:
+        return None
+
+
+def print_manager_defaults(squad, a, recorded=None, pin=None, scope_md=None):
+    for key, (v, src) in manager_defaults(squad, a.model, a.effort, recorded, pin, scope_md).items():
+        print(f"manager {key}: {v} (from {src})")
+
+
 def process_update(squad):
     """The one-line warning when the squad's process.md is not current, else None. Warns, never stops the start."""
+    if squadruntime.mode(str(squad)) == "composed":  # rules come from the plugin pin: no process.md to check
+        return None
     try:
         msg = squadprocess.check(squad, PLUGIN)["message"]
     except Exception:  # a bad file or template must not block a start
@@ -162,15 +247,18 @@ def resume(squad, a, update):
             die(f"scope {a.resume} belongs to goal {m.group(1)} and is run by that goal's Manager: squad-start --resume {m.group(1)}")
     manager = f"{squad.name}-mgr-{a.resume}"
     home_var = "GOAL_DIR" if kind == "goal" else "SCOPE_DIR"
-    prompt = (f"RESPAWN: you are {manager}, restarted for {kind} {a.resume}. Read $SQUAD_DIR/process.md, then your notes "
+    read = "" if squadruntime.mode(str(squad)) == "composed" else "Read $SQUAD_DIR/process.md, then your"
+    prompt = (f"RESPAWN: you are {manager}, restarted for {kind} {a.resume}. {read or 'Read your'} notes "
               f"${home_var}/roles/{manager}.notes.md if it exists, then the brief and the roster, and continue where the files say.")
     spawn = [(PLUGIN / "bin" / "squad-spawn").as_posix(), "manager", manager, "--goal" if kind == "goal" else "--scope", a.resume, "--prompt", prompt]
-    if a.model:
-        spawn += ["--model", a.model]
-    if a.effort:
-        spawn += ["--effort", a.effort]
+    rec = recorded_overrides(target, manager)  # a plain resume keeps the recorded choice (squad-spawn would drop the file)
+    for key in ("model", "effort"):
+        v = getattr(a, key) or rec.get(key)
+        if v:
+            spawn += [f"--{key}", v]
     if a.dry_run:
         print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
+        print_manager_defaults(squad, a, rec, resume_pin(squad, target), scope_md_models(target) if kind == "scope" else None)
         return
     r = subprocess.run([need_bash(), *spawn], env={**os.environ, "SQUAD_DIR": squad.as_posix()}, capture_output=True,
                        text=True, encoding="utf-8", errors="replace")
@@ -182,6 +270,37 @@ def resume(squad, a, update):
         tab = None
     name_workspace(a.resume)
     print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab, "process_update": update}))
+
+
+def choose_pin(squad, in_goal):
+    """The pin a new scope or goal gets in a composed squad -> (version, sha, note): the goal's for --in-goal, else
+    $SQUAD_DIR/plugin.pin, else the running plugin's version and HEAD. Warns on stderr; raises RuntimeError_."""
+    if in_goal:
+        pin = squadruntime.home_pin(str(squad / "goals" / in_goal))
+        if pin:
+            return (*pin, "goal")
+    pin = squadruntime.read_pin_file(str(squad))
+    running = squadruntime.running_version(str(PLUGIN))
+    if pin:
+        if squadruntime.vkey(pin[0]) < squadruntime.vkey(running):
+            print(f"warning: plugin.pin is {pin[0]}, older than the installed plugin {running}; "
+                  f"the scope runs on {pin[0]}. Update plugin.pin to move it", file=sys.stderr)
+        return (*pin, "plugin.pin")
+    version, sha, dirty = squadruntime.running_pin(str(PLUGIN))
+    if dirty:
+        print(f"warning: plugin tree has uncommitted changes, pin uses commit {sha[:12]} without them", file=sys.stderr)
+    return version, sha, "running plugin"
+
+
+def add_pin_line(target, kind, pin):
+    """Insert `plugin: <version> <sha>` before the first `## ` heading of the new scope.md / goal.md."""
+    f = target / ("goal.md" if kind == "goal" else "scope.md")
+    text = f.read_text(encoding="utf-8")
+    line = f"plugin: {pin[0]} {pin[1]}\n\n"
+    i = text.find("\n## ")
+    text = text[:i + 1] + line + text[i + 1:] if i >= 0 else text.rstrip("\n") + "\n\n" + line
+    with open(f, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
 
 
 def main():
@@ -202,7 +321,7 @@ def main():
     a = p.parse_args([os.fsencode(x).decode("utf-8", "replace") for x in sys.argv[1:]])
 
     squad = squad_dir(a.squad)
-    if not (squad / "process.md").is_file():
+    if squadruntime.mode(str(squad)) == "none":
         die(f"no squad folder at {squad} (run /squad:squad-init)")
     if not (squad / "scopes").is_dir():
         die(f"{squad.name} uses the flat layout (no scopes/ folder); squad-start would convert it, so it refuses. "
@@ -253,14 +372,29 @@ def main():
     if a.effort:
         spawn += ["--effort", a.effort]
 
+    composed = squadruntime.mode(str(squad)) == "composed"
+    pin = None
+    if composed:
+        try:
+            pin = choose_pin(squad, a.in_goal)
+            if not a.dry_run:  # nothing is created when the runtime cannot be built
+                squadruntime.materialise(str(squad), pin[0], pin[1], str(PLUGIN))
+        except squadruntime.RuntimeError_ as e:
+            die("\n".join(e.lines), e.code)
+
     if a.dry_run:
         print(f"would create {target} from templates/{kind}")
+        if pin:
+            print(f"would pin plugin: {pin[0]} {pin[1]} (from {pin[2]})")
         if manager:
             print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
+            print_manager_defaults(squad, a, None, pin)
         return
 
     bash = need_bash() if manager else None
     render(PLUGIN / "templates" / kind, target, {"name": name, "brief": brief, "goal": a.in_goal or "", "touches": ", ".join(mine)})
+    if pin:
+        add_pin_line(target, kind, pin)
     for d in (("shared/summaries", "shared/contracts", "roles") if kind == "goal" else ("tasks", "evidence", "roles", "iterations")):
         (target / d).mkdir(parents=True, exist_ok=True)
 

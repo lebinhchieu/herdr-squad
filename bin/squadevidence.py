@@ -4,7 +4,8 @@
   squad-evidence add <ticket.md> --heading H --from review.md [--root DIR] [--sha SHA]
   squad-evidence check <evidence.md|folder> [--base SHA]
 
-Layout: <ticket>.md -> <ticket>.evidence/evidence.md + <ticket>.evidence/img/<name>.
+Layout: <ticket>.md -> <ticket minus .md>/evidence.md + <ticket minus .md>/img/<name>.
+An old <ticket minus .md>.evidence/ folder is still read and written while the new folder does not exist.
 Exit 0 ok, 1 problems found (one `file:line: problem` per line), 2 usage error or missing input.
 """
 import argparse
@@ -45,7 +46,11 @@ def write(path, text):
 def evidence_folder(ticket):
     if not ticket.endswith(".md"):
         raise Usage(f"not a ticket file (must end .md): {ticket}")
-    return ticket[:-3] + ".evidence"
+    new = ticket[:-3]
+    old = new + ".evidence"
+    if os.path.isdir(old) and not os.path.isdir(new):
+        return old
+    return new
 
 
 def scan(text):
@@ -259,6 +264,19 @@ def cmd_add(args):
 
 # ---------------------------------------------------------------- check
 
+def is_evidence_path(top, p):
+    """A changed path (relative to the repo top) that may appear in an evidence commit."""
+    if re.search(r"(^|/)[^/]+\.evidence/", p):
+        return True
+    parts = p.split("/")
+    for i in range(len(parts) - 1):
+        rest = parts[i + 1:]
+        if rest == ["evidence.md"] or (rest[0] == "img" and len(rest) > 1):
+            stem = "/".join(parts[:i + 1])
+            return os.path.isfile(os.path.join(top, stem + ".md"))
+    return False
+
+
 def cmd_check(args):
     target = args.target
     if os.path.isdir(target):
@@ -323,10 +341,13 @@ def cmd_check(args):
             raise Usage(f"git failed: {e.strerror}")
         if r.returncode != 0:
             raise Usage(f"git diff --name-only {args.base} HEAD failed: {r.stderr.strip()}")
+        top = subprocess.run(["git", "-C", folder, "rev-parse", "--show-toplevel"],
+                             capture_output=True, encoding="utf-8").stdout.strip() or "."
         for p in r.stdout.split("\n"):
             p = p.strip()
-            if p and not re.search(r"(^|/)[^/]+\.evidence/", p):
-                bad(p, 1, f"changed since {args.base} but outside a *.evidence/ folder")
+            if p and not is_evidence_path(top, p):
+                bad(p, 1, f"changed since {args.base} but outside an evidence folder "
+                          "(<stem>/evidence.md or <stem>/img/ beside <stem>.md, or an old *.evidence/ folder)")
 
     for line in problems:
         print(line)
