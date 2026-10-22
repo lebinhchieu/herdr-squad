@@ -13,6 +13,8 @@ import json
 import os
 import re
 import sys
+import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.realpath(__file__))
@@ -45,6 +47,34 @@ def events(s, ttl, now):
     if s["just_expired"] or (now - s["last_ts"]).total_seconds() > ttl:
         out[f"expiry-{s['expiries'] + (0 if s['just_expired'] else 1)}"] = "cache expired"
     return out
+
+
+@contextmanager
+def claim_lock(log, wait=5.0, stale=10.0):
+    """Cross-process lock on the log (mkdir is atomic everywhere): two parallel spawns of one turn must not both notify."""
+    lock = log + ".lock"
+    end = time.time() + wait
+    while True:
+        try:
+            os.mkdir(lock)
+            break
+        except FileExistsError:
+            try:
+                if time.time() - os.path.getmtime(lock) > stale:
+                    os.rmdir(lock)  # left by a killed process
+                    continue
+            except OSError:
+                pass
+            if time.time() > end:
+                raise OSError("log lock busy")
+            time.sleep(0.01)
+    try:
+        yield
+    finally:
+        try:
+            os.rmdir(lock)
+        except OSError:
+            pass
 
 
 def seen_keys(log, session):
@@ -88,21 +118,22 @@ def decide(env, payload, now=None):
     now = now or datetime.now(timezone.utc)
     ev = events(s, CACHE_TTL_S, now)
     log = os.path.join(home, "usage-events.jsonl")
-    fresh = {k: v for k, v in ev.items() if f"manager-{k}" not in seen_keys(log, session)}
-    if not fresh:
-        return None
     name = env["SQUAD_NAME"]
-    why = ", ".join(fresh.values())
     action = f"write roles/{name}.notes.md, then run: squad-respawn {name}"
     ts = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
-    lines = "".join(json.dumps({"ts": ts, "agent": name, "role": "manager", "session": session,
-                                "rule": f"manager-{k}", "action": action}, separators=(",", ":")) + "\n"
-                    for k in fresh)
     try:
-        with open(log, "a", encoding="utf-8", newline="\n") as f:
-            f.write(lines)
+        with claim_lock(log):  # check and append as one step: one notice per event across parallel calls
+            fresh = {k: v for k, v in ev.items() if f"manager-{k}" not in seen_keys(log, session)}
+            if not fresh:
+                return None
+            lines = "".join(json.dumps({"ts": ts, "agent": name, "role": "manager", "session": session,
+                                        "rule": f"manager-{k}", "action": action}, separators=(",", ":")) + "\n"
+                            for k in fresh)
+            with open(log, "a", encoding="utf-8", newline="\n") as f:
+                f.write(lines)
     except OSError:
-        return None  # cannot log: stay silent rather than nag every call
+        return None  # cannot lock or log: stay silent rather than nag every call
+    why = ", ".join(fresh.values())
     return (f"context {round(s['last'] / 1000)}k ({why}): after this step write your notes and run "
             f"squad-respawn {name} [COST-8]")
 

@@ -21,6 +21,8 @@ The scope's `usage-events.jsonl` got `{"agent":"mgr","role":"manager","session":
 
 **Tech AC2 / BA AC5** forced failures, all exit 0 and silent: missing `squad-usage` (guard copied to a bin without it), unparsable/empty/`[1]`/`null` payload, unreadable transcript, missing transcript, no session id, no `SQUAD_NAME`, missing home, unwritable log (a directory in its place; stays silent rather than nag), junk lines in the log. **No `jq` dependency** (Python): with `PATH=/nonexistent` the notice still works; the test also greps the source.
 
+**Return 1 (QAW: parallel spawns gave two notices)**: the check and the append now run under a cross-process lock (`<log>.lock` directory, atomic `mkdir`, stale after 10 s, released in `finally`; a busy lock after 5 s stays silent). `CliTest.test_parallel_calls_give_one_notice_and_one_log_line`: 8 rounds × 4 concurrent guard processes → exactly one notice and one log line per round, no lock left; `test_a_stale_lock_is_taken_over`.
+
 **Hook wiring** `test_hooks_json`: one `PreToolUse` entry with matcher `Bash` → `squad-manager-guard`, beside the path guard; `squad-usage-hook` still exempts the Manager (`test_stop_hook_still_exempts_the_manager`, `test_usage_hook_still_exempts_the_manager`).
 
 **Rules**: COST-8 (`cost.md`) gains the reaction (notice in the next `squad-spawn`/`squad-inbox add` result → finish the step, write notes, `squad-respawn`). ITER-12 (`iterations.md`, only that block) loses "The cost hook never nudges you…" and keeps the reset after a check-in. The optional effort-before-model step-up rule is out of scope (BA ruling).

@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -216,6 +217,27 @@ class CliTest(GuardBase):
         self.transcript_path.write_bytes(b"\xff\xfe\x00 not a transcript\n")
         r = self.run_guard(self.env(), self.payload())
         self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_parallel_calls_give_one_notice_and_one_log_line(self):
+        self.write(turn(5, "a", 144_000))
+        e = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
+        e.update(self.env())
+        for rnd in range(8):
+            self.log.unlink(missing_ok=True)
+            procs = [subprocess.Popen([sys.executable, str(BIN / "squad-manager-guard")], stdin=subprocess.PIPE,
+                                      stdout=subprocess.PIPE, text=True, env=e) for _ in range(4)]
+            outs = [p.communicate(json.dumps(self.payload()))[0] for p in procs]
+            self.assertEqual(sum(1 for o in outs if "additionalContext" in o), 1, (rnd, outs))
+            self.assertEqual(len(self.events()), 1, rnd)
+            self.assertFalse(Path(str(self.log) + ".lock").exists())
+
+    def test_a_stale_lock_is_taken_over(self):
+        self.write(turn(5, "a", 144_000))
+        lock = Path(str(self.log) + ".lock")
+        lock.mkdir()
+        old = time.time() - 60
+        os.utime(lock, (old, old))
+        self.assertTrue(guard.decide(self.env(), self.payload()))
 
     def test_stop_hook_still_exempts_the_manager(self):
         self.write(turn(5, "a", 144_000))
