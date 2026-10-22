@@ -27,7 +27,7 @@ def compose(role, size, design="no", goal="no", name="role-cards-upgrade", agent
         (home / "scope.md").write_text(f"goal:{' g1' if goal == 'yes' else ''}\nsize: {size}\nqa: full\ndesign: {design}\n{pin}",
                                        encoding="utf-8", newline="\n")
         out = Path(tmp) / "rules.md"
-        r = subprocess.run([sys.executable, str(ROOT / "bin" / "squad-process"), "compose", role, "--home", str(home),
+        r = subprocess.run([sys.executable, "-B", str(ROOT / "bin" / "squad-process"), "compose", role, "--home", str(home),
                             "--out", str(out), "--now", NOW, "--agent", agent], capture_output=True, encoding="utf-8")
         assert r.returncode == 0, r.stderr
         return out.read_bytes()
