@@ -31,6 +31,9 @@ case $rule in
   *)     exit 0 ;;
 esac
 action="write roles/$SQUAD_NAME.notes.md, then run: squad-respawn $SQUAD_NAME"
+if [[ ${SQUAD_ROLE:-} == dev ]]; then  # [COST-5]: a Developer with a finished ticket retires, it does not respawn
+  action="write roles/$SQUAD_NAME.notes.md; if your ticket is handed in or passed, tell the Team Lead and stop ([COST-5], no squad-respawn); if you are mid-ticket, run once: squad-respawn $SQUAD_NAME"
+fi
 
 record=$(jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg agent "$SQUAD_NAME" --arg role "${SQUAD_ROLE:-}" \
   --arg session "$session" --arg rule "$rule" --arg action "$action" \
