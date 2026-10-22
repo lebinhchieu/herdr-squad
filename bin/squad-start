@@ -13,6 +13,7 @@ The name is the first ticket id in the text (SEC-04 -> sec04), else a short slug
 --touches lists the repos or paths the work changes. If it overlaps an open scope's `touches:` the script lists
 the overlaps and exits 3 without creating anything; the PO decides, and --yes goes ahead.
 --model and --effort set the Manager's model and effort (default: the model and effort in settings/manager.json); it does not change the roles the Manager spawns.
+--dry-run prints the Manager's model and effort and where each came from (flag, squad settings, template).
 Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
 """
 import argparse
@@ -80,6 +81,33 @@ def squad_dir(name):
     if len(found) != 1:
         die(f"pick a squad with --squad (found: {' '.join(p.name for p in found)})", 2)
     return found[0].resolve()
+
+
+def manager_defaults(squad, model=None, effort=None):
+    """The Manager's model and effort as {key: (value, source)}: the flag, else the squad's settings/manager.local.json
+    (or the old full manager.json), else the plugin template. Read-only; an unreadable file is skipped."""
+    files = [("squad settings", squad / "settings" / "manager.local.json"), ("squad settings", squad / "settings" / "manager.json"),
+             ("template", PLUGIN / "templates" / "squad" / "settings" / "manager.json")]
+    loaded = []
+    for src, f in files:
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(d, dict):
+            loaded.append((src, d))
+    out = {}
+    for key, name, flag in (("model", "model", model), ("effort", "effortLevel", effort)):
+        if flag:
+            out[key] = (flag, "flag")
+            continue
+        out[key] = next(((d[name], src) for src, d in loaded if isinstance(d.get(name), str) and d[name]), ("Claude's default", "none"))
+    return out
+
+
+def print_manager_defaults(squad, a):
+    for key, (v, src) in manager_defaults(squad, a.model, a.effort).items():
+        print(f"manager {key}: {v} (from {src})")
 
 
 def process_update(squad):
@@ -175,6 +203,7 @@ def resume(squad, a, update):
         spawn += ["--effort", a.effort]
     if a.dry_run:
         print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
+        print_manager_defaults(squad, a)
         return
     r = subprocess.run([need_bash(), *spawn], env={**os.environ, "SQUAD_DIR": squad.as_posix()}, capture_output=True,
                        text=True, encoding="utf-8", errors="replace")
@@ -304,6 +333,7 @@ def main():
             print(f"would pin plugin: {pin[0]} {pin[1]} (from {pin[2]})")
         if manager:
             print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
+            print_manager_defaults(squad, a)
         return
 
     bash = need_bash() if manager else None

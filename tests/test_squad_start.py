@@ -210,6 +210,30 @@ class StartTest(unittest.TestCase):
         self.assertNotIn("board", (r.stdout + r.stderr).replace(str(ROOT), "").lower())
 
 
+    def dry_lines(self, *args):
+        r = self.start(*args, "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.herdr(), "")
+        return [l for l in r.stdout.splitlines() if l.startswith("manager ")]
+
+    def test_dry_run_shows_the_managers_model_and_effort_with_their_source(self):
+        new = ("x", "--name", "one", "--touches", "z")
+        self.assertEqual(self.dry_lines(*new), ["manager model: sonnet (from template)", "manager effort: high (from template)"])
+        (self.squad / "settings").mkdir()
+        (self.squad / "settings" / "manager.local.json").write_text('{"model": "haiku"}', encoding="utf-8")
+        self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from squad settings)", "manager effort: high (from template)"])
+        self.assertEqual(self.dry_lines(*new, "--model", "opus", "--effort", "low"),
+                         ["manager model: opus (from flag)", "manager effort: low (from flag)"])
+        self.assertEqual(len(self.dry_lines("goal: Big", "--name", "g")), 2)
+
+    def test_resume_dry_run_shows_them_too_and_in_goal_has_no_manager_lines(self):
+        (self.squad / "scopes" / "one").mkdir()
+        self.assertEqual(self.dry_lines("--resume", "one", "--model", "opus"),
+                         ["manager model: opus (from flag)", "manager effort: high (from template)"])
+        (self.squad / "goals" / "g1").mkdir()
+        self.assertEqual(self.dry_lines("x", "--in-goal", "g1", "--name", "two"), [])
+
+
 class WorkspaceRenameTest(unittest.TestCase):
     """squad-start names the caller's herdr workspace after the goal or lone scope; failures never stop the start."""
 
@@ -491,6 +515,15 @@ class InstructionsTest(unittest.TestCase):
         text = (ROOT / "skills" / "squad-start" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("`process_update`", text)
         self.assertIn("Never run it unasked", text)
+
+    def test_skill_confirms_the_managers_model_and_effort_before_the_run_for_start_and_resume(self):  # ticket 19
+        text = (ROOT / "skills" / "squad-start" / "SKILL.md").read_text(encoding="utf-8")
+        confirm = text.index("Confirm the Manager's model and effort")
+        self.assertLess(confirm, text.index("6. Run:"))
+        self.assertIn("also before `--resume`", text)
+        self.assertIn("then do step 5a", text)
+        for word in ("keep", "change model", "change effort", "`--model`", "`--effort`", "`opus`", "`max`", ".overrides"):
+            self.assertIn(word, text)
 
 
 if __name__ == "__main__":
