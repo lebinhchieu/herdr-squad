@@ -1,7 +1,7 @@
 # Notes
 
 ## NOTE-1 Notes file
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
 topic: notes
 
 `roles/<agent>.notes.md` is a snapshot of now, not a log: rewrite on every save, about 80 lines (`Now`, `Open threads`, `Decisions that bind later work`, `Pointers`).

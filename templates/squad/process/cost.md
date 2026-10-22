@@ -34,7 +34,7 @@ Respawn once your plan and AC are in files.
 roles: dev
 topic: cost
 
-A Developer retires (no `squad-respawn`) at 120k with its ticket merged-ready, or when no open ticket touches its files. Mid-ticket it respawns once, then the Tech Lead splits the rest. A ticket touching at most 2 files goes first to a live Developer under 80k, before any new spawn. A retired name is never reused.
+A Developer retires (no `squad-respawn`) at 120k with its ticket merged-ready, or when no open ticket touches its files. Mid-ticket it respawns once, then the Tech Lead splits the rest. A retired name is never reused.
 
 ## COST-6a Ticket assignment, Manager in S
 roles: manager

@@ -148,7 +148,7 @@ class NoticeTest(unittest.TestCase):
             got.append(self.send("FAIL 05: x", "qaw"))
             got.append(self.send("FAIL 05: y", "qab"))  # 2nd checker, same sha
         self.assertEqual([i for i, g in enumerate(got) if g], [4])
-        self.assertEqual(got[4], "task 05 has 3 returns: also send `BLOCKED 05: 3 returns` to Team Lead [LC-7b]; tell the Developer to consult the advisor before the next HANDIN and note it in the task file [LC-24]")
+        self.assertEqual(got[4], "task 05 has 3 returns: also send `BLOCKED 05: 3 returns` to Team Lead [LC-7b]; tell the Developer to consult the advisor before the next HANDIN; note it in the task file [LC-25]")
 
     def test_garbage_lines_in_log_do_not_stop_notice(self):
         (self.squad / "messages.jsonl").write_text("garbage line\n\n3\n[1]\n", encoding="utf-8")

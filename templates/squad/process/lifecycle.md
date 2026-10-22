@@ -184,20 +184,14 @@ topic: lifecycle
 - Write `$SCOPE_DIR/ui-design/<task>.md` for each UI task, with a `Status: draft|final` line, then: the screens, every state (empty, loading, error, edge, long or missing data), the flows between screens, the copy, and what to reuse from the existing UI.
 - Optionally add `ui-design/<task>.html`: one self-contained file, no network, opens from disk.
 
-## LC-24 Advisor on the 3rd FAIL
-roles: dev
-topic: lifecycle
-
-On a task's 3rd `FAIL`, consult the advisor before the next `HANDIN`. Leave a 3-line note in the task file: question, advice, what was done.
-
 ## LC-25 Advisor when stuck
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
 topic: lifecycle
 
-After 2 failed attempts at the same error, or a `BLOCKED` unanswered for 2 rounds, consult the advisor and leave the 3-line note of [LC-24] in the task file (question, advice, what was done).
+Consult the advisor before the next try after 2 failed attempts at one error, the same `BLOCKED` sent twice with no `ANSWER`, or (Developer) a 3rd `FAIL`. Add a 3-line note to the task file: question, advice, what was done. Advisor off: skip and say so.
 
 ## LC-26 Advisor before an irreversible choice
 roles: manager, tech-lead
 topic: lifecycle
 
-Before an irreversible design choice, consult the advisor and leave the 3-line note of [LC-24] in the task file (question, advice, what was done). Outside [LC-24], [LC-25] and this rule, you decide when to consult it.
+Before an irreversible design choice, consult the advisor and leave the [LC-25] note. Otherwise you decide when to consult it.

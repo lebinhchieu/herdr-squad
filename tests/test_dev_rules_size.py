@@ -81,7 +81,7 @@ class DevRulesSize(unittest.TestCase):
             self.assertIn("## LC-18 ", t)
 
     def test_lost_rules_are_one_command_away(self):
-        for rid in ("GOAL-6b", "PROMO-5", "REV-15", "MSG-5", "MSG-9", "COST-2", "SAFE-2", "SAFE-5", "REV-4", "LC-6"):
+        for rid in ("GOAL-6b", "PROMO-5", "REV-15", "NOTE-1", "MSG-5", "MSG-9", "COST-2", "SAFE-2", "SAFE-5", "REV-4", "LC-6"):
             with self.subTest(rule=rid):
                 r = run("rule", rid)
                 self.assertEqual(r.returncode, 0, r.stderr)
