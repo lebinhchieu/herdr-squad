@@ -49,14 +49,14 @@ roles: tech-lead
 when: size = S
 topic: sizes
 
-The Tech Lead owns the plan, in the plan file format used in every size.
+The Tech Lead owns the plan, in the plan file format used in every size. Each task file cites the on-demand rules its Developer needs: [GOAL-6b] integration, [PROMO-5] promotion, [REV-15] report deliverable.
 
 ## SIZE-6b Plan owner, M and L
 roles: team-lead
 when: size in M, L
 topic: sizes
 
-The Team Lead owns the plan, task order and assignment, in the same plan file and format in every size.
+The Team Lead owns the plan, task order and assignment, in the same plan file and format in every size. A task of those kinds cites its rule in the task file ([GOAL-6b], [PROMO-5], [REV-15]) because the Developer does not carry them.
 
 ## SIZE-7a Code and test check, S
 roles: tech-lead
