@@ -4,7 +4,7 @@
 roles: tech-lead, qa-whitebox, qa-blackbox
 topic: evidence
 
-Evidence lives next to the ticket in `evidence.md`: folder = ticket path with `.md` → `.evidence/` (a project without ticket files: next to `tasks/<id>.md`). Embed screenshots as `![alt](img/<file>)`; a screenshot only named or linked is not evidence.
+Evidence lives next to the ticket in `evidence.md`: folder = ticket path minus `.md`, so `issues/05-x.md` → `issues/05-x/evidence.md` (a project without ticket files: `tasks/<id>/evidence.md`); an old `<stem>.evidence/` folder is still read. Embed screenshots as `![alt](img/<file>)`; a screenshot only named or linked is not evidence.
 
 ## EVID-2a Behaviour
 roles: dev

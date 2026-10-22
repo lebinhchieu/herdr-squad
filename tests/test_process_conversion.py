@@ -13,7 +13,7 @@ import squadrules as sr  # noqa: E402
 
 PROC = ROOT / "templates/squad/process"
 V6 = ROOT / "templates/squad/process.md"
-MAPPING = ROOT / ".scratch/composed-process/issues/03-convert-process-to-rules.evidence/mapping.md"
+MAPPING = ROOT / ".scratch/composed-process/issues/03-convert-process-to-rules/mapping.md"
 # The live squad's process-log.md is not tracked: rows 33-49 are the non-`v<N>` rows dated 2026-10-16 to 2026-10-19.
 LOG_ROWS = list(range(33, 50))
 DROPS = ("dropped: structure", "dropped: replaced by compose")

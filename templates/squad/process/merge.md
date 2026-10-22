@@ -13,7 +13,7 @@ topic: merge
 roles: manager
 topic: merge
 
-Check the target as in [GOAL-7] and that both checkers passed the sha, or the evidence sha after it (a later sha whose diff to the passed sha touches only `*.evidence/` folders, as `squad-evidence check --base` shows). Refuse, with the reason, if the project root has uncommitted changes or the sha is neither. Use `git merge --no-ff`.
+Check the target as in [GOAL-7] and that both checkers passed the sha, or the evidence sha after it (a later sha whose diff to the passed sha touches only a ticket's `<stem>/evidence.md` and `img/`, as `squad-evidence check --base` shows). Refuse, with the reason, if the project root has uncommitted changes or the sha is neither. Use `git merge --no-ff`.
 
 ## MRG-3 Conflict or failure
 roles: manager
