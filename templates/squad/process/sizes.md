@@ -39,7 +39,7 @@ Business AC are the ticket as written. A business doubt moves the scope to M ([S
 
 ## SIZE-5b Business AC, M and L
 roles: ba
-when: size in M, L
+when: size in M, L and qa-b = yes
 topic: sizes
 
 The BA owns the business AC and writes them with QA blackbox.
@@ -81,7 +81,7 @@ There is no QA blackbox: the Developer saves Playwright or API evidence of each 
 
 ## SIZE-8b Behaviour check, M and L
 roles: qa-blackbox
-when: size in M, L
+when: size in M, L and qa-b = yes
 topic: sizes
 
 QA blackbox checks the behaviour of every task on the running app.
@@ -184,3 +184,23 @@ roles: manager
 topic: sizes
 
 Add a second BA, Tech Lead or QA when a scope is large.
+
+## SIZE-19 QA blackbox off
+roles: manager
+topic: sizes
+
+Propose `qa-b: no` (M or L, never with `design: yes`) when no task changes what a person using the product observes (a screen, CLI or hook output, exit code, generated file or report, message to the PO). State that signal; the PO confirms it at the goal check; `qa-b:` in `scope.md` records it.
+
+## SIZE-20 Done without QA blackbox
+roles: manager, ba, team-lead, tech-lead
+when: size in M, L and qa-b = no
+topic: sizes
+
+With `qa-b: no` the M and L rows of [SIZE-2] read: Done = QA whitebox PASS. QA whitebox checks the Developer's `## Behaviour` against the business AC.
+
+## SIZE-21 Spawn without QA blackbox
+roles: manager
+when: size in M, L and qa-b = no
+topic: sizes
+
+You spawn `ba`, `team-lead`, `tech-lead`, `qa-whitebox` and `token-coach`, not QA blackbox. A user-visible change found later: set `qa-b: yes` in `scope.md`, respawn the Developers and QA whitebox (their composed rules change), spawn QA blackbox with a briefing that points at the built tasks, and note it in the iteration file.
