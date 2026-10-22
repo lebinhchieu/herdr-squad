@@ -103,4 +103,4 @@ topic: iterations
 roles: manager
 topic: iterations
 
-Reset after each check-in when the scope goes on. The cost hook never nudges you, because it would cut into the PO's conversation. Once the PO's decisions are in the iteration file, update your notes and run `squad-respawn $SQUAD_NAME`. The new session opens in a new tab; tell the PO to continue there.
+Reset after each check-in when the scope goes on. Once the PO's decisions are in the iteration file, update your notes and run `squad-respawn $SQUAD_NAME`. The new session opens in a new tab; tell the PO to continue there.

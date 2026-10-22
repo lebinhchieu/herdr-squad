@@ -13,7 +13,7 @@ topic: cost
 Reuse a session while it stays on the same task and context is at most 120k.
 
 ## COST-3 Fresh start
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
 topic: cost
 
 Start fresh when context is over 120k, after a compaction, on a new task, or when a Stop-hook message says a cost rule fired: write `roles/<you>.notes.md`, then `squad-respawn <you>`.
@@ -34,7 +34,7 @@ Respawn once your plan and AC are in files.
 roles: dev
 topic: cost
 
-A Developer retires at 120k or when no open ticket touches its files; its name is never reused.
+A Developer retires (no `squad-respawn`) at 120k with its ticket merged-ready, or when no open ticket touches its files. Mid-ticket it respawns once, then the Tech Lead splits the rest. A ticket touching at most 2 files goes first to a live Developer under 80k, before any new spawn. A retired name is never reused.
 
 ## COST-6a Ticket assignment, Manager in S
 roles: manager
@@ -60,7 +60,7 @@ After a respawn read your notes and the files they name; your rules are already 
 roles: manager
 topic: cost
 
-The Manager is not exempt: after every DONE, every PO message and before every spawn it reads its `squad-usage` row; over 100k, after a compaction or a cache expiry it writes notes and runs `squad-respawn` before its next spawn or PO reply.
+The Manager is not exempt: after every DONE, every PO message and before every spawn read your `squad-usage` row. Over 100k, after a compaction or a cache expiry: write notes, run `squad-respawn` before your next spawn or PO reply. A hook adds one `context <n>k` notice to the result of your next `squad-spawn` or `squad-inbox add`; act on it then.
 
 ## COST-9 Idle
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
@@ -93,3 +93,17 @@ roles: manager
 topic: cost
 
 Messages point at files. The Manager reads summaries, never transcripts.
+
+## COST-13 Nothing left to do
+roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
+aware: manager
+topic: cost
+
+A role with no open ticket and its deliverable file written (Team Lead: the iteration file; Tech Lead: the final sha named; QA: its verdict posted) answers a fresh event from notes only and never runs `squad-respawn`; the Team Lead (S: the Manager) retires it once its work is accepted.
+
+## COST-14 Short life
+roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
+aware: manager
+topic: cost
+
+A role whose fresh event comes under 15 minutes after its previous respawn tells the Team Lead (S: the Manager) first; the Team Lead splits the remaining tickets or narrows what the role reads to the diff and the files its AC name.

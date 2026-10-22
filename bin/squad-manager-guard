@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""PreToolUse hook for Bash: gives the Manager one notice about its own context size at a quiet moment.
+
+Acts only when SQUAD_ROLE=manager and the command starts with `squad-spawn` or `squad-inbox add` (never in the
+middle of the PO's conversation: a Stop-hook nudge would cut into it, so squad-usage-hook exempts the Manager).
+Triggers (COST-8): context over 100k, a compaction, or a cache expiry. Each trigger event gives one notice per
+session, logged to usage-events.jsonl like the Stop hook. The notice goes out as hookSpecificOutput.additionalContext
+on stdout; the tool call is never blocked. Exit 0 always: any tooling problem (no squad-usage, unreadable
+transcript or log, bad payload) is silent. Python, so no jq dependency."""
+import importlib.machinery
+import importlib.util
+import json
+import os
+import re
+import sys
+import time
+from contextlib import contextmanager
+from datetime import datetime, timezone
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, HERE)
+from squadio import utf8_stdio  # noqa: E402
+
+CTX_LIMIT = 100_000
+QUIET = re.compile(r"^\s*(?:\S*[/\\])?squad-(?:spawn\b|inbox\s+add\b)")
+
+
+def load_usage():
+    """bin/squad-usage as a module; None when it is missing."""
+    path = os.path.join(HERE, "squad-usage")
+    if not os.path.isfile(path):
+        return None
+    loader = importlib.machinery.SourceFileLoader("squad_usage_mod", path)
+    spec = importlib.util.spec_from_loader("squad_usage_mod", loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+
+def events(s, ttl, now):
+    """Trigger events of a session summary, each a stable key: the same event never fires twice."""
+    out = {}
+    if s["last"] > CTX_LIMIT:
+        out["ctx"] = "over 100k"
+    if s["compactions"]:
+        out[f"compaction-{s['compactions']}"] = "after a compaction"
+    if s["just_expired"] or (now - s["last_ts"]).total_seconds() > ttl:
+        out[f"expiry-{s['expiries'] + (0 if s['just_expired'] else 1)}"] = "cache expired"
+    return out
+
+
+@contextmanager
+def claim_lock(log, wait=5.0, stale=10.0):
+    """Cross-process lock on the log (mkdir is atomic everywhere): two parallel spawns of one turn must not both notify."""
+    lock = log + ".lock"
+    end = time.time() + wait
+    while True:
+        try:
+            os.mkdir(lock)
+            break
+        except FileExistsError:
+            try:
+                if time.time() - os.path.getmtime(lock) > stale:
+                    os.rmdir(lock)  # left by a killed process
+                    continue
+            except OSError:
+                pass
+            if time.time() > end:
+                raise OSError("log lock busy")
+            time.sleep(0.01)
+    try:
+        yield
+    finally:
+        try:
+            os.rmdir(lock)
+        except OSError:
+            pass
+
+
+def seen_keys(log, session):
+    keys = set()
+    try:
+        with open(log, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(r, dict) and r.get("session") == session and r.get("role") == "manager":
+                    keys.add(r.get("rule"))
+    except OSError:
+        pass
+    return keys
+
+
+def decide(env, payload, now=None):
+    """The notice text, or None."""
+    if env.get("SQUAD_ROLE") != "manager" or not env.get("SQUAD_NAME"):
+        return None
+    ti = payload.get("tool_input") or {}
+    cmd = ti.get("command")
+    if not isinstance(cmd, str) or not QUIET.match(cmd):
+        return None
+    session = payload.get("session_id")
+    home = env.get("SCOPE_DIR") or env.get("GOAL_DIR") or env.get("SQUAD_DIR")
+    if not session or not home or not os.path.isdir(home):
+        return None
+    usage = load_usage()
+    if usage is None:
+        return None
+    from squadtranscript import CACHE_TTL_S, find_transcript
+    path = payload.get("transcript_path") or find_transcript(session)
+    if not path or not os.path.exists(str(path)):
+        return None
+    s = usage.summarize(path)
+    if not s:
+        return None
+    now = now or datetime.now(timezone.utc)
+    ev = events(s, CACHE_TTL_S, now)
+    log = os.path.join(home, "usage-events.jsonl")
+    name = env["SQUAD_NAME"]
+    action = f"write roles/{name}.notes.md, then run: squad-respawn {name}"
+    ts = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+    try:
+        with claim_lock(log):  # check and append as one step: one notice per event across parallel calls
+            fresh = {k: v for k, v in ev.items() if f"manager-{k}" not in seen_keys(log, session)}
+            if not fresh:
+                return None
+            lines = "".join(json.dumps({"ts": ts, "agent": name, "role": "manager", "session": session,
+                                        "rule": f"manager-{k}", "action": action}, separators=(",", ":")) + "\n"
+                            for k in fresh)
+            with open(log, "a", encoding="utf-8", newline="\n") as f:
+                f.write(lines)
+    except OSError:
+        return None  # cannot lock or log: stay silent rather than nag every call
+    why = ", ".join(fresh.values())
+    return (f"context {round(s['last'] / 1000)}k ({why}): after this step write your notes and run "
+            f"squad-respawn {name} [COST-8]")
+
+
+def main():
+    utf8_stdio()
+    try:
+        payload = json.loads(sys.stdin.read())
+        if not isinstance(payload, dict):
+            return 0
+        text = decide(os.environ, payload)
+    except Exception:
+        return 0
+    if text:
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": text}}))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
