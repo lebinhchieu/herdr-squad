@@ -1,0 +1,4 @@
+{"type":"user","timestamp":"2026-10-22T21:46:21.987Z","stop_reason":null}
+{"type":"assistant","timestamp":"2026-10-22T21:46:27.704Z","stop_reason":"tool_use"}
+{"type":"assistant","timestamp":"2026-10-22T21:46:28.749Z","stop_reason":"tool_use"}
+{"type":"user","timestamp":"2026-10-22T21:46:30.393Z","stop_reason":null}
