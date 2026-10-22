@@ -68,7 +68,7 @@ At the close of every M or L scope, spawn the Token Coach.
 roles: token-coach
 topic: iterations
 
-Read only `squad-usage` and `usage-events.jsonl` of the folder the Manager names. Write `iterations/<n>.coach.md` (scope; n = last iteration) or `coach/<goal>.coach.md` in the goal folder: every proposal ranked by expected saving, then a `## Backlog` heading left empty. Tell the Manager in one short message that points at the file and says how many proposals it holds.
+Read `squad-usage`, `usage-events.jsonl` of the folder the Manager names, and earlier backlogs ([ITER-13]). Write `iterations/<n>.coach.md` (scope; n = last iteration) or `coach/<goal>.coach.md` in the goal folder: proposals ranked by saving, then an empty `## Backlog` heading. Tell the Manager in one short message: the file and the proposal count.
 
 ## ITER-8 Token Coach proposals
 roles: token-coach
@@ -81,8 +81,8 @@ topic: iterations
 roles: token-coach
 topic: iterations
 
-- Propose only changes to the rules, never `agents/` or skills. Never edit any file except your proposals file.
-- Never read raw transcripts: the table and the events are your only evidence. Never propose without an evidence row.
+- Propose changes to the rules as overlay operations ([ITER-14]); a finding about a tool or a role card goes under `## Plugin proposals`, never as a rule change. Never edit any file except your proposals file.
+- Never read raw transcripts: the table, the events and earlier backlogs are your only evidence. Never propose without an evidence row.
 
 ## ITER-10 Accepting proposals
 roles: manager
@@ -104,3 +104,28 @@ roles: manager
 topic: iterations
 
 Reset after each check-in when the scope goes on. The cost hook never nudges you, because it would cut into the PO's conversation. Once the PO's decisions are in the iteration file, update your notes and run `squad-respawn $SQUAD_NAME`. The new session opens in a new tab; tell the PO to continue there.
+
+## ITER-13 Coach reads earlier backlogs
+roles: token-coach
+topic: iterations
+
+Read every `## Backlog` in the squad's earlier `*.coach.md` (`scopes/_done/**`, `goals/_done/**`). An item that appears in 2 or more scopes becomes a proposal of its own; cite both coach files.
+
+## ITER-14 Coach proposal form
+roles: token-coach
+topic: iterations
+
+- Write each process proposal as an overlay operation in `process.local.md` syntax with `upstream: proposed`, so the Manager can paste it.
+- List tool and role-card findings (a bug in a `bin/` tool, a wrong role card) under `## Plugin proposals`, one item each with its evidence.
+
+## ITER-15 Plugin proposals leave the retro
+roles: manager
+topic: iterations
+
+At the check-in, each Coach `## Plugin proposals` item and each retro "Plugin follow-ups" item becomes one draft in `$SCOPE_DIR/tasks/` ([FILE-11], never the project root). Where `project.md` names the plugin's tracker, file it there instead. List the draft paths (or tracker links) in the check-in item; with neither, the list itself is the item.
+
+## ITER-16 Blank retro
+roles: manager
+topic: iterations
+
+`squad-close --scope` refuses while the last iteration file's `Went well`, `Friction` or `Process changes made` has no text ("none" counts). Fill them. `--force` overrides it and logs the override in that file.

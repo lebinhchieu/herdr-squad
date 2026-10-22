@@ -9,6 +9,8 @@
 #                                   flat squad (legacy): retire the agents whose Scope column is S and drop their
 #                                   roster rows; the squad stays.
 #                                   Also lists untracked files in the project root outside .claude/squads/ (warns only).
+#                                   Refuses while the last iteration's Went well, Friction or Process changes made is
+#                                   empty (ITER-16); --force overrides and logs it in that file.
 #   squad-close <squad> --goal G    retire the goal Manager, move goals/G to goals/_done/G. Refuses while a scope of
 #                                   G is still open, or while shared/decisions.md has entries and goal.md has no
 #                                   `promoted:` line yet (the goal's knowledge would be lost). --force overrides.
@@ -107,6 +109,90 @@ if [[ $mode == goal || $mode == scope ]] && [[ $force == 0 ]]; then
     echo "$mode $(basename "$src") has $(wc -l <<<"$blockers") open answer items: $(sed ':a;N;$!ba;s/\n/, /g' <<<"$blockers") (answer or withdraw them first, or --force)" >&2
     exit 1
   fi
+fi
+
+# A scope does not close with a blank retro (ITER-16): the last iteration file (highest n) needs text after
+# Went well, Friction and Process changes made. "none" counts; a <...> placeholder alone does not. No iteration file
+# (or a legacy flat squad) is not checked. --force closes anyway and logs it under ## Log in that file.
+retro_check() {  # $1 scope folder, $2 apply the --force log line (1/0); stdout: the empty labels; exit 1 when any
+  python3 -X utf8 - "$1" "$2" <<'PY'
+import datetime, re, sys
+from pathlib import Path
+
+LABELS = ("Went well", "Friction", "Process changes made")
+folder, log = Path(sys.argv[1]) / "iterations", sys.argv[2] == "1"
+files = sorted((int(m.group(1)), f) for f in folder.glob("*.md") if (m := re.fullmatch(r"(\d+)\.md", f.name)))
+if not files:
+    sys.exit(0)
+path = files[-1][1]
+lines = path.read_text(encoding="utf-8").replace("\r\n", "\n").split("\n")
+
+def level(l):
+    m = re.match(r"(#{1,6})\s", l)
+    return len(m.group(1)) if m else 0
+
+retro = []  # lines of every section whose heading starts with "Retro"
+i = 0
+while i < len(lines):
+    if level(lines[i]) and re.match(r"#{1,6}\s+retro\b", lines[i], re.I):
+        lv, j = level(lines[i]), i + 1
+        while j < len(lines) and not (level(lines[j]) and level(lines[j]) <= lv):
+            retro.append(lines[j]); j += 1
+        i = j
+    else:
+        i += 1
+
+def text_of(label):
+    """Text after `- **label:**` (and its continuation), or under a `### label` heading; None when absent."""
+    for k, l in enumerate(retro):
+        m = re.match(r"(\s*)(?:[-*+]\s+)?\*\*\s*" + re.escape(label) + r"\s*:?\s*\*\*\s*:?\s*(.*)$", l, re.I)
+        h = re.match(r"#{1,6}\s+" + re.escape(label) + r"\s*:?\s*$", l, re.I)
+        if not (m or h):
+            continue
+        parts = [m.group(2)] if m else []
+        for n in retro[k + 1:]:
+            if level(n) or re.match(r"[-*+]\s+\*\*", n):  # next heading, or next top-level labelled bullet
+                break
+            parts.append(n)
+        return " ".join(p.strip() for p in parts).strip()
+    return None
+
+empty = []
+for label in LABELS:
+    t = text_of(label)
+    if t is None or not t or re.fullmatch(r"<[^<>]*>", t):
+        empty.append(label)
+if not empty:
+    sys.exit(0)
+print(", ".join(empty))
+if log:
+    line = "- %s squad-close --force: empty retro (%s)" % (datetime.date.today().isoformat(), ", ".join(empty))
+    for k, l in enumerate(lines):
+        if re.match(r"##\s+log\b", l, re.I):
+            e = k + 1
+            while e < len(lines) and not re.match(r"#{1,2}\s", lines[e]):
+                e += 1
+            while e > k + 1 and not lines[e - 1].strip():
+                e -= 1
+            lines.insert(e, line)
+            break
+    else:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines += ["", "## Log", line, ""]
+    path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    sys.exit(0)
+sys.exit(1)
+PY
+}
+retro_empty=""
+if [[ $mode == scope ]]; then
+  if [[ $force == 1 ]]; then
+    [[ $dry == 1 ]] || retro_empty=$(retro_check "$src" 1) || true
+  else
+    retro_empty=$(retro_check "$src" 0) || { echo "scope $(basename "$src") has an empty retro in its last iteration file: $retro_empty (fill Went well, Friction and Process changes made, or --force)" >&2; exit 1; }
+  fi
+  [[ -z $retro_empty ]] || echo "WARNING: closing with an empty retro (--force): $retro_empty"
 fi
 
 agents=() roles=() labels=()

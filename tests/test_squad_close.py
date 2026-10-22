@@ -584,3 +584,105 @@ class ReportHookTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse(self.calls.exists())
         self.assertTrue((self.squad / "scopes/sc1").exists())
+
+
+FILLED = """# Iteration 1
+
+## Log
+- 2026-10-22 started
+
+## Retro
+- **Went well:** shipped
+- **Friction:** loops
+- **Process changes made:** none
+"""
+
+
+class RetroCloseTest(ScopedCloseTest):
+    """Ticket 13: no scope closes with a blank retro (ITER-16)."""
+
+    def iter_file(self, text, n="1"):
+        d = self.squad / "scopes/sc1/iterations"
+        d.mkdir(exist_ok=True)
+        (d / f"{n}.md").write_text(text, encoding="utf-8", newline="\n")
+        return d / f"{n}.md"
+
+    def refused(self, text, label):
+        self.iter_file(text)
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(label, r.stderr)
+        self.assertTrue((self.squad / "scopes/sc1").exists())      # nothing moved
+        self.assertEqual(self.closed_tabs(), [])                    # nothing retired
+
+    def test_each_empty_label_refuses_and_is_named(self):
+        for label in ("Went well", "Friction", "Process changes made"):
+            with self.subTest(label=label):
+                line = next(l for l in FILLED.splitlines() if f"**{label}:**" in l)
+                self.refused(FILLED.replace(line, f"- **{label}:**"), label)
+
+    def test_placeholder_alone_is_empty_but_text_with_brackets_is_not(self):
+        self.refused(FILLED.replace("loops", "<loops, blocked panes>"), "Friction")
+        self.iter_file(FILLED.replace("loops", "<2> loops"))
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+
+    def test_none_dash_and_continuation_lines_count_as_text(self):
+        for text in ("none", "-", "n/a"):
+            with self.subTest(text=text):
+                self.tearDown(); self.setUp()
+                self.iter_file(FILLED.replace("shipped", text))
+                self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+        self.tearDown(); self.setUp()
+        self.iter_file(FILLED.replace("- **Friction:** loops", "- **Friction:**\n  slow review\n- **Other:** x"))
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+        self.tearDown(); self.setUp()
+        self.iter_file(FILLED.replace("- **Friction:** loops", "- **Friction:**\n  - one sub-bullet"))
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+
+    def test_free_retro_heading_and_label_missing(self):
+        self.iter_file(FILLED.replace("## Retro", "## Retro / Coach"))
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+        self.tearDown(); self.setUp()
+        self.refused(FILLED.replace("- **Went well:** shipped\n", ""), "Went well")
+
+    def test_no_iteration_file_and_flat_squad_are_not_checked(self):
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+
+    def test_last_iteration_is_the_highest_number_and_aux_files_are_ignored(self):
+        self.iter_file(FILLED.replace("loops", ""), "9")            # blank, but not the last
+        self.iter_file(FILLED, "10")
+        d = self.squad / "scopes/sc1/iterations"
+        for aux in ("10.log.md", "10.summary.md", "10.coach.md"):
+            (d / aux).write_text("# blank\n- **Friction:**\n", encoding="utf-8")
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+        self.tearDown(); self.setUp()
+        self.iter_file(FILLED, "9")
+        self.iter_file(FILLED.replace("loops", ""), "10")        # 10 > 9 numerically, "10" < "9" as a string
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("Friction", r.stderr)
+
+
+    def test_force_closes_and_logs_with_and_without_a_log_section(self):
+        blank = FILLED.replace("loops", "")
+        f = self.iter_file(blank)
+        r = self.close("--scope", "sc1", "--force")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("Friction", r.stdout)
+        done = (self.squad / "scopes/_done/sc1/iterations/1.md").read_text(encoding="utf-8")
+        self.assertRegex(done, r"## Log\n- 2026-10-22 started\n- \d{4}-\d\d-\d\d squad-close --force: empty retro \(Friction\)\n\n## Retro")
+        self.tearDown(); self.setUp()
+        f = self.iter_file(blank.replace("## Log\n- 2026-10-22 started\n\n", ""))
+        self.assertEqual(self.close("--scope", "sc1", "--force").returncode, 0)
+        done = (self.squad / "scopes/_done/sc1/iterations/1.md").read_text(encoding="utf-8")
+        self.assertRegex(done, r"\n## Log\n- \d{4}-\d\d-\d\d squad-close --force: empty retro")
+
+    def test_force_on_a_filled_retro_and_dry_run_write_nothing(self):
+        f = self.iter_file(FILLED)
+        self.assertEqual(self.close("--scope", "sc1", "--force").returncode, 0)
+        self.assertEqual((self.squad / "scopes/_done/sc1/iterations/1.md").read_text(encoding="utf-8"), FILLED)
+        self.tearDown(); self.setUp()
+        f = self.iter_file(FILLED.replace("loops", ""))
+        before = f.read_text(encoding="utf-8")
+        self.assertEqual(self.close("--scope", "sc1", "--force", "--dry-run").returncode, 0)
+        self.assertEqual(f.read_text(encoding="utf-8"), before)
