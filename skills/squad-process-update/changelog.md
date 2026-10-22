@@ -312,7 +312,7 @@ added:
 - START-3b: new (ticket 20): the Manager shows the team's models with the size, the PO's answer goes to scope.md
 
 changed:
-- none
+- SAFE-11: scratch dirs: `cd` out before `rm`; Claude Code denies removing the cwd or an ancestor
 
 removed:
 - SIZE-21: replaced by SIZE-21a and SIZE-21b (QA blackbox off, split by size)
