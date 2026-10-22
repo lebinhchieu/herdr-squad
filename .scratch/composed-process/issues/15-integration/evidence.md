@@ -47,3 +47,19 @@ Cleanup: the replays exited on their own; no `p15` or stub process was left (`ps
 
 ### AC 6
 No full suite run.
+
+## Tech Lead review
+
+### Tech Lead review 15: PASS
+
+Sha 33bba38 on squad/plugin/integrate-promote/plugin-dev-ip-2 (base 3dcc7b2).
+
+- AC1: five `--is-ancestor` (b66036b, 4901cab, 2e81e5e, 853b0a4, 3dcc7b2) all exit 0 (re-run). `git log 853b0a4..HEAD`: 32's four commits plus 15's own three.
+- AC2: `7bd2b09` is three R100 renames only. `find .scratch -name '*.evidence'` empty; `git ls-files | grep '\.evidence/'` empty. `squad-evidence check` exit 0 on 20, 28, 32 and 15.
+- AC3: `bin/squad-process lint` exit 0. 162 targeted tests OK (re-run). Dev rules 5119 B unchanged (no diff under bin/ templates/ agents/ skills/ tests/).
+- AC4: diff 3dcc7b2..HEAD = ticket 15 text, 15's evidence.md, three renames. Nothing else.
+- AC5: probe re-checked on the scratch tree before removal: dev rules file DEVMARKER 1 / QAWMARKER 0, qa-whitebox file 0 / 1. Answers table in evidence (dev YES/NO, qaw NO/YES, $0.0087).
+- AC6: no full suite by the Dev.
+- `/tmp/p15` removed by me (the Dev's rm was refused); no processes left.
+
+Evidence check: `squad-evidence check` ok. Final sha = 33bba38 (evidence commit included).
