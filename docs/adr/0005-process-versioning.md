@@ -1,8 +1,8 @@
 # `process.md` carries a version, and a squad updates it per section
 
-Status: accepted (refine-process)
+Status: superseded by 0016 (composed-process)
 
-Superseded by 0016 once accepted (composed-process): squads keep an overlay, not a copy; the per-section update is retired.
+Superseded by 0016: squads keep an overlay, not a copy; the version line, section view and per-section update are retired. History only.
 
 **Decision:** `process.md` carries an integer `process-version:` line; the plugin ships `skills/squad-process-update/changelog.md` and `history/process-v<N>.md`, a pristine copy of each version, so a squad's own edits can be told from the plugin's text.
 

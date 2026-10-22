@@ -1,6 +1,6 @@
 # Process is composed per role from ID-tagged rules; a squad keeps only an overlay
 
-Status: proposed (composed-process, PO answers D1–D7 2026-10-21)
+Status: accepted (composed-process, PO answers D1–D16 2026-10-21/22)
 
 Supersedes 0005. Amends 0006: the Writing rule applies per rule block; processlint checks rule files.
 
@@ -26,3 +26,37 @@ Supersedes 0005. Amends 0006: the Writing rule applies per rule block; processli
 - No local edits, with every rule shipped as a plugin change: it rules out same-day fixes in a running squad. An empty overlay behaves the same, so nothing is lost by having one.
 - Whole-file role-card shadowing through `.claude/agents/`: plugin updates to that role would be missed silently.
 - Agents reading their view with `squad-process show` at start: attaching at spawn guarantees the rules are present and puts them in the cached prefix.
+
+## Decisions made while building (composed-process, 2026-10-22)
+- **Composed mode** = `process.local.md` exists in the squad folder; `process.md` alone is **legacy mode**. Composed mode with no `plugin:` pin refuses spawn and respawn (exit 2). A legacy squad gets its role's plugin rules composed from the running plugin with no overlay and no pin (ticket 24); its local `process.md` edits apply only after `squad-process adopt`. Installing the plugin therefore changes what an open legacy scope's next respawn reads: merge and install after every open scope closes, or run `adopt` first.
+- Rule hash, composed-file tags and header, the prefix→file table and the pin format: `shared/contracts/rules-and-compose.md` of the goal (kept in the plugin as the tests that pin it).
+- **Pinned runtime:** `git archive <sha>` into `$SQUAD_DIR/_runtime/<version>-<sha12>/`, shared per pin; a role launches with `--plugin-dir` on it and `PATH=<runtime>/bin:$PATH`, so role cards, rules and settings template all come from the pin. `squad-close` prunes runtimes held by no open scope, goal or `plugin.pin` (orphans included, the closing scope's own pin excluded, never the runtime it runs from; failure warns only).
+- `plugin.pin` is written by `squad-start` and by the PO-confirmed `upgrade --apply --yes` or `adopt`. `adopt` also adds `plugin: <version> <sha>` to every open `scope.md`/`goal.md` that lacks one, listed in its dry run.
+- **Upgrade compares** the overlay's hashes with the running plugin; the old rule set is the pinned runtime. `adopt` writes operations only for verbatim matches; everything else is listed for the PO.
+- **Settings** = pinned template + `settings/<role>.local.json`. The QA blackbox placeholder fails closed when `codePaths` is missing.
+- **Rule on demand:** a rule attached to no role is read with `squad-process rule <ID>`; `who <ID>` lists the roles and sizes it reaches. The composed Developer rules at S stay under 5120 B (`test_dev_rules_size`); a rule every role needs but a Developer rarely does becomes `aware:` or on demand.
+- Lint also checks pointers in rule bodies (an unknown `[ID]` with a table prefix is an error). Role-card text that duplicates a rule fails `lint --cards`.
+- **Sizes.** S = Manager + Developers; M = + QA whitebox and QA blackbox (QA blackbox absent when `qa-b: no`); L = every role. `ba`, `team-lead`, `tech-lead` exist only at L. A risk flag or a business doubt moves the scope to L. A `design: yes` scope adds the Designer at any size.
+- **Duty owners** (rule retargeting never renumbers; a duty whose owner is absent at a size gets a variant ID for the role that took it):
+
+| Duty | S | M | L |
+|---|---|---|---|
+| Plan, order, Developer spawning | Manager | Manager | Team Lead |
+| Design notes per task | Developer | Developer | Tech Lead |
+| Technical AC | Developer | QA whitebox with the Developer | Tech Lead + QA whitebox |
+| Business AC | ticket as written | ticket as written (QA blackbox tests it) | BA |
+| Code and test check | Developer + Sonnet review subagent (high effort) | QA whitebox | QA whitebox |
+| Behaviour check | Developer's `evidence.md` | QA blackbox | QA blackbox |
+| Hand-in goes to / done told to | Manager / Manager | QAs / Manager | QAs / Team Lead |
+| Full suite (once, final sha) | Developer | QA whitebox | Tech Lead |
+| `promote.md` | Developer | QA whitebox | Tech Lead |
+| Migration, contract change, risk flag | Manager moves scope to L | same | Tech Lead |
+| Irreversible design choice | Manager after an advisor call; PO-listed items stay with the PO | same | Tech Lead after an advisor call |
+| 3 returns on a task | Manager | Manager | Team Lead |
+
+- **S Done** = the Developer's checks + `evidence.md` + `## Review` written by one fresh-context review subagent on Sonnet at high effort (PO 2026-10-22; a new agent, not a fork) before `HANDIN`; the Manager only confirms both exist. **Advisor:** the built-in advisor is on, Opus, for every role (D15, D16); per-scope advisor on/off is not in `scope.md`, it is a squad-wide `settings/<role>.local.json` edit by the Manager on the PO's answer. LC-25 (stuck: 2 failed attempts, the same `BLOCKED` twice, or a Developer's 3rd FAIL) and LC-26 (irreversible choice) require an advisor call; a required call with the advisor off is skipped and the 3-line note says so.
+- **Role defaults** come from `scope.md` `model <role>: <model> <effort>` lines (ticket 20) over `settings/<role>.json` over the template; `squad-start`/`squad-spawn` show the effective value and the PO confirms it.
+- **Evidence** lives at `<ticket path minus .md>/evidence.md` (images in `img/`); see ADR 0015's update. `squad-evidence check --base` accepts a changed path only as `<stem>/evidence.md` or under `<stem>/img/`.
+- **Return** in the process = a handed-in sha with at least one FAIL (two FAILs on one sha are one return); the squad report counts FAIL messages. The scope summary lists returns per task by failing sha.
+- **Developer retirement:** a Developer retires (no respawn) at 120k tokens with a finished ticket and mid-ticket respawns once; the Manager is not exempt from the fresh rule. Drafts go in `$SCOPE_DIR/tasks/`, never untracked in the project root; plugin proposals from a retro reach the PO as `tasks/` drafts listed in the check-in. `qa: light` is proposed when `touches:` has no UI path and no risk flag.
+- Hashes of rule IDs may change between unreleased versions; no pin carries the old text, so nothing is kept for them. **Alternatives rejected** (in addition to those above): an `S:`-clause inside rule text (lint forbids it; use variant IDs), a cap raise for the Developer rules (trim instead).

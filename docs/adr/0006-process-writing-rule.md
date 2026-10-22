@@ -2,7 +2,7 @@
 
 Status: accepted (refine-process)
 
-Amended by 0016 once accepted (composed-process): the Writing rule applies per rule block in `process/*.md`.
+Amended by 0016: the Writing rule applies per rule block in `templates/squad/process/*.md`; `bin/processlint.py` lints the rule files. Rule text carries no size clause (`(S:`): a size variant is its own rule ID.
 
 Amended by 0010: the byte budget was removed (PO, tl-manages-team); the rest stands.
 
