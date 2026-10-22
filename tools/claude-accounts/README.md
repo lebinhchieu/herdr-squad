@@ -1,6 +1,6 @@
 # claude-accounts
 
-**Source of the two-account Claude launchers (`c`, `c1`, `c2`, `c3`, `cdefault`, `cswitch`, `cautoswitch`). `install.sh` links them into `~/.claude-accounts` and the skill into `~/.claude/skills/`.** Run it from the main checkout, never from a task worktree.
+**Source of the two-account Claude launchers (`c`, `c1`, `c2`, `c3`, `cdefault`, `cswitch`, `cwake`, `cautoswitch`). `install.sh` links them into `~/.claude-accounts` and the skill into `~/.claude/skills/`.** Run it from the main checkout, never from a task worktree.
 
 ## Install
 
@@ -28,6 +28,14 @@ The install never edits `.bashrc`, the herdr config or the statusline. It swaps 
 | `--allow-worktree` | Run from a linked worktree (tests only; the worktree is deleted at squad close) |
 | `--unlink` | Rollback: turn every link made here back into a regular copy; state untouched |
 
+## Commands added by autoswitch
+
+| Command | Does |
+|---|---|
+| `cwake <pane>` | Wake a pane that is idle with ONE short prompt (skips a pane without `SQUAD_NAME` or without a live claude); `cwake --mark <pane>` records pending work in `wake-pending/<pane>`. Normally called by `cswitch`/`cautoswitch` |
+
+**Wake rule:** `cautoswitch` moves every off-default squad pane silently; only a pane with pending work (cut-off turn or `blocked`, failed send, unanswered message) is woken once after its workspace's batch, markers expire after 30 min, `CSWITCH_WAKE=off` restores move-only. Details, unverified items and the PO live-probe checklist: `HANDOFF.md`. After an install, restart `cautoswitch`.
+
 ## Post-install check (PO)
 
 - `ls -l ~/.claude-accounts ~/.claude-accounts/bin ~/.claude/skills/claude-accounts`: links point into this checkout.
@@ -38,7 +46,7 @@ The install never edits `.bashrc`, the herdr config or the statusline. It swaps 
 
 ## What stays in `~/.claude-accounts`
 
-State, never in the repo (`.gitignore` lists it): `default`, `workspace-default/`, `usage-*`, `cswitch.log`, `.install-backup/`, and the old `.git` (the install never touches it; retiring it is the PO's step).
+State, never in the repo (`.gitignore` lists it): `default`, `workspace-default/`, `wake-pending/`, `usage-*`, `cswitch.log`, `.install-backup/`, and the old `.git` (the install never touches it; retiring it is the PO's step).
 
 Three hooks keep working because the paths do not change:
 
@@ -50,7 +58,7 @@ Three hooks keep working because the paths do not change:
 
 | Path | What |
 |---|---|
-| `bin/` | `c`, `c1`, `c2`, `c3`, `cdefault`, `cswitch`, `cautoswitch` |
+| `bin/` | `c`, `c1`, `c2`, `c3`, `cdefault`, `cswitch`, `cwake`, `cautoswitch` |
 | `lib.sh` | shared functions |
 | `usage-popup.sh`, `record-usage.sh` | herdr usage popup and the statusline cache writer |
 | `HANDOFF.md` | setup notes, linked to `~/.claude-accounts/HANDOFF.md` |
