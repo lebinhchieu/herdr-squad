@@ -75,7 +75,9 @@ class SpawnDryRunTest(unittest.TestCase):
         r = self._spawn_any()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertRegex(r.stdout, rf"--model haiku --effort {TABLE['dev'][1]}\b")
-        self.assertEqual(r.stderr, "")
+        # only the old-layout warning (ticket 08), no missing-key warning
+        self.assertEqual(r.stderr.count("warning:"), 1)
+        self.assertIn("full settings file", r.stderr)
 
     def test_a_key_in_neither_file_warns_and_passes_no_flag(self):
         tpl = Path(self.tmp.name) / "plugin"

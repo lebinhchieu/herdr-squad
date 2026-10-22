@@ -147,9 +147,22 @@ if [[ $role == manager ]]; then
   fi
 fi
 
-# Project-tuned permissions first, plugin defaults as fallback.
-settings=$squad_dir/settings/$role.json
-[[ -f $settings ]] || settings=$plugin_root/templates/squad/settings/$role.json
+# Settings: the squad's overlay settings/<role>.local.json merged over the (pinned) template into
+# <home>/roles/<agent>.settings.json; else the old full settings/<role>.json (warns once); else the template.
+tpl_root=$plugin_root
+[[ $smode != composed ]] || tpl_root=$runtime
+# --dry-run does not materialise the pinned runtime: preview with the running plugin's template.
+[[ $dry != 1 || -d $tpl_root/templates ]] || tpl_root=$plugin_root
+eff_json="" settings_mode=template
+settings=$tpl_root/templates/squad/settings/$role.json
+if [[ -f $squad_dir/settings/$role.local.json ]]; then
+  eff_json=$(python3 "$plugin_root/bin/squadsettings.py" effective --role "$role" --squad-dir "$squad_dir" --template-root "$tpl_root" --project-dir "$project_dir") || exit $?
+  settings_mode=overlay settings=$home/roles/$name.settings.json
+  [[ ! -f $squad_dir/settings/$role.json ]] || echo "warning: $squad_dir/settings/$role.json is ignored: $role.local.json wins" >&2
+elif [[ -f $squad_dir/settings/$role.json ]]; then
+  settings_mode=legacy settings=$squad_dir/settings/$role.json
+  echo "warning: $settings is a full settings file, not an overlay; ticket 09 (adopt) converts it to $role.local.json" >&2
+fi
 
 cwd=$project_dir
 if [[ -n $worktree ]]; then
@@ -173,16 +186,24 @@ ovr_model=$model ovr_effort=$effort
 
 # Role defaults come from "model" and "effortLevel" in settings/<role>.json, per key: the squad's file, then the
 # template. --model/--effort win. Still passed as flags: an --agent frontmatter model would beat --settings.
-key_of() { # key -> value from the squad file, else the template; refuses a bad value
+key_of() { # key -> value from the effective settings (overlay) or the squad file, else the template; refuses a bad value
   local k=$1 f v
-  for f in "$squad_dir/settings/$role.json" "$plugin_root/templates/squad/settings/$role.json"; do
-    [[ -f $f ]] || continue
-    v=$(jq -r --arg k "$k" '.[$k] // empty | if type=="string" then . else error("not a string") end' "$f") || { echo "cannot read $k from $f (needs jq, valid JSON, a string value)" >&2; exit 2; }
+  if [[ $settings_mode == overlay ]]; then
+    v=$(jq -r --arg k "$k" '.[$k] // empty | if type=="string" then . else error("not a string") end' <<<"$eff_json") || { echo "cannot read $k from the effective settings of $role (needs jq, valid JSON, a string value)" >&2; exit 2; }
     if [[ -n $v ]]; then
-      [[ $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad $k value in $f: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
+      [[ $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad $k value in $squad_dir/settings/$role.local.json: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
       printf '%s' "$v"; return
     fi
-  done
+  else
+    for f in "$squad_dir/settings/$role.json" "$tpl_root/templates/squad/settings/$role.json"; do
+      [[ -f $f ]] || continue
+      v=$(jq -r --arg k "$k" '.[$k] // empty | if type=="string" then . else error("not a string") end' "$f") || { echo "cannot read $k from $f (needs jq, valid JSON, a string value)" >&2; exit 2; }
+      if [[ -n $v ]]; then
+        [[ $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad $k value in $f: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
+        printf '%s' "$v"; return
+      fi
+    done
+  fi
   echo "warning: no $k for $role in $squad_dir/settings/$role.json or the template; it runs on Claude Code's default" >&2
 }
 [[ -n $model ]] || model=$(key_of model)
@@ -190,6 +211,11 @@ key_of() { # key -> value from the squad file, else the template; refuses a bad 
 
 # Known up front so roster.md can point at the transcript <config dir>/projects/<cwd>/<session>.jsonl.
 session=$(python3 -c 'import uuid; print(uuid.uuid4())')
+
+if [[ $settings_mode == overlay && $dry != 1 ]]; then
+  mkdir -p "$home/roles"
+  printf '%s\n' "$eff_json" > "$settings.tmp" && mv "$settings.tmp" "$settings"
+fi
 
 claude_args=(--agent "squad:$role" --name "$name" --session-id "$session" --permission-mode auto --settings "$settings")
 [[ -n $model ]] && claude_args+=(--model "$model")
