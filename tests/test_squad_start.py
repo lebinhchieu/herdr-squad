@@ -242,7 +242,7 @@ class StartTest(unittest.TestCase):
         self.assertRegex(self.herdr(), r"--model opus --effort low\b")
         self.assertTrue((self.squad / "scopes" / "two" / "roles" / "t-mgr-two.overrides").exists())
         (self.squad / "goals" / "g1").mkdir()
-        self.assertEqual(self.dry_lines("x", "--in-goal", "g1", "--name", "two"), [])
+        self.assertEqual(self.dry_lines("x", "--in-goal", "g1", "--name", "three"), [])
 
 
 class WorkspaceRenameTest(unittest.TestCase):
