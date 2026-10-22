@@ -43,7 +43,8 @@ class ModelEffortSettingsTest(unittest.TestCase):
                 old, now = json.loads(old.stdout), json.loads((ROOT / rel).read_text())
                 self.assertLessEqual(set(old) - {"permissions"}, set(now))
                 for kind, entries in old["permissions"].items():
-                    self.assertLessEqual(set(entries), set(now["permissions"].get(kind, [])), f"{kind} lost entries")
+                    self.assertLessEqual(set(entries) - {"Bash(squad-process show:*)"},  # retired with `show` (ticket 09)
+                                     set(now["permissions"].get(kind, [])), f"{kind} lost entries")
                 self.assertEqual(set(now) - set(old), {"model", "effortLevel", "advisorModel"})
 
     def test_every_role_has_the_opus_advisor(self):

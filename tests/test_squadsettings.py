@@ -134,7 +134,7 @@ class SpawnTest(Base):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(f"--settings {self.squad}/roles/x.settings.json", r.stdout)
         self.assertIn("--model haiku --effort", r.stdout)
-        self.assertEqual(r.stderr, "")
+        self.assertNotIn("settings", r.stderr)  # the legacy-squad notice (ticket 24) is not a settings warning
 
     def test_overlay_missing_template_exits_1(self):
         self.local("dev", {})
@@ -163,7 +163,7 @@ class SpawnTest(Base):
     def test_no_squad_files_uses_the_template_without_warning(self):
         r = self.spawn()
         self.assertIn(str(ROOT / "templates/squad/settings/dev.json"), r.stdout)
-        self.assertEqual(r.stderr, "")
+        self.assertNotIn("settings", r.stderr)  # the legacy-squad notice (ticket 24) is not a settings warning
 
     def test_local_file_wins_over_an_old_full_file(self):
         (self.squad / "settings" / "dev.json").write_text('{"model": "haiku"}', encoding="utf-8")

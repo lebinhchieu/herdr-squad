@@ -480,11 +480,12 @@ class LauncherTest(unittest.TestCase):
 
 
 class InstructionsTest(unittest.TestCase):
-    def test_squad_init_names_the_stamp_check_and_never_overwrites_process_md(self):
+    def test_squad_init_scaffolds_a_composed_squad_and_never_copies_process_md(self):  # ticket 09
         text = (ROOT / "skills" / "squad-init" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("`process-version:` line", text)
-        self.assertIn("never overwrite its `process.md`", text)
-        self.assertIn("/squad:squad-process-update", text)
+        self.assertIn("squad-process scaffold", text)
+        self.assertIn("never copies `process.md`", text)
+        self.assertIn("squad-process adopt", text)
+        self.assertNotIn("Copy everything from", text)
 
     def test_squad_start_skill_tells_the_user_and_never_runs_the_update_unasked(self):
         text = (ROOT / "skills" / "squad-start" / "SKILL.md").read_text(encoding="utf-8")

@@ -204,7 +204,8 @@ class CiDryRun(unittest.TestCase):
     """Every overlay in fixtures/upgrade is dry-run against the template; an unplaceable operation fails."""
 
     def test_every_overlay_is_placeable(self):
-        found = list(FIX.glob("*/squad/process.local.md")) + list(FIX.glob("overlays/*.md"))
+        found = (list(FIX.glob("*/squad/process.local.md")) + list(FIX.glob("overlays/*.md"))
+                 + list(FIX.glob("live-squad.local.md")))  # the last one is built by `adopt` (ticket 09)
         self.assertGreaterEqual(len(found), len(CASES))
         for path in found:
             case = path.parent.parent if path.parent.name == "squad" else None

@@ -30,8 +30,7 @@ import squadupgrade as su  # noqa: E402
 
 DEFAULT_ROOT = su.DEFAULT_ROOT
 ID_RE = re.compile(r"^[A-Z]+-\d+[a-z]?$")
-HEADER = ("# Local process\n\nThis squad's changes to the plugin's rules, one `## replace|remove|add <ID>` block each "
-          "(see `squad-process lint`). Empty means the plugin's rules as shipped.\n")
+HEADER = "# Local process\n"  # only a title may stand before the first operation
 ROLE_FILES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "dev", "designer", "token-coach")
 RETIRED = ("Bash(squad-process show:*)",)  # commands that no longer exist: not carried into the local file
 _CODE_ENTRY = re.compile(r"^Read\(//+(.+)/\*\*\)$")
@@ -235,7 +234,7 @@ def apply_choices(items, resolves, rules, ops):
             n = max(sq or [0]) + 1
             sq.append(n)
             title = re.sub(r"[`*|#]", "", text.split("\n")[0]).strip()[:48] or f"Squad rule {n}"
-            attrs = {"roles": ", ".join(roles), "why": why, "upstream": "local-only"}
+            attrs = {"roles": ", ".join(roles), "topic": "squad", "why": why, "upstream": "local-only"}
             out.append(sr.Op("add", f"SQ-{n}", "", title, attrs, text, 0))
         elif choice.startswith("replace:"):
             _, rid, path = (choice.split(":", 2) + ["", ""])[:3]
@@ -477,8 +476,7 @@ def execute(p, today):
     """The writes, in the order that keeps a half-done run valid: overlay first, archives last."""
     sd = p.squad_dir
     if not p.composed:
-        _atomic(os.path.join(sd, sr.OVERLAY_FILE), su.emit_overlay(HEADER.rstrip("\n"), p.ops)
-                if p.ops else HEADER)
+        _atomic(os.path.join(sd, sr.OVERLAY_FILE), su.emit_overlay(HEADER.rstrip("\n"), p.ops))
         for s in p.settings:
             _atomic(os.path.join(sd, "settings", f"{s['role']}.local.json"), json.dumps(s["local"], indent=2) + "\n")
         pin_path = os.path.join(sd, "plugin.pin")
