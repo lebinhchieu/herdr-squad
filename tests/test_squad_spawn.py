@@ -171,6 +171,64 @@ class SpawnDryRunTest(unittest.TestCase):
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         return r
 
+    # --- ticket 24: a legacy squad (process.md, no process.local.md) gets the running plugin's rules attached
+    def test_legacy_dry_run_has_the_rules_flag_and_no_plugin_dir_and_one_warning(self):
+        r = self.spawn("dev", "--scope", "s", "--prompt", "Task 1.")
+        rules = self.squad / "roles" / "x.rules.md"
+        self.assertIn(f"--append-system-prompt-file {rules}", r)
+        self.assertNotIn("--plugin-dir", r)
+        self.assertFalse(rules.exists())  # dry run writes nothing
+
+    def test_legacy_dry_run_prints_the_warning_once(self):
+        r = self._spawn_any("--scope", "s")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stderr.count("legacy squad: plugin rules attached, local process.md edits not applied; "
+                                        "run squad-process adopt --dry-run"), 1)
+
+    def test_legacy_real_spawn_writes_the_composed_rules_and_attaches_them(self):
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        rules = self.squad / "roles" / "dev-1.rules.md"
+        self.assertTrue(rules.read_text(encoding="utf-8").startswith("# Your process rules"))
+        start = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent start"))
+        self.assertIn(f"--append-system-prompt-file {rules}", start)
+        self.assertNotIn("--plugin-dir", start)
+        self.assertEqual(r.stderr.count("legacy squad: plugin rules attached"), 1)
+        tab = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("tab create"))
+        self.assertNotIn("SQUAD_PLUGIN_DIR", tab)
+
+    def test_legacy_first_prompt_says_the_rules_are_attached(self):
+        self.assertEqual(self._real_spawn().returncode, 0)
+        # Without --prompt nothing is sent in legacy mode; with one, the sentence follows it.
+        self.log.write_text("", encoding="utf-8")
+        (self.squad / "roster.md").write_text("| Agent | Role | Scope | Owns | Status |\n|---|---|---|---|---|\n", encoding="utf-8")
+        r = subprocess.run([str(SCRIPT), "dev", "dev-2", "--scope", "s", "--prompt", "Task 1."], env=self.env,
+                           text=True, encoding="utf-8", capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        prompt = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent prompt"))
+        self.assertIn("Task 1. Your process rules are attached to this session", prompt)
+
+    def test_a_squad_folder_with_neither_file_still_exits_1(self):
+        (self.squad / "process.md").unlink()
+        r = self._spawn_any("--scope", "s")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no squad folder", r.stderr)
+
+    def test_legacy_compose_failure_exits_2_and_leaves_nothing_behind(self):
+        plugin = Path(self.tmp.name) / "plugin"
+        root = SCRIPT.parent.parent
+        for d in ("bin", "templates", ".claude-plugin"):
+            shutil.copytree(root / d, plugin / d, ignore=shutil.ignore_patterns("__pycache__"))
+        broken = sorted((plugin / "templates" / "squad" / "process").glob("[a-z]*.md"))[0]
+        broken.write_text("not a rule file\n\n## no id\n", encoding="utf-8")
+        self._fake_herdr(live="")
+        r = subprocess.run([str(plugin / "bin" / "squad-spawn"), "dev", "dev-1", "--scope", "s"], env=self.env,
+                           text=True, encoding="utf-8", capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertFalse((self.squad / "roles" / "dev-1.rules.md").exists())
+        self.assertFalse(self.log.exists() and "agent start" in self.log.read_text(encoding="utf-8"))
+        self.assertNotIn("tab create", self.log.read_text(encoding="utf-8") if self.log.exists() else "")
+
     def test_an_effort_override_is_recorded_and_replayed_by_respawn(self):
         self.assertEqual(self._real_spawn("--effort", "low").returncode, 0)
         self.assertEqual((self.squad / "roles" / "dev-1.overrides").read_text(encoding="utf-8"), "effort=low\n")
@@ -541,9 +599,7 @@ class SpawnLabelTest(unittest.TestCase):
 
     def test_a_failing_squad_label_still_starts_the_agent_with_the_name_and_a_warning(self):
         stub = self.root / "plugin"
-        (stub / "bin").mkdir(parents=True)
-        for f in ("squad-spawn", "squad-usage", "squadlabel.py", "squadio.py", "squadtranscript.py"):  # copies: squad-spawn finds its plugin via the real path
-            shutil.copy(BIN_DIR / f, stub / "bin" / f)
+        shutil.copytree(BIN_DIR, stub / "bin", ignore=shutil.ignore_patterns("__pycache__"))  # copies: squad-spawn finds its plugin via the real path
         os.symlink(BIN_DIR.parent / "agents", stub / "agents")
         os.symlink(BIN_DIR.parent / "templates", stub / "templates")
         (stub / "bin" / "squad-label").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
@@ -586,9 +642,12 @@ class SpawnProcessUpdateTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         return (self.calls("agent prompt") or [""])[0]
 
+    def attached(self, name):  # the legacy "rules are attached" sentence (ticket 24)
+        return f"Your process rules are attached to this session ({self.squad}/scopes/sc1/roles/{name}.rules.md); read no other process file."
+
     def test_behind_manager_gets_the_sentence_after_its_own_prompt(self):
         p = self.spawn_from(2, "process-version: 1\n", "manager", "t-mgr-sc1", "--prompt", "Start of run.")
-        self.assertTrue(p.startswith("agent prompt t-mgr-sc1 Start of run. Process update: "), p)
+        self.assertTrue(p.startswith(f"agent prompt t-mgr-sc1 Start of run. {self.attached('t-mgr-sc1')} Process update: "), p)
         for s in ("version 1", "is 2", "migrate the process", "Tell the PO in your first message", "Do not migrate unless the PO says so"):
             self.assertIn(s, p)
 
@@ -599,24 +658,25 @@ class SpawnProcessUpdateTest(unittest.TestCase):
 
     def test_other_roles_get_nothing(self):
         p = self.spawn_from(2, "process-version: 1\n", "dev", "t-dev-sc1-1", "--prompt", "Do RP-1.")
-        self.assertEqual(p, "agent prompt t-dev-sc1-1 Do RP-1.")
+        self.assertEqual(p, f"agent prompt t-dev-sc1-1 Do RP-1. {self.attached('t-dev-sc1-1')}")
 
     def test_current_manager_prompt_is_unchanged_and_without_prompt_none_is_sent(self):
         self.assertEqual(self.spawn_from(2, "process-version: 2\n", "manager", "t-mgr-sc1", "--prompt", "Go."),
-                         "agent prompt t-mgr-sc1 Go.")
+                         f"agent prompt t-mgr-sc1 Go. {self.attached('t-mgr-sc1')}")
         self.log.unlink()
         self.assertEqual(self.spawn_from(2, "process-version: 2\n", "manager", "t-mgr-sc2"), "")
 
     def test_a_failing_check_or_a_template_without_the_line_never_stops_the_spawn(self):
         self.assertEqual(self.spawn_from(None, "process-version: 1\n", "manager", "t-mgr-sc1", "--prompt", "Go."),
-                         "agent prompt t-mgr-sc1 Go.")
+                         f"agent prompt t-mgr-sc1 Go. {self.attached('t-mgr-sc1')}")
         self.log.unlink()
         plugin = self.root / "plugin"
-        (plugin / "bin" / "squad-process").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        (plugin / "bin" / "squad-process").write_text(
+            f'#!/bin/sh\n[ "$1" = check ] && exit 1\nexec {BIN_DIR}/squad-process "$@"\n', encoding="utf-8")
         r = subprocess.run([str(plugin / "bin" / "squad-spawn"), "manager", "t-mgr-sc1", "--scope", "sc1", "--prompt", "Go."],
                            env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.calls("agent prompt")[0], "agent prompt t-mgr-sc1 Go.")
+        self.assertEqual(self.calls("agent prompt")[0], f"agent prompt t-mgr-sc1 Go. {self.attached('t-mgr-sc1')}")
 
     def test_dry_run_is_unchanged(self):
         plugin = toy_plugin(self.root, 2)

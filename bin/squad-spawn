@@ -136,6 +136,17 @@ if [[ $smode == composed ]]; then
   rules_args=(--append-system-prompt-file "$rules")
   runtime_env=(--env "PATH=$runtime/bin:$PATH")
   [[ -z $prompt ]] || prompt="$prompt Your process rules are attached to this session ($rules); read no other process file."
+elif [[ $smode == legacy ]]; then
+  # Legacy squad: the cards are ability-only, so attach the running plugin's rules (no overlay, no pin, no runtime).
+  rules=$home/roles/$name.rules.md
+  if [[ $dry != 1 ]]; then
+    mkdir -p "$home/roles"
+    "$plugin_root/bin/squad-process" compose "$role" --home "$home" --agent "$name" \
+      --plugin-root "$plugin_root" --out "$rules" >&2 || exit $?
+  fi
+  rules_args=(--append-system-prompt-file "$rules")
+  echo "legacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run" >&2
+  [[ -z $prompt ]] || prompt="$prompt Your process rules are attached to this session ($rules); read no other process file."
 fi
 
 # The Manager hears about a process.md that is behind through its first prompt. Never stops the spawn.

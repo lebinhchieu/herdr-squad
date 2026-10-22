@@ -389,17 +389,19 @@ class SpawnComposedTest(Base):
         self.scope(goal="g1")
         self.assertEqual(self.spawn().returncode, 0)
 
-    def test_legacy_layout_keeps_todays_argv_and_prompt(self):
+    def test_legacy_layout_attaches_plugin_rules_without_runtime_or_path(self):
         (self.squad / "process.local.md").unlink()
         (self.squad / "process.md").write_text("x", encoding="utf-8")
         self.scope(pin="")
         r = self.spawn("dev", "t-dev-sc1", "--prompt", "Read process.md then go.")
         self.assertEqual(r.returncode, 0, r.stderr)
         start = self.calls("agent start")[0]
-        self.assertNotIn("--append-system-prompt-file", start)
+        rules = self.squad / "scopes" / "sc1" / "roles" / "t-dev-sc1.rules.md"
+        self.assertIn(f"--append-system-prompt-file {rules}", start)
         self.assertNotIn("--plugin-dir", start)
         self.assertNotIn("PATH=", self.calls("tab create")[0])
-        self.assertEqual(self.calls("agent prompt")[0], "agent prompt t-dev-sc1 Read process.md then go.")
+        self.assertEqual(self.calls("agent prompt")[0], "agent prompt t-dev-sc1 Read process.md then go. "
+                         f"Your process rules are attached to this session ({rules}); read no other process file.")
         self.assertFalse((self.squad / "_runtime").exists())
 
     def test_no_marker_files_at_all_is_not_a_squad(self):
@@ -566,14 +568,14 @@ class StartComposedTest(Base):
         self.assertNotIn("process.md", prompt)
         self.assertIn("notes", prompt)
 
-    def test_the_legacy_layout_is_unchanged(self):
+    def test_the_legacy_layout_gets_plugin_rules_but_no_pin_or_runtime(self):
         (self.squad / "process.local.md").unlink()
         (self.squad / "process.md").write_text("x", encoding="utf-8")
         r = self.start("a scope", "--name", "sc1")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("plugin:", self.scope_md())
         self.assertFalse((self.squad / "_runtime").exists())
-        self.assertNotIn("--append-system-prompt-file", self.herdr())
+        self.assertIn("--append-system-prompt-file", self.herdr())  # ticket 24: legacy rules come from the running plugin
 
     def test_a_dry_run_creates_nothing_and_names_the_pin(self):
         r = self.start("a scope", "--name", "sc1", "--dry-run")
