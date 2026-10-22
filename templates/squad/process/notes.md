@@ -16,7 +16,7 @@ topic: notes
 
 ## NOTE-3 Team Lead respawn
 roles: team-lead
-when: size in M, L
+when: size = L
 topic: notes
 
 You are not copied on `HANDIN`, `PASS` or `FAIL` (read `squad-ledger`), yet still will cross 120k. On respawn read your notes, the plan, `roster.md` and `herdr agent list`.

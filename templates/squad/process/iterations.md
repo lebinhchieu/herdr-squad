@@ -19,10 +19,17 @@ Escalate only what the rules say always goes to the PO ([WHO-1a], [WHO-1b], [WHO
 
 ## ITER-3 Pod summary
 roles: team-lead
-when: size in M, L
+when: size = L
 topic: iterations
 
 Write `iterations/<n>.summary.md` at iteration end: tasks done with a link to each ticket's `evidence.md`, each task's final passed sha, the checkers that passed it and the returns per task (all three from `squad-ledger`), friction, open items, at most 40 lines. It carries one line naming the residual risk "the cap is a rule, not a lock".
+
+## ITER-3b Pod summary, M
+roles: manager
+when: size = M
+topic: iterations
+
+At iteration end write `iterations/<n>.summary.md`, at most 40 lines: tasks done with each ticket's `evidence.md` link, final passed sha and returns (`squad-ledger`), friction, open items.
 
 ## ITER-4 Inbox
 roles: manager
@@ -95,7 +102,7 @@ roles: manager
 topic: iterations
 
 - Send the check-in at the end of each iteration as ONE `squad-inbox add` item (`--kind read`; `--kind answer` when it asks the PO to choose), never as a chat report. Unless a question blocks the squad now, bring it to the next check-in.
-- It lists each step the PO must take (clean-up, checklist, close confirmation, open choices) next to: what is done, what is next, the Team Lead's one line at 3 returns on a task (M, L), open escalations, proposed role-instruction changes.
+- It lists each step the PO must take (clean-up, checklist, close confirmation, open choices) next to: what is done, what is next, any task at 3 returns (one budget line), open escalations, proposed role-instruction changes.
 - What is done carries evidence links: per ticket, the link to its `evidence.md` (a path in the repo or on the Dev branch, not a folder), the Dev branch and the evidence sha.
 - Then copy each answered escalation's outcome into the iteration file and delete its row from `escalations.md`.
 

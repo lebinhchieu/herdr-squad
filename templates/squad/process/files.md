@@ -44,22 +44,23 @@ topic: files
 - Edit structured files (`roster.md`, notes, tables) with a small script that keeps the rest, then check; never `command > file`.
 - Write with `open(path, "w", encoding="utf-8", newline="\n")`: Python's default text mode writes CRLF on Windows, and a `\r` breaks bash `$(...)` parsing (ADR 0011). Check with `grep -c $'\r' <file>`, which must print `0`.
 
-## FILE-5a Roster, S
+## FILE-5a Roster, S and M
 roles: manager
-when: size = S
+when: size in S, M
 topic: roster
 
 `roster.md` must always match reality. `squad-spawn` adds an agent's row (name, role, scope, session); the Manager fills in what it owns and its status, and edits every row.
 
-## FILE-5b Roster, Manager in M and L
+## FILE-5b Roster, Manager in L
 roles: manager
-when: size in M, L
+when: size = L
 topic: roster
 
 `roster.md` must always match reality. `squad-spawn` adds an agent's row (name, role, scope, session); the Manager fills in what it owns and its status for the agents it spawned. The Team Lead edits its Developers' rows.
 
 ## FILE-5c Roster, Team Lead
 roles: team-lead
+when: size = L
 topic: roster
 
 Edit only the rows of the Developers you spawned (owns, status). Re-read the file just before writing and keep every other row; the Manager edits the others.
@@ -73,9 +74,9 @@ topic: files
 | `project.md` | PO, Managers | Source map |
 | `process.local.md`, `process-log.md` | Managers | The squad's rule changes; each change (date, change, why) |
 | `scope.md` | Manager | PO's brief, `goal:`, `touches:`, `size:` and signals, `qa:`, constraints |
-| `roster.md` | Manager; Team Lead for its Developers | Each agent: name, role, scope, owns, status, session |
+| `roster.md` | Manager; at L the Team Lead for its Developers | Each agent: name, role, scope, owns, status, session |
 | `escalations.md` | Manager | Waiting on the PO |
-| `promote.md` | Tech Lead | For the project docs |
+| `promote.md` | Developer at S, QA whitebox at M, Tech Lead at L | For the project docs |
 | `messages.jsonl`, `usage-events.jsonl` | hooks | Message log; cost-rule firings |
 
 ## FILE-7 Plan and iteration files
@@ -85,14 +86,14 @@ topic: files
 | File | Owner | Holds |
 |---|---|---|
 | `iterations/<n>.md`, `iterations/<n>.log.md` | Manager | Goal, plan, status, retro, check-in, at most 80 lines; per-ticket event log (nobody reads it at start) |
-| `tasks/<id>.md` | Plan owner (Team Lead; Tech Lead in S) | Task state, if the project has no ticket files |
+| `tasks/<id>.md` | Plan owner (Manager at S and M, Team Lead at L); the Developer for its design notes at S and M | Task state, if the project has no ticket files |
 
 ## FILE-8 Pod summary file
 roles: team-lead, manager
 when: size in M, L
 topic: files
 
-`iterations/<n>.summary.md`: the Team Lead writes the pod summary for the retro and check-in, at most 40 lines.
+`iterations/<n>.summary.md`: the plan owner ([ITER-3]) writes the pod summary for the retro and check-in, at most 40 lines.
 
 ## FILE-9 Task evidence files
 roles: qa-whitebox, qa-blackbox, tech-lead, designer
@@ -101,7 +102,7 @@ topic: files
 | File | Owner | Holds |
 |---|---|---|
 | `<ticket path minus .md>/` | Developer | `evidence.md`, the one file the PO reads; `img/` holds its screenshots |
-| `evidence/<task>/` | QAs, Tech Lead | Reviewers' working files `qa-w.md`, `qa-b.md`, `tl-review.md` and suite receipts; the PO never needs it |
+| `evidence/<task>/` | The reviewers | Their working files `qa-w.md`, `qa-b.md`, `tl-review.md` and suite receipts; the PO never needs it |
 | `ui-design/<task>.md` | Designer | One UI task's design (`.html` optional) |
 
 ## FILE-10 Goal files
@@ -112,8 +113,8 @@ topic: files
 | File | Owner | Holds |
 |---|---|---|
 | `goal.md` | goal Manager | Brief, ordered scopes with dependencies, constraints, `promoted:` |
-| `shared/decisions.md`, `shared/summaries/<scope>.md` | Tech Lead of the closing scope | Goal decisions; closed scope's summary |
-| `shared/contracts/<name>.md` | Tech Leads of both scopes | Contract between scopes: API, event, status model |
+| `shared/decisions.md`, `shared/summaries/<scope>.md` | Manager of the closing scope at S and M, its Tech Lead at L | Goal decisions; closed scope's summary |
+| `shared/contracts/<name>.md` | The Managers (S, M) or Tech Leads (L) of both scopes | Contract between scopes: API, event, status model |
 
 ## FILE-11 Drafts never go in the project root
 roles: tech-lead, ba, team-lead, manager, qa-whitebox, qa-blackbox, designer, token-coach

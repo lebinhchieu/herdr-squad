@@ -10,7 +10,7 @@ topic: goal
 - Start a scope when everything it depends on is closed, or passed if it only needs the code ([GOAL-5]). Independent scopes may run at once within the Developer cap ([START-2c]).
 
 ## GOAL-2 Shared folder
-roles: manager, tech-lead
+roles: manager
 when: goal = yes
 topic: goal
 
@@ -21,27 +21,34 @@ Scopes share only through `shared/`, and nothing more:
 
 ## GOAL-3a Contracts, Tech Lead
 roles: tech-lead
-when: goal = yes
+when: goal = yes and size = L
 topic: goal
 
 Agree each shared contract with the other scope's Tech Lead in `$GOAL_DIR/shared/contracts/<name>.md` before either side builds on it.
 
 ## GOAL-3b Contracts, QA whitebox
 roles: qa-whitebox
-when: goal = yes
+when: goal = yes and size in M, L
 topic: goal
 
 Before either scope is done, check both sides' code against `$GOAL_DIR/shared/contracts/<name>.md` and record it in `qa-w.md`.
 
+## GOAL-3c Contracts, S and M
+roles: manager
+when: goal = yes and size in S, M
+topic: goal
+
+Write each shared contract in `$GOAL_DIR/shared/contracts/<name>.md` before either scope builds on it. At S, before the scope is done, have the Developer's `## Review` name both sides' match to it.
+
 ## GOAL-4 Lone scope base
-roles: manager, tech-lead
+roles: manager
 when: goal = no
 topic: goal
 
 A lone scope builds on the project as the PO left it.
 
 ## GOAL-5 Stacked branches
-roles: manager, team-lead
+roles: manager
 when: goal = yes
 topic: goal
 
@@ -50,23 +57,30 @@ topic: goal
 
 ## GOAL-6a Integration task, Tech Lead
 roles: tech-lead
-when: goal = yes
+when: goal = yes and size = L
 topic: goal
 
 Plan one integration task at the end of the scope: one Developer branches from the scope's base, merges the scope's passed task branches into its own branch and runs the targeted tests. A scope with one task has none: that task's passed branch is its integration branch.
 
 ## GOAL-6b Integration task, Developer
-roles: tech-lead
+roles: manager, tech-lead
 topic: goal
 
-An integration task merges the scope's passed branches into the Developer's own branch, runs the targeted tests for the changed files and is handed in; the Tech Lead runs the full suite after.
+An integration task merges the scope's passed branches into the Developer's own branch, runs the targeted tests for the changed files and is handed in; the suite owner runs the full suite after ([WHO-2b], [WHO-2c]).
 
 ## GOAL-6c Integration task, next scope
-roles: manager, tech-lead
+roles: manager
 when: goal = yes
 topic: goal
 
 The next scope builds on the integration branch; the PO merges it.
+
+## GOAL-6d Integration task, S and M
+roles: manager
+when: goal = yes and size in S, M
+topic: goal
+
+Plan one integration task for a scope of several tasks, as [GOAL-6b] describes. A scope with one task has none: its passed branch is the integration branch.
 
 ## GOAL-7 Check a merge target
 roles: manager

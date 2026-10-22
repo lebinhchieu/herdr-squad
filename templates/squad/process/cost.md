@@ -20,12 +20,14 @@ Start fresh when context is over 120k, after a compaction, on a new task, or whe
 
 ## COST-4a Tech Lead splits
 roles: tech-lead
+when: size = L
 topic: cost
 
 The Tech Lead splits a task likely to need a respawn.
 
 ## COST-4b Plan owners respawn
 roles: tech-lead, team-lead
+when: size = L
 topic: cost
 
 Respawn once your plan and AC are in files.
@@ -44,16 +46,16 @@ topic: cost
 
 At 120k with the ticket merged-ready, or when no open ticket touches your files, retire (no `squad-respawn`). Mid-ticket, respawn once, then the Manager splits the rest. A retired name is never reused.
 
-## COST-6a Ticket assignment, Manager in S
+## COST-6a Ticket assignment, Manager in S and M
 roles: manager
-when: size = S
+when: size in S, M
 topic: cost
 
 A ticket touching at most 2 files goes to a live Developer under 80k before a new spawn. A ticket on files a live Developer already changed goes to it while under 120k.
 
 ## COST-6b Ticket assignment, Team Lead
 roles: team-lead
-when: size in M, L
+when: size = L
 topic: cost
 
 Before spawning for a ticket touching at most 2 files, give it to a live Developer under 80k. Give a ticket on files a live Developer already changed to that Developer while it is under 120k.
@@ -76,16 +78,16 @@ topic: cost
 
 Idle over 1h with context over 100k: start fresh from notes.
 
-## COST-10a PO wait, Manager in S
+## COST-10a PO wait, Manager in S and M
 roles: manager
-when: size = S
+when: size in S, M
 topic: cost
 
 Before a PO wait (a merge, a check-in answer, a close), retire every pod role over 60k, and respawn the roles the next iteration needs.
 
-## COST-10b PO wait, M and L
+## COST-10b PO wait, L
 roles: manager, team-lead
-when: size in M, L
+when: size = L
 topic: cost
 
 Before a PO wait (a merge, a check-in answer, a close), the Manager retires every pod role over 60k; the Team Lead respawns the roles the next iteration needs.
@@ -102,34 +104,34 @@ topic: cost
 
 Messages point at files. The Manager reads summaries, never transcripts.
 
-## COST-13a Nothing left to do, S
-roles: ba, tech-lead, qa-whitebox, qa-blackbox, designer
+## COST-13a Nothing left to do, S and M
+roles: qa-whitebox, qa-blackbox, designer
 aware: manager
-when: size = S
+when: size in S, M
 topic: cost
 
-A role with no open ticket and its deliverable file written (Tech Lead: the final sha named; QA: its verdict posted) answers a fresh event from notes only and never runs `squad-respawn`; the Manager retires it once its work is accepted.
+A role with no open ticket and its deliverable file written (QA: its verdict posted) answers a fresh event from notes only and never runs `squad-respawn`; the Manager retires it once its work is accepted.
 
-## COST-13b Nothing left to do, M and L
+## COST-13b Nothing left to do, L
 roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
 aware: manager
-when: size in M, L
+when: size = L
 topic: cost
 
 A role with no open ticket and its deliverable file written (Team Lead: the iteration file; Tech Lead: the final sha named; QA: its verdict posted) answers a fresh event from notes only and never runs `squad-respawn`; the Team Lead retires it once its work is accepted.
 
-## COST-14a Short life, S
-roles: ba, tech-lead, qa-whitebox, qa-blackbox, designer
+## COST-14a Short life, S and M
+roles: qa-whitebox, qa-blackbox, designer
 aware: manager
-when: size = S
+when: size in S, M
 topic: cost
 
 A role whose fresh event comes under 15 minutes after its previous respawn tells the Manager first; the Manager splits the remaining tickets or narrows what the role reads to the diff and the files its AC name.
 
-## COST-14b Short life, M and L
+## COST-14b Short life, L
 roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
 aware: manager
-when: size in M, L
+when: size = L
 topic: cost
 
 A role whose fresh event comes under 15 minutes after its previous respawn tells the Team Lead first; the Team Lead splits the remaining tickets or narrows what the role reads to the diff and the files its AC name.

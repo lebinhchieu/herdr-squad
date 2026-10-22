@@ -87,6 +87,76 @@ def present(size, qab):
     return roles
 
 
+SLICE3 = ("cost", "messages", "files", "iterations", "notes", "goal", "closing", "safety", "core")
+# not size-bound: the Token Coach is spawned by the Manager at any size (ITER-6a/6b); the Designer is present at any size
+# when design = yes (rules for it carry that `when`, or are universal)
+ANY_SIZE = {"token-coach", "designer"}
+# slice-3 rules that may act on an absent role, with the reason
+EXCEPTIONS3 = {
+    "FILE-11": "drafts rule: acts on every role present; the absent roles are listed so it still reaches them on move up",
+}
+
+
+def slice3_ids():
+    out = []
+    for f in SLICE3:
+        out += re.findall(r"(?m)^## ([A-Z]+-\d+[a-z]?) ", (ROOT / "templates" / "squad" / "process" / f"{f}.md").read_text(encoding="utf-8"))
+    return out
+
+
+class Slice3Owners(unittest.TestCase):
+    def test_no_rule_of_the_slice_3_files_is_orphaned(self):
+        """who-orphan = no present role acts on the rule at that size / qa-b value. Lists every one."""
+        bad = []
+        for rid in slice3_ids():
+            if rid in EXCEPTIONS3:
+                continue
+            for line in run("who", rid).stdout.splitlines():
+                m = re.match(r"([SM])(?: qa-b (yes|no))?: acts: (.*?); aware: ", line)
+                if not m or m.group(3).strip() in ("-", "all"):
+                    continue
+                size, qab = m.group(1), m.group(2) or "yes"
+                acting = {a.strip() for a in m.group(3).split(",")}
+                if not acting & (present(size, qab) | ANY_SIZE):
+                    bad.append(f"{rid} at {size} qa-b {qab}: acts only on {sorted(acting)}")
+        self.maxDiff = None
+        self.assertEqual(sorted(set(bad)), [])
+
+    def test_rules_retargeted_in_30_act_on_the_right_roles(self):
+        for rid, size, role in (("COST-6a", "M", "manager"), ("COST-10a", "M", "manager"), ("MSG-4a", "M", "manager"),
+                                ("MSG-7a", "M", "manager"), ("MSG-17b", "S", "designer"), ("FILE-5a", "M", "manager"),
+                                ("ITER-3b", "M", "manager"), ("GOAL-3c", "S", "manager"), ("GOAL-6d", "M", "manager"),
+                                ("CLOSE-3c", "M", "manager"), ("FILE-8", "M", "manager")):
+            with self.subTest(rule=rid, size=size):
+                self.assertIn(role, acts(rid, size))
+        for rid in ("COST-4a", "COST-4b", "COST-6b", "COST-10b", "COST-13b", "COST-14b", "MSG-4b", "MSG-5", "MSG-6", "MSG-8b",
+                    "MSG-12", "MSG-13", "MSG-14", "MSG-15", "MSG-19", "ITER-3", "NOTE-3", "FILE-5c", "GOAL-3a", "GOAL-6a", "CLOSE-3a"):
+            for size in "SM":
+                with self.subTest(rule=rid, size=size):
+                    self.assertFalse(set(acts(rid, size)) - {"manager"}, f"{rid} at {size} acts on {acts(rid, size)}")
+
+    def test_composed_dev_and_qas_name_no_absent_role_at_s_and_m(self):
+        for size in "SM":
+            for role in ("dev", "qa-whitebox", "qa-blackbox"):
+                if role != "dev" and size == "S":
+                    continue
+                for design, goal in (("no", "no"), ("yes", "yes")):
+                    t = composed(role, size, design, goal)
+                    with self.subTest(role=role, size=size, design=design, goal=goal):
+                        for name in ("Tech Lead", "Team Lead", "the BA"):
+                            self.assertNotIn(name, t, f"{role} at {size} names {name}")
+
+    def test_files_table_owners_follow_the_sizes(self):
+        t = composed("manager", "M")
+        self.assertIn("Plan owner (Manager at S and M, Team Lead at L)", t)
+        self.assertIn("Developer at S, QA whitebox at M, Tech Lead at L", t)
+        self.assertNotIn("Tech Lead in S", t)
+
+    def test_msg3_never_paste_in_composed_dev(self):
+        for size in "SML":
+            self.assertIn("never paste", composed("dev", size))
+
+
 class Slice2Owners(unittest.TestCase):
     def test_no_rule_of_the_five_files_acts_on_an_absent_role(self):
         """Lists every orphan: a rule that acts on a role absent at S or M, minus the reasoned EXCEPTIONS."""

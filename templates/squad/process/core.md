@@ -16,7 +16,7 @@ Send with `SendMessage` to the agent name in `roster.md`, as `<TYPE> <TASK-ID>: 
 roles: all
 topic: owners
 
-Owners: Tech Lead design, quality, security; Manager process, roster, scope size; Designer UI. Business AC, plan, done by size: [WHO-1a], [WHO-1b].
+Owners: Manager process, roster, scope size; Designer UI; the rest by size: [WHO-1a], [WHO-1b], [WHO-2].
 
 ## CORE-4 Two rounds
 roles: all

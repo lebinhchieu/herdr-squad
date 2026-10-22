@@ -15,10 +15,17 @@ topic: closing
 
 ## CLOSE-3a Close in a goal, Tech Lead
 roles: tech-lead
-when: goal = yes
+when: goal = yes and size = L
 topic: closing
 
 When your scope is passed, before the pod is retired: write `$GOAL_DIR/shared/summaries/<scope>.md` (outcome, passed branch and commit, open items; no decisions or domain facts) and append the goal-wide decisions to `$GOAL_DIR/shared/decisions.md`, one bullet each, keeping it under 80 lines.
+
+## CLOSE-3c Close in a goal, S and M
+roles: manager
+when: goal = yes and size in S, M
+topic: closing
+
+Once your scope is passed, before you retire the pod, write its summary page and append its goal-wide decisions, as [GOAL-2] says.
 
 ## CLOSE-3b Close in a goal, goal Manager
 roles: manager

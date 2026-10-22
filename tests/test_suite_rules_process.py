@@ -65,7 +65,7 @@ class SuiteRulesTest(unittest.TestCase):
     def test_integration_task_runs_targeted_tests(self):  # was test_integration_task_in_role_files_runs_targeted_tests
         dev = run("rule", "GOAL-6b").stdout  # 22: on demand for the Developer
         self.assertIn("runs the targeted tests for the changed files and is handed in", dev)
-        self.assertIn("the Tech Lead runs the full suite after", dev)
+        self.assertIn("the suite owner runs the full suite after", dev)  # 30: owner by size, no absent role named
         tl = composed("tech-lead", "L", goal="yes")
         self.assertIn("runs the targeted tests", tl)
         self.assertNotIn("and runs the full suite", tl)

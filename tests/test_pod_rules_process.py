@@ -7,9 +7,9 @@ from rulesview import acts, composed, who
 
 class PodRulesTest(unittest.TestCase):
     def test_m_roles_include_team_lead_and_l_is_as_m(self):  # was test_m_roles_include_team_lead_and_l_is_as_m
-        self.assertIn("team-lead", acts("MSG-5", "M"))
-        self.assertEqual(who("MSG-5")["M"], who("MSG-5")["L"])
-        self.assertNotIn("team-lead", acts("MSG-5", "S"))
+        self.assertIn("team-lead", acts("MSG-5", "L"))
+        for size in "SM":  # Team Lead exists at L only
+            self.assertEqual(acts("MSG-5", size), ())
 
     def test_plan_duty_is_manager_in_s_and_m(self):  # was test_plan_duty_row_is_tech_lead_in_s_only
         self.assertIn("manager", acts("SIZE-6a", "S"))
@@ -20,15 +20,18 @@ class PodRulesTest(unittest.TestCase):
 
     def test_pod_contact_and_team_lead_to_manager(self):  # was test_pod_contact_and_team_lead_to_manager_bullets
         # 22: MSG-5 left the Developer (carrier: MSG-4b/MSG-11b name the Team Lead); the QAs still get it as aware
-        self.assertIn("Pod members message it, not the Manager.", composed("qa-whitebox", "M"))
-        self.assertNotIn("MSG-5", composed("dev", "M"))
+        self.assertIn("Pod members message it, not the Manager.", composed("qa-whitebox", "L"))
+        self.assertNotIn("MSG-5", composed("dev", "L"))
         tl = composed("team-lead", "L")
         self.assertIn("MSG-6 Team Lead to Manager", tl)
         self.assertIn('an "Always goes to PO" item', tl)
 
     def test_summary_file_row(self):
         self.assertIn("at most 40 lines", composed("team-lead", "L"))
-        self.assertIn("team-lead", acts("ITER-3", "M"))
+        self.assertIn("team-lead", acts("ITER-3", "L"))
+        self.assertEqual(acts("ITER-3", "M"), ())
+        self.assertEqual(acts("ITER-3b", "M"), ("manager",))
+        self.assertIn("at most 40 lines", composed("manager", "M"))
 
     def test_cap_clause_has_goal_share(self):  # was test_cap_bullet_has_goal_share_clause
         self.assertIn("goal Manager divides", composed("manager", "M", goal="yes"))

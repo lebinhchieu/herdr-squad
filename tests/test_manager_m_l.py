@@ -56,7 +56,7 @@ class ManagerMLTest(unittest.TestCase):
     def test_merging_reads_sha_from_files_and_checkin_gets_three_returns_line(self):
         self.assertIn("passed sha and checkers from `iterations/<n>.summary.md` or the task files, never from messages", MM)
         self.assertNotIn("(B15)", MM)
-        self.assertIn("the Team Lead's one line at 3 returns on a task (M, L)", MM)
+        self.assertIn("any task at 3 returns (one budget line)", MM)
 
 
 if __name__ == "__main__":

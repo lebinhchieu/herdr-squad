@@ -177,6 +177,18 @@ class NoticeTest(unittest.TestCase):
             got = self.send("FAIL 5: x", "tech")
         self.assertIn("to Manager [LC-7a]", got)
 
+    def test_three_returns_notice_routes_by_size(self):
+        want = {"S": ("Manager", "LC-7a"), "M": ("Manager", "LC-7c"), "L": ("Team Lead", "LC-7b")}
+        for size, (who, lc) in want.items():
+            (self.squad / "scope.md").write_text("size: %s\n" % size, encoding="utf-8")
+            (self.squad / "messages.jsonl").unlink(missing_ok=True)
+            got = None
+            for sha in ["aaaaaaa", "bbbbbbb", "ccccccc"]:
+                self.send("HANDIN 5: commit %s" % sha, "dev", "qaw")
+                got = self.send("FAIL 5: x", "qaw")
+            with self.subTest(size=size):
+                self.assertIn("to %s [%s]" % (who, lc), got)
+
     def test_two_fails_and_other_tasks_give_no_notice(self):
         for t, sha in (("05", "aaaaaaa"), ("06", "bbbbbbb"), ("05", "ccccccc"), ("06", "ddddddd")):
             self.send("HANDIN %s: commit %s" % (t, sha), "dev", "qaw")

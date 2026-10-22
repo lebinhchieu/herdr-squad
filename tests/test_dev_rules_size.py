@@ -71,7 +71,7 @@ class DevRulesSize(unittest.TestCase):
                 "SAFE-4": "files your role owns",
                 "SAFE-11": "mktemp -d",
                 {"S": "SUITE-2d", "M": "SUITE-2c", "L": "SUITE-2a"}[size]: "the test files you touched",
-                "MSG-4a" if size == "S" else "MSG-4b": "Manager" if size == "S" else "Team Lead",
+                "MSG-4b" if size == "L" else "MSG-4a": ask_owner,
                 "MSG-11b" if size == "L" else "MSG-11a": f"to the {ask_owner}",
             }
             if design == "yes":
@@ -80,6 +80,11 @@ class DevRulesSize(unittest.TestCase):
                 with self.subTest(combo=tag, rule=rid):
                     self.assertIn(needle, section(t, rid))
             self.assertIn("## LC-18 ", t)
+
+    def test_msg3_says_never_paste_at_every_size(self):
+        for size, design, goal in COMBOS:
+            with self.subTest(size=size, design=design, goal=goal):
+                self.assertIn("never paste", section(compose("dev", size, design, goal).decode(), "MSG-3"))
 
     def test_lost_rules_are_one_command_away(self):
         for rid in ("GOAL-6b", "PROMO-5", "REV-15", "NOTE-1", "MSG-5", "MSG-9", "COST-2", "SAFE-2", "SAFE-5", "REV-4", "LC-6", "SUITE-4"):
