@@ -9,3 +9,14 @@
 
 ## Review
 Mechanical regeneration, no logic. Self-check: test passes against the regenerated golden; diff touches hashes only.
+
+## TL review
+
+### TL review 33: PASS
+
+sha 60d7f7a (branch squad/plugin/integrate-promote/plugin-dev-ip-4).
+- Diff 88f5834..60d7f7a: ticket, evidence.md, tests/fixtures/qab/golden.json only.
+- golden.json: 54 keys, same key set; 26 values changed (52 diff lines), all 64-hex strings; rest identical. Only REV-22/SIZE-2/SIZE-22 rule text changed since the old golden.
+- `python3 -m unittest test_qab_optional` run by me: 13 tests OK. `bin/squad-process lint` rc 0.
+- `squad-evidence check` on the ticket evidence: ok.
+- Removed the bin/__pycache__ my run created (test_no_pyc).
