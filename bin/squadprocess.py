@@ -175,6 +175,7 @@ class Item:
     extra: dict = field(default_factory=dict)
 
 
+FIRST_RULE_VERSION = 7
 CHANGES = ("reword", "add", "remove", "rename", "rule")
 _VERSION_HEAD = re.compile(r"## v([0-9]+)[ \t]+[—–-][ \t]+(\S.*)$")
 _BULLET = re.compile(r"- ([a-z]+):[ \t]*(.*)$")
@@ -183,6 +184,14 @@ _BULLET = re.compile(r"- ([a-z]+):[ \t]*(.*)$")
 def read_changelog(path):
     """Items, newest version first as written. Anything it cannot parse raises ProcessError (never silent)."""
     lines = _read(path, "the changelog").splitlines()
+    keep, skip = [], False  # from v7 a block lists rule IDs (read by squadupgrade), not sections: skip it
+    for ln in lines:
+        m = re.match(r"## v([0-9]+)\b", ln)
+        if m:
+            skip = int(m.group(1)) >= FIRST_RULE_VERSION
+        if not skip:
+            keep.append(ln)
+    lines = keep
     items, ver, date, snap, cur, i = [], None, None, None, None, 0
     versions = []
 
