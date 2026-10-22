@@ -56,3 +56,49 @@ Composed `dev` (M, design no, goal no): 4901 B before and after, **+0 B** (CLOSE
 
 ## Commands
 `cd tests; PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_squadruntime test_squad_close test_squadprocess test_instructions test_windows_safe test_dev_rules_size test_suite_rules_process` → 213 OK. `python3 bin/squad-process lint` rc 0.
+
+## QA whitebox review
+
+### QA whitebox 25 (runtime cleanup at close): PASS @ 8a4ab9e (code 9905c0c, 8a4ab9e adds evidence only)
+
+Ran (detached worktree): `test_squadruntime test_squad_close test_squadprocess test_instructions test_windows_safe` = 198 OK; `squad-process lint` clean. Reviewed afdc264..9905c0c: `prune` in `bin/squadruntime.py`, `bin/squad-close` call, `bin/squad-process` dispatch+usage, CLOSE-2/CLOSE-5, squad-init gitignore line.
+
+#### AC check
+1. Decision table: holders from `scopes/*`, `goals/*` (marker file required, `_done` skipped), `plugin.pin`; closing home excluded; protect -> `kept (running)`; stray/`.tmp-*` kept; no `_runtime/` prints nothing. Tests 668-740.
+2. `--dry-run` -> `would remove`/`would free`; real run prints name, MB, total.
+3. Whole squad: `--all` before the folder move; test keeps only the running runtime in `_done/<squad>/_runtime`.
+4. Symlink child unlinked, target survives (test 757, plus my fixture run: `ln -s tgt _runtime/1.0-c…` -> `removed … (link only, target kept)`, `tgt/keep` intact). Non-symlink child resolving outside: refused (test via mocked `_under`).
+5. Read-only file: handler clears bit and retries (unit test 782); my fixture with a 444 dir removed fine as non-root.
+6. No recursive glob: decoy `scopes/s1/evidence/x/plugin.pin` not read; code-grep test 840.
+7. Failed delete -> `could not remove`, exit 0; failed prune in squad-close warns with the exit code and the close completes (stub `squad-process` exit 7).
+8. Lint ok; opens carry encoding.
+- **Inside the candidate runtime (decision AC):** `test_runtime_the_script_runs_from_is_kept_and_archived_with_a_whole_squad` copies `bin/` into `_runtime/<Z>/bin` and runs that `squad-close` for a scope close (X freed, Z `kept (running)`, script still there) and a whole-squad close (`_done/t/_runtime` == [Z]). Order vs `retire`: stub-herdr logs `rt=yes/no` per pane close, asserted. Both read and pass.
+
+#### Notes (not blocking)
+1. Open point from Dev (symlink to a temp dir): unlink is right, it removes only the link; AC 4 is satisfied by that. The "refused" branch is reachable only when a real directory child resolves elsewhere (bind mount), covered by the mock.
+2. Accepted leak per decision (lone scope close from its own pin keeps that runtime until a later close): confirm the evidence states it.
+3. Evidence is old-form `25-….evidence/`; integration re-runs `git mv`.
+
+## QA blackbox review
+
+### QA-b 25 (commit 9905c0c, evidence 8a4ab9e, branch squad/plugin/process-fixes/plugin-dev-pf-7)
+Method: scratch git project with `.claude/squads/t`, fake runtime folders named `0.4.1-<12 hex>`, plus a real runtime built with `squad-process runtime` and `squad-close` run from it. Real tools, no code read. Scratch dir /tmp/qab25.ia6H left in /tmp (removal blocked by a safety check).
+
+| AC | What I did | Saw | Result |
+| --- | --- | --- | --- |
+| 1 | s1 pins a, s2 pins b; close s1 | b stays (`kept ... (held by scope s2)`); a kept only because s3 pins it (see 2); orphans c, f `removed` | pass |
+| 2 | s1 and s3 both pin a; close s1, then s3 | `kept 0.4.1-aaaaaaaaaaaa (held by scope s3)`; after s3 closes, a `removed` | pass |
+| 3 | `plugin.pin` names e | `kept ... (held by plugin.pin)` in every scope/goal close; removed only in whole-squad close | pass |
+| 4 | goal g pins X, scope s5 also pins X | close s5: `kept (held by goal g)`; close goal g: X `removed` | pass |
+| 5 | orphans c, f; `notes/`, `.tmp-1-abc` | orphans `removed`; `kept notes (not a runtime)`, `kept .tmp-1-abc (not a runtime)`, exit 0 | pass |
+| 6 | closing scope's own pin unheld (real runtime of sha 96d9104, scopes q+r) | kept while r holds it; `removed 0.4.1-96d9104fd181 (3.9 MB)` when the last holder closes; next `squad-process runtime --home <scope>` rebuilds it | pass |
+| 7 | read-only subdir with file inside a runtime; read-only file; symlink child to an outside dir | `could not remove 0.4.1-333333333333 (Directory not empty)`, exit 0, scope still archived; read-only-file runtime removed; symlink `removed ... (link only, target kept)`, target file survives | pass |
+| 8 | legacy squad with no `_runtime/`, my build vs 4901cab baseline, `--dry-run` | outputs identical | pass |
+| dry-run | `--scope s1 --dry-run`, whole-squad `--dry-run` | `would remove` lines + `would free`, nothing removed | pass |
+| running | `squad-close` called from the built runtime | `kept 0.4.1-9905c0c3d379 (running)`, never removed, also kept in whole-squad close | pass |
+| whole squad | `squad-close t` from the runtime | all runtimes removed except the running one and non-runtime children; `_done/t/_runtime` = running runtime, `notes/`, `.tmp-1-abc`; exit 0 | pass |
+| rules | CLOSE text mentions `_runtime`; squad-init skill gitignore lists `*/_runtime/` | present | pass |
+
+Note: closing from the plugin checkout (not a runtime) protects nothing, as the Developer's Behaviour says; accepted by the AC (a removed runtime is rebuilt on the next spawn).
+
+Verdict: PASS 25 on 9905c0c.
