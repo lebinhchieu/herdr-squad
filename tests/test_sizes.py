@@ -282,5 +282,174 @@ class SizeRules(unittest.TestCase):
         self.assertEqual(who("START-2d")["M"][0], ())
 
 
+# ---- ticket 31: whole-template checks -------------------------------------------------------------------------
+ALL_FILES = sorted((ROOT / "templates" / "squad" / "process").glob("*.md"))
+# rules that act on no present role at S or M, or name an absent role as actor; by ID, with the reason
+# (tech-ac.md follow-up list: only SIZE-17a-e, LC-23/25/26, move-up rules and the six role start cards)
+ORPHAN_ALLOWED = {
+    **{f"SIZE-17{c}": "join on move up: acts on the role that arrives when the scope moves up" for c in "abcde"},
+    **{rid: "role start card; role absent at this size, rule never composed" for rid in
+       ("START-8", "START-11", "START-13", "START-14", "START-15", "START-16")},
+}
+# composed manager text (outside tables and the index) that names an absent role
+ABSENT_NAME_ALLOWED = {}   # none: SIZE-18 is `when: size = L`, SPAWN-4 says "the plan" (DECISION 31)
+# duty -> sizes need an owner row in OWNERS
+REQUIRED_DUTIES = ("plan and Developer spawning", "technical AC", "business AC", "code check", "behaviour check", "full suite",
+                   "promote.md", "migration, contract change", "irreversible choice", "hand-in")
+
+
+def all_ids():
+    out = []
+    for f in ALL_FILES:
+        if f.name != "_removed.md":
+            out += re.findall(r"(?m)^## ([A-Z]+-\d+[a-z]?) ", f.read_text(encoding="utf-8"))
+    return out
+
+
+class WholeTemplate(unittest.TestCase):
+    def test_no_orphan_duty_at_s_and_m(self):
+        """Every rule whose `when` matches acts on a present role (Designer, Token Coach count: any size)."""
+        bad = []
+        for rid in all_ids():
+            if rid in ORPHAN_ALLOWED:
+                continue
+            for line in run("who", rid).stdout.splitlines():
+                m = re.match(r"([SM])(?: qa-b (yes|no))?: acts: (.*?); aware: ", line)
+                if not m or m.group(3).strip() in ("-", "all"):
+                    continue
+                size, qab = m.group(1), m.group(2) or "yes"
+                acting = {a.strip() for a in m.group(3).split(",")}
+                if not acting & (present(size, qab) | ANY_SIZE):
+                    bad.append(f"{rid} at {size} qa-b {qab}: acts only on {sorted(acting)}")
+        self.maxDiff = None
+        self.assertEqual(sorted(set(bad)), [], "orphan duties; return them to the owning ticket")
+
+    def test_allow_list_is_only_what_the_follow_up_list_names(self):
+        for rid, why in ORPHAN_ALLOWED.items():
+            self.assertTrue(why)
+            self.assertTrue(rid.startswith("SIZE-17") or rid.startswith("START-"), rid)
+        self.assertEqual(sorted(k for k in ORPHAN_ALLOWED if k.startswith("START-")),
+                         ["START-11", "START-13", "START-14", "START-15", "START-16", "START-8"])
+
+    def test_allowed_orphans_really_are_orphans(self):
+        """A stale allow-list entry hides nothing: each still acts on no present role at some size."""
+        for rid in ORPHAN_ALLOWED:
+            hit = False
+            for size, (acting, _) in who(rid).items():
+                if size in "SM" and acting and not set(acting) & (PRESENT[size] | ANY_SIZE):
+                    hit = True
+            self.assertTrue(hit, f"{rid} is no longer an orphan: drop it from ORPHAN_ALLOWED")
+
+    def test_manager_text_names_no_absent_role_as_actor_at_s_and_m(self):
+        """Rules the Manager acts on at S or M, minus table rows (tables set the sizes side by side) and the
+        ABSENT_NAME_ALLOWED move-up rules."""
+        bad = set()
+        for f in ALL_FILES:
+            text = f.read_text(encoding="utf-8")
+            for rid, body in re.findall(r"(?ms)^## ([A-Z]+-\d+[a-z]?) [^\n]*\n(.*?)(?=^## |\Z)", text):
+                if rid in ABSENT_NAME_ALLOWED or not any("manager" in acts(rid, z) for z in "SM"):
+                    continue
+                prose = "\n".join(l for l in body.splitlines() if not l.lstrip().startswith("|") and not l.startswith(("roles:", "aware:", "when:", "topic:")))
+                prose = re.sub(r"\([^)]*\bL\b[^)]*\)", " ", prose)   # '(S to M: ...; to L: BA, ...)'
+                prose = re.sub(r"[^.\n]*\b(?:at L|in L|L only)\b[^.\n]*", " ", prose)
+                for name in ("Tech Lead", "Team Lead", "the BA"):
+                    if name in prose:
+                        bad.add(f"{rid} names {name}")
+        self.assertEqual(sorted(bad), [], "return to the owning ticket or allow-list a move-up rule by ID")
+
+    def test_dev_and_qas_name_no_absent_role_at_s_and_m(self):
+        for size in "SM":
+            for role in ("dev", "qa-whitebox", "qa-blackbox"):
+                if size == "S" and role != "dev":
+                    continue
+                for design, goal in (("no", "no"), ("yes", "yes")):
+                    t = composed(role, size, design, goal).split("## Index of other rules")[0]
+                    for name in ("Tech Lead", "Team Lead", "the BA"):
+                        with self.subTest(role=role, size=size, name=name):
+                            self.assertNotIn(name, t)
+
+    def test_every_duty_has_an_owner_per_size(self):
+        pairs = {"plan and Developer spawning": "plan and Developer spawning", "technical AC": "technical AC",
+                 "business AC": "business AC", "code check": "code check", "behaviour check": "behaviour check",
+                 "full suite": "full suite", "promote.md": "promote.md", "hand-in": "hand-in"}
+        for duty in pairs:
+            self.assertIn(duty, OWNERS)
+            for size in "SML":
+                self.assertIn(size, OWNERS[duty], f"{duty} has no owner at {size}")
+
+    def test_migration_moves_to_l_and_irreversible_choice_has_an_owner(self):
+        for size in "SM":
+            self.assertIn("manager", acts("SIZE-4", size))
+            self.assertIn("manager", acts("SIZE-13", size))
+            self.assertIn("manager", acts("LC-26", size))
+            self.assertIn("Migration, contract change, risk flag, business doubt | Manager moves to L", composed("manager", size))
+        self.assertIn("Tech Lead", composed("tech-lead", "L"))
+        self.assertIn("tech-lead", acts("LC-26", "L"))
+        self.assertIn("Irreversible design choice | Manager | Manager | Tech Lead", composed("manager", "S"))
+        self.assertIn("tech-lead", acts("WHO-2c", "L"))
+
+    def test_risk_flags_force_l_and_business_doubt_moves_to_l(self):
+        for size in "SM":
+            t = composed("manager", size)
+            self.assertIn("Every risk flag forces L", t)
+            self.assertIn("A business doubt moves the scope to L", t)
+            self.assertIn("Business doubt, risk flag, cross-repo or ordering: straight to L", t)
+
+    def test_the_orphan_check_catches_an_orphan(self):
+        """Mutation: a rule acting only on an absent role is reported by the same parser."""
+        line = "S: acts: tech-lead; aware: -"
+        m = re.match(r"([SM])(?: qa-b (yes|no))?: acts: (.*?); aware: ", line)
+        acting = {a.strip() for a in m.group(3).split(",")}
+        self.assertFalse(acting & (present("S", "yes") | ANY_SIZE))
+
+
+BASE = "2e81e5e"
+
+
+def rules_at(rev=None):
+    """{rule id: text} of every process rule file, at a git revision or in the working tree."""
+    import subprocess
+    out = {}
+    for f in ALL_FILES:
+        if rev:
+            r = subprocess.run(["git", "show", f"{rev}:templates/squad/process/{f.name}"], cwd=ROOT, capture_output=True, encoding="utf-8")
+            text = r.stdout if r.returncode == 0 else ""
+        else:
+            text = f.read_text(encoding="utf-8")
+        for part in re.split(r"(?m)^(?=## [A-Z]+-\d+[a-z]? )", text):
+            m = re.match(r"## ([A-Z]+-\d+[a-z]?) ", part)
+            if m:
+                out[m.group(1)] = part.strip()
+    return out
+
+
+class Changelog(unittest.TestCase):
+    def test_every_changed_added_or_removed_rule_id_is_in_the_v7_entry(self):
+        import subprocess
+        if subprocess.run(["git", "cat-file", "-e", BASE], cwd=ROOT, capture_output=True).returncode:
+            self.skipTest(f"base {BASE} not in this clone")
+        old, new = rules_at(BASE), rules_at()
+        diff = {i for i in set(old) | set(new) if old.get(i) != new.get(i)}
+        text = (ROOT / "skills" / "squad-process-update" / "changelog.md").read_text(encoding="utf-8")
+        entry = re.split(r"(?m)^## v6\b", text)[0]
+        listed = {m.group(1): m.group(2) for m in re.finditer(r"(?m)^- ([A-Z]+-\d+[a-z]?): (.+)$", entry)}
+        sections = {s: entry.split(f"\n{s}:\n")[1].split("\n\n")[0] for s in ("added", "changed", "removed", "retargeted")}
+        # IDs in the diff sit in added/removed/retargeted with a reason
+        self.assertEqual(sorted(diff - set(listed)), [], "rule IDs changed since the base but missing from the v7 entry")
+        for rid in diff:
+            self.assertGreater(len(listed[rid]), 10, f"{rid} has no reason")
+        for rid in set(old) - set(new):
+            self.assertIn(f"- {rid}:", sections["removed"])
+        for rid in set(new) - set(old):
+            self.assertIn(f"- {rid}:", sections["added"])
+        for rid in diff & set(old) & set(new):
+            self.assertIn(f"- {rid}:", sections["retargeted"])
+
+    def test_the_owner_rules_changed_after_17_are_listed(self):
+        text = (ROOT / "skills" / "squad-process-update" / "changelog.md").read_text(encoding="utf-8")
+        for rid in ("SPAWN-4", "SIZE-18", "LC-7c", "REV-22", "SUITE-2d"):
+            self.assertIn(f"- {rid}:", text)
+
+
 if __name__ == "__main__":
     unittest.main()

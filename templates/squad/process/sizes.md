@@ -209,6 +209,7 @@ Joining a scope that moved up to L: start from the plan's `## Handover` section;
 
 ## SIZE-18 Extra hands
 roles: manager
+when: size = L
 topic: sizes
 
 Add a second BA, Tech Lead or QA when a scope is large.

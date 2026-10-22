@@ -38,7 +38,7 @@ roles: manager
 when: design = yes
 topic: spawning
 
-Spawn the Designer only when `scope.md` has `design: yes`, and never suggest it to the PO. Spawn it after the Tech Lead's plan names the UI tasks and before their Developers; retire it once every design is final ([START-5]).
+Spawn the Designer only when `scope.md` has `design: yes`, and never suggest it to the PO. Spawn it after the plan names the UI tasks and before their Developers; retire it once every design is final ([START-5]).
 
 ## SPAWN-5a Developers, Manager in S and M
 roles: manager

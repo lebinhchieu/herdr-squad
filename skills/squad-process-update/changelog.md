@@ -261,15 +261,224 @@ added:
 - SPAWN-10a: converted from agents/manager.md:84, agents/manager.md:86, agents/manager.md:87 ...
 - SPAWN-10b: converted from agents/manager.md:78, agents/manager.md:80, agents/manager.md:81 ...
 - SPAWN-11: converted from agents/manager.md:76
+- CLOSE-3c: new for the size model: closing by size
+- COST-5a: new for the size model: cost rules retargeted: Manager retires and respawns at S and M
+- EVID-2d: new for the size model: evidence assembled and confirmed by the size's owner (Manager S, M; Tech Lead L)
+- EVID-2e: new for the size model: evidence assembled and confirmed by the size's owner (Manager S, M; Tech Lead L)
+- GOAL-3c: new for the size model: goal duties by size
+- GOAL-6d: new for the size model: goal duties by size
+- ITER-3b: new for the size model: iteration duties by size
+- LC-11b: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-17b: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-19b: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-20c: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-22c: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-25: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-26: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-2b: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-5b: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-6b: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-7c: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-8b: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-8c: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-9b: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
+- MSG-17b: new for the size model: message routes by size: S and M to the Manager, L to the Team Lead
+- PROMO-5b: new for the size model: promote.md owner by size: Developer S, QA whitebox M, Tech Lead L
+- REV-14c: new for the size model: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-19b: new for the size model: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-21b: new for the size model: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-22: new for the size model: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-2b: new for the size model: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-3b: new for the size model: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- SIZE-17e: new for the size model: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-21a: new for the size model: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-21b: new for the size model: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-22: new for the size model: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-23b: new for the size model: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-24b: new for the size model: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-5c: new for the size model: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-6c: new for the size model: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-6d: new for the size model: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SPAWN-2c: new for the size model: spawning by size: Manager at S and M, Team Lead at L
+- SUITE-1b: new for the size model: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-2c: new for the size model: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-2d: new for the size model: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-2e: new for the size model: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-3b: new for the size model: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-4b: new for the size model: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-5b: new for the size model: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-6b: new for the size model: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- WHO-2d: new for the size model: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
 
 changed:
 - none
 
 removed:
-- none
+- SIZE-21: replaced by SIZE-21a and SIZE-21b (QA blackbox off, split by size)
 
 retargeted:
-- none
+- SIZE-18: extra hands only exist at L: when size = L
+- SPAWN-4: the Manager's plan, not the absent Tech Lead's (S and M)
+- CLOSE-3a: closing by size
+- CORE-3: core rule wording by size
+- COST-10a: cost rules retargeted: Manager retires and respawns at S and M
+- COST-10b: cost rules retargeted: Manager retires and respawns at S and M
+- COST-11: cost rules retargeted: Manager retires and respawns at S and M
+- COST-13a: cost rules retargeted: Manager retires and respawns at S and M
+- COST-13b: cost rules retargeted: Manager retires and respawns at S and M
+- COST-14a: cost rules retargeted: Manager retires and respawns at S and M
+- COST-14b: cost rules retargeted: Manager retires and respawns at S and M
+- COST-4a: cost rules retargeted: Manager retires and respawns at S and M
+- COST-4b: cost rules retargeted: Manager retires and respawns at S and M
+- COST-5: cost rules retargeted: Manager retires and respawns at S and M
+- COST-6a: cost rules retargeted: Manager retires and respawns at S and M
+- COST-6b: cost rules retargeted: Manager retires and respawns at S and M
+- EVID-1: evidence assembled and confirmed by the size's owner (Manager S, M; Tech Lead L)
+- EVID-2b: evidence assembled and confirmed by the size's owner (Manager S, M; Tech Lead L)
+- EVID-2c: evidence assembled and confirmed by the size's owner (Manager S, M; Tech Lead L)
+- EVID-3a: evidence assembled and confirmed by the size's owner (Manager S, M; Tech Lead L)
+- EVID-3b: evidence assembled and confirmed by the size's owner (Manager S, M; Tech Lead L)
+- EVID-4: evidence assembled and confirmed by the size's owner (Manager S, M; Tech Lead L)
+- EVID-5: evidence assembled and confirmed by the size's owner (Manager S, M; Tech Lead L)
+- EVID-7: evidence assembled and confirmed by the size's owner (Manager S, M; Tech Lead L)
+- FILE-10: file owners by size
+- FILE-5a: file owners by size
+- FILE-5b: file owners by size
+- FILE-5c: file owners by size
+- FILE-6: file owners by size
+- FILE-7: file owners by size
+- FILE-8: file owners by size
+- FILE-9: file owners by size
+- GOAL-2: goal duties by size
+- GOAL-3a: goal duties by size
+- GOAL-3b: goal duties by size
+- GOAL-4: goal duties by size
+- GOAL-5: goal duties by size
+- GOAL-6a: goal duties by size
+- GOAL-6b: goal duties by size
+- GOAL-6c: goal duties by size
+- ITER-11: iteration duties by size
+- ITER-3: iteration duties by size
+- LC-1: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-10: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-11: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-12: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-13: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-14: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-15: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-16: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-17: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-18: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-19: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-2: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-20a: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-20b: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-21: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-22a: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-22b: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-4: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-5: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-6: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-7a: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-7b: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-8: lifecycle duties retargeted by size; 3 returns and advisor rules
+- LC-9: lifecycle duties retargeted by size; 3 returns and advisor rules
+- MSG-11a: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-11b: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-12: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-13: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-14: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-15: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-16a: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-16b: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-17: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-18: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-19: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-3: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-4a: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-4b: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-5: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-6: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-7a: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-7b: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-8a: message routes by size: S and M to the Manager, L to the Team Lead
+- MSG-8b: message routes by size: S and M to the Manager, L to the Team Lead
+- NOTE-1: notes by size
+- NOTE-3: notes by size
+- PROMO-1: promote.md owner by size: Developer S, QA whitebox M, Tech Lead L
+- PROMO-2: promote.md owner by size: Developer S, QA whitebox M, Tech Lead L
+- PROMO-3a: promote.md owner by size: Developer S, QA whitebox M, Tech Lead L
+- PROMO-3b: promote.md owner by size: Developer S, QA whitebox M, Tech Lead L
+- PROMO-4: promote.md owner by size: Developer S, QA whitebox M, Tech Lead L
+- PROMO-5: promote.md owner by size: Developer S, QA whitebox M, Tech Lead L
+- PROMO-6: promote.md owner by size: Developer S, QA whitebox M, Tech Lead L
+- REV-1: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-13a: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-14a: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-14b: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-15: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-16: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-19: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-2: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-21: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-3: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-4: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-5a: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-6: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-7: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-8: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- SAFE-10: safety wording by size
+- SAFE-9: safety wording by size
+- SIZE-10a: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-11a: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-11b: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-12: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-13: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-14: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-15: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-16: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-17a: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-17b: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-2: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-4: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-5a: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-5b: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-6a: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-6b: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-7a: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SIZE-8a: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
+- SPAWN-10a: spawning by size: Manager at S and M, Team Lead at L
+- SPAWN-10b: spawning by size: Manager at S and M, Team Lead at L
+- SPAWN-2a: spawning by size: Manager at S and M, Team Lead at L
+- SPAWN-2b: spawning by size: Manager at S and M, Team Lead at L
+- SPAWN-5a: spawning by size: Manager at S and M, Team Lead at L
+- SPAWN-5b: spawning by size: Manager at S and M, Team Lead at L
+- SPAWN-8a: spawning by size: Manager at S and M, Team Lead at L
+- SPAWN-8b: spawning by size: Manager at S and M, Team Lead at L
+- SPAWN-9: spawning by size: Manager at S and M, Team Lead at L
+- START-10: start and spawn rules by size: Manager spawns and caps Developers at S and M
+- START-2a: start and spawn rules by size: Manager spawns and caps Developers at S and M
+- START-2b: start and spawn rules by size: Manager spawns and caps Developers at S and M
+- START-2c: start and spawn rules by size: Manager spawns and caps Developers at S and M
+- START-2d: start and spawn rules by size: Manager spawns and caps Developers at S and M
+- START-6: start and spawn rules by size: Manager spawns and caps Developers at S and M
+- SUITE-1: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-2a: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-2b: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-3: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-4: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-5: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- SUITE-6: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
+- WHO-1a: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
+- WHO-1b: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
+- WHO-2: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
+- WHO-2b: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
+- WHO-2c: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
+- WHO-3a: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
+- WHO-3b: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
+- WHO-8a: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
+- WHO-8b: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
+- WHO-8c: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
 
 ## v6 — 2026-10-19
 - snapshot: history/process-v6.md
