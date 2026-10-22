@@ -384,6 +384,27 @@ class CheckBaseTest(Base):
         bad = sorted(l.split(":")[0] for l in r.stdout.strip().split("\n"))
         self.assertEqual(bad, [".scratch/f/issues/03-x/notes.txt", "bin/x", "docs/foo/evidence.md"])
 
+    def test_ticket_deleted_in_the_same_diff_fails(self):
+        put(self.folder / "evidence.md", "# E\n\n## B\n\nx\n")
+        self.ticket.unlink()
+        self.commit("drop ticket")
+        r = tool("check", str(self.folder), "--base", self.base)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("03-x/evidence.md", r.stdout)
+
+    def test_old_form_folder_keeps_the_any_file_rule(self):
+        put(self.root / ".scratch/f/issues/05-z.evidence/evidence.md", "# E\n")
+        put(self.root / ".scratch/f/issues/05-z.evidence/n.txt", "x\n")
+        self.commit("old")
+        put(self.folder / "evidence.md", "# E\n")
+        r = tool("check", str(self.folder), "--base", self.base)
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_add_creates_no_img_folder_without_images(self):
+        r = tool("add", str(self.ticket), "--heading", "H", "--from", str(put(self.work / "r.md", "x\n")))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse((self.folder / "img").exists())
+
     def test_unknown_base_is_usage_error(self):
         put(self.folder / "evidence.md", "# E\n")
         self.assertEqual(tool("check", str(self.folder), "--base", "deadbeef" * 5).returncode, 2)
