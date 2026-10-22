@@ -9,38 +9,38 @@ Every scope and goal starts with these; its brief may override them.
 - **Budget:** the Manager checks in with the PO at each iteration's end and after 3 returns on one task.
 - **Done means:** the size's Done rule ([SIZE-2]), evidence saved, branches ready for PO review.
 
-## START-2a Developer cap, S
+## START-2a Developer cap, S and M
 roles: manager
-when: size = S
+when: size in S, M
 topic: developers
 
 - **Developer cap:** 3 at once. Spawn one Developer per ready task, up to the cap, and queue the rest. A task is ready when its dependencies are done, its AC are agreed and it touches no file another running task touches; the cap is the brief's, else this one.
 - In a goal the goal Manager divides the cap among running scopes in their briefings.
-- The Tech Lead tells the Manager which tasks are ready in parallel; ask when unsure.
+- You decide which tasks are ready in parallel (dependencies done, AC agreed, no shared files); the Developers' design notes in the task files show what each touches.
 
 ## START-2b Developer cap, Team Lead
 roles: team-lead
-when: size in M, L
+when: size = L
 topic: developers
 
 - **Developer cap:** spawn Developers within your share from the Manager's briefing (a lone scope has the whole cap, 3 at once); the rest waits. With your share used up, the next task waits as `ready`.
 - A finished scope's share goes to the scopes still running, at their next briefing or respawn.
 - The cap is a rule, not a lock: nothing stops a spawn over it, so count `herdr agent list` before each spawn.
 
-## START-2c Developer cap, Manager in M and L
+## START-2c Developer cap, Manager in L
 roles: manager
-when: size in M, L
+when: size = L
 topic: developers
 
 - The Team Lead spawns and retires Developers within its share of the cap; the Manager does not.
 - Tell each Team Lead its Developer share of the cap in its first prompt. A lone scope gets the whole cap. In a goal the goal Manager divides the cap among the scopes running at that time, shares summing to at most the cap; a Team Lead spawns no more Developers than its share.
 
-## START-2d Parallel tasks, Tech Lead in S
+## START-2d Parallel tasks, Tech Lead
 roles: tech-lead
-when: size = S
+when: size = L
 topic: developers
 
-Tell the Manager which tasks are ready in parallel (dependencies done, AC agreed, no shared files); the Manager spawns one Developer per such task.
+Tell the Manager which tasks are ready in parallel (dependencies done, AC agreed, no shared files); the Team Lead spawns one Developer per such task.
 
 ## START-3 Starting a scope
 roles: manager

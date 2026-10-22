@@ -105,7 +105,7 @@ class Fixes(unittest.TestCase):
 
     def test_fix_b_tech_lead_tells_manager_parallel_tasks_in_s(self):
         r = self.by["START-2d"]
-        self.assertEqual((r.when, r.roles), ("size = S", ["tech-lead"]))
+        self.assertEqual((r.when, r.roles), ("size = L", ["tech-lead"]))
         self.assertIn("ready in parallel", r.body)
 
     def test_fix_c_designer_business_doubt(self):

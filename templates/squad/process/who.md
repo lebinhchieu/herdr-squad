@@ -1,19 +1,20 @@
 # Who decides
 
-## WHO-1a Owners in S
-roles: manager, tech-lead
-when: size = S
+## WHO-1a Owners in S and M
+roles: manager
+when: size in S, M
 topic: owners
 
 | Topic | Owner | Breaks a dispute | Always goes to PO |
 |---|---|---|---|
 | Business AC | The ticket as written | Manager | Goal change, scope cut |
-| Plan, task order, assignment | Tech Lead | Manager | Deadline or budget overrun |
-| Task done | Tech Lead review | Manager | n/a |
+| Plan, task order, Developer spawning | Manager | Manager | Deadline or budget overrun |
+| Task done | Manager confirms the Developer's evidence and review (S); QA whitebox + QA blackbox (M) | Manager | n/a |
+| Business doubt, risk flag, migration, contract change | Manager moves the scope to L ([SIZE-13]) | Manager | n/a |
 
-## WHO-1b Owners in M and L
+## WHO-1b Owners in L
 roles: manager, ba, team-lead, tech-lead
-when: size in M, L
+when: size = L
 topic: owners
 
 | Topic | Owner | Breaks a dispute | Always goes to PO |
@@ -24,6 +25,7 @@ topic: owners
 
 ## WHO-2 Technical owners
 roles: manager, tech-lead
+when: size = L
 topic: owners
 
 | Topic | Owner | Breaks a dispute | Always goes to PO |
@@ -31,36 +33,46 @@ topic: owners
 | Technical design, quality, security | Tech Lead | Manager | Irreversible tech choice (data model, new dependency, vendor) |
 | Migration, backward compatibility, deploy plan (order, rollback) | Tech Lead | Manager | Destructive data migration, breaking change for other teams |
 
-## WHO-2b Promotion owners in S
-roles: tech-lead, manager
-when: size = S
+## WHO-2d Technical owners in S and M
+roles: manager
+when: size in S, M
 topic: owners
 
 | Topic | Owner | Breaks a dispute | Always goes to PO |
 |---|---|---|---|
-| What is promoted to the project docs | Tech Lead | Manager | n/a |
+| Design notes, technical AC | Developer in the task file; M: agreed with QA whitebox | Manager | Irreversible tech choice (data model, new dependency, vendor) |
+| Irreversible design choice | Manager, after an advisor call | Manager | The PO-listed items stay with the PO |
 
-## WHO-2c Promotion owners in M and L
+## WHO-2b Promotion owners in S and M
+roles: manager
+when: size in S, M
+topic: owners
+
+| Topic | Owner | Breaks a dispute | Always goes to PO |
+|---|---|---|---|
+| What is promoted to the project docs | Developer in S, QA whitebox in M | Manager | n/a |
+
+## WHO-2c Promotion owners in L
 roles: tech-lead, ba, manager
-when: size in M, L
+when: size = L
 topic: owners
 
 | Topic | Owner | Breaks a dispute | Always goes to PO |
 |---|---|---|---|
 | What is promoted to the project docs | Tech Lead (technical), BA (business) | Manager | n/a |
 
-## WHO-3a Process owner in S
+## WHO-3a Process owner in S and M
 roles: manager
-when: size = S
+when: size in S, M
 topic: owners
 
 | Topic | Owner | Breaks a dispute | Always goes to PO |
 |---|---|---|---|
 | Process, roster, spawning, scope size | Manager | n/a | Changes to role instructions; size confirmation and moving down |
 
-## WHO-3b Process owner in M and L
+## WHO-3b Process owner in L
 roles: manager, team-lead
-when: size in M, L
+when: size = L
 topic: owners
 
 | Topic | Owner | Breaks a dispute | Always goes to PO |
@@ -103,23 +115,23 @@ topic: owners
 
 The parties come straight to the Manager after 2 exchanges; no one relays. Decide, write the decision to the place `project.md` names, then send `DECISION` ([MSG-7a], [MSG-7b]).
 
-## WHO-8a Disputes, Manager in S
+## WHO-8a Disputes, Manager in S and M
 roles: manager
-when: size = S
+when: size in S, M
 topic: owners
 
 The Manager settles every dispute.
 
-## WHO-8b Disputes, Manager in M and L
+## WHO-8b Disputes, Manager in L
 roles: manager
-when: size in M, L
+when: size = L
 topic: owners
 
 The Manager settles every dispute except plan, order and assignment ones, which the Team Lead settles.
 
 ## WHO-8c Disputes, Team Lead
 roles: team-lead
-when: size in M, L
+when: size = L
 topic: owners
 
 Settle plan, order and assignment disputes. Write the ruling where the plan lives, and send it as `FINAL:` ([MSG-7b]). When you are yourself a party to such a dispute, do not settle it; after the two-round rule it goes to the Manager.

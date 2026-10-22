@@ -4,13 +4,14 @@ import unittest
 from rulesview import composed
 
 MS = composed("manager", "S")
-MM = composed("manager", "M")
-MG = composed("manager", "M", goal="yes")
+MM = composed("manager", "L")  # Team Lead exists at L only
+MG = composed("manager", "L", goal="yes")
 
 
 class ManagerMLTest(unittest.TestCase):
     def test_s_keeps_developer_spawning_and_routing(self):
-        self.assertIn("## SPAWN-5a Developers, Manager in S", MS)
+        self.assertIn("## SPAWN-5a Developers, Manager in S and M", MS)
+        self.assertIn("## SPAWN-5a", composed("manager", "M"))
         self.assertIn("## MSG-18 Routing, Manager in S", MS)
         self.assertNotIn("## SPAWN-5a", MM)
         self.assertNotIn("## MSG-18", MM)
@@ -38,7 +39,7 @@ class ManagerMLTest(unittest.TestCase):
         self.assertIn("Tell each Team Lead its Developer share of the cap in its first prompt", MM)
         self.assertIn("A lone scope gets the whole cap", MM)
         self.assertIn("divides the cap among the scopes running at that time, shares summing to at most the cap", MG)
-        self.assertIn("A finished scope's share goes to the scopes still running, at their next briefing or respawn", composed("team-lead", "M"))
+        self.assertIn("A finished scope's share goes to the scopes still running, at their next briefing or respawn", composed("team-lead", "L"))
 
     def test_disputes_split_and_final_stay(self):
         self.assertIn("except plan, order and assignment ones, which the Team Lead settles", MM)
