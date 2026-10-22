@@ -55,7 +55,13 @@ topic: iterations
 roles: manager
 topic: iterations
 
-Spawn the Token Coach with `squad-spawn token-coach <squad>-coach-<scope> --scope <scope>`, or `--goal <goal>` at goal close. Run it at every goal close.
+Spawn the Token Coach with `squad-spawn token-coach <squad>-coach-<scope> --scope <scope> --prompt "<text>"` (`--goal <goal>` at goal close; run it at every goal close). Without `--prompt` it starts idle. The prompt names the scope and folder, the size, the exact output file (`iterations/<n>.coach.md`, or `coach/<goal>.coach.md`), "read `squad-usage`, `usage-events.jsonl`, earlier backlogs", and "message the Manager with the file and the proposal count".
+
+## ITER-6c Wait for the Token Coach
+roles: manager
+topic: iterations
+
+After the spawn, do other work or end the turn and wait for the Coach's message; never loop, sleep or poll for the file. Run `herdr agent list` on its pane only when no message came after the 10-minute health-check idle window ([MSG-8a]).
 
 ## ITER-6a Token Coach, S
 roles: manager
