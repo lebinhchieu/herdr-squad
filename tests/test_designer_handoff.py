@@ -10,9 +10,10 @@ class DesignerHandoffTest(unittest.TestCase):
             self.assertIn("ui-design/", composed(role, "M", design="yes"), role)
 
     def test_tech_lead_keys_on_design_yes(self):
-        self.assertIn("tech-lead", acts("LC-11", "S"))
-        self.assertIn("## LC-11 Design with a UI", composed("tech-lead", "M", design="yes"))
-        self.assertNotIn("## LC-11 ", composed("tech-lead", "M", design="no"))
+        self.assertIn("tech-lead", acts("LC-11", "L"))
+        self.assertIn("## LC-11 Design with a UI", composed("tech-lead", "L", design="yes"))
+        self.assertNotIn("## LC-11 ", composed("tech-lead", "L", design="no"))
+        self.assertIn("manager", acts("LC-11b", "M"))
 
     def test_readme_counts_nine_roles_and_names_the_designer(self):
         text = (ROOT / "README.md").read_text()
