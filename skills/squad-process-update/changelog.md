@@ -319,6 +319,7 @@ removed:
 - SIZE-21: replaced by SIZE-21a and SIZE-21b (QA blackbox off, split by size)
 
 retargeted:
+- SAFE-11: scratch dirs: `cd` out before `rm`; Claude Code denies removing the cwd or an ancestor
 - SIZE-1: points at START-3b: the size proposal carries the team's models
 - ITER-6: the spawn line carries --prompt (scope, output file, message back); the Coach no longer starts idle
 - SIZE-18: extra hands only exist at L: when size = L

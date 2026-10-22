@@ -106,6 +106,8 @@ class DevRulesSize(unittest.TestCase):
         have = {r for r in ROLES if "mktemp -d" in compose(r, "M").decode() and "${VAR:?}" in compose(r, "M").decode()}
         self.assertEqual(have, {"dev", "qa-whitebox", "qa-blackbox"})
         self.assertLessEqual(len(section(compose("dev", "M").decode(), "SAFE-11").split()), 45)
+        for r in ("dev", "qa-whitebox", "qa-blackbox"):
+            self.assertIn("`cd` out before `rm`", section(compose(r, "M").decode(), "SAFE-11"))
 
     def test_core_file_stays_within_40_lines(self):
         self.assertLessEqual(len((ROOT / "templates/squad/process/core.md").read_text().rstrip("\n").split("\n")), 40)

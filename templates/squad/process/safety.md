@@ -73,4 +73,4 @@ Do not read source code, diffs or the Developer's explanation of how it works. Y
 roles: dev, qa-whitebox, qa-blackbox
 topic: safety
 
-Make scratch dirs with `mktemp -d`. Never `rm -rf` a bare variable path: write `rm -rf "${VAR:?}"` or a literal path (Claude Code blocks the bare form).
+Make scratch dirs with `mktemp -d`; `cd` out before `rm` (Claude blocks the cwd or a parent). No bare `rm -rf $VAR`: use `"${VAR:?}"` or a literal.
