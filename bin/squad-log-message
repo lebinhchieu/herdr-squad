@@ -42,14 +42,16 @@ third_return() {
   local size who lc
   size=$(sed -n 's/^size:[[:space:]]*\([A-Za-z]\).*/\1/p' "$home/scope.md" 2>/dev/null | head -n1)
   if [[ $size == S ]]; then who=Manager lc=LC-7a; else who="Team Lead" lc=LC-7b; fi
-  notice=$(jq -rn --slurpfile all "$log" --arg who "$who" --arg lc "$lc" '
+  notice=$(jq -Rrn --arg who "$who" --arg lc "$lc" '
     def shaof: (capture("\\.\\.(?<s>[0-9a-fA-F]{6,40})").s? // capture("(?:commit|sha)[ \\t:]+(?<s>[0-9a-fA-F]{6,40})").s? // null) | if . then ascii_downcase else . end;
     def key: if . == null then null elif test("^[0-9]+$") then sub("^0+(?=.)"; "") else . end;
     def canon($known): . as $s | ([$known[] | select(. as $k | $k | startswith($s) or ($s | startswith($k)))][0]) // $s;
-    ($all | length) as $n | ($all[$n-1]) as $this
+    [inputs | fromjson? | select(type == "object")] as $all
+    | ($all | length) as $n | ($all[$n-1]) as $this
     | ($this.task | key) as $t | select($t != null)
     | (reduce $all[] as $r ({cur: null, known: [], fails: []};
         if ($r.task | key) != $t then .
+        elif $r.type == "HANDIN" and ($r.text | test("evidence[ \\t]+sha"; "i")) then .
         elif $r.type == "HANDIN" then
           ($r.text | shaof) as $h
           | if $h then (.known) as $k | ($h | canon($k)) as $c | .cur = $c | .known = ($k + [$c] | unique) else . end
@@ -60,7 +62,7 @@ third_return() {
         else . end)) as $st
     | ($st.fails[:-1] | unique) as $prior | ($st.fails[-1]) as $s
     | select(($prior | index([$s])) == null and ($prior | length) == 2)
-    | "task \($this.task) has 3 returns: also send `BLOCKED \($this.task): 3 returns` to \($who) [\($lc)]"' 2>/dev/null) || notice=
+    | "task \($this.task) has 3 returns: also send `BLOCKED \($this.task): 3 returns` to \($who) [\($lc)]"' "$log" 2>/dev/null) || notice=
 }
 
 # Records can exceed PIPE_BUF, so lock instead of relying on atomic O_APPEND writes.

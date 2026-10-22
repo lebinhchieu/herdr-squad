@@ -12,6 +12,7 @@ import re
 SHA_RANGE = re.compile(r"\.\.([0-9a-fA-F]{6,40})")
 SHA_COMMIT = re.compile(r"(?:commit|sha)[ \t:]+([0-9a-fA-F]{6,40})")
 HEX = re.compile(r"\b[0-9a-f]{6,40}\b")
+EVIDENCE = re.compile(r"evidence[ \t]+sha", re.I)
 BRANCH = re.compile(r"branch[ \t:]+([^\s,]+)")
 
 
@@ -67,6 +68,8 @@ def build(records):
         st = tasks.setdefault(t, {"task": r["task"], "handin": None, "cur": None, "verdicts": {},
                                   "fail_shas": [], "fail_messages": 0, "blocked": [], "asks": []})
         text = r.get("text") or ""
+        if typ == "HANDIN" and EVIDENCE.search(text):
+            continue  # evidence handin to the Tech Lead: keeps the passed sha and its verdicts
         if typ == "HANDIN":
             sha = _sha(text)
             sha = _canon(sha, st["verdicts"]) if sha else st["cur"]

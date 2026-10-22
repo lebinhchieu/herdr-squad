@@ -108,6 +108,13 @@ class LedgerTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         for row in json.loads(r.stdout):
             self.assertEqual(len(row), 9)
+        self.assertEqual((Path(live) / "messages.jsonl").stat().st_mtime_ns, before)
+
+    def test_evidence_handin_keeps_passed_sha_and_verdicts(self):
+        self.write(FIXTURE + [rec("HANDIN", "dev", "tech", "HANDIN 03: evidence sha ccccccc")])
+        row = [r for r in json.loads(self.ledger("--json").stdout) if r["task"] == "03"][0]
+        self.assertEqual(row["sha"], "bbbbbbb")
+        self.assertEqual(row["verdicts"], {"qaw": "PASS", "qab": "PASS"})
 
     def test_missing_log_and_bad_args(self):
         (self.home / "messages.jsonl").unlink()
@@ -142,6 +149,24 @@ class NoticeTest(unittest.TestCase):
             got.append(self.send("FAIL 05: y", "qab"))  # 2nd checker, same sha
         self.assertEqual([i for i, g in enumerate(got) if g], [4])
         self.assertEqual(got[4], "task 05 has 3 returns: also send `BLOCKED 05: 3 returns` to Team Lead [LC-7b]")
+
+    def test_garbage_lines_in_log_do_not_stop_notice(self):
+        (self.squad / "messages.jsonl").write_text("garbage line\n\n3\n[1]\n", encoding="utf-8")
+        got = None
+        for sha in ["aaaaaaa", "bbbbbbb", "ccccccc"]:
+            self.send("HANDIN 05: commit %s" % sha, "dev", "qaw")
+            got = self.send("FAIL 05: x", "qaw")
+        self.assertIn("3 returns", got)
+
+    def test_evidence_handin_is_not_a_new_sha(self):
+        for sha in ["aaaaaaa", "bbbbbbb"]:
+            self.send("HANDIN 05: commit %s" % sha, "dev", "qaw")
+            self.send("FAIL 05: x", "qaw")
+        self.send("HANDIN 05: commit ccccccc", "dev", "qaw")
+        self.send("PASS 05", "qaw")
+        self.send("HANDIN 05: evidence sha ddddddd", "dev", "tech")
+        # a FAIL now lands on ccccccc (current sha), not on the evidence sha
+        self.assertIn("3 returns", self.send("FAIL 05: late", "qab"))
 
     def test_pass_does_not_reset_and_size_s_names_manager(self):
         (self.squad / "scope.md").write_text("size: S (one task)\n", encoding="utf-8")
