@@ -48,6 +48,21 @@ class SpawnDryRunTest(unittest.TestCase):
             with self.subTest(role=role):
                 self.assertRegex(self.spawn(role), rf"--model {model} --effort {effort}\b")
 
+    def test_warns_once_on_stderr_when_a_non_manager_role_has_no_prompt(self):
+        for role in ("dev", "token-coach", "qa-whitebox"):
+            with self.subTest(role=role):
+                r = subprocess.run([str(SCRIPT), role, "x", "--dry-run"], env=self.env, text=True, capture_output=True, timeout=10)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(r.stderr.count("without --prompt"), 1, r.stderr)
+                self.assertNotIn("without --prompt", r.stdout)
+
+    def test_no_warning_for_a_manager_or_when_prompt_is_given(self):
+        for role, args in (("manager", []), ("dev", ["--prompt", "go"]), ("token-coach", ["--prompt", "go"])):
+            with self.subTest(role=role, args=args):
+                r = subprocess.run([str(SCRIPT), role, "x", "--dry-run", *args], env=self.env, text=True, capture_output=True, timeout=10)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertNotIn("without --prompt", r.stderr)
+
     def test_flags_override_role_defaults(self):
         self.assertRegex(self.spawn("dev", "--model", "opus", "--effort", "high"), r"--model opus --effort high\b")
 
@@ -72,7 +87,7 @@ class SpawnDryRunTest(unittest.TestCase):
 
     def test_squad_file_lacking_a_key_falls_back_to_the_template_silently(self):
         self._squad_settings("dev", {"permissions": {}, "model": "haiku"})
-        r = self._spawn_any()
+        r = self._spawn_any("--prompt", "go")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertRegex(r.stdout, rf"--model haiku --effort {TABLE['dev'][1]}\b")
         # only the old-layout warning (ticket 08), no missing-key warning

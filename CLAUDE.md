@@ -44,6 +44,7 @@ Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root.
 ## Running tests
 
 - The size's suite owner runs the full suite once, on the final sha: S the Developer, M QA whitebox, L the Tech Lead; everyone else runs the test files they touched.
+- A Developer whose diff touches `templates/` or text a `bin/` tool prints must, before HANDIN, run `grep -rl '<touched path or changed string>' tests/` and run every hit (goldens included), even test files it did not edit.
 - Runner: `python3 tests/run_suite.py --receipt <dir> --if-changed <task base>`. Integration and promotion tasks and the sha the PO merges use `--tz` instead: nothing skipped.
 - Start it in the background and wait as in `process.md` → Safety → Suites. Never `pgrep -f` or `pkill -f run_suite`: it kills other agents' runs.
 - Commit every fix before a run; never kill and restart one.

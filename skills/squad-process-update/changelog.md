@@ -310,6 +310,7 @@ added:
 - SUITE-6b: new for the size model: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
 - WHO-2d: new for the size model: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
 - START-3b: new (ticket 20): the Manager shows the team's models with the size, the PO's answer goes to scope.md
+- ITER-6c: new: the Manager waits for the Token Coach's message and never polls for its file
 
 changed:
 - none
@@ -320,6 +321,7 @@ removed:
 retargeted:
 - SAFE-11: scratch dirs: `cd` out before `rm`; Claude Code denies removing the cwd or an ancestor
 - SIZE-1: points at START-3b: the size proposal carries the team's models
+- ITER-6: the spawn line carries --prompt (scope, output file, message back); the Coach no longer starts idle
 - SIZE-18: extra hands only exist at L: when size = L
 - SPAWN-4: the Manager's plan, not the absent Tech Lead's (S and M)
 - CLOSE-1: closing keeps the Manager on scope and goal close (squad-close spares it); squad close still retires all

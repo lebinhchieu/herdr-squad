@@ -30,6 +30,17 @@ class RetroRulesTest(unittest.TestCase):
         self.assertIn("earlier backlogs", rule("token-coach", "ITER-7"))     # no longer "read only usage"
         self.assertNotIn("Read only", rule("token-coach", "ITER-7"))
 
+    def test_manager_spawns_the_coach_with_a_prompt_and_never_polls(self):
+        r = rule("manager", "ITER-6")
+        for text in ('--prompt "<text>"', "iterations/<n>.coach.md", "coach/<goal>.coach.md", "`usage-events.jsonl`",
+                     "earlier backlogs", "message the Manager with the file and the proposal count"):
+            self.assertIn(text, r)
+        w = rule("manager", "ITER-6c")
+        for text in ("never loop, sleep or poll for the file", "`herdr agent list`", "only when no message came", "[MSG-8a]"):
+            self.assertIn(text, w)
+        self.assertIn("iterations/<n>.coach.md", rule("token-coach", "ITER-7"))
+        self.assertIn("the file and the proposal count", rule("token-coach", "ITER-7"))
+
     def test_coach_writes_overlay_operations_and_plugin_proposals(self):
         r = rule("token-coach", "ITER-14")
         self.assertIn("`process.local.md` syntax with `upstream: proposed`", r)
