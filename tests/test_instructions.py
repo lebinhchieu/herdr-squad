@@ -176,7 +176,7 @@ class RuleDutiesTest(unittest.TestCase):
         rev15 = run("rule", "REV-15").stdout  # 22: on demand for the Developer; the Tech Lead's task file cites it
         self.assertIn("## REV-15 Report deliverables", composed("tech-lead", "M"))
         self.assertIn("evidence/<task>/", rev15)
-        self.assertIn("hand in", rev15)
+        self.assertIn("handed in", rev15)
         after = dev.split("## REV-14b")[1].split("##")[0]
         self.assertIn("diff check", after)
         self.assertIn("both QAs", after)

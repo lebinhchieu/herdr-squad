@@ -9,6 +9,7 @@ import unittest
 from itertools import product
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
 from rulesview import ROOT, ROLES, run, who
 
 LIMIT = 5120
@@ -16,16 +17,18 @@ NOW = "2026-10-22T10:00:00Z"
 COMBOS = list(product("SML", ("yes", "no"), ("yes", "no")))
 
 
-def compose(role, size, design="no", goal="no", name="s"):
-    """The raw composed bytes for a fixture home; no --plugin-root override, time injected."""
+def compose(role, size, design="no", goal="no", name="role-cards-upgrade", agent="plugin-dev-role-cards-upgrade-12"):
+    """The raw composed bytes for a pinned fixture home with live-length names; no --plugin-root, time injected."""
+    import squadcompose
+    pin = f"plugin: {squadcompose.running_version()} 0123456789abcdef0123456789abcdef01234567\n"
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "scopes" / name
         home.mkdir(parents=True)
-        (home / "scope.md").write_text(f"goal:{' g1' if goal == 'yes' else ''}\nsize: {size}\nqa: full\ndesign: {design}\n",
+        (home / "scope.md").write_text(f"goal:{' g1' if goal == 'yes' else ''}\nsize: {size}\nqa: full\ndesign: {design}\n{pin}",
                                        encoding="utf-8", newline="\n")
         out = Path(tmp) / "rules.md"
         r = subprocess.run([sys.executable, str(ROOT / "bin" / "squad-process"), "compose", role, "--home", str(home),
-                            "--out", str(out), "--now", NOW], capture_output=True, encoding="utf-8")
+                            "--out", str(out), "--now", NOW, "--agent", agent], capture_output=True, encoding="utf-8")
         assert r.returncode == 0, r.stderr
         return out.read_bytes()
 
@@ -52,13 +55,14 @@ class DevRulesSize(unittest.TestCase):
                 "CORE-1": "returned",
                 "CORE-2": "`HANDIN`",
                 "CORE-6": "squad-process rule <ID>",
+                "LC-3a": "On `FAIL`: fix every finding",
                 "START-6": "$SQUAD_DIR",
                 "START-10": "git branch --show-current",
                 "MSG-3": "`NN` alone",
                 "LC-18": "squad-label",
                 "LC-20a" if size == "S" else "LC-20b": f"Tell the {owner}",
                 "REV-13a" if size == "S" else "REV-13b": "HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it",
-                "REV-14a" if size == "S" else "REV-14b": "diff check <passed sha>..<new sha>",
+                "REV-14a" if size == "S" else "REV-14b": "After a PASS, a later commit goes to",
                 "EVID-2b": "squad-evidence check",
                 "COST-3": "squad-respawn",
                 "COST-5": "retires at 120k",

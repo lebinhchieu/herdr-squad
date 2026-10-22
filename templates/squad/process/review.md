@@ -108,25 +108,25 @@ topic: review
 
 `HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA whitebox and QA blackbox, copy the Team Lead.
 
-## REV-14a Diff check, S
+## REV-14a Diff check after PASS, S
 roles: dev
 when: size = S
 topic: review
 
-After `FAIL` fix every finding and re-verify; a later commit goes to the Tech Lead as `HANDIN <task>: diff check <passed sha>..<new sha>`.
+After a PASS, a later commit goes to the Tech Lead as `HANDIN <task>: diff check <passed sha>..<new sha>`.
 
-## REV-14b Diff check, M and L
+## REV-14b Diff check after PASS, M and L
 roles: dev
 when: size in M, L
 topic: review
 
-After `FAIL` fix every finding and re-verify; a later commit goes to both QAs as `HANDIN <task>: diff check <passed sha>..<new sha>`; tell the Team Lead after both pass it.
+After a PASS, a later commit goes to both QAs as `HANDIN <task>: diff check <passed sha>..<new sha>`; tell the Team Lead after both pass it.
 
 ## REV-15 Report deliverables
 roles: tech-lead
 topic: review
 
-A report or doc deliverable is also copied into `$SCOPE_DIR/evidence/<task>/` at the sha you hand in; the `HANDIN` names that path (QA blackbox cannot read worktrees).
+A report or doc deliverable is also copied into `$SCOPE_DIR/evidence/<task>/` at the sha handed in; the `HANDIN` names that path (QA blackbox cannot read worktrees).
 
 ## REV-16 Style contract
 roles: tech-lead

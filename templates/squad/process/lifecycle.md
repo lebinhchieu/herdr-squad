@@ -14,10 +14,10 @@ topic: lifecycle
 A UI ticket with a `Design:` line stays `ready` until its design is `Status: final`. The Developer does not start the UI part before that.
 
 ## LC-3a Returned task
-roles: team-lead
+roles: dev
 topic: lifecycle
 
-A returned task stays with its Developer and task file. On `FAIL`: fix every finding, re-verify, hand in again; same task, same branch.
+On `FAIL`: fix every finding, re-verify, hand in again; same task, same branch.
 
 ## LC-3b Re-check after a return
 roles: qa-whitebox, qa-blackbox
@@ -130,7 +130,7 @@ Move task state as `HANDIN`, `PASS` and `FAIL` messages arrive (you are copied o
 roles: dev
 topic: lifecycle
 
-- `squad-label "<ticket id> <few words>"` on taking a ticket, `squad-label ""` when idle after your last.
+- `squad-label "<ticket id> <few words>"` on taking a ticket, `squad-label ""` when you wait.
 - Implement as designed; reuse what exists.
 - Before hand-in run the tests, linters and checks `project.md` lists for "done" on changed files; add tests for new behaviour.
 
@@ -139,7 +139,7 @@ roles: dev
 when: design = yes
 topic: lifecycle
 
-A `Design:` ticket waits for `Status: final`; build every screen and state of `$SCOPE_DIR/ui-design/<task>.md`; a difference is an `ASK` to the Tech Lead. In S add one screenshot per screen and state under its design item.
+A `Design:` ticket waits for `Status: final`; build every screen and state of `$SCOPE_DIR/ui-design/<task>.md`; a difference is an `ASK` to the Tech Lead.
 
 ## LC-20a Done, S
 roles: dev
@@ -153,7 +153,7 @@ roles: dev
 when: size in M, L
 topic: lifecycle
 
-Done when both QAs sent `PASS`. Tell the Team Lead and wait; the Team Lead retires you.
+Done when both QAs sent `PASS`. Tell the Team Lead and wait; it retires you.
 
 ## LC-21 QA light mode
 roles: qa-whitebox, qa-blackbox

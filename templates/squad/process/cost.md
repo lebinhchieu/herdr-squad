@@ -12,7 +12,7 @@ topic: cost
 
 Reuse a session while it stays on the same task and context is at most 120k.
 
-## COST-3 Fresh session
+## COST-3 Fresh start
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
 topic: cost
 

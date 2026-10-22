@@ -6,18 +6,18 @@ topic: evidence
 
 Evidence lives next to the ticket in `evidence.md`: folder = ticket path with `.md` → `.evidence/` (a project without ticket files: next to `tasks/<id>.md`). Embed screenshots as `![alt](img/<file>)`; a screenshot only named or linked is not evidence.
 
-## EVID-2a Behaviour section
+## EVID-2a Behaviour
 roles: dev
 when: size in M, L
 topic: evidence
 
-You write `## Behaviour` in the ticket's `evidence.md` and commit it with your code; embed screenshots as `![alt](img/<file>)`.
+You write `## Behaviour` in the ticket's `evidence.md`, commit it with your code, and embed screenshots as `![alt](img/<file>)`.
 
 ## EVID-2b Assemble evidence
 roles: dev
 topic: evidence
 
-Once every checker passed: `squad-evidence add <ticket> --heading "<H>" --from <review file>` per review file in `$SCOPE_DIR/evidence/<task>/`, `squad-evidence check <folder>`, commit, `HANDIN <task>: evidence sha <sha>` to the Tech Lead.
+After every checker passed: `squad-evidence add <ticket> --heading "<H>" --from <review file>` per review file in `$SCOPE_DIR/evidence/<task>/`, `squad-evidence check <folder>`, commit, `HANDIN <task>: evidence sha <sha>` to the Tech Lead.
 
 ## EVID-2c Check the evidence commit
 roles: tech-lead
@@ -44,7 +44,7 @@ roles: dev
 when: size = S
 topic: evidence
 
-Write `## Behaviour` in the ticket's `evidence.md` and commit it with the code: Playwright or API checks per AC, what you ran and saw, each screenshot embedded as `![alt](img/<file>)` under its AC.
+Write `## Behaviour` in the ticket's `evidence.md` and commit it with the code: Playwright or API checks per AC, what you ran and saw, screenshots embedded as `![alt](img/<file>)` under their AC (with a design: one per screen and state, under its design item).
 
 ## EVID-5 Design shots, S
 roles: tech-lead

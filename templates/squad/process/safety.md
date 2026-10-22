@@ -22,7 +22,7 @@ No writes to Jira or Confluence. Read only.
 roles: all
 topic: safety
 
-Before you report, end every browser session and stop every server or process you started, by PID; never `pkill`/`killall`.
+Before reporting, end every browser session and stop every server or process you started, by PID; never `pkill`/`killall`.
 
 ## SAFE-4 Stay in your lane
 roles: all

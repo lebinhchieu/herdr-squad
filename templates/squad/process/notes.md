@@ -4,7 +4,7 @@
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
 topic: notes
 
-`roles/<agent>.notes.md` is a snapshot of now, not a log: rewrite it on every save, about 80 lines (`Now`, `Open threads`, `Decisions that bind later work`, `Pointers`).
+`roles/<agent>.notes.md` is a snapshot of now, not a log: rewrite on every save, about 80 lines (`Now`, `Open threads`, `Decisions that bind later work`, `Pointers`).
 
 ## NOTE-2 Notes upkeep
 roles: manager

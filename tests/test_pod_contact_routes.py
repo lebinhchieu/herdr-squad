@@ -23,7 +23,7 @@ class PodContactRoutes(unittest.TestCase):
     def test_team_lead_routes_in_m_and_l(self):
         dev, qw, qb = (composed(r, "M") for r in ("dev", "qa-whitebox", "qa-blackbox"))
         self.assertIn("copy the Team Lead", dev)
-        self.assertIn("the Team Lead retires you", dev)
+        self.assertIn("Tell the Team Lead and wait; it retires you", dev)
         self.assertIn("the Team Lead (plan or order)", dev)
         self.assertIn("copy the Team Lead", qw)
         self.assertIn("copy the Team Lead", qb)
@@ -46,8 +46,7 @@ class PodContactRoutes(unittest.TestCase):
         self.assertIn("copy the Team Lead", qb)
         self.assertNotIn("and the BA", qb.split("## REV-12")[1].split("##")[0])
         self.assertIn("`BLOCKED <task>` and `STATUS?` answers go to the Team Lead", composed("dev", "M"))
-        self.assertIn("a permission prompt goes nowhere", composed("dev", "M"))
-
+        
 
 if __name__ == "__main__":
     unittest.main()

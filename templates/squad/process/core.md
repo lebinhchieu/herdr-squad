@@ -12,19 +12,19 @@ topic: messages
 
 Send with `SendMessage` to the agent name in `roster.md`, as `<TYPE> <TASK-ID>: <text>`. Types: `ASK`, `ANSWER`, `DECISION`, `BLOCKED`, `HANDIN`, `PASS`, `FAIL`, `STATUS`.
 
-## CORE-3 Who owns what
+## CORE-3 Owners
 roles: all
 topic: owners
 
-Tech Lead: design, quality, security. Manager: process, roster, scope size. Designer: UI. Business AC, plan, done by size: [WHO-1a], [WHO-1b].
+Owners: Tech Lead design, quality, security; Manager process, roster, scope size; Designer UI. Business AC, plan, done by size: [WHO-1a], [WHO-1b].
 
-## CORE-4 Two-round rule
+## CORE-4 Two rounds
 roles: all
 topic: messages
 
-No agreement after 2 exchanges: send the topic to its owner, or to the Manager when the owner is one of you.
+No agreement after 2 exchanges: send it to its owner, or to the Manager when the owner is one of you.
 
-## CORE-5 Files are the truth
+## CORE-5 Files first
 roles: all
 topic: files
 

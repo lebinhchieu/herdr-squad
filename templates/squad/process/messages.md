@@ -18,14 +18,14 @@ topic: messages
 
 Task ID = the ticket number `NN` alone, never an alias or slug. Name it after the type; point at files, never paste them.
 
-## MSG-4a Asking the owner, S
+## MSG-4a Ask the owner, S
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
 when: size = S
 topic: messages
 
 Ask the owner from `roster.md`; when it doesn't say, ask the Manager.
 
-## MSG-4b Asking the owner, M and L
+## MSG-4b Ask the owner, M and L
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
 when: size in M, L
 topic: messages
@@ -98,14 +98,14 @@ roles: dev
 when: size = S
 topic: messages
 
-No guessing at a gap: `ASK` the Tech Lead (a business doubt moves the scope up, [SIZE-14]). `BLOCKED <task>` and `STATUS?` answers go to the Tech Lead; a permission prompt goes nowhere. Work on the unblocked meanwhile.
+No guessing at a gap: `ASK` the Tech Lead (a business doubt moves the scope up, [SIZE-14]). `BLOCKED <task>` and `STATUS?` answers go to the Tech Lead. Work on the unblocked meanwhile.
 
 ## MSG-11b Gaps, M and L
 roles: dev
 when: size in M, L
 topic: messages
 
-No guessing at a gap. `ASK` the Tech Lead (technical), the BA (business or scope), the Team Lead (plan or order). `BLOCKED <task>` and `STATUS?` answers go to the Team Lead; a permission prompt goes nowhere. Work on the unblocked meanwhile.
+No guessing at a gap. `ASK` the Tech Lead (technical), the BA (business or scope), the Team Lead (plan or order). `BLOCKED <task>` and `STATUS?` answers go to the Team Lead. Work on the unblocked meanwhile.
 
 ## MSG-12 BA takes gaps
 roles: ba

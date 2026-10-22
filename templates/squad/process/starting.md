@@ -71,7 +71,7 @@ topic: lifetimes
 
 A lone scope sees nothing of other scopes; a scope in a goal also reads `goal.md` and all of `shared/` at start.
 
-## START-6 Start of every session
+## START-6 Session start
 roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
 topic: start
 
@@ -102,7 +102,7 @@ Read the Manager's briefing: your scope, your tasks and AC where it names them, 
 roles: dev
 topic: start
 
-1. Read your briefing: task, AC, design notes, peers.
+1. Read your briefing (task, AC, design notes, peers).
 2. `git status`, `git branch --show-current`: you are on `squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME`; work only there.
 3. Read CLAUDE.md and the conventions `project.md` lists.
 
