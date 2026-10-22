@@ -510,10 +510,14 @@ def user(t, content=None):
 def send(t, call_id, to, error=None):
     """A SendMessage call and its result (error: None = no result yet, True = failed, False = sent)."""
     out = [asst(t, "tool_use", [{"type": "tool_use", "name": "SendMessage", "id": call_id,
-                                 "input": {"to": to, "message": "STATUS 02: x"}}])]
+                                 "input": {"to": to, "summary": "STATUS 02", "message": "STATUS 02: x"}}])]
     if error is not None:
-        out.append(user(t + 1, [{"type": "tool_result", "tool_use_id": call_id, "is_error": error,
-                                 "content": "recipient not reachable" if error else "sent"}]))
+        # real shape: no is_error; record-level toolUseResult.success and a JSON text content
+        body = {"success": True, "message": "sent"} if not error else {"success": False, "message": "No agent named x is reachable."}
+        rec = user(t + 1, [{"type": "tool_result", "tool_use_id": call_id,
+                            "content": [{"type": "text", "text": json.dumps(body)}]}])
+        rec["toolUseResult"] = body
+        out.append(rec)
     return out
 
 

@@ -192,7 +192,6 @@ def wake_step(panes, target, back):
         t0 = batch_start(wp)
         if t0 is not None:
             for p in sorted(wp & back):
-                # Clause 2 (failed SendMessage) is UNVERIFIED: no real failed-send transcript sample exists yet.
                 if not woken_since(p, t0):
                     subprocess.run([f"{H}/bin/cwake", "--mark", p, "--clauses", "2", "--since", str(t0)])
         due = sorted((m[p][0], p) for m in [markers()] for p in m if p in wp and p in back)

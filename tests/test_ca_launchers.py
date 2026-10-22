@@ -781,6 +781,18 @@ class CwakeTest(Base):
             self.cwake("--mark", PANE, "--clauses", "2", "--since", "0")
             self.assertEqual(self.marker() and self.marker()[1:], want, fix)
 
+    def test_mark_clause2_fires_on_content_json_alone_without_is_error_or_toolUseResult(self):
+        self.claude()
+        lines = []
+        for l in (FIX / "transcript-tail-sendmessage-error.derived.jsonl").read_text(encoding="utf-8").splitlines():
+            r = json.loads(l)
+            r.pop("toolUseResult", None)
+            lines.append(json.dumps(r))
+        self.assertNotIn("is_error", "".join(lines))
+        self.e.set_transcript(self.SID, lines)
+        self.cwake("--mark", PANE, "--clauses", "2", "--since", "0")
+        self.assertEqual(self.marker() and self.marker()[1:], ["plugin-tech-ca-repo", "failed-send"])
+
     def test_mark_clause2_ignores_a_failure_older_than_since(self):
         self.claude()
         self.e.set_transcript(self.SID, (FIX / "transcript-tail-sendmessage-error.derived.jsonl")

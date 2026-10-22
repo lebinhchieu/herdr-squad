@@ -130,9 +130,28 @@ def items(r):
     return [i for i in c if isinstance(i, dict)] if isinstance(c, list) else []
 
 
+def send_failed(rec, item):
+    if item.get("is_error") is True:
+        return True
+    tur = rec.get("toolUseResult")
+    if isinstance(tur, dict) and tur.get("success") is False:
+        return True
+    c = item.get("content")
+    texts = [c] if isinstance(c, str) else [i.get("text") for i in c if isinstance(i, dict)] if isinstance(c, list) else []
+    for x in texts:
+        try:
+            v = json.loads(x)
+        except (TypeError, ValueError):
+            continue
+        if isinstance(v, dict) and v.get("success") is False:
+            return True
+    return False
+
+
 def clause2(recs, since):
-    """A SendMessage tool_result with is_error:true since `since`, with no later successful SendMessage to the
-    same recipient. UNVERIFIED: no real failed-SendMessage sample exists yet (the shape is expected, not seen)."""
+    """A failed SendMessage result since `since`, with no later successful SendMessage to the same recipient.
+    Real failure shape (no is_error): the user record has toolUseResult.success == false and the tool_result text is
+    JSON {"success":false,...}; is_error:true is also accepted."""
     calls, failed = {}, {}  # tool_use_id -> recipient ; recipient -> epoch of the last failure
     ok = {}  # recipient -> epoch of the last success
     for r in recs:
@@ -143,7 +162,7 @@ def clause2(recs, since):
                 calls[it.get("id")] = inp.get("to") or inp.get("recipient")
             elif it.get("type") == "tool_result" and it.get("tool_use_id") in calls:
                 to = calls[it["tool_use_id"]]
-                if it.get("is_error") is True:
+                if send_failed(r, it):
                     if t >= since:
                         failed[to] = t
                 else:
