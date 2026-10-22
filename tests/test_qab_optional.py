@@ -1,4 +1,5 @@
-"""Ticket 14: `qa-b: no` composes the QA-blackbox-free rules; no `qa-b` line composes as at 4901cab."""
+"""Ticket 14: `qa-b: no` composes the QA-blackbox-free rules; no `qa-b` line composes as `qa-b: yes`.
+The golden is the merged tree (integration 27); 14's byte-identity to 4901cab was proven at 99796ce."""
 import hashlib
 import json
 import os
@@ -56,6 +57,12 @@ class NoLineUnchanged(unittest.TestCase):
                 r = compose(role, size, None, design)
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+
+    def test_no_line_equals_qab_yes_at_merged_sha(self):
+        for size in "SML":
+            for role in ROLE_LIST:
+                with self.subTest(f"{role}/{size}"):
+                    self.assertEqual(compose(role, size).stdout, compose(role, size, "yes").stdout)
 
     def test_qab_no_at_s_composes_as_no_line(self):
         for role in ROLE_LIST:

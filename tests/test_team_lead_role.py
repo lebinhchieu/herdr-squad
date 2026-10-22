@@ -56,7 +56,7 @@ class TeamLeadRoleTest(unittest.TestCase):
         self.assertIn("When you are yourself a party to such a dispute, do not settle it", RULES)
 
     def test_summary_names_passed_sha_and_checkers(self):
-        self.assertIn("each task's final passed sha and the checkers that passed it", RULES)
+        self.assertIn("each task's final passed sha, the checkers that passed it and the returns per task", RULES)
 
 
 if __name__ == "__main__":
