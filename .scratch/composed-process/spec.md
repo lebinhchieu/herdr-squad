@@ -174,7 +174,7 @@ rules: CORE-1 … REV-3 SQ-1 (ids in order)
 - Existing tests touched pass; new behaviour has a test; no full suite (only the Tech Lead runs it).
 - `squad-process lint` passes on the template once ticket 02 exists. Before that, `python3 bin/processlint.py` runs where `process.md` changes.
 - Every file open uses `encoding="utf-8"` and `newline="\n"`; `tests/test_windows_safe.py` passes.
-- Evidence follows ADR 0015: `.scratch/composed-process/issues/<NN>-<slug>.evidence/evidence.md`.
+- Evidence follows ADR 0015: `.scratch/composed-process/issues/<NN>-<slug>/evidence.md`.
 - Ticket and spec drafts go in `$SCOPE_DIR/tasks/` and ride a Developer branch, never untracked in the project root (finding 3).
 
 ## Rollback and compatibility

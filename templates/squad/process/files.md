@@ -100,7 +100,7 @@ topic: files
 
 | File | Owner | Holds |
 |---|---|---|
-| `<ticket path minus .md>.evidence/` | Developer | `evidence.md`, the one file the PO reads; `img/` holds its screenshots |
+| `<ticket path minus .md>/` | Developer | `evidence.md`, the one file the PO reads; `img/` holds its screenshots |
 | `evidence/<task>/` | QAs, Tech Lead | Reviewers' working files `qa-w.md`, `qa-b.md`, `tl-review.md` and suite receipts; the PO never needs it |
 | `ui-design/<task>.md` | Designer | One UI task's design (`.html` optional) |
 

@@ -170,7 +170,7 @@ A file that proves a task works, such as a QA report or a Developer's run output
 _Avoid_: proof, report
 
 **Evidence folder**:
-The folder `<ticket path minus .md>.evidence/` next to a ticket, holding `evidence.md` (the one file the PO reads) and `img/`. The reviewers' working files (`qa-w.md`, `qa-b.md`, `tl-review.md`) and suite receipts stay in `$SCOPE_DIR/evidence/<task>/`.
+The folder `<ticket path minus .md>/` next to a ticket (old `<stem>.evidence/` folders stay readable), holding `evidence.md` (the one file the PO reads) and `img/`. The reviewers' working files (`qa-w.md`, `qa-b.md`, `tl-review.md`) and suite receipts stay in `$SCOPE_DIR/evidence/<task>/`.
 _Avoid_: evidence dir, proof folder
 
 **Evidence sha**:
