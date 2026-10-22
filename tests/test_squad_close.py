@@ -1,5 +1,6 @@
 """squad-close: retire the squad's agents, remove merged worktrees, archive the folder, report branches."""
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -686,3 +687,121 @@ class RetroCloseTest(ScopedCloseTest):
         before = f.read_text(encoding="utf-8")
         self.assertEqual(self.close("--scope", "sc1", "--force", "--dry-run").returncode, 0)
         self.assertEqual(f.read_text(encoding="utf-8"), before)
+
+
+X, Y, Z = "1.0-" + "a" * 12, "1.0-" + "b" * 12, "1.0-" + "c" * 12
+
+
+class RuntimePruneCloseTest(ScopedCloseTest):
+    """Ticket 25: closing frees the pinned runtimes nobody holds, never the one the script runs from."""
+
+    def setUp(self):
+        super().setUp()
+        (self.squad / "scopes/sc1/scope.md").write_text(f"# Scope\n\ngoal:\nplugin: 1.0 {'a' * 12}\n", encoding="utf-8")
+        (self.squad / "scopes/sc2/scope.md").write_text(f"# Scope\n\ngoal: g1\nplugin: 1.0 {'b' * 12}\n", encoding="utf-8")
+        self.rt = self.squad / "_runtime"
+        for n in (X, Y, Z):
+            (self.rt / n / "bin").mkdir(parents=True)
+            (self.rt / n / "bin" / "f").write_text("x" * 1048576, encoding="utf-8")
+        # the fake herdr records whether runtime X still exists when a pane is closed
+        fake = self.root / "fakebin" / "herdr"
+        fake.write_text(FAKE_HERDR.replace('echo "$@" >> "$HERDR_LOG"',
+                        'echo "$@ rt=$([ -d "$RT_X" ] && echo yes || echo no)" >> "$HERDR_LOG"'), encoding="utf-8")
+        self.env["RT_X"] = str(self.rt / X)
+
+    def test_scope_close_removes_its_runtime_and_the_orphan_and_keeps_the_held_one(self):
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("== runtimes", r.stdout)
+        self.assertIn(f"removed {X} (1.0 MB)", r.stdout)
+        self.assertIn(f"removed {Z} (1.0 MB)", r.stdout)          # an orphan
+        self.assertIn(f"kept {Y} (held by scope sc2)", r.stdout)
+        self.assertIn("freed 2.0 MB in 2 runtimes", r.stdout)
+        self.assertEqual(sorted(p.name for p in self.rt.iterdir()), [Y])
+
+    def test_prune_runs_after_the_agents_and_before_the_managers_pane_is_closed(self):
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        closes = [l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("pane close")]
+        self.assertEqual(len(closes), 2, closes)
+        self.assertTrue(closes[0].startswith("pane close p-t-dev-sc1-1") and closes[0].endswith("rt=yes"))   # before the prune
+        self.assertTrue(closes[1].startswith("pane close p-t-mgr-sc1") and closes[1].endswith("rt=no"))     # after it
+        self.assertLess(r.stdout.index("== branches"), r.stdout.index("== runtimes"))
+        self.assertLess(r.stdout.index("== runtimes"), r.stdout.index("== folder"))
+
+    def test_goal_pin_keeps_a_scope_runtime_until_the_goal_closes(self):
+        (self.squad / "goals/g1/goal.md").write_text(f"# Goal\nplugin: 1.0 {'b' * 12}\n", encoding="utf-8")
+        r = self.close("--scope", "sc2")
+        self.assertIn(f"kept {Y} (held by goal g1)", r.stdout)
+        self.assertTrue((self.rt / Y).exists())
+        (self.squad / "scopes/_done").mkdir(exist_ok=True)
+        (self.squad / "scopes/sc3").rename(self.squad / "scopes/_done/sc3")
+        r = self.close("--goal", "g1")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn(f"removed {Y}", r.stdout)                   # the goal's own pin is not a holder
+        self.assertEqual(sorted(p.name for p in self.rt.iterdir()), [X])   # X is still held by sc1
+
+    def test_dry_run_removes_nothing_and_says_would_remove(self):
+        r = self.close("--scope", "sc1", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"would remove {X} (1.0 MB)", r.stdout)
+        self.assertIn("would free 2.0 MB in 2 runtimes", r.stdout)
+        self.assertEqual(sorted(p.name for p in self.rt.iterdir()), [X, Y, Z])
+
+    def test_whole_squad_close_prunes_all_before_the_archive(self):
+        r = self.close()
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn(f"removed {Y} (1.0 MB)", r.stdout)          # even though sc2 pins it
+        self.assertFalse((self.root / ".claude/squads/_done/t/_runtime").exists())
+        self.assertLess(r.stdout.index("== runtimes"), r.stdout.index("== folder"))
+
+    def test_runtime_the_script_runs_from_is_kept_and_archived_with_a_whole_squad(self):
+        shutil.copytree(BIN, self.rt / Z / "bin", dirs_exist_ok=True)
+        script = self.rt / Z / "bin" / "squad-close"
+
+        def run(*a):
+            return subprocess.run([str(script), "t", *a], env=self.env, cwd=self.root, text=True,
+                                  encoding="utf-8", capture_output=True, timeout=30)
+        r = run("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"kept {Z} (running)", r.stdout)
+        self.assertTrue(script.exists())
+        self.assertFalse((self.rt / X).exists())
+        r = run()
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn(f"kept {Z} (running)", r.stdout)
+        self.assertEqual([p.name for p in (self.root / ".claude/squads/_done/t/_runtime").iterdir()], [Z])
+
+    def test_a_failed_prune_only_warns_and_the_close_completes(self):
+        bad = self.root / "badbin"
+        shutil.copytree(BIN, bad)
+        (bad / "squad-process").write_text("import sys\nprint(\"boom\", file=sys.stderr)\nsys.exit(7)\n", encoding="utf-8")
+        r = subprocess.run([str(bad / "squad-close"), "t", "--scope", "sc1"], env=self.env, cwd=self.root, text=True,
+                           encoding="utf-8", capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("warning: runtime cleanup failed (exit 7)", r.stderr)
+        self.assertTrue((self.squad / "scopes/_done/sc1").exists())
+
+    def test_undeletable_runtime_is_reported_and_the_close_completes(self):
+        if os.name == "nt" or os.geteuid() == 0:
+            self.skipTest("needs permissions to deny")
+        self.rt.chmod(0o555)
+        try:
+            r = self.close("--scope", "sc1")
+        finally:
+            self.rt.chmod(0o755)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"could not remove {X}", r.stdout)
+        self.assertTrue((self.squad / "scopes/_done/sc1").exists())
+
+    def test_a_squad_without_runtimes_prints_nothing_new(self):
+        shutil.rmtree(self.rt)
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("runtimes", r.stdout)
+        self.assertNotIn("freed", r.stdout)
+
+
+# the scoped-layout tests inherited from ScopedCloseTest are not re-run under the runtime fixture
+for _name in [n for n in dir(ScopedCloseTest) if n.startswith("test_")]:
+    setattr(RuntimePruneCloseTest, _name, None)

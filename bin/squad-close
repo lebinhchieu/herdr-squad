@@ -16,6 +16,9 @@
 #                                   `promoted:` line yet (the goal's knowledge would be lost). --force overrides.
 #   squad-close <squad>             retire every agent, remove merged worktrees, archive the squad folder to
 #                                   .claude/squads/_done/<squad>/ (evidence included).
+#   Scope, goal and squad closes also delete the pinned runtimes in _runtime/ that no open scope, goal or plugin.pin
+#   holds (all of them on a whole-squad close), never the one this script runs from; after the worktrees, before
+#   the folder moves and the Manager is retired.
 set -euo pipefail
 
 usage() { echo "Usage: squad-close <squad> [--scope S | --goal G] [--into BRANCH] [--force] [--dry-run]"; }
@@ -311,6 +314,17 @@ if [[ $mode == label ]]; then
     echo "dropped ${#others[@]} rows of scope $scope"
   fi
   exit 0
+fi
+
+# Pinned runtimes nobody holds any more (CLOSE-2). After the agents and worktrees (no live agent runs from a removed
+# runtime), before the folder moves; the Manager is retired last, below. The runtime this script runs from is
+# protected. A failure only warns and never stops the close.
+if [[ -d $squad_dir/_runtime ]]; then
+  echo "== runtimes"
+  prune_args=(--squad-dir "$squad_dir" --protect "$bin")
+  if [[ $mode == squad ]]; then prune_args+=(--all); else prune_args+=(--home "$src"); fi
+  [[ $dry == 0 ]] || prune_args+=(--dry-run)
+  python3 "$bin/squad-process" prune "${prune_args[@]}" || echo "warning: runtime cleanup failed (exit $?); the close continues" >&2
 fi
 
 echo "== folder"
