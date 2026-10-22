@@ -1,0 +1,4 @@
+{"type":"assistant","timestamp":"2026-10-22T21:47:44.742Z","message":{"stop_reason":"end_turn"}}
+{"type":"assistant","timestamp":"2026-10-22T21:48:10.100Z","message":{"stop_reason":"tool_use","content":[{"type":"tool_use","name":"SendMessage","id":"toolu_A","input":{"to":"dev-b","message":"STATUS 02: x"}}]}}
+{"type":"user","timestamp":"2026-10-22T21:48:10.400Z","message":{"stop_reason":null,"content":[{"type":"tool_result","tool_use_id":"toolu_A","is_error":true,"content":"recipient not reachable"}]}}
+{"type":"assistant","timestamp":"2026-10-22T21:48:12.000Z","message":{"stop_reason":"end_turn"}}

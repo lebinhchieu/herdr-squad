@@ -182,7 +182,7 @@ for d in "$ACCT" "$ACCT/bin" "$ACCT/workspace-default"; do
     { [ -e "$f" ] || [ -L "$f" ]; } || continue
     rel=${f#"$ACCT"/}
     case "$d" in
-      "$ACCT") in_list "$rel" "${TOP[@]}" bin workspace-default default cswitch.log .git .install-backup && continue
+      "$ACCT") in_list "$rel" "${TOP[@]}" bin workspace-default wake-pending default cswitch.log .git .install-backup && continue
                case "$rel" in usage-[0-9]) continue ;; esac
                is_leftover "$f" "${TOP[@]}" && [ "$rc" = 0 ] && continue ;;
       "$ACCT/bin") in_list "$rel" "${TOOL[@]}" && continue; is_leftover "$f" "${BINS[@]}" && [ "$rc" = 0 ] && continue ;;

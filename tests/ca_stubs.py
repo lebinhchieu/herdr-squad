@@ -56,6 +56,12 @@ def live_claude(pane):
             out.append(p)
     return out
 
+def status(pane):
+    try:
+        return open(S + "/status/" + pane, encoding="utf-8").read().strip() or None
+    except OSError:
+        return None
+
 def serve(name):
     try:
         data = open(S + "/" + name, "rb").read()
@@ -82,6 +88,27 @@ elif argv[:2] == ["pane", "get"]:
     print(json.dumps(data, separators=(",", ":")))
 elif argv[:2] == ["agent", "list"]:
     serve("agents.json")
+elif argv[:2] == ["agent", "get"]:
+    rows = json.load(open(S + "/agents.json", encoding="utf-8"))["result"]["agents"]
+    row = next((r for r in rows if r["pane_id"] == argv[2]), None)
+    if row is None:
+        sys.exit(1)
+    st = status(argv[2])
+    print(json.dumps({"id": "cli:agent:get", "result": {"agent": dict(row, agent_status=st or row["agent_status"])},
+                      "type": "agent_info"}))
+elif argv[:2] == ["agent", "wait"]:
+    # status/<pane> (written by a test) decides; no file = the state is reached at once (older tests)
+    untils = [argv[i + 1] for i, a in enumerate(argv) if a == "--until"] or ["idle", "done", "blocked"]
+    ms = int(argv[argv.index("--timeout") + 1]) if "--timeout" in argv else 0
+    import time
+    end = time.time() + ms / 1000
+    while True:
+        st = status(argv[2])
+        if st is None or st in untils:
+            sys.exit(0)
+        if time.time() >= end:
+            sys.exit(1)
+        time.sleep(0.05)
 elif argv[:2] == ["agent", "prompt"] and argv[3:4] == ["/exit"]:
     for p in live_claude(argv[2]):
         os.kill(p, signal.SIGTERM)
@@ -92,6 +119,10 @@ elif argv[:2] == ["pane", "run"]:
     except (OSError, KeyError):
         ws = "w26"
     env = dict(os.environ, HERDR_ENV="1", HERDR_PANE_ID=pane, HERDR_WORKSPACE_ID=ws)
+    try:  # the pane's shell env (SQUAD_NAME, SCOPE_DIR ...) that a relaunched claude inherits
+        env.update(json.load(open(S + "/panes/" + pane + ".env.json", encoding="utf-8")))
+    except OSError:
+        pass
     subprocess.Popen(["bash", "-c", cmd], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
 '''
@@ -271,8 +302,38 @@ class Env:
     def set_pane(self, fixture="pane-get-claude.real.json", pane=PANE):
         shutil.copy(FIX / fixture, self.stub / "panes" / f"{pane}.json")
 
+    def set_pane_env(self, pane, **env):
+        """Env the pane's shell passes to a claude started with `herdr pane run` (as the squad's panes do)."""
+        (self.stub / "panes" / f"{pane}.env.json").write_text(json.dumps(env), encoding="utf-8")
+
     def set_agents(self):
         shutil.copy(FIX / "agent-list.real.json", self.stub / "agents.json")
+
+    def set_agent_rows(self, *rows):
+        """rows: (pane_id, name, workspace_id, session_id, status), built from the real agent-list capture."""
+        real = json.loads((FIX / "agent-list-status.real.json").read_text(encoding="utf-8"))
+        tmpl = real["result"]["agents"][0]
+        real["result"]["agents"] = [
+            dict(tmpl, pane_id=p, name=n, workspace_id=w, agent_status=st,
+                 agent_session=dict(tmpl["agent_session"], value=sid)) for p, n, w, sid, st in rows]
+        (self.stub / "agents.json").write_text(json.dumps(real), encoding="utf-8")
+
+    def set_status(self, pane, status):
+        """What `herdr agent get|wait` report for the pane from now on (also set_status(pane, None) to drop it)."""
+        d = self.stub / "status"
+        d.mkdir(exist_ok=True)
+        if status is None:
+            (d / pane).unlink(missing_ok=True)
+        else:
+            (d / pane).write_text(status, encoding="utf-8")
+
+    def set_transcript(self, session_id, records, account="1"):
+        """A session transcript under <config dir>/projects/<slug>/<session>.jsonl; records are dicts or raw lines."""
+        base = self.home / (".claude" if account == "1" else f".claude-{account}")
+        d = base / "projects" / "-tmp-project"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{session_id}.jsonl").write_text(
+            "".join((r if isinstance(r, str) else json.dumps(r)) + "\n" for r in records), encoding="utf-8")
 
     def herdr_calls(self):
         """Every herdr call as an argv list (JSON log: a label with a space survives)."""

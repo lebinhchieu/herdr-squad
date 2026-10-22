@@ -33,6 +33,8 @@ class InstallTest(unittest.TestCase):
         (self.acct / "bin").mkdir(parents=True)
         (self.acct / "workspace-default").mkdir()
         (self.acct / "workspace-default" / "w1").write_text("2\n")
+        (self.acct / "wake-pending").mkdir()
+        (self.acct / "wake-pending" / "w1:p1").write_text("1 a cut-off\n")
         for name, text in (("default", "3\n"), ("usage-1", "{}"), ("cswitch.log", "log\n")):
             (self.acct / name).write_text(text)
         for f in FILES:
@@ -54,6 +56,8 @@ class InstallTest(unittest.TestCase):
         for f in FILES:
             self.assertTrue((self.acct / f).is_symlink(), f)
             self.assertEqual((self.acct / f).resolve(), (CA / f).resolve())
+        self.assertIn("bin/cwake", FILES)  # the wake script is part of the install list
+        self.assertTrue((self.acct / "bin" / "cwake").is_symlink())
         self.assertTrue(self.skill.is_symlink())
         self.assertEqual(self.skill.resolve(), (CA / "skill").resolve())
         self.assertTrue((self.skill / "SKILL.md").is_file())
@@ -66,6 +70,8 @@ class InstallTest(unittest.TestCase):
         self.assertEqual((self.acct / "usage-1").read_text(), "{}")
         self.assertEqual((self.acct / "cswitch.log").read_text(), "log\n")
         self.assertEqual((self.acct / "workspace-default" / "w1").read_text(), "2\n")
+        self.assertEqual((self.acct / "wake-pending" / "w1:p1").read_text(), "1 a cut-off\n")  # state, kept
+        self.assertNotIn("unexpected", r.stdout + r.stderr)
         for f in FILES:
             self.assertTrue((self.acct / f).is_symlink(), f)
         for f in LEFTOVERS:

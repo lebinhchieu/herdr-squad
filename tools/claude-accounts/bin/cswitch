@@ -42,7 +42,10 @@ cmd=$(printf '%q ' "$HOME/.claude-accounts/bin/$launcher" "${args[@]}" --resume 
 # Detached: when called from the agent being switched, its own exit must not kill this.
 nohup bash -c '
   pane=$0 cmd=$1 name=$2
-  herdr agent wait "$pane" --timeout 600000 >/dev/null
+  # idle or done only: a blocked pane (permission dialog) is waited on, so /exit never lands in the dialog.
+  herdr agent wait "$pane" --until idle --until done --timeout 600000 >/dev/null
+  # Pending-work sample (clauses 1 and 3) while the pane is quiet and still on the old account; no-op when CSWITCH_WAKE=off.
+  [ "${CSWITCH_WAKE:-on}" = off ] || "$HOME/.claude-accounts/bin/cwake" --mark "$pane" --clauses 13 >/dev/null 2>&1
   # herdr can drop "agent" before claude has exited; typing then loses the command, so watch the process itself.
   tuipid() { for p in $(pgrep -u "$(id -u)" -x claude); do a1=$({ tr "\0" "\n" <"/proc/$p/cmdline" | sed -n 2p; } 2>/dev/null); [ "$a1" = daemon ] && continue; { tr "\0" "\n" <"/proc/$p/environ" | grep -qx "HERDR_PANE_ID=$pane"; } 2>/dev/null && { echo "$p"; return 0; }; done; return 1; }
   alive() { tuipid >/dev/null; }

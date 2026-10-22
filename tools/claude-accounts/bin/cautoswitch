@@ -15,6 +15,9 @@ CFG = {"1": os.path.expanduser("~/.claude"), "2": os.path.expanduser("~/.claude-
 CACHE_MAX_AGE = 900  # status-line cache older than this is too stale to act on
 ACCT_OF = {v: k for k, v in CFG.items()}
 REFRESH_FAILED = {}  # acct -> time of the last failed claude -p refresh
+PENDING_DIR = f"{H}/wake-pending"
+MARKER_MAX_AGE = 1800  # a wake marker older than this is deleted unsent
+OLD_ACCT = {}  # pane -> account it ran on before its last cswitch (for the wake text)
 
 
 def log(msg):
@@ -116,6 +119,90 @@ def pending(pane):
         return False
 
 
+def log_ts(line):
+    """Epoch of a cswitch.log line (the leading `date -Is` stamp), else None."""
+    try:
+        return datetime.datetime.fromisoformat(line.split()[0]).timestamp()
+    except (ValueError, IndexError):
+        return None
+
+
+def markers():
+    """{pane: (epoch, name, reason)} of wake-pending/."""
+    out = {}
+    try:
+        files = os.listdir(PENDING_DIR)
+    except OSError:
+        return out
+    for pane in files:
+        if pane.startswith("."):
+            continue
+        try:
+            with open(f"{PENDING_DIR}/{pane}") as f:
+                e, name, reason = (f.read().split(None, 2) + [""])[:3]
+            out[pane] = (int(e), name, reason.strip())
+        except (OSError, ValueError):
+            pass
+    return out
+
+
+def batch_start(panes):
+    """Epoch of the first '-> account' line of these panes in the last 30 min (T0 of the batch), else None."""
+    t0 = None
+    try:
+        with open(f"{H}/cswitch.log") as f:
+            for l in f:
+                w = l.split()
+                if len(w) > 1 and w[1] in panes and " -> account " in l:
+                    t = log_ts(l)
+                    if t and time.time() - t < MARKER_MAX_AGE and (t0 is None or t < t0):
+                        t0 = t
+    except OSError:
+        pass
+    return t0
+
+
+def woken_since(pane, t0):
+    """True when cswitch.log has a 'wake sent|skipped' line of the pane at or after t0."""
+    try:
+        with open(f"{H}/cswitch.log") as f:
+            for l in f:
+                w = l.split()
+                if len(w) > 3 and w[1] == pane and w[-2] == "wake" and w[-1] in ("sent", "skipped") \
+                        and (log_ts(l) or 0) >= t0:
+                    return True
+    except OSError:
+        pass
+    return False
+
+
+def wake_step(panes, target, back):
+    """After the per-pane loop: expire old markers, then wake each marked pane that is back on its workspace's
+    default, once its workspace has no cswitch in flight. `back` = panes known to be on target.
+    A pane that failed or is still running keeps its marker and is not woken (the others are not held up)."""
+    for pane, (epoch, name, _) in markers().items():
+        if time.time() - epoch > MARKER_MAX_AGE:
+            os.remove(f"{PENDING_DIR}/{pane}")
+            log(f"wake marker of {name}({pane}) older than 30 min; deleted unsent")
+    gap = float(os.environ.get("CSWITCH_WAKE_GAP", "3"))
+    for ws in target:
+        wp = {p for p, v in panes.items() if v[2] == ws}
+        if any(pending(p) for p in wp):
+            continue  # a cswitch of this workspace is still within its 15 min: wake next tick
+        t0 = batch_start(wp)
+        if t0 is not None:
+            for p in sorted(wp & back):
+                # Clause 2 (failed SendMessage) is UNVERIFIED: no real failed-send transcript sample exists yet.
+                if not woken_since(p, t0):
+                    subprocess.run([f"{H}/bin/cwake", "--mark", p, "--clauses", "2", "--since", str(t0)])
+        due = sorted((m[p][0], p) for m in [markers()] for p in m if p in wp and p in back)
+        for i, (_, p) in enumerate(due):
+            if i:
+                time.sleep(gap)
+            old = OLD_ACCT.get(p)
+            subprocess.run([f"{H}/bin/cwake", p, *(["--old", old, "--new", target[ws]] if old else [])])
+
+
 def tick(threshold, dry):
     panes = squad_panes()
     target = {ws: workspace_default(ws) for ws in sorted({p[2] for p in panes.values()})}
@@ -145,6 +232,8 @@ def tick(threshold, dry):
             subprocess.run([f"{H}/bin/cdefault", "--ws", ws, other], check=True)
             target[ws] = other
     print(f"{time.strftime('%H:%M:%S')} ok: {' | '.join(status) or 'no squad panes'}", flush=True)
+    wake_on = os.environ.get("CSWITCH_WAKE", "on") != "off"
+    back = {p for p, (_, acct, ws) in panes.items() if acct == target[ws] and not pending(p)}
     # One pane at a time: if every session restarts together, messages between agents fail.
     for pane, (name, acct, ws) in panes.items():
         if acct == target[ws]:
@@ -156,14 +245,20 @@ def tick(threshold, dry):
             continue
         log(f"retry: cswitch {name}({pane}) c{acct} -> c{target[ws]}")
         start = os.path.getsize(f"{H}/cswitch.log")
+        OLD_ACCT[pane] = acct
         subprocess.run([f"{H}/bin/cswitch", target[ws], pane])
         deadline = time.time() + 900  # cswitch waits up to 10 min for idle, then restarts
         while time.time() < deadline:
             time.sleep(5)
             with open(f"{H}/cswitch.log") as f:
                 f.seek(start)
-                if any(len(w := l.split()) > 1 and w[1] == pane and (" done" in l or "FAILED" in l) for l in f):
-                    break
+                res = [l for l in f if len(w := l.split()) > 1 and w[1] == pane and (" done" in l or "FAILED" in l)]
+            if res:
+                if " done" in res[-1] and "FAILED" not in res[-1]:
+                    back.add(pane)
+                break
+    if wake_on and not dry:
+        wake_step(panes, target, back)
 
 
 def main():
