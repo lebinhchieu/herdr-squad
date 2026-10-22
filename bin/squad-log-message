@@ -46,7 +46,7 @@ third_return() {
     M) who=Manager lc=LC-7c ;;
     *) who="Team Lead" lc=LC-7b ;;
   esac
-  notice=$(jq -Rrn --arg who "$who" --arg lc "$lc" '
+  notice=$(jq -Rrn --arg who "$who" --arg lc "$lc" --arg size "$size" '
     def shaof: (capture("\\.\\.(?<s>[0-9a-fA-F]{6,40})").s? // capture("(?:commit|sha)[ \\t:]+(?<s>[0-9a-fA-F]{6,40})").s? // null) | if . then ascii_downcase else . end;
     def key: if . == null then null elif test("^[0-9]+$") then sub("^0+(?=.)"; "") else . end;
     def canon($known): . as $s | ([$known[] | select(. as $k | $k | startswith($s) or ($s | startswith($k)))][0]) // $s;
@@ -66,7 +66,8 @@ third_return() {
         else . end)) as $st
     | ($st.fails[:-1] | unique) as $prior | ($st.fails[-1]) as $s
     | select(($prior | index([$s])) == null and ($prior | length) == 2)
-    | "task \($this.task) has 3 returns: also send `BLOCKED \($this.task): 3 returns` to \($who) [\($lc)]; tell the Developer to consult the advisor before the next HANDIN; note it in the task file [LC-25]"' "$log" 2>/dev/null) || notice=
+    | if $size == "S" or $size == "M" then "task \($this.task) has 3 returns: record the budget line and consult the advisor [LC-25]"
+      else "task \($this.task) has 3 returns: also send `BLOCKED \($this.task): 3 returns` to \($who) [\($lc)]; tell the Developer to consult the advisor before the next HANDIN; note it in the task file [LC-25]" end' "$log" 2>/dev/null) || notice=
 }
 
 # Records can exceed PIPE_BUF, so lock instead of relying on atomic O_APPEND writes.
