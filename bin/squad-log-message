@@ -62,7 +62,7 @@ third_return() {
         else . end)) as $st
     | ($st.fails[:-1] | unique) as $prior | ($st.fails[-1]) as $s
     | select(($prior | index([$s])) == null and ($prior | length) == 2)
-    | "task \($this.task) has 3 returns: also send `BLOCKED \($this.task): 3 returns` to \($who) [\($lc)]"' "$log" 2>/dev/null) || notice=
+    | "task \($this.task) has 3 returns: also send `BLOCKED \($this.task): 3 returns` to \($who) [\($lc)]; tell the Developer to consult the advisor before the next HANDIN and note it in the task file [LC-24]"' "$log" 2>/dev/null) || notice=
 }
 
 # Records can exceed PIPE_BUF, so lock instead of relying on atomic O_APPEND writes.

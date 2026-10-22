@@ -86,7 +86,7 @@ Before a PO wait (a merge, a check-in answer, a close), the Manager retires ever
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
 topic: cost
 
-Step up one notch of model or effort only on failure or escalation, for that task only.
+On failure or escalation, consult the advisor first ([LC-25]). Effort may step up for that task only; a model never changes in a live session, only by respawn.
 
 ## COST-12 Messages point at files
 roles: manager
