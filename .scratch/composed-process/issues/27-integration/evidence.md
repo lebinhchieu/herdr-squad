@@ -28,3 +28,9 @@
 All other rules byte-identical. Probes ran in temp dirs, SCOPE_DIR/SQUAD_DIR unset; no writes to real scope logs.
 
 Not run (Tech Lead owns): `--tz` suite.
+
+## Suite fixes (after Tech Lead `--tz` FAIL on 199a01a)
+- `test_team_lead_role`: pin updated to ticket 12's ITER-3 wording (test only).
+- `test_qab_optional`: golden regenerated from the merged tree (it legitimately adds rules from 10-13, 25, 26); 14's byte-identity to 4901cab was proven at 99796ce. New check at the merged sha: compose with no `qa-b` line equals `qa-b: yes` for every role and size.
+- `test_squadinbox.test_no_pyc`: stale `__pycache__` deleted; runs use `PYTHONDONTWRITEBYTECODE=1`.
+- The 3 files: 77 tests OK.
