@@ -5,7 +5,7 @@ project root outside .claude/squads/ (drafts go in $SCOPE_DIR/tasks/; FILE-11). 
 Exit 2 with the reason on stderr blocks the write. Exit 0 in every other case, a tooling problem included
 (missing SQUAD_DIR, unparsable payload): the guard never traps an agent. No SQUAD_ROLE (the PO) or dev: no limit.
 Python, so no jq dependency. A Bash redirect (`echo > file`) is not seen: accepted limit, `squad-close` is the
-backstop. Fast on purpose: no git call, no network, one realpath (of the target)."""
+backstop. Fast on purpose: no git call, no network, two realpath calls (target, squad folder)."""
 import json
 import os
 import sys
@@ -24,22 +24,18 @@ def decide(env, payload):
     if not isinstance(target, str) or not target:
         return None
     cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else os.getcwd()
-    given = os.path.abspath(os.path.join(cwd, target))
-    real = os.path.realpath(given)  # resolves symlinks and ..
-    # <root>/.claude/squads/<squad>; the root is given by the path, not resolved again
-    squads = os.path.dirname(os.path.abspath(squad_dir))
+    real = os.path.realpath(os.path.join(cwd, target))  # resolves symlinks and ..
+    # <root>/.claude/squads/<squad>, resolved the same way as the target so a symlinked root compares equal
+    squads = os.path.dirname(os.path.realpath(squad_dir))
     root = os.path.dirname(os.path.dirname(squads))
 
     def inside(path, folder):  # case and separators normalised (Windows: C:/Proj == c:\\proj)
         path, folder = os.path.normcase(path), os.path.normcase(folder).rstrip(os.path.sep)
         return path == folder or path.startswith(folder + os.path.sep)
 
-    for path in (real, given):
-        if inside(path, root):
-            if inside(real, squads):
-                return None
-            where = env.get("SCOPE_DIR") or "$SCOPE_DIR"
-            return f"draft it in {where}/tasks/; a Developer task commits it [FILE-11]"
+    if inside(real, root) and not inside(real, squads):
+        where = env.get("SCOPE_DIR") or "$SCOPE_DIR"
+        return f"draft it in {where}/tasks/; a Developer task commits it [FILE-11]"
     return None
 
 

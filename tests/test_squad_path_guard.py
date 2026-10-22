@@ -81,7 +81,7 @@ class GuardTest(unittest.TestCase):
         self.assertIsNotNone(self.decide(self.scope / "tasks" / ".." / ".." / ".." / ".." / ".." / "x.md"))
         self.assertIsNone(self.decide(self.root / ".scratch" / ".." / ".claude" / "squads" / "t" / "x.md"))
 
-    def test_symlink_into_the_root_is_blocked_and_one_leading_out_is_refused_too(self):
+    def test_symlink_into_the_root_is_blocked_and_one_leading_out_is_a_write_outside(self):
         link = self.outside / "link"
         try:
             os.symlink(self.root / ".scratch", link)
@@ -89,8 +89,7 @@ class GuardTest(unittest.TestCase):
         except (OSError, NotImplementedError):
             self.skipTest("no symlinks")
         self.assertIsNotNone(self.decide(link / "spec.md"))
-        # a link inside the root that leads out is still refused: conservative, the draft belongs in tasks/ anyway
-        self.assertIsNotNone(self.decide(self.scope / "tasks" / "out" / "x.md"))
+        self.assertIsNone(self.decide(self.scope / "tasks" / "out" / "x.md"))   # really writes outside the project
 
     def test_a_file_that_does_not_exist_yet_resolves_through_its_symlinked_parent(self):
         link = self.outside / "dirlink"
@@ -125,6 +124,22 @@ class GuardTest(unittest.TestCase):
                 msg = guard.decide(self.env(role), {"tool_name": tool, "tool_input": {key: str(self.root / "x")}})
                 self.assertIsNotNone(msg, (tool, role))
 
+    def test_a_symlinked_project_root_compares_equal_whichever_spelling_is_used(self):
+        real = self.outside / "real"
+        (real / ".claude" / "squads" / "s" / "scopes" / "x" / "tasks").mkdir(parents=True)
+        (real / ".scratch").mkdir()
+        link = self.outside / "link"
+        try:
+            os.symlink(real, link)
+        except (OSError, NotImplementedError):
+            self.skipTest("no symlinks")
+        env = {"SQUAD_DIR": str(link / ".claude" / "squads" / "s"), "SQUAD_ROLE": "tech-lead"}
+        for spelling in (link, real):
+            ok = {"tool_input": {"file_path": str(spelling / ".claude" / "squads" / "s" / "scopes" / "x" / "tasks" / "a.md")}}
+            self.assertIsNone(guard.decide(env, ok), spelling)
+            bad = {"tool_input": {"file_path": str(spelling / ".scratch" / "a.md")}}
+            self.assertIsNotNone(guard.decide({**env, "SQUAD_ROLE": "ba"}, bad), spelling)
+
     def test_relative_path_resolves_against_cwd_of_the_payload(self):
         self.assertIsNotNone(self.decide("spec.md", cwd=self.root))
         self.assertIsNone(self.decide("x.md", cwd=self.scope / "tasks"))
@@ -139,7 +154,7 @@ class GuardTest(unittest.TestCase):
 
     def test_one_realpath_and_no_git_call(self):
         src = (BIN / "squad-path-guard").read_text(encoding="utf-8")
-        self.assertEqual(src.count("realpath("), 1)
+        self.assertEqual(src.count("realpath("), 2)  # target and squad folder
         for word in ("subprocess", "socket", "urllib", "git "):
             self.assertNotIn(word, src.split('"""', 2)[2])
 

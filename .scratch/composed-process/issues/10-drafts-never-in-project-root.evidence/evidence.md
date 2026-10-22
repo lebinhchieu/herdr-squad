@@ -14,11 +14,11 @@ sha: see the HANDIN (code ed9d10a + fixes of the agreed Technical AC)
 - manager, ba, team-lead, qa-whitebox, qa-blackbox, designer, token-coach each write `<root>/x.md` → each exit 2.
 
 **Tech AC1 decision table** `test_squad_path_guard.GuardTest`: role × squad folder / root / outside / developer worktree / no role; `..` and symlinked paths resolved; relative path against payload `cwd`; `notebook_path`; sibling dir with the same prefix (`proj-other`) allowed; missing `SQUAD_DIR`, target or payload → allow. `CliTest`: exit 2 + stderr; garbage stdin (`not json`, empty, `[1]`, `null`) and missing `SQUAD_DIR` → exit 0.
-- Known limit: a symlink inside the root leading out is refused too (conservative). A Bash redirect bypasses the guard; FILE-11 says so and `squad-close` is the backstop.
+- Known limit: a Bash redirect bypasses the guard; FILE-11 says so and `squad-close` is the backstop.
 
 **Agreed Technical AC (ticket-amendments, last section)**: tests use the real `SQUAD_ROLE` values (`test_tools_and_real_role_values`: Write, Edit, MultiEdit, NotebookEdit × tech-lead, qa-whitebox, qa-blackbox, team-lead, token-coach); a not-yet-existing target resolves through its symlinked parent (`..does_not_exist_yet..`); a symlink in the squad folder to the root is blocked; Windows case and separators normalised (`test_windows_case_and_separators_are_normalised`, `ntpath`: `c:/proj`, `C:\\PROJ`, `.CLAUDE\\Squads`, other drive, sibling prefix). The guard is Python: no `jq` dependency. **Accepted limit: a Bash redirect (`echo > file`) is not covered.** Forced failures with exit 0: garbage payload, missing `SQUAD_DIR` (`CliTest`).
 
-**Tech AC2** `test_one_realpath_and_no_git_call`: one `realpath(` call, no subprocess/socket/urllib/git in the code.
+**Tech AC2** `test_one_realpath_and_no_git_call` (QA whitebox FAIL fix: the root is resolved like the target, so a symlinked root compares equal; `test_a_symlinked_project_root_compares_equal_whichever_spelling_is_used` covers both repros): two `realpath(` calls (target and squad folder), no subprocess/socket/urllib/git in the code.
 
 **Tech AC3** `hooks.json` valid; `test_hooks_json.test_path_guard_on_the_write_tools_only` covers the single `PreToolUse` entry (matcher `Write|Edit|MultiEdit|NotebookEdit`) and that the script exists.
 
