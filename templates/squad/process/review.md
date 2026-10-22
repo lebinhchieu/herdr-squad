@@ -219,7 +219,7 @@ topic: review
 
 There is no BA: the business AC are the ticket as written ([SIZE-5c]). One a person cannot observe (a command and its output, a file, a message) is a finding in `qa-w.md`; a business doubt goes to the Manager ([SIZE-13]).
 
-## REV-22 Review subagent, S
+## REV-22 Review, S
 roles: dev
 when: size = S
 topic: review

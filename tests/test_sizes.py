@@ -94,15 +94,14 @@ class Slice2Owners(unittest.TestCase):
         for rid in slice2_ids():
             if rid in EXCEPTIONS:
                 continue
-            out = run("who", rid).stdout
-            for size in "SM":
-                for qab in ("yes", "no"):
-                    for line in out.splitlines():
-                        m = re.match(rf"{size} qa-b {qab}: acts: (.*?); aware: ", line)
-                        if m and m.group(1).strip() != "-":
-                            absent = [a.strip() for a in m.group(1).split(",") if a.strip() not in present(size, qab)]
-                            if absent:
-                                bad.append(f"{rid} at {size} qa-b {qab}: {absent}")
+            for line in run("who", rid).stdout.splitlines():
+                m = re.match(r"([SM])(?: qa-b (yes|no))?: acts: (.*?); aware: ", line)
+                if not m or m.group(3).strip() == "-":
+                    continue
+                size, qab = m.group(1), m.group(2) or "yes"
+                absent = [a.strip() for a in m.group(3).split(",") if a.strip() not in present(size, qab)]
+                if absent:
+                    bad.append(f"{rid} at {size} qa-b {qab}: {absent}")
         self.assertEqual(sorted(set(bad)), [])
 
     def test_the_old_orphan_list_is_fixed(self):

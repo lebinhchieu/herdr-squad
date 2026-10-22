@@ -28,3 +28,9 @@ Run: `./bin/squad-process lint` (silent, exit 0). `cd tests; PYTHONDONTWRITEBYTE
 - No `tl-review.md` at S: the Manager's `PASS` and the Developer's `## Review` section replace it (`process.md:221` and `files.md:104` still name `tl-review.md`; ticket 30 owns them).
 - Developer ASK on a design difference goes to the Manager at S and M (LC-19b).
 - Suite at M: QA whitebox runs it once every task passed (SUITE-3b); QA blackbox reads its receipt (SUITE-6b).
+
+### Follow-ups for 30
+- `bin/squad-log-message` 3-returns notice cites `[LC-7b]` (now L only); at M the rule is LC-7c, at S LC-7a, and the notice says "Team Lead".
+- `process.md:221` / `files.md:104` still name `tl-review.md` at S.
+- MSG-4a/11a (S Developer) still say "Tech Lead" (30's files).
+- `squad-evidence check` does not yet require `## Review` at S (`bin/squadevidence.py`): ASK 29 sent to the Tech Lead.

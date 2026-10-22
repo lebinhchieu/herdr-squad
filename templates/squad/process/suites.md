@@ -34,7 +34,7 @@ roles: dev
 when: size = S
 topic: suites
 
-Run the test files you touched, then the full suite once on your final sha ([SUITE-4]).
+Run the test files you touched, then the full suite once on your final sha ([SUITE-4]); no two runs overlap.
 
 ## SUITE-2b QA suites
 roles: qa-whitebox, qa-blackbox
