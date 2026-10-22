@@ -224,6 +224,7 @@ class StartTest(unittest.TestCase):
         self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from squad settings)", "manager effort: high (from template)"])
         self.assertEqual(self.dry_lines(*new, "--model", "opus", "--effort", "low"),
                          ["manager model: opus (from flag)", "manager effort: low (from flag)"])
+        self.assertEqual(self.dry_lines(*new, "--model", "opus"), ["manager model: opus (from flag)", "manager effort: high (from template)"])
         self.assertEqual(len(self.dry_lines("goal: Big", "--name", "g")), 2)
 
     def test_resume_dry_run_shows_them_too_and_in_goal_has_no_manager_lines(self):
@@ -242,6 +243,7 @@ class StartTest(unittest.TestCase):
         self.assertRegex(self.herdr(), r"--model opus --effort low\b")
         self.assertTrue((self.squad / "scopes" / "two" / "roles" / "t-mgr-two.overrides").exists())
         (self.squad / "goals" / "g1").mkdir()
+        self.log.unlink()
         self.assertEqual(self.dry_lines("x", "--in-goal", "g1", "--name", "three"), [])
 
 
