@@ -92,6 +92,39 @@ class GuardTest(unittest.TestCase):
         # a link inside the root that leads out is still refused: conservative, the draft belongs in tasks/ anyway
         self.assertIsNotNone(self.decide(self.scope / "tasks" / "out" / "x.md"))
 
+    def test_a_file_that_does_not_exist_yet_resolves_through_its_symlinked_parent(self):
+        link = self.outside / "dirlink"
+        try:
+            os.symlink(self.root / ".scratch", link)
+        except (OSError, NotImplementedError):
+            self.skipTest("no symlinks")
+        self.assertIsNotNone(self.decide(link / "new" / "deep" / "spec.md"))   # neither new/ nor spec.md exists
+
+    def test_a_symlink_inside_the_squad_folder_pointing_to_the_root_is_blocked(self):
+        try:
+            os.symlink(self.root / ".scratch", self.scope / "tasks" / "toroot")
+        except (OSError, NotImplementedError):
+            self.skipTest("no symlinks")
+        self.assertIsNotNone(self.decide(self.scope / "tasks" / "toroot" / "spec.md"))
+
+    def test_windows_case_and_separators_are_normalised(self):
+        import ntpath
+        from unittest import mock
+        env = {"SQUAD_ROLE": "tech-lead", "SQUAD_DIR": "C:\\Proj\\.claude\\squads\\t", "SCOPE_DIR": "C:\\Proj\\.claude\\squads\\t\\scopes\\s"}
+        with mock.patch.object(guard.os, "path", ntpath):
+            for target in ("c:/proj/.scratch/x/spec.md", "C:\\PROJ\\README.md", "c:\\Proj/.Scratch\\a.md"):
+                self.assertIsNotNone(guard.decide(env, {"tool_input": {"file_path": target}, "cwd": "C:\\"}), target)
+            for target in ("c:/proj/.claude/squads/t/scopes/s/tasks/a.md", "C:\\PROJ\\.CLAUDE\\Squads\\t\\x.md",
+                           "d:/proj/x.md", "c:/proj-other/x.md"):
+                self.assertIsNone(guard.decide(env, {"tool_input": {"file_path": target}, "cwd": "C:\\"}), target)
+
+    def test_tools_and_real_role_values(self):
+        for tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+            key = "notebook_path" if tool == "NotebookEdit" else "file_path"
+            for role in ("tech-lead", "qa-whitebox", "qa-blackbox", "team-lead", "token-coach"):
+                msg = guard.decide(self.env(role), {"tool_name": tool, "tool_input": {key: str(self.root / "x")}})
+                self.assertIsNotNone(msg, (tool, role))
+
     def test_relative_path_resolves_against_cwd_of_the_payload(self):
         self.assertIsNotNone(self.decide("spec.md", cwd=self.root))
         self.assertIsNone(self.decide("x.md", cwd=self.scope / "tasks"))

@@ -4,7 +4,8 @@ project root outside .claude/squads/ (drafts go in $SCOPE_DIR/tasks/; FILE-11). 
 
 Exit 2 with the reason on stderr blocks the write. Exit 0 in every other case, a tooling problem included
 (missing SQUAD_DIR, unparsable payload): the guard never traps an agent. No SQUAD_ROLE (the PO) or dev: no limit.
-Fast on purpose: no git call, no network, one realpath (of the target)."""
+Python, so no jq dependency. A Bash redirect (`echo > file`) is not seen: accepted limit, `squad-close` is the
+backstop. Fast on purpose: no git call, no network, one realpath (of the target)."""
 import json
 import os
 import sys
@@ -29,8 +30,9 @@ def decide(env, payload):
     squads = os.path.dirname(os.path.abspath(squad_dir))
     root = os.path.dirname(os.path.dirname(squads))
 
-    def inside(path, folder):
-        return path == folder or path.startswith(folder.rstrip(os.sep) + os.sep)
+    def inside(path, folder):  # case and separators normalised (Windows: C:/Proj == c:\\proj)
+        path, folder = os.path.normcase(path), os.path.normcase(folder).rstrip(os.path.sep)
+        return path == folder or path.startswith(folder + os.path.sep)
 
     for path in (real, given):
         if inside(path, root):

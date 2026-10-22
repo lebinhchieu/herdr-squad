@@ -3,7 +3,7 @@
 **`squad-path-guard` refuses Write/Edit/MultiEdit/NotebookEdit by every non-Developer role in the project root outside `.claude/squads/`; FILE-11 and MRG-5 say so; `squad-close --scope` warns on untracked root files and still closes. 164 tests green; dev rules byte delta 0.**
 
 Harness: `cd tests; python3 -m unittest test_squad_path_guard test_hooks_json test_squad_close test_windows_safe` OK. Also: test_dev_rules_size, test_process_conversion, test_processlint, test_pod_rules_process, test_process_citations, test_task_id_rule, test_suite_rules_process, test_team_lead_perms, test_templates (164 OK together).
-sha: ed9d10a (code)
+sha: see the HANDIN (code ed9d10a + fixes of the agreed Technical AC)
 
 ## Behaviour
 
@@ -15,6 +15,8 @@ sha: ed9d10a (code)
 
 **Tech AC1 decision table** `test_squad_path_guard.GuardTest`: role × squad folder / root / outside / developer worktree / no role; `..` and symlinked paths resolved; relative path against payload `cwd`; `notebook_path`; sibling dir with the same prefix (`proj-other`) allowed; missing `SQUAD_DIR`, target or payload → allow. `CliTest`: exit 2 + stderr; garbage stdin (`not json`, empty, `[1]`, `null`) and missing `SQUAD_DIR` → exit 0.
 - Known limit: a symlink inside the root leading out is refused too (conservative). A Bash redirect bypasses the guard; FILE-11 says so and `squad-close` is the backstop.
+
+**Agreed Technical AC (ticket-amendments, last section)**: tests use the real `SQUAD_ROLE` values (`test_tools_and_real_role_values`: Write, Edit, MultiEdit, NotebookEdit × tech-lead, qa-whitebox, qa-blackbox, team-lead, token-coach); a not-yet-existing target resolves through its symlinked parent (`..does_not_exist_yet..`); a symlink in the squad folder to the root is blocked; Windows case and separators normalised (`test_windows_case_and_separators_are_normalised`, `ntpath`: `c:/proj`, `C:\\PROJ`, `.CLAUDE\\Squads`, other drive, sibling prefix). The guard is Python: no `jq` dependency. **Accepted limit: a Bash redirect (`echo > file`) is not covered.** Forced failures with exit 0: garbage payload, missing `SQUAD_DIR` (`CliTest`).
 
 **Tech AC2** `test_one_realpath_and_no_git_call`: one `realpath(` call, no subprocess/socket/urllib/git in the code.
 
