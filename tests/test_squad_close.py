@@ -306,6 +306,34 @@ class ScopedCloseTest(unittest.TestCase):
         self.assertIn("kept t-mgr-g1 (Manager stays; squad-retire t-mgr-g1 ends it)", r.stdout)
         self.assertTrue((self.squad / "goals/_done/g1").exists())
 
+    def test_composed_squad_scope_close_archives_scope_and_retires_agents(self):
+        (self.squad / "process.md").rename(self.squad / "process.local.md")
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse((self.squad / "scopes/sc1").exists())
+        self.assertTrue((self.squad / "scopes/_done/sc1/evidence/proof.md").exists())
+        self.assertEqual(self.closed_tabs(), ["pane close p-t-dev-sc1-1"])  # Manager kept
+        self.assertIn("squad/t/sc1/t-dev-sc1-1: merged into main, worktree removed", r.stdout)
+
+    def test_composed_squad_goal_close_archives_goal(self):
+        (self.squad / "process.md").rename(self.squad / "process.local.md")
+        for s in ("sc2", "sc3"):
+            (self.squad / "scopes" / "_done").mkdir(exist_ok=True)
+            (self.squad / "scopes" / s).rename(self.squad / "scopes" / "_done" / s)
+        r = self.close("--goal", "g1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue((self.squad / "goals/_done/g1").exists())
+
+    def test_scoped_folder_with_neither_process_file_moves_nothing(self):
+        (self.squad / "process.md").unlink()
+        for args in (("--scope", "sc1"), ("--goal", "g1"), ()):
+            r = self.close(*args)
+            self.assertEqual(r.returncode, 1, args)
+            self.assertIn(f"no squad folder at {self.squad}", r.stderr)
+        self.assertTrue((self.squad / "scopes/sc1").exists())
+        self.assertTrue((self.squad / "goals/g1").exists())
+        self.assertFalse((self.root / ".claude/squads/_done").exists())
+
     def test_squad_close_covers_every_scope_and_goal_roster_and_nested_worktrees(self):
         (self.squad / "goals/g1/shared/decisions.md").write_text("# D\n\n- fact\n", encoding="utf-8")
         r = self.close()
