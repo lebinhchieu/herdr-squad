@@ -65,10 +65,10 @@
 ### PO live-probe checklist (first real batch)
 
 1. Throwaway pane first: start a squad-style claude (`SQUAD_NAME` set) in a spare herdr pane of the workspace, off the workspace default.
-2. `cautoswitch --once --dry-run`: it should print `would cswitch` for that pane and nothing else; `ls ~/.claude-accounts/wake-pending` stays empty or unchanged.
+2. `cautoswitch --once --dry-run`: it prints the tick status line (`HH:MM:SS ok: <ws> -> cN ...`) and `[dry-run] would cswitch ...` for that pane (plus `[dry-run] would set ... default` if over the threshold); `cswitch.log` gets no `wake`/`WAKE` line and `ls ~/.claude-accounts/wake-pending` is unchanged.
 3. Pick one **idle** pane. Run `~/.claude-accounts/usage-popup.sh` (or `squad-usage`) and note the totals; run the real tick (`cautoswitch --once`); after the pane is back, compare again. No increase beyond the move itself = a bare `--resume` costs nothing.
 4. `grep -E 'wake|WAKE' ~/.claude-accounts/cswitch.log`: only panes that had pending work show `wake sent`; idle panes show nothing; your own panes never.
-5. Send a message to a pane that is down during the batch, from another squad pane: after the batch that sender should show `wake sent` with reason `failed-send` in its marker (this is the clause 2 live sample; report whether it fired).
+5. Clause 2 live sample: from a squad pane (the sender) message a pane that is down during the batch (the send fails with "not reachable"). The marker is deleted at the wake and the `wake sent` line carries no reason, so prove clause 2 one of two ways: (a) after the batch is back, before the next tick wakes it, run `cwake --mark <sender pane> --clauses 2 --since <epoch of the first `-> account` line in cswitch.log>` and `cat ~/.claude-accounts/wake-pending/<sender pane>`: it must end in `failed-send` (`cwake <sender pane>` then sends the wake); or (b) after the real tick, read the sender's transcript for the failed `SendMessage` (`toolUseResult.success:false`) and check the sender's pane received the wake prompt while it had no cut-off turn or unanswered message (otherwise `wake sent` could come from clause 1 or 3). Report whether it fired.
 6. Rollback if wrong: restart `cautoswitch` with `CSWITCH_WAKE=off`.
 
 ## Agent skill
