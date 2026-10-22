@@ -227,6 +227,27 @@ class StartTest(unittest.TestCase):
         self.assertEqual(self.dry_lines(*new, "--model", "opus"), ["manager model: opus (from flag)", "manager effort: high (from template)"])
         self.assertEqual(len(self.dry_lines("goal: Big", "--name", "g")), 2)
 
+    def test_dry_run_resolves_like_squad_spawn_overlay_beats_the_full_file_and_the_pinned_template_is_used(self):
+        st = self.squad / "settings"
+        st.mkdir()
+        (st / "manager.json").write_text('{"model": "haiku", "effortLevel": "low"}', encoding="utf-8")
+        (st / "manager.local.json").write_text('{"model": "opus"}', encoding="utf-8")
+        new = ("x", "--name", "one", "--touches", "z")
+        # overlay present: manager.json is ignored (squad-spawn warns), so effort comes from the template
+        self.assertEqual(self.dry_lines(*new), ["manager model: opus (from squad settings)", "manager effort: high (from template)"])
+        (st / "manager.local.json").unlink()
+        self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from squad settings)", "manager effort: low (from squad settings)"])
+        (st / "manager.json").unlink()
+        # composed squad: the template is the pinned runtime's, not the running plugin's
+        (self.squad / "process.local.md").write_text("", encoding="utf-8")
+        sha = "a" * 40
+        version = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
+        (self.squad / "plugin.pin").write_text(f"{version} {sha}\n", encoding="utf-8")
+        tpl = self.squad / "_runtime" / f"{version}-{sha[:12]}" / "templates" / "squad" / "settings"
+        tpl.mkdir(parents=True)
+        (tpl / "manager.json").write_text('{"model": "haiku", "effortLevel": "max"}', encoding="utf-8")
+        self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from template)", "manager effort: max (from template)"])
+
     def test_resume_dry_run_shows_them_too_and_in_goal_has_no_manager_lines(self):
         (self.squad / "scopes" / "one").mkdir()
         self.assertEqual(self.dry_lines("--resume", "one", "--model", "opus"),

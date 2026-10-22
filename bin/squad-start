@@ -96,33 +96,57 @@ def recorded_overrides(home, manager):
     return out
 
 
-def manager_defaults(squad, model=None, effort=None, recorded=None):
-    """The Manager's model and effort as {key: (value, source)}: the flag, else the squad's settings/manager.local.json
-    (or the old full manager.json), else the plugin template. Read-only; an unreadable file is skipped."""
-    files = [("squad settings", squad / "settings" / "manager.local.json"), ("squad settings", squad / "settings" / "manager.json"),
-             ("template", PLUGIN / "templates" / "squad" / "settings" / "manager.json")]
-    loaded = []
-    for src, f in files:
-        try:
-            d = json.loads(f.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        if isinstance(d, dict):
-            loaded.append((src, d))
+def manager_defaults(squad, model=None, effort=None, recorded=None, pin=None):
+    """The Manager's model and effort as {key: (value, source)}, resolved as squad-spawn does: the flag, the recorded
+    override, then the settings -- the overlay merged over the template when manager.local.json exists (the full
+    manager.json is then ignored), else the full manager.json, else the template. In a composed squad the template is
+    the pinned runtime's when it exists (a dry run does not build it), else the plugin's. Read-only."""
+    tpl_root = PLUGIN
+    if pin and squadruntime.mode(str(squad)) == "composed":
+        rt = squadruntime.runtime_path(str(squad), pin[0], pin[1])
+        if os.path.isdir(os.path.join(rt, "templates")):
+            tpl_root = Path(rt)
+    tpl = None
+    try:
+        tpl = json.loads((tpl_root / "templates" / "squad" / "settings" / "manager.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    local = squad / "settings" / "manager.local.json"
+    full = squad / "settings" / "manager.json"
+    layers = []  # (source, dict), first hit per key wins
+    try:
+        if local.is_file():
+            layers.append(("squad settings", json.loads(local.read_text(encoding="utf-8"))))
+        elif full.is_file():
+            layers.append(("squad settings", json.loads(full.read_text(encoding="utf-8"))))
+    except (OSError, ValueError):
+        pass
+    if isinstance(tpl, dict):
+        layers.append(("template", tpl))
+    layers = [(src, d) for src, d in layers if isinstance(d, dict)]
     out = {}
     for key, name, flag in (("model", "model", model), ("effort", "effortLevel", effort)):
         if flag:
             out[key] = (flag, "flag")
-            continue
-        if recorded and recorded.get(key):
+        elif recorded and recorded.get(key):
             out[key] = (recorded[key], "recorded override")
-            continue
-        out[key] = next(((d[name], src) for src, d in loaded if isinstance(d.get(name), str) and d[name]), ("Claude's default", "none"))
+        else:
+            out[key] = next(((d[name], src) for src, d in layers if isinstance(d.get(name), str) and d[name]), ("Claude's default", "none"))
     return out
 
 
-def print_manager_defaults(squad, a, recorded=None):
-    for key, (v, src) in manager_defaults(squad, a.model, a.effort, recorded).items():
+def resume_pin(squad, target):
+    """The pin of the resumed scope or goal in a composed squad, else None (a bad pin is squad-spawn's to refuse)."""
+    if squadruntime.mode(str(squad)) != "composed":
+        return None
+    try:
+        return squadruntime.home_pin(str(target))
+    except squadruntime.RuntimeError_:
+        return None
+
+
+def print_manager_defaults(squad, a, recorded=None, pin=None):
+    for key, (v, src) in manager_defaults(squad, a.model, a.effort, recorded, pin).items():
         print(f"manager {key}: {v} (from {src})")
 
 
@@ -220,7 +244,7 @@ def resume(squad, a, update):
             spawn += [f"--{key}", v]
     if a.dry_run:
         print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
-        print_manager_defaults(squad, a, rec)
+        print_manager_defaults(squad, a, rec, resume_pin(squad, target))
         return
     r = subprocess.run([need_bash(), *spawn], env={**os.environ, "SQUAD_DIR": squad.as_posix()}, capture_output=True,
                        text=True, encoding="utf-8", errors="replace")
@@ -350,7 +374,7 @@ def main():
             print(f"would pin plugin: {pin[0]} {pin[1]} (from {pin[2]})")
         if manager:
             print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
-            print_manager_defaults(squad, a)
+            print_manager_defaults(squad, a, None, pin)
         return
 
     bash = need_bash() if manager else None
