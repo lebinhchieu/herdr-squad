@@ -196,7 +196,7 @@ roles: manager, ba, team-lead, tech-lead
 when: size in M, L and qa-b = no
 topic: sizes
 
-With `qa-b: no` the M and L rows of [SIZE-2] read: Done = QA whitebox PASS. QA whitebox checks the Developer's `## Behaviour` against the business AC.
+With `qa-b: no` there is one checker, QA whitebox: Done = QA whitebox PASS. Wherever a rule says "both checkers", "both QAs", "QA whitebox + QA blackbox" or "PASS + QA blackbox PASS" ([SIZE-2], the task-done owner table, the merge and check-in rules), read QA whitebox alone. It checks the Developer's `## Behaviour` against the business AC.
 
 ## SIZE-21 Spawn without QA blackbox
 roles: manager
