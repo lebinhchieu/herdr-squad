@@ -10,7 +10,7 @@
   squad-migrate <squad> --scope-to-goal NAME --goal G [--dry-run] [--no-backup]
       Makes goals/G/ (goal.md with a row for NAME, roster.md, escalations.md, shared/decisions.md, shared/summaries/),
       sets `goal: G` in scopes/NAME/scope.md, and MOVES every Manager row out of the scope roster into the goal roster
-      (squad-close --scope would otherwise retire the Manager).
+      (a scope in a goal has no Manager of its own; the goal Manager respawns after squad-close --scope).
 
 Both refuse when the target already exists. Before changing anything the squad folder is copied to
 <project>/.claude/squad-backups/<squad>-<date> (-2, -3 ... if that exists; --no-backup skips it). --dry-run prints every step and changes nothing.
