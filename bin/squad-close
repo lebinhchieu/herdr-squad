@@ -2,7 +2,8 @@
 # Close finished work and tidy up after it. Branches are only reported, never deleted: merging and deleting
 # them is the PO's call.
 #
-#   squad-close <squad> --scope S   per-scope squad: retire S's agents (its Manager last), remove worktrees whose
+#   squad-close <squad> --scope S   per-scope squad: retire S's agents (not its Manager: it stays for the PO, who ends it
+#                                   with `squad-retire <mgr>`), remove worktrees whose
 #                                   branch is merged and clean, move scopes/S to scopes/_done/S.
 #                                   Worktrees are found by branch (`git worktree list`), wherever they sit; untracked
 #                                   files (caches, pid files) do not block removal and are listed.
@@ -11,14 +12,15 @@
 #                                   Also lists untracked files in the project root outside .claude/squads/ (warns only).
 #                                   Refuses while the last iteration's Went well, Friction or Process changes made is
 #                                   empty (ITER-16); --force overrides and logs it in that file.
-#   squad-close <squad> --goal G    retire the goal Manager, move goals/G to goals/_done/G. Refuses while a scope of
+#   squad-close <squad> --goal G    move goals/G to goals/_done/G; the goal Manager stays. Refuses while a scope of
 #                                   G is still open, or while shared/decisions.md has entries and goal.md has no
 #                                   `promoted:` line yet (the goal's knowledge would be lost). --force overrides.
-#   squad-close <squad>             retire every agent, remove merged worktrees, archive the squad folder to
+#   squad-close <squad>             retire every agent, Managers last, remove merged worktrees, archive the squad folder to
 #                                   .claude/squads/_done/<squad>/ (evidence included).
 #   Scope, goal and squad closes also delete the pinned runtimes in _runtime/ that no open scope, goal or plugin.pin
-#   holds (all of them on a whole-squad close), never the one this script runs from; after the worktrees, before
-#   the folder moves and the Manager is retired.
+#   holds (all of them on a whole-squad close), never the one this script runs from, and on a scope or goal close
+#   never the closing home's own pin (its kept Manager still runs from it; the next close prunes it); after the
+#   worktrees, before the folder moves. A kept Manager is chat-only after the move (its folder is in _done).
 set -euo pipefail
 
 usage() { echo "Usage: squad-close <squad> [--scope S | --goal G] [--into BRANCH] [--force] [--dry-run]"; }
@@ -317,12 +319,23 @@ if [[ $mode == label ]]; then
 fi
 
 # Pinned runtimes nobody holds any more (CLOSE-2). After the agents and worktrees (no live agent runs from a removed
-# runtime), before the folder moves; the Manager is retired last, below. The runtime this script runs from is
-# protected. A failure only warns and never stops the close.
+# runtime), before the folder moves; on a squad close the Managers are retired last, below. The runtime this script
+# runs from is protected, and on a scope or goal close so is the closing home's own pin. A failure only warns and never stops the close.
 if [[ -d $squad_dir/_runtime ]]; then
   echo "== runtimes"
   prune_args=(--squad-dir "$squad_dir" --protect "$bin")
-  if [[ $mode == squad ]]; then prune_args+=(--all); else prune_args+=(--home "$src"); fi
+  if [[ $mode == squad ]]; then prune_args+=(--all); else
+    prune_args+=(--home "$src")
+    # The kept Manager still runs from the closing home's pinned runtime.
+    pin_name=$(python3 -X utf8 -c 'import sys; sys.path.insert(0, sys.argv[1]); import squadruntime as r
+p = r.home_pin(sys.argv[2])
+n = "%s-%s" % (p[0], p[1][:12]) if p else ""
+print("" if n in r._holders(sys.argv[3], sys.argv[2]) else n)' "$bin" "$src" "$squad_dir" 2>/dev/null || true)
+    if [[ -n $pin_name && ${#managers[@]} -gt 0 && -d $squad_dir/_runtime/$pin_name ]]; then
+      prune_args+=(--protect "$squad_dir/_runtime/$pin_name")
+      echo "kept $pin_name (${managers[*]} still runs from it; the next scope or squad close prunes it)"
+    fi
+  fi
   [[ $dry == 0 ]] || prune_args+=(--dry-run)
   python3 "$bin/squad-process" prune "${prune_args[@]}" || echo "warning: runtime cleanup failed (exit $?); the close continues" >&2
 fi
@@ -337,6 +350,11 @@ else
   echo "archived to $dst"
 fi
 
-# Last, because the caller may be the Manager: closing its tab ends this script.
+# Whole-squad close only, last, because the caller may be a Manager: closing its tab ends this script. A scope or
+# goal close keeps its Manager; the PO ends it with `squad-retire`.
 echo "== manager"
-retire "${managers[@]}"
+if [[ $mode == squad ]]; then
+  retire ${managers[@]+"${managers[@]}"}
+else
+  for m in ${managers[@]+"${managers[@]}"}; do echo "kept $m (Manager stays; squad-retire $m ends it)"; done
+fi

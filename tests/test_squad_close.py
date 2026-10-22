@@ -212,7 +212,9 @@ class ScopedCloseTest(unittest.TestCase):
         self.assertIn("squad/t/sc1/t-dev-sc1-1: merged into main, worktree removed", r.stdout)
         self.assertIn("squad/t/sc1/t-dev-sc1-2: NOT merged into main, kept", r.stdout)
         self.assertNotIn("sc2", r.stdout)
-        self.assertEqual(self.closed_tabs(), ["pane close p-t-dev-sc1-1", "pane close p-t-mgr-sc1"])  # the scope's Manager last
+        self.assertEqual(self.closed_tabs(), ["pane close p-t-dev-sc1-1"])  # the scope's Manager stays
+        self.assertIn("kept t-mgr-sc1 (Manager stays; squad-retire t-mgr-sc1 ends it)", r.stdout)
+        self.assertNotIn("retired t-mgr-sc1", r.stdout)
         self.assertTrue((self.squad / "scopes/sc2").exists())
         self.assertIn("squad/t/sc1/t-dev-sc1-1", git("branch", "--list", "squad/t/sc1/*", cwd=self.root))  # branches kept
 
@@ -241,6 +243,9 @@ class ScopedCloseTest(unittest.TestCase):
         self.assertTrue((self.squad / "scopes/sc1").exists())
         self.assertTrue(self.wts["t-dev-sc1-1"].exists())
         self.assertEqual(self.closed_tabs(), [])
+        self.assertIn("kept t-mgr-sc1 (Manager stays; squad-retire t-mgr-sc1 ends it)", r.stdout)
+        self.assertNotIn("would retire t-mgr-sc1", r.stdout)
+        self.assertIn("would retire t-dev-sc1-1", r.stdout)
 
     def test_scope_close_refuses_an_existing_archive_and_unknown_scope(self):
         (self.squad / "scopes/_done/sc1").mkdir(parents=True)
@@ -268,7 +273,7 @@ class ScopedCloseTest(unittest.TestCase):
         self.assertEqual(self.close("--goal", "g1", "--force").returncode, 0)
         self.assertTrue((self.squad / "goals/_done/g1").exists())
 
-    def test_goal_close_passes_once_promoted_and_retires_the_goal_manager(self):
+    def test_goal_close_passes_once_promoted_and_keeps_the_goal_manager(self):
         for s in ("sc2", "sc3"):
             (self.squad / "scopes" / "_done").mkdir(exist_ok=True)
             (self.squad / "scopes" / s).rename(self.squad / "scopes" / "_done" / s)
@@ -277,7 +282,9 @@ class ScopedCloseTest(unittest.TestCase):
         r = self.close("--goal", "g1")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse((self.squad / "goals/g1").exists())
-        self.assertEqual(self.closed_tabs(), ["pane close p-t-mgr-g1"])
+        self.assertEqual(self.closed_tabs(), [])
+        self.assertIn("kept t-mgr-g1 (Manager stays; squad-retire t-mgr-g1 ends it)", r.stdout)
+        self.assertTrue((self.squad / "goals/_done/g1").exists())
 
     def test_squad_close_covers_every_scope_and_goal_roster_and_nested_worktrees(self):
         (self.squad / "goals/g1/shared/decisions.md").write_text("# D\n\n- fact\n", encoding="utf-8")
@@ -578,7 +585,7 @@ class ReportHookTest(unittest.TestCase):
         self.assertEqual(r.stdout.replace(str(self.root), "ROOT"), base_out)
         self.assertEqual(r.stderr.strip(), "warning: report not generated (squad-report exited 7)")
         self.assertTrue((self.squad / "scopes/_done/sc1/evidence/proof.md").exists())
-        self.assertEqual(self.closed_tabs(), ["pane close p-t-dev-sc1-1", "pane close p-t-mgr-sc1"])
+        self.assertEqual(self.closed_tabs(), ["pane close p-t-dev-sc1-1"])
 
     def test_dry_run_never_calls_the_report(self):
         r = self.run_close(self.stub_bin(self.REC), "--scope", "sc1", "--dry-run")
@@ -713,21 +720,70 @@ class RuntimePruneCloseTest(ScopedCloseTest):
         r = self.close("--scope", "sc1")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("== runtimes", r.stdout)
-        self.assertIn(f"removed {X} (1.0 MB)", r.stdout)
+        self.assertIn(f"kept {X} (t-mgr-sc1 still runs from it; the next scope or squad close prunes it)", r.stdout)
+        self.assertIn(f"kept {X} (running)", r.stdout)
         self.assertIn(f"removed {Z} (1.0 MB)", r.stdout)          # an orphan
         self.assertIn(f"kept {Y} (held by scope sc2)", r.stdout)
-        self.assertIn("freed 2.0 MB in 2 runtimes", r.stdout)
-        self.assertEqual(sorted(p.name for p in self.rt.iterdir()), [Y])
+        self.assertIn("freed 1.0 MB in 1 runtime", r.stdout)
+        self.assertEqual(sorted(p.name for p in self.rt.iterdir()), [X, Y])
 
-    def test_prune_runs_after_the_agents_and_before_the_managers_pane_is_closed(self):
+    def test_scope_close_closes_no_manager_pane_and_prunes_after_the_agents(self):
         r = self.close("--scope", "sc1")
         self.assertEqual(r.returncode, 0, r.stderr)
-        closes = [l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("pane close")]
-        self.assertEqual(len(closes), 2, closes)
+        closes = self.closed_tabs()
+        self.assertEqual(len(closes), 1, closes)                  # the Developer only
         self.assertTrue(closes[0].startswith("pane close p-t-dev-sc1-1") and closes[0].endswith("rt=yes"))   # before the prune
-        self.assertTrue(closes[1].startswith("pane close p-t-mgr-sc1") and closes[1].endswith("rt=no"))     # after it
         self.assertLess(r.stdout.index("== branches"), r.stdout.index("== runtimes"))
         self.assertLess(r.stdout.index("== runtimes"), r.stdout.index("== folder"))
+        self.assertLess(r.stdout.index("== folder"), r.stdout.index("== manager"))
+        self.assertTrue((self.rt / X).is_dir())                   # the kept Manager's runtime survives
+
+    def test_a_later_scope_close_prunes_the_kept_pin_as_an_orphan(self):
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+        self.assertTrue((self.rt / X).exists())
+        r = self.close("--scope", "sc2")                          # sc2 has no Manager: its own pin goes
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn(f"removed {X} (1.0 MB)", r.stdout)
+        self.assertIn(f"removed {Y} (1.0 MB)", r.stdout)
+        self.assertEqual(sorted(p.name for p in self.rt.iterdir()), [])
+
+    def test_scope_without_a_manager_prunes_its_own_pin_as_before(self):
+        r = self.close("--scope", "sc2")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("still runs from it", r.stdout)
+        self.assertIn(f"removed {Y} (1.0 MB)", r.stdout)
+        self.assertIn(f"kept {X} (held by scope sc1)", r.stdout)
+
+    def test_a_pin_another_scope_also_holds_keeps_its_held_by_line(self):
+        (self.squad / "scopes/sc3/scope.md").write_text(f"# Scope\n\ngoal: g1\nplugin: 1.0 {'a' * 12}\n", encoding="utf-8")
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("still runs from it", r.stdout)
+        self.assertIn(f"kept {X} (held by scope sc3)", r.stdout)
+
+    def test_scope_close_dry_run_says_the_pin_is_kept(self):
+        r = self.close("--scope", "sc1", "--dry-run")
+        self.assertIn(f"kept {X} (t-mgr-sc1 still runs from it", r.stdout)
+        self.assertNotIn(f"would remove {X}", r.stdout)
+        self.assertEqual(self.closed_tabs(), [])
+
+    def test_a_kept_manager_can_still_be_retired_afterwards(self):
+        self.assertEqual(self.close("--scope", "sc1").returncode, 0)
+        r = subprocess.run([str(BIN / "squad-retire"), "t-mgr-sc1", "--no-notes"], env=self.env, cwd=self.root,
+                           text=True, encoding="utf-8", capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("pane close p-t-mgr-sc1", self.closed_tabs()[-1])
+
+    def test_squad_close_retires_the_managers_last_and_prunes_everything(self):
+        r = self.close()
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        tabs = self.closed_tabs()
+        self.assertEqual(len(tabs), 4, tabs)
+        self.assertTrue(all("-mgr-" in l for l in tabs[-2:]) and not any("-mgr-" in l for l in tabs[:-2]), tabs)
+        self.assertNotIn("still runs from it", r.stdout)
+        self.assertNotIn("(Manager stays", r.stdout)
+        self.assertIn(f"removed {X} (1.0 MB)", r.stdout)
+        self.assertIn(f"removed {Y} (1.0 MB)", r.stdout)
 
     def test_goal_pin_keeps_a_scope_runtime_until_the_goal_closes(self):
         (self.squad / "goals/g1/goal.md").write_text(f"# Goal\nplugin: 1.0 {'b' * 12}\n", encoding="utf-8")
@@ -738,14 +794,16 @@ class RuntimePruneCloseTest(ScopedCloseTest):
         (self.squad / "scopes/sc3").rename(self.squad / "scopes/_done/sc3")
         r = self.close("--goal", "g1")
         self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
-        self.assertIn(f"removed {Y}", r.stdout)                   # the goal's own pin is not a holder
-        self.assertEqual(sorted(p.name for p in self.rt.iterdir()), [X])   # X is still held by sc1
+        self.assertIn(f"kept {Y} (t-mgr-g1 still runs from it", r.stdout)   # the goal Manager stays
+        self.assertEqual(sorted(p.name for p in self.rt.iterdir()), [X, Y])   # X is still held by sc1
+        r = self.close("--scope", "sc1")
+        self.assertIn(f"removed {Y} (1.0 MB)", r.stdout)         # orphan now: the next close prunes it
 
     def test_dry_run_removes_nothing_and_says_would_remove(self):
         r = self.close("--scope", "sc1", "--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"would remove {X} (1.0 MB)", r.stdout)
-        self.assertIn("would free 2.0 MB in 2 runtimes", r.stdout)
+        self.assertIn(f"would remove {Z} (1.0 MB)", r.stdout)
+        self.assertIn("would free 1.0 MB in 1 runtime", r.stdout)
         self.assertEqual(sorted(p.name for p in self.rt.iterdir()), [X, Y, Z])
 
     def test_whole_squad_close_prunes_all_before_the_archive(self):
@@ -766,7 +824,7 @@ class RuntimePruneCloseTest(ScopedCloseTest):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(f"kept {Z} (running)", r.stdout)
         self.assertTrue(script.exists())
-        self.assertFalse((self.rt / X).exists())
+        self.assertTrue((self.rt / X).exists())                   # the kept Manager's pin
         r = run()
         self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
         self.assertIn(f"kept {Z} (running)", r.stdout)
@@ -791,7 +849,7 @@ class RuntimePruneCloseTest(ScopedCloseTest):
         finally:
             self.rt.chmod(0o755)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"could not remove {X}", r.stdout)
+        self.assertIn(f"could not remove {Z}", r.stdout)
         self.assertTrue((self.squad / "scopes/_done/sc1").exists())
 
     def test_a_squad_without_runtimes_prints_nothing_new(self):
