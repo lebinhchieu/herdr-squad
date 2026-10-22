@@ -94,16 +94,34 @@ topic: cost
 
 Messages point at files. The Manager reads summaries, never transcripts.
 
-## COST-13 Nothing left to do
-roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
+## COST-13a Nothing left to do, S
+roles: ba, tech-lead, qa-whitebox, qa-blackbox, designer
 aware: manager
+when: size = S
 topic: cost
 
-A role with no open ticket and its deliverable file written (Team Lead: the iteration file; Tech Lead: the final sha named; QA: its verdict posted) answers a fresh event from notes only and never runs `squad-respawn`; the Team Lead (S: the Manager) retires it once its work is accepted.
+A role with no open ticket and its deliverable file written (Tech Lead: the final sha named; QA: its verdict posted) answers a fresh event from notes only and never runs `squad-respawn`; the Manager retires it once its work is accepted.
 
-## COST-14 Short life
+## COST-13b Nothing left to do, M and L
 roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
 aware: manager
+when: size in M, L
 topic: cost
 
-A role whose fresh event comes under 15 minutes after its previous respawn tells the Team Lead (S: the Manager) first; the Team Lead splits the remaining tickets or narrows what the role reads to the diff and the files its AC name.
+A role with no open ticket and its deliverable file written (Team Lead: the iteration file; Tech Lead: the final sha named; QA: its verdict posted) answers a fresh event from notes only and never runs `squad-respawn`; the Team Lead retires it once its work is accepted.
+
+## COST-14a Short life, S
+roles: ba, tech-lead, qa-whitebox, qa-blackbox, designer
+aware: manager
+when: size = S
+topic: cost
+
+A role whose fresh event comes under 15 minutes after its previous respawn tells the Manager first; the Manager splits the remaining tickets or narrows what the role reads to the diff and the files its AC name.
+
+## COST-14b Short life, M and L
+roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
+aware: manager
+when: size in M, L
+topic: cost
+
+A role whose fresh event comes under 15 minutes after its previous respawn tells the Team Lead first; the Team Lead splits the remaining tickets or narrows what the role reads to the diff and the files its AC name.
