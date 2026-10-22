@@ -114,50 +114,6 @@ def sections(text):
     return out
 
 
-_VIEW = ("Messages", "Task lifecycle", "Cost rules", "Safety")
-# Copy of the role table rows in templates/squad/process.md; test_squadprocess_show pins the two together.
-ROLE_SECTIONS = {"dev": _VIEW, "qa-whitebox": _VIEW, "qa-blackbox": _VIEW,
-                 "designer": ("Messages", "Cost rules", "Safety")}
-WHOLE_FILE_ROLES = ("manager", "tech-lead", "ba", "team-lead", "token-coach")
-
-
-def normalise_role(role):
-    """The rule of squad-respawn: `tr 'A-Z ' 'a-z-'`."""
-    return "".join(c.lower() if "A" <= c <= "Z" else "-" if c == " " else c for c in role)
-
-
-def show(text, role, also=()):
-    """(output, warning|None): the role's view of process.md, or the whole file with a warning.
-
-    The view is a header line, the title section, then every `##` section whose heading starts with a
-    wanted name (with its `###` subsections), in file order. Whole file, never a partial view, when a
-    wanted heading is missing or the role is unknown."""
-    role = normalise_role(role)
-    if role in WHOLE_FILE_ROLES:
-        return text, None
-    if role not in ROLE_SECTIONS:
-        valid = ", ".join(sorted(ROLE_SECTIONS) + list(WHOLE_FILE_ROLES))
-        return text, f"unknown role {role!r} (valid roles: {valid}): printing the whole file"
-    wanted = list(ROLE_SECTIONS[role]) + [a for a in also if a not in ROLE_SECTIONS[role]]
-    secs = sections(text)
-    missing = [w for w in wanted if not any(h.startswith("## " + w) for h, _ in secs)]
-    if missing:
-        return text, f"no section starts with {', '.join(repr(m) for m in missing)}: printing the whole file"
-    blocks, keep = [], False
-    for h, body in secs:
-        if h.startswith("# "):
-            keep = True
-        elif h.startswith("## "):
-            keep = any(h.startswith("## " + w) for w in wanted)
-        elif not h.startswith("### "):
-            keep = False  # text before the first heading
-        if keep:
-            blocks.append(h + ("\n\n" + body if body else ""))
-    header = (f"squad-process show {role}: {', '.join(wanted)}; "
-              "the other sections are for Manager and Tech Lead")
-    return header + "\n\n" + "\n\n".join(blocks) + "\n", None
-
-
 @dataclass
 class Item:
     version: int

@@ -4,7 +4,7 @@
   "advisorModel": "opus",
   "permissions": {
     "allow": [
-      "SendMessage", "ListAgents", "Bash(squad-usage:*)", "Bash(echo:*)", "Bash(git log:*)",
+      "SendMessage", "ListAgents", "Bash(squad-process rule:*)", "Bash(squad-process who:*)", "Bash(squad-usage:*)", "Bash(echo:*)", "Bash(git log:*)",
       "Write(/.claude/squads/*/scopes/*/iterations/*.coach.md)", "Edit(/.claude/squads/*/scopes/*/iterations/*.coach.md)",
       "Write(/.claude/squads/*/goals/*/coach/*.coach.md)", "Edit(/.claude/squads/*/goals/*/coach/*.coach.md)"
     ],

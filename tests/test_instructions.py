@@ -158,17 +158,20 @@ class CardShapeTest(unittest.TestCase):
                 self.assertIn(cmd, names, f.name)
 
 
-SECTION_ROLES = ("dev", "qa-whitebox", "qa-blackbox", "designer")
 
 
 class RuleDutiesTest(unittest.TestCase):
     """Duties that used to be asserted on card text, now on the composed rules."""
 
-    def test_show_is_allowed_for_exactly_the_four_roles_and_never_as_a_wildcard(self):  # settings stay until ticket 09
+    def test_all_nine_settings_allow_rule_and_who_and_none_allows_show_or_a_wildcard(self):  # ticket 09
         import json
-        for f in sorted((ROOT / "templates/squad/settings").glob("*.json")):
+        files = sorted((ROOT / "templates/squad/settings").glob("*.json"))
+        self.assertEqual(len(files), 9)
+        for f in files:
             allow = json.loads(f.read_text())["permissions"]["allow"]
-            self.assertEqual("Bash(squad-process show:*)" in allow, f.stem in SECTION_ROLES, f.name)
+            self.assertIn("Bash(squad-process rule:*)", allow, f.name)
+            self.assertIn("Bash(squad-process who:*)", allow, f.name)
+            self.assertNotIn("Bash(squad-process show:*)", allow, f.name)
             self.assertNotIn("Bash(squad-process:*)", allow, f.name)
 
     def test_dev_copies_reports_to_evidence_and_sends_a_diff_check_after_a_pass(self):
@@ -208,7 +211,7 @@ class RuleDutiesTest(unittest.TestCase):
 #   SectionViewTest.test_other_roles_do_not_use_show                            CardShapeTest.test_no_card_calls_show_or_names_process_md
 #   SectionViewTest.test_the_fallback_sentence_names_exactly_the_role_view      deleted: the fallback sentence is gone with `show`
 #   SectionViewTest.test_every_citation_is_in_the_role_view_or_listed_as_outside_it   deleted: [ID] pointers are linted (test_process_citations)
-#   SectionViewTest.test_show_is_allowed_for_exactly_the_four_roles_...          RuleDutiesTest.test_show_is_allowed_... (settings unchanged until 09)
+#   SectionViewTest.test_show_is_allowed_for_exactly_the_four_roles_...          RuleDutiesTest.test_all_nine_settings_allow_rule_and_who_... (ticket 09: show retired)
 #   SectionViewTest.test_dev_copies_reports_...                                  RuleDutiesTest.test_dev_copies_reports_...
 #   SectionViewTest.test_dev_writes_evidence_md_...                              RuleDutiesTest.test_dev_writes_evidence_md_...
 #   SectionViewTest.test_tech_lead_checks_evidence_md_...                        RuleDutiesTest.test_tech_lead_checks_evidence_md_...

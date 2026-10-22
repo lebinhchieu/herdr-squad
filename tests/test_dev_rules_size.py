@@ -102,13 +102,6 @@ class DevRulesSize(unittest.TestCase):
         self.assertEqual(have, {"dev", "qa-whitebox", "qa-blackbox"})
         self.assertLessEqual(len(section(compose("dev", "M").decode(), "SAFE-11").split()), 45)
 
-    def test_settings_let_the_four_roles_read_a_rule(self):
-        for f in sorted((ROOT / "templates/squad/settings").glob("*.json")):
-            allow = json.loads(f.read_text())["permissions"]["allow"]
-            if "Bash(squad-process show:*)" in allow:
-                self.assertIn("Bash(squad-process rule:*)", allow, f.name)
-                self.assertIn("Bash(squad-process who:*)", allow, f.name)
-
     def test_core_file_stays_within_40_lines(self):
         self.assertLessEqual(len((ROOT / "templates/squad/process/core.md").read_text().rstrip("\n").split("\n")), 40)
 
