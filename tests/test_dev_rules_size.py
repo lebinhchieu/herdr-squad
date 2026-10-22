@@ -50,7 +50,8 @@ class DevRulesSize(unittest.TestCase):
         for size, design, goal in COMBOS:
             t = compose("dev", size, design, goal).decode()
             tag = f"{size}/{design}/{goal}"
-            owner = "Tech Lead" if size == "S" else "Team Lead"
+            owner = {"S": "Manager", "M": "Manager", "L": "Team Lead"}[size]
+            ask_owner = "Tech Lead" if size == "S" else "Team Lead"  # MSG-11a/b move with ticket 30
             checks = {
                 "CORE-1": "returned",
                 "CORE-2": "`HANDIN`",
@@ -60,28 +61,28 @@ class DevRulesSize(unittest.TestCase):
                 "START-10": "git branch --show-current",
                 "MSG-3": "`NN` alone",
                 "LC-18": "squad-label",
-                "LC-20a" if size == "S" else "LC-20b": f"Tell the {owner}",
+                {"S": "LC-20a", "M": "LC-20c", "L": "LC-20b"}[size]: f"Tell the {owner}",
                 "REV-13a" if size == "S" else "REV-13b": "HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it",
-                "REV-14a" if size == "S" else "REV-14b": "After a PASS, a later commit goes to",
-                "EVID-2b": "squad-evidence check",
+                {"S": "REV-14a", "M": "REV-14c", "L": "REV-14b"}[size]: "After a PASS, a later commit goes to",
+                {"S": "REV-22", "M": "EVID-2d", "L": "EVID-2b"}[size]: "squad-evidence check",
                 "COST-5": "no `squad-respawn`",
                 "SAFE-1a": "Never push, rebase",
                 "SAFE-3": "by PID",
                 "SAFE-4": "files your role owns",
                 "SAFE-11": "mktemp -d",
-                "SUITE-2a": "only the test files you touched",
+                {"S": "SUITE-2d", "M": "SUITE-2c", "L": "SUITE-2a"}[size]: "the test files you touched",
                 "MSG-4a" if size == "S" else "MSG-4b": "Manager" if size == "S" else "Team Lead",
-                "MSG-11a" if size == "S" else "MSG-11b": f"to the {owner}",
+                "MSG-11a" if size == "S" else "MSG-11b": f"to the {ask_owner}",
             }
             if design == "yes":
-                checks["LC-19"] = "Status: final"
+                checks["LC-19b" if size in "SM" else "LC-19"] = "Status: final"
             for rid, needle in checks.items():
                 with self.subTest(combo=tag, rule=rid):
                     self.assertIn(needle, section(t, rid))
             self.assertIn("## LC-18 ", t)
 
     def test_lost_rules_are_one_command_away(self):
-        for rid in ("GOAL-6b", "PROMO-5", "REV-15", "NOTE-1", "MSG-5", "MSG-9", "COST-2", "SAFE-2", "SAFE-5", "REV-4", "LC-6"):
+        for rid in ("GOAL-6b", "PROMO-5", "REV-15", "NOTE-1", "MSG-5", "MSG-9", "COST-2", "SAFE-2", "SAFE-5", "REV-4", "LC-6", "SUITE-4"):
             with self.subTest(rule=rid):
                 r = run("rule", rid)
                 self.assertEqual(r.returncode, 0, r.stderr)

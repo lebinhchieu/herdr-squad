@@ -20,26 +20,34 @@ class PodContactRoutes(unittest.TestCase):
                     with self.subTest(file=p.name, line=n):
                         self.assertTrue(any(a in line for a in allowed), f"{p.name}:{n}: {line}")
 
-    def test_team_lead_routes_in_m_and_l(self):
-        dev, qw, qb = (composed(r, "M") for r in ("dev", "qa-whitebox", "qa-blackbox"))
+    def test_team_lead_routes_in_l(self):
+        dev, qw, qb = (composed(r, "L") for r in ("dev", "qa-whitebox", "qa-blackbox"))
         self.assertNotIn("copy the Team Lead", dev)  # ledger replaces copies
         self.assertIn("Tell the Team Lead and wait; it retires you", dev)
         self.assertIn("the Team Lead (plan or order)", dev)
         self.assertNotIn("copy the Team Lead", qw)  # ledger replaces copies
         self.assertNotIn("copy the Team Lead", qb)  # ledger replaces copies
-        self.assertIn("tells the Team Lead", composed("ba", "M"))
-        tl = composed("tech-lead", "M")
+        self.assertIn("tells the Team Lead", composed("ba", "L"))
+        tl = composed("tech-lead", "L")
         self.assertIn("Hand the plan and its `## Handover` section to the Team Lead", tl)
         self.assertIn("Help the Team Lead plan", tl)
         self.assertNotIn("In S and M you also own the plan", tl)
 
-    def test_s_paths_stay(self):
-        dev, tl = composed("dev", "S"), composed("tech-lead", "S")
-        self.assertIn("to the Tech Lead", dev.split("## REV-13a")[1])
-        self.assertIn("Tell the Tech Lead and wait; the Manager retires you", dev)
-        self.assertIn("tl-review.md", tl)
-        self.assertIn("tech-lead", acts("REV-1", "S"))
+    def test_s_paths_go_to_the_manager(self):
+        dev = composed("dev", "S")
+        self.assertIn("to the Manager", dev.split("## REV-13a")[1])
+        self.assertIn("Tell the Manager and wait; it retires you", dev)
+        self.assertEqual(acts("REV-1", "S"), ("manager",))
+        self.assertIn("## REV-22", dev)
+        self.assertNotIn("Tech Lead", dev.split("## REV-13a")[1].split("## EVID")[0])
         self.assertNotIn("the Team Lead retires you", dev)
+
+    def test_m_paths_go_to_the_qas_and_done_to_the_manager(self):
+        dev = composed("dev", "M")
+        self.assertIn("Tell the Manager and wait; it retires you", dev)
+        self.assertIn("tell the Manager after both pass it", dev)
+        self.assertNotIn("Team Lead", dev.split("## REV-14c")[1].split("##")[0])
+        self.assertEqual(acts("REV-14b", "M"), ())
 
     def test_qa_blackbox_not_copying_team_lead_and_dev_blocked_route(self):
         qb = composed("qa-blackbox", "M")

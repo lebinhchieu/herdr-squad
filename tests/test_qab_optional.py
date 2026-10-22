@@ -14,10 +14,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bin"))
 import squadcompose as sc  # noqa: E402
 import squadrules as sr  # noqa: E402
+from rulesview import who  # noqa: E402
 
 GOLDEN = Path(__file__).resolve().parent / "fixtures" / "qab" / "golden.json"
 NOW = "2026-10-22T10:00:00Z"
-NEW_IDS = ("REV-19", "REV-20", "REV-21", "EVID-6", "EVID-7", "SIZE-19", "SIZE-20", "SIZE-21")
+NEW_IDS = ("REV-19", "REV-20", "REV-21", "EVID-6", "EVID-7", "SIZE-19", "SIZE-20", "SIZE-21")  # the golden is regenerated from the merged tree, so letters added later need no entry
 ROLE_LIST = sr.ROLES
 
 
@@ -72,28 +73,32 @@ class NoLineUnchanged(unittest.TestCase):
 
 class QabNo(unittest.TestCase):
     def test_qa_blackbox_rule_blocks_never_compose_with_their_variant(self):
-        pairs = {"REV-13b": "REV-19", "REV-14b": "REV-19", "LC-20b": "REV-19", "EVID-3b": "EVID-7",
-                 "SPAWN-2b": "SIZE-21a", "SPAWN-2c": "SIZE-21b", "REV-8": "REV-21", "SIZE-5b": "REV-21"}
+        pairs = {"REV-13b": ("REV-19", "REV-19b"), "REV-14b": ("REV-19",), "REV-14c": ("REV-19b",), "LC-20b": ("REV-19",),
+                 "LC-20c": ("REV-19b",), "EVID-3b": ("EVID-7",), "SPAWN-2b": ("SIZE-21a", "SIZE-21b"), "SPAWN-2c": ("SIZE-21a", "SIZE-21b"),
+                 "REV-8": ("REV-21",), "SIZE-5b": ("REV-21",)}
         for size in "ML":
-            for base, var in pairs.items():
-                for role in ROLE_LIST:
-                    for qab in ("yes", "no"):
-                        t = compose(role, size, qab).stdout
-                        if base in ids(t) and var in ids(t):
-                            self.fail(f"{base} and {var} both compose for {role} at {size} qa-b {qab}")
+            for base, variants in pairs.items():
+                for var in variants:
+                    for role in ROLE_LIST:
+                        for qab in ("yes", "no"):
+                            t = compose(role, size, qab).stdout
+                            if base in ids(t) and var in ids(t):
+                                self.fail(f"{base} and {var} both compose for {role} at {size} qa-b {qab}")
 
     def test_dev_gets_behaviour_per_ac_and_no_blackbox_handin(self):
         t = compose("dev", "M", "no").stdout
         self.assertIn("EVID-6", ids(t))
-        self.assertIn("REV-19", ids(t))
-        for gone in ("REV-13b", "REV-14b", "LC-20b"):
+        self.assertIn("REV-19b", ids(t))
+        self.assertNotIn("REV-19", ids(t))
+        self.assertIn("REV-19", ids(compose("dev", "L", "no").stdout))
+        for gone in ("REV-13b", "REV-14b", "REV-14c", "LC-20b", "LC-20c"):
             self.assertNotIn(gone, ids(t))
-        body = re.search(r"(?ms)^## REV-19 .*?(?=^## |\Z)", t).group(0)
+        body = re.search(r"(?ms)^## REV-19b .*?(?=^## |\Z)", t).group(0)
         self.assertNotIn("QA blackbox", body.replace("no QA blackbox", ""))
         self.assertNotIn("both QAs", t)
         y = compose("dev", "M", "yes").stdout
         self.assertIn("REV-13b", ids(y))
-        self.assertNotIn("REV-19", ids(y))
+        self.assertNotIn("REV-19b", ids(y))
 
     def test_qa_whitebox_checks_behaviour(self):
         t = compose("qa-whitebox", "L", "no").stdout
@@ -106,6 +111,15 @@ class QabNo(unittest.TestCase):
         self.assertIn("REV-21", ids(t))
         for gone in ("REV-8", "SIZE-5b"):
             self.assertNotIn(gone, ids(t))
+
+    def test_m_without_qa_blackbox_has_no_ba_in_rev_21(self):
+        self.assertEqual(who("REV-21")["M"], ((), ()))
+        self.assertEqual(who("REV-21b")["M"][0], ("qa-whitebox",))
+        t = compose("qa-whitebox", "M", "no").stdout
+        self.assertIn("REV-21b", ids(t))
+        self.assertNotIn("REV-21 ", t.replace("REV-21b", ""))
+        self.assertIn("REV-21", ids(compose("ba", "L", "no").stdout))
+        self.assertNotIn("REV-21b", ids(compose("qa-whitebox", "L", "no").stdout))
 
     def test_manager_does_not_spawn_qa_blackbox(self):
         t = compose("manager", "M", "no").stdout

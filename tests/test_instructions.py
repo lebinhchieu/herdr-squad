@@ -175,9 +175,10 @@ class RuleDutiesTest(unittest.TestCase):
             self.assertNotIn("Bash(squad-process:*)", allow, f.name)
 
     def test_dev_copies_reports_to_evidence_and_sends_a_diff_check_after_a_pass(self):
-        dev = composed("dev", "M")
-        rev15 = run("rule", "REV-15").stdout  # 22: on demand for the Developer; the Tech Lead's task file cites it
-        self.assertIn("## REV-15 Report deliverables", composed("tech-lead", "M"))
+        dev = composed("dev", "L")
+        rev15 = run("rule", "REV-15").stdout  # 22: on demand for the Developer; the task file cites it
+        self.assertIn("## REV-15 Report deliverables", composed("tech-lead", "L"))
+        self.assertIn("## REV-15 Report deliverables", composed("manager", "S"))
         self.assertIn("evidence/<task>/", rev15)
         self.assertIn("handed in", rev15)
         after = dev.split("## REV-14b")[1].split("##")[0]
@@ -190,10 +191,12 @@ class RuleDutiesTest(unittest.TestCase):
             self.assertIn(needle, dev + composed("dev", "M"))
 
     def test_tech_lead_checks_evidence_md_and_the_evidence_sha(self):
-        tl = composed("tech-lead", "M")
+        tl = composed("tech-lead", "L")
         self.assertIn("squad-evidence check", tl)
         self.assertIn("--base", tl)
         self.assertIn("evidence.md", tl)
+        for size in "SM":  # no Tech Lead below L: the Manager checks
+            self.assertIn("squad-evidence check", composed("manager", size))
 
     def test_qas_write_findings_to_scope_evidence_and_embed_screenshots(self):
         for name in ("qa-whitebox", "qa-blackbox"):
