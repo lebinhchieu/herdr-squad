@@ -22,3 +22,5 @@ Spec: PO decisions D9-D14 in ticket 17; owner table = `scopes/sizes-and-models/t
 7. Every ID listed for 29 in `tech-ac.md` "Follow-up rule IDs" is retargeted or reasoned; the true orphans among them are fixed. The test lists any `who`-orphan left in these five files.
 8. S Developer review duty: a rule in `review.md` says: before HANDIN, one fresh-context Opus review subagent reads the diff; findings and fixes go in `evidence.md` `## Review`; the Manager confirms by eye that `## Review` exists (no `squad-evidence` change; amended 2026-10-22). It reaches `composed("dev","S")` and not M or L (test); dev rules stay ≤ 5120 B.
 9. REV-21 (`size in M, L and qa-b = no`) acts on BA, absent at M, and contradicts SIZE-5c: at M with `qa-b: no` QA whitebox checks `## Behaviour` (no BA); split by size (new letter for M), L keeps the BA wording. Test: `who REV-21` at M names no BA.
+
+2026-10-22 ticket 32: the review subagent runs on Sonnet at high effort; AC 8 wording is superseded.
