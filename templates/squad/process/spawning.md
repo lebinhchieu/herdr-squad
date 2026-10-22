@@ -11,11 +11,18 @@ roles: manager
 when: size = S
 topic: spawning
 
-You spawn `tech-lead`, `dev`, `designer` (only with `design: yes`) and `token-coach` (only when the PO asks, [ITER-6a]).
+You spawn `dev`, `designer` (only with `design: yes`) and `token-coach` (only when the PO asks, [ITER-6a]).
 
-## SPAWN-2b Roles the Manager spawns, M and L
+## SPAWN-2b Roles the Manager spawns, M
 roles: manager
-when: size in M, L and qa-b = yes
+when: size = M and qa-b = yes
+topic: spawning
+
+You spawn `dev`, `qa-whitebox`, `qa-blackbox`, `designer` (only with `design: yes`) and `token-coach`.
+
+## SPAWN-2c Roles the Manager spawns, L
+roles: manager
+when: size = L and qa-b = yes
 topic: spawning
 
 You spawn `ba`, `team-lead`, `tech-lead`, `qa-whitebox`, `qa-blackbox`, `designer` (only with `design: yes`) and `token-coach`. The Team Lead spawns Developers.
@@ -33,16 +40,16 @@ topic: spawning
 
 Spawn the Designer only when `scope.md` has `design: yes`, and never suggest it to the PO. Spawn it after the Tech Lead's plan names the UI tasks and before their Developers; retire it once every design is final ([START-5]).
 
-## SPAWN-5a Developers, Manager in S
+## SPAWN-5a Developers, Manager in S and M
 roles: manager
-when: size = S
+when: size in S, M
 topic: spawning
 
 Developers always get `--repo <code repo>` so they work in their own git worktree `.worktrees/<squad>/<scope>/<agent>` on branch `squad/<squad>/<scope>/<agent>`. Take the repo from the task's `repos` and `project.md`. `--base <passed branch or commit>` starts the branch from work that is passed but not merged ([GOAL-5]).
 
 ## SPAWN-5b Developers, Team Lead
 roles: team-lead
-when: size in M, L
+when: size = L
 topic: spawning
 
 Spawn a Developer with `squad-spawn dev <squad>-dev-<scope>-<n> --scope <scope> --repo <repo> [--base <ref>] --title "<id> words" --prompt "<briefing>"`; the name is at most 32 characters. Pass `--base` only with the ref the Manager checked and named in the iteration file ([GOAL-5]).
@@ -61,30 +68,30 @@ Pass `--title` when the agent has a specific task: a Developer gets the ticket i
 
 When you point an agent at a new ticket, relabel it: `squad-label --agent <name> "<text>"` (`""` clears). Labels are display only: messages and `roster.md` use the address name.
 
-## SPAWN-8a Retiring, Manager in S
+## SPAWN-8a Retiring, Manager in S and M
 roles: manager
-when: size = S
+when: size in S, M
 topic: spawning
 
 Retire with `squad-retire <agent-name>`: it asks the agent to save its notes, then closes its pane. Developers retire after their task is done; their branch stays for the PO.
 
 ## SPAWN-8b Retiring, Team Lead
 roles: team-lead
-when: size in M, L
+when: size = L
 topic: spawning
 
 Retire a Developer with `squad-retire <agent-name>` after its task is done: it asks the agent to save its notes, then closes its pane; its branch stays for the PO.
 
 ## SPAWN-9 Team Lead spawns only Developers
 roles: team-lead
-when: size in M, L
+when: size = L
 topic: spawning
 
 Spawn and retire only Developers: no second Team Lead, no Tech Lead, BA, QA or Designer.
 
-## SPAWN-10a Health checks, Manager in S
+## SPAWN-10a Health checks, Manager in S and M
 roles: manager
-when: size = S
+when: size in S, M
 topic: spawning
 
 Check every time you get a message and at least between iterations:
@@ -93,9 +100,9 @@ Check every time you get a message and at least between iterations:
 - Looping (the same two agents exchanging messages on one topic past 2 rounds) → step in, decide or route to the owner.
 - Context filling (a long-running agent getting confused or repeating itself) → ask it to update its notes, retire it, respawn with the same name and a briefing that points at its notes.
 
-## SPAWN-10b Health checks, Manager in M and L
+## SPAWN-10b Health checks, Manager in L
 roles: manager
-when: size in M, L
+when: size = L
 topic: spawning
 
 Watch the Team Lead only; the Team Lead runs the pod's health checks.

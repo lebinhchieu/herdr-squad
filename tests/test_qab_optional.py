@@ -73,7 +73,7 @@ class NoLineUnchanged(unittest.TestCase):
 class QabNo(unittest.TestCase):
     def test_qa_blackbox_rule_blocks_never_compose_with_their_variant(self):
         pairs = {"REV-13b": "REV-19", "REV-14b": "REV-19", "LC-20b": "REV-19", "EVID-3b": "EVID-7",
-                 "SPAWN-2b": "SIZE-21", "REV-8": "REV-21", "SIZE-5b": "REV-21"}
+                 "SPAWN-2b": "SIZE-21a", "SPAWN-2c": "SIZE-21b", "REV-8": "REV-21", "SIZE-5b": "REV-21"}
         for size in "ML":
             for base, var in pairs.items():
                 for role in ROLE_LIST:
@@ -102,7 +102,7 @@ class QabNo(unittest.TestCase):
         self.assertNotIn("REV-20", ids(compose("qa-whitebox", "L").stdout))
 
     def test_ba_writes_ac_alone(self):
-        t = compose("ba", "M", "no").stdout
+        t = compose("ba", "L", "no").stdout
         self.assertIn("REV-21", ids(t))
         for gone in ("REV-8", "SIZE-5b"):
             self.assertNotIn(gone, ids(t))
@@ -110,8 +110,8 @@ class QabNo(unittest.TestCase):
     def test_manager_does_not_spawn_qa_blackbox(self):
         t = compose("manager", "M", "no").stdout
         self.assertNotIn("SPAWN-2b", ids(t))
-        self.assertIn("SIZE-21", ids(t))
-        body = re.search(r"(?ms)^## SIZE-21 .*?(?=^## |\Z)", t).group(0)
+        self.assertIn("SIZE-21a", ids(t))
+        body = re.search(r"(?ms)^## SIZE-21a .*?(?=^## |\Z)", t).group(0)
         self.assertIn("not QA blackbox", body)
         self.assertIn("qa-b: yes", body)  # the flip back
         self.assertIn("SIZE-19", ids(compose("manager", "M").stdout))  # the proposal rule at the default

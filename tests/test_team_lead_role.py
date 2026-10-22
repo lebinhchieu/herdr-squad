@@ -6,19 +6,19 @@ from pathlib import Path
 from rulesview import ROOT, acts, composed
 
 CARD = (ROOT / "agents/team-lead.md").read_text()
-RULES = composed("team-lead", "M")
+RULES = composed("team-lead", "L")
 
 
 class TeamLeadRoleTest(unittest.TestCase):
     def test_exists_in_m_and_l_and_takes_the_handover(self):
         self.assertIn("**M and L**", CARD)
         self.assertIn("## Handover", RULES)
-        self.assertIn("team-lead", acts("SIZE-17b", "M"))
+        self.assertIn("team-lead", acts("SIZE-17b", "L"))
 
     def test_spawns_and_retires_dev_only(self):
         self.assertIn("squad-spawn dev", RULES)
         self.assertIn("squad-retire", RULES)
-        self.assertEqual(acts("SPAWN-9", "M"), ("team-lead",))
+        self.assertEqual(acts("SPAWN-9", "L"), ("team-lead",))
         self.assertIn("no", RULES.split("## SPAWN-9")[1].split("##")[0].lower())
 
     def test_old_spawn_route_is_gone(self):
