@@ -18,6 +18,7 @@ from rulesview import who  # noqa: E402
 
 GOLDEN = Path(__file__).resolve().parent / "fixtures" / "qab" / "golden.json"
 NOW = "2026-10-22T10:00:00Z"
+GOLDEN_VERSION = "0.4.1"  # the plugin version in the composed header when golden.json was hashed
 NEW_IDS = ("REV-19", "REV-20", "REV-21", "EVID-6", "EVID-7", "SIZE-19", "SIZE-20", "SIZE-21")  # the golden is regenerated from the merged tree, so letters added later need no entry
 ROLE_LIST = sr.ROLES
 
@@ -31,7 +32,7 @@ def compose(role, size="M", qab=None, design="no", qa="full", root=ROOT):
             lines.append(f"qa-b: {qab}")
         (home / "scope.md").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
         env = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD_")}
-        r = subprocess.run([sys.executable, str(root / "bin" / "squad-process"), "compose", role, "--home", str(home),
+        r = subprocess.run([sys.executable, "-B", str(root / "bin" / "squad-process"), "compose", role, "--home", str(home),
                             "--now", NOW, "--agent", f"fx-{role}"], capture_output=True, encoding="utf-8", env=env)
         return r
 
@@ -46,6 +47,7 @@ def normalise(text):
         text = re.sub(rf"(?ms)^## {i} .*?(?=^## |\Z)", "", text)
         text = re.sub(rf"(?m)^- {i} .*\n", "", text)
         text = re.sub(rf"(?m)^(rules: .*?) {i}\b", r"\1", text)
+    text = re.sub(r"(?m)^(plugin: )\d+\.\d+\.\d+(?= )", r"\g<1>" + GOLDEN_VERSION, text)  # a plugin version bump is not a rules change
     return re.sub(r"\n{3,}", "\n\n", text)
 
 
@@ -132,7 +134,7 @@ class QabNo(unittest.TestCase):
 
     def test_qa_blackbox_rules_absent_in_who(self):
         for rid in ("REV-9", "REV-11", "SIZE-8b", "REV-13b", "SPAWN-2b"):
-            out = subprocess.run([sys.executable, str(ROOT / "bin" / "squad-process"), "who", rid],
+            out = subprocess.run([sys.executable, "-B", str(ROOT / "bin" / "squad-process"), "who", rid],
                                  capture_output=True, encoding="utf-8").stdout
             self.assertIn("M qa-b no: acts: -; aware: -", out, rid)
             self.assertNotIn("M qa-b yes: acts: -", out, rid)
@@ -146,7 +148,7 @@ class QabNoWithDesign(unittest.TestCase):
         self.assertIn("design", r.stderr)
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "scope.md").write_text("size: M\nqa-b: no\ndesign: yes\n")
-            lint = subprocess.run([sys.executable, str(ROOT / "bin" / "squad-process"), "lint", "--home", tmp],
+            lint = subprocess.run([sys.executable, "-B", str(ROOT / "bin" / "squad-process"), "lint", "--home", tmp],
                                   capture_output=True, encoding="utf-8")
             self.assertNotEqual(lint.returncode, 0)
             self.assertIn("qa-b", lint.stdout)

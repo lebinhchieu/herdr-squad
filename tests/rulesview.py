@@ -17,7 +17,7 @@ def _env():
 
 
 def run(*args):
-    return subprocess.run([sys.executable, CLI, *args], capture_output=True, encoding="utf-8", env=_env())
+    return subprocess.run([sys.executable, "-B", CLI, *args], capture_output=True, encoding="utf-8", env=_env())
 
 
 @functools.lru_cache(maxsize=None)

@@ -74,7 +74,7 @@ topic: lifetimes
 
 | Role | Lone scope | Scope inside a goal |
 |---|---|---|
-| Manager | Lives and ends with the scope | The goal Manager lives across the goal, respawns after each scope closes, re-reads only `goal.md`, `shared/` and summaries, never a closed scope's folder |
+| Manager | Lives with the scope; stays, chat-only, after the close until the PO retires it | The goal Manager lives across the goal, respawns after each scope closes, re-reads only `goal.md`, `shared/` and summaries, never a closed scope's folder |
 | Team Lead, Tech Lead, QA whitebox, QA blackbox | One session per scope | Same |
 | BA, Designer | One session per scope; retired once its spec and AC, or designs, are final; respawned for a question on them | Same |
 | Developer | One session per task | Same |

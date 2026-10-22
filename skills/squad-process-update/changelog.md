@@ -321,7 +321,11 @@ retargeted:
 - SIZE-1: points at START-3b: the size proposal carries the team's models
 - SIZE-18: extra hands only exist at L: when size = L
 - SPAWN-4: the Manager's plan, not the absent Tech Lead's (S and M)
+- CLOSE-1: closing keeps the Manager on scope and goal close (squad-close spares it); squad close still retires all
+- CLOSE-2: closing keeps the Manager on scope and goal close (squad-close spares it); squad close still retires all
 - CLOSE-3a: closing by size
+- CLOSE-4: closing keeps the Manager on scope and goal close (squad-close spares it); squad close still retires all
+- CLOSE-5: closing keeps the Manager on scope and goal close (squad-close spares it); squad close still retires all
 - CORE-3: core rule wording by size
 - COST-10a: cost rules retargeted: Manager retires and respawns at S and M
 - COST-10b: cost rules retargeted: Manager retires and respawns at S and M
@@ -464,6 +468,7 @@ retargeted:
 - START-2c: start and spawn rules by size: Manager spawns and caps Developers at S and M
 - START-2d: start and spawn rules by size: Manager spawns and caps Developers at S and M
 - START-6: start and spawn rules by size: Manager spawns and caps Developers at S and M
+- START-5: lifetime row: the Manager stays, chat-only, after a scope close until the PO retires it
 - SUITE-1: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
 - SUITE-2a: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
 - SUITE-2b: full suite owner by size: Developer S, QA whitebox M, Tech Lead L

@@ -82,7 +82,7 @@ Every scope and goal starts with these; its brief may override them.
 
 | Role | Lone scope | Scope inside a goal |
 |---|---|---|
-| Manager | Lives and ends with the scope | The goal Manager lives across the goal, respawns after each scope closes, re-reads only `goal.md`, `shared/` and summaries, never a closed scope's folder |
+| Manager | Lives with the scope; stays, chat-only, after the close until the PO retires it | The goal Manager lives across the goal, respawns after each scope closes, re-reads only `goal.md`, `shared/` and summaries, never a closed scope's folder |
 | BA, Team Lead, Tech Lead, QA whitebox, QA blackbox | One session per scope | Same |
 | Designer | One session per scope; retired once every design is final | Same |
 | Developer | One session per task | Same |
@@ -154,10 +154,10 @@ A task, reviewed and merged like any other, writes what must outlive a scope or 
 ## Closing
 
 - **Scope:** the PO confirms the close at a check-in; the Manager proposes it with evidence links, runs the Token Coach if Iterations says so, then `squad-close <squad> --scope <scope>`.
-- `squad-close` retires the scope's agents (its Manager last), removes worktrees whose branch is merged and clean, reports every branch (never deletes one) and moves the folder to `scopes/_done/`; the Manager tells the PO which are unmerged.
+- `squad-close` retires the scope's agents except the Manager (the PO ends it with `squad-retire`), removes worktrees whose branch is merged and clean, reports every branch (never deletes one) and moves the folder to `scopes/_done/`; the Manager tells the PO which are unmerged.
 - **In a goal,** the Tech Lead writes the scope's summary and appends its decisions to `shared/decisions.md` before the pod is retired; the goal Manager updates the `goal.md` table, runs `squad-close --scope` and respawns itself.
-- **Goal:** closes once every scope is closed and the promotion passed. `squad-close <squad> --goal <goal>` retires the goal Manager and moves the folder to `goals/_done/`; it refuses while a scope is open.
-- **Squad:** `squad-close <squad>` archives everything, evidence included, to `.claude/squads/_done/<squad>/`.
+- **Goal:** closes once every scope is closed and the promotion passed. `squad-close <squad> --goal <goal>` moves the folder to `goals/_done/` and keeps the goal Manager; it refuses while a scope is open.
+- **Squad:** `squad-close <squad>` retires every agent, the Managers last, and archives everything, evidence included, to `.claude/squads/_done/<squad>/`.
 
 ## Messages
 
