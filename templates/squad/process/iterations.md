@@ -22,7 +22,7 @@ roles: team-lead
 when: size in M, L
 topic: iterations
 
-Write `iterations/<n>.summary.md` at iteration end: tasks done with a link to each ticket's `evidence.md`, each task's final passed sha and the checkers that passed it, returns per task, friction, open items, at most 40 lines. It carries one line naming the residual risk "the cap is a rule, not a lock".
+Write `iterations/<n>.summary.md` at iteration end: tasks done with a link to each ticket's `evidence.md`, each task's final passed sha, the checkers that passed it and the returns per task (all three from `squad-ledger`), friction, open items, at most 40 lines. It carries one line naming the residual risk "the cap is a rule, not a lock".
 
 ## ITER-4 Inbox
 roles: manager

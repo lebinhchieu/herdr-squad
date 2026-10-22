@@ -51,7 +51,7 @@ roles: manager
 when: size = S
 topic: lifecycle
 
-After 3 returns on one task the Manager steps in: read the findings and decide whether the task, the AC or the Developer is the problem.
+After 3 returns on one task (a return is a handed-in sha with a `FAIL`) the Manager steps in; the 3rd failing checker is told to send you `BLOCKED NN: 3 returns`: read the findings and decide whether the task, the AC or the Developer is the problem.
 
 ## LC-7b Three returns, M and L
 roles: team-lead
@@ -59,7 +59,7 @@ aware: manager
 when: size in M, L
 topic: lifecycle
 
-After 3 returns on one task the Team Lead steps in and decides whether the task, the AC or the Developer is the problem, then sends the Manager one line ([MSG-6]).
+After 3 returns on one task (a return is a handed-in sha with a `FAIL`; `squad-ledger` counts them) the Team Lead steps in and decides whether the task, the AC or the Developer is the problem, then sends the Manager one line ([MSG-6]).
 
 ## LC-8 Defect class
 roles: tech-lead
@@ -124,7 +124,7 @@ roles: team-lead
 when: size in M, L
 topic: lifecycle
 
-Move task state as `HANDIN`, `PASS` and `FAIL` messages arrive (you are copied on each). Reorder when gaps appear. State lives in the plan file, the roster and your notes, not in memory.
+Move task state as `HANDIN`, `PASS` and `FAIL` messages arrive (read `squad-ledger`; you are not copied). Reorder when gaps appear. State lives in the plan file, the roster and your notes, not in memory.
 
 ## LC-18 Developer work
 roles: dev

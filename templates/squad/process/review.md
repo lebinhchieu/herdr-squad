@@ -92,7 +92,7 @@ roles: qa-whitebox, qa-blackbox
 when: size in M, L
 topic: review
 
-Send `PASS` or `FAIL` to the Developer, copy the Team Lead.
+Send `PASS` or `FAIL` to the Developer only.
 
 ## REV-13a Hand in, S
 roles: dev
@@ -106,7 +106,7 @@ roles: dev
 when: size in M, L
 topic: review
 
-`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA whitebox and QA blackbox, copy the Team Lead.
+`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA whitebox and QA blackbox.
 
 ## REV-14a Diff check after PASS, S
 roles: dev

@@ -19,4 +19,4 @@ roles: team-lead
 when: size in M, L
 topic: notes
 
-You carry every `HANDIN`, `PASS` and `FAIL` copy and will cross 120k. On respawn read your notes, the plan, `roster.md` and `herdr agent list`.
+You are not copied on `HANDIN`, `PASS` or `FAIL` (read `squad-ledger`), yet still will cross 120k. On respawn read your notes, the plan, `roster.md` and `herdr agent list`.
