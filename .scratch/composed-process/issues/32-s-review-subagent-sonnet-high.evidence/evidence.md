@@ -45,3 +45,15 @@ REV-22 at S: `squad-process compose dev` shows new text; M/L have none (S_Develo
  tests/test_sizes.py                                | 17 +++++++--
  7 files changed, 42 insertions(+), 29 deletions(-)
 ```
+
+## Tech Lead review
+
+### TL review 32 — PASS
+Branch squad/plugin/integrate-promote/plugin-dev-ip-1 @ 0e58ca5 (base 853b0a4).
+
+- Diff touches only the ticket's Touches files (+ ticket file, evidence). Settings, advisor tests, history/process-v7 untouched.
+- REV-22, SIZE-2, SIZE-22 carry Sonnet/high; changelog: 21 "Opus review" lines → "Sonnet review (high effort)", 0 Opus left in v7 entry; REV-22 reason names model, effort, PO 2026-10-22.
+- Spec D9, ticket 17, ticket 29 comment as specified.
+- Ran myself: `bin/squad-process lint` ok; 7 targeted test files 159 OK; `squad-evidence check` ok; AC1 grep only hits the new test's own regex.
+- Deviation accepted: REV-22 tightened to "start a fresh-context review subagent (`model: sonnet`, `effort: high`, no fork) on your diff; findings and fixes: `## Review`; ..." — needed to keep S dev rules ≤5120 B (5119). All test needles match.
+- Note: 5119/5120 B leaves 1 B headroom at S; ticket 15 and later edits to dev rules must trim elsewhere.
