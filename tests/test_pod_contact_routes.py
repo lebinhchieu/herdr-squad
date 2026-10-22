@@ -22,11 +22,11 @@ class PodContactRoutes(unittest.TestCase):
 
     def test_team_lead_routes_in_m_and_l(self):
         dev, qw, qb = (composed(r, "M") for r in ("dev", "qa-whitebox", "qa-blackbox"))
-        self.assertIn("copy the Team Lead", dev)
+        self.assertNotIn("copy the Team Lead", dev)  # ledger replaces copies
         self.assertIn("Tell the Team Lead and wait; it retires you", dev)
         self.assertIn("the Team Lead (plan or order)", dev)
-        self.assertIn("copy the Team Lead", qw)
-        self.assertIn("copy the Team Lead", qb)
+        self.assertNotIn("copy the Team Lead", qw)  # ledger replaces copies
+        self.assertNotIn("copy the Team Lead", qb)  # ledger replaces copies
         self.assertIn("tells the Team Lead", composed("ba", "M"))
         tl = composed("tech-lead", "M")
         self.assertIn("Hand the plan and its `## Handover` section to the Team Lead", tl)
@@ -41,9 +41,9 @@ class PodContactRoutes(unittest.TestCase):
         self.assertIn("tech-lead", acts("REV-1", "S"))
         self.assertNotIn("the Team Lead retires you", dev)
 
-    def test_qa_blackbox_copies_team_lead_only_and_dev_blocked_route(self):
+    def test_qa_blackbox_not_copying_team_lead_and_dev_blocked_route(self):
         qb = composed("qa-blackbox", "M")
-        self.assertIn("copy the Team Lead", qb)
+        self.assertNotIn("copy the Team Lead", qb)  # ledger replaces copies
         self.assertNotIn("and the BA", qb.split("## REV-12")[1].split("##")[0])
         self.assertIn("`BLOCKED <task>` and `STATUS?` answers go to the Team Lead", composed("dev", "M"))
         

@@ -168,3 +168,5 @@ when: size in M, L
 topic: messages
 
 Answer "who owns X" from `roster.md`.
+
+`HANDIN`, `PASS` and `FAIL` go to the Developer and the checkers only; you are not copied. Run `squad-ledger` (`--task NN` for one) when you act on your own messages, at health checks and at iteration end.
