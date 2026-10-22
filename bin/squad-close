@@ -8,6 +8,7 @@
 #                                   files (caches, pid files) do not block removal and are listed.
 #                                   flat squad (legacy): retire the agents whose Scope column is S and drop their
 #                                   roster rows; the squad stays.
+#                                   Also lists untracked files in the project root outside .claude/squads/ (warns only).
 #   squad-close <squad> --goal G    retire the goal Manager, move goals/G to goals/_done/G. Refuses while a scope of
 #                                   G is still open, or while shared/decisions.md has entries and goal.md has no
 #                                   `promoted:` line yet (the goal's knowledge would be lost). --force overrides.
@@ -162,6 +163,16 @@ retire() {
 # The report is built before anything is retired or moved; a failure only warns and never changes the close.
 if [[ $dry == 0 && ( $mode == scope || $mode == goal ) ]]; then
   python3 "$bin/squad-report" "${scope:-$goal}" --squad "$squad_dir" --final --quiet --deadline 60 >/dev/null || echo "warning: report not generated (squad-report exited $?)" >&2
+fi
+
+# Drafts written in the project root by a role the path guard does not see (FILE-11). Warns, never refuses.
+if [[ $mode == scope || $mode == goal ]]; then
+  stray=$(git -C "$project_dir" status --porcelain --untracked-files=all 2>/dev/null | sed -n 's/^?? //p' \
+    | grep -v -e '^"\?\.claude/squads/' -e '^"\?\.worktrees/' || true)
+  if [[ -n $stray ]]; then
+    echo "WARNING: untracked files in the project root outside .claude/squads/ (drafts belong in the scope's tasks/ folder, FILE-11):"
+    sed 's/^/  /' <<<"$stray"
+  fi
 fi
 
 echo "== agents"

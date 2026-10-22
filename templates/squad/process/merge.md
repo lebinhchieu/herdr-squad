@@ -26,3 +26,9 @@ roles: manager
 topic: merge
 
 Quote `git log --oneline -1` and the result to the PO; note it in the iteration file.
+
+## MRG-5 Untracked files before the merge
+roles: manager
+topic: merge
+
+Before a merge, run `git status --porcelain --untracked-files=all` in the project root and tell the PO about every untracked file outside `.claude/squads/` (a draft that was written there, [FILE-11]); `squad-close --scope` prints the same list.

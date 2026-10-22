@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""PreToolUse hook for Write|Edit|MultiEdit|NotebookEdit: a role other than the Developer may not write in the
+project root outside .claude/squads/ (drafts go in $SCOPE_DIR/tasks/; FILE-11). Reads the hook payload on stdin.
+
+Exit 2 with the reason on stderr blocks the write. Exit 0 in every other case, a tooling problem included
+(missing SQUAD_DIR, unparsable payload): the guard never traps an agent. No SQUAD_ROLE (the PO) or dev: no limit.
+Fast on purpose: no git call, no network, one realpath (of the target)."""
+import json
+import os
+import sys
+
+from squadio import utf8_stdio
+
+
+def decide(env, payload):
+    """None to allow, else the message to block with."""
+    role = env.get("SQUAD_ROLE")
+    squad_dir = env.get("SQUAD_DIR")
+    if not role or role == "dev" or not squad_dir:
+        return None
+    ti = payload.get("tool_input") or {}
+    target = ti.get("file_path") or ti.get("notebook_path")
+    if not isinstance(target, str) or not target:
+        return None
+    cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else os.getcwd()
+    given = os.path.abspath(os.path.join(cwd, target))
+    real = os.path.realpath(given)  # resolves symlinks and ..
+    # <root>/.claude/squads/<squad>; the root is given by the path, not resolved again
+    squads = os.path.dirname(os.path.abspath(squad_dir))
+    root = os.path.dirname(os.path.dirname(squads))
+
+    def inside(path, folder):
+        return path == folder or path.startswith(folder.rstrip(os.sep) + os.sep)
+
+    for path in (real, given):
+        if inside(path, root):
+            if inside(real, squads):
+                return None
+            where = env.get("SCOPE_DIR") or "$SCOPE_DIR"
+            return f"draft it in {where}/tasks/; a Developer task commits it [FILE-11]"
+    return None
+
+
+def main():
+    utf8_stdio()
+    try:
+        payload = json.loads(sys.stdin.read())
+        if not isinstance(payload, dict):
+            return 0
+        message = decide(os.environ, payload)
+    except Exception:
+        return 0
+    if message:
+        print(message, file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
