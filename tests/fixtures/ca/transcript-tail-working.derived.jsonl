@@ -1,4 +1,4 @@
-{"type":"user","timestamp":"2026-10-22T21:46:21.987Z","stop_reason":null}
-{"type":"assistant","timestamp":"2026-10-22T21:46:27.704Z","stop_reason":"tool_use"}
-{"type":"assistant","timestamp":"2026-10-22T21:46:28.749Z","stop_reason":"tool_use"}
-{"type":"user","timestamp":"2026-10-22T21:46:30.393Z","stop_reason":null}
+{"type":"assistant","timestamp":"2026-10-22T21:48:24.792Z","message":{"stop_reason":"tool_use"}}
+{"type":"user","timestamp":"2026-10-22T21:48:24.883Z","message":{"stop_reason":null}}
+{"type":"assistant","timestamp":"2026-10-22T21:48:30.371Z","message":{"stop_reason":"end_turn"}}
+{"type":"user","timestamp":"2026-10-22T21:49:13.169Z","message":{"stop_reason":null}}
