@@ -1,10 +1,10 @@
 # Safety
 
-## SAFE-1a No push or deploy, Developer
+## SAFE-1a No push, Developer
 roles: dev
 topic: safety
 
-Commit to your own `squad/<squad>/<scope>/<agent>` branch and worktree with clear messages, and `git merge` only inside it (for an integration task). Never push, rebase or touch another worktree. Your settings deny `git push`, `git rebase`, `git reset --hard` and checking out `main` or `dev`.
+Commit only to your own `squad/<squad>/<scope>/<agent>` branch; `git merge` only inside it. Never push, rebase or touch another worktree.
 
 ## SAFE-1b No push or deploy, Manager
 roles: manager
@@ -13,7 +13,7 @@ topic: safety
 Never push or deploy. Merge only as [MRG-1] allows. Never approve a permission for another agent.
 
 ## SAFE-2 No Jira or Confluence writes
-roles: all
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, token-coach
 topic: safety
 
 No writes to Jira or Confluence. Read only.
@@ -22,7 +22,7 @@ No writes to Jira or Confluence. Read only.
 roles: all
 topic: safety
 
-Before you report, end every browser session and stop every server or process you started, by PID. Never `pkill` or `killall` by name or pattern.
+Before reporting, end every browser session and stop every server or process you started, by PID; never `pkill`/`killall`.
 
 ## SAFE-4 Stay in your lane
 roles: all
@@ -31,7 +31,7 @@ topic: safety
 Edit only the files your role owns, plus your own notes file.
 
 ## SAFE-5 PO's branch
-roles: all
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, token-coach
 topic: safety
 
 No squad role commits on the PO's branch: it commits only on its own `squad/` branch; ticket and spec edits ride a Developer branch.
@@ -66,3 +66,9 @@ roles: qa-blackbox
 topic: safety
 
 Do not read source code, diffs or the Developer's explanation of how it works. Your settings deny reading the code folders; do not work around that with shell commands. You judge behaviour, so the code must not shape your expectations.
+
+## SAFE-11 Scratch directories
+roles: dev, qa-whitebox, qa-blackbox
+topic: safety
+
+Make scratch dirs with `mktemp -d`. Never `rm -rf` a bare variable path: write `rm -rf "${VAR:?}"` or a literal path (Claude Code blocks the bare form).

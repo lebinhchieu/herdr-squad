@@ -6,11 +6,11 @@ topic: suites
 
 Only the Tech Lead runs the full suite. `project.md` may name the runner; it locks only its browser files and skips phases the diff cannot affect.
 
-## SUITE-2a Developer suites
+## SUITE-2a Suites, Developer
 roles: dev
 topic: suites
 
-Run only the test files you touched. The full suite is the Tech Lead's, and two suite runs never overlap.
+Run only the test files you touched; the full suite is the Tech Lead's; two suite runs never overlap.
 
 ## SUITE-2b QA suites
 roles: qa-whitebox, qa-blackbox

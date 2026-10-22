@@ -34,7 +34,7 @@ topic: promotion
 The scope's last task: a Developer commits `promote.md` to the project docs on the integration branch, by the project's rule for editing those files (`project.md`); the PO merges it with the code. With nothing to promote, `promote.md` says so and there is no task.
 
 ## PROMO-5 Promotion task, Developer
-roles: dev
+roles: tech-lead
 topic: promotion
 
 A promotion task commits `promote.md` into the project docs, following the rule `project.md` names for editing them. It is handed in like any task.

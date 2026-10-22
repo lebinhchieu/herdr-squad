@@ -56,10 +56,10 @@ topic: goal
 Plan one integration task at the end of the scope: one Developer branches from the scope's base, merges the scope's passed task branches into its own branch and runs the targeted tests. A scope with one task has none: that task's passed branch is its integration branch.
 
 ## GOAL-6b Integration task, Developer
-roles: dev
+roles: tech-lead
 topic: goal
 
-An integration task merges the scope's passed branches into your own branch, runs the targeted tests for the changed files and hands in; the Tech Lead runs the full suite after.
+An integration task merges the scope's passed branches into the Developer's own branch, runs the targeted tests for the changed files and is handed in; the Tech Lead runs the full suite after.
 
 ## GOAL-6c Integration task, next scope
 roles: manager, tech-lead

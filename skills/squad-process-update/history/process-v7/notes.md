@@ -4,10 +4,7 @@
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
 topic: notes
 
-`roles/<agent>.notes.md` is a snapshot of now, not a log; a fresh session reads all of it.
-- Rewrite it on every save, never append; hard cap about 80 lines.
-- Fixed sections: `Now`, `Open threads`, `Decisions that bind later work`, `Pointers`. A decision goes in the file `project.md` names (in a goal: `shared/decisions.md`); the notes keep a one-line pointer.
-- History lives in `iterations/<n>.md`, `process-log.md` and `shared/summaries/`, never in notes.
+`roles/<agent>.notes.md` is a snapshot of now, not a log: rewrite on every save, about 80 lines (`Now`, `Open threads`, `Decisions that bind later work`, `Pointers`).
 
 ## NOTE-2 Notes upkeep
 roles: manager

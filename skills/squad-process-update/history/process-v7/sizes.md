@@ -31,7 +31,7 @@ topic: sizes
 - When unsure, size up.
 
 ## SIZE-5a Business AC, S
-roles: tech-lead, dev
+roles: tech-lead
 when: size = S
 topic: sizes
 
@@ -49,14 +49,14 @@ roles: tech-lead
 when: size = S
 topic: sizes
 
-The Tech Lead owns the plan, in the plan file format used in every size.
+The Tech Lead owns the plan, in the plan file format used in every size. Each task file cites the on-demand rules its Developer needs: [GOAL-6b] integration, [PROMO-5] promotion, [REV-15] report deliverable.
 
 ## SIZE-6b Plan owner, M and L
 roles: team-lead
 when: size in M, L
 topic: sizes
 
-The Team Lead owns the plan, task order and assignment, in the same plan file and format in every size.
+The Team Lead owns the plan, task order and assignment, in the same plan file and format in every size. A task of those kinds cites its rule in the task file ([GOAL-6b], [PROMO-5], [REV-15]) because the Developer does not carry them.
 
 ## SIZE-7a Code and test check, S
 roles: tech-lead
@@ -73,7 +73,7 @@ topic: sizes
 QA whitebox checks the code and the tests of every task ([REV-2]).
 
 ## SIZE-8a Behaviour check, S
-roles: dev
+roles: tech-lead
 when: size = S
 topic: sizes
 
@@ -94,7 +94,7 @@ topic: sizes
 The Designer designs the screens, states and flows of the scope's UI tasks, in every size.
 
 ## SIZE-10a Built UI against the design, S
-roles: dev, tech-lead
+roles: tech-lead
 when: size = S and design = yes
 topic: sizes
 
