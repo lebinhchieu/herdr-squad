@@ -60,7 +60,7 @@ After a respawn read your notes and the files they name; your rules are already 
 roles: manager
 topic: cost
 
-The Manager is not exempt: after every DONE, every PO message and before every spawn it reads its `squad-usage` row; over 100k, after a compaction or a cache expiry it writes notes and runs `squad-respawn` before its next spawn or PO reply.
+The Manager is not exempt: after every DONE, every PO message and before every spawn read your `squad-usage` row. Over 100k, after a compaction or a cache expiry: write notes, run `squad-respawn` before your next spawn or PO reply. A hook adds one `context <n>k` notice to the result of your next `squad-spawn` or `squad-inbox add`; act on it then.
 
 ## COST-9 Idle
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
