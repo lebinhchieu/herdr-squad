@@ -309,6 +309,7 @@ added:
 - SUITE-5b: new for the size model: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
 - SUITE-6b: new for the size model: full suite owner by size: Developer S, QA whitebox M, Tech Lead L
 - WHO-2d: new for the size model: owner table per size: Manager (S, M) or Team Lead/Tech Lead (L)
+- START-3b: new (ticket 20): the Manager shows the team's models with the size, the PO's answer goes to scope.md
 
 changed:
 - none
@@ -317,6 +318,7 @@ removed:
 - SIZE-21: replaced by SIZE-21a and SIZE-21b (QA blackbox off, split by size)
 
 retargeted:
+- SIZE-1: points at START-3b: the size proposal carries the team's models
 - SIZE-18: extra hands only exist at L: when size = L
 - SPAWN-4: the Manager's plan, not the absent Tech Lead's (S and M)
 - CLOSE-3a: closing by size

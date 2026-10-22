@@ -50,6 +50,17 @@ topic: starting
 2. **Overlap.** `touches:` lists the repos or paths the work changes. `squad-start` compares it with every open scope and stops on an overlap for the PO.
 3. The Manager reads the brief, sizes the scope ([SIZE-1]), proposes the plan, and spawns the pod only after the PO confirms.
 
+## START-3b Team models, first move
+roles: manager
+topic: starting
+
+- With the size and the plan, show the PO one table in the same inbox item: each role the size brings, its default model and effort, and the advisor on or off (read-only unless the advisor probe found an off value).
+- Offer to keep the table or change any row.
+- Write only the changed rows to `scope.md`, one line each, `model <role>: <model> <effort>` (for example `model dev: sonnet medium`), then spawn. Roles not listed use their defaults.
+- A goal Manager does this for each scope, before that scope's first spawn.
+- A change in the middle of a scope applies to the next spawn or respawn of that role; respawn running agents only when the PO asks.
+- `squad-spawn` order: flags, the agent's recorded override, `scope.md`, squad settings, template. Developer spawns by any role pick the `scope.md` line up unchanged.
+
 ## START-4 Names
 roles: manager, team-lead
 topic: spawning

@@ -7,6 +7,7 @@ touches: {{touches}}
 size:
 qa: full
 design: no
+<!-- Team models: one line per changed role, `model <role>: <model> <effort>`, e.g. `model dev: sonnet medium`. Unlisted roles use their defaults. -->
 
 ## Constraints
 - **Developer cap:** 3 (the default in `process.md`)

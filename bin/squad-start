@@ -12,8 +12,9 @@
 The name is the first ticket id in the text (SEC-04 -> sec04), else a short slug; --name overrides it.
 --touches lists the repos or paths the work changes. If it overlaps an open scope's `touches:` the script lists
 the overlaps and exits 3 without creating anything; the PO decides, and --yes goes ahead.
+scope.md lines `model <role>: <model> <effort>` set a role's model for every spawn in that scope (flags and a recorded override win; settings and template lose).
 --model and --effort set the Manager's model and effort (default: the model and effort in settings/manager.json); it does not change the roles the Manager spawns.
---dry-run prints the Manager's model and effort and where each came from (flag, recorded override on --resume, squad settings, template).
+--dry-run prints the Manager's model and effort and where each came from (flag, recorded override on --resume, scope.md `model manager:` on --resume, squad settings, template).
 Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
 """
 import argparse
@@ -96,9 +97,20 @@ def recorded_overrides(home, manager):
     return out
 
 
-def manager_defaults(squad, model=None, effort=None, recorded=None, pin=None):
+def scope_md_models(target, manager_role="manager"):
+    """{model, effort} from the `model manager: <model> <effort>` line of <target>/scope.md ({} when absent; squad-spawn
+    refuses a malformed line)."""
+    try:
+        text = (target / "scope.md").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return {}
+    m = re.search(rf"(?m)^model[ \t]+{manager_role}:[ \t]+(\S+)[ \t]+(\S+)[ \t]*$", text)
+    return {"model": m.group(1), "effort": m.group(2)} if m else {}
+
+
+def manager_defaults(squad, model=None, effort=None, recorded=None, pin=None, scope_md=None):
     """The Manager's model and effort as {key: (value, source)}, resolved as squad-spawn does: the flag, the recorded
-    override, then the settings -- the overlay merged over the template when manager.local.json exists (the full
+    override, then scope.md's `model manager:` line, then the settings -- the overlay merged over the template when manager.local.json exists (the full
     manager.json is then ignored), else the full manager.json, else the template. In a composed squad the template is
     the pinned runtime's when it exists (a dry run does not build it), else the plugin's. Read-only."""
     tpl_root = PLUGIN
@@ -130,6 +142,8 @@ def manager_defaults(squad, model=None, effort=None, recorded=None, pin=None):
             out[key] = (flag, "flag")
         elif recorded and recorded.get(key):
             out[key] = (recorded[key], "recorded override")
+        elif scope_md and scope_md.get(key):
+            out[key] = (scope_md[key], "scope.md")
         else:
             out[key] = next(((d[name], src) for src, d in layers if isinstance(d.get(name), str) and d[name]), ("Claude's default", "none"))
     return out
@@ -145,8 +159,8 @@ def resume_pin(squad, target):
         return None
 
 
-def print_manager_defaults(squad, a, recorded=None, pin=None):
-    for key, (v, src) in manager_defaults(squad, a.model, a.effort, recorded, pin).items():
+def print_manager_defaults(squad, a, recorded=None, pin=None, scope_md=None):
+    for key, (v, src) in manager_defaults(squad, a.model, a.effort, recorded, pin, scope_md).items():
         print(f"manager {key}: {v} (from {src})")
 
 
@@ -244,7 +258,7 @@ def resume(squad, a, update):
             spawn += [f"--{key}", v]
     if a.dry_run:
         print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
-        print_manager_defaults(squad, a, rec, resume_pin(squad, target))
+        print_manager_defaults(squad, a, rec, resume_pin(squad, target), scope_md_models(target) if kind == "scope" else None)
         return
     r = subprocess.run([need_bash(), *spawn], env={**os.environ, "SQUAD_DIR": squad.as_posix()}, capture_output=True,
                        text=True, encoding="utf-8", errors="replace")

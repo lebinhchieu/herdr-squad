@@ -4,7 +4,7 @@
 roles: manager
 topic: sizes
 
-The Manager proposes each scope's size with its signals, the PO confirms it at the goal check, and `size:` in `scope.md` records it. Scopes of a goal can differ. Work bigger than one L scope is a goal.
+The Manager proposes each scope's size with its signals, the PO confirms it at the goal check, and `size:` in `scope.md` records it. Scopes of a goal can differ. Work bigger than one L scope is a goal. The size proposal carries the team's models ([START-3b]).
 
 ## SIZE-2 The three sizes
 roles: manager, ba, team-lead, tech-lead

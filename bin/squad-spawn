@@ -28,8 +28,8 @@ Options:
                    "<emoji> <Role>[ n][ · title]", built and numbered by squad-label --init; the agent's
                    address name (env, herdr agent, roster) is unchanged.
   --prompt TEXT    First message to send once the session is ready
-  --model M        Model override (default: settings/<role>.json "model", else Claude's default)
-  --effort E       Effort override (low|medium|high|xhigh|max; default: settings/<role>.json "effortLevel")
+  --model M        Model override (default: scope.md "model <role>: <model> <effort>", else settings/<role>.json "model", else Claude's default)
+  --effort E       Effort override (low|medium|high|xhigh|max; default: scope.md line, else settings/<role>.json "effortLevel")
   --dry-run        Print what would run, start nothing
 
 Env:
@@ -117,6 +117,28 @@ if [[ -d $squad_dir/scopes ]]; then
       [[ -d $goal_dir ]] || { echo "scope $scope names goal $in_goal, but $goal_dir does not exist" >&2; exit 1; }
     fi
   fi
+fi
+
+# scope.md `model <role>: <model> <effort>` lines (ticket 20): the level between a flag/recorded override and the
+# squad settings. A malformed line refuses (exit 2) before anything is made; an unknown role only warns.
+# A value read here is never written to roles/<agent>.overrides.
+scope_model="" scope_effort="" scope_seen=" "
+if [[ -n $scope_dir && -f $scope_dir/scope.md ]]; then
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    [[ $line =~ ^model[[:space:]]*: || $line =~ ^model[[:space:]]+[a-z][a-z-]*[[:space:]]*: || $line =~ ^model[[:space:]]+(manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer)([[:space:]]|$) ]] || continue
+    if [[ $line =~ ^model[[:space:]]+([a-z][a-z-]*):[[:space:]]+([A-Za-z0-9][][A-Za-z0-9._-]*)[[:space:]]+(low|medium|high|xhigh|max)[[:space:]]*$ ]]; then
+      r=${BASH_REMATCH[1]}
+      case $r in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer) ;;
+        *) echo "warning: $scope_dir/scope.md: unknown role '$r' in: $line (ignored)" >&2; continue ;; esac
+      [[ $scope_seen != *" $r "* ]] || { echo "malformed line in $scope_dir/scope.md: role $r given twice: $line" >&2; exit 2; }
+      scope_seen+="$r "
+      [[ $r != "$role" ]] || { scope_model=${BASH_REMATCH[2]} scope_effort=${BASH_REMATCH[3]}; }
+    else
+      echo "malformed line in $scope_dir/scope.md: $line (expected: model <role>: <model> <low|medium|high|xhigh|max>)" >&2
+      exit 2
+    fi
+  done < "$scope_dir/scope.md"
 fi
 
 # Composed mode: the pinned runtime and this agent's composed rules come first, before any herdr call, worktree or
@@ -217,6 +239,8 @@ key_of() { # key -> value from the effective settings (overlay) or the squad fil
   fi
   echo "warning: no $k for $role in $squad_dir/settings/$role.json or the template; it runs on Claude Code's default" >&2
 }
+[[ -n $model ]] || model=$scope_model
+[[ -n $effort ]] || effort=$scope_effort
 [[ -n $model ]] || model=$(key_of model)
 [[ -n $effort ]] || effort=$(key_of effortLevel)
 
