@@ -111,7 +111,7 @@ class LabelAndSpawnTest(Base):
             for dry in (True, False):
                 with self.subTest(role=role, dry=dry):
                     self.log.unlink(missing_ok=True)
-                    args = [role, f"{role}-x", "--scope", "s1", "--title", "TAB-02 tabs", *(["--dry-run"] if dry else [])]
+                    args = [role, f"{role}-x", "--scope", "s1", "--title", "TAB-02 tabs", "--prompt", "hello", *(["--dry-run"] if dry else [])]
                     r = self.cli("squad-spawn", *args)
                     self.assert_clean(r)
                     self.assertNotIn(b"squad-label --init failed", r.stderr)
