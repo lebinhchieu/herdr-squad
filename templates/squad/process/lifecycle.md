@@ -150,7 +150,7 @@ Done when the Tech Lead sent `PASS`. Tell the Tech Lead and wait; the Manager re
 
 ## LC-20b Done, M and L
 roles: dev
-when: size in M, L
+when: size in M, L and qa-b = yes
 topic: lifecycle
 
 Done when both QAs sent `PASS`. Tell the Team Lead and wait; it retires you.

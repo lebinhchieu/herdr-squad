@@ -15,7 +15,7 @@ You spawn `tech-lead`, `dev`, `designer` (only with `design: yes`) and `token-co
 
 ## SPAWN-2b Roles the Manager spawns, M and L
 roles: manager
-when: size in M, L
+when: size in M, L and qa-b = yes
 topic: spawning
 
 You spawn `ba`, `team-lead`, `tech-lead`, `qa-whitebox`, `qa-blackbox`, `designer` (only with `design: yes`) and `token-coach`. The Team Lead spawns Developers.

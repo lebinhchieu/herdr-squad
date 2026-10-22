@@ -34,7 +34,7 @@ topic: evidence
 
 ## EVID-3b Reviewer files in M and L
 roles: qa-blackbox, qa-whitebox, team-lead
-when: size in M, L
+when: size in M, L and qa-b = yes
 topic: evidence
 
 `qa-w.md` and `qa-b.md` are the reviewer files in M and L.
@@ -52,3 +52,17 @@ when: size = S and design = yes
 topic: evidence
 
 Save one screenshot per screen and state in the ticket's evidence `img/` and embed each as `![alt](img/<file>)` right under the design item it answers in `evidence.md`.
+
+## EVID-6 Behaviour per AC, no QA blackbox
+roles: dev
+when: size in M, L and qa-b = no
+topic: evidence
+
+In `## Behaviour` record for each business AC what you ran (command) and what you saw (output); screenshots only if a screen exists. QA whitebox checks it.
+
+## EVID-7 Reviewer file, no QA blackbox
+roles: qa-whitebox, team-lead
+when: size in M, L and qa-b = no
+topic: evidence
+
+`qa-w.md` is the only reviewer file; no `qa-b.md` is expected.

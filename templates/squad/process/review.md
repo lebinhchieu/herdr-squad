@@ -61,14 +61,14 @@ Agree the technical AC before work starts: tests that must exist, lint clean, pa
 
 ## REV-8 Business AC with QA blackbox
 roles: ba, qa-blackbox
-when: size in M, L
+when: size in M, L and qa-b = yes
 topic: review
 
 Agree the business AC before work starts, as Given/When/Then a user can observe in the running app. The BA writes them where `project.md` says AC live and records the agreement.
 
 ## REV-9 QA blackbox check
 roles: qa-blackbox
-when: size in M, L
+when: size in M, L and qa-b = yes
 topic: review
 
 On `HANDIN`, test the running app the way `project.md` says (for example Playwright against the dev server, with the Developer's branch deployed or served locally). Walk every business AC, plus the obvious unhappy paths a real user would hit.
@@ -82,7 +82,7 @@ Write findings to `$SCOPE_DIR/evidence/<task>/qa-w.md`: each finding with file:l
 
 ## REV-11 QA blackbox evidence
 roles: qa-blackbox
-when: size in M, L
+when: size in M, L and qa-b = yes
 topic: review
 
 Write evidence to `$SCOPE_DIR/evidence/<task>/qa-b.md`: each AC → what you did → what you saw → pass/fail, with each screenshot embedded as `![alt](path)` (absolute, or relative to the file); the Developer's `squad-evidence add` copies it.
@@ -103,7 +103,7 @@ topic: review
 
 ## REV-13b Hand in, M and L
 roles: dev
-when: size in M, L
+when: size in M, L and qa-b = yes
 topic: review
 
 `HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA whitebox and QA blackbox.
@@ -117,7 +117,7 @@ After a PASS, a later commit goes to the Tech Lead as `HANDIN <task>: diff check
 
 ## REV-14b Diff check after PASS, M and L
 roles: dev
-when: size in M, L
+when: size in M, L and qa-b = yes
 topic: review
 
 After a PASS, a later commit goes to both QAs as `HANDIN <task>: diff check <passed sha>..<new sha>`; tell the Team Lead after both pass it.
@@ -156,3 +156,24 @@ when: size in M, L
 topic: review
 
 QA blackbox owns the presentational values the mock fixes; QA whitebox never asserts them.
+
+## REV-19 Hand in and Done, no QA blackbox
+roles: dev
+when: size in M, L and qa-b = no
+topic: review
+
+`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA whitebox only, copy the Team Lead. After a PASS, a later commit goes to QA whitebox as `HANDIN <task>: diff check <passed sha>..<new sha>`. Done when QA whitebox sent `PASS`: tell the Team Lead and wait; it retires you.
+
+## REV-20 Behaviour check, no QA blackbox
+roles: qa-whitebox
+when: size in M, L and qa-b = no
+topic: review
+
+There is no QA blackbox: on `HANDIN` also check each business AC against the Developer's `## Behaviour` (command, output, screenshot if a screen exists), re-running a command when its claim is not clear. Record each AC → seen → pass/fail in `qa-w.md`. Your `PASS` is Done.
+
+## REV-21 Business AC, no QA blackbox
+roles: ba
+when: size in M, L and qa-b = no
+topic: review
+
+Write the business AC alone, as Given/When/Then a person can observe (a command and its output, a file, a message), where `project.md` says AC live, and tell QA whitebox, who checks them.

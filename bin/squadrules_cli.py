@@ -20,6 +20,13 @@ DEFAULT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 def cmd_lint(a):
     root = a.plugin_root
+    for home in a.home or ():
+        try:
+            sc.read_home(home)
+        except sc.ComposeError as e:
+            for line in e.lines:
+                print(f"{home}: {line}")
+            return 1
     errors, warnings, has_rules = sr.lint(root, a.squad_dir, a.cards)
     if not has_rules:
         print("no rule files")
@@ -99,6 +106,7 @@ def main(argv=None):
     lp = sub.add_parser("lint", help="check the rule files and the squad's overlay")
     lp.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
     lp.add_argument("--plugin-root", default=DEFAULT_ROOT)
+    lp.add_argument("--home", action="append", help="also check this scope or goal home's facts (qa-b: no needs design: no)")
     lp.add_argument("--cards", choices=("error", "warn"), default="error")
     lp.add_argument("--hashes", action="store_true", help="after any problems print `<ID> <hash>` per rule")
     cp = sub.add_parser("compose", help="composed rules for one role")

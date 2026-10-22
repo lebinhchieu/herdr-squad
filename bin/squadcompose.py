@@ -76,6 +76,9 @@ def read_home(home):
         if tok not in _FACT_VALUES[key]:
             raise ComposeError(f"scope.md:{n}: {key} must be {' | '.join(_FACT_VALUES[key])}, got {value!r}")
         facts[key] = tok
+    if facts["qa-b"] == "no" and facts["design"] == "yes":
+        raise ComposeError(f"scope.md: qa-b: no cannot be combined with design: yes (a design is checked on the "
+                           "built UI by QA blackbox); set qa-b: yes or design: no")
     pin_line = (gkv if is_goal_home else kv).get("plugin") or kv.get("plugin") or gkv.get("plugin")
     pin = None
     if pin_line:
@@ -215,4 +218,11 @@ def who_lines(e):
         acts = ", ".join(e.roles) if ok and e.roles else "-"
         aware = ", ".join(e.aware) if ok and e.aware else "-"
         lines.append(f"{size}: acts: {acts}; aware: {aware}")
+    if re.search(r"\bqa-b\b", e.when or ""):  # a rule the QA-blackbox switch changes: show both settings
+        for size in ("M", "L"):
+            for qab in sr.WHEN_KEYS["qa-b"]:
+                ok = sr.matches(e.when, {"size": size, "qa-b": qab})
+                acts = ", ".join(e.roles) if ok and e.roles else "-"
+                aware = ", ".join(e.aware) if ok and e.aware else "-"
+                lines.append(f"{size} qa-b {qab}: acts: {acts}; aware: {aware}")
     return lines
