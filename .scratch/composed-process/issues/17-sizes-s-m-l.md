@@ -20,7 +20,7 @@ Blocked by: 03, 04
 The Designer still joins any size only with `design: yes`.
 
 ## PO decisions (round 1, 2026-10-22): spec D9-D14
-- **S done:** the Developer's checks + `evidence.md` + one fresh-context Opus review subagent before HANDIN (its output goes in `evidence.md` under `## Review`). The Manager only confirms both exist.
+- **S done:** the Developer's checks + `evidence.md` + one fresh-context Sonnet review subagent at high effort (PO 2026-10-22) before HANDIN (its output goes in `evidence.md` under `## Review`). The Manager only confirms both exist.
 - **S and M:** the Manager plans and spawns Developers (an exception to "never does a role's work"). Developers write design notes in the task file.
 - **M:** QA whitebox writes the technical AC (agreed with the Developer) and keeps `promote.md`. Business AC = the ticket as written, tested by QA blackbox. A business doubt moves the scope to L. **S:** the Developer keeps `promote.md`.
 - **Full suite:** S the Developer, M QA whitebox, L the Tech Lead, once on the final sha. "The size's suite owner" replaces "only the Tech Lead".

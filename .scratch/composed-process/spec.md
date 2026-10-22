@@ -21,7 +21,7 @@ PO answers: D1–D7, 2026-10-21 (below). Also covers the 9 findings of the 2026-
 | D6 | Upgrades apply between scopes; a running scope keeps its pin |
 | D7 | ADR 0016 replaces ADR 0005; this spec and its tickets live here |
 | D8 | Sizes: S = Manager + Developers; M = + QA whitebox, QA blackbox; L = every role (Designer only with `design: yes`) |
-| D9 | S done = Developer's checks + `evidence.md` + one fresh-context Opus review subagent before HANDIN; the Manager only confirms both exist |
+| D9 | S done = Developer's checks + `evidence.md` + one fresh-context Sonnet review subagent at high effort (PO 2026-10-22) before HANDIN; the Manager only confirms both exist |
 | D10 | In S and M the Manager plans and spawns Developers (exception to "never does a role's work"); each Developer writes its design notes in the task file |
 | D11 | M: QA whitebox writes technical AC (agreed with the Developer) and keeps `promote.md`; business AC = the ticket as written, tested by QA blackbox; a business doubt moves the scope to L. S: the Developer keeps `promote.md` |
 | D12 | Full suite: S the Developer, M QA whitebox, L the Tech Lead, once on the final sha; the rule (and `CLAUDE.md`) says "the size's suite owner" |

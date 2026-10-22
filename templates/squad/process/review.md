@@ -224,4 +224,4 @@ roles: dev
 when: size = S
 topic: review
 
-Before `HANDIN` a fresh-context Opus review subagent reads your diff; findings and fixes go under `## Review`; `squad-evidence check <folder>` must pass.
+Before `HANDIN` start a fresh-context review subagent (`model: sonnet`, `effort: high`, no fork) on your diff; findings and fixes: `## Review`; `squad-evidence check <folder>` must pass.

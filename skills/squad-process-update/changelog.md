@@ -284,12 +284,12 @@ added:
 - LC-9b: new for the size model: lifecycle duties retargeted by size; 3 returns and advisor rules
 - MSG-17b: new for the size model: message routes by size: S and M to the Manager, L to the Team Lead
 - PROMO-5b: new for the size model: promote.md owner by size: Developer S, QA whitebox M, Tech Lead L
-- REV-14c: new for the size model: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-19b: new for the size model: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-21b: new for the size model: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-22: new for the size model: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-2b: new for the size model: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-3b: new for the size model: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-14c: new for the size model: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-19b: new for the size model: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-21b: new for the size model: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-22: new for the size model: the S review subagent runs on Sonnet at high effort (`model: sonnet`, `effort: high`, a new agent not a fork; PO 2026-10-22); Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-2b: new for the size model: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-3b: new for the size model: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
 - SIZE-17e: new for the size model: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
 - SIZE-21a: new for the size model: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
 - SIZE-21b: new for the size model: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role
@@ -414,21 +414,21 @@ retargeted:
 - PROMO-4: promote.md owner by size: Developer S, QA whitebox M, Tech Lead L
 - PROMO-5: promote.md owner by size: Developer S, QA whitebox M, Tech Lead L
 - PROMO-6: promote.md owner by size: Developer S, QA whitebox M, Tech Lead L
-- REV-1: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-13a: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-14a: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-14b: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-15: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-16: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-19: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-2: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-21: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-3: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-4: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-5a: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-6: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-7: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
-- REV-8: code and behaviour check by size: Developer + Opus review at S, QA whitebox/blackbox at M and L
+- REV-1: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-13a: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-14a: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-14b: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-15: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-16: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-19: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-2: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-21: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-3: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-4: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-5a: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-6: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-7: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
+- REV-8: code and behaviour check by size: Developer + Sonnet review (high effort) at S, QA whitebox/blackbox at M and L
 - SAFE-10: safety wording by size
 - SAFE-9: safety wording by size
 - SIZE-10a: sizes S/M/L: S = Manager + Developers, M adds both QAs, L every role; duties move to the present role

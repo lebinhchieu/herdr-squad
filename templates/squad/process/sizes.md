@@ -12,7 +12,7 @@ topic: sizes
 
 | Size | Roles | Use when | Done = |
 |---|---|---|---|
-| **S** Quick fix | Manager, Developers | 1–2 tasks, one repo, nothing user-visible, no risk flag, existing tests cover it | The Developer's checks + `evidence.md` + `## Review` (one fresh-context Opus review subagent before `HANDIN`); the Manager only confirms both exist |
+| **S** Quick fix | Manager, Developers | 1–2 tasks, one repo, nothing user-visible, no risk flag, existing tests cover it | The Developer's checks + `evidence.md` + `## Review` (one fresh-context Sonnet review subagent (high effort) before `HANDIN`); the Manager only confirms both exist |
 | **M** Feature | + QA whitebox, QA blackbox | 1–6 tasks, user-visible, clear ticket or AC, no business question, no risk flag | QA whitebox PASS + QA blackbox PASS |
 | **L** Full pod | Every role: + BA, Team Lead, Tech Lead | Business questions, any risk flag, cross-repo, ordering matters | QA whitebox PASS + QA blackbox PASS |
 
@@ -251,7 +251,7 @@ topic: sizes
 | Design notes | Developer | Developer | Tech Lead |
 | Technical AC | Developer | QA whitebox with the Developer | Tech Lead with QA whitebox |
 | Business AC | ticket as written | ticket as written | BA with QA blackbox |
-| Code check | Developer + Opus review subagent | QA whitebox | QA whitebox |
+| Code check | Developer + Sonnet review subagent | QA whitebox | QA whitebox |
 | Behaviour check | Developer's `evidence.md` | QA blackbox | QA blackbox |
 | Hand in to / done told to | Manager / Manager | QAs / Manager | QAs / Team Lead |
 | Full suite | Developer | QA whitebox | Tech Lead |

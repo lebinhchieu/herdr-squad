@@ -192,8 +192,10 @@ class S_DeveloperReview(unittest.TestCase):
     def test_review_rule_reaches_composed_dev_at_s_only(self):
         s = composed("dev", "S")
         self.assertIn("## REV-22", s)
-        for needle in ("fresh-context Opus review subagent", "`## Review`", "squad-evidence check"):
-            self.assertIn(needle, s.split("## REV-22")[1].split(" ## ")[0])
+        body = s.split("## REV-22")[1].split(" ## ")[0]
+        for needle in ("fresh-context review subagent", "`model: sonnet`", "`effort: high`", "`## Review`", "squad-evidence check"):
+            self.assertIn(needle, body)
+        self.assertNotIn("Opus", body)
         for size in "ML":
             self.assertNotIn("REV-22", composed("dev", size))
         self.assertEqual(acts("REV-22", "S"), ("dev",))
@@ -271,7 +273,7 @@ class SizeRules(unittest.TestCase):
     def test_s_dev_rules_name_the_review_and_duty_table_has_every_duty(self):
         t = composed("manager", "S")
         for row in ("Full suite | Developer | QA whitebox | Tech Lead", "`promote.md` | Developer | QA whitebox |",
-                    "Code check | Developer + Opus review subagent", "Technical AC | Developer | QA whitebox with the Developer",
+                    "Code check | Developer + Sonnet review subagent", "Technical AC | Developer | QA whitebox with the Developer",
                     "Migration, contract change, risk flag, business doubt | Manager moves to L"):
             self.assertIn(row, t)
 
@@ -444,6 +446,15 @@ class Changelog(unittest.TestCase):
             self.assertIn(f"- {rid}:", sections["added"])
         for rid in diff & set(old) & set(new):
             self.assertIn(f"- {rid}:", sections["retargeted"])
+
+    def test_no_opus_review_subagent_in_the_rule_files(self):
+        pat = re.compile(r"Opus review|review subagent.{0,40}Opus|Opus.{0,20}review subagent")
+        for f in sorted((ROOT / "templates" / "squad" / "process").rglob("*")):
+            if f.is_file():
+                self.assertIsNone(pat.search(f.read_text(encoding="utf-8")), str(f))
+        text = (ROOT / "skills" / "squad-process-update" / "changelog.md").read_text(encoding="utf-8")
+        for line in re.split(r"(?m)^## v6\b", text)[0].splitlines():
+            self.assertIsNone(pat.search(line), line)
 
     def test_the_owner_rules_changed_after_17_are_listed(self):
         text = (ROOT / "skills" / "squad-process-update" / "changelog.md").read_text(encoding="utf-8")
