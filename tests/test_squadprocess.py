@@ -253,5 +253,20 @@ def parse_none(p):
     return sp.parse_version(p.read_text(encoding="utf-8"))
 
 
+class PruneCliTest(unittest.TestCase):
+    """Ticket 25: `squad-process prune` is wired into the CLI and its usage line."""
+
+    def test_usage_line_and_dispatch(self):
+        self.assertIn("squad-process prune --squad-dir D (--home H | --all)", (ROOT / "bin" / "squad-process").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as tmp:
+            rt = Path(tmp) / "_runtime" / ("1.0-" + "a" * 12)
+            rt.mkdir(parents=True)
+            r = subprocess.run([sys.executable, str(CLI), "prune", "--squad-dir", tmp, "--all", "--dry-run"],
+                               capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("would remove 1.0-aaaaaaaaaaaa", r.stdout)
+            self.assertTrue(rt.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

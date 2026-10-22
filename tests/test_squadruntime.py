@@ -14,6 +14,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -626,6 +627,221 @@ class RuntimeIsNotAScopeTest(Base):
             if f.is_file() and f.suffix != ".pyc" and f.name.startswith(scanners):
                 text = f.read_text(encoding="utf-8")
                 self.assertNotRegex(text, r"rglob\(|os\.walk\(|glob\([^)]*\*\*", f.name)
+
+
+
+class PruneTest(unittest.TestCase):
+    """Ticket 25: rt.prune and `squad-process prune` on a fixture squad."""
+
+    X, Y, Z = "1.0-" + "a" * 12, "1.0-" + "b" * 12, "1.0-" + "c" * 12
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.squad = Path(self.tmp.name).resolve() / "t"
+        for d in ("scopes/s1", "scopes/s2", "goals/g1", "_runtime"):
+            (self.squad / d).mkdir(parents=True)
+        self.out = []
+
+    def tearDown(self):
+        for p in Path(self.tmp.name).rglob("*"):
+            if p.is_dir() and not p.is_symlink():
+                p.chmod(0o755)
+        self.tmp.cleanup()
+
+    def pin(self, home, name):
+        v, sha = name.split("-")
+        f = "goal.md" if home.startswith("goals") else "scope.md"
+        (self.squad / home / f).write_text(f"# x\n\nplugin: {v} {sha}\n", encoding="utf-8")
+
+    def runtime(self, name, size=100):
+        d = self.squad / "_runtime" / name
+        (d / "bin").mkdir(parents=True)
+        (d / "bin" / "f").write_text("x" * size, encoding="utf-8")
+        return d
+
+    def prune(self, home="scopes/s1", **kw):
+        kw["home"] = str(self.squad / home) if home else None
+        self.out = []
+        rt.prune(str(self.squad), out=self.out.append, **kw)
+        return "\n".join(self.out)
+
+    def test_decision_table(self):
+        self.pin("scopes/s1", self.X)
+        self.pin("scopes/s2", self.Y)
+        for n in (self.X, self.Y):
+            self.runtime(n)
+        text = self.prune()
+        self.assertFalse((self.squad / "_runtime" / self.X).exists())
+        self.assertTrue((self.squad / "_runtime" / self.Y).exists())
+        self.assertIn(f"removed {self.X} (0.0 MB)", text)
+        self.assertIn(f"kept {self.Y} (held by scope s2)", text)
+        self.assertIn("freed 0.0 MB in 1 runtime", text)
+
+    def test_two_scopes_one_runtime_the_closer_s_own_pin_is_not_a_holder(self):
+        self.pin("scopes/s1", self.X)
+        self.pin("scopes/s2", self.X)
+        self.runtime(self.X)
+        self.assertIn(f"kept {self.X} (held by scope s2)", self.prune())
+        self.assertTrue((self.squad / "_runtime" / self.X).exists())
+        self.assertIn(f"kept {self.X} (held by scope s1)", self.prune("scopes/s2"))
+        self.assertTrue((self.squad / "_runtime" / self.X).exists())
+        (self.squad / "scopes/s2/scope.md").unlink()
+        self.assertIn(f"removed {self.X}", self.prune())
+
+    def test_plugin_pin_and_goal_pin_hold(self):
+        self.pin("scopes/s1", self.X)
+        self.pin("goals/g1", self.X)
+        (self.squad / "plugin.pin").write_text(f"1.0 {'c' * 12}\n", encoding="utf-8")
+        for n in (self.X, self.Z):
+            self.runtime(n)
+        text = self.prune()
+        self.assertIn(f"kept {self.X} (held by goal g1)", text)
+        self.assertIn(f"kept {self.Z} (held by plugin.pin)", text)
+        self.assertTrue((self.squad / "_runtime" / self.X).exists() and (self.squad / "_runtime" / self.Z).exists())
+        text = self.prune("goals/g1")  # the goal closes; scope s1 is still open
+        self.assertIn(f"held by scope s1", text)
+        (self.squad / "scopes/s1/scope.md").unlink()
+        self.assertIn(f"removed {self.X}", self.prune("goals/g1"))
+
+    def test_done_folders_and_decoy_pins_are_not_read(self):
+        self.pin("scopes/s1", self.X)
+        done = self.squad / "scopes" / "_done" / "old"
+        done.mkdir(parents=True)
+        (done / "scope.md").write_text(f"plugin: 1.0 {'b' * 12}\n", encoding="utf-8")
+        decoy = self.squad / "scopes/s2/evidence/x"
+        decoy.mkdir(parents=True)
+        (decoy / "plugin.pin").write_text(f"1.0 {'b' * 12}\n", encoding="utf-8")
+        (self.squad / "scopes/s2/evidence/x/scope.md").write_text(f"plugin: 1.0 {'b' * 12}\n", encoding="utf-8")
+        self.runtime(self.Y)
+        self.assertIn(f"removed {self.Y}", self.prune())
+
+    def test_orphan_stray_and_tmp_children(self):
+        self.pin("scopes/s1", self.X)
+        for n in (self.Z, "notes", ".tmp-1-abc", "1.0-short"):
+            self.runtime(n)
+        text = self.prune()
+        self.assertIn(f"removed {self.Z}", text)
+        for n in ("notes", ".tmp-1-abc", "1.0-short"):
+            self.assertIn(f"kept {n} (not a runtime)", text)
+            self.assertTrue((self.squad / "_runtime" / n).exists())
+
+    def test_no_runtime_folder_prints_nothing(self):
+        (self.squad / "_runtime").rmdir()
+        self.assertEqual(self.prune(), "")
+
+    def test_protect_keeps_the_running_runtime_even_from_a_path_inside(self):
+        d = self.runtime(self.Z)
+        text = self.prune(protect=[str(d / "bin" / "f")])
+        self.assertIn(f"kept {self.Z} (running)", text)
+        self.assertTrue(d.exists())
+        self.assertIn(f"removed {self.Z}", self.prune())
+
+    def test_all_ignores_holders_keeps_protected_and_drops_empty_root(self):
+        self.pin("scopes/s2", self.X)
+        d = self.runtime(self.X)
+        z = self.runtime(self.Z)
+        self.prune(None, all_=True, protect=[str(z)])
+        self.assertFalse(d.exists())
+        self.assertTrue(z.exists())
+        self.assertTrue((self.squad / "_runtime").exists())
+        self.prune(None, all_=True)
+        self.assertFalse((self.squad / "_runtime").exists())
+
+    def test_dry_run_removes_nothing(self):
+        d = self.runtime(self.Z, 2 * 1048576)
+        text = self.prune(dry_run=True)
+        self.assertIn(f"would remove {self.Z} (2.0 MB)", text)
+        self.assertIn("would free 2.0 MB", text)
+        self.assertTrue(d.exists())
+
+    def test_symlink_child_is_unlinked_and_its_target_survives(self):
+        target = Path(self.tmp.name) / "elsewhere"
+        target.mkdir()
+        (target / "keep.txt").write_text("x", encoding="utf-8")
+        os.symlink(target, self.squad / "_runtime" / self.Z)
+        text = self.prune()
+        self.assertIn(f"removed {self.Z} (link only, target kept)", text)
+        self.assertFalse(os.path.lexists(self.squad / "_runtime" / self.Z))
+        self.assertTrue((target / "keep.txt").exists())
+
+    def test_a_child_whose_realpath_is_not_under_runtime_is_refused(self):
+        d = self.runtime(self.Z)
+        with mock.patch.object(rt, "_under", return_value=False):
+            text = self.prune()
+        self.assertIn(f"refused {self.Z}", text)
+        self.assertTrue(d.exists())
+        self.assertTrue(rt._under(self.squad / "_runtime", d))
+        self.assertFalse(rt._under(self.squad / "_runtime", d / "bin"))
+
+    def test_read_only_file_inside_does_not_fail(self):
+        d = self.runtime(self.Z)
+        (d / "bin" / "f").chmod(0o444)
+        self.assertIn(f"removed {self.Z}", self.prune())
+        self.assertFalse(d.exists())
+
+    def test_readonly_handler_clears_the_bit_and_retries(self):
+        f = Path(self.tmp.name) / "ro"
+        f.write_text("x", encoding="utf-8")
+        f.chmod(0o444)
+        calls = []
+        rt._clear_readonly(lambda p: calls.append((p, os.access(p, os.W_OK))), str(f), None)
+        self.assertEqual(calls, [(str(f), True)])
+
+    def test_failed_delete_is_reported_and_exit_is_zero(self):
+        d = self.runtime(self.Z)
+        with mock.patch.object(rt, "_rmtree", side_effect=OSError(13, "Permission denied")):
+            text = self.prune()
+        self.assertIn(f"could not remove {self.Z} (Permission denied)", text)
+        self.assertTrue(d.exists())
+        self.assertNotIn("freed", text)
+
+    @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0), "needs permissions to deny")
+    def test_read_only_runtime_folder_cannot_delete_and_cli_exits_zero(self):
+        self.runtime(self.Z)
+        (self.squad / "_runtime").chmod(0o555)
+        r = subprocess.run([sys.executable, str(BIN / "squad-process"), "prune", "--squad-dir", str(self.squad), "--home",
+                            str(self.squad / "scopes/s1")], capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"could not remove {self.Z}", r.stdout)
+        self.assertTrue((self.squad / "_runtime" / self.Z).exists())
+
+    def test_a_broken_holder_pin_removes_nothing(self):
+        (self.squad / "scopes/s2/scope.md").write_text("plugin: bad pin here now\n", encoding="utf-8")
+        d = self.runtime(self.Z)
+        self.assertIn("no runtime removed", self.prune())
+        self.assertTrue(d.exists())
+
+    def test_cli_needs_home_or_all_and_next_runtime_rebuilds(self):
+        self.pin("scopes/s1", self.X)
+        base = [sys.executable, str(BIN / "squad-process"), "prune", "--squad-dir", str(self.squad)]
+        r = subprocess.run(base, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(r.returncode, 2)
+        r = subprocess.run([*base, "--home", str(self.squad / "scopes/s2"), "--all"], capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(r.returncode, 2)
+        # a removed runtime comes back at the next spawn
+        plugin, version, sha = make_plugin(Path(self.tmp.name) / "plugin")
+        (self.squad / "scopes/s2/scope.md").write_text(f"plugin: {version} {sha}\n", encoding="utf-8")
+        name = f"{version}-{sha[:12]}"
+        run = [sys.executable, str(BIN / "squad-process"), "runtime", "--squad-dir", str(self.squad), "--home",
+               str(self.squad / "scopes/s2"), "--plugin-root", str(plugin)]
+        first = subprocess.run(run, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertTrue(first.stdout.strip().endswith(name))
+        r = subprocess.run([*base, "--home", str(self.squad / "scopes/s1")], capture_output=True, text=True, encoding="utf-8")
+        self.assertIn(f"kept {name} (held by scope s2)", r.stdout)
+        (self.squad / "scopes/s2/scope.md").write_text("# x\n", encoding="utf-8")
+        r = subprocess.run([*base, "--home", str(self.squad / "scopes/s1")], capture_output=True, text=True, encoding="utf-8")
+        self.assertIn(f"removed {name}", r.stdout)
+        (self.squad / "scopes/s2/scope.md").write_text(f"plugin: {version} {sha}\n", encoding="utf-8")
+        again = subprocess.run(run, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertTrue(Path(again.stdout.strip()).is_dir())
+
+    def test_no_recursive_glob_in_the_code(self):
+        src = (BIN / "squadruntime.py").read_text(encoding="utf-8")
+        start = src.index("def _holders")
+        self.assertNotIn("**", src[start:src.index("def cmd_prune")])
+        self.assertNotIn("rglob", src[start:src.index("def cmd_prune")])
 
 
 if __name__ == "__main__":

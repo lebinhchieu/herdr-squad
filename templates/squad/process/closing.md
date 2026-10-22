@@ -11,7 +11,7 @@ topic: closing
 roles: manager
 topic: closing
 
-`squad-close` retires the scope's agents (its Manager last), removes worktrees whose branch is merged and clean, reports every branch (never deletes one), moves the folder to `scopes/_done/` and closes the Manager's pane.
+`squad-close` retires the scope's agents (its Manager last), removes worktrees whose branch is merged and clean, reports every branch (never deletes one), deletes the pinned runtimes in `_runtime/` that no open scope, goal or `plugin.pin` holds (never the one it runs from), moves the folder to `scopes/_done/` and closes the Manager's pane.
 
 ## CLOSE-3a Close in a goal, Tech Lead
 roles: tech-lead
@@ -38,4 +38,4 @@ A goal closes once every scope is closed and the promotion passed. Run the Token
 roles: manager
 topic: closing
 
-`squad-close <squad>` archives everything, evidence included, to `.claude/squads/_done/<squad>/`.
+`squad-close <squad>` deletes every pinned runtime except the one it runs from, then archives everything, evidence included, to `.claude/squads/_done/<squad>/`.

@@ -3,8 +3,11 @@
   squad-process mode --squad-dir D                       prints composed | legacy | none
   squad-process runtime --squad-dir D --home H [--dry-run]
                                                          prints the pinned runtime folder (materialises it)
+  squad-process prune --squad-dir D (--home H | --all) [--dry-run] [--protect PATH ...]
+                                                         deletes the runtimes no open scope, goal or plugin.pin holds
 
 Exit codes of `runtime`: 0 ok, 1 runtime missing and not buildable, 2 no pin or an unparseable pin.
+`prune` exits 0 even when a delete fails (a close never stops on it); 2 only for a bad call.
 Design: .scratch/composed-process/spike-runtime.md and runtime-compose design.md section 05.
 """
 import argparse
@@ -13,6 +16,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -222,6 +226,135 @@ def materialise(squad_dir, version, sha, plugin_root=DEFAULT_ROOT, dry_run=False
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+RUNTIME_NAME_RE = re.compile(r"^[0-9A-Za-z.+-]+-[0-9a-f]{12}$")
+
+
+def _mb(n):
+    return f"{n / 1048576:.1f} MB"
+
+
+def _tree_size(path):
+    total = 0
+    for dp, _dn, fns in os.walk(path):  # followlinks stays False
+        for fn in fns:
+            try:
+                total += os.lstat(os.path.join(dp, fn)).st_size
+            except OSError:
+                pass
+    return total
+
+
+def _clear_readonly(func, path, _exc):
+    """rmtree error handler: a read-only file (git archive keeps modes; Windows refuses to delete it) loses the
+    bit, then the failed call is retried once."""
+    os.chmod(path, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+    func(path)
+
+
+def _rmtree(path):
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_clear_readonly)
+    else:
+        shutil.rmtree(path, onerror=_clear_readonly)
+
+
+def _under(root, path):
+    """True when realpath(path) is directly inside realpath(root)."""
+    return os.path.dirname(os.path.realpath(path)) == os.path.realpath(root)
+
+
+def _holders(squad, exclude_home):
+    """{runtime name: [holder label]} from plugin.pin and the pins of scopes/* and goals/* (never a recursive
+    glob; `_done` folders are not matched). `exclude_home` (the home being closed) holds nothing."""
+    held = {}
+
+    def add(pin, label):
+        if pin:
+            held.setdefault(f"{pin[0]}-{pin[1][:12]}", []).append(label)
+
+    add(read_pin_file(squad), "plugin.pin")
+    skip = os.path.realpath(exclude_home) if exclude_home else None
+    for kind, group, marker in (("scope", "scopes", "scope.md"), ("goal", "goals", "goal.md")):
+        for home in sorted(glob.glob(os.path.join(glob.escape(squad), group, "*"))):
+            name = os.path.basename(home)
+            if name == "_done" or not os.path.isfile(os.path.join(home, marker)):
+                continue
+            if skip and os.path.realpath(home) == skip:
+                continue
+            add(home_pin(home), f"{kind} {name}")
+    return held
+
+
+def prune(squad_dir, home=None, dry_run=False, protect=(), all_=False, out=print):
+    """Delete the `_runtime/<version>-<sha12>/` folders nothing holds; print one line per child and a total.
+    Never raises on a failed delete. Returns 0."""
+    squad = os.path.realpath(squad_dir)
+    root = os.path.join(squad, RUNTIME_DIR)
+    if not os.path.isdir(root):
+        return 0
+    try:
+        held = {} if all_ else _holders(squad, home)
+    except RuntimeError_ as e:
+        out(f"warning: {e.lines[0]}; no runtime removed")
+        return 0
+    protected = [os.path.realpath(p) for p in protect or ()]
+    verb, done = ("would remove", "would free") if dry_run else ("removed", "freed")
+    freed = count = 0
+    for name in sorted(os.listdir(root)):
+        path = os.path.join(root, name)
+        real = os.path.realpath(path)
+        if not RUNTIME_NAME_RE.match(name):
+            out(f"kept {name} (not a runtime)")
+            continue
+        if any(p == real or p.startswith(real + os.sep) for p in protected):
+            out(f"kept {name} (running)")
+            continue
+        if held.get(name):
+            out(f"kept {name} (held by {', '.join(held[name])})")
+            continue
+        if os.path.islink(path):
+            if not dry_run:
+                try:
+                    os.unlink(path)
+                except OSError as e:
+                    out(f"could not remove {name} ({e.strerror or e})")
+                    continue
+            out(f"{verb} {name} (link only, target kept)")
+            count += 1
+            continue
+        if not _under(root, path):
+            out(f"refused {name} (resolves outside {RUNTIME_DIR}/)")
+            continue
+        size = _tree_size(path)
+        if not dry_run:
+            try:
+                _rmtree(path)
+            except OSError as e:
+                out(f"could not remove {name} ({e.strerror or e})")
+                continue
+            if os.path.lexists(path):
+                out(f"could not remove {name}")
+                continue
+        out(f"{verb} {name} ({_mb(size)})")
+        freed += size
+        count += 1
+    if all_ and not dry_run:
+        try:
+            os.rmdir(root)
+        except OSError:
+            pass
+    if count:
+        out(f"{done} {_mb(freed)} in {count} runtime{'s' if count != 1 else ''}")
+    return 0
+
+
+def cmd_prune(a):
+    if bool(a.home) == bool(a.all):
+        print("prune: pass --home H or --all", file=sys.stderr)
+        return 2
+    return prune(a.squad_dir, a.home, a.dry_run, a.protect, a.all)
+
+
 def cmd_mode(a):
     print(mode(os.path.realpath(a.squad_dir)))
     return 0
@@ -248,13 +381,19 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     mp = sub.add_parser("mode", help="composed | legacy | none")
     rp = sub.add_parser("runtime", help="materialise and print the pinned runtime of a scope or goal home")
-    for p in (mp, rp):
+    pp = sub.add_parser("prune", help="delete the pinned runtimes no open scope, goal or plugin.pin holds")
+    for p in (mp, rp, pp):
         p.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"), required=not os.environ.get("SQUAD_DIR"))
     rp.add_argument("--home", required=True)
     rp.add_argument("--plugin-root", default=DEFAULT_ROOT)
     rp.add_argument("--dry-run", action="store_true")
+    pp.add_argument("--home", help="the scope or goal being closed (its own pin holds nothing)")
+    pp.add_argument("--all", action="store_true", help="whole-squad close: ignore holders")
+    pp.add_argument("--protect", action="append", default=[], metavar="PATH",
+                    help="a path inside a runtime that must stay (the running script); repeatable")
+    pp.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
-    return {"mode": cmd_mode, "runtime": cmd_runtime}[a.cmd](a)
+    return {"mode": cmd_mode, "runtime": cmd_runtime, "prune": cmd_prune}[a.cmd](a)
 
 
 if __name__ == "__main__":
