@@ -10,7 +10,7 @@ Branch `squad/plugin/process-fixes/plugin-dev-pf-6`, base 2f2e5a7. Old-form fold
 ## Rulings applied (TL amendments over BA text where they differ)
 - Retro fields are bold bullets; accepted: `**Label:**`/`**Label**:`, or a `### Label` heading. Continuation lines and sub-bullets count as text. A `<…>` that is the whole text is empty; `none`, `-`, `n/a` are text. Section = any heading starting `Retro` (`## Retro / Coach` works). Missing label = empty.
 - Last iteration = highest numeric `n` among `<n>.md` (`10` after `9`; `.log/.summary/.coach` ignored).
-- **Conflict:** BA says "no iteration file counts as empty"; TL amendment says no refusal for none, or a legacy flat squad. I followed the TL (existing close tests and legacy squads have none). BA to confirm.
+- No iteration file (or a legacy flat squad): no refusal. BA aligned `business-ac.md` §13 to the TL amendment (2026-10-22); no conflict left.
 - `--goal` untouched. `--force` + `--dry-run` writes nothing.
 - ITER-7 and ITER-9 got a minimal edit (they said "read only usage" and "propose only rule changes"); the ITER-7 edit follows BA additions. New blocks ITER-13..16. Card: one stance line. The "Plugin proposals become `$SCOPE_DIR/tasks/` drafts" BA ruling is ITER-15. The template has no "Plugin follow-ups" bullet (not in Touches); ITER-15 names it as the ticket does.
 
