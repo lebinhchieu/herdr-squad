@@ -230,6 +230,17 @@ class StartTest(unittest.TestCase):
         (self.squad / "scopes" / "one").mkdir()
         self.assertEqual(self.dry_lines("--resume", "one", "--model", "opus"),
                          ["manager model: opus (from flag)", "manager effort: high (from template)"])
+        roles = self.squad / "scopes" / "one" / "roles"
+        roles.mkdir()
+        (roles / "t-mgr-one.overrides").write_text("model=opus\neffort=low\n", encoding="utf-8")
+        self.assertEqual(self.dry_lines("--resume", "one"), ["manager model: opus (from recorded override)", "manager effort: low (from recorded override)"])
+        self.assertEqual(self.dry_lines("--resume", "one", "--effort", "max"), ["manager model: opus (from recorded override)", "manager effort: max (from flag)"])
+        self.start("Two", "--name", "two", "--touches", "q", "--model", "opus", "--effort", "low")  # keep: recorded choice is passed on
+        self.log.unlink()
+        r = self.start("--resume", "two")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertRegex(self.herdr(), r"--model opus --effort low\b")
+        self.assertTrue((self.squad / "scopes" / "two" / "roles" / "t-mgr-two.overrides").exists())
         (self.squad / "goals" / "g1").mkdir()
         self.assertEqual(self.dry_lines("x", "--in-goal", "g1", "--name", "two"), [])
 

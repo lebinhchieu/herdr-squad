@@ -13,7 +13,7 @@ The name is the first ticket id in the text (SEC-04 -> sec04), else a short slug
 --touches lists the repos or paths the work changes. If it overlaps an open scope's `touches:` the script lists
 the overlaps and exits 3 without creating anything; the PO decides, and --yes goes ahead.
 --model and --effort set the Manager's model and effort (default: the model and effort in settings/manager.json); it does not change the roles the Manager spawns.
---dry-run prints the Manager's model and effort and where each came from (flag, squad settings, template).
+--dry-run prints the Manager's model and effort and where each came from (flag, recorded override on --resume, squad settings, template).
 Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
 """
 import argparse
@@ -83,7 +83,20 @@ def squad_dir(name):
     return found[0].resolve()
 
 
-def manager_defaults(squad, model=None, effort=None):
+def recorded_overrides(home, manager):
+    """{model, effort} from <home>/roles/<manager>.overrides (ADR 0008); {} when absent or unreadable."""
+    out = {}
+    try:
+        for line in (home / "roles" / f"{manager}.overrides").read_text(encoding="utf-8").splitlines():
+            k, _, v = line.partition("=")
+            if k.strip() in ("model", "effort") and v.strip():
+                out[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return out
+
+
+def manager_defaults(squad, model=None, effort=None, recorded=None):
     """The Manager's model and effort as {key: (value, source)}: the flag, else the squad's settings/manager.local.json
     (or the old full manager.json), else the plugin template. Read-only; an unreadable file is skipped."""
     files = [("squad settings", squad / "settings" / "manager.local.json"), ("squad settings", squad / "settings" / "manager.json"),
@@ -101,12 +114,15 @@ def manager_defaults(squad, model=None, effort=None):
         if flag:
             out[key] = (flag, "flag")
             continue
+        if recorded and recorded.get(key):
+            out[key] = (recorded[key], "recorded override")
+            continue
         out[key] = next(((d[name], src) for src, d in loaded if isinstance(d.get(name), str) and d[name]), ("Claude's default", "none"))
     return out
 
 
-def print_manager_defaults(squad, a):
-    for key, (v, src) in manager_defaults(squad, a.model, a.effort).items():
+def print_manager_defaults(squad, a, recorded=None):
+    for key, (v, src) in manager_defaults(squad, a.model, a.effort, recorded).items():
         print(f"manager {key}: {v} (from {src})")
 
 
@@ -197,13 +213,14 @@ def resume(squad, a, update):
     prompt = (f"RESPAWN: you are {manager}, restarted for {kind} {a.resume}. {read or 'Read your'} notes "
               f"${home_var}/roles/{manager}.notes.md if it exists, then the brief and the roster, and continue where the files say.")
     spawn = [(PLUGIN / "bin" / "squad-spawn").as_posix(), "manager", manager, "--goal" if kind == "goal" else "--scope", a.resume, "--prompt", prompt]
-    if a.model:
-        spawn += ["--model", a.model]
-    if a.effort:
-        spawn += ["--effort", a.effort]
+    rec = recorded_overrides(target, manager)  # a plain resume keeps the recorded choice (squad-spawn would drop the file)
+    for key in ("model", "effort"):
+        v = getattr(a, key) or rec.get(key)
+        if v:
+            spawn += [f"--{key}", v]
     if a.dry_run:
         print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
-        print_manager_defaults(squad, a)
+        print_manager_defaults(squad, a, rec)
         return
     r = subprocess.run([need_bash(), *spawn], env={**os.environ, "SQUAD_DIR": squad.as_posix()}, capture_output=True,
                        text=True, encoding="utf-8", errors="replace")
