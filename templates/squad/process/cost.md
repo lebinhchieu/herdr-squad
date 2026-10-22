@@ -32,9 +32,17 @@ Respawn once your plan and AC are in files.
 
 ## COST-5 Developer retires
 roles: dev
+when: size = L
 topic: cost
 
-A Developer retires (no `squad-respawn`) at 120k with its ticket merged-ready, or when no open ticket touches its files. Mid-ticket it respawns once, then the Tech Lead splits the rest. A retired name is never reused.
+Retire (no `squad-respawn`) at 120k with the ticket merged-ready, or when no open ticket touches your files. Mid-ticket respawn once, then the Team Lead splits the rest. Never reuse a retired name.
+
+## COST-5a Developer retires, S and M
+roles: dev
+when: size in S, M
+topic: cost
+
+At 120k with the ticket merged-ready, or when no open ticket touches your files, retire (no `squad-respawn`). Mid-ticket, respawn once, then the Manager splits the rest. A retired name is never reused.
 
 ## COST-6a Ticket assignment, Manager in S
 roles: manager

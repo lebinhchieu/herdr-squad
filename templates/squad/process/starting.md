@@ -75,8 +75,8 @@ A lone scope sees nothing of other scopes; a scope in a goal also reads `goal.md
 roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
 topic: start
 
-1. `echo $SQUAD_DIR $SCOPE_DIR $GOAL_DIR $SQUAD_NAME $SQUAD_SCOPE`; a variable is empty → ask the Manager.
-2. Read `project.md`, `$SCOPE_DIR/scope.md`, `roster.md`, your `roles/$SQUAD_NAME.notes.md` if it exists; in a goal also `$GOAL_DIR/goal.md` and `$GOAL_DIR/shared/`.
+1. `echo $SQUAD_DIR $SCOPE_DIR $GOAL_DIR $SQUAD_NAME $SQUAD_SCOPE`; empty → ask the Manager.
+2. Read `project.md`, `$SCOPE_DIR/scope.md`, `roster.md`, your `roles/$SQUAD_NAME.notes.md` if any; in a goal also `$GOAL_DIR/goal.md`, `$GOAL_DIR/shared/`.
 
 ## START-7 Start inside a goal
 roles: ba, team-lead, tech-lead, qa-whitebox, designer
@@ -102,9 +102,9 @@ Read the Manager's briefing: your scope, your tasks and AC where it names them, 
 roles: dev
 topic: start
 
-1. Read your briefing (task, AC, design notes, peers).
-2. `git status`, `git branch --show-current`: you are on `squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME`; work only there.
-3. Read CLAUDE.md and the conventions `project.md` lists.
+1. Read your briefing (task, AC, design, peers).
+2. `git status`, `git branch --show-current`: expect `squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME`, work only there.
+3. Read CLAUDE.md and the `project.md` conventions.
 
 ## START-11 BA start
 roles: ba

@@ -51,7 +51,7 @@ class DevRulesSize(unittest.TestCase):
             t = compose("dev", size, design, goal).decode()
             tag = f"{size}/{design}/{goal}"
             owner = {"S": "Manager", "M": "Manager", "L": "Team Lead"}[size]
-            ask_owner = "Tech Lead" if size == "S" else "Team Lead"  # MSG-11a/b move with ticket 30
+            ask_owner = "Team Lead" if size == "L" else "Manager"  # MSG-11a/b move with ticket 30
             checks = {
                 "CORE-1": "returned",
                 "CORE-2": "`HANDIN`",
@@ -65,14 +65,14 @@ class DevRulesSize(unittest.TestCase):
                 "REV-13a" if size == "S" else "REV-13b": "HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it",
                 {"S": "REV-14a", "M": "REV-14c", "L": "REV-14b"}[size]: "After a PASS, a later commit goes to",
                 {"S": "REV-22", "M": "EVID-2d", "L": "EVID-2b"}[size]: "squad-evidence check",
-                "COST-5": "no `squad-respawn`",
+                "COST-5" if size == "L" else "COST-5a": "no `squad-respawn`",
                 "SAFE-1a": "Never push, rebase",
                 "SAFE-3": "by PID",
                 "SAFE-4": "files your role owns",
                 "SAFE-11": "mktemp -d",
                 {"S": "SUITE-2d", "M": "SUITE-2c", "L": "SUITE-2a"}[size]: "the test files you touched",
                 "MSG-4a" if size == "S" else "MSG-4b": "Manager" if size == "S" else "Team Lead",
-                "MSG-11a" if size == "S" else "MSG-11b": f"to the {ask_owner}",
+                "MSG-11b" if size == "L" else "MSG-11a": f"to the {ask_owner}",
             }
             if design == "yes":
                 checks["LC-19b" if size in "SM" else "LC-19"] = "Status: final"

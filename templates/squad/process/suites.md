@@ -34,7 +34,7 @@ roles: dev
 when: size = S
 topic: suites
 
-Run the test files you touched, then the full suite once on your final sha ([SUITE-4]); no two runs overlap.
+Run the test files you touched, then the full suite once on your final sha, in the background, till its notice (never `pgrep -f`/`pkill -f`); commit fixes first, never restart; receipt in `$SCOPE_DIR/evidence/`: `sha <git rev-parse HEAD> clean=<yes|no>`, OK last.
 
 ## SUITE-2b QA suites
 roles: qa-whitebox, qa-blackbox

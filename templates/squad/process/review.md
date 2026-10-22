@@ -5,7 +5,7 @@ roles: manager
 when: size = S
 topic: review
 
-On `HANDIN`: open the Developer's `evidence.md` (the design screenshots too), confirm `## Behaviour` and `## Review` ([REV-22]) are there, and run `squad-evidence check` on its folder: it must pass, so a screenshot that is not embedded fails. Send `PASS` or `FAIL` to the Developer; a missing or unverified item is a `FAIL`. You do not redo the Developer's checks ([SIZE-7a]).
+On `HANDIN`: open the Developer's `evidence.md` (design shots too); confirm `## Behaviour` and `## Review` ([REV-22]) are there, with the suite receipt in `$SCOPE_DIR/evidence/` ([SUITE-2d]). `squad-evidence check` on its folder must pass, so an unembedded shot fails. Send `PASS` or `FAIL` to the Developer; a missing or unverified item is a `FAIL`. You do not redo the Developer's checks ([SIZE-7a]).
 
 ## REV-2 QA whitebox review
 roles: qa-whitebox
@@ -224,4 +224,4 @@ roles: dev
 when: size = S
 topic: review
 
-Before `HANDIN`, one fresh-context Opus review subagent reads your diff. Put its findings and your fixes under `## Review` in `evidence.md`; `squad-evidence check <folder>` must pass.
+Before `HANDIN` a fresh-context Opus review subagent reads your diff; findings and fixes go under `## Review`; `squad-evidence check <folder>` must pass.

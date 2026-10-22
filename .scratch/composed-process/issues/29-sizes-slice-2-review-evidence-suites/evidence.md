@@ -34,3 +34,8 @@ Run: `./bin/squad-process lint` (silent, exit 0). `cd tests; PYTHONDONTWRITEBYTE
 - `process.md:221` / `files.md:104` still name `tl-review.md` at S.
 - MSG-4a/11a (S Developer) still say "Tech Lead" (30's files).
 - `squad-evidence check` does not yet require `## Review` at S (`bin/squadevidence.py`): ASK 29 sent to the Tech Lead.
+
+### Return 1 (QA whitebox FAIL on 14f227e)
+- SUITE-2d now carries the run how-to inline (background, notice, never `pgrep -f`/`pkill -f`, commit fixes first, never restart, receipt line, OK last); no pointer to the L-only SUITE-4. REV-1 confirms the receipt. Tests: `test_s_dev_gets_the_suite_run_and_receipt_how_to`, `test_pointers_of_dev_rules_at_s_reach_a_present_role` (all `[ID]` pointers in rules S Dev acts on reach a present role).
+- Cap: S dev ≤ 5120 B kept by tightening wording in START-6/10, MSG-3, EVID-4, REV-22, LC-18/19b, COST-5a.
+- Retargeted per TL: COST-5 (L, Team Lead) + COST-5a (S/M, Manager); MSG-11a (S/M, Manager) + MSG-11b (L, Team Lead). Golden regenerated. 18 test files, 321 tests OK (lint included).

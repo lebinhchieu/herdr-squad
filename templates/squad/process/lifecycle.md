@@ -200,23 +200,23 @@ Each task fits one Developer session, cites its AC and names its files; no two p
 roles: dev
 topic: lifecycle
 
-- `squad-label "<ticket id> <few words>"` on taking a ticket, `squad-label ""` when you wait.
+- `squad-label "<ticket id> <few words>"` on taking a ticket, `squad-label ""` to wait.
 - Implement as designed; reuse code.
-- Before hand-in run the tests, linters and checks `project.md` lists for "done" on changed files; test new behaviour.
+- Before hand-in run `project.md`'s "done" tests, linters and checks on changed files; test new behaviour.
 
 ## LC-19 Design
 roles: dev
 when: size = L and design = yes
 topic: lifecycle
 
-A `Design:` ticket waits for `Status: final`; build every screen and state of `$SCOPE_DIR/ui-design/<task>.md`; a difference is an `ASK` to the Tech Lead.
+A `Design:` ticket waits for `Status: final`; build each screen and state of `$SCOPE_DIR/ui-design/<task>.md`; a difference is an `ASK` to the Tech Lead.
 
 ## LC-19b Design, S and M
 roles: dev
 when: size in S, M and design = yes
 topic: lifecycle
 
-A `Design:` ticket waits for `Status: final`; build every screen and state of `$SCOPE_DIR/ui-design/<task>.md`; `ASK` the Manager on differences.
+A `Design:` ticket waits for `Status: final`; build every screen and state of `$SCOPE_DIR/ui-design/<task>.md`; `ASK` the Manager on a difference.
 
 ## LC-20a Done, S
 roles: dev

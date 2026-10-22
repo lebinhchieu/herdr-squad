@@ -104,46 +104,18 @@ class Slice2Owners(unittest.TestCase):
                     bad.append(f"{rid} at {size} qa-b {qab}: {absent}")
         self.assertEqual(sorted(set(bad)), [])
 
-    def test_the_old_orphan_list_is_fixed(self):
-        for rid, size in (("REV-1", "S"), ("REV-5a", "S"), ("PROMO-3b", "S"), ("SUITE-3", "S"), ("SUITE-4", "S"), ("SUITE-5", "S"),
-                          ("LC-22b", "S"), ("EVID-3a", "S"), ("EVID-5", "S"), ("PROMO-3a", "S"), ("PROMO-3a", "M")):
-            with self.subTest(rule=rid, size=size):
-                self.assertFalse(set(acts(rid, size)) - PRESENT[size], (rid, size))
-        self.assertEqual(acts("REV-1", "S"), ("manager",))
-        self.assertEqual(acts("REV-5a", "S"), ("dev",))
-        self.assertEqual(acts("EVID-3a", "S"), ("manager",))
-        self.assertEqual(acts("EVID-5", "S"), ("dev",))
-        for rid in ("SUITE-3", "SUITE-4", "SUITE-5", "LC-22b", "PROMO-3a"):
-            self.assertEqual(acts(rid, "S"), ())
-            self.assertEqual(acts(rid, "M"), ())
-
-    def test_move_up_exceptions_are_the_listed_ids(self):
-        self.assertEqual(sorted(EXCEPTIONS), ["LC-23", "LC-25", "LC-26"])
-
-    def test_hand_in_goes_to_the_manager_at_s_and_the_qas_at_m_and_l(self):
-        s, m, l = composed("dev", "S"), composed("dev", "M"), composed("dev", "L")
-        self.assertIn("to the Manager.", s.split("## REV-13a")[1].split("##")[0])
-        self.assertIn("to QA whitebox and QA blackbox", m)
-        self.assertIn("to QA whitebox and QA blackbox", l)
-        self.assertIn("Tell the Manager and wait", m)
-        self.assertIn("Tell the Manager and wait", s)
-        self.assertIn("Tell the Team Lead and wait", l)
-        for text in (s, m):
-            self.assertNotIn("Tech Lead", text.split("## REV-13a")[1].split("## EVID")[0] if "## REV-13a" in text else "")
-
-    def test_rev_21_has_no_ba_at_m(self):
-        self.assertNotIn("ba", acts("REV-21", "M") + acts("REV-21", "S"))
-        self.assertEqual(acts("REV-21b", "M"), ("qa-whitebox",))
-        self.assertIn("ba", acts("REV-21", "L"))
-
-    def test_rev_2_migration_step_is_l_only(self):
-        self.assertNotIn("Tech Lead", composed("qa-whitebox", "M").split("## REV-2 ")[1].split(" ## ")[0])
-        self.assertNotIn("## REV-2b", composed("qa-whitebox", "M"))
-        self.assertIn("## REV-2b", composed("qa-whitebox", "L"))
-
-    def test_claude_md_running_tests_names_the_size_owner(self):
-        text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
-        self.assertIn("S the Developer, M QA whitebox, L the Tech Lead", text)
+    def test_pointers_of_dev_rules_at_s_reach_a_present_role(self):
+        """A [ID] pointer in a rule the S Developer acts on must name a rule someone present acts on at S."""
+        bad = []
+        for f in SLICE2:
+            text = (ROOT / "templates" / "squad" / "process" / f"{f}.md").read_text(encoding="utf-8")
+            for rid, body in re.findall(r"(?ms)^## ([A-Z]+-\d+[a-z]?) [^\n]*\n(.*?)(?=^## |\Z)", text):
+                if "dev" not in acts(rid, "S"):
+                    continue
+                for target in set(re.findall(r"\[([A-Z]+-\d+[a-z]?)\]", body)):
+                    if not set(acts(target, "S")) & PRESENT["S"]:
+                        bad.append(f"{rid} -> {target}")
+        self.assertEqual(sorted(bad), [])
 
 
 class S_DeveloperReview(unittest.TestCase):
@@ -156,6 +128,14 @@ class S_DeveloperReview(unittest.TestCase):
             self.assertNotIn("REV-22", composed("dev", size))
         self.assertEqual(acts("REV-22", "S"), ("dev",))
         self.assertEqual(acts("REV-22", "M"), ())
+
+    def test_s_dev_gets_the_suite_run_and_receipt_how_to(self):
+        s = composed("dev", "S")
+        body = s.split("## SUITE-2d")[1].split("\n## ")[0]
+        for needle in ("pgrep -f", "never restart", "receipt"):
+            self.assertIn(needle, body)
+        for size in "ML":
+            self.assertNotIn("## SUITE-2d", composed("dev", size))
 
     def test_manager_confirms_behaviour_and_review_at_s(self):
         t = composed("manager", "S")

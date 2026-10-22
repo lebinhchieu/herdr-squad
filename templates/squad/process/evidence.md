@@ -62,7 +62,7 @@ roles: dev
 when: size = S
 topic: evidence
 
-Write `## Behaviour` in `evidence.md`, committed with the code: Playwright or API checks per AC, what you ran and saw, screenshots as `![alt](img/<file>)` under their AC.
+Commit `## Behaviour` with the code: Playwright or API checks per AC (run, seen), shots `![alt](img/<file>)` under their AC.
 
 ## EVID-5 Design shots, S
 roles: dev

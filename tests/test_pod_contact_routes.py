@@ -53,7 +53,7 @@ class PodContactRoutes(unittest.TestCase):
         qb = composed("qa-blackbox", "M")
         self.assertNotIn("copy the Team Lead", qb)  # ledger replaces copies
         self.assertNotIn("and the BA", qb.split("## REV-12")[1].split("##")[0])
-        self.assertIn("`BLOCKED <task>` and `STATUS?` answers go to the Team Lead", composed("dev", "M"))
+        self.assertIn("`BLOCKED <task>` and `STATUS?` answers go to the Manager", composed("dev", "M"))
         
 
 if __name__ == "__main__":
