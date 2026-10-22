@@ -114,3 +114,9 @@ topic: files
 | `goal.md` | goal Manager | Brief, ordered scopes with dependencies, constraints, `promoted:` |
 | `shared/decisions.md`, `shared/summaries/<scope>.md` | Tech Lead of the closing scope | Goal decisions; closed scope's summary |
 | `shared/contracts/<name>.md` | Tech Leads of both scopes | Contract between scopes: API, event, status model |
+
+## FILE-11 Drafts never go in the project root
+roles: tech-lead, ba, team-lead, manager, qa-whitebox, qa-blackbox, designer, token-coach
+topic: files
+
+Every role except the Developer drafts tickets, specs and ADR text in `$SCOPE_DIR/tasks/`, never in the project root (a Developer worktree counts as root). The scope's first Developer task commits them to the paths `project.md` names; a later draft rides the next one. `squad-path-guard` refuses Write and Edit there, not a Bash redirect; `squad-close --scope` lists stray untracked files.

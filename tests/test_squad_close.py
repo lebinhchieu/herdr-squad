@@ -215,6 +215,25 @@ class ScopedCloseTest(unittest.TestCase):
         self.assertTrue((self.squad / "scopes/sc2").exists())
         self.assertIn("squad/t/sc1/t-dev-sc1-1", git("branch", "--list", "squad/t/sc1/*", cwd=self.root))  # branches kept
 
+    def test_scope_close_lists_untracked_root_files_and_still_closes(self):
+        stray = self.root / ".scratch" / "x" / "issues"
+        stray.mkdir(parents=True)
+        (stray / "01.md").write_text("draft", encoding="utf-8")
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("WARNING: untracked files in the project root", r.stdout)
+        self.assertIn(".scratch/x/issues/01.md", r.stdout)
+        listed = [l for l in r.stdout.split("== agents")[0].splitlines() if l.startswith("  ")]
+        self.assertIn("  .scratch/x/issues/01.md", listed)
+        self.assertFalse([l for l in listed if ".claude/squads" in l or ".worktrees" in l])  # not reported
+        self.assertFalse((self.squad / "scopes/sc1").exists())               # the close went through
+
+    def test_scope_close_without_stray_files_prints_no_warning(self):
+        (self.root / ".gitignore").write_text("fakebin/\nherdr.log\n.gitignore\n", encoding="utf-8")
+        r = self.close("--scope", "sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("WARNING: untracked", r.stdout)
+
     def test_scope_close_dry_run_changes_nothing(self):
         r = self.close("--scope", "sc1", "--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
