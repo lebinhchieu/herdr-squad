@@ -13,5 +13,5 @@ Fresh sonnet review of da2a9a7; findings and what was done:
 - "`cd` out" says no where to: kept for the same byte reason; rule says scratch dirs.
 - cd clause pinned at size M only: SAFE-11 has no `when:`, same text at all sizes; kept.
 - Prompt not reproduced: stated in Behaviour.
-- Changelog line missing: fixed (v7 `changed:` SAFE-11); test_sizes had caught it.
+- Changelog line missing: fixed (v7 `retargeted:` SAFE-11); test_sizes had caught it.
 Suite also showed: qab golden hashes stale for 18 dev/qa rows (regenerated, only the 18 changed) and test_process_conversion pointing at the moved `.scratch/_done/composed-process/` mapping (path fixed).

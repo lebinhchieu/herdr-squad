@@ -312,12 +312,13 @@ added:
 - START-3b: new (ticket 20): the Manager shows the team's models with the size, the PO's answer goes to scope.md
 
 changed:
-- SAFE-11: scratch dirs: `cd` out before `rm`; Claude Code denies removing the cwd or an ancestor
+- none
 
 removed:
 - SIZE-21: replaced by SIZE-21a and SIZE-21b (QA blackbox off, split by size)
 
 retargeted:
+- SAFE-11: scratch dirs: `cd` out before `rm`; Claude Code denies removing the cwd or an ancestor
 - SIZE-1: points at START-3b: the size proposal carries the team's models
 - SIZE-18: extra hands only exist at L: when size = L
 - SPAWN-4: the Manager's plan, not the absent Tech Lead's (S and M)
