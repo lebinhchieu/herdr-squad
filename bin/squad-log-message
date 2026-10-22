@@ -66,7 +66,7 @@ third_return() {
         else . end)) as $st
     | ($st.fails[:-1] | unique) as $prior | ($st.fails[-1]) as $s
     | select(($prior | index([$s])) == null and ($prior | length) == 2)
-    | if $size == "S" or $size == "M" then "task \($this.task) has 3 returns: record the budget line and consult the advisor [LC-25]"
+    | if $size == "S" then "task \($this.task) has 3 returns: record the budget line and consult the advisor [LC-25]"
       else "task \($this.task) has 3 returns: also send `BLOCKED \($this.task): 3 returns` to \($who) [\($lc)]; tell the Developer to consult the advisor before the next HANDIN; note it in the task file [LC-25]" end' "$log" 2>/dev/null) || notice=
 }
 

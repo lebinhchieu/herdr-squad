@@ -179,7 +179,7 @@ class NoticeTest(unittest.TestCase):
         self.assertNotIn("BLOCKED", got)
 
     def test_three_returns_notice_routes_by_size(self):
-        want = {"S": None, "M": None, "L": ("Team Lead", "LC-7b")}
+        want = {"S": None, "M": ("Manager", "LC-7c"), "L": ("Team Lead", "LC-7b")}
         for size, route in want.items():
             (self.squad / "scope.md").write_text("size: %s\n" % size, encoding="utf-8")
             (self.squad / "messages.jsonl").unlink(missing_ok=True)
@@ -188,11 +188,12 @@ class NoticeTest(unittest.TestCase):
                 self.send("HANDIN 5: commit %s" % sha, "dev", "qaw")
                 got = self.send("FAIL 5: x", "qaw")
             with self.subTest(size=size):
-                if route is None:  # no Team Lead: never tell the Manager to BLOCKED itself
+                if route is None:  # S: the sender is the Manager; never tell it to BLOCKED itself
                     self.assertIn("record the budget line and consult the advisor [LC-25]", got)
                     self.assertNotIn("BLOCKED", got)
-                else:
+                else:  # M, L: the failing QA sends BLOCKED; the Developer consults the advisor
                     self.assertIn("`BLOCKED 5: 3 returns` to %s [%s]" % route, got)
+                    self.assertIn("tell the Developer to consult the advisor", got)
 
     def test_two_fails_and_other_tasks_give_no_notice(self):
         for t, sha in (("05", "aaaaaaa"), ("06", "bbbbbbb"), ("05", "ccccccc"), ("06", "ddddddd")):
