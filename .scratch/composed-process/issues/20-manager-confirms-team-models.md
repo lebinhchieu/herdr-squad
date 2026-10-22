@@ -1,7 +1,7 @@
 Status: ready-for-agent
 Type: task
 Task ID: 20
-Touches: `bin/squad-spawn` (scope-level role defaults), `bin/squad-start` (scope.md template comment), `templates/squad/process/starting.md` and `templates/squad/process/sizes.md` (Manager first-move rules), `tests/test_squad_spawn.py`, `tests/test_team_models.py` (new)
+Touches: `tests/fixtures/qab/golden.json` (hashes regenerated, added 2026-10-22), `skills/squad-process-update/changelog.md` (START-3b, SIZE-1 lines only, added 2026-10-22), `templates/scope/scope.md` (model-line format comment, added 2026-10-22), `bin/squad-spawn` (scope-level role defaults), `bin/squad-start` (scope.md template comment), `templates/squad/process/starting.md` and `templates/squad/process/sizes.md` (Manager first-move rules), `tests/test_squad_spawn.py`, `tests/test_team_models.py` (new)
 Does not touch: `agents/*`, settings templates
 Harness: `cd tests; PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_team_models test_squad_spawn test_model_effort_settings test_windows_safe`
 Blocked by: 03, 08, 19 (19 also edits `bin/squad-start`)

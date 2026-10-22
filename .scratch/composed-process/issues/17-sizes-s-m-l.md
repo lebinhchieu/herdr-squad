@@ -1,9 +1,9 @@
 Status: ready-for-agent
 Type: task
 Task ID: 17
-Touches: `templates/squad/process/sizes.md`, `templates/squad/process/review.md`, `templates/squad/process/suites.md`, `templates/squad/process/spawning.md`, `CLAUDE.md` (Running tests: suite owner), `tests/test_sizes.py` (new)
+Touches: `templates/squad/process/{sizes,who,starting,spawning}.md`, `tests/test_sizes.py` (new), the tests that pin those rules. Slice 1 of 4: re-issued 2026-10-22 as 17 + 29 + 30 + 31, see `scopes/sizes-and-models/tasks/tech-ac.md`
 Does not touch: `agents/*` (cards hold no process after 06), `bin/squadrules.py` (`size` stays S, M, L)
-Harness: `squad-process lint`; `cd tests; PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_sizes test_squadrules test_squadcompose`
+Harness: `squad-process lint`; `cd tests; PYTHONDONTWRITEBYTECODE=1 python3 -m unittest test_sizes test_squadrules test_squadcompose` + each test file edited
 Blocked by: 03, 04
 
 # 17: New sizes: S = Manager + Developers, M = + both QAs, L = every role
