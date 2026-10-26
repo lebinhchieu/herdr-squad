@@ -14,17 +14,19 @@ from rulesview import ROOT, ROLES, run, who
 
 LIMIT = 5120
 NOW = "2026-10-22T10:00:00Z"
+# S + architecture yes exceeds LIMIT at every design x goal: pinned (design, goal) -> bytes
+PINNED = {("yes", "yes"): 5443, ("yes", "no"): 5442, ("no", "yes"): 5152, ("no", "no"): 5151}
 COMBOS = list(product("SML", ("yes", "no"), ("yes", "no")))
 
 
-def compose(role, size, design="no", goal="no", name="role-cards-upgrade", agent="plugin-dev-role-cards-upgrade-12"):
+def compose(role, size, design="no", goal="no", architecture="no", name="role-cards-upgrade", agent="plugin-dev-role-cards-upgrade-12"):
     """The raw composed bytes for a pinned fixture home with live-length names; no --plugin-root, time injected."""
     import squadcompose
     pin = f"plugin: {squadcompose.running_version()} 0123456789abcdef0123456789abcdef01234567\n"
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "scopes" / name
         home.mkdir(parents=True)
-        (home / "scope.md").write_text(f"goal:{' g1' if goal == 'yes' else ''}\nsize: {size}\nqa: full\ndesign: {design}\n{pin}",
+        (home / "scope.md").write_text(f"goal:{' g1' if goal == 'yes' else ''}\nsize: {size}\nqa: full\ndesign: {design}\narchitecture: {architecture}\n{pin}",
                                        encoding="utf-8", newline="\n")
         out = Path(tmp) / "rules.md"
         r = subprocess.run([sys.executable, "-B", str(ROOT / "bin" / "squad-process"), "compose", role, "--home", str(home),
@@ -45,6 +47,21 @@ class DevRulesSize(unittest.TestCase):
             with self.subTest(size=size, design=design, goal=goal):
                 n = len(compose("dev", size, design, goal))
                 self.assertLessEqual(n, LIMIT, f"dev at {size}/design {design}/goal {goal} is {n} B")
+
+    def test_architecture_flag_on_fits_except_s(self):
+        for size, design, goal in COMBOS:
+            if size == "S":
+                continue
+            with self.subTest(size=size, design=design, goal=goal):
+                n = len(compose("dev", size, design, goal, "yes"))
+                self.assertLessEqual(n, LIMIT, f"dev at {size}/design {design}/goal {goal}/architecture yes is {n} B")
+
+    def test_s_architecture_exception_is_pinned(self):
+        """Known exception to the 5 KiB limit (ticket 02 design notes): pinned so it cannot grow."""
+        for (design, goal), want in PINNED.items():
+            with self.subTest(design=design, goal=goal):
+                n = len(compose("dev", "S", design, goal, "yes"))
+                self.assertEqual(n, want, f"dev S/design {design}/goal {goal}/architecture yes is {n} B")
 
     def test_must_keep_duties_by_rule_id(self):
         for size, design, goal in COMBOS:
