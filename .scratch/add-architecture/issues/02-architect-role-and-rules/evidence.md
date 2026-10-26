@@ -1,5 +1,5 @@
 # Evidence 02 architect role card, settings and rules
-
+sha: a4a70ab
 ## Behaviour
 - `agents/architect.md`: identity, stance (writes `architecture.md` and ADR drafts only, never code, edits no project file, checks no built code), tools `squad-respawn`. `templates/squad/settings/architect.json`: sonnet high, advisor opus; writes only `scopes/*/architecture.md` and `scopes/*/tasks/**`; denies `scope.md`, `roster.md`, `escalations.md` (not `scopes/*/*.md`, which would shadow `architecture.md`).
 - Rules, all `when: architecture = yes`, existing blocks untouched: SIZE-3a flag (PO only, Manager never proposes, logged in iteration file), SIZE-9a deliverable (`Status: draft|final`, listed contents, ADR drafts in `tasks/`, advisor before an irreversible recommendation), SPAWN-4a (after goal check, before plan; retire when final; respawn for a question; also adds `architect` to SPAWN-2a/b/c), LC-11c (S, M) / LC-11d (L) plan gate, LC-19c Developer, MSG-20 feedback (`ASK` the Architect, 2 rounds then Manager), MSG-20a/b doubts and final, START-4a `arch`, START-5a lifetime, START-20 start.
@@ -21,3 +21,33 @@ Tests edited only for legitimate count changes: settings files 9 to 10 (test_ins
 
 ## Files outside the ticket's list (T4 counters)
 `bin/squadcompose.py` (index no-leak), `tests/rulesview.py` (`architecture` kwarg), `tests/test_squadadopt.py`, `tests/test_task_id_rule.py` (counts), `skills/squad-process-update/changelog.md` (v7 entry lists each changed rule ID; `test_sizes.Changelog` requires it; precedent e44b6f4). Version bump and history snapshot stay in 03.
+
+## QA whitebox
+
+### QA whitebox 02 — sha 2de2487 — FAIL (1 finding)
+
+Checked and OK: lint exit 0; own byte-identity run vs base 30de602: 9 roles x S/M/L x design x goal x qa-b x (absent|no) = 324 composed files, 0 diffs. Tests re-run OK: architect_handoff 15, templates 10, model_effort_settings 4, instructions 29, squad_spawn 72, squadadopt 29, task_id_rule 2, squadcompose 51, squadrules 55, processlint 31, dev_rules_size 7, process_history 6, process_writing 7, process_citations 4. Card/settings match designer's shape; deny set does not shadow architecture.md. All new rules are yes-gated blocks, one statement each. Override-row design (SIZE-22a, WHO-2e) accepted.
+
+#### F1 — flag-on Developer size is unguarded (Manager ruling FINAL 02, option a)
+tests/test_dev_rules_size.py:15 LIMIT=5120 covers flag-off only. Flag-on: S+design yes = ~5.36 KiB+ (over), M/L flag-on 4.98 KiB (under); nothing stops later growth.
+Pass: (1) add a test in tests/test_dev_rules_size.py (or test_architect_handoff.py) that composes the Developer file with `architecture: yes`, using the same fixture as `compose()` there (pin, live-length names), for every size x design x goal: M and L each <= 5120; S+design yes pinned at its current byte value (equality or <= that number, number written in the test); S+design no <= 5120. (2) Note the exception in the ticket's Design notes (last bullet) citing the ruling. Show red-then-green not needed; show the test run in evidence.
+
+#### Re-check a4a70ab — PASS
+F1 fixed: flag-on M/L <=5120 test, all four flag-on S combos pinned exactly (5151/5152/5442/5443), exception noted in design notes citing the ruling. test_dev_rules_size 9 OK, test_sizes 36 OK. Diff 2de2487..a4a70ab = test + ticket note only.
+
+## QA blackbox
+
+### QA blackbox 02 — final sha a4a70ab (checked 2de2487 in full; re-checked a4a70ab per LC-3b)
+CLI only; scratch squad: 18 scopes = size S/M/L × architecture yes/no/absent × design yes/no. Method: `squad-process compose <role> --home <scope> --now <fixed>` with the plugin under test and with a `git archive` of base 30de602; `squad-process lint`; `squad-spawn architect --dry-run`; read card + settings. No code read.
+
+| AC | Did | Saw | Result |
+|---|---|---|---|
+| 1 card + settings | read `agents/architect.md`, `settings/architect.json`; dry-run spawn S/M/L yes | Card: identity, stance (writes `architecture.md` + ADR drafts only, never code, never edits scope.md/rules/tickets/others' files, checks no built code), tools, rules pointer. Settings: sonnet / high / advisor opus; allow Write/Edit only `scopes/*/architecture.md` and `scopes/*/tasks/**`; denies scope.md, roster.md, escalations.md, goal files, settings. Dry-run `--agent squad:architect --model sonnet --effort high`, no warning; `model architect: opus max` honoured; no/absent refused exit 1 | PASS |
+| 2 rules | compose manager/architect/dev/tech-lead/qa-whitebox/team-lead at S/M/L, diff vs no-scope | New blocks, `architecture yes` only: SIZE-3a flag (PO only, any size, Manager never proposes, logged in iteration file), SIZE-9a role (architecture.md, Status draft\|final, the 5 contents, ADR drafts in tasks/), SPAWN-4a (after goal check, before plan/split, retire when final, respawn for a question; names SPAWN-2a/b/c), LC-11c (S, M) / LC-11d (L) plan gate on Status final, START-4a `arch`, START-5a lifetime row, START-20, MSG-20 (ASK the Architect, 2 rounds → Manager), MSG-20a/b, LC-19c | PASS |
+| 3 above Tech Lead / irreversible | read WHO-2e, SIZE-22a, WHO-2d, SIZE-22 in composed Manager | WHO-2e: Architect owns architecture; irreversible = "Architect lists and recommends; Manager escalates; PO decides"; replaces the Irreversible rows of WHO-2/WHO-2d. SIZE-22a rows: Architecture = Architect (all sizes), design notes inside it, irreversible = Architect proposes, PO decides. CORE-3 text itself not edited (byte-identity; carried by WHO-2e/SIZE-3a): intent met, literal "update CORE-3" not | PASS with note |
+| 4 conformance | read SIZE-23c/23d/REV-22a | M: QA whitebox SIZE-23c; L: Tech Lead + QA whitebox SIZE-23d; S: Developer REV-22a (review subagent). Architect checks no code | PASS |
+| 5 no leakage | 9 roles × 12 no/absent scopes vs base 30de602 | 108/108 byte-identical. With yes: Manager, Architect, Dev, Tech Lead, Team Lead, QA whitebox carry new rules; BA, QA blackbox, Designer, Token Coach unchanged. Header `architecture yes` only on yes. Lint clean; 10 roles compose at L yes + design yes | PASS |
+
+Re-check a4a70ab: all 138 composed files (108 no/absent vs base, 30 yes vs 2de2487 output) byte-identical, 0 diffs, so no behaviour change. `python3 tests/test_dev_rules_size.py`: 9 tests OK.
+Notes (not findings): old WHO-2d/SIZE-22 "Irreversible" rows still print in yes scopes, overridden by "replaces" in WHO-2e/SIZE-22a.
+Verdict: PASS.
