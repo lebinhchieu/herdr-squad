@@ -15,6 +15,10 @@ class BuildLabelTest(unittest.TestCase):
             for number, title, tail in [(None, "", ""), (2, "", " 2"), (None, "T-1 x", " · T-1 x"), (3, "T-1 x", " 3 · T-1 x")]:
                 self.assertEqual(sl.build_label(role, number, title), f"{emoji} {name}{tail}")
 
+    def test_architect_has_its_own_label(self):
+        self.assertIn("architect", sl.ROLE_NAMES)
+        self.assertEqual(sl.build_label("architect"), "🤖 Architect")
+
     def test_unknown_role_is_title_cased(self):
         self.assertEqual(sl.build_label("data-wrangler"), "🤖 Data Wrangler")
 

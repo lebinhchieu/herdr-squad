@@ -31,7 +31,7 @@ import squadupgrade as su  # noqa: E402
 DEFAULT_ROOT = su.DEFAULT_ROOT
 ID_RE = re.compile(r"^[A-Z]+-\d+[a-z]?$")
 HEADER = "# Local process\n"  # only a title may stand before the first operation
-ROLE_FILES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "dev", "designer", "token-coach")
+ROLE_FILES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "dev", "designer", "architect", "token-coach")
 RETIRED = ("Bash(squad-process show:*)",)  # commands that no longer exist: not carried into the local file
 _CODE_ENTRY = re.compile(r"^Read\(//+(.+)/\*\*\)$")
 

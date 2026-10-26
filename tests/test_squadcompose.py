@@ -258,6 +258,39 @@ class FactsMatrixTest(Base):
         self.assertIn("scope.md:", r.stderr)
         self.assertIn("design", r.stderr)
 
+    def test_architecture_header_shown_when_yes_and_absent_line_header_unchanged(self):
+        t = self.compose("dev", self.home())
+        self.assertNotIn("architecture", t.split("\n")[1])
+        self.assertIn("(size M, design no, qa full, goal no)", t)
+        self.assertIn("(size M, design no, architecture yes, qa full, goal no)",
+                      self.compose("dev", self.home(extra="architecture: yes\n")))
+        self.assertIn("architecture yes,", self.compose("dev", self.home(extra="architecture: yes\n")))
+
+    def test_invalid_architecture_value_exits_2_naming_the_line(self):
+        h = self.home(extra="architecture: maybe\n")
+        r = self.run_cli("compose", "dev", home=h)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("scope.md:", r.stderr)
+        self.assertIn("architecture", r.stderr)
+
+    def test_goal_home_takes_architecture_default_no(self):
+        t = self.compose("manager", self.goal_home(), agent="mgr")
+        self.assertNotIn("architecture", t.split("\n")[1])
+        self.overlay("## add SQ-2 Arch rule\nroles: manager\nwhen: architecture = yes\ntopic: review\nwhy: a\nupstream: local-only\nBody.\n")
+        self.assertNotIn("SQ-2", self.ids("manager", self.goal_home()))  # a missing fact would keep it
+
+    def test_when_architecture_rule_kept_only_when_fact_matches(self):
+        self.overlay("## add SQ-2 Arch rule\nroles: dev\nwhen: architecture = yes\ntopic: review\nwhy: a\nupstream: local-only\nBody.\n"
+                     "\n## add SQ-3 No arch rule\nroles: dev\nwhen: architecture = no\ntopic: review\nwhy: a\nupstream: local-only\nBody.\n")
+        yes = self.ids("dev", self.home(extra="architecture: yes\n"))
+        no = self.ids("dev", self.home(extra="architecture: no\n"))
+        absent = self.ids("dev", self.home())
+        self.assertIn("SQ-2", yes)
+        self.assertNotIn("SQ-3", yes)
+        self.assertIn("SQ-3", no)
+        self.assertNotIn("SQ-2", no)
+        self.assertEqual(absent, no)
+
     def test_unknown_role_exits_2(self):
         self.assertEqual(self.run_cli("compose", "wizard", home=self.home()).returncode, 2)
 
