@@ -19,4 +19,7 @@ T2. Glossary terms are used verbatim in the ADR; `grep -n -i architect CONTEXT.m
 T3. Diff lists only the files above plus ticket/evidence files.
 
 ## Design notes
-(Developer fills in.)
+- ADR 0005 is superseded by 0016: no `process-version:` line or `process.md` change. The legacy `templates/squad/process.md` stays at v6 (frozen). The release unit is the plugin version plus the changelog block and a rule snapshot: bumped `.claude-plugin/plugin.json` 0.5.1 -> 0.6.0 (new role, minor), added `## v8 — 2026-10-27` (`snapshot: history/process-v8/`) holding the Architect rules that 01/02 had appended to the v7 block, and copied `templates/squad/process/*.md` to `history/process-v8/`. The v7 block is back to its content at base 69eb078; its snapshot dir is untouched.
+- Scopes pinned to 0.5.1 run their pinned runtime (ADR 0016), so they are unaffected.
+- ADR 0017 amends the owner rows of 0016 and says so; 0010 stays valid (Team Lead and Tech Lead unchanged).
+- `promote.md` is in `$SCOPE_DIR`; its edits are exactly CONTEXT.md, ADR 0017, README.md.

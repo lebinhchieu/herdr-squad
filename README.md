@@ -1,6 +1,6 @@
 # squad: a self-managing Claude Code dev team
 
-**You are the PO. For each task or goal you give it, a fresh Manager session spawns and runs a team of Claude Code sessions (BA, Team Lead, Tech Lead, QA whitebox, QA blackbox, Developers, and an optional UI/UX Designer (only when the PO sets `design: yes`)), each in its own herdr tab. They talk through Claude Code's built-in cross-session messaging and keep everything durable in a folder in your project. Work is grouped by scope: a scope starts fresh, shares nothing with other scopes, and its lasting knowledge goes into your project's own docs.**
+**You are the PO. For each task or goal you give it, a fresh Manager session spawns and runs a team of Claude Code sessions (BA, Team Lead, Tech Lead, QA whitebox, QA blackbox, Developers, an optional UI/UX Designer (only when the PO sets `design: yes`), and an optional Architect (only when the PO sets `architecture: yes`)), each in its own herdr tab. They talk through Claude Code's built-in cross-session messaging and keep everything durable in a folder in your project. Work is grouped by scope: a scope starts fresh, shares nothing with other scopes, and its lasting knowledge goes into your project's own docs.**
 
 ## Quick start
 
@@ -18,7 +18,7 @@ claude --plugin-dir ~/workspace/squad
 /squad:squad-start "goal: rebuild the settings page"      # several scopes under one goal Manager
 ```
 
-`squad-start` makes the scope (or goal) folder and brief and starts a fresh Manager in its own herdr tab; you talk to it there. The Manager sizes the work (**S**: Manager + Developers; **M**: + QA whitebox and QA blackbox; **L**: every role, + BA, Team Lead and Tech Lead; a risk flag or a business doubt means L), proposes a plan, spawns only the roles that size needs, and checks in with you at the end of each iteration. Several scopes can run side by side, each in its own tab. A Manager that is gone can be restarted with `squad-start --resume <name>`. The Designer delivers a design before build (screens, states, flows, optional HTML prototype) and no post-build check; the built UI is checked against it by the Developer's screenshots (S) or QA blackbox (M, L).
+`squad-start` makes the scope (or goal) folder and brief and starts a fresh Manager in its own herdr tab; you talk to it there. The Manager sizes the work (**S**: Manager + Developers; **M**: + QA whitebox and QA blackbox; **L**: every role, + BA, Team Lead and Tech Lead; a risk flag or a business doubt means L), proposes a plan, spawns only the roles that size needs, and checks in with you at the end of each iteration. Several scopes can run side by side, each in its own tab. A Manager that is gone can be restarted with `squad-start --resume <name>`. The Designer delivers a design before build (screens, states, flows, optional HTML prototype) and no post-build check; the built UI is checked against it by the Developer's screenshots (S) or QA blackbox (M, L). The Architect, switched on the same way by `architecture: yes` in `scope.md`, delivers `architecture.md` (components, boundaries, contracts, constraints, and the irreversible choices with a recommendation) before the plan and checks no built code; the team follows it or sends the Architect an `ASK`, conformance joins the technical AC, and the PO still decides each irreversible choice.
 
 ## The process
 

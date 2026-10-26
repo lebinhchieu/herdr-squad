@@ -435,7 +435,8 @@ class Changelog(unittest.TestCase):
         text = (ROOT / "skills" / "squad-process-update" / "changelog.md").read_text(encoding="utf-8")
         entry = re.split(r"(?m)^## v6\b", text)[0]
         listed = {m.group(1): m.group(2) for m in re.finditer(r"(?m)^- ([A-Z]+-\d+[a-z]?): (.+)$", entry)}
-        sections = {s: entry.split(f"\n{s}:\n")[1].split("\n\n")[0] for s in ("added", "changed", "removed", "retargeted")}
+        # the v7 and later blocks (v8 holds the Architect rules) together are the entry since the base
+        sections = {s: "\n".join(part.split("\n\n")[0] for part in entry.split(f"\n{s}:\n")[1:]) for s in ("added", "changed", "removed", "retargeted")}
         # IDs in the diff sit in added/removed/retargeted with a reason
         self.assertEqual(sorted(diff - set(listed)), [], "rule IDs changed since the base but missing from the v7 entry")
         for rid in diff:

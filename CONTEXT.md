@@ -29,8 +29,7 @@ The four things the Manager hears from an L pod: an escalation to the PO, a size
 _Avoid_: status, relay
 
 **Tech Lead**:
-The role that owns technical design, quality and security of one scope. The Team Lead owns the plan. Present in L scopes.
-_Avoid_: architect
+The role that owns technical design, quality and security of one scope. The Team Lead owns the plan. Present in L scopes. With `architecture: yes` its per-task design stays inside the **Architect**'s `architecture.md`.
 
 **QA whitebox**:
 The role that checks a task is built right: reads the diff, runs tests and lint. Agrees the technical AC with the Tech Lead (L) or the Developer (M). Present in M and L scopes.
@@ -43,6 +42,10 @@ _Avoid_: tester, acceptance tester
 **UI/UX Designer**:
 The role that delivers a design (screens, states, flows, optional HTML prototype) for a scope's UI tasks before they are built. It joins only when the PO sets `design: yes`, delivers a design only, and does not check the built UI.
 _Avoid_: UX, designer (alone), design reviewer
+
+**Architect**:
+The role that designs a scope's architecture before the plan: components, boundaries, contracts, constraints, and the list of irreversible choices with options and a recommendation. It writes `architecture.md` and ADR drafts, never code, and checks no built code. It joins only when the PO sets `architecture: yes`, sits above the Tech Lead (L) and above the Developer's design notes (S, M), proposes irreversible choices but never decides them (the PO does), and retires once `architecture.md` is `Status: final`.
+_Avoid_: system designer, tech lead (the Tech Lead owns per-task design, quality and security inside the architecture)
 
 **Developer**:
 The role that builds one task in its own worktree until the checkers pass it.
@@ -168,6 +171,9 @@ _Avoid_: kickoff
 
 **design flag**:
 The `design: yes|no` line in `scope.md`, default `no`. Only the PO's request turns it on, and the Manager never proposes it. It adds the UI/UX Designer to a scope of any size.
+
+**architecture flag**:
+The `architecture: yes|no` line in `scope.md`, default `no`. Only the PO's request turns it on, and the Manager never proposes it. It adds the Architect to a scope of any size; `squad-spawn architect` refuses without it. Rules that mention the Architect compose only when it is `yes`, so a scope with it `no` is unchanged.
 
 **Check-in**:
 The end of an iteration, where the Manager shows the PO what is done, open escalations and proposed role changes.
