@@ -75,7 +75,8 @@ class SpawnDryRunTest(unittest.TestCase):
                               text=True, encoding="utf-8", capture_output=True, timeout=10)
 
     def test_the_table_covers_every_role(self):
-        self.assertEqual(len(TABLE), 9)
+        self.assertEqual(len(TABLE), 10)
+        self.assertEqual(TABLE["architect"], ("sonnet", "high"))
 
     def test_squad_settings_override_the_template(self):
         self._squad_settings("dev", {"model": "haiku", "effortLevel": "low"})
@@ -778,6 +779,13 @@ class SpawnArchitectTest(unittest.TestCase):
                     r = self.spawn(*extra)
                     self.assertEqual(r.returncode, 1)
                     self.assertIn("scope sc1 has no 'architecture: yes' in scope.md; only the PO turns the architect on", r.stderr)
+
+    def test_the_architect_gets_its_template_model_and_no_missing_settings_warning(self):
+        self.scope_md.write_text("# Scope\n\narchitecture: yes\n", encoding="utf-8")
+        r = self.spawn("--dry-run", "--prompt", "go")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertRegex(r.stdout, r"--model sonnet --effort high\b")
+        self.assertNotIn("no model/effortLevel", r.stderr)
 
     def test_design_yes_does_not_open_the_architect_nor_the_reverse(self):
         self.scope_md.write_text("# Scope\n\narchitecture: yes\n", encoding="utf-8")

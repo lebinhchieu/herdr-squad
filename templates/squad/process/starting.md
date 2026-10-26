@@ -68,6 +68,13 @@ topic: spawning
 - A scope or goal is named after its ticket id (`SEC-04` becomes `sec04`) or a short slug; scopes and goals share one namespace, `_done/` included.
 - An agent is `<squad>-<role-short>-<scope>[-n]`, lowercase, at most 32 characters; role-short is `mgr`, `ba`, `tl`, `tech`, `qaw`, `qab`, `ux`, `dev` or `coach`, e.g. `bill-ba-invoices`, `bill-dev-invoices-1`. Address agents by bare name; `squad-spawn` refuses a live name.
 
+## START-4a Architect name
+roles: manager
+when: architecture = yes
+topic: spawning
+
+The Architect's role-short is `arch`, for example `bill-arch-invoices`.
+
 ## START-5 Lifetimes
 roles: manager, team-lead
 topic: lifetimes
@@ -82,15 +89,24 @@ topic: lifetimes
 
 A lone scope sees nothing of other scopes; a scope in a goal also reads `goal.md` and all of `shared/` at start.
 
+## START-5a Architect lifetime
+roles: manager, team-lead
+when: architecture = yes
+topic: lifetimes
+
+| Role | Lone scope | Scope inside a goal |
+|---|---|---|
+| Architect | One session per scope; retired once `architecture.md` is final; respawned for a question on it | Same |
+
 ## START-6 Session start
-roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
+roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, dev
 topic: start
 
 1. `echo $SQUAD_DIR $SCOPE_DIR $GOAL_DIR $SQUAD_NAME $SQUAD_SCOPE`; empty → ask the Manager.
 2. Read `project.md`, `$SCOPE_DIR/scope.md`, `roster.md`, your `roles/$SQUAD_NAME.notes.md` if any; in a goal also `$GOAL_DIR/goal.md`, `$GOAL_DIR/shared/`.
 
 ## START-7 Start inside a goal
-roles: ba, team-lead, tech-lead, qa-whitebox, designer
+roles: ba, team-lead, tech-lead, qa-whitebox, designer, architect
 when: goal = yes
 topic: start
 
@@ -104,7 +120,7 @@ topic: start
 Inside a goal (`GOAL_DIR` set) also read `$GOAL_DIR/goal.md` and the `shared/` files that describe behaviour, not code.
 
 ## START-9 Read the briefing
-roles: ba, team-lead, tech-lead, qa-whitebox, designer
+roles: ba, team-lead, tech-lead, qa-whitebox, designer, architect
 topic: start
 
 Read the Manager's briefing: your scope, your tasks and AC where it names them, and your peers.
@@ -178,3 +194,10 @@ topic: starting
 
 - Scope Manager: read the brief, size the scope ([SIZE-1]) with its signals, write the size into `scope.md`, create `iterations/1.md` with the iteration goal and the plan, and ask the PO to confirm the size and plan before you spawn anyone. When unsure, size up.
 - Goal Manager: split the brief into scopes. Write them into `goal.md` in order, with what each depends on and what it touches. Propose each scope's size too. Ask the PO to confirm the split, then start the scopes whose dependencies are done ([GOAL-1]).
+
+## START-20 Architect start
+roles: architect
+when: architecture = yes
+topic: start
+
+Read the existing decisions (ADRs, `CONTEXT.md`, conventions) that `project.md` lists, and the code of the parts the scope touches (read-only). Reuse the existing boundaries and patterns before inventing new ones.

@@ -339,7 +339,7 @@ class Scaffold(Base):
         self.assertFalse((sq / "process.md").exists())
         for f in ("process.local.md", "plugin.pin", "project.md"):
             self.assertTrue((sq / f).is_file(), f)
-        self.assertEqual(len(list((sq / "settings").glob("*.local.json"))), 9)
+        self.assertEqual(len(list((sq / "settings").glob("*.local.json"))), 10)
         self.assertEqual(list((sq / "settings").glob("*.json")), list((sq / "settings").glob("*.local.json")))
         self.assertEqual(json.loads((sq / "settings/qa-blackbox.local.json").read_text()), {"codePaths": ["/srv/app/src"]})
         self.assertEqual(json.loads((sq / "settings/dev.local.json").read_text()), {})

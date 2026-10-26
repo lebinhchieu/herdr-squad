@@ -88,9 +88,9 @@ def present(size, qab):
 
 
 SLICE3 = ("cost", "messages", "files", "iterations", "notes", "goal", "closing", "safety", "core")
-# not size-bound: the Token Coach is spawned by the Manager at any size (ITER-6a/6b); the Designer is present at any size
-# when design = yes (rules for it carry that `when`, or are universal)
-ANY_SIZE = {"token-coach", "designer"}
+# not size-bound: the Token Coach is spawned by the Manager at any size (ITER-6a/6b); the Designer and the Architect are present at any size
+# when design = yes / architecture = yes (rules for it carry that `when`, or are universal)
+ANY_SIZE = {"token-coach", "designer", "architect"}
 # slice-3 rules that may act on an absent role, with the reason
 EXCEPTIONS3 = {
     "FILE-11": "drafts rule: acts on every role present; the absent roles are listed so it still reaches them on move up",

@@ -43,6 +43,18 @@ topic: owners
 | Design notes, technical AC | Developer in the task file; M: agreed with QA whitebox | Manager | Irreversible tech choice (data model, new dependency, vendor) |
 | Irreversible design choice | Manager, after an advisor call | Manager | The PO-listed items stay with the PO |
 
+## WHO-2e Architecture owner
+roles: manager, tech-lead, architect
+when: architecture = yes
+topic: owners
+
+| Topic | Owner | Breaks a dispute | Always goes to PO |
+|---|---|---|---|
+| Architecture (components, boundaries, contracts, constraints) | Architect | Manager | Irreversible tech choice (data model, new dependency, vendor) |
+| Irreversible design choice | Architect lists and recommends; the Manager escalates it | Manager | The PO decides |
+
+This replaces the "Irreversible" rows and cells of [WHO-2] and [WHO-2d]. The Developer's design notes (S, M) and each task's design (L) stay inside it.
+
 ## WHO-2b Promotion owners in S and M
 roles: manager
 when: size in S, M

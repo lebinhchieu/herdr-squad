@@ -147,6 +147,20 @@ topic: lifecycle
 
 Start the UI tasks after their design is final. Each UI ticket gets a `Design: ui-design/<task>.md` line and the AC "built UI matches the design: every screen and state"; you answer the Designer's feasibility `ASK`s, asking the Developer who builds it when needed.
 
+## LC-11c Plan after the architecture, S and M
+roles: manager
+when: size in S, M and architecture = yes
+topic: lifecycle
+
+Split the tasks only after `architecture.md` reads `Status: final`. Put "conforms to `architecture.md`" in each ticket's AC, and answer the Architect's feasibility `ASK`s, asking the Developer who builds it when needed.
+
+## LC-11d Plan after the architecture, L
+roles: team-lead, tech-lead
+when: size = L and architecture = yes
+topic: lifecycle
+
+The Team Lead plans only after `architecture.md` reads `Status: final`. The Tech Lead designs each task inside it and answers the Architect's feasibility `ASK`s.
+
 ## LC-12 Migrations and compatibility
 roles: tech-lead
 when: size = L
@@ -218,6 +232,13 @@ topic: lifecycle
 
 A `Design:` ticket waits for `Status: final`; build every screen and state of `$SCOPE_DIR/ui-design/<task>.md`; `ASK` the Manager on a difference.
 
+## LC-19c Architecture
+roles: dev
+when: architecture = yes
+topic: lifecycle
+
+Build inside `$SCOPE_DIR/architecture.md`; a difference is an `ASK` to the Architect, and after 2 rounds the Manager decides.
+
 ## LC-20a Done, S
 roles: dev
 when: size = S
@@ -276,7 +297,7 @@ topic: lifecycle
 - Optionally add `ui-design/<task>.html`: one self-contained file, no network, opens from disk.
 
 ## LC-25 Advisor when stuck
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, dev
 topic: lifecycle
 
 Consult the advisor before the next try after 2 failed attempts at one error, the same `BLOCKED` sent twice with no `ANSWER`, or (Developer) a 3rd `FAIL`. Add a 3-line note to the task file: question, advice, what was done. Advisor off: skip and say so.

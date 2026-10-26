@@ -22,6 +22,13 @@ topic: sizes
 
 A `design:` line in `scope.md` (`yes|no`, default `no`) adds the Designer to a scope of any size. The Manager sets `design: yes` only when the PO asks; it never proposes it. It logs the answer in the iteration file.
 
+## SIZE-3a Architecture flag
+roles: manager
+when: architecture = yes
+topic: sizes
+
+An `architecture:` line in `scope.md` (`yes|no`, default `no`) adds the Architect to a scope of any size. Only the PO turns it on; you never propose it. Log the answer in the iteration file.
+
 ## SIZE-4 Signals and risk flags
 roles: manager
 topic: sizes
@@ -114,6 +121,20 @@ when: design = yes
 topic: sizes
 
 The Designer designs the screens, states and flows of the scope's UI tasks, in every size.
+
+## SIZE-9a Architecture
+roles: architect
+when: architecture = yes
+topic: sizes
+
+In every size, deliver `$SCOPE_DIR/architecture.md` with a `Status: draft|final` line, holding:
+- the components and modules the scope touches
+- boundaries and seams
+- contracts and data shapes
+- constraints the plan and the technical design must follow
+- each irreversible choice (data model, new dependency, vendor) with its options and your recommendation
+
+Draft ADR text in `$SCOPE_DIR/tasks/` ([FILE-11]). Before you recommend an irreversible choice, consult the advisor and leave the [LC-25] note. You write no code and check no built code.
 
 ## SIZE-10a Built UI against the design, S
 roles: manager
@@ -260,12 +281,41 @@ topic: sizes
 | Irreversible design choice | Manager | Manager | Tech Lead |
 | 3 returns | Manager | Manager | Team Lead |
 
+## SIZE-22a Duty owners with an Architect
+roles: manager
+when: architecture = yes
+topic: sizes
+
+These rows replace the same-named rows of [SIZE-22]:
+
+| Duty | S | M | L |
+|---|---|---|---|
+| Architecture | Architect | Architect | Architect |
+| Design notes | Developer, inside it | Developer, inside it | Tech Lead, inside it |
+| Irreversible design choice | Architect proposes, PO decides | Architect proposes, PO decides | Architect proposes, PO decides |
+
+You escalate each irreversible choice to the PO ([WHO-2e]).
+
 ## SIZE-23b Technical AC, M
 roles: qa-whitebox
 when: size = M
 topic: sizes
 
 Write the technical AC before work starts (tests that must exist, lint clean, patterns followed, security checks, performance limits) and agree them with the Developer in the task file.
+
+## SIZE-23c Architecture in the technical AC, M
+roles: qa-whitebox
+when: size = M and architecture = yes
+topic: sizes
+
+Add "conforms to `architecture.md`" to the technical AC and check the diff against it; a difference is a finding.
+
+## SIZE-23d Architecture in the technical AC, L
+roles: tech-lead, qa-whitebox
+when: size = L and architecture = yes
+topic: sizes
+
+Put "conforms to `architecture.md`" in each task's technical AC. The Tech Lead and QA whitebox each check the diff against it; a difference is a finding.
 
 ## SIZE-24b promote.md, M
 roles: qa-whitebox

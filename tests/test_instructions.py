@@ -94,6 +94,13 @@ class InstructionsTest(unittest.TestCase):
         self.assertIn("\ndesign: no\n", (ROOT / "templates/scope/scope.md").read_text())
         self.assertIn("`designer`", composed("manager", "M"))
 
+    def test_the_architect_starts_by_reading_its_scope_folder(self):
+        text = composed("architect", "M", goal="yes", architecture="yes")
+        for token in ("$SCOPE_DIR/scope.md", "$GOAL_DIR/goal.md", "shared/", "roles/$SQUAD_NAME.notes.md"):
+            self.assertIn(token, text)
+        self.assertIn("`architect`", composed("manager", "M", architecture="yes"))
+        self.assertIn("\narchitecture: no\n", (ROOT / "templates/scope/scope.md").read_text())
+
 
 class ManagerInboxTest(unittest.TestCase):
     text = composed("manager", "M")
@@ -163,10 +170,10 @@ class CardShapeTest(unittest.TestCase):
 class RuleDutiesTest(unittest.TestCase):
     """Duties that used to be asserted on card text, now on the composed rules."""
 
-    def test_all_nine_settings_allow_rule_and_who_and_none_allows_show_or_a_wildcard(self):  # ticket 09
+    def test_all_ten_settings_allow_rule_and_who_and_none_allows_show_or_a_wildcard(self):  # ticket 09
         import json
         files = sorted((ROOT / "templates/squad/settings").glob("*.json"))
-        self.assertEqual(len(files), 9)
+        self.assertEqual(len(files), 10)
         for f in files:
             allow = json.loads(f.read_text())["permissions"]["allow"]
             self.assertIn("Bash(squad-process rule:*)", allow, f.name)

@@ -197,7 +197,9 @@ def compose(role, home, plugin_root, overlay_path, agent, now, pinned=None):
     if role in INDEX_ROLES:
         got = {e.id for e in chosen}
         out += ["", "## Index of other rules"]
-        out += [f"- {e.id} {e.title} ({', '.join(e.roles)})" for e in rules if e.id not in got]
+        on = facts.get("architecture") == "yes"  # architecture rules and the architect name stay out of a scope without it
+        out += [f"- {e.id} {e.title} ({', '.join(r for r in e.roles if on or r != 'architect')})"
+                for e in rules if e.id not in got and (on or "architecture" not in (e.when or ""))]
     return "\n".join(out) + "\n"
 
 

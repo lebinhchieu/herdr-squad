@@ -96,7 +96,7 @@ topic: files
 `iterations/<n>.summary.md`: the plan owner ([ITER-3]) writes the pod summary for the retro and check-in, at most 40 lines.
 
 ## FILE-9 Task evidence files
-roles: qa-whitebox, qa-blackbox, tech-lead, designer
+roles: qa-whitebox, qa-blackbox, tech-lead, designer, architect
 topic: files
 
 | File | Owner | Holds |
@@ -117,7 +117,7 @@ topic: files
 | `shared/contracts/<name>.md` | The Managers (S, M) or Tech Leads (L) of both scopes | Contract between scopes: API, event, status model |
 
 ## FILE-11 Drafts never go in the project root
-roles: tech-lead, ba, team-lead, manager, qa-whitebox, qa-blackbox, designer, token-coach
+roles: tech-lead, ba, team-lead, manager, qa-whitebox, qa-blackbox, designer, architect, token-coach
 topic: files
 
 Every role except the Developer drafts tickets, specs and ADR text in `$SCOPE_DIR/tasks/`, never in the project root (a Developer worktree counts as root). The scope's first Developer task commits them to the paths `project.md` names; a later draft rides the next one. `squad-path-guard` refuses Write and Edit there, not a Bash redirect; `squad-close --scope` lists stray untracked files.

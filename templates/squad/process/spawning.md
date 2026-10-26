@@ -40,6 +40,13 @@ topic: spawning
 
 Spawn the Designer only when `scope.md` has `design: yes`, and never suggest it to the PO. Spawn it after the plan names the UI tasks and before their Developers; retire it once every design is final ([START-5]).
 
+## SPAWN-4a Architect
+roles: manager
+when: architecture = yes
+topic: spawning
+
+Besides the roles of [SPAWN-2a], [SPAWN-2b] and [SPAWN-2c], spawn `architect` only when `scope.md` has `architecture: yes`, and never suggest it to the PO. Spawn it after the goal check and before the plan: before your task split (S, M) or the plan (L). Retire it once `architecture.md` is `Status: final`; respawn it for a question on it.
+
 ## SPAWN-5a Developers, Manager in S and M
 roles: manager
 when: size in S, M

@@ -225,3 +225,10 @@ when: size = S
 topic: review
 
 Before `HANDIN` start a fresh-context review subagent (`model: sonnet`, `effort: high`, no fork) on your diff; findings and fixes: `## Review`; `squad-evidence check <folder>` must pass.
+
+## REV-22a Review against the architecture, S
+roles: dev
+when: size = S and architecture = yes
+topic: review
+
+Give the review subagent `$SCOPE_DIR/architecture.md` too: it checks that the diff conforms to it.

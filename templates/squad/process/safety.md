@@ -13,7 +13,7 @@ topic: safety
 Never push or deploy. Merge only as [MRG-1] allows. Never approve a permission for another agent.
 
 ## SAFE-2 No Jira or Confluence writes
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, token-coach
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, token-coach
 topic: safety
 
 No writes to Jira or Confluence. Read only.
@@ -31,7 +31,7 @@ topic: safety
 Edit only the files your role owns, plus your own notes file.
 
 ## SAFE-5 PO's branch
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, token-coach
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, token-coach
 topic: safety
 
 No squad role commits on the PO's branch: it commits only on its own `squad/` branch; ticket and spec edits ride a Developer branch.

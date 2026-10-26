@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BASE = "c1be501"  # permissions are compared with this commit
-ROLES = ["ba", "designer", "dev", "manager", "qa-blackbox", "qa-whitebox", "team-lead", "tech-lead", "token-coach"]
+ROLES = ["architect", "ba", "designer", "dev", "manager", "qa-blackbox", "qa-whitebox", "team-lead", "tech-lead", "token-coach"]
 EFFORTS = {"low", "medium", "high", "xhigh", "max"}
 
 

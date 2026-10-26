@@ -9,7 +9,7 @@ BULLET = "the ticket number `NN` alone, never an alias or slug"  # 22 shortened 
 class TaskIdRule(unittest.TestCase):
     def test_rule_is_targeted_at_every_role_and_size(self):  # was test_template_has_bullet
         for size in "SML":
-            self.assertEqual(len(acts("MSG-3", size)), 8 if size != "S" else len(acts("MSG-3", "S")))
+            self.assertEqual(len(acts("MSG-3", size)), 9 if size != "S" else len(acts("MSG-3", "S")))
         for role in ("dev", "qa-whitebox", "team-lead"):
             self.assertIn(BULLET, composed(role, "M"))
 
