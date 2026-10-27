@@ -126,6 +126,9 @@ class Mapping(unittest.TestCase):
     def setUpClass(cls):
         cls.rules, _ = _load()
         cls.ids = {r.id for r in cls.rules}
+        # historic conversion record: a rule since tombstoned in _removed.md still counts
+        removed = (ROOT / "templates/squad/process/_removed.md").read_text(encoding="utf-8")
+        cls.removed = set(re.findall(r"^## (\S+) \(removed in v\d+\)", removed, re.M))
         cls.rows = _mapping()
 
     def test_every_v6_line_has_a_row(self):
@@ -148,7 +151,7 @@ class Mapping(unittest.TestCase):
             else:
                 parts = [t.strip() for t in target.split(",")]
             for rid in parts:
-                self.assertIn(rid, self.ids, f"{src} -> {target}")
+                self.assertIn(rid, self.ids | self.removed, f"{src} -> {target}")
 
     def test_rows_48_and_49_map_to_rules(self):
         for n in (48, 49):
