@@ -109,6 +109,8 @@ changed:
 - SPAWN-3: the team, not the size, goes in the first prompt; ID kept: same duty
 - SPAWN-4: the Designer is spawned when `designer` is on `team:`, not by reading `design: yes`
 - SPAWN-4a: the Architect is spawned when `architect` is on `team:`; cites SPAWN-2a and SPAWN-2b; no S, M, L words
+- SAFE-10: no setting denies reading code any more (the Read deny is gone); the rule stays, unenforced
+- SAFE-11: scratch dirs come from `mktemp -d` only, so the settings can allow `rm` there
 
 removed:
 - SIZE-3: the Manager proposes the Designer from signals; replaced by SIZE-1
