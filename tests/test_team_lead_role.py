@@ -89,8 +89,26 @@ class TeamLeadRoleTest(unittest.TestCase):
             self.assertNotRegex(text, r"(?m)^when:.*\b(?:S|M|L)\b", f)
 
 
+    def test_tech_lead_without_team_lead_respawns_per_cost_4c(self):  # over the 128 teams
+        import itertools
+        import squadrules as sr
+        rules = {r.id: r for r in sr.load_rules(str(ROOT / "templates/squad/process"), str(ROOT))[0]}
+        n = 0
+        for k in range(len(sr.TEAM_KEYS) + 1):
+            for team in itertools.combinations(sr.TEAM_KEYS, k):
+                facts = sr.team_facts(list(team))
+                if "tech-lead" not in team:
+                    continue
+                n += 1
+                got = [i for i in ("COST-4b", "COST-4c") if sr.matches(rules[i].when, facts)]
+                self.assertEqual(got, ["COST-4b", "COST-4c"] if "team-lead" in team else ["COST-4c"], team)  # accepted: both for a Tech Lead with a Team Lead
+        self.assertEqual(n, 64)
+        self.assertIn("Respawn once your design and AC are in files.", composed("tech-lead", team="tech-lead"))
+        self.assertIn("COST-4c", composed("tech-lead", team="tech-lead, team-lead").split(" rules: ", 1)[1].split(" ## ", 1)[0])
+
+
 # Golden from base 6389642 (rules as keyed on size/qa-b): per rule, for the 7 shapes (S; M; M qa-b no; L; L qa-b no; M design; L architecture),
-# which of manager ba team-lead tech-lead qa-whitebox qa-blackbox designer architect dev compose it. SPAWN-2a/2b/2c are not here: the old
+# which of manager ba team-lead tech-lead qa-whitebox qa-blackbox designer architect dev compose it. SPAWN-2a/2b/2c and COST-4c (new, tech-lead = yes) are not here: the old
 # per-size spawn lists became one list per plan owner (changelog v9), M and L without qa-b had none.
 SHAPES = (("S", "yes", "no", "no"), ("M", "yes", "no", "no"), ("M", "no", "no", "no"), ("L", "yes", "no", "no"),
           ("L", "no", "no", "no"), ("M", "yes", "yes", "no"), ("L", "yes", "no", "yes"))

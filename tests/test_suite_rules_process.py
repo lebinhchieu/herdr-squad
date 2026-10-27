@@ -1,7 +1,11 @@
 """Suite rules: the size's owner runs the full suite once on the final sha (S Developer, M QA whitebox, L Tech Lead); checked on the SUITE rules."""
+import itertools
 import unittest
 
 from rulesview import ROOT, acts, composed, run, who
+
+import squadrules as _sr
+RULES = _sr.load_rules(str(ROOT / 'templates/squad/process'), str(ROOT))[0]
 
 
 class SuiteRulesTest(unittest.TestCase):
@@ -84,6 +88,24 @@ class SuiteRulesTest(unittest.TestCase):
         self.assertIn("runs the targeted tests", tl)
         self.assertNotIn("and runs the full suite", tl)
         self.assertIn("You decide when the full suite runs", tl)
+
+    def test_qa_blackbox_gets_a_suites_rule_on_every_team_with_a_dev_owner(self):  # SUITE-2f, over the 128 teams
+        import squadrules as sr
+        keys = sr.TEAM_KEYS
+        n = 0
+        for k in range(len(keys) + 1):
+            for team in itertools.combinations(keys, k):
+                facts = sr.team_facts(list(team))
+                if "qa-black" not in team:
+                    continue
+                n += 1
+                owner = facts.get("suite-owner")
+                got = [r for r in ("SUITE-2e", "SUITE-2f", "SUITE-2b") if sr.matches(next(x.when for x in RULES if x.id == r), facts)]
+                want = {"dev": ["SUITE-2f"], "qa-white": ["SUITE-2e"], "tech-lead": ["SUITE-2b"]}[owner]
+                self.assertEqual(got, want, (team, owner))
+        self.assertEqual(n, 64)
+        self.assertIn("the Developer owns the full suite", composed("qa-blackbox", team="qa-black"))
+        self.assertNotIn("SUITE-2f", composed("qa-blackbox", team="qa-black, qa-white").split(" rules: ", 1)[1].split(" ## ", 1)[0])
 
 
 if __name__ == "__main__":

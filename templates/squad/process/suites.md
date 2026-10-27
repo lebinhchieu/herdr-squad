@@ -50,6 +50,13 @@ topic: suites
 
 Run only the test files the diff touches; QA whitebox owns the full suite, and no two suite runs overlap.
 
+## SUITE-2f QA blackbox suites, Developer owns it
+roles: qa-blackbox
+when: suite-owner = dev
+topic: suites
+
+Run only the test files the diff touches; the Developer owns the full suite on the final sha, and no two suite runs overlap.
+
 ## SUITE-3 When it runs
 roles: tech-lead
 when: suite-owner = tech-lead

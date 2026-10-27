@@ -32,6 +32,13 @@ topic: cost
 
 Respawn once your plan and AC are in files.
 
+## COST-4c Tech Lead respawns
+roles: tech-lead
+when: tech-lead = yes
+topic: cost
+
+Respawn once your design and AC are in files.
+
 ## COST-5 Developer retires
 roles: dev
 when: plan-owner = team-lead

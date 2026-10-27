@@ -9,6 +9,8 @@ added:
 - TEAM-5: the BA owns the business AC alone when no QA blackbox is on the team
 - TEAM-6: the Tech Lead confirms the Developer's `## Review` when no QA whitebox is on the team
 - TEAM-7: removing a role (iteration boundary, PO's OK, Handover names the new owner)
+- SUITE-2f: QA blackbox on a team whose `suite-owner = dev` had no suites rule (SUITE-2d reaches only the Developer); runs touched test files, the Developer owns the full suite
+- COST-4c: `when: tech-lead = yes`; a Tech Lead on a team with no Team Lead had no respawn rule (COST-4b needs the Team Lead); respawn once design and AC are in files. With a Team Lead the Tech Lead gets both COST-4b and COST-4c, accepted (one `when:` primary key only)
 
 changed:
 - SIZE-1: now the team proposal table (a row for every role), signals and risk flags; was the size proposal. Body rewritten, ID kept because starting.md cites it
