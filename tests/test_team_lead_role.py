@@ -10,8 +10,8 @@ RULES = composed("team-lead", "L")
 
 
 class TeamLeadRoleTest(unittest.TestCase):
-    def test_exists_in_m_and_l_and_takes_the_handover(self):
-        self.assertIn("**M and L**", CARD)
+    def test_exists_when_the_team_lists_it_and_takes_the_handover(self):
+        self.assertIn("lists `team-lead`", CARD)  # 06: no size in the card
         self.assertIn("## Handover", RULES)
         self.assertIn("team-lead", acts("SIZE-17b", "L"))
 

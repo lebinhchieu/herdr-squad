@@ -9,6 +9,10 @@ added:
 - TEAM-5: the BA owns the business AC alone when no QA blackbox is on the team
 - TEAM-6: the Tech Lead confirms the Developer's `## Review` when no QA whitebox is on the team
 - TEAM-7: removing a role (iteration boundary, PO's OK, Handover names the new owner); runs `squad-team remove`
+- WHO-1c: business scope, business AC and business doubt owned by the BA (`business-ac = ba`); the BA part of the old WHO-1b
+- WHO-1d: business AC are the ticket and the Manager adds the BA on a doubt (`business-ac = ticket`); the Manager part of the old WHO-1a
+- WHO-1e: the Team Lead owns plan, order and assignment (`plan-owner = team-lead`); the plan row of the old WHO-1b
+- WHO-2f: the Developer owns `promote.md` (`promote-owner = dev`); the Developer half of the old WHO-2b
 
 changed:
 - SIZE-1: now the team proposal table (a row for every role), signals and risk flags; was the size proposal. Body rewritten, ID kept because starting.md cites it
@@ -35,6 +39,33 @@ changed:
 - SIZE-10a: wording only, no size
 - SIZE-10b: wording only, no size
 - SIZE-11b: the BA tells the plan owner instead of the Team Lead, so no absent role is named
+- WHO-1a: now the plan owner row for a Manager who plans; business AC, task done and doubt rows moved to WHO-1b, WHO-1d
+- WHO-1b: now the task-done row for every team (every checker, else the Manager confirms); was the owner table of an L scope
+- WHO-2d: when `tech-lead = no`, QA whitebox agrees the technical AC when on the team; was S and M
+- WHO-2e: wording only, the design notes line no longer says S, M, L
+- WHO-2b: now the QA whitebox as promotion owner (`promote-owner = qa-white`); the Developer half moved to WHO-2f
+- WHO-2c: promotion owner Tech Lead, the BA when on the team; was Tech Lead and BA at L
+- WHO-3a: the team replaces the scope size in the process row
+- WHO-3b: the team replaces the scope size in the process row
+- START-1: the team's Done rule, not the size's
+- START-3: the Manager proposes the team, not a size
+- START-3b: the team table lists the roles of the proposed team
+- START-19: first move is proposing the team, not sizing; was "First move: size and plan"
+- FILE-6: `team:` in `scope.md`; promote.md and roster owners by duty, not by size
+- FILE-7: plan owner and design notes by duty, not by size
+- FILE-10: goal files owned by the risk owner (Tech Lead, else Manager), not by size
+- GOAL-3a: the contract is agreed with the other scope's Tech Lead or, without one, its Manager
+- GOAL-3c: when `tech-lead = no`, the Manager writes the contract; the Review check applies when no QA whitebox is on the team
+- GOAL-6b: citation adds WHO-2f
+- PROMO-3a: the BA hands lasting business rules to the owner of `promote.md`, not only the Tech Lead
+- PROMO-3b: when `promote-owner = dev`; the BA's rules are checked too when a BA is on the team
+- PROMO-5b: QA whitebox checks the promotion when on the team
+- CLOSE-1: closing waits for every checker on the team, not both checkers
+- ITER-1: the PO confirms the team; the roles on the team talk, not "by size"
+- ITER-3b: the Manager writes the pod summary when it owns the plan and a QA is on the team (`handin-target = qas`); was M
+- ITER-6: the Coach prompt names the team, not the size
+- ITER-6a: Coach on request when no QA and no Team Lead (`handin-target = manager`); was S
+- ITER-6b: Coach at every close with a QA or Team Lead; was M and L
 
 removed:
 - SIZE-3: the Manager proposes the Designer from signals; replaced by SIZE-1
@@ -60,6 +91,34 @@ retargeted:
 - SIZE-10b: `when: ui-check = qa-black and design = yes` (was size in M, L and design = yes)
 - SIZE-23b: `when: tech-ac = qa-white` (was size = M)
 - SIZE-24b: `when: promote-owner = qa-white` (was size = M)
+- WHO-1a: `when: plan-owner = manager` (was size in S, M)
+- WHO-2: `when: tech-lead = yes` (was size = L)
+- WHO-2d: `when: tech-lead = no` (was size in S, M)
+- WHO-2b: `when: promote-owner = qa-white` (was size in S, M)
+- WHO-2c: `when: promote-owner = tech-lead` (was size = L)
+- WHO-3a: `when: plan-owner = manager` (was size in S, M)
+- WHO-3b: `when: plan-owner = team-lead` (was size = L)
+- WHO-8a: `when: plan-owner = manager` (was size in S, M)
+- WHO-8b: `when: plan-owner = team-lead` (was size = L)
+- WHO-8c: `when: plan-owner = team-lead` (was size = L)
+- START-2a: `when: plan-owner = manager` (was size in S, M)
+- START-2b: `when: plan-owner = team-lead` (was size = L)
+- START-2c: `when: plan-owner = team-lead` (was size = L)
+- START-2d: `when: plan-owner = team-lead` (was size = L)
+- FILE-5a: `when: plan-owner = manager` (was size in S, M)
+- FILE-5b: `when: plan-owner = team-lead` (was size = L)
+- FILE-5c: `when: plan-owner = team-lead` (was size = L)
+- FILE-8: `when: handin-target in qas, team-lead` (was size in M, L)
+- GOAL-3b: `when: goal = yes` (was goal = yes and size in M, L)
+- GOAL-6a: `when: goal = yes` (was goal = yes and size = L)
+- GOAL-6d: `when: goal = yes and tech-lead = no` (was goal = yes and size in S, M)
+- PROMO-2: `when: promote-owner = tech-lead` (was size = L)
+- PROMO-5: `when: plan-owner = team-lead` (was size = L)
+- PROMO-8: no `when:`, QA whitebox only (was size in M, L)
+- CLOSE-3a: `when: goal = yes` (was goal = yes and size = L)
+- CLOSE-3c: `when: goal = yes and tech-lead = no` (was goal = yes and size in S, M)
+- NOTE-3: no `when:`, the Team Lead only (was size = L)
+- ITER-3: no `when:`, the Team Lead only (was size = L)
 
 ## v8 — 2026-10-27
 - snapshot: history/process-v8/

@@ -47,6 +47,18 @@ class DutyOwners(unittest.TestCase):
             self.assertNotIn("manager", acts(rid, "L") if rid in ("SPAWN-5a", "SPAWN-8a") else ("x",))
 
 
+def team_keyed(rid):
+    """True when the rule's `when:` has no `size`/`qa-b` key (a team-language key, `goal`, or none): `who`'s size lines say
+    nothing about it (every missing fact counts true), and a rule for a role that is absent is never composed. Those rules
+    are covered by test_team_duties' 128-set sweep and test_small_files_equivalence."""
+    for f in ALL_FILES:
+        m = re.search(r"(?ms)^## %s .*?(?=^## |\Z)" % re.escape(rid), f.read_text(encoding="utf-8"))
+        if m:
+            w = re.search(r"(?m)^when: (.*)$", m.group(0))
+            return not (w and re.search(r"\b(size|qa-b)\b", w.group(1)))
+    return False
+
+
 def slice2_ids():
     out = []
     for f in SLICE2:
@@ -83,7 +95,7 @@ class Slice3Owners(unittest.TestCase):
         """who-orphan = no present role acts on the rule at that size / qa-b value. Lists every one."""
         bad = []
         for rid in slice3_ids():
-            if rid in EXCEPTIONS3:
+            if rid in EXCEPTIONS3 or team_keyed(rid):
                 continue
             for line in run("who", rid).stdout.splitlines():
                 m = re.match(r"([SM])(?: qa-b (yes|no))?: acts: (.*?); aware: ", line)
@@ -105,6 +117,8 @@ class Slice3Owners(unittest.TestCase):
                 self.assertIn(role, acts(rid, size))
         for rid in ("COST-4a", "COST-4b", "COST-6b", "COST-10b", "COST-13b", "COST-14b", "MSG-4b", "MSG-5", "MSG-6", "MSG-8b",
                     "MSG-12", "MSG-13", "MSG-14", "MSG-15", "MSG-19", "ITER-3", "NOTE-3", "FILE-5c", "GOAL-3a", "GOAL-6a", "CLOSE-3a"):
+            if team_keyed(rid):
+                continue
             for size in "SM":
                 with self.subTest(rule=rid, size=size):
                     self.assertFalse(set(acts(rid, size)) - {"manager"}, f"{rid} at {size} acts on {acts(rid, size)}")
@@ -122,8 +136,7 @@ class Slice3Owners(unittest.TestCase):
 
     def test_files_table_owners_follow_the_sizes(self):
         t = composed("manager", "M")
-        self.assertIn("Plan owner (Manager at S and M, Team Lead at L)", t)
-        self.assertIn("Developer at S, QA whitebox at M, Tech Lead at L", t)
+        self.assertIn("Plan owner", t)  # 06: the owner columns follow the duty owners, not the sizes
         self.assertNotIn("Tech Lead in S", t)
 
     def test_msg3_never_paste_in_composed_dev(self):
@@ -136,7 +149,7 @@ class Slice2Owners(unittest.TestCase):
         """Lists every orphan: a rule that acts on a role absent at S or M, minus the reasoned EXCEPTIONS."""
         bad = []
         for rid in slice2_ids():
-            if rid in EXCEPTIONS:
+            if rid in EXCEPTIONS or team_keyed(rid):
                 continue
             for line in run("who", rid).stdout.splitlines():
                 m = re.match(r"([SM])(?: qa-b (yes|no))?: acts: (.*?); aware: ", line)
@@ -206,7 +219,7 @@ class SizeRules(unittest.TestCase):
         m = composed("manager", "M")
         for name in ("The Team Lead owns the plan", "Tech Lead tells the Manager"):
             self.assertNotIn(name, m)
-        self.assertEqual(who("START-2d")["M"][0], ())
+        self.assertEqual(who("START-2d")["plan-owner = manager"][0], ())
 
 
 # ---- ticket 31: whole-template checks -------------------------------------------------------------------------
