@@ -13,3 +13,7 @@
 
 ## Inventory allow-list (file: count, reason)
 bin/squad-log-message:44 comment; bin/squad-migrate:83 migrate input; bin/squad-respawn:29,37 and bin/squad-spawn:112,124 pinned-runtime D7; bin/squadadopt.py:364,428,440-443,485 converter mapping; bin/squadcompose.py:57,78,307,308 old-format rejection; bin/squadinbox.py:201 st_size (false positive); bin/squadreport.py:81,435,495 and squadreport_rollup.py:88,200,206 report display; bin/squadrules.py:50-52,135,252-268 OLD_WHEN_KEYS/legacy_team/lint msgs; bin/squadruntime.py:368 converter pointer; bin/squadteam.py:82,88 converter pointer; bin/squadupgrade.py:60-67 overlay translation table; hooks/po-inbox/* fs.stat size and evidence file name (false positives).
+
+## Round 2 (QAB F1, code sha c768b94)
+- AC 21: `upgrade --check` for an overlay op with `roles:` naming team-lead and/or tech-lead and `when: size = L` keeps `size = L -> ba = yes` and adds `alternative: team-lead = yes` and `alternative: tech-lead = yes`; files byte-identical, `--apply --yes` refuses (test_squadupgrade OldWhenLanguage, three roles values).
+- CutoverTest `qa-b\\b` needle made a raw string (was vacuous); test_squadcompose and test_squadupgrade green.
