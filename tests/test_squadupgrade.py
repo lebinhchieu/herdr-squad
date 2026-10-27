@@ -111,6 +111,52 @@ class CaseTable(Base):
         self.assertIn("unhandled: REV-9", r.stdout)
 
 
+class OldWhenLanguage(Base):
+    """AC 21: an overlay op written in the old `when:` language is listed with its translation; only --apply --yes writes."""
+
+    def squad_with(self, when):
+        sq = self.squad("add-free")
+        f = sq / "process.local.md"
+        f.write_text(f.read_text().replace("why: local need", f"when: {when}\nwhy: local need"), encoding="utf-8", newline="\n")
+        return sq
+
+    def snapshot(self, sq):
+        return {str(p.relative_to(sq.parent)): p.read_bytes() for p in sq.parent.rglob("*") if p.is_file()}
+
+    def test_check_lists_each_old_condition_with_its_translation_and_writes_nothing(self):
+        sq = self.squad_with("qa-b = no and size = L")
+        before = self.snapshot(sq)
+        r = run(*self.args("--check", "add-free", sq))
+        self.assertEqual(r.returncode, 3, r.stderr)
+        self.assertIn("REV-1 (line 3): qa-b = no -> qa-black = no", r.stdout)
+        self.assertIn("REV-1 (line 3): size = L -> ba = yes", r.stdout)
+        self.assertNotIn("nothing needs a decision", r.stdout)
+        self.assertEqual(self.snapshot(sq), before)
+
+    def test_value_sets_and_unmapped_conditions(self):
+        self.assertEqual(su.old_when_conditions("size in M, L"),
+                         [("size in M, L", "no single key (write one rule per case)")])
+        self.assertEqual(su.old_when_conditions("qa-b in yes, no"), [("qa-b in yes, no", "qa-black in yes, no")])
+        self.assertEqual(su.old_when_conditions("qa-whitebox = yes"), [("qa-whitebox = yes", "qa-white = yes")])
+        self.assertEqual(su.old_when_conditions("design = yes and ba = yes"), [])
+        self.assertEqual(su.old_when_conditions("size = XL"), [("size = XL", "")])
+
+    def test_apply_refuses_without_writing_even_with_yes(self):
+        sq = self.squad_with("size = L")
+        before = self.snapshot(sq)
+        r = run(*self.args("--apply", "add-free", sq, "--yes"))
+        self.assertEqual(r.returncode, 3, r.stderr)
+        self.assertIn("NOT APPLIED", r.stdout)
+        self.assertIn("size = L -> ba = yes", r.stdout)
+        self.assertEqual(self.snapshot(sq), before)
+
+    def test_new_language_overlay_is_untouched_by_the_listing(self):
+        sq = self.squad_with("qa-black = no")
+        r = run(*self.args("--check", "add-free", sq))
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertNotIn("old `when:`", r.stdout)
+
+
 class WriteGuards(Base):
     def snapshot(self, sq):
         root = sq.parent.parent
