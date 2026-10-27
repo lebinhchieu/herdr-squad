@@ -29,3 +29,16 @@ when: design = yes
 topic: review
 
 The Developer saves one screenshot per design state in the evidence folder.
+
+## REV-14a Diff check
+roles: dev
+topic: review
+
+After a PASS, a later commit goes to the same checkers as a diff check.
+
+## REV-19b Hand in to QA whitebox alone
+roles: dev
+when: qa-white = yes and qa-black = no
+topic: review
+
+The Developer hands in to QA whitebox alone.
