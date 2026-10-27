@@ -31,6 +31,7 @@ OWNERS = {
     "three returns": {"S": ("LC-7a", "manager"), "M": ("LC-7c", "manager"), "L": ("LC-7b", "team-lead")},
 }
 SLICE2 = ("review", "evidence", "suites", "promotion", "lifecycle")
+ON_DEMAND = {"REV-5a", "EVID-5"}  # empty `roles:`: attached to no role, cited from REV-22 and LC-19
 # rules of slice 2 that still act on a role absent at S or M, with the reason
 EXCEPTIONS = {
     "LC-25": "advisor when stuck acts on every role (ticket 18, pinned by test_advisor_rules); the absent roles read it only if they exist",
@@ -207,7 +208,7 @@ class Slice2Owners(unittest.TestCase):
                 facts = sr.team_facts(list(team))
                 present = always | {{"qa-white": "qa-whitebox", "qa-black": "qa-blackbox"}.get(t, t) for t in team}
                 for rid, r in mine.items():
-                    if rid in EXCEPTIONS or "all" in r.roles or not sr.matches(r.when, facts):
+                    if rid in EXCEPTIONS or "all" in r.roles or not r.roles or not sr.matches(r.when, facts):  # empty roles = on demand
                         continue
                     if not set(r.roles) & present:
                         bad.append(f"{rid} on {', '.join(team) or 'none'}: acts only on {sorted(r.roles)}")
@@ -222,6 +223,8 @@ class Slice2Owners(unittest.TestCase):
                 if "dev" not in acts(rid, "S"):
                     continue
                 for target in set(re.findall(r"\[([A-Z]+-\d+[a-z]?)\]", body)):
+                    if target in ON_DEMAND:
+                        continue  # an empty `roles:` rule is read with `squad-process rule <ID>`
                     if not set(acts(target, "S")) & PRESENT["S"]:
                         bad.append(f"{rid} -> {target}")
         self.assertEqual(sorted(bad), [])
@@ -254,11 +257,11 @@ class S_DeveloperReview(unittest.TestCase):
         self.assertIn("## EVID-3a", t)
 
     def test_dev_rules_stay_within_5_kib(self):
-        from test_dev_rules_size import CAP, EXCEPTIONS, LIMIT, TEAMS, compose_team
+        from test_dev_rules_size import LIMIT, TEAMS, compose_team
         for team in TEAMS:
             for goal in ("yes", "no"):
                 n = len(compose_team("dev", team, goal))
-                self.assertLessEqual(n, CAP if team in EXCEPTIONS else LIMIT, (team, goal, n))
+                self.assertLessEqual(n, LIMIT, (team, goal, n))
 
 
 class RespawnReadable(unittest.TestCase):

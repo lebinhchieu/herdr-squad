@@ -110,8 +110,15 @@ changed:
 - SPAWN-4: the Designer is spawned when `designer` is on `team:`, not by reading `design: yes`
 - SPAWN-4a: the Architect is spawned when `architect` is on `team:`; cites SPAWN-2a and SPAWN-2b; no S, M, L words
 - CORE-3: wording only, "team" replaces "size"; the owners it cites are unchanged
-- REV-5a: now acts for the Manager (`qa-white = no`), cited from REV-22; off the Developer's 5 KiB, one `squad-process rule REV-5a` away
-- EVID-5: now acts for the Manager (`ui-check = manager and design = yes`), cited from LC-19; off the Developer's 5 KiB, one `squad-process rule EVID-5` away
+- REV-5a: on demand, attached to no role (`roles:` empty), cited from REV-22; off the Developer's 5 KiB, one `squad-process rule REV-5a` away
+- EVID-5: on demand, attached to no role (`roles:` empty), cited from LC-19; off the Developer's 5 KiB, one `squad-process rule EVID-5` away
+- CORE-6: wording only, shorter; same command pointers
+- CORE-4: wording only, its owner decides; same duty
+- CORE-5: wording only, shorter; same duty
+- LC-3a: wording only, shorter; same duty
+- LC-19c: wording only, shorter; the Manager still decides after 2 rounds; same duty
+- LC-25: wording only, title Advisor; shorter triggers; same duty
+- lint: an empty `roles:` value is allowed (the line must still be there), so a rule can be on demand and attached to no role; reason: keeps REV-5a and EVID-5 off the Manager and Developer without moving a duty
 - REV-22: adds the pointer to REV-5a for code that parses another tool's output
 - LC-19: adds the pointer to EVID-5 for the screenshot per state
 - CORE-2: wording only, shorter; same message types and format

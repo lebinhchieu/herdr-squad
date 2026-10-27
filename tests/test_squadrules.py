@@ -203,6 +203,10 @@ class LintClassTest(Clean):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("roles: dev\n", ""))
         self.only("missing roles:")
 
+    def test_empty_roles_is_on_demand_and_lints_clean(self):
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("roles: dev\n", "roles:\n", 1))
+        self.assertEqual(self.lint()[0], [])
+
     def test_missing_topic(self):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety\n", ""))
         self.only("missing topic:")

@@ -22,16 +22,16 @@ Owners: Manager process, roster, team; Designer UI; the rest: [WHO-1a], [WHO-1b]
 roles: all
 topic: messages
 
-No agreement after 2 exchanges: send it to its owner, or to the Manager when the owner is one of you.
+No agreement after 2 exchanges: its owner decides; the Manager when the owner is one of you.
 
 ## CORE-5 Files first
 roles: all
 topic: files
 
-Write a durable thing to a file first, then message a pointer to it.
+Write durable things to a file first, then message a pointer.
 
 ## CORE-6 Rules not attached
 roles: all
 topic: rules
 
-A rule cited as `[ID]` that is not in this file: run `squad-process rule <ID>`. `squad-process who <ID>` shows which roles it binds.
+A rule cited as `[ID]` but not in this file: `squad-process rule <ID>`. `squad-process who <ID>`: the roles it binds.

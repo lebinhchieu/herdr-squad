@@ -16,42 +16,6 @@ LIMIT = 5120
 NOW = "2026-10-22T10:00:00Z"
 KEYS = ("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect")
 TEAMS = [tuple(k for i, k in enumerate(KEYS) if m >> i & 1) for m in range(128)]
-CAP = 5443  # no team set may compose more, even among the exceptions
-# Team sets whose Developer rules exceed LIMIT (designer or architect, with at most one QA): pinned by set, any goal and qa.
-EXCEPTIONS = {tuple(s.split(",")) for s in (
-    "tech-lead,architect",
-    "ba,tech-lead,architect",
-    "team-lead,tech-lead,architect",
-    "ba,team-lead,tech-lead,architect",
-    "tech-lead,qa-black,architect",
-    "ba,tech-lead,qa-black,architect",
-    "team-lead,tech-lead,qa-black,architect",
-    "ba,team-lead,tech-lead,qa-black,architect",
-    "designer,architect",
-    "ba,designer,architect",
-    "team-lead,designer,architect",
-    "ba,team-lead,designer,architect",
-    "tech-lead,designer,architect",
-    "ba,tech-lead,designer,architect",
-    "team-lead,tech-lead,designer,architect",
-    "ba,team-lead,tech-lead,designer,architect",
-    "qa-white,designer,architect",
-    "ba,qa-white,designer,architect",
-    "team-lead,qa-white,designer,architect",
-    "ba,team-lead,qa-white,designer,architect",
-    "tech-lead,qa-white,designer,architect",
-    "ba,tech-lead,qa-white,designer,architect",
-    "team-lead,tech-lead,qa-white,designer,architect",
-    "ba,team-lead,tech-lead,qa-white,designer,architect",
-    "qa-black,designer,architect",
-    "ba,qa-black,designer,architect",
-    "team-lead,qa-black,designer,architect",
-    "ba,team-lead,qa-black,designer,architect",
-    "tech-lead,qa-black,designer,architect",
-    "ba,tech-lead,qa-black,designer,architect",
-    "team-lead,tech-lead,qa-black,designer,architect",
-    "ba,team-lead,tech-lead,qa-black,designer,architect",
-)}
 COMBOS = list(product("SML", ("yes", "no"), ("yes", "no")))
 
 
@@ -93,19 +57,9 @@ class DevRulesSize(unittest.TestCase):
             for goal, qa in product(("yes", "no"), ("full", "light")):
                 yield team, goal, qa, len(compose_team("dev", team, goal, qa))
 
-    def test_every_team_set_fits_5_kib_or_is_a_pinned_exception(self):
-        over = {}
+    def test_every_team_set_fits_5_kib(self):
         for team, goal, qa, n in self.sweep():
-            self.assertLessEqual(n, CAP, f"dev, team {team}, goal {goal}, qa {qa} is {n} B")
-            if n > LIMIT:
-                over[team] = max(n, over.get(team, 0))
-        self.assertEqual(set(over), EXCEPTIONS, "the pinned exceptions must be exactly the sets over 5 KiB")
-
-    def test_pinned_exceptions_all_carry_designer_or_architect_and_at_most_one_qa(self):
-        for team in EXCEPTIONS:
-            with self.subTest(team=team):
-                self.assertTrue({"designer", "architect"} & set(team))
-                self.assertFalse({"qa-white", "qa-black"} <= set(team))
+            self.assertLessEqual(n, LIMIT, f"dev, team {team}, goal {goal}, qa {qa} is {n} B")
 
     def test_must_keep_duties_by_rule_id(self):
         for size, design, goal in COMBOS:
@@ -155,6 +109,25 @@ class DevRulesSize(unittest.TestCase):
                 self.assertTrue(r.stdout.startswith(f"## {rid} "), r.stdout)
                 for size, (acting, aware) in who(rid).items():
                     self.assertNotIn("dev", acting + aware, f"{rid} at {size}")
+
+    def test_on_demand_rules_attach_to_no_role(self):
+        for rid in ("REV-5a", "EVID-5"):
+            w = who(rid)
+            self.assertTrue(w)
+            for key, (acting, aware) in w.items():
+                self.assertEqual((acting, aware), ((), ()), f"{rid} at {key}")
+            for team in ((), ("tech-lead",), ("team-lead", "designer"), ("qa-white", "qa-black", "designer", "architect")):
+                for role in ROLES:
+                    self.assertNotIn(f"## {rid} ", compose_team(role, team).decode(), f"{role} {team}")
+
+    def test_manager_composed_bytes_did_not_grow_vs_90be196(self):
+        # (team, goal) -> bytes of the composed Manager rules at 90be196, fixture home with live-length names
+        base = {((), "yes"): 53799, ((), "no"): 50510, (("tech-lead",), "yes"): 52710, (("team-lead", "designer"), "no"): 48985,
+                (("qa-white", "qa-black", "designer", "architect"), "yes"): 56777,
+                (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"): 50145}
+        for (team, goal), n in base.items():
+            with self.subTest(team=team, goal=goal):
+                self.assertLessEqual(len(compose_team("manager", team, goal)), n)
 
     def test_moved_rules_are_cited_from_the_rule_that_keeps_them(self):
         for kept, moved in (("REV-22", "REV-5a"), ("LC-19", "EVID-5")):

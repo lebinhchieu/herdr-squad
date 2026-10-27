@@ -488,7 +488,9 @@ def _structure(rules, tombs, out):
     for r in rules:
         raw = {k: v for k, v in (("roles", ", ".join(r.roles)), ("aware", ", ".join(r.aware)),
                                  ("when", r.when), ("topic", r.topic)) if v}
-        _check_attrs(raw, r.file, r.line, out, ("roles", "topic"), r.id)
+        # an empty `roles:` line = on demand, attached to no role (ADR 0016); a missing line stays an error
+        has_roles = any(a.startswith("roles:") for a in r.attr_text.split("\n"))
+        _check_attrs(raw, r.file, r.line, out, ("topic",) if has_roles else ("roles", "topic"), r.id)
 
 
 def _writing(body, body_line, rel, out):

@@ -16,7 +16,7 @@ Point at files and lines; never paste them. `BLOCKED`, `HANDIN`, `PASS`, `FAIL` 
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, dev
 topic: messages
 
-Task ID = the ticket number `NN` alone, never an alias or slug. Name it after the type; never paste, point at files.
+Task ID = the ticket number `NN` alone, never an alias or slug; never paste, point at files.
 
 ## MSG-4a Ask the owner, Manager
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, dev
@@ -98,14 +98,14 @@ roles: dev
 when: plan-owner = manager
 topic: messages
 
-No guessing at a gap: `ASK` the Manager (a business doubt changes the team, [SIZE-14]); `BLOCKED <task>` and `STATUS?` answers go to the Manager. Work on the unblocked.
+No guessing at a gap: `ASK` the Manager. `BLOCKED <task>` and `STATUS?` answers go to the Manager. Work on the unblocked.
 
 ## MSG-11b Gaps, Team Lead
 roles: dev
 when: plan-owner = team-lead
 topic: messages
 
-No guessing at a gap. `ASK` the owner `roster.md` names, else the Team Lead. `BLOCKED <task>` and `STATUS?` answers go to the Team Lead. Work on the unblocked meanwhile.
+No guessing at a gap: `ASK` as [MSG-4b] says. `BLOCKED <task>` and `STATUS?` answers go to the Team Lead. Work on the unblocked.
 
 ## MSG-12 BA takes gaps
 roles: ba
