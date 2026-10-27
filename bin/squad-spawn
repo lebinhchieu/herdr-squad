@@ -140,7 +140,11 @@ if [[ -d $squad_dir/scopes ]]; then
         if [[ $team_now == undecided ]]; then
           echo "scope $scope: the team is undecided in $scope_dir/scope.md; only the Manager can be spawned until a team: line decides it" >&2
         else
-          echo "scope $scope: role $role is not on the team in $scope_dir/scope.md (team: ${team_now:-?}); only the PO adds the designer or architect" >&2
+          case $role in
+            designer|architect) who_adds="the PO confirms adding the $role first, then the Manager runs squad-team add" ;;
+            *) who_adds="the Manager adds the $role with squad-team add" ;;
+          esac
+          echo "scope $scope: role $role is not on the team in $scope_dir/scope.md (team: ${team_now:-?}); $who_adds" >&2
         fi
         exit 1
       fi

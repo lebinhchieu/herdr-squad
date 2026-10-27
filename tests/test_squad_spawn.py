@@ -757,6 +757,17 @@ class SpawnTeamGateTest(_GateBase):
                     self.assertIn(f"role {role} is not on the team in {self.scope_md}", r.stderr)
                     self.assertEqual(self.created(), [])
 
+    def test_refusal_text_names_who_adds_the_role(self):
+        self.set_scope("# Scope\n\nteam: ba, qa-white\n")
+        for role, want in (("designer", "the PO confirms"), ("architect", "the PO confirms"),
+                           ("tech-lead", "the Manager adds the tech-lead with squad-team add"),
+                           ("qa-blackbox", "the Manager adds the qa-blackbox with squad-team add")):
+            with self.subTest(role=role):
+                r = self.spawn(role, "gate-1", "--dry-run")
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertIn(want, r.stderr)
+                self.assertNotIn("only the PO adds", r.stderr)
+
     def test_qa_whitebox_is_gated_on_qa_white_and_qa_blackbox_on_qa_black(self):
         for team, role, ok in (("qa-white", "qa-whitebox", True), ("qa-black", "qa-whitebox", False),
                                ("qa-black", "qa-blackbox", True), ("qa-white", "qa-blackbox", False),
