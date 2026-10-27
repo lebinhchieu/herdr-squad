@@ -50,7 +50,7 @@ class ManagerMLTest(unittest.TestCase):
         self.assertIn("The Manager checks the base ([GOAL-7]) and names it in the iteration file; the spawner passes that base and no other", MG)
 
     def test_retained_duties(self):
-        for token in ("Moving up", "Merge only on the PO's request", "squad-inbox add", "Token Coach", "squad-close <squad> --scope"):
+        for token in ("Adding a role", "Merge only on the PO's request", "squad-inbox add", "Token Coach", "squad-close <squad> --scope"):
             self.assertIn(token, MG)
 
     def test_merging_reads_sha_from_files_and_checkin_gets_three_returns_line(self):

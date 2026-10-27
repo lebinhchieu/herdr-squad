@@ -20,9 +20,9 @@ import squadsettings as ss  # noqa: E402
 
 V6 = (ROOT / "skills/squad-process-update/history/process-v6.md").read_text(encoding="utf-8")
 PIN = "0.7.0 abcdef123456"
-EDIT_FROM = "- When unsure, size up."
-EDIT_TO = "- When unsure, size up and say why in the iteration file."
-DELETED = "- The Manager logs every size change in `scope.md` and the iteration file."
+EDIT_FROM = "- Edit structured files (`roster.md`, notes, tables) with a small script that keeps the rest, then check; never `command > file`."
+EDIT_TO = EDIT_FROM + " Say why in the iteration file."
+DELETED = "- `squad-respawn` warns when notes pass 100 lines; trim before the next save."
 PARAGRAPH = "A squad paragraph about pigeons that no rule covers."
 
 
@@ -120,8 +120,8 @@ class TwoOpsOneItem(Base):
         r = self.adopt(sq, "--dry-run")
         self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
         self.assertIn("overlay with 2 operation(s)", r.stdout)
-        self.assertIn("replace SIZE-4", r.stdout)
-        self.assertRegex(r.stdout, r"(remove|replace) SIZE-16")
+        self.assertIn("replace FILE-4", r.stdout)
+        self.assertRegex(r.stdout, r"(remove|replace) NOTE-2")
         self.assertIn("PO items (1 open of 1)", r.stdout)
         self.assertIn(PARAGRAPH, r.stdout)
         self.assertEqual(tree(sq), before)
@@ -147,11 +147,11 @@ class TwoOpsOneItem(Base):
         r = self.adopt(sq, "--resolve", f"{key}=drop", "--yes")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         ops = sr.parse_overlay((sq / "process.local.md").read_text(), "process.local.md", [])
-        self.assertEqual(sorted(o.id for o in ops), ["SIZE-16", "SIZE-4"])
+        self.assertEqual(sorted(o.id for o in ops), ["FILE-4", "NOTE-2"])
         self.assertTrue(all(o.upstream == "proposed" for o in ops))
-        size4 = next(o for o in ops if o.id == "SIZE-4")
+        size4 = next(o for o in ops if o.id == "FILE-4")
         self.assertEqual(size4.kind, "replace")
-        self.assertIn("size up and say why", size4.body)
+        self.assertIn("Say why in the iteration file", size4.body)
         self.assertEqual(run("lint", "--squad-dir", str(sq), "--plugin-root", str(ROOT)).returncode, 0)
 
     def test_add_choice_makes_a_squad_rule_for_the_roles_the_po_names(self):
