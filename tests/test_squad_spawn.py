@@ -340,15 +340,19 @@ class SpawnDryRunTest(unittest.TestCase):
                 self.assertIn("permissions", json.loads((settings / f"{role}.json").read_text(encoding="utf-8")))
 
 
-def scoped_squad(root, goal_of_sc2="g1"):
-    """A squad in the per-scope layout: scopes/sc1 (lone), scopes/sc2 (in goal g1), goals/g1."""
+ALL_ROLES_TEAM = "ba, team-lead, tech-lead, qa-white, qa-black, designer, architect"
+
+
+def scoped_squad(root, goal_of_sc2="g1", team=ALL_ROLES_TEAM):
+    """A squad in the per-scope layout: scopes/sc1 (lone), scopes/sc2 (in goal g1), goals/g1. Both scopes have
+    `team:` (every role on it unless `team` says otherwise)."""
     squad = Path(root) / ".claude" / "squads" / "t"
     header = "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
     for d, goal in (("scopes/sc1", ""), ("scopes/sc2", goal_of_sc2), ("goals/g1", None)):
         (squad / d).mkdir(parents=True)
         (squad / d / "roster.md").write_text(header, encoding="utf-8")
         if goal is not None:
-            (squad / d / "scope.md").write_text(f"# Scope\n\ngoal: {goal}\ntouches:\n", encoding="utf-8")
+            (squad / d / "scope.md").write_text(f"# Scope\n\ngoal: {goal}\ntouches:\nteam: {team}\n", encoding="utf-8")
     (squad / "process.md").write_text("x", encoding="utf-8")
     return squad
 
@@ -703,99 +707,278 @@ class SpawnProcessUpdateTest(unittest.TestCase):
         self.assertNotIn("Process update", r.stdout + r.stderr)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
+class _GateBase(unittest.TestCase):
+    """Per-scope squad `t`, scope sc1, a fake herdr that logs every call; `self.created()` lists what a spawn made."""
 
-class SpawnDesignerTest(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.squad = scoped_squad(self.tmp.name)
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
-        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
-
-    def tearDown(self):
-        self.tmp.cleanup()
-
-    def spawn(self, *args):
-        return subprocess.run([str(SCRIPT), "designer", "d-sc1", "--scope", "sc1", *args], env=self.env,
-                              text=True, encoding="utf-8", capture_output=True, timeout=10)
-
-    def test_design_yes_spawns_a_sonnet_high_designer_with_its_own_settings(self):
-        (self.squad / "scopes/sc1/scope.md").write_text("# Scope\n\ndesign: Yes\n", encoding="utf-8")
-        r = self.spawn("--dry-run")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("--agent squad:designer", r.stdout)
-        self.assertRegex(r.stdout, r"--model sonnet --effort high\b")
-        self.assertRegex(r.stdout, r"--settings \S*settings/designer\.json")
-
-    def test_without_design_yes_it_refuses_and_starts_nothing(self):
-        scope_md = self.squad / "scopes/sc1/scope.md"
-        bin_dir = Path(self.tmp.name) / "bin"
-        bin_dir.mkdir()
-        (bin_dir / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (bin_dir / "herdr").chmod(0o755)
-        log = Path(self.tmp.name) / "herdr.log"
-        self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(log))
-        for body in ("# Scope\n\ndesign: no\n", "# Scope\n\ntouches:\n", None):
-            for extra in (("--dry-run",), ()):
-                with self.subTest(body=body, extra=extra):
-                    scope_md.unlink(missing_ok=True)
-                    if body is not None:
-                        scope_md.write_text(body, encoding="utf-8")
-                    r = self.spawn(*extra)
-                    self.assertEqual(r.returncode, 1)
-                    self.assertIn("scope sc1 has no 'design: yes' in scope.md; only the PO turns the designer on", r.stderr)
-                    self.assertFalse(log.exists())
-
-
-class SpawnArchitectTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.squad = scoped_squad(self.tmp.name)
+        self.root = Path(self.tmp.name)
+        self.squad = scoped_squad(self.root)
+        self.scope = self.squad / "scopes/sc1"
+        self.scope_md = self.scope / "scope.md"
+        fake = self.root / "fakebin"
+        fake.mkdir()
+        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
+        (fake / "herdr").chmod(0o755)
+        self.log = self.root / "herdr.log"
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
-        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
-        self.scope_md = self.squad / "scopes/sc1/scope.md"
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log),
+                        PATH=f"{fake}:{os.environ['PATH']}")
 
-    def spawn(self, *args, role="architect"):
-        return subprocess.run([str(SCRIPT), role, "arch-sc1", "--scope", "sc1", *args], env=self.env,
-                              text=True, encoding="utf-8", capture_output=True, timeout=10)
+    def set_scope(self, text):
+        self.scope_md.write_text(text, encoding="utf-8", newline="")
 
-    def test_architecture_yes_passes_the_guard(self):
-        self.scope_md.write_text("# Scope\n\narchitecture: Yes\n", encoding="utf-8")
-        r = self.spawn("--dry-run")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("--agent squad:architect", r.stdout)
+    def spawn(self, role="dev", name="gate-1", *args, script=SCRIPT, env=None):
+        return subprocess.run([str(script), role, name, "--scope", "sc1", "--prompt", "go", *args], env=env or self.env,
+                              text=True, encoding="utf-8", capture_output=True, timeout=30)
 
-    def test_without_architecture_yes_it_refuses_naming_the_line_and_the_po(self):
-        for body in ("# Scope\n\narchitecture: no\n", "# Scope\n\narchitecture: maybe\n", "# Scope\n\ntouches:\n",
-                     "# Scope\n\ndesign: yes\n", "# Scope\n\n# architecture: yes\n", None):
+    def created(self):
+        """Everything a refused spawn must not leave: a herdr call, a roster row, a label, a rules file."""
+        out = []
+        if self.log.exists():
+            out.append("herdr")
+        if "gate-" in (self.scope / "roster.md").read_text(encoding="utf-8"):
+            out.append("roster")
+        out += [f.name for f in (self.scope / "roles").glob("*")] if (self.scope / "roles").exists() else []
+        return out
+
+
+class SpawnTeamGateTest(_GateBase):
+    def test_a_role_not_on_the_team_exits_1_naming_the_role_and_scope_md_and_creates_nothing(self):
+        self.set_scope("# Scope\n\nteam: ba, qa-white\n")
+        for role in ("team-lead", "tech-lead", "qa-blackbox", "designer", "architect"):
             for extra in (("--dry-run",), ()):
-                with self.subTest(body=body, extra=extra):
-                    self.scope_md.unlink(missing_ok=True)
-                    if body is not None:
-                        self.scope_md.write_text(body, encoding="utf-8")
-                    r = self.spawn(*extra)
-                    self.assertEqual(r.returncode, 1)
-                    self.assertIn("scope sc1 has no 'architecture: yes' in scope.md; only the PO turns the architect on", r.stderr)
+                with self.subTest(role=role, extra=extra):
+                    r = self.spawn(role, "gate-1", *extra)
+                    self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                    self.assertIn(f"role {role} is not on the team in {self.scope_md}", r.stderr)
+                    self.assertEqual(self.created(), [])
 
-    def test_the_architect_gets_its_template_model_and_no_missing_settings_warning(self):
-        self.scope_md.write_text("# Scope\n\narchitecture: yes\n", encoding="utf-8")
-        r = self.spawn("--dry-run", "--prompt", "go")
+    def test_qa_whitebox_is_gated_on_qa_white_and_qa_blackbox_on_qa_black(self):
+        for team, role, ok in (("qa-white", "qa-whitebox", True), ("qa-black", "qa-whitebox", False),
+                               ("qa-black", "qa-blackbox", True), ("qa-white", "qa-blackbox", False),
+                               ("ba, tech-lead", "qa-whitebox", False)):
+            with self.subTest(team=team, role=role):
+                self.set_scope(f"# Scope\n\nteam: {team}\n")
+                r = self.spawn(role, "gate-1", "--dry-run")
+                self.assertEqual(r.returncode, 0 if ok else 1, r.stderr)
+
+    def test_dev_token_coach_and_manager_need_no_team_entry_when_the_team_is_none(self):
+        self.set_scope("# Scope\n\nteam: none\n")
+        for role in ("dev", "token-coach", "manager"):
+            with self.subTest(role=role):
+                self.assertEqual(self.spawn(role, "gate-1", "--dry-run").returncode, 0)
+        self.assertEqual(self.spawn("ba", "gate-1", "--dry-run").returncode, 1)
+
+    def test_an_undecided_team_refuses_every_role_but_the_manager(self):
+        for text in ("# Scope\n\nteam:\n", "# Scope\n\ntouches:\n"):
+            for role in ("ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "dev", "token-coach", "designer", "architect"):
+                with self.subTest(text=text, role=role):
+                    self.set_scope(text)
+                    r = self.spawn(role, "gate-1")
+                    self.assertEqual(r.returncode, 1, r.stderr)
+                    self.assertIn("team is undecided", r.stderr)
+                    self.assertIn(str(self.scope_md), r.stderr)
+                    self.assertEqual(self.created(), [])
+            self.set_scope(text)
+            self.assertEqual(self.spawn("manager", "gate-1", "--dry-run").returncode, 0)
+            self.log.unlink(missing_ok=True)
+
+    def test_an_unpinned_scope_on_size_is_refused_with_the_converter_pointer_for_every_role(self):
+        self.set_scope("# Scope\n\nsize: M\nqa-b: yes\n")
+        for role in ("manager", "dev", "ba", "qa-whitebox"):
+            with self.subTest(role=role):
+                r = self.spawn(role, "gate-1")
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn("squad-process adopt", r.stderr)
+                self.assertIn("size", r.stderr)
+                self.assertEqual(self.created(), [])
+
+    def test_the_size_only_home_is_refused_by_the_team_cli_and_by_the_spawn(self):
+        """C2: the D1 scaffold is not reachable through `squad-process team` nor `squad-spawn`."""
+        self.set_scope("# Scope\n\nsize: L\n")
+        t = subprocess.run([str(BIN_DIR / "squad-process"), "team", "--home", str(self.scope)], text=True,
+                           encoding="utf-8", capture_output=True, timeout=20)
+        self.assertEqual(t.returncode, 2)
+        self.assertIn("squad-process adopt", t.stderr)
+        r = self.spawn("dev", "gate-1", "--dry-run")
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual(r.stderr.strip().splitlines()[-1], t.stderr.strip().splitlines()[-1])
+
+    def test_a_bad_or_old_key_team_line_fails_naming_the_line_and_the_token(self):
+        for line, token in (("team: ba, nobody", "nobody"), ("team: ba, ba", "ba"), ("team: qa-whitebox", "qa-whitebox"),
+                            ("team: qa-b", "qa-b")):
+            with self.subTest(line=line):
+                self.set_scope(f"# Scope\n\n{line}\n")
+                for extra in (("--dry-run",), ()):
+                    r = self.spawn("dev", "gate-1", *extra)
+                    self.assertNotEqual(r.returncode, 0)
+                    self.assertIn(token, r.stderr)
+                    self.assertRegex(r.stderr, r"scope\.md:3")
+                    self.assertEqual(self.created(), [])
+
+    def test_a_hostile_team_value_runs_nothing(self):
+        marker = self.root / "X"
+        for value in (f"qa-white; touch {marker}", f"$(touch {marker})", f"`touch {marker}`",
+                      f"qa-white && touch {marker}"):
+            with self.subTest(value=value):
+                self.set_scope(f"# Scope\n\nteam: {value}\n")
+                for role in ("qa-whitebox", "dev"):
+                    r = self.spawn(role, "gate-1", "--dry-run")
+                    self.assertNotEqual(r.returncode, 0, r.stdout)
+                    self.assertFalse(marker.exists())
+
+    def test_the_designer_and_architect_follow_the_team(self):
+        self.set_scope("# Scope\n\nteam: designer, architect\n")
+        for role, agent in (("designer", "squad:designer"), ("architect", "squad:architect")):
+            r = self.spawn(role, "gate-1", "--dry-run")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn(f"--agent {agent}", r.stdout)
+
+    def test_a_goal_manager_has_no_team_gate(self):
+        r = subprocess.run([str(SCRIPT), "manager", "gate-m", "--goal", "g1", "--dry-run"], env=self.env,
+                           text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertRegex(r.stdout, r"--model sonnet --effort high\b")
-        self.assertNotIn("no model/effortLevel", r.stderr)
 
-    def test_design_yes_does_not_open_the_architect_nor_the_reverse(self):
-        self.scope_md.write_text("# Scope\n\narchitecture: yes\n", encoding="utf-8")
-        r = self.spawn("--dry-run", role="designer")
+    def test_the_gate_runs_before_the_scope_model_lines(self):
+        self.set_scope("# Scope\n\nteam: ba\nmodel dev: bad line\n")
+        r = self.spawn("tech-lead", "gate-1", "--dry-run")
+        self.assertEqual(r.returncode, 1)  # not on the team: refused before the malformed model line
+
+
+def toy_runtime_spawn(path, record, name="squad-spawn"):
+    """A stub engine: records its arguments and the env that matters, makes nothing."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f'#!/usr/bin/env bash\necho "{name} $*" >> "{record}"\nexit 0\n', encoding="utf-8")
+    path.chmod(0o755)
+
+
+BASE_SHA = "294957333ee4b2953e1db26e96e297637ed2343c"  # main at 0.5.2, the pinned fixture's engine (AC 20)
+
+
+class SpawnPinnedTest(_GateBase):
+    def pin(self, version, sha="a" * 40, stub=True, line=None):
+        """Composed squad pinned to `version`; its runtime folder holds a stub squad-spawn (when `stub`)."""
+        (self.squad / "process.local.md").write_text("", encoding="utf-8")
+        rt = self.squad / "_runtime" / f"{version}-{sha[:12]}"
+        (rt / ".claude-plugin").mkdir(parents=True, exist_ok=True)
+        (rt / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": "squad", "version": version}), encoding="utf-8")
+        self.record = self.root / "stub.log"
+        if stub:
+            toy_runtime_spawn(rt / "bin" / "squad-spawn", self.record)
+        self.set_scope(f"# Scope\n\ngoal:\ntouches:\nsize: L\nqa-b: yes\n{line or f'plugin: {version} {sha}'}\n")
+        return rt
+
+    def calls(self):
+        return self.record.read_text(encoding="utf-8").splitlines() if self.record.exists() else []
+
+    def test_pin_0_5_2_hands_off_to_the_pins_own_squad_spawn_with_the_same_arguments(self):
+        self.pin("0.5.2")
+        r = self.spawn("qa-whitebox", "gate-1", "--title", "t one")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.calls(), ["squad-spawn qa-whitebox gate-1 --scope sc1 --prompt go --title t one"])
+        self.assertEqual(self.created(), [])  # nothing of the new engine's own
+
+    def test_the_hand_off_also_happens_from_an_agent_session_and_for_a_dry_run(self):
+        self.pin("0.5.2")
+        env = dict(self.env, SQUAD_NAME="t-mgr-sc1", SQUAD_ROLE="manager")
+        self.assertEqual(self.spawn("dev", "gate-1", env=env).returncode, 0)
+        self.assertEqual(len(self.calls()), 1)
+        r = self.spawn("dev", "gate-2", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("would hand off to the pinned runtime", r.stdout)
+        self.assertEqual(len(self.calls()), 1)
+
+    def test_pin_0_6_0_uses_the_new_gate_and_does_not_hand_off(self):
+        self.pin("0.6.0")
+        self.set_scope(self.scope_md.read_text(encoding="utf-8").replace("size: L\nqa-b: yes\n", "team: ba\n"))
+        r = self.spawn("tech-lead", "gate-1")
         self.assertEqual(r.returncode, 1)
-        self.assertIn("'design: yes'", r.stderr)
-
-    def test_model_architect_line_is_accepted(self):
-        self.scope_md.write_text("# Scope\n\narchitecture: yes\nmodel architect: opus high\n", encoding="utf-8")
-        r = self.spawn("--dry-run")
+        self.assertIn("is not on the team", r.stderr)
+        self.assertEqual(self.calls(), [])
+        r = self.spawn("ba", "gate-1", "--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertRegex(r.stdout, r"--model opus --effort high\b")
-        self.assertNotIn("unknown role", r.stderr)
+        self.assertNotIn("hand off", r.stdout)
+        self.assertEqual(self.calls(), [])
+
+    def test_no_pin_line_takes_the_unpinned_path(self):
+        (self.squad / "process.local.md").write_text("", encoding="utf-8")
+        self.set_scope("# Scope\n\nteam: ba\n")
+        r = self.spawn("ba", "gate-1")
+        self.assertEqual(r.returncode, 2)  # a composed squad needs a pin; the hand-off is not tried
+        self.assertIn("pin", r.stderr)
+        self.assertEqual(self.created(), [])
+        (self.squad / "process.local.md").unlink()
+        (self.squad / "process.md").write_text("x", encoding="utf-8")
+        self.assertEqual(self.spawn("ba", "gate-1", "--dry-run").returncode, 0)  # legacy squad: the gate, no pin
+
+    def test_a_malformed_plugin_line_is_refused_naming_the_line(self):
+        for bad in ("plugin: 0.5.2", "plugin: 0.5.2 zz", "plugin: 0.5.2 abc def"):
+            with self.subTest(bad=bad):
+                self.pin("0.5.2", line=bad)
+                r = self.spawn("dev", "gate-1")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(bad.split(": ")[1].split()[-1], r.stderr)  # the offending value is named
+                self.assertEqual(self.calls(), [])
+                self.assertEqual(self.created(), [])
+
+    def test_a_runtime_without_squad_spawn_refuses_with_a_warning_and_creates_nothing(self):
+        self.pin("0.5.2", stub=False)
+        r = self.spawn("dev", "gate-1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("warning:", r.stderr)
+        self.assertIn("no bin/squad-spawn", r.stderr)
+        self.assertEqual(self.created(), [])  # no worktree, label or herdr call
+        self.assertFalse((self.root / ".worktrees").exists())
+
+    def test_the_hand_off_happens_once(self):
+        """A runtime whose squad-spawn is this very script is not handed to again (no exec loop)."""
+        rt = self.pin("0.5.2", stub=False)
+        (rt / "bin").mkdir(parents=True)
+        (rt / "bin" / "squad-spawn").symlink_to(SCRIPT)
+        r = self.spawn("dev", "gate-1")
+        self.assertEqual((r.returncode, "squad-process adopt" in r.stderr), (2, True))  # the new gate, once
+        self.assertEqual(self.created(), [])
+
+    def test_the_pinned_scope_md_is_byte_identical_after_spawn_and_the_converter(self):
+        self.pin("0.5.2")
+        before = self.scope_md.read_bytes()
+        self.spawn("dev", "gate-1")
+        self.spawn("dev", "gate-2", "--dry-run")
+        for args in ((), ("--yes",)):
+            c = subprocess.run([str(BIN_DIR / "squad-process"), "adopt", "--squad-dir", str(self.squad), *args], env=self.env,
+                               text=True, encoding="utf-8", capture_output=True, timeout=30)
+            self.assertIn("pinned", c.stdout + c.stderr, c.stdout + c.stderr)
+            self.assertEqual(self.scope_md.read_bytes(), before)
+        self.assertEqual(self.scope_md.read_bytes(), before)
+
+
+@unittest.skipUnless(subprocess.run(["git", "cat-file", "-e", BASE_SHA], capture_output=True).returncode == 0,
+                     "base sha 2949573 not in this repository")
+class PinnedBaseEngineTest(_GateBase):
+    """AC 20 end to end: the pin is the real 0.5.2 engine (git archive of the base sha); the spawn runs it, and
+    the composed rules equal what that engine composes on its own (a golden made from the base sha, not by hand)."""
+
+    def test_the_pins_engine_composes_the_scope_and_scope_md_is_unchanged(self):
+        (self.squad / "process.local.md").write_text("", encoding="utf-8")
+        rt = self.squad / "_runtime" / f"0.5.2-{BASE_SHA[:12]}"
+        rt.mkdir(parents=True)
+        tar = subprocess.run(["git", "archive", "--format=tar", BASE_SHA], cwd=SCRIPT.parent.parent, capture_output=True, check=True)
+        subprocess.run(["tar", "-x", "-C", str(rt)], input=tar.stdout, check=True)
+        self.set_scope(f"# Scope\n\ngoal:\ntouches:\nsize: L\nqa-b: yes\nplugin: 0.5.2 {BASE_SHA}\n")
+        before = self.scope_md.read_bytes()
+        now = "2026-10-27T00:00:00Z"
+        golden = subprocess.run([str(rt / "bin" / "squad-process"), "compose", "dev", "--home", str(self.scope), "--agent", "gate-1",
+                                 "--squad-dir", str(self.squad), "--plugin-root", str(rt), "--now", now],
+                                text=True, encoding="utf-8", capture_output=True, timeout=60)
+        self.assertEqual(golden.returncode, 0, golden.stderr)
+        r = self.spawn("dev", "gate-1", env=dict(self.env, SQUAD_COMPOSE_NOW=now))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((self.scope / "roles" / "gate-1.rules.md").read_text(encoding="utf-8"), golden.stdout)
+        self.assertEqual(self.scope_md.read_bytes(), before)
+
+
+if __name__ == "__main__":
+    unittest.main()

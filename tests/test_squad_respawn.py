@@ -195,7 +195,7 @@ class RespawnTest(unittest.TestCase):
         sc, g = self.squad / "scopes" / "sc1", self.squad / "goals" / "g1"
         sc.mkdir(parents=True)
         g.mkdir(parents=True)
-        (sc / "scope.md").write_text("# Scope\n\ngoal:\n", encoding="utf-8")
+        (sc / "scope.md").write_text("# Scope\n\ngoal:\nteam: ba\n", encoding="utf-8")
         (sc / "roster.md").write_text(head + "| t-dev-sc1-1 | dev | sc1 | task 1 | live | old-sid |\n", encoding="utf-8")
         (g / "roster.md").write_text(head + "| t-mgr-g1 | manager |  |  | live | old-g |\n", encoding="utf-8")
         self.env.update(SCOPE_DIR=str(sc))
@@ -247,6 +247,78 @@ class RespawnTest(unittest.TestCase):
     def test_unknown_agent_fails(self):
         r = subprocess.run([str(BIN / "squad-respawn"), "ghost"], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertNotEqual(r.returncode, 0)
+
+
+class RespawnPinnedTest(RespawnTest):
+    """D7: a scope pinned below 0.6.0 is respawned by the pin's own squad-respawn (its scope.md still says `size:`)."""
+
+    def pinned(self, version="0.5.2", stub=True):
+        sc, _ = self.scoped()
+        (self.squad / "process.local.md").write_text("", encoding="utf-8")
+        sha = "b" * 40
+        rt = self.squad / "_runtime" / f"{version}-{sha[:12]}"
+        (rt / ".claude-plugin").mkdir(parents=True)
+        (rt / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": "squad", "version": version}), encoding="utf-8")
+        self.record = self.root / "stub.log"
+        if stub:
+            (rt / "bin").mkdir()
+            (rt / "bin" / "squad-respawn").write_text(
+                f'#!/usr/bin/env bash\necho "squad-respawn $* SCOPE_DIR=$SCOPE_DIR" >> "{self.record}"\n', encoding="utf-8")
+            (rt / "bin" / "squad-respawn").chmod(0o755)
+        (sc / "scope.md").write_text(f"# Scope\n\ngoal:\nsize: L\nqa-b: yes\nplugin: {version} {sha}\n", encoding="utf-8", newline="")
+        return sc
+
+    def run_respawn(self, *args, env=None):
+        return subprocess.run([str(BIN / "squad-respawn"), "t-dev-sc1-1", *args], env=env or self.env, text=True,
+                              encoding="utf-8", capture_output=True, timeout=20)
+
+    def calls(self):
+        return self.record.read_text(encoding="utf-8").splitlines() if self.record.exists() else []
+
+    def test_pin_0_5_2_hands_off_from_the_po_shell_and_from_an_agent_session(self):
+        sc = self.pinned()
+        before = (sc / "scope.md").read_bytes()
+        for env in (self.env, dict(self.env, SQUAD_NAME="t-dev-sc1-1", SQUAD_ROLE="dev")):
+            self.assertEqual(self.run_respawn(env=env).returncode, 0)
+        self.assertEqual(self.calls(), [f"squad-respawn t-dev-sc1-1 SCOPE_DIR={sc}"] * 2)
+        self.assertFalse(self.log.exists())  # the new engine made no herdr call of its own
+        self.assertEqual((sc / "scope.md").read_bytes(), before)
+
+    def test_the_hand_off_passes_the_dry_run_flag(self):
+        self.pinned()
+        r = self.run_respawn("--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("would hand off to the pinned runtime", r.stdout)
+        self.assertEqual(self.calls(), [])
+
+    def test_a_runtime_without_squad_respawn_refuses_with_a_warning_and_renames_nothing(self):
+        self.pinned(stub=False)
+        r = self.run_respawn()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("warning:", r.stderr)
+        self.assertIn("no bin/squad-respawn", r.stderr)
+        self.assertFalse(self.log.exists())
+
+    def test_pin_0_6_0_does_not_hand_off(self):
+        sc = self.pinned("0.6.0")
+        (sc / "scope.md").write_text("# Scope\n\ngoal:\nteam: ba\nplugin: 0.6.0 " + "b" * 40 + "\n", encoding="utf-8")
+        r = self.run_respawn("--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("hand off", r.stdout)
+        self.assertEqual(self.calls(), [])
+
+    def test_a_runtime_that_is_this_script_is_not_handed_to_again(self):
+        self.pinned(stub=False)
+        rt = next((self.squad / "_runtime").iterdir())
+        (rt / "bin").mkdir()
+        (rt / "bin" / "squad-respawn").symlink_to(BIN / "squad-respawn")
+        r = self.run_respawn("--dry-run")
+        self.assertNotIn("hand off", r.stdout)  # no exec loop: the guard falls through to the normal path
+
+
+for _n in dir(RespawnTest):  # reuse the fixture only: the inherited tests run once, in RespawnTest
+    if _n.startswith("test_") and _n not in RespawnPinnedTest.__dict__:
+        setattr(RespawnPinnedTest, _n, None)
 
 
 if __name__ == "__main__":

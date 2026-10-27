@@ -142,6 +142,7 @@ class NoticeTest(unittest.TestCase):
         return json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"] if r.stdout.strip() else None
 
     def test_fires_once_on_first_fail_of_third_sha_only(self):
+        (self.squad / "scope.md").write_text("team: ba, team-lead, tech-lead, qa-white\n", encoding="utf-8")
         got = []
         for n, sha in enumerate(["aaaaaaa", "bbbbbbb", "ccccccc", "ddddddd"], 1):
             self.send("HANDIN 05: branch b, commit %s" % sha, "dev", "qaw")
@@ -168,32 +169,29 @@ class NoticeTest(unittest.TestCase):
         # a FAIL now lands on ccccccc (current sha), not on the evidence sha
         self.assertIn("3 returns", self.send("FAIL 05: late", "qab"))
 
-    def test_pass_does_not_reset_and_size_s_names_manager(self):
-        (self.squad / "scope.md").write_text("size: S (one task)\n", encoding="utf-8")
+    def test_pass_does_not_reset_and_a_team_without_team_lead_names_the_manager(self):
+        (self.squad / "scope.md").write_text("team: none\n", encoding="utf-8")
         got = None
         for sha in ["aaaaaaa", "bbbbbbb", "ccccccc"]:
             self.send("HANDIN 5: commit %s" % sha, "dev", "tech")
             self.send("PASS 5", "tech")
             got = self.send("FAIL 5: x", "tech")
-        self.assertEqual(got, "task 5 has 3 returns: record the budget line and consult the advisor [LC-25]")
-        self.assertNotIn("BLOCKED", got)
+        self.assertIn("`BLOCKED 5: 3 returns` to Manager [LC-7c]", got)
 
-    def test_three_returns_notice_routes_by_size(self):
-        want = {"S": None, "M": ("Manager", "LC-7c"), "L": ("Team Lead", "LC-7b")}
-        for size, route in want.items():
-            (self.squad / "scope.md").write_text("size: %s\n" % size, encoding="utf-8")
+    def test_three_returns_notice_routes_by_team(self):
+        want = {"team: none": ("Manager", "LC-7c"), "team: qa-white, qa-black": ("Manager", "LC-7c"),
+                "team: ba, team-lead": ("Team Lead", "LC-7b"), "team:": ("Manager", "LC-7c"),
+                "size: L": ("Manager", "LC-7c"), "team: ba, bogus": ("Manager", "LC-7c")}
+        for line, route in want.items():
+            (self.squad / "scope.md").write_text(line + "\n", encoding="utf-8")
             (self.squad / "messages.jsonl").unlink(missing_ok=True)
             got = None
             for sha in ["aaaaaaa", "bbbbbbb", "ccccccc"]:
                 self.send("HANDIN 5: commit %s" % sha, "dev", "qaw")
                 got = self.send("FAIL 5: x", "qaw")
-            with self.subTest(size=size):
-                if route is None:  # S: the sender is the Manager; never tell it to BLOCKED itself
-                    self.assertIn("record the budget line and consult the advisor [LC-25]", got)
-                    self.assertNotIn("BLOCKED", got)
-                else:  # M, L: the failing QA sends BLOCKED; the Developer consults the advisor
-                    self.assertIn("`BLOCKED 5: 3 returns` to %s [%s]" % route, got)
-                    self.assertIn("tell the Developer to consult the advisor", got)
+            with self.subTest(line=line):
+                self.assertIn("`BLOCKED 5: 3 returns` to %s [%s]" % route, got)
+                self.assertIn("tell the Developer to consult the advisor", got)
 
     def test_two_fails_and_other_tasks_give_no_notice(self):
         for t, sha in (("05", "aaaaaaa"), ("06", "bbbbbbb"), ("05", "ccccccc"), ("06", "ddddddd")):

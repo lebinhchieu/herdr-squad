@@ -159,5 +159,41 @@ class LogMessageTest(unittest.TestCase):
         self.assertEqual(self.records(), [])
 
 
+    # ---- 3rd return notice: Team Lead iff `team-lead` is on the team, else Manager (AC 12) ----
+    def third_fail_notice(self, scope_md):
+        scope = self.squad / "scopes" / "sc1"
+        scope.mkdir(parents=True, exist_ok=True)
+        (scope / "scope.md").write_text(scope_md, encoding="utf-8", newline="")
+        lines = [payload("HANDIN 07: branch b, commit aaa1111", msg_id="h1"), payload("FAIL 07: a", msg_id="f1"),
+                 payload("HANDIN 07: branch b, commit bbb2222", msg_id="h2"), payload("FAIL 07: b", msg_id="f2"),
+                 payload("HANDIN 07: branch b, commit ccc3333", msg_id="h3")]
+        for d in lines:
+            self.run_hook_in({"SCOPE_DIR": str(scope)}, d)
+        r = self.run_hook_in({"SCOPE_DIR": str(scope)}, payload("FAIL 07: c", msg_id="f3"))
+        self.assertEqual(r.returncode, 0)
+        return r.stdout
+
+    def test_third_return_goes_to_team_lead_when_on_the_team(self):
+        out = self.third_fail_notice("team: ba, team-lead, tech-lead, qa-white\n")
+        self.assertIn("to Team Lead [LC-7b]", json.loads(out)["hookSpecificOutput"]["additionalContext"])
+
+    def test_third_return_goes_to_manager_without_team_lead(self):
+        out = self.third_fail_notice("team: qa-white, qa-black\n")
+        self.assertIn("to Manager [LC-7c]", json.loads(out)["hookSpecificOutput"]["additionalContext"])
+
+    def test_third_return_goes_to_manager_for_none_undecided_error_and_size(self):
+        for text in ("team: none\n", "team:\n", "team: ba, nobody\n", "size: L\n", "team: team-lead; touch X\n"):
+            with self.subTest(text=text):
+                self.setUp()
+                out = self.third_fail_notice(text)
+                self.assertIn("to Manager [LC-7c]", json.loads(out)["hookSpecificOutput"]["additionalContext"])
+                self.assertFalse((self.squad / "scopes" / "sc1" / "X").exists())
+                self.tearDown()
+
+    def test_third_return_notice_text_has_no_size_word(self):
+        out = self.third_fail_notice("team: team-lead\n")
+        self.assertNotRegex(out.lower(), r"\bsize\b")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -25,7 +25,23 @@ smode=none  # same rule as squadruntime.mode
 if [[ $smode == composed ]]; then
   rt_args=(--squad-dir "$squad_dir" --home "$home")
   [[ $dry != 1 ]] || rt_args+=(--dry-run)
-  "$bin/squad-process" runtime "${rt_args[@]}" >/dev/null || exit $?
+  runtime=$("$bin/squad-process" runtime "${rt_args[@]}") || exit $?
+  # Pinned scope below 0.6.0 (D7): its scope.md still says `size:`, so the pin's own squad-respawn runs with the same
+  # arguments. Never a fallback: a runtime without bin/squad-respawn refuses (nothing renamed). One hop: a runtime that
+  # is this very script, or a pin from 0.6.0 on, is not handed to again (a pinned 0.5.x script has no hand-off).
+  if [[ $home_var == SCOPE_DIR ]]; then
+    pin_ver=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$runtime/.claude-plugin/plugin.json" 2>/dev/null | head -n1) || pin_ver=""
+    [[ -n $pin_ver ]] || { pin_ver=$(basename "$runtime"); pin_ver=${pin_ver%-*}; }
+    if [[ $pin_ver =~ ^0\.([0-9]+)\. ]] && (( BASH_REMATCH[1] < 6 )) \
+       && [[ $(readlink -f "$runtime/bin/squad-respawn" 2>/dev/null) != "$(readlink -f "$0")" ]]; then
+      if [[ $dry == 1 ]]; then
+        echo "would hand off to the pinned runtime: $runtime/bin/squad-respawn $*"
+        exit 0
+      fi
+      [[ -f $runtime/bin/squad-respawn ]] || { echo "warning: pinned runtime $runtime (plugin $pin_ver) has no bin/squad-respawn; refusing, nothing renamed (the running engine would reject size: in $home/scope.md)" >&2; exit 1; }
+      exec "$runtime/bin/squad-respawn" "$@"
+    fi
+  fi
 fi
 
 # Split by hand: `read` with a tab IFS collapses an empty scope (the Manager has none) and shifts the columns.
@@ -53,7 +69,7 @@ title=$("$bin/squad-label" --get-title --home "$home" --agent "$name" 2>/dev/nul
 title_args=()
 [[ -z $title ]] || title_args=(--title "$title")
 
-# Every agent has its rules attached (squad-spawn composes them, so a size change shows); only the notes remain to read.
+# Every agent has its rules attached (squad-spawn composes them, so a team change shows); only the notes remain to read.
 prompt="RESPAWN: you are $name, restarted fresh. Read your notes \$$home_var/roles/$name.notes.md and continue from them."
 # --model/--effort recorded by squad-spawn survive the respawn. Values are checked, never evaluated.
 ovr_args=()

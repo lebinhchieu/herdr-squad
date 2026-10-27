@@ -50,7 +50,7 @@ class GateTest(unittest.TestCase):
         self.scope = self.squad / "scopes" / "s"
         self.scope.mkdir(parents=True)
         (self.squad / "process.md").write_text("x")
-        (self.scope / "scope.md").write_text("size: M\n")
+        (self.scope / "scope.md").write_text("team: ba, team-lead, tech-lead, qa-white, qa-black\n")
         (self.scope / "roster.md").write_text(ROSTER)
         fake = root / "fakebin"
         fake.mkdir()

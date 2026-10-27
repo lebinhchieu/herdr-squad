@@ -1,5 +1,6 @@
 """Ticket 08: effective settings = template + squad overlay (bin/squadsettings.py) and the squad-spawn wiring."""
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -184,7 +185,7 @@ exit 0
 
 class ComposedSpawnTest(Base):
     """A composed squad: the pinned runtime's template is the one merged, dry-run or not."""
-    VERSION = json.loads((ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))["version"]
+    VERSION = "0.6.0"  # the copy of the running plugin below stands for a release with the team language (no hand-off)
     SHA = "a" * 40
 
     def setUp(self):
@@ -194,9 +195,11 @@ class ComposedSpawnTest(Base):
         (self.squad / "settings").mkdir(parents=True)
         (self.squad / "scopes/sc1").mkdir(parents=True)
         (self.squad / "process.local.md").write_text("", encoding="utf-8")
-        (self.squad / "scopes/sc1/scope.md").write_text(f"# Scope\n\nplugin: {self.VERSION} {self.SHA}\n", encoding="utf-8")
+        (self.squad / "scopes/sc1/scope.md").write_text(f"# Scope\n\nteam: ba\nplugin: {self.VERSION} {self.SHA}\n", encoding="utf-8")
         rt = self.squad / "_runtime" / f"{self.VERSION}-{self.SHA[:12]}"
         shutil.copytree(ROOT, rt, ignore=shutil.ignore_patterns(".git", ".worktrees", ".scratch", "tests", "__pycache__"))
+        pj = rt / ".claude-plugin" / "plugin.json"
+        pj.write_text(re.sub(r'("version"\s*:\s*)"[^"]*"', rf'\1"{self.VERSION}"', pj.read_text(encoding="utf-8")), encoding="utf-8")
         d = json.loads((rt / "templates/squad/settings/dev.json").read_text(encoding="utf-8"))
         d["permissions"]["allow"].append("Bash(pinned-only:*)")
         (rt / "templates/squad/settings/dev.json").write_text(json.dumps(d), encoding="utf-8")

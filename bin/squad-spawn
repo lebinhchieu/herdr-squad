@@ -40,6 +40,7 @@ EOF
 }
 
 [[ $# -lt 2 || $1 == -h || $1 == --help ]] && { usage; exit 2; }
+orig_args=("$@")  # for the hand-off to a pinned runtime (D7)
 role=$1 name=$2; shift 2
 squad=${SQUAD:-} scope="" goal="" repo="" base="" worktree="" prompt="" title="" model="" effort="" dry=0
 while [[ $# -gt 0 ]]; do
@@ -97,7 +98,7 @@ project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
 
 # Per-scope squads keep each agent's roster, notes and logs in its scope folder (a goal Manager: its goal folder).
 # A flat squad (no scopes/ folder; legacy flat layout) keeps them all in the squad folder.
-home=$squad_dir scope_dir="" goal_dir=""
+home=$squad_dir scope_dir="" goal_dir="" runtime=""
 if [[ -d $squad_dir/scopes ]]; then
   [[ -z $scope || -z $goal ]] || { echo "pass --scope or --goal, not both" >&2; exit 2; }
   if [[ -n $goal ]]; then
@@ -108,13 +109,43 @@ if [[ -d $squad_dir/scopes ]]; then
     [[ -n $scope ]] || { echo "this squad is per-scope: pass --scope or --goal" >&2; exit 2; }
     scope_dir=$squad_dir/scopes/$scope home=$scope_dir
     [[ -d $scope_dir ]] || { echo "no scope folder at $scope_dir (run squad-start)" >&2; exit 1; }
-    if [[ $role == designer ]] && ! grep -qiE '^design:[[:space:]]*yes[[:space:]]*$' "$scope_dir/scope.md" 2>/dev/null; then
-      echo "scope $scope has no 'design: yes' in scope.md; only the PO turns the designer on" >&2
-      exit 1
+    # Pinned scope below 0.6.0 (D7): its scope.md still says `size:` and its rules are the pin's, so the pin's own
+    # squad-spawn runs with the same arguments (its gate, compose and prompts). Never a fallback: a runtime without
+    # bin/squad-spawn refuses, nothing created. One hop: a runtime that is this very script, or a pin from 0.6.0 on,
+    # is not handed to again (the pinned 0.5.x script has no hand-off, so there is no exec loop).
+    if [[ $smode == composed ]]; then
+      rt_args=(--squad-dir "$squad_dir" --home "$home" --plugin-root "$plugin_root")
+      [[ $dry != 1 ]] || rt_args+=(--dry-run)
+      runtime=$("$plugin_root/bin/squad-process" runtime "${rt_args[@]}") || exit $?
+      pin_ver=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$runtime/.claude-plugin/plugin.json" 2>/dev/null | head -n1) || pin_ver=""
+      [[ -n $pin_ver ]] || { pin_ver=$(basename "$runtime"); pin_ver=${pin_ver%-*}; }
+      if [[ $pin_ver =~ ^0\.([0-9]+)\. ]] && (( BASH_REMATCH[1] < 6 )) \
+         && [[ $(readlink -f "$runtime/bin/squad-spawn" 2>/dev/null) != "$(readlink -f "$0")" ]]; then
+        if [[ $dry == 1 ]]; then
+          echo "would hand off to the pinned runtime: $runtime/bin/squad-spawn ${orig_args[*]}"
+          exit 0
+        fi
+        [[ -f $runtime/bin/squad-spawn ]] || { echo "warning: pinned runtime $runtime (plugin $pin_ver) has no bin/squad-spawn; refusing, nothing created (the running engine would reject size: in $scope_dir/scope.md)" >&2; exit 1; }
+        exec "$runtime/bin/squad-spawn" "${orig_args[@]}"
+      fi
     fi
-    if [[ $role == architect ]] && ! grep -qiE '^architecture:[[:space:]]*yes[[:space:]]*$' "$scope_dir/scope.md" 2>/dev/null; then
-      echo "scope $scope has no 'architecture: yes' in scope.md; only the PO turns the architect on" >&2
-      exit 1
+    # Team gate: a role not on the team is refused before any worktree, label or herdr call. Only the Manager may be
+    # spawned while the team is undecided. `squad-process team` prints tokens of a fixed set and exits 2 on an
+    # old-format scope.md, a bad `team:` line or a bad pin line; its text is only echoed, never evaluated.
+    if team_err=$("$plugin_root/bin/squad-process" team --home "$scope_dir" --has "$role" 2>&1 >/dev/null); then :
+    else
+      team_rc=$?
+      if [[ $team_rc == 1 ]]; then
+        team_now=$("$plugin_root/bin/squad-process" team --home "$scope_dir" 2>/dev/null) || team_now=""
+        if [[ $team_now == undecided ]]; then
+          echo "scope $scope: the team is undecided in $scope_dir/scope.md; only the Manager can be spawned until a team: line decides it" >&2
+        else
+          echo "scope $scope: role $role is not on the team in $scope_dir/scope.md (team: ${team_now:-?}); only the PO adds the designer or architect" >&2
+        fi
+        exit 1
+      fi
+      printf '%s\n' "$team_err" >&2
+      exit "$team_rc"
     fi
     in_goal=$(sed -n 's/^goal:[[:space:]]*//p' "$scope_dir/scope.md" 2>/dev/null | head -1 | tr -d '[:space:]')
     if [[ -n $in_goal ]]; then
@@ -152,7 +183,7 @@ plugin_dir=${SQUAD_PLUGIN_DIR:-} rules_args=() runtime_env=()
 if [[ $smode == composed ]]; then
   rt_args=(--squad-dir "$squad_dir" --home "$home" --plugin-root "$plugin_root")
   [[ $dry != 1 ]] || rt_args+=(--dry-run)
-  runtime=$("$plugin_root/bin/squad-process" runtime "${rt_args[@]}") || exit $?
+  [[ -n ${runtime:-} ]] || runtime=$("$plugin_root/bin/squad-process" runtime "${rt_args[@]}") || exit $?
   rules=$home/roles/$name.rules.md
   if [[ $dry != 1 ]]; then
     mkdir -p "$home/roles"

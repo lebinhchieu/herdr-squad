@@ -46,7 +46,7 @@ class Base(unittest.TestCase):
             f.write(f"| {name} | dev | s |  | live | 00000000-0000-0000-0000-000000000001 |\n")
 
     def scope_md(self, *lines):
-        (self.scope / "scope.md").write_text("# Scope: s\n\nsize: M\n" + "".join(l + "\n" for l in lines), encoding="utf-8")
+        (self.scope / "scope.md").write_text("# Scope: s\n\nteam: ba, qa-white\n" + "".join(l + "\n" for l in lines), encoding="utf-8")
 
     def settings(self, role, data):
         (self.squad / "settings").mkdir(exist_ok=True)
@@ -140,6 +140,8 @@ class ParseTest(Base):
     def test_a_scope_made_from_the_template_has_no_override(self):
         text = TEMPLATE.read_text(encoding="utf-8").replace("{{name}}", "s").replace("{{brief}}", "b").replace("{{goal}}", "").replace("{{touches}}", "")
         self.assertIn("model <role>: <model> <effort>", text)
+        text = text.replace("\nteam:\n", "\nteam: none\n")  # the template's blank team: is undecided; only the Manager spawns then
+        self.assertIn("team: none", text)
         (self.scope / "scope.md").write_text(text, encoding="utf-8")
         self.assertRegex(self.dry(), r"--model sonnet --effort medium\b")
 

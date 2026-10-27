@@ -46,6 +46,9 @@ def make_plugin(dest):
     """Copy of this plugin plus the fixture rule files, committed in a fresh repo -> (path, version, sha)."""
     dest = Path(dest)
     shutil.copytree(ROOT, dest, ignore=shutil.ignore_patterns(".git", ".worktrees", ".scratch", "tests", "__pycache__"))
+    # The copy stands for a release that has the team language (0.6.0): a pin below it is handed to its own engine.
+    pj = dest / ".claude-plugin" / "plugin.json"
+    pj.write_text(re.sub(r'("version"\s*:\s*)"[^"]*"', r'\1"0.6.0"', pj.read_text(encoding="utf-8")), encoding="utf-8")
     pdir = dest / "templates" / "squad" / "process"
     pdir.mkdir(parents=True, exist_ok=True)
     for f in (FIX / "templates" / "squad" / "process").glob("*.md"):
@@ -85,12 +88,12 @@ class Base(unittest.TestCase):
     def composed(self):
         (self.squad / "process.local.md").write_text("", encoding="utf-8")
 
-    def scope(self, name="sc1", size="M", pin="default", goal=""):
+    def scope(self, name="sc1", team="ba, team-lead, tech-lead, qa-white, qa-black", pin="default", goal=""):
         d = self.squad / "scopes" / name
         d.mkdir(parents=True, exist_ok=True)
         (d / "roles").mkdir(exist_ok=True)
         pin = f"{self.version} {self.sha}" if pin == "default" else pin
-        text = f"# Scope: {name}\n\ngoal: {goal}\ntouches: x\nsize: {size}\nqa: full\ndesign: no\n"
+        text = f"# Scope: {name}\n\ngoal: {goal}\ntouches: x\nteam: {team}\nqa: full\n"
         if pin:
             text += f"plugin: {pin}\n"
         (d / "scope.md").write_text(text + "\n## Constraints\n", encoding="utf-8", newline="\n")
@@ -314,7 +317,7 @@ class SpawnComposedTest(Base):
         self.assertIn(f"SQUAD_PLUGIN_DIR={self.runtime_dir()}", tab)
         text = rules.read_text(encoding="utf-8")
         self.assertTrue(text.startswith("# Your process rules"), text[:60])
-        self.assertIn("agent: t-dev-sc1 · role: dev · scope: sc1 (size M", text)
+        self.assertIn("agent: t-dev-sc1 · role: dev · scope: sc1 (design no, qa full, goal no)", text)
         self.assertIn(f"plugin: {self.version} {self.sha}", text)
         self.assertTrue((self.runtime_dir() / "bin" / "squad-spawn").is_file())
 
@@ -426,21 +429,21 @@ class RespawnComposedTest(Base):
     def respawn(self):
         return self.run_bin("squad-respawn", "t-qaw-sc1")
 
-    def test_a_size_change_shows_in_the_new_rules_and_the_prompt_points_at_the_notes(self):
+    def test_a_team_change_shows_in_the_new_rules_and_the_prompt_points_at_the_notes(self):
         self.assertEqual(self.run_bin("squad-usage", "--squad-dir", str(self.squad / "scopes" / "sc1"),
                                       "--set-session", "t-qaw-sc1", "00000000-0000-0000-0000-000000000001",
                                       "--role", "qa-whitebox", "--scope", "sc1").returncode, 0)
         sc = self.squad / "scopes" / "sc1" / "scope.md"
-        sc.write_text(sc.read_text(encoding="utf-8").replace("size: M", "size: S"), encoding="utf-8", newline="\n")
+        sc.write_text(sc.read_text(encoding="utf-8").replace("qa-black", "qa-black, designer"), encoding="utf-8", newline="\n")
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
         small = self.rules.read_text(encoding="utf-8")
-        self.assertIn("(size S", small)
-        sc.write_text(sc.read_text(encoding="utf-8").replace("size: S", "size: M"), encoding="utf-8", newline="\n")
+        self.assertIn("(design yes", small)
+        sc.write_text(sc.read_text(encoding="utf-8").replace("qa-black, designer", "qa-black"), encoding="utf-8", newline="\n")
         self.log.unlink()
         self.assertEqual(self.respawn().returncode, 0)
         big = self.rules.read_text(encoding="utf-8")
-        self.assertIn("(size M", big)
+        self.assertIn("(design no", big)
         self.assertNotEqual(small, big)
         prompt = [ln for ln in self.herdr().splitlines() if ln.startswith("agent prompt")][0]
         self.assertIn("roles/t-qaw-sc1.notes.md", prompt)

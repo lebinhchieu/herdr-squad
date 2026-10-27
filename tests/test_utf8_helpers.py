@@ -52,7 +52,7 @@ class Base(unittest.TestCase):
         self.scope = self.squad / "scopes" / "s1"
         self.scope.mkdir(parents=True)
         (self.squad / "process.md").write_text("x", encoding="utf-8")
-        (self.scope / "scope.md").write_text("design: yes\n", encoding="utf-8")
+        (self.scope / "scope.md").write_text("team: ba, team-lead, tech-lead, qa-white, qa-black, designer, architect\n", encoding="utf-8")
         (self.scope / "roster.md").write_text("| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n",
                                               encoding="utf-8", newline="\n")
         fake = self.root / "fakebin"
