@@ -1,5 +1,5 @@
 # Evidence: 01 Engine vocabulary (squadrules)
-sha: see HANDIN (branch squad/plugin/drop-scope-size/plugin-dev-dsz-1)
+sha: d5a4b9c
 
 ## Behaviour
 - `bin/squadrules.py`: `TEAM_KEYS` (7), `ROLE_KEY` (2), `PRESENCE_KEY`, `DUTIES` (13 chains), `resolve_duties`, `team_facts`, `legacy_team`, `parse_team`, `role_key`, `check_when_combination`; `WHEN_KEYS` gains `ba team-lead tech-lead qa-white qa-black` and the 13 duty keys (`size`, `qa-b` stay); `FILE_ORDER` gains `TEAM` after `SIZE`.
