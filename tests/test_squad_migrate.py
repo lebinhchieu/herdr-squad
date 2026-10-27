@@ -1,12 +1,15 @@
 """squad-migrate: flat squad -> per-scope, and scope -> goal. Temp folders only."""
 import datetime
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-migrate"
+BIN = Path(__file__).resolve().parent.parent / "bin"
+# The scope template is a fixture here (the tree's template changes in another ticket): the contract is a `team:` line.
+TEMPLATE = "# Scope: {{name}}\n\n**{{brief}}**\n\ngoal: {{goal}}\ntouches: {{touches}}\nteam:\nqa: full\n\n## Constraints\n- one\n"
 HEAD = "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
 ROWS = ["| mgr | Manager | all | the run | live | s0 |",
         "| dev-1 | dev | board | task | live | s1 |",
@@ -26,13 +29,18 @@ class Base(unittest.TestCase):
         self.squad.mkdir(parents=True)
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
         self.env.update(SQUAD_DIR=str(self.squad), PYTHONDONTWRITEBYTECODE="1")
+        plugin = self.root / "plugin"
+        shutil.copytree(BIN, plugin / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(BIN.parent / "templates", plugin / "templates")
+        (plugin / "templates" / "scope" / "scope.md").write_text(TEMPLATE, encoding="utf-8")
+        self.script = plugin / "bin" / "squad-migrate"
         self.backup = self.root / ".claude" / "squad-backups" / f"t-{datetime.date.today()}"
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def migrate(self, *args):
-        return subprocess.run([str(SCRIPT), "t", *args], env=self.env, cwd=self.root, text=True, encoding="utf-8",
+        return subprocess.run([str(self.script), "t", *args], env=self.env, cwd=self.root, text=True, encoding="utf-8",
                               capture_output=True, timeout=30)
 
     def tree(self, base=None):
@@ -75,7 +83,8 @@ class ToPerScopeTest(Base):
         scope_md = (sc / "scope.md").read_text(encoding="utf-8")
         self.assertIn("# Scope: board", scope_md)
         self.assertIn("**Build the thing, as specced.**", scope_md)
-        self.assertIn("size: S + QA whitebox\n", scope_md)
+        self.assertIn("\nteam: none\n", scope_md)  # `S + QA whitebox` -> the first token, S
+        self.assertNotRegex(scope_md, r"(?m)^size:")
         self.assertIn("goal:", scope_md)
         self.assertNotIn("{{", scope_md)
         self.assertIn("checked", r.stdout)
@@ -157,7 +166,8 @@ class ToPerScopeTest(Base):
         r = self.migrate("--to", "per-scope", "--scope", "board")
         self.assertEqual(r.returncode, 0, r.stderr)
         text = (self.squad / "scopes" / "board" / "scope.md").read_text(encoding="utf-8")
-        self.assertIn("size:\n", text)
+        self.assertRegex(text, r"(?m)^team:$")
+        self.assertNotRegex(text, r"(?m)^(size|design|architecture):")
         self.assertIn("Migrated from the flat layout", text)
         self.assertFalse((self.squad / "scopes" / "board" / "legacy" / "scopes.md").exists())
 

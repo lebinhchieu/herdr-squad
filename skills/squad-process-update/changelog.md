@@ -35,8 +35,51 @@ changed:
 - ITER-6: the Coach prompt names the team, not the size
 - ITER-6a: Coach on request when no QA and no Team Lead (`handin-target = manager`); was S
 - ITER-6b: Coach at every close with a QA or Team Lead; was M and L
+- TEAM-1: Done when QA whitebox is the only QA (`qa-white = yes and qa-black = no`)
+- TEAM-2: Done when QA blackbox is the only QA
+- TEAM-3: Done with no QA on the team: the Developer's evidence confirmed by the code-check owner
+- TEAM-4: QA whitebox checks the Developer's `## Behaviour` when no QA blackbox is on the team
+- TEAM-5: the BA owns the business AC alone when no QA blackbox is on the team
+- TEAM-6: the Tech Lead confirms the Developer's `## Review` when no QA whitebox is on the team
+- TEAM-7: removing a role (iteration boundary, PO's OK, Handover names the new owner)
+
+changed:
+- SIZE-1: now the team proposal table (a row for every role), signals and risk flags; was the size proposal. Body rewritten, ID kept because starting.md cites it
+- SIZE-2: now Done = every checker, both QAs variant (`qa-white = yes and qa-black = yes`); was the table of three sizes. ID kept: starting, lifecycle and spawning cite it
+- SIZE-5a: business AC are the ticket when `business-ac = ticket`; the move-to-L sentence is now add the BA
+- SIZE-5c: acts for QA blackbox only (`business-ac = ticket and qa-black = yes`); the Manager part moved to SIZE-5a so no absent role acts
+- SIZE-6c: one Developer-duties rule for `plan-owner = manager`, copying the `duties:` header line; was the S variant of two twins
+- SIZE-11a: when `doubt-owner = manager`; the scope moves to L is now add the BA
+- SIZE-13: now adding a role by late signal; was moving a scope up a size. ID kept: review.md and who.md cite it
+- SIZE-14: now a late signal found while building, add the role; was a behaviour change in S. ID kept: messages.md cites it
+- SIZE-16: Handover on adding a role; wording only, no size
+- SIZE-17a: joining a scope already under way; composes only with its own role on the team (`<role> = yes`), wording without size
+- SIZE-17b: joining a scope already under way; composes only with its own role on the team (`<role> = yes`), wording without size
+- SIZE-17c: joining a scope already under way; composes only with its own role on the team (`<role> = yes`), wording without size
+- SIZE-17d: joining a scope already under way; composes only with its own role on the team (`<role> = yes`), wording without size
+- SIZE-17e: joining a scope already under way; composes only with its own role on the team (`<role> = yes`), wording without size
+- SIZE-23c: QA whitebox checks the diff against `architecture.md` whenever it is on the team (`qa-white = yes and architecture = yes`); adds it to the AC when it owns it
+- SIZE-23d: acts for the Tech Lead only (`tech-ac = tech-lead and architecture = yes`); QA whitebox's check moved to SIZE-23c so no absent role acts
+- SIZE-18: extra hands when `plan-owner = team-lead`
+- SIZE-21a: now spawning the confirmed team (every team); was spawn without QA blackbox at M. ID kept: history snapshots cite it
+- SIZE-22: now the duty owner chain table by team; was the table by size. ID kept: promotion.md cites it
+- SIZE-9: dropped the words in every size; the duty is unchanged
+- SIZE-9a: dropped the words in every size; the duty is unchanged
+- SIZE-10a: wording only, no size
+- SIZE-10b: wording only, no size
+- SIZE-11b: the BA tells the plan owner instead of the Team Lead, so no absent role is named
 
 removed:
+- SIZE-3: the Manager proposes the Designer from signals; replaced by SIZE-1
+- SIZE-3a: the Manager proposes the Architect from signals; replaced by SIZE-1
+- SIZE-4: signals and risk flags fold into the team proposal; replaced by SIZE-1
+- SIZE-6d: twin of SIZE-6c; replaced by SIZE-6c
+- SIZE-12: duties of a missing role are the duty owner chains; replaced by SIZE-22
+- SIZE-15: moving down is removing a role; replaced by TEAM-7
+- SIZE-19: QA blackbox off is a non-pick of the proposal; replaced by SIZE-1
+- SIZE-20: Done without QA blackbox is a Done variant; replaced by TEAM-1
+- SIZE-21b: twin of SIZE-21a; replaced by SIZE-21a
+- SIZE-22a: Architect rows fold into the chain table; replaced by SIZE-22
 
 retargeted:
 - WHO-1a: `when: plan-owner = manager` (was size in S, M)
@@ -67,6 +110,17 @@ retargeted:
 - CLOSE-3c: `when: goal = yes and tech-lead = no` (was goal = yes and size in S, M)
 - NOTE-3: no `when:`, the Team Lead only (was size = L)
 - ITER-3: no `when:`, the Team Lead only (was size = L)
+- SIZE-5b: `when: business-ac = ba and qa-black = yes` (was size = L and qa-b = yes)
+- SIZE-6a: `when: plan-owner = manager` (was size in S, M)
+- SIZE-6b: `when: plan-owner = team-lead` (was size = L)
+- SIZE-7a: `when: code-check = manager` (was size = S)
+- SIZE-7b: `when: code-check = qa-white` (was size in M, L)
+- SIZE-8a: `when: behaviour-check = manager` (was size = S)
+- SIZE-8b: `when: behaviour-check = qa-black` (was size in M, L and qa-b = yes)
+- SIZE-10a: `when: ui-check = manager and design = yes` (was size = S and design = yes)
+- SIZE-10b: `when: ui-check = qa-black and design = yes` (was size in M, L and design = yes)
+- SIZE-23b: `when: tech-ac = qa-white` (was size = M)
+- SIZE-24b: `when: promote-owner = qa-white` (was size = M)
 
 ## v8 — 2026-10-27
 - snapshot: history/process-v8/
@@ -438,6 +492,13 @@ retargeted:
 - SAFE-11: scratch dirs: `cd` out before `rm`; Claude Code denies removing the cwd or an ancestor
 - SIZE-1: points at START-3b: the size proposal carries the team's models
 - ITER-6: the spawn line carries --prompt (scope, output file, message back); the Coach no longer starts idle
+- SIZE-23c: QA whitebox checks the diff against `architecture.md` whenever it is on the team (`qa-white = yes and architecture = yes`); adds it to the AC when it owns it
+- SIZE-23d: acts for the Tech Lead only (`tech-ac = tech-lead and architecture = yes`); QA whitebox's check moved to SIZE-23c so no absent role acts
+- SIZE-17a: also gated on `ba = yes`, so it composes only for a BA on the team
+- SIZE-17b: also gated on `team-lead = yes`
+- SIZE-17c: also gated on `qa-white = yes`
+- SIZE-17d: also gated on `qa-black = yes`
+- SIZE-17e: also gated on `tech-lead = yes`
 - SIZE-18: extra hands only exist at L: when size = L
 - SPAWN-4: the Manager's plan, not the absent Tech Lead's (S and M)
 - CLOSE-1: closing keeps the Manager on scope and goal close (squad-close spares it); squad close still retires all

@@ -94,7 +94,7 @@ function header() {
   var h = el("header", "page"), l = el("div"), t = el("h1", null, S.name);
   var running = S.status === "running";
   add(t, el("span", "chip " + (running ? "run" : "done"), running ? "running · partial" : (S.status || "done")),
-    el("span", "chip", "size " + (S.size || "?")));
+    el("span", "chip", S.team ? "team " + S.team : S.size ? "size " + S.size : "team ?"));
   add(l, t, el("div", "muted", "Scope report · " + hm(S.window && S.window.start) + " → " + (running ? "now" : hm(S.window && S.window.end))));
   var m = el("div", "meta");
   add(m, document.createTextNode("Generated " + hm(S.generated_at)), el("br"),

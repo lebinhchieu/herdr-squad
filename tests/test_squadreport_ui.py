@@ -162,6 +162,19 @@ class ShellDom(unittest.TestCase):
         d["scope"]["rollup_href"] = "https://evil/x.html"
         self.assertNotIn("Rollup:", dump_dom(d))
 
+    def chip_texts(self, **scope):
+        d = fxs.base()
+        d["scope"].update(scope)
+        return re.findall(r'<span class="chip">([^<]*)</span>', dump_dom(d))
+
+    def test_header_chip_old_size_new_team_and_empty(self):
+        self.assertIn("size M", self.chip_texts(size="M", team=""))
+        self.assertIn("team qa-white, qa-black", self.chip_texts(size="", team="qa-white, qa-black"))
+        self.assertIn("team ?", self.chip_texts(size="", team=""))
+        self.assertNotIn("size ?", self.chip_texts(size="", team=""))
+        self.assertNotIn("team undecided", self.chip_texts(size="L", team=""))
+        self.assertIn("team undecided", self.chip_texts(size="", team="undecided"))
+
 
 def banners(dom):
     dom = re.sub(r"<noscript>.*?</noscript>", "", dom, flags=re.S)

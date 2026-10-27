@@ -77,7 +77,7 @@ def build(tmp, origin=True):
     }
     esc = [sr.Escalation("E1", "T" * 300, B + 1200, B + 1800), sr.Escalation("E2", "Second", B + 4000, None)]
     roster = [{"Agent": "dev2", "Role": "developer", "Owns": "ticket 09"}]
-    c = sr.Collected(home, "sq", "sc", "M", (B, B + 5000), agents, msgs, esc, roster,
+    c = sr.Collected(home, "sq", "sc", "M", "", (B, B + 5000), agents, msgs, esc, roster,
                      {"min_segment_s": 30}, {"harness_origin": origin}, [])
     return c
 
