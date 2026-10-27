@@ -13,8 +13,9 @@ class PodRulesTest(unittest.TestCase):
 
     def test_plan_duty_is_manager_in_s_and_m(self):  # was test_plan_duty_row_is_tech_lead_in_s_only
         self.assertIn("manager", acts("SIZE-6a", "S"))
-        self.assertIn("team-lead", acts("LC-15", "L"))
-        self.assertEqual(acts("LC-15", "S"), ())
+        self.assertEqual(acts("LC-15", "plan-owner = team-lead"), ("team-lead",))
+        self.assertEqual(acts("LC-15", "plan-owner = manager"), ())
+        self.assertEqual(acts("LC-17b", "plan-owner = manager"), ("manager",))
 
     # deleted: test_s_row_is_unchanged (compared the v6 size table with V3; the table is in SIZE rules, covered by test_squadrules)
 

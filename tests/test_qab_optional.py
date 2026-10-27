@@ -65,8 +65,7 @@ class NoLineUnchanged(unittest.TestCase):
 
 class QabNo(unittest.TestCase):
     def test_qa_blackbox_rule_blocks_never_compose_with_their_variant(self):
-        pairs = {"REV-13b": ("REV-19", "REV-19b"), "REV-14b": ("REV-19",), "REV-14c": ("REV-19b",), "LC-20b": ("REV-19",),
-                 "LC-20c": ("REV-19b",), "EVID-3b": ("EVID-7",),
+        pairs = {"REV-13b": ("REV-19b", "REV-13d"), "REV-19b": ("REV-13d",), "EVID-3b": ("EVID-7", "EVID-8"),
                  "REV-8": ("REV-21",), "SIZE-5b": ("REV-21",)}
         for size in "ML":
             for base, variants in pairs.items():
@@ -77,18 +76,16 @@ class QabNo(unittest.TestCase):
                             if base in ids(t) and var in ids(t):
                                 self.fail(f"{base} and {var} both compose for {role} at {size} qa-b {qab}")
 
-    @unittest.skip("05: review.md/evidence.md still key on size and qa-b (ticket 07 retargets them); re-enable at integration")
     def test_dev_gets_behaviour_per_ac_and_no_blackbox_handin(self):
-        t = compose("dev", "M", "no").stdout
-        self.assertIn("EVID-6", ids(t))
-        self.assertIn("REV-19b", ids(t))
-        self.assertNotIn("REV-19", ids(t))
-        self.assertIn("REV-19", ids(compose("dev", "L", "no").stdout))
-        for gone in ("REV-13b", "REV-14b", "REV-14c", "LC-20b", "LC-20c"):
-            self.assertNotIn(gone, ids(t))
-        body = re.search(r"(?ms)^## REV-19b .*?(?=^## |\Z)", t).group(0)
-        self.assertNotIn("QA blackbox", body.replace("no QA blackbox", ""))
-        self.assertNotIn("both QAs", t)
+        for size in "ML":
+            t = compose("dev", size, "no").stdout
+            self.assertIn("EVID-6", ids(t))
+            self.assertIn("REV-19b", ids(t))
+            for gone in ("REV-13b", "REV-13d"):
+                self.assertNotIn(gone, ids(t))
+            body = re.search(r"(?ms)^## REV-19b .*?(?=^## |\Z)", t).group(0)
+            self.assertNotIn("QA blackbox", body.replace("no QA blackbox", ""))
+            self.assertNotIn("both QAs", t)
         y = compose("dev", "M", "yes").stdout
         self.assertIn("REV-13b", ids(y))
         self.assertNotIn("REV-19b", ids(y))
@@ -105,13 +102,12 @@ class QabNo(unittest.TestCase):
         for gone in ("REV-8", "SIZE-5b"):
             self.assertNotIn(gone, ids(t))
 
-    @unittest.skip("05: review.md/evidence.md still key on size and qa-b (ticket 07 retargets them); re-enable at integration")
     def test_m_without_qa_blackbox_has_no_ba_in_rev_21(self):
-        self.assertEqual(who("REV-21")["M"], ((), ()))
-        self.assertEqual(who("REV-21b")["M"][0], ("qa-whitebox",))
         t = compose("qa-whitebox", "M", "no").stdout
         self.assertIn("REV-21b", ids(t))
-        self.assertNotIn("REV-21 ", t.replace("REV-21b", ""))
+        self.assertNotIn("REV-21", ids(t))
+        self.assertEqual(who("REV-21")["business-ac = ticket"], ((), ()))
+        self.assertEqual(who("REV-21b")["business-ac = ticket"][0], ("qa-whitebox",))
         self.assertIn("REV-21", ids(compose("ba", "L", "no").stdout))
         self.assertNotIn("REV-21b", ids(compose("qa-whitebox", "L", "no").stdout))
 
@@ -128,11 +124,10 @@ class QabNo(unittest.TestCase):
                              capture_output=True, encoding="utf-8").stdout
         self.assertIn("behaviour-check = manager: acts: -; aware: -", out)
         self.assertIn("behaviour-check = qa-black: acts: qa-blackbox; aware: -", out)
-        for rid in ("REV-9", "REV-11", "REV-13b", "SPAWN-2b"):
-            out = subprocess.run([sys.executable, "-B", str(ROOT / "bin" / "squad-process"), "who", rid],
-                                 capture_output=True, encoding="utf-8").stdout
-            self.assertIn("M qa-b no: acts: -; aware: -", out, rid)
-            self.assertNotIn("M qa-b yes: acts: -", out, rid)
+        for rid in ("REV-13d", "REV-18a"):  # rules a team without QA blackbox never composes (its own role is not on the team)
+            for size in "ML":
+                for role in (r for r in ROLE_LIST if r != "qa-blackbox"):
+                    self.assertNotIn(rid, ids(compose(role, size, "no").stdout), (rid, role, size))
 
 
 class QabNoWithDesign(unittest.TestCase):
