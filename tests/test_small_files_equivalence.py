@@ -85,5 +85,85 @@ class SevenShapeEquivalence(unittest.TestCase):
                 self.assertEqual(got, want)
 
 
+# Rewritten or retargeted rules (body or roles changed): the same check. The two known differences are by design:
+# WHO-1b is now the one unconditional "Task done" row (the Manager sees it at every shape; base L only) and WHO-2b
+# (promotion owner QA whitebox) is not the Manager's when the Developer promotes (S).
+CHANGED_IDS = "WHO-1a WHO-1b WHO-2 WHO-2d WHO-2e WHO-2b WHO-2c WHO-3a WHO-3b WHO-8a WHO-8b START-1 START-2a START-2c START-3 START-3b START-19 FILE-5a FILE-5b FILE-6 FILE-7 FILE-10 GOAL-3a GOAL-3c GOAL-6b GOAL-6d PROMO-3a PROMO-3b PROMO-5b CLOSE-1 CLOSE-3c ITER-1 ITER-3b ITER-6 ITER-6a ITER-6b".split()
+CHANGED = {
+    "L/architect": "",
+    "L/ba": "WHO-1b WHO-2c PROMO-3a",
+    "L/designer": "",
+    "L/dev": "",
+    "L/manager": "WHO-1b WHO-2 WHO-2c WHO-3b WHO-8b START-1 START-2c START-3 START-3b START-19 FILE-5b FILE-6 FILE-7 GOAL-6b CLOSE-1 ITER-1 ITER-6 ITER-6b",
+    "L/qa-blackbox": "",
+    "L/qa-whitebox": "",
+    "L/team-lead": "WHO-1b WHO-3b FILE-7",
+    "L/tech-lead": "WHO-1b WHO-2 WHO-2c FILE-7 GOAL-6b",
+    "Lgoal/architect": "",
+    "Lgoal/ba": "WHO-1b WHO-2c PROMO-3a",
+    "Lgoal/designer": "",
+    "Lgoal/dev": "",
+    "Lgoal/manager": "WHO-1b WHO-2 WHO-2c WHO-3b WHO-8b START-1 START-2c START-3 START-3b START-19 FILE-5b FILE-6 FILE-7 FILE-10 GOAL-6b CLOSE-1 ITER-1 ITER-6 ITER-6b",
+    "Lgoal/qa-blackbox": "",
+    "Lgoal/qa-whitebox": "",
+    "Lgoal/team-lead": "WHO-1b WHO-3b FILE-7",
+    "Lgoal/tech-lead": "WHO-1b WHO-2 WHO-2c FILE-7 FILE-10 GOAL-3a GOAL-6b",
+    "M/architect": "",
+    "M/ba": "",
+    "M/designer": "",
+    "M/dev": "",
+    "M/manager": "WHO-1a WHO-2d WHO-2b WHO-3a WHO-8a START-1 START-2a START-3 START-3b START-19 FILE-5a FILE-6 FILE-7 GOAL-6b PROMO-5b CLOSE-1 ITER-1 ITER-3b ITER-6 ITER-6b",
+    "M/qa-blackbox": "",
+    "M/qa-whitebox": "",
+    "M/team-lead": "FILE-7",
+    "M/tech-lead": "FILE-7 GOAL-6b",
+    "March/architect": "WHO-2e",
+    "March/ba": "",
+    "March/designer": "",
+    "March/dev": "",
+    "March/manager": "WHO-1a WHO-2d WHO-2e WHO-2b WHO-3a WHO-8a START-1 START-2a START-3 START-3b START-19 FILE-5a FILE-6 FILE-7 GOAL-6b PROMO-5b CLOSE-1 ITER-1 ITER-3b ITER-6 ITER-6b",
+    "March/qa-blackbox": "",
+    "March/qa-whitebox": "",
+    "March/team-lead": "FILE-7",
+    "March/tech-lead": "WHO-2e FILE-7 GOAL-6b",
+    "Mdesign/architect": "",
+    "Mdesign/ba": "",
+    "Mdesign/designer": "",
+    "Mdesign/dev": "",
+    "Mdesign/manager": "WHO-1a WHO-2d WHO-2b WHO-3a WHO-8a START-1 START-2a START-3 START-3b START-19 FILE-5a FILE-6 FILE-7 GOAL-6b PROMO-5b CLOSE-1 ITER-1 ITER-3b ITER-6 ITER-6b",
+    "Mdesign/qa-blackbox": "",
+    "Mdesign/qa-whitebox": "",
+    "Mdesign/team-lead": "FILE-7",
+    "Mdesign/tech-lead": "FILE-7 GOAL-6b",
+    "S/architect": "",
+    "S/ba": "",
+    "S/designer": "",
+    "S/dev": "",
+    "S/manager": "WHO-1a WHO-2d WHO-2b WHO-3a WHO-8a START-1 START-2a START-3 START-3b START-19 FILE-5a FILE-6 FILE-7 GOAL-6b PROMO-3b PROMO-5b CLOSE-1 ITER-1 ITER-6 ITER-6a",
+    "S/qa-blackbox": "",
+    "S/qa-whitebox": "",
+    "S/team-lead": "FILE-7",
+    "S/tech-lead": "FILE-7 GOAL-6b",
+}
+
+
+
+class ChangedRulesEquivalence(unittest.TestCase):
+    def test_changed_rules_same_per_shape_and_role_except_the_two_known(self):
+        for key, want in CHANGED.items():
+            shape, role = key.split("/")
+            if role not in ("manager", "dev") and ROLE_KEY.get(role, role) not in legacy_team(*SHAPE_ARGS[shape]):
+                continue
+            with self.subTest(key):
+                text = composed(role, **SHAPES[shape])
+                got = {i for i in CHANGED_IDS if re.search(r"## " + re.escape(i) + r"\b", text)}
+                exp = set(want.split())
+                if key == "S/manager":
+                    exp = (exp - {"WHO-2b"}) | {"WHO-1b"}
+                elif key in ("M/manager", "March/manager", "Mdesign/manager"):
+                    exp = exp | {"WHO-1b"}
+                self.assertEqual(sorted(got), sorted(exp))
+
+
 if __name__ == "__main__":
     unittest.main()

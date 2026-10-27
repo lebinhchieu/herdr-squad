@@ -25,7 +25,7 @@ Write `iterations/<n>.summary.md` at iteration end: tasks done with a link to ea
 
 ## ITER-3b Pod summary, Manager
 roles: manager
-when: handin-target = qas
+when: team-lead = no and qa-black = yes
 topic: iterations
 
 When you own the plan (the Team Lead is not on the team), write `iterations/<n>.summary.md` at iteration end, at most 40 lines: tasks done with each ticket's `evidence.md` link, final passed sha and returns (`squad-ledger`), friction, open items.
