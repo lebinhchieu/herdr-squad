@@ -53,6 +53,11 @@ def make_plugin(dest):
     pdir.mkdir(parents=True, exist_ok=True)
     for f in (FIX / "templates" / "squad" / "process").glob("*.md"):
         shutil.copy(f, pdir / f.name)
+    # the real _removed.md tombstones name REV-14a / REV-19b; the fixture review.md replaces the real one, so the copy gets stubs
+    with (pdir / "review.md").open("a", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n## REV-14a Diff check\nroles: dev\ntopic: review\n\nA later commit goes to the same checkers.\n"
+                 "\n## REV-19b Hand in to QA whitebox alone\nroles: dev\nwhen: qa-white = yes and qa-black = no\ntopic: review\n\n"
+                 "The Developer hands in to QA whitebox alone.\n")
     git("init", "-q", cwd=dest)
     git("add", "-A", cwd=dest)
     git("commit", "-q", "-m", "fixture plugin", cwd=dest)
