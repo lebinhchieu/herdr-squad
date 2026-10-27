@@ -39,3 +39,19 @@ replaced_by: SIZE-21a
 ## SIZE-22a (removed in v9)
 why: The Architect rows fold into the duty owner chains of SIZE-22.
 replaced_by: SIZE-22
+
+## LC-20c (removed in v9)
+why: Done is told to the plan owner; one rule per owner (LC-20a, LC-20b), not per size.
+replaced_by: LC-20a
+
+## REV-14b (removed in v9)
+why: The diff check goes to the checkers handed in to (REV-14a); the plan owner hears of it in LC-20a and LC-20b.
+replaced_by: REV-14a
+
+## REV-14c (removed in v9)
+why: The diff check goes to the checkers handed in to (REV-14a); the plan owner hears of it in LC-20a and LC-20b.
+replaced_by: REV-14a
+
+## REV-19 (removed in v9)
+why: Hand in to QA whitebox alone is REV-19b; Done is told to the plan owner in LC-20a and LC-20b.
+replaced_by: REV-19b

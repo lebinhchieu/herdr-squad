@@ -20,7 +20,21 @@ class ManagerMLTest(unittest.TestCase):
         s = MS.split("## SPAWN-10a")[1].split("## SPAWN-11")[0] if "## SPAWN-11" in MS.split("## SPAWN-10a")[1] else MS.split("## SPAWN-10a")[1]
         for token in ("`herdr agent list`", "ASK <name>: STATUS?", "Looping", "Context filling"):
             self.assertIn(token, s)
-        self.assertIn("## LC-7a Three returns, S", MS)
+        self.assertIn("## LC-7a Three returns, Manager", MS)
+
+    def test_manager_three_returns_rule_per_team_shape(self):
+        """Every Manager gets a three-returns rule when it is the plan owner; the Team Lead's shape only hears of it."""
+        import re
+        from test_dev_rules_size import compose
+        def ids(size):
+            return set(re.findall(r"(?m)^## (LC-7[a-z]?) ", compose("manager", size).decode()))
+        def body(size):
+            return compose("manager", size).decode().split("## LC-7a")[1].split("\n## ")[0]
+        self.assertEqual(ids("S") & {"LC-7a", "LC-7b", "LC-7c"}, {"LC-7a"})
+        self.assertIn("you step in; with QAs on the team", body("S"))  # conditional, so valid with no QA
+        self.assertEqual(ids("M") & {"LC-7a", "LC-7b", "LC-7c"}, {"LC-7a"})  # qa-white + qa-black, no Team Lead
+        self.assertIn("with QAs on the team the 3rd failing QA sends you `BLOCKED NN: 3 returns`", body("M"))
+        self.assertEqual(ids("L") & {"LC-7a", "LC-7b", "LC-7c"}, {"LC-7b"})  # aware only: the Team Lead decides
 
     def test_m_l_manager_does_not_spawn_or_poll_developers(self):
         self.assertIn("The Team Lead spawns and retires Developers within its share of the cap; the Manager does not", MM)

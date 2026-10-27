@@ -90,9 +90,10 @@ class RulesTest(unittest.TestCase):
             self.assertIn(token, text)
 
     def test_the_plan_waits_for_the_architecture(self):
-        self.assertEqual(acts("LC-11c", "M"), ("manager",))
-        self.assertEqual(acts("LC-11c", "L"), ())
-        self.assertEqual(acts("LC-11d", "L"), ("team-lead", "tech-lead"))
+        self.assertEqual(acts("LC-11c", "plan-owner = manager"), ("manager",))
+        self.assertEqual(acts("LC-11c", "plan-owner = team-lead"), ())
+        self.assertEqual(acts("LC-11d", "plan-owner = team-lead"), ("team-lead",))
+        self.assertEqual(acts("LC-11e", "tech-lead = yes"), ("tech-lead",))
         self.assertIn("`Status: final`", composed("team-lead", "L", architecture="yes"))
         self.assertIn("Split the tasks only after", composed("manager", "S", architecture="yes"))
 
@@ -100,8 +101,8 @@ class RulesTest(unittest.TestCase):
         self.assertEqual(acts("SIZE-23c", "M"), ("qa-whitebox",))
         self.assertEqual(acts("SIZE-23d", "L"), ("tech-lead",))
         self.assertEqual(acts("SIZE-23c", "L"), ("qa-whitebox",))
-        self.assertEqual(acts("REV-22a", "S"), ("dev",))
-        self.assertEqual(acts("REV-22a", "M"), ())
+        self.assertEqual(acts("REV-22a", "qa-white = no"), ("dev",))
+        self.assertEqual(acts("REV-22a", "qa-white = yes"), ())
         for role, size in (("qa-whitebox", "M"), ("qa-whitebox", "L"), ("tech-lead", "L"), ("dev", "S")):
             self.assertIn("architecture.md", composed(role, size, architecture="yes"), (role, size))
         self.assertNotIn("SIZE-23c", ids("architect", "M", architecture="yes"))
