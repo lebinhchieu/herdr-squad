@@ -1,5 +1,5 @@
 # Evidence: 03 `squad-process team` CLI and converter
-sha: 13ed665
+sha: 64871b4
 
 ## Behaviour
 - `squad-process team --home D`: prints `ba, qa-white` style list, `none` or `undecided`; only `TEAM_KEYS` tokens ever reach stdout (hostile `team:` values `qa-white; touch X`, `$(...)`, backticks exit 2, nothing runs, stdout empty). `--has ROLE` (role names via `ROLE_KEY`) prints nothing, exit 0 on team / 1 not / 2 unknown role or bad home; manager, dev, token-coach always on; an undecided team has only the Manager. No `--from-size`.
@@ -16,3 +16,5 @@ sha: 13ed665
 - Files beyond the ticket list: `bin/squadcompose.py` (additive `old_format_lines`, `old_format_error`; Tech Lead OK).
 - Blank `size:` or any `check` entry: the `<!-- converted from ... -->` comment lists every dropped old line verbatim (`design: yes`, `qa-b: no`, ...); `--` still escaped. Test `test_blank_size_with_flags_keeps_dropped_lines_in_file`.
 - `plan_scopes` skips `scopes/_done/*` (names starting with `_`) by design; real-sample dry runs use copies placed directly in `scopes/`.
+- `team --home <missing dir or file>` exits 2 with a message, stdout empty; an existing home without scope.md stays `undecided` (exit 0). Test `test_missing_or_file_home_exits_2_but_home_without_scope_md_is_undecided`.
+- AC 21 (`upgrade --check` retarget lines) moved from this ticket to ticket 12 by the Tech Lead; no code here.
