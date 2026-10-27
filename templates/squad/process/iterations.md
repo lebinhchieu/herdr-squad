@@ -5,8 +5,8 @@ roles: manager
 topic: iterations
 
 Each iteration has `iterations/<n>.md`.
-1. **Goal check:** the Manager and PO agree the goal in the iteration file; the PO confirms the size.
-2. **Plan:** the roles (by size) talk freely; requirements, AC and tasks land in files.
+1. **Goal check:** the Manager and PO agree the goal in the iteration file; the PO confirms the team.
+2. **Plan:** the roles on the team talk freely; requirements, AC and tasks land in files.
 3. **Build and verify:** event-driven; Developers build, QA checks, gaps go to owners.
 4. **Retro:** the Manager writes the friction (loops, blocked panes, returns, unclear ownership) into the iteration file.
 5. **Check-in:** the Manager shows the PO what is done, open escalations and proposed role-instruction changes; each answered escalation's outcome goes into the iteration file and its row leaves `escalations.md`.
@@ -19,17 +19,16 @@ Escalate only what the rules say always goes to the PO ([WHO-1a], [WHO-1b], [WHO
 
 ## ITER-3 Pod summary
 roles: team-lead
-when: size = L
 topic: iterations
 
 Write `iterations/<n>.summary.md` at iteration end: tasks done with a link to each ticket's `evidence.md`, each task's final passed sha, the checkers that passed it and the returns per task (all three from `squad-ledger`), friction, open items, at most 40 lines. It carries one line naming the residual risk "the cap is a rule, not a lock".
 
-## ITER-3b Pod summary, M
+## ITER-3b Pod summary, Manager
 roles: manager
-when: size = M
+when: handin-target = qas
 topic: iterations
 
-At iteration end write `iterations/<n>.summary.md`, at most 40 lines: tasks done with each ticket's `evidence.md` link, final passed sha and returns (`squad-ledger`), friction, open items.
+When you own the plan (the Team Lead is not on the team), write `iterations/<n>.summary.md` at iteration end, at most 40 lines: tasks done with each ticket's `evidence.md` link, final passed sha and returns (`squad-ledger`), friction, open items.
 
 ## ITER-4 Inbox
 roles: manager
@@ -55,7 +54,7 @@ topic: iterations
 roles: manager
 topic: iterations
 
-Spawn the Token Coach with `squad-spawn token-coach <squad>-coach-<scope> --scope <scope> --prompt "<text>"` (`--goal <goal>` at goal close; run it at every goal close). Without `--prompt` it starts idle. The prompt names the scope and folder, the size, the exact output file (`iterations/<n>.coach.md`, or `coach/<goal>.coach.md`), "read `squad-usage`, `usage-events.jsonl`, earlier backlogs", and "message the Manager with the file and the proposal count".
+Spawn the Token Coach with `squad-spawn token-coach <squad>-coach-<scope> --scope <scope> --prompt "<text>"` (`--goal <goal>` at goal close; run it at every goal close). Without `--prompt` it starts idle. The prompt names the scope and folder, the team, the exact output file (`iterations/<n>.coach.md`, or `coach/<goal>.coach.md`), "read `squad-usage`, `usage-events.jsonl`, earlier backlogs", and "message the Manager with the file and the proposal count".
 
 ## ITER-6c Wait for the Token Coach
 roles: manager
@@ -63,19 +62,19 @@ topic: iterations
 
 After the spawn, do other work or end the turn and wait for the Coach's message; never loop, sleep or poll for the file. Run `herdr agent list` on its pane only when no message came after the 10-minute health-check idle window ([MSG-8a]).
 
-## ITER-6a Token Coach, S
+## ITER-6a Token Coach, no checkers
 roles: manager
-when: size = S
+when: handin-target = manager
 topic: iterations
 
-At the close of an S scope, spawn the Token Coach only when the PO asks.
+At the close of a scope with no QA and no Team Lead, spawn the Token Coach only when the PO asks.
 
-## ITER-6b Token Coach, M and L
+## ITER-6b Token Coach, with checkers
 roles: manager
-when: size in M, L
+when: handin-target in qas, team-lead
 topic: iterations
 
-At the close of every M or L scope, spawn the Token Coach.
+At the close of every scope with a QA or a Team Lead, spawn the Token Coach.
 
 ## ITER-7 Token Coach reads and writes
 roles: token-coach

@@ -4,7 +4,7 @@
 roles: manager
 topic: closing
 
-- The PO confirms the close at a check-in. The Manager proposes it with evidence links once both checkers have passed every task, makes sure the promotion task passed ([PROMO-4]), and runs the Token Coach if [ITER-6] says so.
+- The PO confirms the close at a check-in. The Manager proposes it with evidence links once every checker on the team has passed every task, makes sure the promotion task passed ([PROMO-4]), and runs the Token Coach if [ITER-6] says so.
 - It tells the PO which branches are unmerged, resolves or withdraws (`squad-inbox withdraw E<n> --reason "<why>"`) every open inbox item, tells the PO of any still unanswered, then runs `squad-close <squad> --scope <scope>` as its last action. The Manager stays; its `$SCOPE_DIR` moves, so it says everything first and is chat-only after. The PO ends it with `squad-retire <manager>`.
 
 ## CLOSE-2 What squad-close does
@@ -15,14 +15,14 @@ topic: closing
 
 ## CLOSE-3a Close in a goal, Tech Lead
 roles: tech-lead
-when: goal = yes and size = L
+when: goal = yes
 topic: closing
 
 When your scope is passed, before the pod is retired: write `$GOAL_DIR/shared/summaries/<scope>.md` (outcome, passed branch and commit, open items; no decisions or domain facts) and append the goal-wide decisions to `$GOAL_DIR/shared/decisions.md`, one bullet each, keeping it under 80 lines.
 
-## CLOSE-3c Close in a goal, S and M
+## CLOSE-3c Close in a goal, Manager
 roles: manager
-when: goal = yes and size in S, M
+when: goal = yes and tech-lead = no
 topic: closing
 
 Once your scope is passed, before you retire the pod, write its summary page and append its goal-wide decisions, as [GOAL-2] says.
