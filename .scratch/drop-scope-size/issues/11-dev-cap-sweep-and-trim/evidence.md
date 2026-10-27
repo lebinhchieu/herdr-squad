@@ -1,5 +1,5 @@
 # Evidence: 11 Developer 5 KiB sweep and trim
-sha: pending
+sha: d2e8d06
 
 ## Behaviour
 - Sweep: 128 team sets x goal x qa (full, light), `dev` composed from a `team:` home (live-length names, no scaffold). Base 90be196: worst 5674 B, 140 of 256 (set x goal) over 5120. Now: worst 5110 B; 0 of 512 combos over 5120. No exceptions, no CAP (`EXCEPTIONS`/`CAP` deleted); `test_every_team_set_fits_5_kib` asserts every combo <= 5120. Per-rule breakdown of the old worst set: `$SCOPE_DIR/tasks/11-worst-set-breakdown.md`.
