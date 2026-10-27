@@ -24,11 +24,14 @@ PLANT = '</script><img src=x onerror=alert(1)>"><svg onload=1>'
 
 
 def scope_json(squad, name, cost, agent_s, gen="2026-10-02T10:00:00Z", last="2026-10-02T09:00:00Z", prices=PRICES_A,
-               returns=0, passed=2, status="done", redact=False, title="T", size="M", att=80.0, start="2026-10-01T00:00:00Z",
+               returns=0, passed=2, status="done", redact=False, title="T", size="M", team=None, att=80.0, start="2026-10-01T00:00:00Z",
                end="2026-10-02T00:00:00Z", reason="needs work"):
+    sc = {"name": name, "squad": squad, "size": size, "status": status, "generated_at": gen, "last_message_at": last,
+          "window": {"start": start, "end": end}}
+    if team is not None:
+        sc["team"] = team
     return {"schema_version": 1, "kind": "scope",
-            "scope": {"name": name, "squad": squad, "size": size, "status": status, "generated_at": gen, "last_message_at": last,
-                      "window": {"start": start, "end": end}},
+            "scope": sc,
             "config": {"prices": prices},
             "totals": {"wall_s": 86400, "agent_s": agent_s, "buckets_s": {"working": agent_s // 2, "waiting": 0, "blocking": 0, "idle": agent_s - agent_s // 2},
                        "tokens": {"input": 10, "cache_read": 20, "cache_write": 30, "output": 40}, "cost_usd": cost, "returns": returns,
@@ -169,6 +172,50 @@ class Xss(unittest.TestCase):
             self.assertNotIn("<svg onload", html)
             m = re.search(r'id="data">(.*?)</script>', html, re.S)
             self.assertIn(PLANT, json.loads(m.group(1))["scopes"][1]["name"] + json.loads(m.group(1))["scopes"][0]["name"])
+
+
+class TeamSizeKeys(unittest.TestCase):
+    """Ticket 09 (C8): every rollup row has both `team` and `size`; strings, "" allowed; error rows None on both."""
+
+    def rows(self, specs):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            files = [write(d, "%s/data.json" % n, scope_json("sq", n, 1.0, 100, **kw)) for n, kw in specs]
+            data = ro.build_rollup(ro.file_entries(files), "T", "files", d / "out", ro.parse_ts("2026-10-20T00:00:00Z"))
+        return {r["name"]: r for r in data["scopes"]}
+
+    def test_old_new_and_hand_made_rows(self):
+        r = self.rows([("old", {"size": "M"}), ("new", {"size": "", "team": "qa-white, qa-black"}),
+                       ("hand", {"size": ""}), ("undec", {"size": "", "team": "undecided"})])
+        self.assertEqual((r["old"]["size"], r["old"]["team"]), ("M", ""))
+        self.assertEqual((r["new"]["size"], r["new"]["team"]), ("", "qa-white, qa-black"))
+        self.assertEqual((r["hand"]["size"], r["hand"]["team"]), ("", ""))
+        self.assertEqual((r["undec"]["size"], r["undec"]["team"]), ("", "undecided"))
+        for row in r.values():
+            self.assertIsInstance(row["size"], str)
+            self.assertIsInstance(row["team"], str)
+
+    def test_null_in_data_json_becomes_empty_string(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = scope_json("sq", "n", 1.0, 100)
+            d["scope"]["size"] = None
+            row = ro.row_from(d)
+        self.assertEqual((row["size"], row["team"]), ("", ""))
+
+    def test_error_rows_one_rule_both_keys_none(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            bad = write(d, "x/junk/data.json", None, raw="not json")
+            ok = write(d, "x/ok/data.json", scope_json("sq", "ok", 1.0, 100))
+            entries = ro.file_entries([bad, ok]) + [ro.entry(squad="sq", name="nd", command="squad-report nd")]
+            data = ro.build_rollup(entries, "T", "files", d / "out", ro.parse_ts("2026-10-20T00:00:00Z"))
+        by = {r["name"]: r for r in data["scopes"]}
+        err = [r for r in data["scopes"] if r["name"] not in ("ok", "nd")]
+        self.assertEqual(len(err), 1)
+        for row in err + [by["nd"]]:
+            self.assertIsNone(row["size"])
+            self.assertIsNone(row["team"])
+        self.assertEqual((by["ok"]["size"], by["ok"]["team"]), ("M", ""))
 
 
 class GoalForm(unittest.TestCase):

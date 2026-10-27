@@ -100,7 +100,7 @@
     var rs = r.roles.filter(function (q) { return q.cost_usd > 0; }).sort(function (a, b) { return b.cost_usd - a.cost_usd; });
     var gap = r.status === "stale" ? staleS(r) : null;
     openDrawer([head,
-      h("div", { class: "mut" }, "size " + (r.size || "–") + " · " + dt(ts(w.start)) + " → " + (r.status === "running" ? "now" : dt(ts(w.end)))),
+      h("div", { class: "mut" }, (r.team ? "team " + r.team : "size " + (r.size || "–")) + " · " + dt(ts(w.start)) + " → " + (r.status === "running" ? "now" : dt(ts(w.end)))),
       h("div", { class: "card", style: "margin-top:8px" }, h("b", null, dur(t.wall_s)), " elapsed · ", h("b", null, dur(t.agent_s)), " agent-time · ", h("b", null, usd(t.cost_usd)), " · ",
         h("b", null, tok(sum(t.tokens))), " tokens ", bar(t.buckets_s, BK, "b-", true), h("div", { style: "height:6px" }), bar(t.tokens, KINDS, "k-")),
       h("p", null, t.tasks + " tasks, " + t.passed + " passed · " + t.returns + " returns" + (t.flagged_tasks ? " (" + t.flagged_tasks + " flagged)" : "") + " · PO wait " + dur(t.po_wait_s) + " · " + (att == null ? "–" : Math.round(att) + "%") + " attributed"),
@@ -148,7 +148,7 @@
     return s;
   }
   var COLS = [
-    { k: "name", label: "Scope", val: function (r) { return r.name.toLowerCase(); }, fmt: function (r) { return h("span", null, swatch(r), h("b", null, nm(r)), r.size ? [" ", h("span", { class: "faint" }, r.size)] : null); } },
+    { k: "name", label: "Scope", val: function (r) { return r.name.toLowerCase(); }, fmt: function (r) { return h("span", null, swatch(r), h("b", null, nm(r)), (r.team || r.size) ? [" ", h("span", { class: "faint" }, r.team || r.size)] : null); } },
     { k: "status", label: "Status", val: function (r) { return r.status; }, fmt: function (r) { var g = r.status === "stale" ? staleS(r) : null; return h("span", null, chip(r), g != null ? [" ", h("span", { class: "faint" }, dur(g) + " old")] : null); } },
     { k: "wall", label: "Elapsed", num: 1, val: function (r) { return r.totals ? r.totals.wall_s : -1; }, fmt: function (r) { return r.totals ? dur(r.totals.wall_s) : "–"; } },
     { k: "time", label: "Agent-time by bucket", num: 1, val: function (r) { return r.totals ? r.totals.agent_s : -1; },
