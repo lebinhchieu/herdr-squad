@@ -36,6 +36,7 @@ class RespawnTest(unittest.TestCase):
         self.squad = self.root / ".claude" / "squads" / "t"
         self.squad.mkdir(parents=True)
         (self.squad / "process.md").write_text("x", encoding="utf-8")
+        (self.squad / "scope.md").write_text("team: none\n", encoding="utf-8")  # decided: a non-Manager compose of an undecided home exits 2
         (self.squad / "roster.md").write_text(
             "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
             "| manager | Manager | all | x | live | |\n| dev-1 | Dev | settings | task 1 | live | old-sid |\n", encoding="utf-8")

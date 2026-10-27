@@ -31,6 +31,7 @@ class SpawnDryRunTest(unittest.TestCase):
         self.squad = Path(self.tmp.name) / ".claude" / "squads" / "t"
         self.squad.mkdir(parents=True)
         (self.squad / "process.md").write_text("x", encoding="utf-8")
+        (self.squad / "scope.md").write_text("team: none\n", encoding="utf-8")  # a decided team: a non-Manager compose of an undecided home exits 2
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
 
