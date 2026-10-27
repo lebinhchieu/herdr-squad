@@ -22,15 +22,10 @@ COMBOS = list(product("SML", ("yes", "no"), ("yes", "no")))
 def compose(role, size, design="no", goal="no", architecture="no", name="role-cards-upgrade", agent="plugin-dev-role-cards-upgrade-12"):
     """The raw composed bytes for a pinned fixture home with live-length names; no --plugin-root, time injected."""
     import squadcompose
+    import squadrules
     pin = (squadcompose.running_version(), "0123456789abcdef0123456789abcdef01234567")
-    with tempfile.TemporaryDirectory() as tmp:
-        home = Path(tmp) / "scopes" / name
-        home.mkdir(parents=True)
-        (home / "scope.md").write_text(f"goal:{' g1' if goal == 'yes' else ''}\nsize: {size}\nqa: full\ndesign: {design}\narchitecture: {architecture}\nplugin: {pin[0]} {pin[1]}\n",
-                                       encoding="utf-8", newline="\n")
-        # in process with the D1 scaffold (branch-internal, task 10 deletes it): the CLI never sets it, and without it a `size:` home
-        # has no duty facts, so every plan-owner / suite-owner variant would match. Bytes equal the CLI's on base 6389642.
-        return squadcompose.compose(role, str(home), str(ROOT), None, agent, NOW, pin, legacy_scaffold=True).encode("utf-8")
+    team = squadrules.legacy_team(size, "yes", design, architecture)  # the converter's mapping of the old shape
+    return compose_team(role, team, goal=goal, name=name, agent=agent)
 
 
 def compose_team(role, team, goal="no", qa="full", name="role-cards-upgrade", agent="plugin-dev-role-cards-upgrade-12"):

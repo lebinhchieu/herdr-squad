@@ -284,7 +284,7 @@ ALL_FILES = sorted((ROOT / "templates" / "squad" / "process").glob("*.md"))
 # rules that act on no present role at S or M, or name an absent role as actor; by ID, with the reason
 # (tech-ac.md follow-up list: only SIZE-17a-e, LC-23/25/26, move-up rules and the six role start cards)
 ORPHAN_ALLOWED = {
-    **{f"SIZE-17{c}": "join on move up: acts on the role that arrives when the scope moves up" for c in "abcde"},
+    # SIZE-17a-e (join on move up) key on a presence fact since 04: with the team's facts they act only where the role is present
     **{rid: "role start card; role absent at this size, rule never composed" for rid in
        ("START-8", "START-11", "START-13", "START-14", "START-15", "START-16")},
 }

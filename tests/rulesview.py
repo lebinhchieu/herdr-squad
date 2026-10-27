@@ -58,6 +58,22 @@ def who(rule_id):
         if m:
             split = lambda s: () if s.strip() == "-" else tuple(x.strip() for x in s.split(","))
             out[m.group(1)] = (split(m.group(2)), split(m.group(3)))
+    out.update(_size_shapes(rule_id))
+    return out
+
+
+def _size_shapes(rule_id):
+    """Shorthand for the old test shapes: key `S`/`M`/`L` -> (acting, aware) of the rule in the team the converter maps
+    that size to (`squadrules.legacy_team`). Test convenience only; the engine has no size."""
+    import squadcompose as sc
+    import squadrules as sr
+    e = sc.find_rule(str(ROOT), None, rule_id)
+    out = {}
+    for size in "SML":
+        facts = sr.team_facts(sr.legacy_team(size, "yes", "no", "no"))
+        facts.pop("design"); facts.pop("architecture")  # the old size lines left every other fact missing (true)
+        ok = sr.matches(e.when, facts)
+        out[size] = (tuple(e.roles) if ok else (), tuple(e.aware) if ok else ())
     return out
 
 
