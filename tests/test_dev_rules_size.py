@@ -16,26 +16,22 @@ LIMIT = 5120
 SKIP_5KIB = "5 KiB trim is ticket 11"
 NOW = "2026-10-22T10:00:00Z"
 # S + architecture yes exceeds LIMIT at every design x goal: pinned (design, goal) -> bytes
-PINNED = {("yes", "yes"): 5443, ("yes", "no"): 5442, ("no", "yes"): 5152, ("no", "no"): 5151}
+PINNED = {("yes", "yes"): 5438, ("yes", "no"): 5437, ("no", "yes"): 5147, ("no", "no"): 5146}
 COMBOS = list(product("SML", ("yes", "no"), ("yes", "no")))
 
 
 def compose(role, size, design="no", goal="no", architecture="no", name="role-cards-upgrade", agent="plugin-dev-role-cards-upgrade-12"):
     """The raw composed bytes for a pinned fixture home with live-length names; no --plugin-root, time injected."""
     import squadcompose
-    pin = f"plugin: {squadcompose.running_version()} 0123456789abcdef0123456789abcdef01234567\n"
+    pin = (squadcompose.running_version(), "0123456789abcdef0123456789abcdef01234567")
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "scopes" / name
         home.mkdir(parents=True)
-        import squadrules
-        team = squadrules.legacy_team(size, "yes", design, architecture)  # today's shape as a team (the converter's mapping)
-        (home / "scope.md").write_text(f"goal:{' g1' if goal == 'yes' else ''}\nteam: {', '.join(team) or 'none'}\nqa: full\n{pin}",
+        (home / "scope.md").write_text(f"goal:{' g1' if goal == 'yes' else ''}\nsize: {size}\nqa: full\ndesign: {design}\narchitecture: {architecture}\nplugin: {pin[0]} {pin[1]}\n",
                                        encoding="utf-8", newline="\n")
-        out = Path(tmp) / "rules.md"
-        r = subprocess.run([sys.executable, "-B", str(ROOT / "bin" / "squad-process"), "compose", role, "--home", str(home),
-                            "--out", str(out), "--now", NOW, "--agent", agent], capture_output=True, encoding="utf-8")
-        assert r.returncode == 0, r.stderr
-        return out.read_bytes()
+        # in process with the D1 scaffold (branch-internal, task 10 deletes it): the CLI never sets it, and without it a `size:` home
+        # has no duty facts, so every plan-owner / suite-owner variant would match. Bytes equal the CLI's on base 6389642.
+        return squadcompose.compose(role, str(home), str(ROOT), None, agent, NOW, pin, legacy_scaffold=True).encode("utf-8")
 
 
 def section(text, rule_id):

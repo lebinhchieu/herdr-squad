@@ -10,9 +10,9 @@ MG = composed("manager", "L", goal="yes")
 
 class ManagerMLTest(unittest.TestCase):
     def test_s_keeps_developer_spawning_and_routing(self):
-        self.assertIn("## SPAWN-5a Developers, Manager in S and M", MS)
+        self.assertIn("## SPAWN-5a Developers, Manager plans", MS)
         self.assertIn("## SPAWN-5a", composed("manager", "M"))
-        self.assertIn("## MSG-18 Routing, Manager in S", MS)
+        self.assertIn("## MSG-18 Routing, Manager", MS)
         self.assertNotIn("## SPAWN-5a", MM)
         self.assertNotIn("## MSG-18", MM)
 

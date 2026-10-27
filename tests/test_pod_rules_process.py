@@ -7,9 +7,8 @@ from rulesview import acts, composed, who
 
 class PodRulesTest(unittest.TestCase):
     def test_m_roles_include_team_lead_and_l_is_as_m(self):  # was test_m_roles_include_team_lead_and_l_is_as_m
-        self.assertIn("team-lead", acts("MSG-5", "L"))
-        for size in "SM":  # Team Lead exists at L only
-            self.assertEqual(acts("MSG-5", size), ())
+        self.assertIn("team-lead", acts("MSG-5", "plan-owner = team-lead"))
+        self.assertEqual(acts("MSG-5", "plan-owner = manager"), ())  # the Team Lead plans only when the team has one
 
     def test_plan_duty_is_manager_in_s_and_m(self):  # was test_plan_duty_row_is_tech_lead_in_s_only
         self.assertIn("manager", acts("SIZE-6a", "S"))

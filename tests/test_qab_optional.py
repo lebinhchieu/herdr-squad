@@ -128,6 +128,11 @@ class QabNo(unittest.TestCase):
             for size in "ML":
                 for role in (r for r in ROLE_LIST if r != "qa-blackbox"):
                     self.assertNotIn(rid, ids(compose(role, size, "no").stdout), (rid, role, size))
+        for rid in ("REV-9", "REV-11", "REV-13b"):
+            out = subprocess.run([sys.executable, "-B", str(ROOT / "bin" / "squad-process"), "who", rid],
+                                 capture_output=True, encoding="utf-8").stdout
+            self.assertIn("M qa-b no: acts: -; aware: -", out, rid)
+            self.assertNotIn("M qa-b yes: acts: -", out, rid)
 
 
 class QabNoWithDesign(unittest.TestCase):

@@ -19,6 +19,8 @@ added:
 - LC-20e: Developer is done when the Team Lead sent PASS, told to the Team Lead (`handin-target = team-lead`; no QA on the team)
 - LC-11e: the Tech Lead designs inside `architecture.md`; split from LC-11d so no absent role acts
 - EVID-8: `qa-b.md` is the only reviewer file when QA blackbox is the only QA
+- SUITE-2f: QA blackbox on a team whose `suite-owner = dev` had no suites rule (SUITE-2d reaches only the Developer); runs touched test files, the Developer owns the full suite
+- COST-4c: `when: tech-lead = yes`; a Tech Lead on a team with no Team Lead had no respawn rule (COST-4b needs the Team Lead); respawn once design and AC are in files. With a Team Lead the Tech Lead gets both COST-4b and COST-4c, accepted (one `when:` primary key only)
 
 changed:
 - SIZE-1: now the team proposal table (a row for every role), signals and risk flags; was the size proposal. Body rewritten, ID kept because starting.md cites it
@@ -92,6 +94,21 @@ changed:
 - EVID-3a: review record when `handin-target = manager`; was S
 - EVID-3b: both reviewer files (`qa-white = yes and qa-black = yes`); no size words
 - REV-3b: final sha is the latest HANDIN unless [REV-3] names another (`handin-target = qas`); no Manager awareness, so S Managers (no QA) carry nothing
+- MSG-6: `plan-owner = team-lead`; the size-change signal is a signal to add a role. ID kept: MSG-13 cites it
+- MSG-11a: `plan-owner = manager`; a business doubt changes the team, no BA named. ID kept: same duty
+- MSG-11b: `plan-owner = team-lead`; asks the owner roster.md names, else the Team Lead, so no absent Tech Lead or BA is named
+- MSG-12: `doubt-owner = ba`; takes gaps from the plan owner, not the Team Lead by name
+- MSG-13: `plan-owner = team-lead`; raises gaps to the owner roster.md names, so no absent BA or Tech Lead is named
+- MSG-16a: `doubt-owner = manager and design = yes`; a business doubt changes the team ([SIZE-14]), no move to L
+- MSG-16b: `doubt-owner = ba and design = yes`; a feasibility doubt goes to the owner roster.md names, no absent Tech Lead named
+- MSG-20a: `doubt-owner = manager and architecture = yes`; the Manager changes the team ([SIZE-14]), no move to L
+- MSG-20b: `doubt-owner = ba and architecture = yes`; feasibility to the owner roster.md names; final goes to the Team Lead only if the team has one
+- SPAWN-2a: `plan-owner = manager`; spawns dev and every role on `team:`, the Token Coach as ITER-6a and ITER-6b say; was the S list. ID kept: the frozen v8 snapshot cites it and lint reads snapshots
+- SPAWN-2b: `plan-owner = team-lead`; the Manager spawns the Team Lead and every role on `team:`, the Token Coach as ITER-6a and ITER-6b say; was the M list. ID kept: the frozen v8 snapshot cites it and lint reads snapshots
+- SPAWN-2c: `plan-owner = team-lead`; only the sentence that the Team Lead spawns Developers; was the L list. ID kept: the frozen v8 snapshot cites it and lint reads snapshots
+- SPAWN-3: the team, not the size, goes in the first prompt; ID kept: same duty
+- SPAWN-4: the Designer is spawned when `designer` is on `team:`, not by reading `design: yes`
+- SPAWN-4a: the Architect is spawned when `architect` is on `team:`; cites SPAWN-2a and SPAWN-2b; no S, M, L words
 
 removed:
 - SIZE-3: the Manager proposes the Designer from signals; replaced by SIZE-1
@@ -224,6 +241,67 @@ retargeted:
 - EVID-5: `when: ui-check = manager and design = yes` (was size = S and design = yes); roles unchanged or noted above
 - EVID-6: `when: behaviour-check = qa-white` (was size in M, L and qa-b = no); roles unchanged or noted above
 - EVID-7: `when: qa-white = yes and qa-black = no` (was size in M, L and qa-b = no); roles unchanged or noted above
+- MSG-4a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- MSG-4b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-5: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-7a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- MSG-7b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-8a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- MSG-8b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-14: `when: tech-lead = yes` (was size = L); roles unchanged
+- MSG-15: `when: ba = yes` (was size = L); roles unchanged
+- MSG-17: `when: design-notes = tech-lead and design = yes` (was size = L and design = yes); roles unchanged
+- MSG-17b: `when: design-notes = dev and design = yes` (was size in S, M and design = yes); roles unchanged
+- MSG-18: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- MSG-19: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- COST-4a: `when: tech-lead = yes` (was size = L); roles unchanged
+- COST-4b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- COST-5: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- COST-5a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- COST-6a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- COST-6b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- COST-10a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- COST-10b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- COST-13a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- COST-13b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- COST-14a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- COST-14b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- SUITE-1: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-1b: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SUITE-2a: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-2c: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SUITE-2d: `when: suite-owner = dev` (was size = S); roles unchanged
+- SUITE-2b: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-2e: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SUITE-3: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-4: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-4b: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SUITE-5: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-5b: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SUITE-3b: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SUITE-6: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-6b: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SPAWN-5a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- SPAWN-5b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- SPAWN-8a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- SPAWN-8b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- SPAWN-9: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- SPAWN-10a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- SPAWN-10b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- SAFE-9: `when: (none)` (was size in M, L); roles unchanged
+- SAFE-10: `when: (none)` (was size in M, L); roles unchanged
+- MSG-6: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-11a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- MSG-11b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-12: `when: doubt-owner = ba` (was size = L); roles unchanged
+- MSG-13: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-16a: `when: doubt-owner = manager and design = yes` (was size in S, M and design = yes); roles unchanged
+- MSG-16b: `when: doubt-owner = ba and design = yes` (was size = L and design = yes); roles unchanged
+- MSG-20a: `when: doubt-owner = manager and architecture = yes` (was size in S, M and architecture = yes); roles unchanged
+- MSG-20b: `when: doubt-owner = ba and architecture = yes` (was size = L and architecture = yes); roles unchanged
+- SPAWN-2a: `when: plan-owner = manager` (was size = S); roles unchanged
+- SPAWN-2b: `when: plan-owner = team-lead` (was size = M and qa-b = yes); roles unchanged
+- SPAWN-2c: `when: plan-owner = team-lead` (was size = L and qa-b = yes); roles unchanged
 
 ## v8 — 2026-10-27
 - snapshot: history/process-v8/

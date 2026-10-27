@@ -92,7 +92,7 @@ class InstructionsTest(unittest.TestCase):
         for token in ("design: yes", "ui-design/", "`ux`"):
             self.assertIn(token, process)
         self.assertIn("\nteam:\n", (ROOT / "templates/scope/scope.md").read_text())
-        self.assertIn("`designer`", composed("manager", "M"))
+        self.assertIn("`designer`", composed("manager", "M", "yes"))
 
     def test_scope_template_lines(self):
         t = (ROOT / "templates/scope/scope.md").read_text()
