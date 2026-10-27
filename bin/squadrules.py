@@ -27,7 +27,6 @@ ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox"
 TEAM_KEYS = ("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect")
 IMPLICIT_ROLES = ("manager", "dev", "token-coach")
 ROLE_KEY = {"qa-whitebox": "qa-white", "qa-blackbox": "qa-black"}  # role name -> team token; other roles map to themselves
-OLD_TEAM_TOKENS = {v: k for k, v in ROLE_KEY.items()}  # never a token: `qa-whitebox`, `qa-blackbox` are role names
 PRESENCE_KEY = {"ba": "ba", "team-lead": "team-lead", "tech-lead": "tech-lead", "qa-white": "qa-white",
                 "qa-black": "qa-black", "designer": "design", "architect": "architecture"}
 # Duty facts: first present chain item owns the duty; every chain ends at manager, dev or ticket. `qas` stands for
@@ -198,7 +197,7 @@ def parse_team(value, where="scope.md"):
         return None
     if text.lower() == "none":
         return []
-    tokens, seen = [], set()
+    seen = set()
     for raw in text.split(","):
         tok = raw.strip()
         if tok in ROLE_KEY:
@@ -210,7 +209,6 @@ def parse_team(value, where="scope.md"):
         if tok in seen:
             raise ValueError(f"{where}: team token {tok!r} listed twice")
         seen.add(tok)
-        tokens.append(tok)
     return [t for t in TEAM_KEYS if t in seen]
 
 

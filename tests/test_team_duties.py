@@ -1,6 +1,5 @@
 """Team vocabulary of squadrules (drop-scope-size 01): DUTIES, resolve_duties, legacy_team, parse_team, ROLE_KEY, lint of keys."""
 import itertools
-import os
 import sys
 import tempfile
 import unittest
@@ -10,8 +9,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bin"))
 import squadcompose as sc  # noqa: E402
 import squadrules as sr  # noqa: E402
-
-DUTY_ORDER = tuple(sr.DUTIES)
 
 # Expected owners of today's S, M, L, copied from the BASE text (git show 2949573:templates/squad/process/sizes.md):
 # SIZE-22 lines 269-282 (table rows, one per duty; the `Code check` S cell "Developer + Sonnet review subagent" is
@@ -36,11 +33,6 @@ def old_owners(size, qa_b="yes", design="no", architecture="no"):
     if architecture == "yes":  # SIZE-22a
         row["choice-owner"] = "architect"
     return row
-
-
-def owners(team):
-    got = sr.resolve_duties(team)
-    return {k: got[k] for k in OLD_FACTS} | {"ui-check": got["ui-check"]}
 
 
 class Equivalence(unittest.TestCase):
@@ -157,9 +149,11 @@ class RoleKey(unittest.TestCase):
         self.assertEqual({sr.role_key(r) for r in sr.ROLES} - set(sr.IMPLICIT_ROLES), set(sr.TEAM_KEYS))
 
 
-# Real lines from this machine's squads (the value after `size:` / `qa-b:` etc.).
+# Real lines from this machine's squads (the value after `size:` / `qa-b:`), paths under /home/chieule/workspace/.
+# Blank `size:` is squad/templates/scope/scope.md:7 (the template line every new scope starts from).
+# `size: M — signals ...` of svgdraw does not exist in any scope.md on this machine (only the `L —` line), so it is not used.
 SAMPLES = {
-    # /home/chieule/workspace/squad/.claude/squads/plugin/scopes/drop-scope-size/scope.md:7 and plugin-bk261023 scopes
+    # squad/.claude/squads/plugin/scopes/squad-close/scope.md:7 (also _done/coachwait-closelocal/scope.md:11)
     "M-confirmed": "M (confirmed by PO 2026-10-23)",
     "L": "L",
     # plugin-bk261023 scopes/_done/refine-process/scope.md:7
@@ -169,11 +163,10 @@ SAMPLES = {
     # plugin-bk261023 scopes/_done/extractor-role/scope.md:8
     "extractor": "M (PO confirmed 2026-10-17, no QA roles) - signals: research spike gates a build of ~4-5 tasks; new role every squad "
                  "sees (role instructions + process.md change need PO approval); one repo; no DB/API risk flag",
-    # blueprint (enhanced-markdown-vscode) scopes/_done/svgdraw/scope.md:7
+    # enhanced-markdown-vscode/.claude/squads/blueprint/scopes/_done/svgdraw/scope.md:7 (design: yes is line 9)
     "svgdraw": "L — confirmed by PO (E1 a). Signals: AI-authored SVG in webview = security flag; form is a business question; "
                "user-visible; touches skills/, syntaxes/, validate.mjs",
-    "svgdraw-M": "M — signals: AI-authored SVG in webview",
-    # squad scopes/squad-close/scope.md:9
+    # squad/.claude/squads/plugin/scopes/squad-close/scope.md:9
     "qab-no": "no  (task 03 only changes tests/fixtures; nothing a person using the product observes; PO confirmed 2026-10-23)",
 }
 
@@ -183,12 +176,11 @@ class LegacyTeam(unittest.TestCase):
         self.assertEqual(sr.legacy_team(SAMPLES["M-confirmed"]), ["qa-white", "qa-black"])
         self.assertEqual(sr.legacy_team(SAMPLES["L"]), ["ba", "team-lead", "tech-lead", "qa-white", "qa-black"])
         self.assertEqual(sr.legacy_team(SAMPLES["svgdraw"], design="yes"), ["ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer"])
-        self.assertEqual(sr.legacy_team(SAMPLES["svgdraw-M"]), ["qa-white", "qa-black"])
-        # grillui (blueprint scopes/grillui/scope.md): size: M, qa: full, qa-b: yes, design: yes
+        # enhanced-markdown-vscode/.claude/squads/blueprint/scopes/grillui/scope.md:7-10: size: M, qa: full, qa-b: yes, design: yes
         self.assertEqual(sr.legacy_team("M", "yes", "yes"), ["qa-white", "qa-black", "designer"])
 
     def test_blank_size_is_undecided_even_with_flags(self):
-        """squad-close scope: blank `size:` and `qa-b: no  (task 03 ...)`: the idle/blank case."""
+        """Blank `size:` (squad/templates/scope/scope.md:7) with `qa-b: no  (task 03 ...)` (squad-close scope.md:9): the idle case."""
         self.assertIsNone(sr.legacy_team("", SAMPLES["qab-no"]))
         self.assertIsNone(sr.legacy_team("", "yes", "yes", "yes"))
         self.assertIsNone(sr.legacy_team(None))
