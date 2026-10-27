@@ -204,21 +204,22 @@ class RollupTeamChip(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.tmp.cleanup)
         cls.paths = build_states(cls.tmp.name)
         cls.port = _free_port()
         cls.srv = subprocess.Popen([sys.executable, "-m", "http.server", str(cls.port), "--bind", "127.0.0.1", "--directory", cls.tmp.name],
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         cls.pid = cls.srv.pid
+        cls.addClassCleanup(cls._stop)
         _wait_port(cls.port)
         r = subprocess.run([CHROME, "--headless=new", "--no-sandbox", "--disable-gpu", "--virtual-time-budget=3000", "--window-size=1440,900",
                             "--dump-dom", "http://127.0.0.1:%d/teams/index.html" % cls.port], capture_output=True, timeout=90)
         cls.dom = r.stdout.decode("utf-8", "replace")
 
     @classmethod
-    def tearDownClass(cls):
+    def _stop(cls):
         os.kill(cls.pid, signal.SIGTERM)
         cls.srv.wait(timeout=10)
-        cls.tmp.cleanup()
 
     def test_rows_show_size_or_team(self):
         self.assertFalse("Uncaught" in self.dom)

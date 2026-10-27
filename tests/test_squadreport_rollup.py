@@ -196,10 +196,9 @@ class TeamSizeKeys(unittest.TestCase):
             self.assertIsInstance(row["team"], str)
 
     def test_null_in_data_json_becomes_empty_string(self):
-        with tempfile.TemporaryDirectory() as t:
-            d = scope_json("sq", "n", 1.0, 100)
-            d["scope"]["size"] = None
-            row = ro.row_from(d)
+        d = scope_json("sq", "n", 1.0, 100)
+        d["scope"]["size"] = None
+        row = ro.row_from(d)
         self.assertEqual((row["size"], row["team"]), ("", ""))
 
     def test_error_rows_one_rule_both_keys_none(self):
