@@ -252,10 +252,10 @@ def apply_choices(items, resolves, rules, ops):
 
 # ---- settings ------------------------------------------------------------------------------------------
 
-def settings_diff(template, old):
+def settings_diff(template, old, role=None):
     """-> (local overlay dict, regained entries, gained scalar keys): old = merge(template, local).
 
-    Old Read code-path denies are dropped (retired)."""
+    The Read code-path denies of an old qa-blackbox file are dropped (retired); other roles keep theirs."""
     local, regained, gains = {}, [], []
 
     def walk(t, o, path, out):
@@ -263,7 +263,7 @@ def settings_diff(template, old):
             here = path + (k,)
             if here in ss.UNION_KEYS and isinstance(v, list) and isinstance(t.get(k, []), list):
                 extra = [e for e in v if e not in t.get(k, []) and e not in RETIRED]
-                if here == ("permissions", "deny"):
+                if here == ("permissions", "deny") and role == "qa-blackbox":
                     extra = [e for e in extra if not (isinstance(e, str) and _CODE_ENTRY.match(e))]  # retired code-path denies
                 regained.extend(e for e in t.get(k, []) if e not in v and e not in RETIRED)
                 if extra:
@@ -307,7 +307,7 @@ def plan_settings(squad_dir, plugin_root):
             old = ss._load(full, 2, "settings file")
         except ss.SettingsError as e:
             raise AdoptError(e.code, str(e))
-        local, regained, gains = settings_diff(tpl, old)
+        local, regained, gains = settings_diff(tpl, old, role)
         out.append({"role": role, "local": local, "regained": regained, "gains": gains,
                     "template": tpl, "old": old})
     return out
@@ -322,7 +322,7 @@ def check_settings(planned):
             have = eff.get("permissions", {}).get(key, [])
             for e in p["old"].get("permissions", {}).get(key, []):
                 m = _CODE_ENTRY.match(e) if isinstance(e, str) else None
-                if e in have or e in RETIRED or (key == "deny" and m):
+                if e in have or e in RETIRED or (key == "deny" and m and p["role"] == "qa-blackbox"):
                     continue
                 problems.append(f"{p['role']}: {key} entry {e!r} would be lost")
     return problems

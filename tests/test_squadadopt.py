@@ -237,6 +237,18 @@ class ArchiveAndSettings(Base):
         self.assertNotIn("codePaths", qb)
         self.assertNotIn("deny", qb.get("permissions", {}))
 
+    def test_read_deny_is_dropped_for_qa_blackbox_only(self):
+        sq = self.squad()
+        d = json.loads((sq / "settings/dev.json").read_text())
+        d["permissions"]["deny"].append("Read(//home/u/.ssh/**)")
+        (sq / "settings/dev.json").write_text(json.dumps(d), encoding="utf-8")
+        r = self.adopt(sq, "--yes")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        dev = ss.effective("dev", str(sq), str(ROOT))["permissions"]["deny"]
+        qb = ss.effective("qa-blackbox", str(sq), str(ROOT))["permissions"]["deny"]
+        self.assertIn("Read(//home/u/.ssh/**)", dev)
+        self.assertFalse([e for e in qb if e.startswith("Read(")])
+
     def test_effective_settings_keep_every_old_deny_and_allow(self):
         sq = self.adopted()
         for role, old in self.old_settings.items():

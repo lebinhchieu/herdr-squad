@@ -19,3 +19,4 @@
 - manager.json allows `Bash(squad-team:*)` (test `test_manager_allows_squad_team`).
 - Changelog v9: SAFE-10, SAFE-11 appended to `changed:`.
 - Ran green (grep -rl hits): advisor_rules, architect_handoff, dev_rules_size, model_effort_settings (retired Read deny allowed in the base-permissions check), sizes, squad_respawn, squadrules, squad_spawn, squad_start, team_cli, team_lead_role, templates, squadsettings, squadadopt. `squad-process lint`: empty, rc 0.
+- QAW F1: adopt dropped `Read(//…/**)` denies of every role; now only qa-blackbox's (`settings_diff(..., role)`, `check_settings`). Test `test_read_deny_is_dropped_for_qa_blackbox_only`: dev keeps `Read(//home/u/.ssh/**)`, qa-blackbox drops its Read denies. test_squadadopt 30 OK.
