@@ -151,11 +151,12 @@ class RoleKey(unittest.TestCase):
 
 # Real lines from this machine's squads (the value after `size:` / `qa-b:`), paths under /home/chieule/workspace/.
 # Blank `size:` is squad/templates/scope/scope.md:7 (the template line every new scope starts from).
-# `size: M — signals ...` of svgdraw does not exist in any scope.md on this machine (only the `L —` line), so it is not used.
 SAMPLES = {
     # squad/.claude/squads/plugin/scopes/squad-close/scope.md:7 (also _done/coachwait-closelocal/scope.md:11)
     "M-confirmed": "M (confirmed by PO 2026-10-23)",
     "L": "L",
+    # plugin-bk261023 scopes/_done/report-ui-fix/scope.md:7
+    "M-signals": "M — signals: user-visible UI change, ~5 tasks, one repo, no risk flag, PO requires full QA blackbox (confirmed by PO 2026-10-19, E1)",
     # plugin-bk261023 scopes/_done/refine-process/scope.md:7
     "refine": "M, custom pod (PO 2026-10-14): Tech Lead, BA, QA whitebox, Devs; no QA blackbox. Behaviour check: Dev saves evidence "
               "(dev-evidence.md, migration run on a copy of a real squad), QA whitebox checks it. Done = QA whitebox PASS (+ BA sign-off "
@@ -174,6 +175,7 @@ SAMPLES = {
 class LegacyTeam(unittest.TestCase):
     def test_real_samples(self):
         self.assertEqual(sr.legacy_team(SAMPLES["M-confirmed"]), ["qa-white", "qa-black"])
+        self.assertEqual(sr.legacy_team(SAMPLES["M-signals"]), ["qa-white", "qa-black"])
         self.assertEqual(sr.legacy_team(SAMPLES["L"]), ["ba", "team-lead", "tech-lead", "qa-white", "qa-black"])
         self.assertEqual(sr.legacy_team(SAMPLES["svgdraw"], design="yes"), ["ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer"])
         # enhanced-markdown-vscode/.claude/squads/blueprint/scopes/grillui/scope.md:7-10: size: M, qa: full, qa-b: yes, design: yes
