@@ -39,32 +39,6 @@ EXCEPTIONS = {
 
 
 class DutyOwners(unittest.TestCase):
-    def test_named_owner_acts_at_its_size(self):
-        for duty, by_size in OWNERS.items():
-            for size, (rid, role) in by_size.items():
-                with self.subTest(duty=duty, size=size):
-                    self.assertIn(role, acts(rid, size))
-                    self.assertIn(role, PRESENT[size], "owner is absent at this size")
-
-    def test_rules_of_this_slice_never_act_on_an_absent_role(self):
-        ids = ("SIZE-1", "SIZE-3", "SIZE-4", "SIZE-5a", "SIZE-5b", "SIZE-5c", "SIZE-6a", "SIZE-6b", "SIZE-6c", "SIZE-6d",
-               "SIZE-7a", "SIZE-7b", "SIZE-8a", "SIZE-8b", "SIZE-10a", "SIZE-10b", "SIZE-11a", "SIZE-11b",
-               "SIZE-13", "SIZE-14", "SIZE-15", "SIZE-16", "SIZE-21a", "SIZE-21b", "SIZE-23b",
-               "WHO-1a", "WHO-1b", "WHO-2", "WHO-2d", "WHO-2b", "WHO-2c", "WHO-3a", "WHO-3b", "WHO-8a", "WHO-8b", "WHO-8c",
-               "START-2a", "START-2b", "START-2c", "START-2d",
-               "SPAWN-2a", "SPAWN-2b", "SPAWN-2c", "SPAWN-5a", "SPAWN-5b", "SPAWN-8a", "SPAWN-8b", "SPAWN-9", "SPAWN-10a", "SPAWN-10b")
-        for rid in ids:
-            for size in "SML":
-                with self.subTest(rule=rid, size=size):
-                    absent = set(acts(rid, size)) - PRESENT[size]
-                    self.assertFalse(absent, f"{rid} acts on {absent} at {size}")
-
-    def test_l_only_roles_act_nowhere_else_on_slice_rules(self):
-        for rid in ("SIZE-6b", "SIZE-5b", "SIZE-11b", "START-2b", "START-2c", "START-2d", "WHO-1b", "WHO-2", "WHO-8c", "SPAWN-5b", "SPAWN-9", "SPAWN-10b"):
-            for size in "SM":
-                with self.subTest(rule=rid, size=size):
-                    self.assertEqual(acts(rid, size), ())
-
     def test_manager_variant_of_every_team_lead_duty_at_s_and_m(self):
         for rid in ("SIZE-6a", "START-2a", "WHO-1a", "WHO-3a", "WHO-8a", "SPAWN-5a", "SPAWN-8a", "SPAWN-10a"):
             for size in "SM":
@@ -227,56 +201,7 @@ class RespawnReadable(unittest.TestCase):
         self.assertIn("ba", acts("REV-21", "L"))
         self.assertEqual(acts("REV-21", "S"), ())
 
-    def test_duties_line_is_written_into_the_task_file(self):
-        # a respawned Developer reads the task file, not the first prompt; the dev rules are at their size cap
-        sm, mm = composed("manager", "S"), composed("manager", "M")
-        for text, need in ((sm, ("start each task file with `Duties:`", "technical AC are yours", "`promote.md`", "BLOCKED <task>", "user-visible change")),
-                           (mm, ("start each task file with `Duties:`", "technical AC are QA whitebox's", "BLOCKED <task>"))):
-            for n in need:
-                self.assertIn(n, text)
-        self.assertNotIn("Duties:", composed("dev", "S"))
-        self.assertNotIn("user-visible change or business doubt", mm.split("SIZE-6d")[1].split("##")[0])
-
-
 class SizeRules(unittest.TestCase):
-    def test_size_table(self):
-        m = composed("manager", "S")
-        self.assertIn("| **S** Quick fix | Manager, Developers |", m)
-        self.assertIn("| **M** Feature | + QA whitebox, QA blackbox |", m)
-        self.assertIn("| **L** Full pod | Every role: + BA, Team Lead, Tech Lead |", m)
-
-    def test_every_risk_flag_forces_l(self):
-        for size in "SM":
-            t = composed("manager", size)
-            self.assertIn("Every risk flag forces L", t)
-            self.assertNotIn("force at least M", t)
-        self.assertIn("DB migration or data change", composed("manager", "S"))
-
-    def test_business_doubt_moves_s_and_m_to_l(self):
-        self.assertIn("A business doubt moves the scope to L", composed("manager", "S"))
-        self.assertIn("A business doubt moves the scope to L", composed("manager", "M"))
-        self.assertIn("`BLOCKED <task>` ([SIZE-14])", composed("manager", "S"))
-        self.assertIn("a business doubt or risk flag moves it to L", composed("manager", "S"))
-
-    def test_manager_plans_and_spawns_in_s_and_m_not_l(self):
-        for size in "SM":
-            m = composed("manager", size)
-            self.assertIn("## SIZE-6a Plan owner, S and M", m)
-            self.assertIn("## SPAWN-5a", m)
-        self.assertNotIn("## SIZE-6a", composed("manager", "L"))
-        self.assertIn("## SIZE-6b", composed("team-lead", "L"))
-
-    def test_developers_write_design_notes_in_the_task_file(self):
-        for size in "SM":
-            self.assertIn("put design notes in the task file", composed("manager", size))
-
-    def test_s_dev_rules_name_the_review_and_duty_table_has_every_duty(self):
-        t = composed("manager", "S")
-        for row in ("Full suite | Developer | QA whitebox | Tech Lead", "`promote.md` | Developer | QA whitebox |",
-                    "Code check | Developer + Sonnet review subagent", "Technical AC | Developer | QA whitebox with the Developer",
-                    "Migration, contract change, risk flag, business doubt | Manager moves to L"):
-            self.assertIn(row, t)
-
     def test_m_has_no_ba_team_lead_or_tech_lead_text(self):
         m = composed("manager", "M")
         for name in ("The Team Lead owns the plan", "Tech Lead tells the Manager"):
@@ -309,23 +234,6 @@ def all_ids():
 
 
 class WholeTemplate(unittest.TestCase):
-    def test_no_orphan_duty_at_s_and_m(self):
-        """Every rule whose `when` matches acts on a present role (Designer, Token Coach count: any size)."""
-        bad = []
-        for rid in all_ids():
-            if rid in ORPHAN_ALLOWED:
-                continue
-            for line in run("who", rid).stdout.splitlines():
-                m = re.match(r"([SM])(?: qa-b (yes|no))?: acts: (.*?); aware: ", line)
-                if not m or m.group(3).strip() in ("-", "all"):
-                    continue
-                size, qab = m.group(1), m.group(2) or "yes"
-                acting = {a.strip() for a in m.group(3).split(",")}
-                if not acting & (present(size, qab) | ANY_SIZE):
-                    bad.append(f"{rid} at {size} qa-b {qab}: acts only on {sorted(acting)}")
-        self.maxDiff = None
-        self.assertEqual(sorted(set(bad)), [], "orphan duties; return them to the owning ticket")
-
     def test_allow_list_is_only_what_the_follow_up_list_names(self):
         for rid, why in ORPHAN_ALLOWED.items():
             self.assertTrue(why)
@@ -341,23 +249,6 @@ class WholeTemplate(unittest.TestCase):
                 if size in "SM" and acting and not set(acting) & (PRESENT[size] | ANY_SIZE):
                     hit = True
             self.assertTrue(hit, f"{rid} is no longer an orphan: drop it from ORPHAN_ALLOWED")
-
-    def test_manager_text_names_no_absent_role_as_actor_at_s_and_m(self):
-        """Rules the Manager acts on at S or M, minus table rows (tables set the sizes side by side) and the
-        ABSENT_NAME_ALLOWED move-up rules."""
-        bad = set()
-        for f in ALL_FILES:
-            text = f.read_text(encoding="utf-8")
-            for rid, body in re.findall(r"(?ms)^## ([A-Z]+-\d+[a-z]?) [^\n]*\n(.*?)(?=^## |\Z)", text):
-                if rid in ABSENT_NAME_ALLOWED or not any("manager" in acts(rid, z) for z in "SM"):
-                    continue
-                prose = "\n".join(l for l in body.splitlines() if not l.lstrip().startswith("|") and not l.startswith(("roles:", "aware:", "when:", "topic:")))
-                prose = re.sub(r"\([^)]*\bL\b[^)]*\)", " ", prose)   # '(S to M: ...; to L: BA, ...)'
-                prose = re.sub(r"[^.\n]*\b(?:at L|in L|L only)\b[^.\n]*", " ", prose)
-                for name in ("Tech Lead", "Team Lead", "the BA"):
-                    if name in prose:
-                        bad.add(f"{rid} names {name}")
-        self.assertEqual(sorted(bad), [], "return to the owning ticket or allow-list a move-up rule by ID")
 
     def test_dev_and_qas_name_no_absent_role_at_s_and_m(self):
         for size in "SM":
@@ -379,24 +270,6 @@ class WholeTemplate(unittest.TestCase):
             for size in "SML":
                 self.assertIn(size, OWNERS[duty], f"{duty} has no owner at {size}")
 
-    def test_migration_moves_to_l_and_irreversible_choice_has_an_owner(self):
-        for size in "SM":
-            self.assertIn("manager", acts("SIZE-4", size))
-            self.assertIn("manager", acts("SIZE-13", size))
-            self.assertIn("manager", acts("LC-26", size))
-            self.assertIn("Migration, contract change, risk flag, business doubt | Manager moves to L", composed("manager", size))
-        self.assertIn("Tech Lead", composed("tech-lead", "L"))
-        self.assertIn("tech-lead", acts("LC-26", "L"))
-        self.assertIn("Irreversible design choice | Manager | Manager | Tech Lead", composed("manager", "S"))
-        self.assertIn("tech-lead", acts("WHO-2c", "L"))
-
-    def test_risk_flags_force_l_and_business_doubt_moves_to_l(self):
-        for size in "SM":
-            t = composed("manager", size)
-            self.assertIn("Every risk flag forces L", t)
-            self.assertIn("A business doubt moves the scope to L", t)
-            self.assertIn("Business doubt, risk flag, cross-repo or ordering: straight to L", t)
-
     def test_the_orphan_check_catches_an_orphan(self):
         """Mutation: a rule acting only on an absent role is reported by the same parser."""
         line = "S: acts: tech-lead; aware: -"
@@ -413,6 +286,8 @@ def rules_at(rev=None):
     import subprocess
     out = {}
     for f in ALL_FILES:
+        if f.name == "_removed.md":
+            continue  # tombstones are not rules; a removed ID must be absent from `new`
         if rev:
             r = subprocess.run(["git", "show", f"{rev}:templates/squad/process/{f.name}"], cwd=ROOT, capture_output=True, encoding="utf-8")
             text = r.stdout if r.returncode == 0 else ""
@@ -446,7 +321,8 @@ class Changelog(unittest.TestCase):
         for rid in set(new) - set(old):
             self.assertIn(f"- {rid}:", sections["added"])
         for rid in diff & set(old) & set(new):
-            self.assertIn(f"- {rid}:", sections["retargeted"])
+            self.assertTrue(f"- {rid}:" in sections["retargeted"] or f"- {rid}:" in sections["changed"] or f", {rid}:" in sections["changed"],
+                            f"{rid} is in neither retargeted nor changed")
 
     def test_no_opus_review_subagent_in_the_rule_files(self):
         pat = re.compile(r"Opus review|review subagent.{0,40}Opus|Opus.{0,20}review subagent")
@@ -461,6 +337,157 @@ class Changelog(unittest.TestCase):
         text = (ROOT / "skills" / "squad-process-update" / "changelog.md").read_text(encoding="utf-8")
         for rid in ("SPAWN-4", "SIZE-18", "LC-7c", "REV-22", "SUITE-2d"):
             self.assertIn(f"- {rid}:", text)
+
+
+# ---- drop-scope-size 05 (design 04a): sizes.md and teams.md in the team language ----------------------------------
+import itertools  # noqa: E402
+from pathlib import Path  # noqa: E402
+import sys  # noqa: E402
+
+sys.path.insert(0, str(ROOT / "bin"))
+import squadrules as sr  # noqa: E402
+
+PDIR = sr.process_dir(str(ROOT))
+MY_FILES = ("sizes.md", "teams.md")
+ALL_TEAMS = [frozenset(c) for n in range(8) for c in itertools.combinations(sr.TEAM_KEYS, n)]
+# Done rules are broadcast to every pod role of the team: their `roles:` may list a role this team lacks (nobody acts for it)
+DONE_BROADCAST = {"SIZE-2", "TEAM-1", "TEAM-2", "TEAM-3"}
+
+
+def my_rules():
+    rules, tombs, errs = sr.load_rules(PDIR, str(ROOT))
+    return [r for r in rules if Path(r.file).name in MY_FILES], tombs
+
+
+def present_roles(team):
+    return {"manager", "dev", "token-coach"} | {r for r in sr.ROLES if sr.ROLE_KEY.get(r, r) in team}
+
+
+class TeamRules(unittest.TestCase):
+    def test_no_rule_of_the_two_files_acts_on_an_absent_role_for_any_of_the_128_teams(self):
+        rules, _ = my_rules()
+        bad, orphan = set(), set()
+        for team in ALL_TEAMS:
+            facts, here = sr.team_facts(team), present_roles(team)
+            for r in rules:
+                if not sr.matches(r.when, facts):
+                    continue
+                acting = set(r.roles)
+                if not acting & here:
+                    orphan.add(r.id)
+                if r.id not in DONE_BROADCAST and acting - here:
+                    bad.add(f"{r.id} acts on {sorted(acting - here)} for team {sorted(team)}")
+        self.assertEqual(sorted(bad), [])
+        self.assertEqual(sorted(orphan), [])
+
+    def test_who_lists_exactly_the_acting_roles_per_duty_fact_and_value(self):
+        rules, _ = my_rules()
+        checked = 0
+        for r in rules:
+            conds = list(sr._conditions(r.when)) if r.when else []
+            duty = [(k, v) for k, v in conds if k in sr.DUTIES]
+            if not duty:
+                continue
+            key, values = duty[0]
+            lines = who(r.id)
+            for value in sr.DUTIES[key]:
+                if value == "qas":
+                    continue
+                want = tuple(r.roles) if value in values else ()
+                self.assertEqual(lines[f"{key} = {value}"][0], want, f"{r.id} {key} = {value}")
+                checked += 1
+        self.assertGreater(checked, 40)
+
+    def test_every_duty_has_a_rule_per_acting_role_in_sizes_md(self):
+        rules, _ = my_rules()
+        by = {}
+        for r in rules:
+            for k, vals in (sr._conditions(r.when) if r.when else []):
+                if k in sr.DUTIES:
+                    by.setdefault(k, set()).update(vals)
+        for duty in ("plan-owner", "business-ac", "code-check", "behaviour-check", "ui-check", "doubt-owner", "tech-ac", "promote-owner"):
+            self.assertTrue(by.get(duty), duty)
+        self.assertEqual(by["business-ac"], {"ticket", "ba"})
+        self.assertEqual(by["behaviour-check"], {"manager", "qa-black", "qa-white"})
+        self.assertEqual(by["code-check"], {"manager", "qa-white", "tech-lead"})
+
+    def test_text_never_says_size(self):
+        for name in MY_FILES:
+            text = Path(PDIR, name).read_text(encoding="utf-8")
+            hits = re.findall(r"(?i)\bsize\b(?!-\d)", text)
+            self.assertEqual(hits, [], name)
+        self.assertNotRegex(composed("manager", team="qa-white"), r"(?i)\bsizes?\b(?!-\d)\s+(?:of|S|M|L)\b")
+
+    def test_manager_proposal_has_a_row_for_every_role(self):
+        sizes = Path(PDIR, "sizes.md").read_text(encoding="utf-8")
+        table = sizes.split("## SIZE-1 ")[1].split("\n## ")[0]
+        for role in ("BA", "Tech Lead", "Team Lead", "QA whitebox", "QA blackbox", "Designer", "Architect"):
+            self.assertRegex(table, rf"(?m)^\| {role} \|", role)
+        for team in ((), ("qa-white", "qa-black"), tuple(sr.TEAM_KEYS)):
+            self.assertIn("## SIZE-1 Proposing the team", composed("manager", team=team))
+
+    def test_done_text_by_the_four_shapes(self):
+        both = composed("manager", team="qa-white, qa-black")
+        self.assertIn("Done = every checker on the team has passed the task: QA whitebox PASS and QA blackbox PASS", both)
+        self.assertIn("One PASS is never enough", both)
+        for other in ("## TEAM-1", "## TEAM-2", "## TEAM-3"):
+            self.assertNotIn(other, both)
+        w = composed("manager", team="qa-white")
+        self.assertIn("Done = every checker on the team has passed the task: QA whitebox PASS", w)
+        self.assertNotIn("QA blackbox PASS", w)
+        self.assertNotIn("One PASS is never enough", w)
+        b = composed("manager", team="qa-black")
+        self.assertIn("QA blackbox PASS, and the Developer's `## Review` confirmed", b)
+        self.assertNotIn("QA whitebox PASS", b)
+        n = composed("manager", team="")
+        self.assertIn("Done = the Developer's checks, `evidence.md` and `## Review` exist, and the code-check owner", n)
+        self.assertIn("No QA is on the team: confirm `evidence.md` `## Behaviour`", n)
+        self.assertNotIn("PASS and QA", n)
+
+    def test_who_checks_behaviour_by_shape(self):
+        self.assertIn("QA whitebox PASS", composed("manager", team="qa-white"))
+        self.assertIn("you check the Developer's `## Behaviour`", composed("qa-whitebox", team="qa-white"))
+        self.assertNotIn("you check the Developer's `## Behaviour`", composed("qa-whitebox", team="qa-white, qa-black"))
+        self.assertIn("QA blackbox checks the behaviour of every task", composed("qa-blackbox", team="qa-white, qa-black"))
+        self.assertIn("QA blackbox checks the behaviour of every task", composed("qa-blackbox", team="qa-black"))
+        self.assertIn("The BA owns the business AC and writes them alone", composed("ba", team="ba"))
+        self.assertIn("writes them with QA blackbox", composed("ba", team="ba, qa-black"))
+
+    def test_architecture_ac_rules_follow_the_tech_ac_owner(self):
+        for team, rid, role in (("tech-lead, qa-white, architect", "SIZE-23d", "tech-lead"), ("qa-white, architect", "SIZE-23c", "qa-whitebox")):
+            self.assertIn(f"## {rid}", composed(role, team=team))
+        self.assertNotIn("## SIZE-23d", composed("qa-whitebox", team="qa-white, architect"))
+        self.assertNotIn("## SIZE-23c", composed("qa-whitebox", team="qa-white"))
+
+    def test_chain_table_names_every_duty_and_ends_the_chains(self):
+        body = Path(PDIR, "sizes.md").read_text(encoding="utf-8").split("## SIZE-22 ")[1].split("\n## ")[0]
+        rows = [l for l in body.splitlines() if l.startswith("| ") and not l.startswith(("| Duty", "|---"))]
+        self.assertEqual(len(rows), 12)
+        for l in rows:
+            self.assertRegex(l, r"Manager|Developer|ticket|PO decides")
+
+    def test_every_pointer_to_a_size_rule_in_the_templates_resolves(self):
+        rules, tombs, _ = sr.load_rules(PDIR, str(ROOT))
+        ids = {r.id for r in rules}
+        for f in Path(PDIR).glob("*.md"):
+            for cited in re.findall(r"\[(SIZE-\d+[a-z]?|TEAM-\d+[a-z]?)\]", f.read_text(encoding="utf-8")):
+                self.assertIn(cited, ids, f"{f.name} cites {cited}")
+
+    def test_tombstones_of_this_task_carry_why_and_a_live_replacement(self):
+        rules, tombs, _ = sr.load_rules(PDIR, str(ROOT))
+        ids = {r.id for r in rules}
+        mine = [t for t in tombs if t.version == "v9"]
+        self.assertGreaterEqual(len(mine), 10)
+        for t in mine:
+            self.assertGreater(len(t.why), 10, t.id)
+            self.assertTrue(t.replaced_by and set(t.replaced_by) <= ids, t.id)
+            self.assertNotIn(t.id, ids)
+
+    def test_qa_b_is_gone_from_the_when_of_both_files(self):
+        for name in MY_FILES:
+            for line in Path(PDIR, name).read_text(encoding="utf-8").splitlines():
+                if line.startswith("when:"):
+                    self.assertNotRegex(line, r"\bqa-b\b|\bsize\b", line)
 
 
 if __name__ == "__main__":

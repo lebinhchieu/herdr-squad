@@ -43,7 +43,7 @@ class PodRulesTest(unittest.TestCase):
         self.assertIn("Never relay a permission, approval or blocked pane", composed("team-lead", "L"))
 
     def test_down_and_handover_clauses(self):
-        self.assertIn("The Manager retires the roles that drop out", composed("manager", "M"))
+        self.assertIn("Retire the removed role's session", composed("manager", "M"))
         self.assertIn("the Manager writes a `## Handover` section", composed("manager", "L"))
 
     def test_s_keeps_the_confirm_gate_for_all_spawns(self):
