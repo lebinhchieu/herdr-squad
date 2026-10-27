@@ -227,6 +227,22 @@ class LintClassTest(Clean):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("architecture = yes", "architecture = maybe"))
         self.only("unknown value 'maybe'")
 
+    def test_team_language_when_is_valid_for_duty_plus_orthogonal(self):
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: business-ac = ba and qa-black = yes\ntopic: safety"))
+        self.assertEqual(self.lint()[0], [])
+
+    def test_two_duty_keys_in_one_when_name_the_rule(self):
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace(
+            "topic: safety", "when: business-ac = ba and code-check = qa-white\ntopic: safety"))
+        errs = self.lint()[0]
+        self.assertEqual(len(errs), 1, errs)
+        self.assertIn("SAFE-1", errs[0])
+        self.assertIn("at most one", errs[0])
+
+    def test_duty_value_outside_its_set_is_refused(self):
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: business-ac = qa-black\ntopic: safety"))
+        self.only("unknown value 'qa-black' for when key 'business-ac'")
+
     def test_architect_role_in_roles_line_is_valid(self):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("roles: dev", "roles: dev, architect"))
         self.assertEqual(self.lint()[0], [])

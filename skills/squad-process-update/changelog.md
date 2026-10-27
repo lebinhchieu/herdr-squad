@@ -1,3 +1,14 @@
+## v9 — 2026-10-27
+Teams replace sizes (drop-scope-size, 0.6.0). Each rule-file task appends its changed IDs under the headings below; the snapshot line and the final text come with the promotion task.
+
+added:
+
+changed:
+
+removed:
+
+retargeted:
+
 ## v8 — 2026-10-27
 - snapshot: history/process-v8/
 
