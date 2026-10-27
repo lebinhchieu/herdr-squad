@@ -462,6 +462,10 @@ def _plan_scope(squad_dir, rel, path):
         e.check.append("blank size: design/architecture flag is not carried into a blank team")
     if any(_CONTRADICT.search(c) for c in commentary):
         e.check.append("commentary may contradict the mapping")
+    if e.check or not token:  # a check entry or a blank team: keep every dropped old line verbatim
+        have = set(commentary)
+        commentary = [c for c in (f"{k}: {found[k][0][1]}" for k in sc._OLD_LINES if k in found)
+                      if c not in have] + commentary
     e.commentary = commentary
     first = min(i for k in old for i, _v in found[k][:1])
     drop = {found[k][0][0] for k in old}

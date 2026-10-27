@@ -236,6 +236,18 @@ class ConverterTest(Base):
         self.assertIn("\nteam:\n", self.scope_text(sq).decode())
         self.assertEqual(sc.read_home(str(sq / "scopes/s1"))["team_source"], "undecided")
 
+    def test_blank_size_with_flags_keeps_dropped_lines_in_file(self):
+        sq = self.squad()
+        self.home(["size:", "design: yes", "architecture: yes", "qa-b: no", "qa: full"], squad=sq)
+        plan = sa.plan_scopes(str(sq))[0]
+        self.assertTrue(plan.check)
+        sa.apply_scopes([plan])
+        text = self.scope_text(sq).decode()
+        self.assertIn("<!-- converted from ", text)
+        for line in ("size: ;", "design: yes", "architecture: yes", "qa-b: no"):
+            self.assertIn(line.rstrip(";"), text.split("-->")[0])
+        self.assertNotIn("\ndesign: yes\n", text)
+
     def test_unreadable_size_is_flagged_not_dropped(self):
         sq = self.squad()
         self.home(["size: XL", "qa: full"], squad=sq)
