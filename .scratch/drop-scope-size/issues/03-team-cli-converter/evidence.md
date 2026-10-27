@@ -1,5 +1,5 @@
 # Evidence: 03 `squad-process team` CLI and converter
-sha: pending
+sha: 13ed665
 
 ## Behaviour
 - `squad-process team --home D`: prints `ba, qa-white` style list, `none` or `undecided`; only `TEAM_KEYS` tokens ever reach stdout (hostile `team:` values `qa-white; touch X`, `$(...)`, backticks exit 2, nothing runs, stdout empty). `--has ROLE` (role names via `ROLE_KEY`) prints nothing, exit 0 on team / 1 not / 2 unknown role or bad home; manager, dev, token-coach always on; an undecided team has only the Manager. No `--from-size`.
@@ -14,3 +14,5 @@ sha: pending
 - Tests run green: test_team_cli (35), test_squad_migrate, test_squadadopt, and the grep hits for `squadadopt|squad-migrate|squadrules_cli|squad-process|squadcompose|pin_home_file` (31 files).
 - Changelog v9: no rule ID changed in this ticket.
 - Files beyond the ticket list: `bin/squadcompose.py` (additive `old_format_lines`, `old_format_error`; Tech Lead OK).
+- Blank `size:` or any `check` entry: the `<!-- converted from ... -->` comment lists every dropped old line verbatim (`design: yes`, `qa-b: no`, ...); `--` still escaped. Test `test_blank_size_with_flags_keeps_dropped_lines_in_file`.
+- `plan_scopes` skips `scopes/_done/*` (names starting with `_`) by design; real-sample dry runs use copies placed directly in `scopes/`.
