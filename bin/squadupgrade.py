@@ -85,6 +85,13 @@ def old_when_conditions(when):
     return out
 
 
+def _other_l_role(op):
+    """True when the op's `roles:` names an L role other than the BA (a rule about the Team Lead or Tech Lead): the
+    L-only `ba = yes` is then not the only reading, `team-lead = yes` and `tech-lead = yes` are listed too (AC 21)."""
+    roles = {r.strip() for r in (op.attrs.get("roles") or "").split(",")}
+    return bool(roles & {"team-lead", "tech-lead"})
+
+
 class Plan:
     def __init__(self):
         self.items, self.review, self.counts, self.old_known = [], [], {}, False
@@ -296,6 +303,9 @@ def format_check(plan, old_pin, new_pin, why_of=None):
         for o, conds in plan.old_when:
             for old, new in conds:
                 lines.append(f"  {o.id} (line {o.line}): {old} -> {new or 'no direct translation: pick a duty or role key'}")
+                if new == "ba = yes" and _other_l_role(o):
+                    lines += [f"  {o.id} (line {o.line}): alternative: team-lead = yes",
+                              f"  {o.id} (line {o.line}): alternative: tech-lead = yes"]
     if plan.review:
         lines.append("review (not blocking):")
         lines += [f"  {r}" for r in plan.review]

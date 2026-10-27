@@ -133,6 +133,30 @@ class OldWhenLanguage(Base):
         self.assertNotIn("nothing needs a decision", r.stdout)
         self.assertEqual(self.snapshot(sq), before)
 
+    def test_other_l_role_rule_lists_both_alternatives(self):
+        for roles in ("tech-lead", "team-lead", "tech-lead, team-lead"):
+            with self.subTest(roles=roles):
+                sq = self.squad_with("size = L")
+                f = sq / "process.local.md"
+                f.write_text(f.read_text().replace("when: size = L", f"roles: {roles}\nwhen: size = L"),
+                             encoding="utf-8", newline="\n")
+                before = self.snapshot(sq)
+                r = run(*self.args("--check", "add-free", sq))
+                self.assertEqual(r.returncode, 3, r.stderr)
+                self.assertIn("size = L -> ba = yes", r.stdout)
+                self.assertIn("alternative: team-lead = yes", r.stdout)
+                self.assertIn("alternative: tech-lead = yes", r.stdout)
+                self.assertEqual(self.snapshot(sq), before)
+                r = run(*self.args("--apply", "add-free", sq, "--yes"))
+                self.assertEqual(r.returncode, 3, r.stderr)
+                self.assertIn("NOT APPLIED", r.stdout)
+                self.assertEqual(self.snapshot(sq), before)
+
+    def test_ba_or_unroled_rule_lists_no_alternatives(self):
+        sq = self.squad_with("size = L")
+        r = run(*self.args("--check", "add-free", sq))
+        self.assertNotIn("alternative:", r.stdout)
+
     def test_value_sets_and_unmapped_conditions(self):
         self.assertEqual(su.old_when_conditions("size in M, L"),
                          [("size in M, L", "no single key (write one rule per case)")])

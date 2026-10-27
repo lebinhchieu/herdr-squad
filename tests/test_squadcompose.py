@@ -576,9 +576,9 @@ class CutoverTest(Base):
     def test_squadcompose_has_no_size_path_and_no_scaffold_parameter(self):
         text = (BIN / "squadcompose.py").read_text(encoding="utf-8")
         for needle in ("legacy_scaffold", "_size_facts", "legacy_team", r'facts\["size"\]', r'"size"\]',
-                       r'team_source"\] == "size"', "qa-b\b"):
+                       r'team_source"\] == "size"', r"qa-b\b"):
             allowed = [ln for ln in text.split("\n") if re.search(needle, ln) and not ln.lstrip().startswith("#")]
-            if needle == "qa-b":  # only the old-line list and its error texts name it
+            if needle == r"qa-b\b":  # only the old-line list and its error texts name it
                 allowed = [ln for ln in allowed if "_OLD_LINES" not in ln and "old format" not in ln and "`qa-b" not in ln]
             self.assertEqual(allowed, [], needle)
         for path in list(BIN.iterdir()) + list((ROOT / "hooks").rglob("*")):  # nothing anywhere names the parameter
