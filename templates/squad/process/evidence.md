@@ -30,6 +30,7 @@ Once every checker has passed: `squad-evidence add <ticket> --heading "<H>" --fr
 
 ## EVID-2c Check the evidence commit, Tech Lead
 roles: tech-lead
+when: tech-lead = yes
 topic: evidence
 
 On the Developer's `HANDIN <task>: evidence sha <sha>`, run `squad-evidence check <folder> --base <passed sha>` and accept it only when it exits 0.
@@ -56,7 +57,7 @@ topic: evidence
 
 `qa-w.md` and `qa-b.md` are the reviewer files.
 
-## EVID-4 Behaviour, Manager confirms
+## EVID-4 Behaviour
 roles: dev
 when: behaviour-check = manager
 topic: evidence

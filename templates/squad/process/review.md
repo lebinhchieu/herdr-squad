@@ -16,6 +16,7 @@ On `HANDIN`: make the confirmation of [REV-1] (`## Behaviour` and `## Review` in
 
 ## REV-2 QA whitebox review
 roles: qa-whitebox
+when: qa-white = yes
 topic: review
 
 On `HANDIN`, check out the Developer's branch (read-only), then:
@@ -38,7 +39,7 @@ topic: review
 
 The Tech Lead names one final sha per task before QA verdicts; doc-only edits wait until every finding is in, and each QA gives one verdict on that sha.
 
-## REV-3b Final sha without a Tech Lead
+## REV-3b Final sha
 roles: qa-whitebox, qa-blackbox
 when: tech-lead = no
 topic: review
@@ -48,11 +49,12 @@ The final sha of a task is the one in the Developer's latest `HANDIN`. Doc-only 
 ## REV-4 Real samples
 roles: qa-whitebox
 aware: tech-lead
+when: qa-white = yes
 topic: review
 
 Code that parses another tool's output (pane text, logs, an API) needs two real samples, including the constant or idle case, before a pattern is trusted. The technical AC require them.
 
-## REV-5a Live run, Developer
+## REV-5a Live run
 roles: dev
 when: qa-white = no
 topic: review
@@ -61,6 +63,7 @@ Run code that parses another tool's output once, read-only, on live data.
 
 ## REV-5b Live run, QA whitebox
 roles: qa-whitebox
+when: qa-white = yes
 topic: review
 
 QA whitebox runs code that parses another tool's output once, read-only, on live data.
@@ -68,6 +71,7 @@ QA whitebox runs code that parses another tool's output once, read-only, on live
 ## REV-6 Payload shape
 roles: qa-whitebox
 aware: tech-lead
+when: qa-white = yes
 topic: review
 
 A ticket that changes a payload is checked on its field shape (every row has the fields the consumer reads, every closed item has its end), not only on totals.
@@ -88,24 +92,28 @@ Agree the business AC before work starts, as Given/When/Then a user can observe 
 
 ## REV-9 QA blackbox check
 roles: qa-blackbox
+when: qa-black = yes
 topic: review
 
 On `HANDIN`, test the running app the way `project.md` says (for example Playwright against the dev server, with the Developer's branch deployed or served locally). Walk every business AC, plus the obvious unhappy paths a real user would hit.
 
 ## REV-10 QA whitebox findings
 roles: qa-whitebox
+when: qa-white = yes
 topic: review
 
 Write findings to `$SCOPE_DIR/evidence/<task>/qa-w.md`: each finding with file:line, why it matters, and what would pass. Embed a screenshot as `![alt](path)` (absolute, or relative to the file); the Developer's `squad-evidence add` copies it. Read the ticket's `evidence.md` `## Behaviour` as the Developer's claim, not as proof.
 
 ## REV-11 QA blackbox evidence
 roles: qa-blackbox
+when: qa-black = yes
 topic: review
 
 Write evidence to `$SCOPE_DIR/evidence/<task>/qa-b.md`: each AC → what you did → what you saw → pass/fail, with each screenshot embedded as `![alt](path)` (absolute, or relative to the file); the Developer's `squad-evidence add` copies it.
 
 ## REV-12 Verdict
 roles: qa-whitebox, qa-blackbox
+when: handin-target = qas
 topic: review
 
 Send `PASS` or `FAIL` to the Developer only.
@@ -142,7 +150,7 @@ topic: review
 roles: dev
 topic: review
 
-After a PASS, a later commit goes to the same checkers you handed in to, as `HANDIN <task>: diff check <passed sha>..<new sha>`.
+After a PASS, a later commit goes to the same checkers as `HANDIN <task>: diff check <passed sha>..<new sha>`.
 
 ## REV-15 Report deliverables
 roles: manager
@@ -153,12 +161,14 @@ Name this in the task file of a report or doc task: a report or doc deliverable 
 
 ## REV-16 Style contract
 roles: tech-lead
+when: tech-lead = yes
 topic: review
 
 For a scope with a UI mock, the Tech Lead writes `style-contract.md`; the UI AC cite it.
 
 ## REV-17 Style findings
 roles: qa-whitebox, qa-blackbox
+when: handin-target = qas
 topic: review
 
 A QA lists all style findings of a sha in one return.
@@ -166,7 +176,7 @@ A QA lists all style findings of a sha in one return.
 ## REV-18a Presentational values, QA whitebox
 roles: qa-whitebox
 aware: qa-blackbox
-when: qa-black = yes
+when: qa-white = yes and qa-black = yes
 topic: review
 
 Never assert presentational values the mock fixes; QA blackbox owns them.
@@ -174,7 +184,7 @@ Never assert presentational values the mock fixes; QA blackbox owns them.
 ## REV-18b Presentational values, QA blackbox
 roles: qa-blackbox
 aware: qa-whitebox
-when: qa-white = yes
+when: qa-white = yes and qa-black = yes
 topic: review
 
 QA blackbox owns the presentational values the mock fixes; QA whitebox never asserts them.

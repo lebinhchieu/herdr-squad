@@ -26,7 +26,9 @@ def compose(role, size, design="no", goal="no", architecture="no", name="role-ca
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "scopes" / name
         home.mkdir(parents=True)
-        (home / "scope.md").write_text(f"goal:{' g1' if goal == 'yes' else ''}\nsize: {size}\nqa: full\ndesign: {design}\narchitecture: {architecture}\n{pin}",
+        import squadrules
+        team = squadrules.legacy_team(size, "yes", design, architecture)  # today's shape as a team (the converter's mapping)
+        (home / "scope.md").write_text(f"goal:{' g1' if goal == 'yes' else ''}\nteam: {', '.join(team) or 'none'}\nqa: full\n{pin}",
                                        encoding="utf-8", newline="\n")
         out = Path(tmp) / "rules.md"
         r = subprocess.run([sys.executable, "-B", str(ROOT / "bin" / "squad-process"), "compose", role, "--home", str(home),
@@ -78,9 +80,9 @@ class DevRulesSize(unittest.TestCase):
                 "START-10": "git branch --show-current",
                 "MSG-3": "`NN` alone",
                 "LC-18": "squad-label",
-                {"S": "LC-20a", "M": "LC-20c", "L": "LC-20b"}[size]: f"Tell the {owner}",
+                {"S": "LC-20a", "M": "LC-20a", "L": "LC-20b"}[size]: f"Tell the {owner}",
                 "REV-13a" if size == "S" else "REV-13b": "HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it",
-                {"S": "REV-14a", "M": "REV-14c", "L": "REV-14b"}[size]: "After a PASS, a later commit goes to",
+                "REV-14a": "After a PASS, a later commit goes to",
                 {"S": "REV-22", "M": "EVID-2d", "L": "EVID-2b"}[size]: "squad-evidence check",
                 "COST-5" if size == "L" else "COST-5a": "no `squad-respawn`",
                 "SAFE-1a": "Never push, rebase",

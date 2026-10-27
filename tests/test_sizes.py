@@ -1,6 +1,7 @@
 """Ticket 17 (slice 1): S = Manager + Developers, M = + both QAs, L = every role. Rules in sizes, who, starting
 and spawning. The whole-template orphan-duty checks land in ticket 31."""
 import re
+import sys
 import unittest
 
 from rulesview import ROOT, acts, composed, run, who
@@ -23,7 +24,7 @@ OWNERS = {
     # slice 2 (ticket 29)
     "hand-in": {"S": ("REV-13a", "dev"), "M": ("REV-13b", "dev"), "L": ("REV-13b", "dev")},
     "hand-in confirmation": {"S": ("REV-1", "manager"), "M": ("REV-9", "qa-blackbox"), "L": ("REV-9", "qa-blackbox")},
-    "done is told to": {"S": ("LC-20a", "dev"), "M": ("LC-20c", "dev"), "L": ("LC-20b", "dev")},
+    "done is told to": {"S": ("LC-20a", "dev"), "M": ("LC-20a", "dev"), "L": ("LC-20b", "dev")},
     "full suite": {"S": ("SUITE-2d", "dev"), "M": ("SUITE-1b", "qa-whitebox"), "L": ("SUITE-1", "tech-lead")},
     "promote.md": {"S": ("PROMO-3b", "manager"), "M": ("SIZE-24b", "qa-whitebox"), "L": ("PROMO-2", "tech-lead")},
     "evidence commit check": {"S": ("REV-1", "manager"), "M": ("EVID-2e", "manager"), "L": ("EVID-2c", "tech-lead")},
@@ -35,6 +36,9 @@ EXCEPTIONS = {
     "LC-25": "advisor when stuck acts on every role (ticket 18, pinned by test_advisor_rules); the absent roles read it only if they exist",
     "LC-26": "irreversible-choice advisor rule acts on manager, tech-lead (ticket 18, pinned by test_advisor_rules)",
     "LC-23": "the Designer is present at any size when design = yes",
+    "REV-2b": "acts for QA whitebox when the Tech Lead owns risk; a `when:` holds one role or duty key, so the QA's presence is the role itself",
+    "REV-3b": "acts for the QAs when no Tech Lead is on the team; same one-key limit",
+    "REV-21b": "acts for QA whitebox when the ticket is the business AC; same one-key limit",
 }
 
 
@@ -133,19 +137,25 @@ class Slice3Owners(unittest.TestCase):
 
 class Slice2Owners(unittest.TestCase):
     def test_no_rule_of_the_five_files_acts_on_an_absent_role(self):
-        """Lists every orphan: a rule that acts on a role absent at S or M, minus the reasoned EXCEPTIONS."""
+        """Lists every orphan: a rule that matches a team (all 128 sets) on which none of its acting roles is present,
+        minus the reasoned EXCEPTIONS."""
+        import itertools
+        sys.path.insert(0, str(ROOT / "bin"))
+        import squadrules as sr
+        import squadcompose as sc
+        rules = sc.load_rules(str(ROOT), None)[0]
+        mine = {r.id: r for r in rules if r.id.split("-")[0] in ("LC", "REV", "EVID")}  # the other slice-2 files migrate in their own tasks
+        always = {"manager", "dev", "token-coach"}
         bad = []
-        for rid in slice2_ids():
-            if rid in EXCEPTIONS:
-                continue
-            for line in run("who", rid).stdout.splitlines():
-                m = re.match(r"([SM])(?: qa-b (yes|no))?: acts: (.*?); aware: ", line)
-                if not m or m.group(3).strip() == "-":
-                    continue
-                size, qab = m.group(1), m.group(2) or "yes"
-                absent = [a.strip() for a in m.group(3).split(",") if a.strip() not in present(size, qab)]
-                if absent:
-                    bad.append(f"{rid} at {size} qa-b {qab}: {absent}")
+        for n in range(len(sr.TEAM_KEYS) + 1):
+            for team in itertools.combinations(sr.TEAM_KEYS, n):
+                facts = sr.team_facts(list(team))
+                present = always | {{"qa-white": "qa-whitebox", "qa-black": "qa-blackbox"}.get(t, t) for t in team}
+                for rid, r in mine.items():
+                    if rid in EXCEPTIONS or "all" in r.roles or not sr.matches(r.when, facts):
+                        continue
+                    if not set(r.roles) & present:
+                        bad.append(f"{rid} on {', '.join(team) or 'none'}: acts only on {sorted(r.roles)}")
         self.assertEqual(sorted(set(bad)), [])
 
     def test_pointers_of_dev_rules_at_s_reach_a_present_role(self):
@@ -172,8 +182,8 @@ class S_DeveloperReview(unittest.TestCase):
         self.assertNotIn("Opus", body)
         for size in "ML":
             self.assertNotIn("REV-22", composed("dev", size))
-        self.assertEqual(acts("REV-22", "S"), ("dev",))
-        self.assertEqual(acts("REV-22", "M"), ())
+        self.assertEqual(acts("REV-22", "qa-white = no"), ("dev",))
+        self.assertEqual(acts("REV-22", "qa-white = yes"), ())
 
     def test_s_dev_gets_the_suite_run_and_receipt_how_to(self):
         s = composed("dev", "S")
@@ -197,9 +207,9 @@ class S_DeveloperReview(unittest.TestCase):
 class RespawnReadable(unittest.TestCase):
     def test_l_business_ac_owner_with_and_without_qa_blackbox(self):
         # qa-b yes: SIZE-5b; qa-b no: REV-21 (the BA alone). Either way the BA owns it at L.
-        self.assertIn("ba", acts("SIZE-5b", "L"))
-        self.assertIn("ba", acts("REV-21", "L"))
-        self.assertEqual(acts("REV-21", "S"), ())
+        self.assertIn("ba", acts("SIZE-5b", "business-ac = ba"))
+        self.assertIn("ba", acts("REV-21", "business-ac = ba"))
+        self.assertEqual(acts("REV-21", "business-ac = ticket"), ())
 
 class SizeRules(unittest.TestCase):
     def test_m_has_no_ba_team_lead_or_tech_lead_text(self):

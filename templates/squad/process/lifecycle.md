@@ -30,12 +30,14 @@ On `FAIL`: fix every finding, re-verify, hand in again; same task, same branch.
 
 ## LC-3b Re-check after a return
 roles: qa-whitebox, qa-blackbox
+when: handin-target = qas
 topic: lifecycle
 
 On re-hand-in a QA re-checks only the changed files and their AC.
 
 ## LC-4 Test points
 roles: qa-whitebox, qa-blackbox
+when: handin-target = qas
 topic: lifecycle
 
 QA never pre-writes test points before the Developer starts; the AC are the bar.
@@ -85,6 +87,7 @@ After 3 returns on one task (a return is a handed-in sha with a `FAIL`; `squad-l
 
 ## LC-7c Three returns, QA
 roles: qa-whitebox, qa-blackbox
+when: handin-target = qas
 topic: lifecycle
 
 After 3 returns on one task (a return is a handed-in sha with a `FAIL`; `squad-ledger` counts them) the 3rd failing QA sends the plan owner `BLOCKED NN: 3 returns`.
@@ -182,10 +185,10 @@ Write the deploy plan, never run it. Order, migration steps, rollback and the ch
 
 ## LC-14 Help the plan
 roles: tech-lead
-when: plan-owner = team-lead
+when: tech-lead = yes
 topic: lifecycle
 
-Help the Team Lead plan: split work so parallel tasks do not touch the same files; flag technical risk and order. Hand the plan and its `## Handover` section to the Team Lead ([SIZE-16]).
+Help the plan owner plan: split work so parallel tasks do not touch the same files; flag technical risk and order. Hand the plan and its `## Handover` section to the plan owner ([SIZE-16]).
 
 ## LC-15 Shape the plan
 roles: team-lead
@@ -249,25 +252,25 @@ roles: dev
 when: plan-owner = manager
 topic: lifecycle
 
-Done when every checker you handed in to has sent `PASS`. Tell the Manager, again after each diff check that passes, and wait; it retires you.
+Done when every checker sent `PASS`. Tell the Manager and wait; it retires you.
 
 ## LC-20b Done, Team Lead
 roles: dev
 when: plan-owner = team-lead
 topic: lifecycle
 
-Done when every checker you handed in to has sent `PASS`. Tell the Team Lead, again after each diff check that passes, and wait; it retires you.
+Done when every checker sent `PASS`. Tell the Team Lead and wait; it retires you.
 
 ## LC-21 QA light mode
 roles: qa-whitebox, qa-blackbox
-when: qa = light
+when: qa = light and handin-target = qas
 topic: lifecycle
 
 With `qa: light` in `scope.md`, QA runs the targeted tests, skims the diff and PASSes; a task returns only for wrong behaviour, a spec-rule defect, a failing test or a security finding.
 
 ## LC-22a Light mode follow-ups, QA
 roles: qa-whitebox
-when: qa = light
+when: qa-white = yes and qa = light
 topic: lifecycle
 
 Test-strength gaps go in `qa-w.md` as "follow-up".
