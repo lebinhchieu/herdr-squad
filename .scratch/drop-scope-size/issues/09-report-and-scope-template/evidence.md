@@ -36,6 +36,11 @@ sha: ce6b3a1
 - Diff 95bfcf2..0bccec6 = those two test files only. test_squadreport_rollup 18 OK, rollup_ui 11 OK, no http.server left, lint empty exit 0, evidence check ok.
 - Verdict: PASS.
 
+#### Re-check on final sha ce6b3a1 (evidence d892341; TL DECISION names ce6b3a1)
+- Diff 0bccec6..ce6b3a1 (bin none; templates: scope.md `qa: full` after `team:`, report.js `team ?`, rollup.js `–` for an empty row; tests: test_instructions template-lines test, ui chip, rollup_ui). Read in full, no finding.
+- Tests OK: test_instructions 30, test_squadreport_ui 41, _rollup_ui 11, _collect 45, _rollup 18, test_squadruntime 64, test_squad_start 48, test_squad_spawn 65, test_windows_safe 11. Lint empty, exit 0 (= base). Evidence check ok. No http.server left.
+- Verdict: PASS (the 2 test_squad_migrate reds stay with 03).
+
 ## QA blackbox review
 
 ### QA blackbox, task 09 (code sha 95bfcf2, branch squad/plugin/drop-scope-size/plugin-dev-dsz-9)
@@ -59,3 +64,19 @@ Notes (not AC failures):
 - A scope with neither line (hand-made or undecided) shows the chip `size ?` in its report. It reads as a size even though sizes are gone. `team undecided` would fit better. AC 23 doesn't cover it; Developer's call.
 - The rollup still has a "Size" filter (all/S/M/L). Choosing S shows only the old row; a team scope matches no S/M/L value. Consistent with "old size shown as written", but a team scope can only be seen under "all".
 - AC 29 (no word "size" in PO-visible output) does not list squad-report, so neither note breaks it.
+
+#### Re-check on ce6b3a1 (changed: templates/report/report.js, rollup.js, scope template)
+Same scratch squad (old `size: S`, new `team:`, hand-made with neither), report + rollup served and browsed.
+
+| Check | Saw | Result |
+|---|---|---|
+| Note 1: chip for a scope with neither line | report header chip `team ?` (was `size ?`) | PASS |
+| Old and new chips unchanged | `size S`, `team ba, tech-lead, qa-white` | PASS |
+| Rollup rows | `hand · sq` (blank), `new · sq ba, tech-lead, qa-white`, `old · sq S`; exit 0 | PASS |
+| Rollup drawer for the hand-made scope | opens, shows `–` where team/size would be, no error | PASS |
+| Scope template | `team:` then `qa: full`; no `size:`, `design:`, `architecture:`, `qa-b:` | PASS |
+
+![hand-made chip, team ?](img/rep-hand-v2.png)
+![rollup drawer, hand-made scope](img/roll-drawer-v2.png)
+
+Note 2 (rollup "Size" filter cannot pick a team scope) stays open as a recorded gap, accepted by me as non-blocking.
