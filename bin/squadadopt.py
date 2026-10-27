@@ -22,6 +22,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadio  # noqa: E402
+import squadcompose as sc  # noqa: E402
 import squadprocess as sp  # noqa: E402
 import squadrules as sr  # noqa: E402
 import squadruntime as rt  # noqa: E402
@@ -369,11 +370,167 @@ def unpinned_homes(squad_dir):
 
 
 def pin_home_file(path, pin):
-    text = _slurp(path)
+    with open(path, encoding="utf-8", newline="") as f:
+        raw = f.read()
+    crlf = "\r\n" in raw
+    text = raw.replace("\r\n", "\n")
     line = f"plugin: {pin[0]} {pin[1]}\n\n"
     i = text.find("\n## ")
     text = text[:i + 1] + line + text[i + 1:] if i >= 0 else text.rstrip("\n") + "\n\n" + line
-    _atomic(path, text)
+    _atomic(path, text.replace("\n", "\r\n") if crlf else text)
+
+
+# ---- scope.md: size/design/architecture/qa-b -> team: (drop-scope-size) ---------------------------------------
+# One entry per open scope: status convert | noop | skip (pinned) | error. Dry run lists them and writes nothing;
+# apply writes a backup `scope.md.pre-team.bak` beside the file, then the new scope.md (atomic), and a second
+# run finds no old line (noop, no second backup).
+
+BACKUP_SUFFIX = ".pre-team.bak"
+_KEYLINE = re.compile(r"^([a-z][a-z-]*):[ \t]*(.*)$")
+_CONTRADICT = re.compile(r"(?i)\b(custom|pod|no qa|no blackbox|no whitebox|without|only|instead|except)\b")
+
+
+class ScopeEntry:
+    def __init__(self, rel, path):
+        self.rel, self.path = rel, path
+        self.status, self.team, self.note, self.check = "noop", None, "", []
+        self.text = self.new_text = None
+
+
+def _header_end(lines):
+    for i, l in enumerate(lines):
+        if l.startswith("## "):
+            return i
+    return len(lines)
+
+
+def _plan_scope(squad_dir, rel, path):
+    e = ScopeEntry(rel, path)
+    root = os.path.realpath(squad_dir)
+    folder = os.path.dirname(path)
+    if (os.path.islink(path) or os.path.islink(folder)
+            or os.path.commonpath([root, os.path.realpath(path)]) != root):
+        e.status, e.note = "error", f"{rel}/scope.md is a symlink or resolves outside the squad folder; refused"
+        return e
+    try:
+        with open(path, encoding="utf-8", newline="") as f:
+            text = f.read()
+    except (OSError, UnicodeDecodeError) as ex:
+        e.status, e.note = "error", f"{rel}/scope.md cannot be read as UTF-8: {ex}"
+        return e
+    e.text = text
+    eol = "\r\n" if "\r\n" in text else "\n"
+    lines = text.split(eol) if eol == "\r\n" else text.split("\n")
+    end = _header_end(lines)
+    found = {}  # key -> [(index, value)]
+    for i, l in enumerate(lines):
+        m = _KEYLINE.match(l.rstrip())
+        if m and (m.group(1) in sc._OLD_LINES or m.group(1) == "team"):
+            found.setdefault(m.group(1), []).append((i, m.group(2).strip()))
+    old = [k for k in sc._OLD_LINES if k in found]
+    if re.search(r"(?m)^plugin:[ \t]*\S", text):
+        e.status, e.note = "skip", "pinned (plugin: line): it runs its own runtime, scope.md left as is"
+        return e
+    if "team" in found and old:
+        names = [f"`team:` line {found['team'][0][0] + 1}"] + [f"`{k}:` line {found[k][0][0] + 1}" for k in old]
+        e.status, e.note = "error", f"{rel}/scope.md has both old and new format: " + ", ".join(names) + "; fix by hand, nothing written"
+        return e
+    if not old:
+        e.note = "already in team format" if "team" in found else "no size/team line (hand-made: undecided)"
+        return e
+    outside = [(k, i + 1) for k in old for i, _v in found[k] if i >= end]
+    if outside:
+        e.status, e.note = "error", f"{rel}/scope.md: old line `{outside[0][0]}:` at line {outside[0][1]} is below the header; fix by hand"
+        return e
+    val = {k: found[k][0][1] if k in found else "" for k in sc._OLD_LINES}
+    try:
+        team = sr.legacy_team(val["size"], val["qa-b"] or "yes", val["design"] or "no", val["architecture"] or "no")
+    except ValueError as ex:
+        e.status, e.note = "error", f"{rel}/scope.md: {ex}"
+        return e
+    e.team = team
+    token = "" if team is None else (", ".join(team) or "none")
+    commentary = [f"{k}: {found[k][0][1]}" for k in sc._OLD_LINES if k in found and
+                  (len(found[k][0][1].split()) > 1)]
+    qa = _KEYLINE.match(next((l.rstrip() for l in lines if l.startswith("qa:")), "") or "")
+    if qa and (qa.group(2).split() or [""])[0].lower() == "none":
+        commentary.append("qa: " + qa.group(2).strip())
+        e.check.append("`qa: none`: no QA roles said by hand")
+    if val["size"].strip() and team is None:
+        e.check.append(f"size {val['size'].strip()!r} is not S, M or L: team left blank")
+    if not val["size"].strip() and (val["design"] == "yes" or val["architecture"] == "yes"):
+        e.check.append("blank size: design/architecture flag is not carried into a blank team")
+    if any(_CONTRADICT.search(c) for c in commentary):
+        e.check.append("commentary may contradict the mapping")
+    e.commentary = commentary
+    first = min(i for k in old for i, _v in found[k][:1])
+    drop = {found[k][0][0] for k in old}
+    out = []
+    for i, l in enumerate(lines):
+        if i == first:
+            out.append(f"team: {token}".rstrip() if token else "team:")
+            if commentary:
+                out.append("<!-- converted from " + "; ".join(c.replace("--", "- -") for c in commentary) + " -->")
+        if i not in drop:
+            out.append(l)
+    e.new_text = eol.join(out)
+    e.status = "convert"
+    e.note = f"team: {token or '(blank, undecided)'}"
+    return e
+
+
+def plan_scopes(squad_dir):
+    """-> [ScopeEntry] for every open scope (goals have no size). Errors are entries, raised by the caller."""
+    base = os.path.join(squad_dir, "scopes")
+    out = []
+    if not os.path.isdir(base):
+        return out
+    for name in sorted(os.listdir(base)):
+        f = os.path.join(base, name, "scope.md")
+        if not name.startswith("_") and (os.path.isfile(f) or os.path.islink(f)):
+            out.append(_plan_scope(squad_dir, f"scopes/{name}", f))
+    return out
+
+
+def scope_errors(entries):
+    return [e.note for e in entries if e.status == "error"]
+
+
+def format_scopes(entries, dry_run):
+    out = ["scope.md conversion (size/design/architecture/qa-b -> team:):"]
+    for e in entries:
+        if e.status == "convert":
+            out.append(f"  {'would convert' if dry_run else 'convert'} {e.rel}/scope.md -> {e.note}")
+            for c in getattr(e, "commentary", []):
+                out.append(f"      commentary kept beside it: {c[:120]}")
+            for c in e.check:
+                out.append(f"      check: {c}")
+        elif e.status == "skip":
+            out.append(f"  skip {e.rel}/scope.md: {e.note}")
+        else:
+            out.append(f"  {e.status} {e.rel}/scope.md: {e.note}")
+    return "\n".join(out + (["  (no open scopes)"] if not entries else []))
+
+
+def _backup_name(path):
+    n, cand = 1, path + BACKUP_SUFFIX
+    while os.path.exists(cand):
+        n += 1
+        cand = f"{path}{BACKUP_SUFFIX}.{n}"
+    return cand
+
+
+def apply_scopes(entries):
+    """Backup then atomic write, per converting entry. Returns the backup paths."""
+    done = []
+    for e in entries:
+        if e.status != "convert":
+            continue
+        b = _backup_name(e.path)
+        _atomic(b, e.text)
+        done.append(b)
+        _atomic(e.path, e.new_text)
+    return done
 
 
 # ---- adopt -----------------------------------------------------------------------------------------------
@@ -475,6 +632,7 @@ def format_plan(p, dry_run):
 def execute(p, today):
     """The writes, in the order that keeps a half-done run valid: overlay first, archives last."""
     sd = p.squad_dir
+    apply_scopes(p.scopes)  # before the pin lines go in: a pinned scope is skipped, a new pin is not a skip reason
     if not p.composed:
         _atomic(os.path.join(sd, sr.OVERLAY_FILE), su.emit_overlay(HEADER.rstrip("\n"), p.ops))
         for s in p.settings:
@@ -508,8 +666,14 @@ def cmd_adopt(a):
         resolves[k] = v
     pin = new_pin(a.plugin_root, a.new_pin)
     p = build_plan(squad_dir, a.plugin_root, pin, resolves)
+    p.scopes = plan_scopes(squad_dir)
     print(format_plan(p, a.dry_run))
-    if p.composed and not p.leftovers and not p.unpinned:
+    print("\n" + format_scopes(p.scopes, a.dry_run))
+    errs = scope_errors(p.scopes)
+    if errs:
+        raise AdoptError(2, *errs)
+    converting = any(e.status == "convert" for e in p.scopes)
+    if p.composed and not p.leftovers and not p.unpinned and not converting:
         return 0
     open_items = getattr(p, "open_items", [])
     if a.dry_run:

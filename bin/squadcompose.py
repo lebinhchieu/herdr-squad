@@ -335,3 +335,20 @@ def who_lines(e):
             acts, aware = _acts_aware(e, {key: value})
             lines.append(f"{key} = {value}: acts: {acts}; aware: {aware}")
     return lines
+
+
+def old_format_lines(home):
+    """The old-format lines of a home's scope.md: [(key, line number)] in file order (`size:`, `design:`,
+    `architecture:`, `qa-b:`; first occurrence of each, as `_kv` reads them)."""
+    kv = _kv(os.path.join(home, "scope.md"))
+    return sorted(((k, kv[k][1]) for k in _OLD_LINES if k in kv), key=lambda t: t[1])
+
+
+def old_format_error(home):
+    """The one error text for an old-format home (constraint 11): names file and line of every old line and
+    `squad-process adopt`. Returns a ComposeError (None when the home has no old line); the caller raises it."""
+    found = old_format_lines(home)
+    if not found:
+        return None
+    return ComposeError(*(f"scope.md:{n}: old format `{k}:`; run `squad-process adopt` (dry run first) to convert "
+                          "the scope to a `team:` line" for k, n in found))

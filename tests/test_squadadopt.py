@@ -66,7 +66,7 @@ class Base(unittest.TestCase):
         (sq / "goals" / "g1").mkdir(parents=True)
         (sq / "process.md").write_text(process if process is not None else V6, encoding="utf-8")
         (sq / "project.md").write_text("# Project\n", encoding="utf-8")
-        (sq / "scopes" / "s1" / "scope.md").write_text("# Scope: s1\n\nsize: M\n\n## Constraints\n- none\n", encoding="utf-8")
+        (sq / "scopes" / "s1" / "scope.md").write_text("# Scope: s1\n\nqa: full\n\n## Constraints\n- none\n", encoding="utf-8")
         (sq / "scopes" / "_done" / "old" / "scope.md").write_text("# Scope: old\n\nsize: S\n", encoding="utf-8")
         (sq / "goals" / "g1" / "goal.md").write_text("# Goal: g1\n\n## Scopes\n- s1\n", encoding="utf-8")
         if settings:
