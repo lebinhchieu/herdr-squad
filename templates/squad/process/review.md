@@ -41,11 +41,10 @@ The Tech Lead names one final sha per task before QA verdicts; doc-only edits wa
 
 ## REV-3b Final sha
 roles: qa-whitebox, qa-blackbox
-aware: manager
-when: tech-lead = no
+when: handin-target = qas
 topic: review
 
-The final sha of a task is the one in the Developer's latest `HANDIN`. Doc-only commits come after every finding is in, and each QA sends a single verdict on that sha.
+The final sha of a task is the one in the Developer's latest `HANDIN`, unless [REV-3] names another. Doc-only commits come after every finding is in, and each QA sends a single verdict on that sha.
 
 ## REV-4 Real samples
 roles: qa-whitebox

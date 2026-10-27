@@ -72,10 +72,10 @@ Give a Developer the next ticket in its area while it stays under the [COST-5] l
 
 ## LC-7a Three returns, Manager
 roles: manager
-when: handin-target = manager
+when: plan-owner = manager
 topic: lifecycle
 
-After 3 returns on one task (a return is a handed-in sha with a `FAIL`; `squad-ledger` counts them) you step in; your own 3rd `FAIL` counts: read the findings and decide whether the task, the AC or the Developer is the problem.
+After 3 returns on one task (a return is a handed-in sha with a `FAIL`; `squad-ledger` counts them) you step in; with QAs on the team the 3rd failing QA sends you `BLOCKED NN: 3 returns`, and your own 3rd `FAIL` counts: read the findings and decide whether the task, the AC or the Developer is the problem.
 
 ## LC-7b Three returns, Team Lead
 roles: team-lead
