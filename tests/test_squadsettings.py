@@ -101,9 +101,11 @@ class EffectiveTest(Base):
             rm = [e for e in perms.get("allow", []) if e.startswith(("Bash(rm ", "Bash(rmdir "))]
             if f.stem in roles:
                 self.assertEqual(sorted(rm), sorted(f"Bash({c} /tmp/tmp.*)" for c in ("rm -rf", "rm -r", "rm", "rmdir")), f.name)
-                # a second path after the scratch dir asks (the glob would otherwise allow `rm -rf /tmp/tmp.x /etc`)
-                self.assertEqual(sorted(e for e in perms["ask"] if " /tmp/tmp." in e),
-                                 sorted(f"Bash({c} /tmp/tmp.* *)" for c in ("rm -rf", "rm -r", "rm", "rmdir")), f.name)
+                # ask beats allow: the glob's `*` also matches spaces, `..`, `$(...)` and backticks
+                for e in rm:
+                    cmd = e[len("Bash("):-len(" /tmp/tmp.*)")]
+                    for tail in ("* *", "*..*", "*$*", "*`*"):
+                        self.assertIn(f"Bash({cmd} /tmp/tmp.{tail})", perms["ask"], f"{f.name} {e}")
             else:
                 self.assertEqual(rm, [], f.name)
             for e in rm:

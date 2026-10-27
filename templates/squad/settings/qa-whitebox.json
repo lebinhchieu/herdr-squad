@@ -7,7 +7,10 @@
       "SendMessage", "ListAgents", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git branch:*)", "Bash(echo:*)", "Bash(squad-respawn:*)", "Bash(squad-process rule:*)", "Bash(squad-process who:*)", "Bash(rm -rf /tmp/tmp.*)", "Bash(rm -r /tmp/tmp.*)", "Bash(rm /tmp/tmp.*)", "Bash(rmdir /tmp/tmp.*)"
     ],
     "ask": [
-      "Bash(rm -rf /tmp/tmp.* *)", "Bash(rm -r /tmp/tmp.* *)", "Bash(rm /tmp/tmp.* *)", "Bash(rmdir /tmp/tmp.* *)"
+      "Bash(rm -rf /tmp/tmp.* *)", "Bash(rm -rf /tmp/tmp.*..*)", "Bash(rm -rf /tmp/tmp.*$*)", "Bash(rm -rf /tmp/tmp.*`*)",
+      "Bash(rm -r /tmp/tmp.* *)", "Bash(rm -r /tmp/tmp.*..*)", "Bash(rm -r /tmp/tmp.*$*)", "Bash(rm -r /tmp/tmp.*`*)",
+      "Bash(rm /tmp/tmp.* *)", "Bash(rm /tmp/tmp.*..*)", "Bash(rm /tmp/tmp.*$*)", "Bash(rm /tmp/tmp.*`*)",
+      "Bash(rmdir /tmp/tmp.* *)", "Bash(rmdir /tmp/tmp.*..*)", "Bash(rmdir /tmp/tmp.*$*)", "Bash(rmdir /tmp/tmp.*`*)"
     ],
     "deny": [
       "Bash(git push:*)", "Bash(git merge:*)", "Bash(git rebase:*)", "Bash(git reset --hard:*)", "Bash(git checkout main:*)", "Bash(git checkout dev:*)",
