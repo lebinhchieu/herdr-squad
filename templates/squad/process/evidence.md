@@ -12,14 +12,14 @@ roles: dev
 when: handin-target = qas
 topic: evidence
 
-Write `## Behaviour` in the ticket's `evidence.md`, commit it with your code, shots as `![alt](img/<file>)`.
+Write `## Behaviour` in the ticket's `evidence.md`, commit with your code, shots as `![alt](img/<file>)`.
 
 ## EVID-2b Assemble evidence
 roles: dev
 when: tech-ac = tech-lead
 topic: evidence
 
-Once all checkers passed: `squad-evidence add <ticket> --heading "<H>" --from <file>` per file in `$SCOPE_DIR/evidence/<task>/`, `squad-evidence check <folder>`, commit, `HANDIN <task>: evidence sha <sha>` to the Tech Lead.
+After all `PASS`: `squad-evidence add <ticket> --heading "<H>" --from <file>` per file in `$SCOPE_DIR/evidence/<task>/`, `squad-evidence check <folder>`, commit, `HANDIN <task>: evidence sha <sha>` to the Tech Lead.
 
 ## EVID-2d Assemble evidence, Manager
 roles: dev

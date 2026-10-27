@@ -129,7 +129,7 @@ Read the Manager's briefing: your scope, your tasks and AC where it names them, 
 roles: dev
 topic: start
 
-Read your briefing (task, AC, design, peers), CLAUDE.md and the `project.md` conventions. `git branch --show-current` must be `squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME`; work only there.
+Read your briefing (task, AC, design, peers), CLAUDE.md and `project.md` conventions. `git branch --show-current` must be `squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME`; work only there.
 
 ## START-11 BA start
 roles: ba

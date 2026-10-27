@@ -229,4 +229,4 @@ roles: dev
 when: qa-white = no and architecture = yes
 topic: review
 
-Also give the review subagent `$SCOPE_DIR/architecture.md`.
+Give the review subagent `$SCOPE_DIR/architecture.md` to check the diff conforms.
