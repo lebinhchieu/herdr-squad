@@ -8,7 +8,7 @@ added:
 - TEAM-4: QA whitebox checks the Developer's `## Behaviour` when no QA blackbox is on the team
 - TEAM-5: the BA owns the business AC alone when no QA blackbox is on the team
 - TEAM-6: the Tech Lead confirms the Developer's `## Review` when no QA whitebox is on the team
-- TEAM-7: removing a role (iteration boundary, PO's OK, Handover names the new owner)
+- TEAM-7: removing a role (iteration boundary, PO's OK, Handover names the new owner); runs `squad-team remove`
 
 changed:
 - SIZE-1: now the team proposal table (a row for every role), signals and risk flags; was the size proposal. Body rewritten, ID kept because starting.md cites it
@@ -17,7 +17,7 @@ changed:
 - SIZE-5c: acts for QA blackbox only (`business-ac = ticket and qa-black = yes`); the Manager part moved to SIZE-5a so no absent role acts
 - SIZE-6c: one Developer-duties rule for `plan-owner = manager`, copying the `duties:` header line; was the S variant of two twins
 - SIZE-11a: when `doubt-owner = manager`; the scope moves to L is now add the BA
-- SIZE-13: now adding a role by late signal; was moving a scope up a size. ID kept: review.md and who.md cite it
+- SIZE-13: now adding a role by late signal; was moving a scope up a size. ID kept: review.md and who.md cite it; runs `squad-team add`
 - SIZE-14: now a late signal found while building, add the role; was a behaviour change in S. ID kept: messages.md cites it
 - SIZE-16: Handover on adding a role; wording only, no size
 - SIZE-17a: joining a scope already under way; composes only with its own role on the team (`<role> = yes`), wording without size

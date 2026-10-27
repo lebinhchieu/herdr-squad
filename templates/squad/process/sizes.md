@@ -151,7 +151,7 @@ roles: manager
 topic: sizes
 
 - **Add:** on a late signal the Manager adds the role on its own: business doubt (BA), risk flag or migration (Tech Lead, QA whitebox if absent), user-visible change (QA blackbox), 4 or more tasks or order that matters (Team Lead). UI work (Designer) and an irreversible choice (Architect) wait for the PO's yes. Report it at the check-in.
-- Edit `team:`, write the `## Handover` section in the plan when a duty owner changes, spawn the joiner with a briefing that points at it, respawn the roles whose composed rules changed, and log the change in the iteration file.
+- Run `squad-team add <role>` (`--po-ok` for the Designer or Architect, after the PO's yes): it edits `team:` and prints who to respawn. Write the `## Handover` when a duty owner changes, brief the joiner with it, respawn the listed roles, log the change in the iteration file.
 
 ## SIZE-14 Late signal found while building
 roles: manager
