@@ -71,4 +71,4 @@ Do not read source code, diffs or the Developer's explanation of how it works; n
 roles: dev, qa-whitebox, qa-blackbox
 topic: safety
 
-Make scratch dirs with `mktemp -d` only (your settings allow `rm` there); `cd` out before `rm` (Claude blocks the cwd or a parent). No bare `rm -rf $VAR`: use `"${VAR:?}"` or a literal.
+Scratch dirs: `mktemp -d` only. `cd` out before `rm` (Claude blocks the cwd or a parent). No bare `rm -rf $VAR`: use `"${VAR:?}"` or a literal.
