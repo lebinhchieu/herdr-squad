@@ -121,11 +121,11 @@ if [[ -d $squad_dir/scopes ]]; then
       [[ -n $pin_ver ]] || { pin_ver=$(basename "$runtime"); pin_ver=${pin_ver%-*}; }
       if [[ $pin_ver =~ ^0\.([0-9]+)\. ]] && (( BASH_REMATCH[1] < 6 )) \
          && [[ $(readlink -f "$runtime/bin/squad-spawn" 2>/dev/null) != "$(readlink -f "$0")" ]]; then
+        [[ -f $runtime/bin/squad-spawn ]] || { echo "warning: pinned runtime $runtime (plugin $pin_ver) has no bin/squad-spawn; refusing, nothing created (the running engine would reject size: in $scope_dir/scope.md)" >&2; exit 1; }
         if [[ $dry == 1 ]]; then
           echo "would hand off to the pinned runtime: $runtime/bin/squad-spawn ${orig_args[*]}"
           exit 0
         fi
-        [[ -f $runtime/bin/squad-spawn ]] || { echo "warning: pinned runtime $runtime (plugin $pin_ver) has no bin/squad-spawn; refusing, nothing created (the running engine would reject size: in $scope_dir/scope.md)" >&2; exit 1; }
         exec "$runtime/bin/squad-spawn" "${orig_args[@]}"
       fi
     fi

@@ -299,6 +299,23 @@ class RespawnPinnedTest(RespawnTest):
         self.assertIn("no bin/squad-respawn", r.stderr)
         self.assertFalse(self.log.exists())
 
+    def test_a_dry_run_without_the_pins_squad_respawn_also_warns_and_exits_1(self):
+        self.pinned(stub=False)
+        r = self.run_respawn("--dry-run")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no bin/squad-respawn", r.stderr)
+        self.assertNotIn("would hand off", r.stdout)
+
+    def test_a_composed_scope_with_size_and_no_pin_gets_the_converter_pointer_not_the_pin_text(self):
+        sc = self.pinned(stub=False)
+        (sc / "scope.md").write_text("# Scope\n\nname: s\nsize: M\n", encoding="utf-8")
+        r = self.run_respawn()
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertRegex(r.stderr, r"scope\.md:\d+: old format `size:`")
+        self.assertIn("squad-process adopt", r.stderr)
+        self.assertNotIn("needs a pin", r.stderr)
+        self.assertFalse(self.log.exists())
+
     def test_pin_0_6_0_does_not_hand_off(self):
         sc = self.pinned("0.6.0")
         (sc / "scope.md").write_text("# Scope\n\ngoal:\nteam: ba\nplugin: 0.6.0 " + "b" * 40 + "\n", encoding="utf-8")

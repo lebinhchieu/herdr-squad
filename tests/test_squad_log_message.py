@@ -190,6 +190,22 @@ class LogMessageTest(unittest.TestCase):
                 self.assertFalse((self.squad / "scopes" / "sc1" / "X").exists())
                 self.tearDown()
 
+    def test_the_notice_is_stdout_json_on_the_third_failing_sha_only(self):
+        """AC 12 observability: stdout `hookSpecificOutput.additionalContext`; nothing for 2 returns or 3 FAILs on one sha."""
+        scope = self.squad / "scopes" / "sc1"
+        scope.mkdir(parents=True, exist_ok=True)
+        (scope / "scope.md").write_text("team: team-lead\n", encoding="utf-8")
+        seq = [("HANDIN 07: branch b, commit aaa1111", False), ("FAIL 07: a", False), ("FAIL 07: a again", False),
+               ("FAIL 07: a thrice", False), ("HANDIN 07: branch b, commit bbb2222", False), ("FAIL 07: b", False),
+               ("HANDIN 07: branch b, commit ccc3333", False), ("FAIL 07: c", True)]
+        for i, (text, notice) in enumerate(seq):
+            r = self.run_hook_in({"SCOPE_DIR": str(scope)}, payload(text, msg_id=f"m{i}"))
+            self.assertEqual(bool(r.stdout.strip()), notice, (text, r.stdout))
+            if notice:
+                ctx = json.loads(r.stdout)["hookSpecificOutput"]
+                self.assertEqual(ctx["hookEventName"], "PostToolUse")
+                self.assertIn("task 07 has 3 returns", ctx["additionalContext"])
+
     def test_third_return_notice_text_has_no_size_word(self):
         out = self.third_fail_notice("team: team-lead\n")
         self.assertNotRegex(out.lower(), r"\bsize\b")

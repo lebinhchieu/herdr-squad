@@ -933,6 +933,24 @@ class SpawnPinnedTest(_GateBase):
         self.assertEqual(self.created(), [])  # no worktree, label or herdr call
         self.assertFalse((self.root / ".worktrees").exists())
 
+    def test_a_dry_run_without_the_pins_squad_spawn_also_warns_and_exits_1(self):
+        self.pin("0.5.2", stub=False)
+        r = self.spawn("dev", "gate-1", "--dry-run")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no bin/squad-spawn", r.stderr)
+        self.assertNotIn("would hand off", r.stdout)
+
+    def test_a_composed_scope_with_size_and_no_pin_gets_the_converter_pointer_not_the_pin_text(self):
+        (self.squad / "process.local.md").write_text("", encoding="utf-8")
+        self.set_scope("# Scope\n\nname: s\nsize: M\n")
+        for extra in ((), ("--dry-run",)):
+            r = self.spawn("manager", "gate-1", *extra)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertRegex(r.stderr, r"scope\.md:\d+: old format `size:`")
+            self.assertIn("squad-process adopt", r.stderr)
+            self.assertNotIn("needs a pin", r.stderr)
+            self.assertEqual(self.created(), [])
+
     def test_the_hand_off_happens_once(self):
         """A runtime whose squad-spawn is this very script is not handed to again (no exec loop)."""
         rt = self.pin("0.5.2", stub=False)

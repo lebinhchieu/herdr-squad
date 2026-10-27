@@ -365,6 +365,9 @@ def cmd_runtime(a):
     try:
         pin = home_pin(a.home)
         if pin is None:
+            old = sc.old_format_error(a.home)  # an unpinned `size:` scope: the converter pointer, not the pin text
+            if old is not None:
+                raise RuntimeError_(2, *(f"{a.home}/{line}" for line in old.lines))
             raise RuntimeError_(2, f"{a.home}: composed mode needs a pin; add the line `plugin: <version> <sha>` to its "
                                    f"scope.md (or goal.md); squad-start writes it for a new scope")
         print(materialise(squad, pin[0], pin[1], a.plugin_root, a.dry_run))
