@@ -91,7 +91,7 @@ class InstructionsTest(unittest.TestCase):
         process = (ROOT / "templates/squad/process.md").read_text()
         for token in ("design: yes", "ui-design/", "`ux`"):
             self.assertIn(token, process)
-        self.assertIn("\ndesign: no\n", (ROOT / "templates/scope/scope.md").read_text())
+        self.assertIn("\nteam:\n", (ROOT / "templates/scope/scope.md").read_text())
         self.assertIn("`designer`", composed("manager", "M"))
 
     def test_the_architect_starts_by_reading_its_scope_folder(self):
@@ -99,7 +99,7 @@ class InstructionsTest(unittest.TestCase):
         for token in ("$SCOPE_DIR/scope.md", "$GOAL_DIR/goal.md", "shared/", "roles/$SQUAD_NAME.notes.md"):
             self.assertIn(token, text)
         self.assertIn("`architect`", composed("manager", "M", architecture="yes"))
-        self.assertIn("\narchitecture: no\n", (ROOT / "templates/scope/scope.md").read_text())
+        self.assertIn("\nteam:\n", (ROOT / "templates/scope/scope.md").read_text())
 
 
 class ManagerInboxTest(unittest.TestCase):

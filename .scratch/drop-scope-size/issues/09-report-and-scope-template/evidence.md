@@ -9,3 +9,5 @@ sha: pending
 - Tests: `TeamSizeScope` (collect), `TeamSizeKeys` (rollup), `RollupTeamChip` (browser: rollup folder served by `python3 -m http.server` on 127.0.0.1, stopped by PID; asserts the old row shows `L` and the team row `qa-white, qa-black`), header chip test in `test_squadreport_ui.py`.
 - Lint baseline (G2b), `bin/squad-process lint`: base 6ec3a75 empty, exit 0; branch empty, exit 0.
 - Changelog v9: no rule ID changed in this ticket.
+- `tests/test_instructions.py` (addition to the file list, Tech Lead ANSWER): the two template asserts (`design: no`, `architecture: no`) now assert `\nteam:\n`; file green.
+- Red until 03 merges: `tests/test_squad_migrate.py` `ToPerScopeTest.test_moves_everything_and_writes_scope_md` and `ToPerScopeTest.test_no_size_row_and_no_bold_line_still_give_a_valid_scope_md`. Reason: `bin/squad-migrate` does `re.sub(r"^size:.*$")` on the template and finds no `size:` line in the new `team:` template. Owner: ticket 03 (Dev dsz-3).
