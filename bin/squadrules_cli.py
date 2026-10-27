@@ -94,7 +94,7 @@ def cmd_rule(a):
 def cmd_team(a):
     """Print the home's team as a comma list of TEAM_KEYS tokens, `none` or `undecided`; with --has ROLE print nothing
     and exit 0 when the role is on the team (manager, dev, token-coach always are; an undecided team has only the
-    Manager), 1 when not, 2 on an unknown role or an unreadable home. Never reaches the D1 scaffold: an old-format
+    Manager), 1 when not, 2 on an unknown role or an unreadable home. An old-format
     home exits 2 with the converter pointer."""
     try:
         if a.has is not None and a.has not in sr.ROLES:
@@ -102,7 +102,7 @@ def cmd_team(a):
         if not os.path.isdir(a.home):
             raise sc.ComposeError(f"team: --home {a.home!r} is not a directory")
         info = sc.read_home(a.home)
-        if info["team_source"] == "size":
+        if info["team_source"] == "old":
             raise sc.old_format_error(a.home)
     except sc.ComposeError as e:
         return _fail(e)
@@ -130,10 +130,11 @@ def main(argv=None):
     squadio.utf8_stdio()
     ap = argparse.ArgumentParser(prog="squad-process", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    lp = sub.add_parser("lint", help="check the rule files and the squad's overlay")
+    lp = sub.add_parser("lint", help="check the rule files and the squad's overlay",
+                        description="check the rule files and the squad's overlay; a when: key must be one of the team language (qa-white, qa-black, ba, team-lead, tech-lead, design, architecture, a duty, goal, qa)")
     lp.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
     lp.add_argument("--plugin-root", default=DEFAULT_ROOT)
-    lp.add_argument("--home", action="append", help="also check this scope or goal home's facts (qa-b: no needs design: no)")
+    lp.add_argument("--home", action="append", help="also check this scope or goal home's team: line")
     lp.add_argument("--cards", choices=("error", "warn"), default="error")
     lp.add_argument("--hashes", action="store_true", help="after any problems print `<ID> <hash>` per rule")
     cp = sub.add_parser("compose", help="composed rules for one role")
@@ -145,8 +146,10 @@ def main(argv=None):
     tp = sub.add_parser("team", help="print the scope's team; --has ROLE exits 0/1")
     tp.add_argument("--home", required=True)
     tp.add_argument("--has", metavar="ROLE")
-    for name in ("rule", "who"):
-        p = sub.add_parser(name)
+    for name, text in (("rule", "print the effective text of a rule"),
+                       ("who", "which roles a rule acts on or only knows about, for each value of the duty and role "
+                               "keys in its when: (ba, team-lead, tech-lead, qa-white, qa-black, plan-owner, ...)")):
+        p = sub.add_parser(name, help=text, description=text)
         p.add_argument("id")
     for p in (cp, sub.choices["rule"], sub.choices["who"]):
         p.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))

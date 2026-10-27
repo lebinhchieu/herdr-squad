@@ -16,8 +16,8 @@ _slurp = sr.read_text  # utf-8-sig, CRLF to LF
 DEFAULT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 INDEX_ROLES = ("manager", "tech-lead")
 _PIN = re.compile(r"^(\S+)\s+(\S+)\s*$")
-_FACT_VALUES = {"design": ("yes", "no"), "architecture": ("yes", "no"), "qa": ("full", "light"), "qa-b": ("yes", "no")}
-_FACT_DEFAULT = {"design": "no", "architecture": "no", "qa": "full", "qa-b": "yes"}
+_FACT_VALUES = {"qa": ("full", "light")}
+_FACT_DEFAULT = {"design": "no", "architecture": "no", "qa": "full"}
 
 
 class ComposeError(Exception):
@@ -54,7 +54,7 @@ def _kv(path):
     return out
 
 
-_OLD_LINES = ("size", "design", "architecture", "qa-b")  # the old scope.md format (gone with the scaffold, task 10)
+_OLD_LINES = ("size", "design", "architecture", "qa-b")  # the old scope.md format: rejected, converter input only
 HEADER_TEAM_ROLES = ("manager", "team-lead", "tech-lead")  # D5: these headers print `team:` and `duties:`
 
 
@@ -70,32 +70,15 @@ def _qa_fact(kv):
     return tok
 
 
-def _size_facts(kv, facts):
-    """The old size path, as it was before the team language (kept until task 10)."""
-    if "size" in kv:
-        m = re.search(r"\b[SML]\b", kv["size"][0])
-        if m:
-            facts["size"] = m.group(0)
-    for key in ("design", "architecture", "qa-b"):
-        value, n = kv.get(key, (_FACT_DEFAULT[key], 0))
-        tok = (value.split() or [_FACT_DEFAULT[key]])[0].lower()
-        if tok not in _FACT_VALUES[key]:
-            raise ComposeError(f"scope.md:{n}: {key} must be {' | '.join(_FACT_VALUES[key])}, got {value!r}")
-        facts[key] = tok
-    if facts["qa-b"] == "no" and facts["design"] == "yes":
-        raise ComposeError(f"scope.md: qa-b: no cannot be combined with design: yes (a design is checked on the "
-                           "built UI by QA blackbox); set qa-b: yes or design: no")
-
-
-def read_home(home, legacy_scaffold=False):
-    """-> dict: facts (only the facts the home has), team (token list, [] for `none`, None when undecided or goal),
-    team_source ("team" | "undecided" | "goal" | "size"), scope label, pin (version, sha) or None.
+def read_home(home):
+    """-> dict: facts (only the facts the home has), team (token list, [] for `none`, None when undecided, goal or old),
+    team_source ("team" | "undecided" | "goal" | "old"), scope label, pin (version, sha) or None.
 
     A `team:` line decides the team and every presence and duty fact (never a missing one); an old line beside it
-    is a ComposeError. A home without a `team:` line but
-    with any old line (`size:`, `design:`, `architecture:`, `qa-b:`) takes the old size path (source "size"); with
-    `legacy_scaffold=True` (branch-internal, tests of the rule files only, deleted in task 10) its duty facts are
-    filled from `squadrules.legacy_team`. A home with none of them is hand-made: undecided."""
+    is a ComposeError. A home without `team:` but with an old line (`size:`, `design:`, `architecture:`, `qa-b:`)
+    is a ComposeError naming `squad-process adopt`, except a pinned one (its own runtime reads it): source "old",
+    no facts derived, and the callers refuse it. A home with none of them is hand-made: undecided. Nothing here
+    derives a duty or presence fact from `size`."""
     scope_md, goal_md = os.path.join(home, "scope.md"), os.path.join(home, "goal.md")
     is_goal_home = os.path.isfile(goal_md)
     kv = _kv(scope_md)
@@ -109,7 +92,7 @@ def read_home(home, legacy_scaffold=False):
     facts["qa"] = _qa_fact(kv)
     if is_goal_home:  # a goal home takes the scope defaults; only the team facts are missing
         source = "goal"
-        _size_facts({}, facts)
+        facts.update(design=_FACT_DEFAULT["design"], architecture=_FACT_DEFAULT["architecture"])
     elif "team" in kv:
         source = "team"
         beside = [(k, kv[k][1]) for k in _OLD_LINES if k in kv]
@@ -124,18 +107,10 @@ def read_home(home, legacy_scaffold=False):
             source = "undecided"
         else:
             facts.update(sr.team_facts(team))
-            facts["qa-b"] = facts["qa-black"]  # old rule files still key on it until the cutover
     elif any(k in kv for k in _OLD_LINES):
-        source = "size"
-        _size_facts(kv, facts)
-        if legacy_scaffold:
-            try:
-                team = sr.legacy_team(kv.get("size", ("", 0))[0], kv.get("qa-b", ("yes", 0))[0],
-                                      kv.get("design", ("no", 0))[0], kv.get("architecture", ("no", 0))[0])
-            except ValueError as ex:
-                raise ComposeError(f"scope.md: {ex}")
-            if team is not None:
-                facts.update(sr.team_facts(team))
+        source = "old"
+        if not (kv.get("plugin") or gkv.get("plugin")):
+            raise old_format_error(home)
     else:
         source = "undecided"
     pin_line = (gkv if is_goal_home else kv).get("plugin") or kv.get("plugin") or gkv.get("plugin")
@@ -258,10 +233,14 @@ def _team_text(info):
     return ", ".join(info["team"]) or "none"
 
 
-def compose(role, home, plugin_root, overlay_path, agent, now, pinned=None, legacy_scaffold=False):
-    """The composed rules text for one role. `pinned` is (version, sha) or None (unpinned: running version).
-    `legacy_scaffold` is branch-internal (read_home); nothing in bin/ sets it."""
-    info = read_home(home, legacy_scaffold)
+def compose(role, home, plugin_root, overlay_path, agent, now, pinned=None):
+    """The composed rules text for one role. `pinned` is (version, sha) or None (unpinned: running version)."""
+    info = read_home(home)
+    if info["team_source"] == "old":
+        raise old_format_error(home)
+    if info["team_source"] == "undecided" and role != "manager":
+        raise ComposeError(f"{os.path.join(home, 'scope.md')}: the team is undecided; only the Manager composes until "
+                           "the Manager writes the `team:` line (after the PO's reply)")
     facts = info["facts"]
     rules, n_ops = load_rules(plugin_root, overlay_path)
     chosen = choose(rules, role, facts)
@@ -270,20 +249,15 @@ def compose(role, home, plugin_root, overlay_path, agent, now, pinned=None, lega
     else:
         plugin_line = f"plugin: {running_version()} unpinned"
     arch = "architecture yes, " if facts.get("architecture") == "yes" else ""  # shown only when on: header and 5 KiB budget unchanged otherwise
-    team_head = ""
-    if info["team_source"] != "size":  # the old header keeps `size X` for a size home (scaffold, until task 10)
-        team_head = f" · team: {_team_text(info)}" if role in HEADER_TEAM_ROLES else ""
-        head = (f"agent: {agent or role} · role: {role} · scope: {info['scope']}{team_head} (design {_fact(facts, 'design')}, "
-                f"{arch}qa {_fact(facts, 'qa')}, goal {_fact(facts, 'goal')})")
-    else:
-        head = (f"agent: {agent or role} · role: {role} · scope: {info['scope']} (size {_fact(facts, 'size')}, "
-                f"design {_fact(facts, 'design')}, {arch}qa {_fact(facts, 'qa')}, goal {_fact(facts, 'goal')})")
+    team_head = f" · team: {_team_text(info)}" if role in HEADER_TEAM_ROLES else ""
+    head = (f"agent: {agent or role} · role: {role} · scope: {info['scope']}{team_head} (design {_fact(facts, 'design')}, "
+            f"{arch}qa {_fact(facts, 'qa')}, goal {_fact(facts, 'goal')})")
     out = [
         "# Your process rules",
         head,
         f"{plugin_line} · overlay: {n_ops} operations applied · composed: {now}",
     ]
-    if role in HEADER_TEAM_ROLES and info["team_source"] != "size":
+    if role in HEADER_TEAM_ROLES:
         out.append(duties_line(info))
     out.append("rules: " + " ".join(e.id for e in chosen))
     for e in chosen:
@@ -318,14 +292,6 @@ def _acts_aware(e, facts):
 
 def who_lines(e):
     lines = []
-    for size in sr.WHEN_KEYS["size"]:
-        acts, aware = _acts_aware(e, {"size": size})
-        lines.append(f"{size}: acts: {acts}; aware: {aware}")
-    if re.search(r"\bqa-b\b", e.when or ""):  # a rule the QA-blackbox switch changes: show both settings
-        for size in ("M", "L"):
-            for qab in sr.WHEN_KEYS["qa-b"]:
-                acts, aware = _acts_aware(e, {"size": size, "qa-b": qab})
-                lines.append(f"{size} qa-b {qab}: acts: {acts}; aware: {aware}")
     keys = []  # one line per value of each duty or presence key the rule's `when:` names (the team language)
     for key, _values in (sr._conditions(e.when) if e.when and e.when.strip() else ()):
         if key in _NEW_WHO_KEYS and key not in keys:

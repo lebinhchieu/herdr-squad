@@ -8,14 +8,14 @@ The Manager alone talks to the PO and relays every question that needs a PO answ
 
 ## MSG-2a Manager reports to the Team Lead
 roles: manager
-when: size = S
+when: qa-white = no
 topic: messages
 
 The Manager sends the Tech Lead every answer to a status question.
 
 ## MSG-2b Manager reports through the Team Lead
 roles: manager
-when: size in M, L
+when: qa-white = yes
 topic: messages
 
 The Manager sends the Team Lead every answer to a status question.

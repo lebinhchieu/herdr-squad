@@ -43,13 +43,13 @@ topic: safety
 
 ## SAFE-6 Unknown when value
 roles: dev
-when: size = XL
+when: qa-white = maybe
 topic: safety
 
 One short sentence here.
 
 ## SAFE-7 Order
-when: size = S
+when: qa-white = no
 roles: dev
 topic: safety
 

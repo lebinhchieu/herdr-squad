@@ -85,7 +85,7 @@ class ParseTest(Clean):
     def test_two_topic_files_and_overlay(self):
         ops = sr.parse_overlay(sr.read_text(str(self.squad / "process.local.md")), "process.local.md", [])
         self.assertEqual([(o.kind, o.id, o.hash, o.line) for o in ops],
-                         [("replace", "REV-3", "203fa130", 1), ("add", "SQ-1", "", 6), ("remove", "SAFE-1", "22f7e05d", 15)])
+                         [("replace", "REV-3", "022a37df", 1), ("add", "SQ-1", "", 6), ("remove", "SAFE-1", "22f7e05d", 15)])
         self.assertEqual((ops[0].why, ops[0].upstream), ("report-ui-fix: 8 style returns", "proposed"))
         self.assertTrue(ops[0].body.startswith("The Tech Lead names one final sha"))
         self.assertEqual((ops[1].title, ops[1].attrs["roles"], ops[1].attrs["topic"]), ("Style contract", "tech-lead, qa-blackbox", "review"))
@@ -134,7 +134,7 @@ class ParseTest(Clean):
 
 class HashTest(unittest.TestCase):
     def test_golden(self):
-        self.assertEqual(sr.rule_hash(GOLDEN_ATTRS, GOLDEN_BODY), "203fa130")
+        self.assertEqual(sr.rule_hash(GOLDEN_ATTRS, GOLDEN_BODY), "022a37df")
 
     def test_stable_across_crlf_bom_and_trailing_spaces(self):
         want = sr.rule_hash(GOLDEN_ATTRS, GOLDEN_BODY)
@@ -154,7 +154,7 @@ class HashTest(unittest.TestCase):
             src = (FIX / "clean" / PROC / "review.md").read_bytes()
             p.write_bytes(src.replace(b"\n", b"\r\n"))
             rules = sr.parse_rule_file(sr.read_text(str(p)), "review.md", [])
-            self.assertEqual(rules[0].hash, "203fa130")
+            self.assertEqual(rules[0].hash, "022a37df")
 
 
 class MatchesTest(unittest.TestCase):

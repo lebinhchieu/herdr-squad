@@ -47,9 +47,11 @@ DUTIES = {
     "choice-owner": ("architect", "tech-lead", "manager"),
 }
 _DUTY_TERMINAL = ("manager", "dev", "ticket")
-# `size` and `qa-b` stay until the cutover task (old rule files still use them); the new keys sit beside them.
-WHEN_KEYS = {"size": ("S", "M", "L"), "design": ("yes", "no"), "architecture": ("yes", "no"), "qa": ("full", "light"),
-             "goal": ("yes", "no"), "qa-b": ("yes", "no"),
+# The old language (`size`, `qa-b`, `qa-whitebox` in a `when:`) is gone: OLD_WHEN_KEYS names the key to use instead.
+OLD_WHEN_KEYS = {"size": "a duty or role key (`squad-process who` lists them), e.g. `ba = yes` for what size L had",
+                 "qa-b": "qa-black", "qa-whitebox": "qa-white"}
+WHEN_KEYS = {"design": ("yes", "no"), "architecture": ("yes", "no"), "qa": ("full", "light"),
+             "goal": ("yes", "no"),
              **{k: ("yes", "no") for k in ("ba", "team-lead", "tech-lead", "qa-white", "qa-black")},
              **{fact: chain for fact, chain in DUTIES.items()}}
 # A `when:` that uses a key of the team language holds at most one PRIMARY key; the rest are EXTRA (orthogonal).
@@ -140,6 +142,9 @@ def _conditions(when):
             if not m:
                 raise ValueError(f"cannot read condition {part!r}")
             key, values = m.group(1), [v.strip() for v in m.group(2).split(",")]
+        if key in OLD_WHEN_KEYS:
+            raise ValueError(f"when key {key!r} is gone with the team language; use {OLD_WHEN_KEYS[key]}"
+                             " (`squad-process upgrade` lists the overlay operations to change)")
         if key not in WHEN_KEYS:
             raise ValueError(f"unknown when key {key!r}")
         for v in values:
@@ -149,12 +154,10 @@ def _conditions(when):
 
 
 def check_when_combination(when):
-    """ValueError when a `when:` of the team language breaks one-primary-key (constraint 5). Old-key-only whens pass."""
+    """ValueError when a `when:` breaks one-primary-key (constraint 5): two role/duty keys, or a key outside both sets."""
     if not when or not when.strip():
         return
     keys = [k for k, _ in _conditions(when)]
-    if not any(k in PRIMARY_KEYS or k == "qa-black" for k in keys):
-        return
     primary = [k for k in keys if k in PRIMARY_KEYS]
     if len(primary) > 1:
         raise ValueError(f"when uses {len(primary)} duty/role keys ({', '.join(primary)}); at most one of them is allowed")
@@ -461,7 +464,7 @@ def _check_attrs(vals, rel, n, out, need, rid=None):
         try:
             matches(vals["when"], {})
         except ValueError as e:
-            out.append(f"{rel}:{n}: {e}")
+            out.append(f"{rel}:{n}: {rid + ': ' if rid else ''}{e}")
         else:
             try:
                 check_when_combination(vals["when"])

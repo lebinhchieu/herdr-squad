@@ -1,5 +1,5 @@
 # Your process rules
-agent: dev-1 · role: dev · scope: scope-a (size M, design yes, qa full, goal no)
+agent: dev-1 · role: dev · scope: scope-a (design yes, qa full, goal no)
 plugin: 9.9.9 abc1234 · overlay: 2 operations applied · composed: 2026-10-22T10:00:00Z
 rules: CORE-1 REV-3 REV-8 SQ-1
 
