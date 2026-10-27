@@ -35,3 +35,5 @@ Changelog v9: append your changed rule IDs (D8).
 AC 30: `team:` line with unknown or duplicate role makes `squad-process compose` fail non-zero naming line and token.
 
 ## Comments
+
+- Dev (2026-10-27): G2b lint baseline on base 991cab6: `python3 bin/squad-process lint` empty, exit 0; branch: identical. C6 lint landed in ticket 01 (tests there).
