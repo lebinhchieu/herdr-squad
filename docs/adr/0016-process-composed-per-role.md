@@ -2,6 +2,8 @@
 
 Status: accepted (composed-process, PO answers D1–D16 2026-10-21/22)
 
+Amended by 0018 (team replaces scope size): Sizes and Duty owners sections.
+
 Supersedes 0005. Amends 0006: the Writing rule applies per rule block; processlint checks rule files.
 
 **Decision:** the plugin's process is a folder of rule files, `templates/squad/process/*.md`. Each rule is one `## <ID> <title>` block with `roles:`, `aware:`, `when:` and `topic:` lines. A squad never copies it. Its own changes live in `process.local.md` as `replace`, `add` and `remove` operations on rule IDs, each pinned to a hash of the plugin text it changes. At spawn and respawn, `squad-process compose` keeps the rules whose `roles` or `aware` name the role and whose `when` matches the scope (`size`, `design`, `qa`, `goal`), adds `core.md`, and writes `roles/<agent>.rules.md`; `squad-spawn` attaches that file with `--append-system-prompt-file`. Role cards (`agents/*.md`) hold identity, stance and tools only. The Manager and the Tech Lead get their own rules plus a one-line index of every rule; `squad-process rule <ID>` prints any rule in full. Each scope records a plugin pin (`plugin:` in `scope.md`) and runs on that version until it closes; an upgrade applies between scopes only.

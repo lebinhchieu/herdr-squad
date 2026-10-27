@@ -1,5 +1,7 @@
-## v9 — 2026-10-27
-Teams replace sizes (drop-scope-size, 0.6.0). Each rule-file task appends its changed IDs under the headings below; the snapshot line and the final text come with the promotion task.
+## v9 — 2026-10-28
+- snapshot: history/process-v9/
+
+Plugin 0.6.0, breaking. Teams replace sizes (drop-scope-size, ADR 0018): `scope.md` carries one `team:` line, rules target the team through presence and duty facts, `size`, `qa-b` and the old `design:`, `architecture:` lines are rejected with a pointer to `squad-process adopt`. Overlay operations on retargeted rules go stale: run `squad-process upgrade`.
 
 added:
 - TEAM-1: Done when QA whitebox is the only QA (`qa-white = yes and qa-black = no`)
