@@ -231,7 +231,7 @@ roles: dev
 when: design-notes = tech-lead and design = yes
 topic: lifecycle
 
-A `Design:` ticket waits for `Status: final`; build each screen and state of `$SCOPE_DIR/ui-design/<task>.md`; a difference is an `ASK` to the Tech Lead.
+A `Design:` ticket waits for `Status: final`; build each screen and state of `$SCOPE_DIR/ui-design/<task>.md`; a difference is an `ASK` to the Tech Lead: shots [EVID-5].
 
 ## LC-19b Design, Manager answers
 roles: dev

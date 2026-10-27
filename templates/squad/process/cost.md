@@ -51,7 +51,7 @@ roles: dev
 when: plan-owner = manager
 topic: cost
 
-At 120k with the ticket merged-ready, or when no open ticket touches your files, retire (no `squad-respawn`). Mid-ticket, respawn once, then the Manager splits the rest. A retired name is never reused.
+At 120k with the ticket merged-ready, or when no open ticket touches your files, retire (no `squad-respawn`). Mid-ticket, respawn once, then the Manager splits the rest. Never reuse a retired name.
 
 ## COST-6a Ticket assignment, Manager
 roles: manager

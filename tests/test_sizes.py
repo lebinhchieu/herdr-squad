@@ -253,11 +253,12 @@ class S_DeveloperReview(unittest.TestCase):
         self.assertIn("`## Behaviour` and `## Review` ([REV-22])", t)
         self.assertIn("## EVID-3a", t)
 
-    @unittest.skip("5 KiB trim is ticket 11")
     def test_dev_rules_stay_within_5_kib(self):
-        from test_dev_rules_size import COMBOS, LIMIT, compose
-        for size, design, goal in COMBOS:
-            self.assertLessEqual(len(compose("dev", size, design, goal)), LIMIT, (size, design, goal))
+        from test_dev_rules_size import CAP, EXCEPTIONS, LIMIT, TEAMS, compose_team
+        for team in TEAMS:
+            for goal in ("yes", "no"):
+                n = len(compose_team("dev", team, goal))
+                self.assertLessEqual(n, CAP if team in EXCEPTIONS else LIMIT, (team, goal, n))
 
 
 class RespawnReadable(unittest.TestCase):

@@ -13,10 +13,45 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
 from rulesview import ROOT, ROLES, run, who
 
 LIMIT = 5120
-SKIP_5KIB = "5 KiB trim is ticket 11"
 NOW = "2026-10-22T10:00:00Z"
-# S + architecture yes exceeds LIMIT at every design x goal: pinned (design, goal) -> bytes
-PINNED = {("yes", "yes"): 5438, ("yes", "no"): 5437, ("no", "yes"): 5147, ("no", "no"): 5146}
+KEYS = ("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect")
+TEAMS = [tuple(k for i, k in enumerate(KEYS) if m >> i & 1) for m in range(128)]
+CAP = 5443  # no team set may compose more, even among the exceptions
+# Team sets whose Developer rules exceed LIMIT (designer or architect, with at most one QA): pinned by set, any goal and qa.
+EXCEPTIONS = {tuple(s.split(",")) for s in (
+    "tech-lead,architect",
+    "ba,tech-lead,architect",
+    "team-lead,tech-lead,architect",
+    "ba,team-lead,tech-lead,architect",
+    "tech-lead,qa-black,architect",
+    "ba,tech-lead,qa-black,architect",
+    "team-lead,tech-lead,qa-black,architect",
+    "ba,team-lead,tech-lead,qa-black,architect",
+    "designer,architect",
+    "ba,designer,architect",
+    "team-lead,designer,architect",
+    "ba,team-lead,designer,architect",
+    "tech-lead,designer,architect",
+    "ba,tech-lead,designer,architect",
+    "team-lead,tech-lead,designer,architect",
+    "ba,team-lead,tech-lead,designer,architect",
+    "qa-white,designer,architect",
+    "ba,qa-white,designer,architect",
+    "team-lead,qa-white,designer,architect",
+    "ba,team-lead,qa-white,designer,architect",
+    "tech-lead,qa-white,designer,architect",
+    "ba,tech-lead,qa-white,designer,architect",
+    "team-lead,tech-lead,qa-white,designer,architect",
+    "ba,team-lead,tech-lead,qa-white,designer,architect",
+    "qa-black,designer,architect",
+    "ba,qa-black,designer,architect",
+    "team-lead,qa-black,designer,architect",
+    "ba,team-lead,qa-black,designer,architect",
+    "tech-lead,qa-black,designer,architect",
+    "ba,tech-lead,qa-black,designer,architect",
+    "team-lead,tech-lead,qa-black,designer,architect",
+    "ba,team-lead,tech-lead,qa-black,designer,architect",
+)}
 COMBOS = list(product("SML", ("yes", "no"), ("yes", "no")))
 
 
@@ -34,6 +69,18 @@ def compose(role, size, design="no", goal="no", architecture="no", name="role-ca
         return squadcompose.compose(role, str(home), str(ROOT), None, agent, NOW, pin, legacy_scaffold=True).encode("utf-8")
 
 
+def compose_team(role, team, goal="no", qa="full", name="role-cards-upgrade", agent="plugin-dev-role-cards-upgrade-12"):
+    """Raw composed bytes for a `team:` home (no scaffold) with live-length names; pinned plugin line, time injected."""
+    import squadcompose
+    pin = (squadcompose.running_version(), "0123456789abcdef0123456789abcdef01234567")
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "scopes" / name
+        home.mkdir(parents=True)
+        (home / "scope.md").write_text(f"goal:{' g1' if goal == 'yes' else ''}\nteam: {', '.join(team) or 'none'}\nqa: {qa}\nplugin: {pin[0]} {pin[1]}\n",
+                                       encoding="utf-8", newline="\n")
+        return squadcompose.compose(role, str(home), str(ROOT), None, agent, NOW, pin).encode("utf-8")
+
+
 def section(text, rule_id):
     """Body of one rule in a composed file, '' when the rule is not there."""
     m = re.search(rf"(?m)^## {re.escape(rule_id)} [^\n]*\n(.*?)(?=^## |\Z)", text, re.S)
@@ -41,29 +88,24 @@ def section(text, rule_id):
 
 
 class DevRulesSize(unittest.TestCase):
-    @unittest.skip(SKIP_5KIB)
-    def test_every_combination_fits_5_kib(self):
-        for size, design, goal in COMBOS:
-            with self.subTest(size=size, design=design, goal=goal):
-                n = len(compose("dev", size, design, goal))
-                self.assertLessEqual(n, LIMIT, f"dev at {size}/design {design}/goal {goal} is {n} B")
+    def sweep(self):
+        for team in TEAMS:
+            for goal, qa in product(("yes", "no"), ("full", "light")):
+                yield team, goal, qa, len(compose_team("dev", team, goal, qa))
 
-    @unittest.skip(SKIP_5KIB)
-    def test_architecture_flag_on_fits_except_s(self):
-        for size, design, goal in COMBOS:
-            if size == "S":
-                continue
-            with self.subTest(size=size, design=design, goal=goal):
-                n = len(compose("dev", size, design, goal, "yes"))
-                self.assertLessEqual(n, LIMIT, f"dev at {size}/design {design}/goal {goal}/architecture yes is {n} B")
+    def test_every_team_set_fits_5_kib_or_is_a_pinned_exception(self):
+        over = {}
+        for team, goal, qa, n in self.sweep():
+            self.assertLessEqual(n, CAP, f"dev, team {team}, goal {goal}, qa {qa} is {n} B")
+            if n > LIMIT:
+                over[team] = max(n, over.get(team, 0))
+        self.assertEqual(set(over), EXCEPTIONS, "the pinned exceptions must be exactly the sets over 5 KiB")
 
-    @unittest.skip(SKIP_5KIB)
-    def test_s_architecture_exception_is_pinned(self):
-        """Known exception to the 5 KiB limit (ticket 02 design notes): pinned so it cannot grow."""
-        for (design, goal), want in PINNED.items():
-            with self.subTest(design=design, goal=goal):
-                n = len(compose("dev", "S", design, goal, "yes"))
-                self.assertEqual(n, want, f"dev S/design {design}/goal {goal}/architecture yes is {n} B")
+    def test_pinned_exceptions_all_carry_designer_or_architect_and_at_most_one_qa(self):
+        for team in EXCEPTIONS:
+            with self.subTest(team=team):
+                self.assertTrue({"designer", "architect"} & set(team))
+                self.assertFalse({"qa-white", "qa-black"} <= set(team))
 
     def test_must_keep_duties_by_rule_id(self):
         for size, design, goal in COMBOS:
@@ -106,13 +148,18 @@ class DevRulesSize(unittest.TestCase):
                 self.assertIn("never paste", section(compose("dev", size, design, goal).decode(), "MSG-3"))
 
     def test_lost_rules_are_one_command_away(self):
-        for rid in ("GOAL-6b", "PROMO-5", "REV-15", "NOTE-1", "MSG-5", "MSG-9", "COST-2", "SAFE-2", "SAFE-5", "REV-4", "LC-6", "SUITE-4"):
+        for rid in ("GOAL-6b", "PROMO-5", "REV-15", "NOTE-1", "MSG-5", "MSG-9", "COST-2", "SAFE-2", "SAFE-5", "REV-4", "LC-6", "SUITE-4", "REV-5a", "EVID-5"):
             with self.subTest(rule=rid):
                 r = run("rule", rid)
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertTrue(r.stdout.startswith(f"## {rid} "), r.stdout)
                 for size, (acting, aware) in who(rid).items():
                     self.assertNotIn("dev", acting + aware, f"{rid} at {size}")
+
+    def test_moved_rules_are_cited_from_the_rule_that_keeps_them(self):
+        for kept, moved in (("REV-22", "REV-5a"), ("LC-19", "EVID-5")):
+            with self.subTest(moved=moved):
+                self.assertIn(f"[{moved}]", section(compose_team("dev", ("tech-lead", "designer"), "no").decode(), kept))
 
     def test_core6_reaches_every_role_and_names_rule_and_who(self):
         for role in ROLES:

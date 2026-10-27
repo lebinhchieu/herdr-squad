@@ -23,14 +23,14 @@ roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, ar
 when: plan-owner = manager
 topic: messages
 
-Ask the owner from `roster.md`; when it doesn't say, ask the Manager.
+Ask the owner `roster.md` names, else the Manager.
 
 ## MSG-4b Ask the owner, Team Lead
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, dev
 when: plan-owner = team-lead
 topic: messages
 
-Ask the owner from `roster.md`; when it doesn't say, ask the Team Lead.
+Ask the owner `roster.md` names, else the Team Lead.
 
 ## MSG-5 Pod contact
 roles: team-lead
@@ -105,7 +105,7 @@ roles: dev
 when: plan-owner = team-lead
 topic: messages
 
-No guessing at a gap. `ASK` the owner `roster.md` names for it (technical, business or plan), else the Team Lead. `BLOCKED <task>` and `STATUS?` answers go to the Team Lead. Work on the unblocked meanwhile.
+No guessing at a gap. `ASK` the owner `roster.md` names, else the Team Lead. `BLOCKED <task>` and `STATUS?` answers go to the Team Lead. Work on the unblocked meanwhile.
 
 ## MSG-12 BA takes gaps
 roles: ba

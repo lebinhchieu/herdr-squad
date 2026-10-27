@@ -10,13 +10,13 @@ topic: lifecycle
 roles: all
 topic: messages
 
-Send with `SendMessage` to the agent name in `roster.md`, as `<TYPE> <TASK-ID>: <text>`. Types: `ASK`, `ANSWER`, `DECISION`, `BLOCKED`, `HANDIN`, `PASS`, `FAIL`, `STATUS`.
+`SendMessage` to the agent name in `roster.md`: `<TYPE> <TASK-ID>: <text>`. Types: `ASK`, `ANSWER`, `DECISION`, `BLOCKED`, `HANDIN`, `PASS`, `FAIL`, `STATUS`.
 
 ## CORE-3 Owners
 roles: all
 topic: owners
 
-Owners: Manager process, roster, scope size; Designer UI; the rest by size: [WHO-1a], [WHO-1b], [WHO-2].
+Owners: Manager process, roster, team; Designer UI; the rest: [WHO-1a], [WHO-1b], [WHO-2].
 
 ## CORE-4 Two rounds
 roles: all

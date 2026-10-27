@@ -55,7 +55,7 @@ topic: review
 Code that parses another tool's output (pane text, logs, an API) needs two real samples, including the constant or idle case, before a pattern is trusted. The technical AC require them.
 
 ## REV-5a Live run
-roles: dev
+roles: manager
 when: qa-white = no
 topic: review
 
@@ -222,11 +222,11 @@ roles: dev
 when: qa-white = no
 topic: review
 
-Before `HANDIN` start a fresh-context review subagent (`model: sonnet`, `effort: high`, no fork) on your diff; findings and fixes: `## Review`; `squad-evidence check <folder>` must pass.
+Before `HANDIN` start a fresh-context review subagent (`model: sonnet`, `effort: high`, no fork) on your diff; findings and fixes: `## Review`; `squad-evidence check <folder>` must pass. Parsing another tool's output: [REV-5a].
 
 ## REV-22a Review against the architecture
 roles: dev
 when: qa-white = no and architecture = yes
 topic: review
 
-Give the review subagent `$SCOPE_DIR/architecture.md` too: it checks that the diff conforms to it.
+Give the review subagent `$SCOPE_DIR/architecture.md`: it checks the diff conforms.

@@ -19,7 +19,7 @@ roles: dev
 when: tech-ac = tech-lead
 topic: evidence
 
-After every checker passed: `squad-evidence add <ticket> --heading "<H>" --from <review file>` per review file in `$SCOPE_DIR/evidence/<task>/`, `squad-evidence check <folder>`, commit, `HANDIN <task>: evidence sha <sha>` to the Tech Lead.
+After every checker passed: `squad-evidence add <ticket> --heading "<H>" --from <file>` per file in `$SCOPE_DIR/evidence/<task>/`, `squad-evidence check <folder>`, commit, `HANDIN <task>: evidence sha <sha>` to the Tech Lead.
 
 ## EVID-2d Assemble evidence, Manager
 roles: dev
@@ -65,7 +65,7 @@ topic: evidence
 Commit `## Behaviour` with the code: Playwright or API checks per AC (run, seen), shots `![alt](img/<file>)` under their AC.
 
 ## EVID-5 Design shots
-roles: dev
+roles: manager
 when: ui-check = manager and design = yes
 topic: evidence
 
