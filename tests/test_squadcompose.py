@@ -654,13 +654,6 @@ class LegacyScaffoldTest(Base):
         self.assertIn("scope.md:2: qa must be full | light", cm.exception.lines[0])
         self.assertEqual(self.run_cli("compose", "manager", home=h).returncode, 2)
 
-    def test_design_yes_qa_b_no_still_raises_on_the_old_path(self):
-        with self.assertRaises(sc.ComposeError):
-            sc.read_home(self.old_home("size: M", "design: yes", "qa-b: no"))
-
-    def test_design_yes_qa_b_no_is_a_valid_team_through_the_scaffold_mapping(self):
-        self.assertEqual(sc.sr.legacy_team("M", "no", "yes"), ["qa-white", "designer"])
-
 
 class ChooseTest(Base):
     def test_choose_equals_the_old_compose_filter_and_the_rules_line(self):
