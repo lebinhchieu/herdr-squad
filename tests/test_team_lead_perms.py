@@ -14,6 +14,7 @@ TL_ALLOW = {
     "Bash(git branch:*)", "Bash(echo:*)", "Bash(squad-respawn:*)",
     "Bash(squad-spawn dev:*)", "Bash(squad-retire:*)", "Bash(squad-process rule:*)", "Bash(squad-process who:*)", "Bash(herdr agent list:*)", "Bash(herdr agent get:*)",
     "Bash(herdr agent read:*)",
+    "Bash(rm /tmp/tmp.*)", "Bash(rm -r /tmp/tmp.*)", "Bash(rm -rf /tmp/tmp.*)", "Bash(rmdir /tmp/tmp.*)",
 }
 FAKE_HERDR = """#!/usr/bin/env bash
 echo "$@" >> "$HERDR_LOG"
