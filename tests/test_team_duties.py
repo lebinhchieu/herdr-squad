@@ -122,8 +122,8 @@ class Sweep(unittest.TestCase):
         for fact in sr.DUTIES:
             self.assertIn(fact, sr.WHEN_KEYS)
         self.assertEqual(sr.WHEN_KEYS["behaviour-check"], ("qa-black", "qa-white", "manager"))
-        self.assertIn("qa-b", sr.WHEN_KEYS)  # stays until the cutover task
-        self.assertIn("size", sr.WHEN_KEYS)
+        for gone in ("qa-b", "size", "qa-whitebox"):  # the old language is gone (ticket 12)
+            self.assertNotIn(gone, sr.WHEN_KEYS)
 
     def test_matches_with_duty_keys(self):
         facts = sr.team_facts(["ba", "qa-black"])
@@ -207,12 +207,13 @@ class LegacyTeam(unittest.TestCase):
         self.assertEqual(sr.legacy_team("S", "no"), [])
 
     def test_first_token_vs_read_home_anywhere(self):
-        """legacy_team takes the FIRST token (architecture section 7); base read_home takes `\\b[SML]\\b` anywhere."""
+        """legacy_team takes the FIRST token (architecture section 7); read_home reads no size at all."""
         text = "confirmed M by PO"
         self.assertIsNone(sr.legacy_team(text))
         with tempfile.TemporaryDirectory() as home:
             Path(home, "scope.md").write_text(f"# s\nsize: {text}\n", encoding="utf-8")
-            self.assertEqual(sc.read_home(home)["facts"]["size"], "M")
+            with self.assertRaises(sc.ComposeError):
+                sc.read_home(home)
 
     def test_bad_flag_value_raises(self):
         with self.assertRaises(ValueError):
@@ -305,10 +306,12 @@ class LintWhen(unittest.TestCase):
             out = lint_rule(when)
             self.assertEqual(len(out), 1, (when, out))
 
-    def test_old_language_still_lints_until_the_cutover(self):
-        self.assertEqual(lint_rule("size = L and qa-b = yes"), [])
-        self.assertEqual(lint_rule("size in M, L and qa-b = no"), [])
-        self.assertEqual(lint_rule("size = M and architecture = yes"), [])
+    def test_old_language_is_a_lint_error(self):
+        for when in ("size = L and qa-b = yes", "size in M, L and qa-b = no", "size = M and architecture = yes",
+                     "qa-whitebox = yes"):
+            out = lint_rule(when)
+            self.assertEqual(len(out), 1, (when, out))
+            self.assertIn("is gone", out[0])
 
     def test_value_outside_the_key_set_fails(self):
         self.assertTrue(lint_rule("business-ac = qa-black"))

@@ -313,9 +313,10 @@ class OpenWork(Base):
 
     def test_both_still_compose_their_rules_so_spawn_and_respawn_work(self):
         sq = self.adopted()
+        # an undecided scope composes for the Manager only
         for home in ("scopes/s1", "goals/g1"):
             self.assertEqual(rt.home_pin(str(sq / home)), tuple(PIN.split()), home)
-            r = run("compose", "dev" if home.startswith("scopes") else "manager", "--home", str(sq / home),
+            r = run("compose", "manager", "--home", str(sq / home),
                     "--squad-dir", str(sq), "--plugin-root", str(ROOT), "--out", str(self.root / "o.md"))
             self.assertEqual(r.returncode, 0, r.stderr)
 

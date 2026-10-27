@@ -116,7 +116,7 @@ class TeamCliTest(Base):
             r = self.team(self.home([f"team: {key}"], name="k" + key))
             self.assertIn(r.stdout.strip(), sr.TEAM_KEYS)
 
-    def test_size_only_home_exits_2_with_the_converter_pointer_but_still_composes_via_scaffold(self):
+    def test_size_only_home_exits_2_with_the_converter_pointer_and_read_home_raises(self):
         h = self.home(["size: M", "qa: full"])
         r = self.team(h)
         self.assertEqual(r.returncode, 2)
@@ -124,7 +124,8 @@ class TeamCliTest(Base):
         self.assertIn("`size:`", r.stderr)
         self.assertIn("squad-process adopt", r.stderr)
         self.assertEqual(self.team(h, "--has", "dev").returncode, 2)
-        self.assertEqual(sc.read_home(str(h), legacy_scaffold=True)["team"], ["qa-white", "qa-black"])
+        with self.assertRaises(sc.ComposeError):  # read_home derives nothing from `size:`
+            sc.read_home(str(h))
 
     def test_every_old_line_is_named(self):
         h = self.home(["size: L", "design: yes", "architecture: no", "qa-b: yes"])
@@ -227,7 +228,8 @@ class ConverterTest(Base):
         h = self.home(["size: M", "qa: full"], squad=sq)
         self.adopt(sq, "--yes")
         shutil.copyfile(h / "scope.md.pre-team.bak", h / "scope.md")
-        self.assertEqual(sc.read_home(str(h), legacy_scaffold=True)["team"], ["qa-white", "qa-black"])
+        with self.assertRaises(sc.ComposeError):  # the restored `size:` file is the old format: the engine refuses it
+            sc.read_home(str(h))
 
     def test_missing_or_file_home_exits_2_but_home_without_scope_md_is_undecided(self):
         for bad in (self.tmp / "nope", self.tmp / "afile"):
@@ -469,7 +471,9 @@ class LiveCopyTest(Base):
         for d in sorted((LIVE / "scopes/_done").iterdir()):
             if (d / "scope.md").is_file():
                 shutil.copytree(d, sq / "scopes" / d.name)
-                old[d.name] = sc.read_home(str(d), legacy_scaffold=True)["team"]
+                kv = sc._kv(str(d / "scope.md"))
+                old[d.name] = sr.legacy_team(*(kv.get(k, (dflt, 0))[0] for k, dflt in
+                                               (("size", ""), ("qa-b", "yes"), ("design", "no"), ("architecture", "no"))))
         self.assertTrue(old)
         r = run("adopt", "--squad-dir", str(sq), "--new-pin", PIN, "--yes")
         self.assertEqual(r.returncode, 0, r.stderr)
