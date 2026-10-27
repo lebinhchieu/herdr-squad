@@ -1,5 +1,5 @@
 # Evidence: 04 spawn gate, pinned hand-off, start, hook
-sha: SHA
+sha: c97299a
 
 ## Behaviour
 - `squad-spawn` team gate (via `squad-process team --has`): role not on team exits 1 naming role and `scope.md`, nothing created; `qa-whitebox`/`qa-blackbox` gated on `qa-white`/`qa-black`; undecided team refuses all but Manager; `size:`-only or bad `team:` line exits 2 with the converter pointer / line+token; hostile `team:` values run nothing. Goal Manager has no gate.
