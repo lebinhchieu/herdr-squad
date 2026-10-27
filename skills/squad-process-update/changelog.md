@@ -109,6 +109,33 @@ changed:
 - SPAWN-3: the team, not the size, goes in the first prompt; ID kept: same duty
 - SPAWN-4: the Designer is spawned when `designer` is on `team:`, not by reading `design: yes`
 - SPAWN-4a: the Architect is spawned when `architect` is on `team:`; cites SPAWN-2a and SPAWN-2b; no S, M, L words
+- CORE-3: wording only, "team" replaces "size"; the owners it cites are unchanged
+- REV-5a: on demand, attached to no role (`roles:` empty), cited from REV-22; off the Developer's 5 KiB, one `squad-process rule REV-5a` away
+- EVID-5: on demand, attached to no role (`roles:` empty), cited from LC-19; off the Developer's 5 KiB, one `squad-process rule EVID-5` away
+- CORE-6: wording only, shorter; same command pointers
+- COST-5: wording only, "respawn once; the Team Lead splits the rest" for "respawn once, then the Team Lead splits the rest"; same duty
+- EVID-2a: wording only, "Write" for "You write", shots as `![alt](img/<file>)`; same duty
+- EVID-4: wording only, "under the AC" for "under their AC"; same duty
+- LC-18: title "Dev work"; the "test new behaviour" clause moves from the hand-in line to "Implement as designed"; same duty
+- MSG-3: drops the sentence "Name it after the type" (CORE-2 already fixes `<TYPE> <TASK-ID>`); the ticket number `NN` alone and never paste, point at files are unchanged
+- START-6: wording only, "in a goal `$GOAL_DIR/goal.md` and `shared/`"; same files read
+- START-10: title "Dev start"; one paragraph; the `git status` call is dropped because only the branch check matters, and `git branch --show-current` stays
+- CORE-4: wording only, its owner decides; same duty
+- CORE-5: wording only, shorter; same duty
+- LC-3a: wording only, shorter; same duty
+- LC-19c: wording only, shorter; the Manager still decides after 2 rounds; same duty
+- LC-25: title Advisor; trigger "2 unanswered `BLOCKED`" for "the same `BLOCKED` sent twice with no `ANSWER`" (same trigger, shorter), "failed tries" for "failed attempts", "Note it in the task file, 3 lines" for "Add a 3-line note to the task file", "Advisor off: say so"; same duty
+- lint: an empty `roles:` value is allowed (the line must still be there), so a rule can be on demand and attached to no role; reason: keeps REV-5a and EVID-5 off the Manager and Developer without moving a duty
+- REV-22: adds the pointer to REV-5a for code that parses another tool's output
+- LC-19: adds the pointer to EVID-5 for the screenshot per state
+- LC-19b: adds the pointer to EVID-5 for the screenshot per state (design notes by the Manager)
+- CORE-2: wording only, shorter; same message types and format
+- REV-22a: title "Architecture review"; shorter, the subagent is still given architecture.md to check the diff conforms; same duty
+- EVID-2b: wording only, `<file>` for `<review file>`, "After all `PASS`:" for "After every checker passed:"; same duty
+- MSG-4a: wording only, shorter; same duty
+- COST-5a: wording only, shorter; same duty
+- MSG-4b: wording only, shorter; same duty
+- MSG-11b: wording only, drops the "(technical, business or plan)" gloss; same duty
 
 removed:
 - SIZE-3: the Manager proposes the Designer from signals; replaced by SIZE-1

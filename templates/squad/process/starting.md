@@ -103,7 +103,7 @@ roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, 
 topic: start
 
 1. `echo $SQUAD_DIR $SCOPE_DIR $GOAL_DIR $SQUAD_NAME $SQUAD_SCOPE`; empty → ask the Manager.
-2. Read `project.md`, `$SCOPE_DIR/scope.md`, `roster.md`, your `roles/$SQUAD_NAME.notes.md` if any; in a goal also `$GOAL_DIR/goal.md`, `$GOAL_DIR/shared/`.
+2. Read `project.md`, `$SCOPE_DIR/scope.md`, `roster.md`, your `roles/$SQUAD_NAME.notes.md` if any; in a goal `$GOAL_DIR/goal.md` and `shared/`.
 
 ## START-7 Start inside a goal
 roles: ba, team-lead, tech-lead, qa-whitebox, designer, architect
@@ -125,13 +125,11 @@ topic: start
 
 Read the Manager's briefing: your scope, your tasks and AC where it names them, and your peers.
 
-## START-10 Developer start
+## START-10 Dev start
 roles: dev
 topic: start
 
-1. Read your briefing (task, AC, design, peers).
-2. `git status`, `git branch --show-current`: expect `squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME`, work only there.
-3. Read CLAUDE.md and the `project.md` conventions.
+Read your briefing (task, AC, design, peers), CLAUDE.md and `project.md` conventions. `git branch --show-current` must be `squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME`; work only there.
 
 ## START-11 BA start
 roles: ba

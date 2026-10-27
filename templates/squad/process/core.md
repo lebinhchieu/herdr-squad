@@ -10,28 +10,28 @@ topic: lifecycle
 roles: all
 topic: messages
 
-Send with `SendMessage` to the agent name in `roster.md`, as `<TYPE> <TASK-ID>: <text>`. Types: `ASK`, `ANSWER`, `DECISION`, `BLOCKED`, `HANDIN`, `PASS`, `FAIL`, `STATUS`.
+`SendMessage` to the agent name in `roster.md`: `<TYPE> <TASK-ID>: <text>`. Types: `ASK`, `ANSWER`, `DECISION`, `BLOCKED`, `HANDIN`, `PASS`, `FAIL`, `STATUS`.
 
 ## CORE-3 Owners
 roles: all
 topic: owners
 
-Owners: Manager process, roster, scope size; Designer UI; the rest by size: [WHO-1a], [WHO-1b], [WHO-2].
+Owners: Manager process, roster, team; Designer UI; the rest: [WHO-1a], [WHO-1b], [WHO-2].
 
 ## CORE-4 Two rounds
 roles: all
 topic: messages
 
-No agreement after 2 exchanges: send it to its owner, or to the Manager when the owner is one of you.
+No agreement after 2 exchanges: its owner decides; the Manager when the owner is one of you.
 
 ## CORE-5 Files first
 roles: all
 topic: files
 
-Write a durable thing to a file first, then message a pointer to it.
+Write durable things to a file first, then message a pointer.
 
 ## CORE-6 Rules not attached
 roles: all
 topic: rules
 
-A rule cited as `[ID]` that is not in this file: run `squad-process rule <ID>`. `squad-process who <ID>` shows which roles it binds.
+A rule cited as `[ID]` but not in this file: `squad-process rule <ID>`. `squad-process who <ID>`: the roles it binds.

@@ -29,8 +29,8 @@ class AdvisorRulesTest(unittest.TestCase):
 
     def test_triggers_and_note(self):
         r = rule("dev", "LC-25")
-        for needle in ("2 failed attempts at one error", "same `BLOCKED` sent twice with no `ANSWER`", "3rd `FAIL`",
-                       "3-line note", "question, advice, what was done", "Advisor off: skip and say so"):
+        for needle in ("2 failed tries at one error", "2 unanswered `BLOCKED`", "3rd `FAIL`",
+                       "3 lines: question, advice", "question, advice, what was done", "Advisor off: say so"):
             self.assertIn(needle, r)
         r = rule("tech-lead", "LC-26")
         self.assertIn("irreversible design choice", r)

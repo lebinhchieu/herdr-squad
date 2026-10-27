@@ -12,14 +12,14 @@ roles: dev
 when: handin-target = qas
 topic: evidence
 
-You write `## Behaviour` in the ticket's `evidence.md`, commit it with your code, and embed screenshots as `![alt](img/<file>)`.
+Write `## Behaviour` in the ticket's `evidence.md`, commit with your code, shots as `![alt](img/<file>)`.
 
 ## EVID-2b Assemble evidence
 roles: dev
 when: tech-ac = tech-lead
 topic: evidence
 
-After every checker passed: `squad-evidence add <ticket> --heading "<H>" --from <review file>` per review file in `$SCOPE_DIR/evidence/<task>/`, `squad-evidence check <folder>`, commit, `HANDIN <task>: evidence sha <sha>` to the Tech Lead.
+After all `PASS`: `squad-evidence add <ticket> --heading "<H>" --from <file>` per file in `$SCOPE_DIR/evidence/<task>/`, `squad-evidence check <folder>`, commit, `HANDIN <task>: evidence sha <sha>` to the Tech Lead.
 
 ## EVID-2d Assemble evidence, Manager
 roles: dev
@@ -62,10 +62,10 @@ roles: dev
 when: behaviour-check = manager
 topic: evidence
 
-Commit `## Behaviour` with the code: Playwright or API checks per AC (run, seen), shots `![alt](img/<file>)` under their AC.
+Commit `## Behaviour` with the code: Playwright or API checks per AC (run, seen), shots `![alt](img/<file>)` under the AC.
 
 ## EVID-5 Design shots
-roles: dev
+roles:
 when: ui-check = manager and design = yes
 topic: evidence
 

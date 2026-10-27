@@ -111,7 +111,7 @@ class RulesTest(unittest.TestCase):
         for role in ("manager", "qa-whitebox"):
             self.assertIn("MSG-20", ids(role, "M", architecture="yes"), role)
         self.assertIn("LC-19c", ids("dev", "M", architecture="yes"))
-        self.assertIn("ASK` to the Architect, and after 2 rounds the Manager decides", composed("dev", "M", architecture="yes"))
+        self.assertIn("ASK` the Architect; unsettled after 2 rounds: the Manager", composed("dev", "M", architecture="yes"))
 
     def test_the_architect_proposes_irreversible_choices_and_the_po_decides(self):
         text = composed("manager", "M", architecture="yes")
