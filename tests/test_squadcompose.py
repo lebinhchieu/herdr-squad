@@ -415,17 +415,24 @@ class PinTest(Base):
         self.assertIn(f"plugin: {PIN_V} abc1234 ·", r.stdout)
 
 
-# Real `scope.md` lines, verbatim (source file cited per sample).
+# Real `scope.md` lines, copied verbatim (file:line cited per sample; paths under /home/chieule/workspace/).
 REAL = {
-    # plugin-bk261023 squad, _done/refine-process/scope.md
-    "refine": "size: M, custom pod (PO 2026-10-14): Tech Lead, BA, QA whitebox, Devs; no QA blackbox. Reason: a process-rules edit, nothing a person sees.",
-    # plugin-bk261023 squad, _done/extractor-role/scope.md
-    "extractor": "size: M (PO confirmed 2026-10-17, no QA roles) - signals: one tool, no UI, no contract change",
-    "extractor-qa": "qa: none (PO 2026-10-17): the Developer's review subagent and the Manager's check stand in for the QAs",
-    # blueprint squad, _done/svgdraw/scope.md
-    "svg-l": "size: L \u2014 confirmed by PO (E1 a). Signals: new module, contract change, five tasks",
-    "svg-m": "size: M \u2014 signals: one tool, tests only",
+    # squad/.claude/squads/plugin-bk261023/scopes/_done/refine-process/scope.md:7
+    "refine": "size: M, custom pod (PO 2026-10-14): Tech Lead, BA, QA whitebox, Devs; no QA blackbox. Behaviour check: Dev saves evidence "
+              "(dev-evidence.md, migration run on a copy of a real squad), QA whitebox checks it. Done = QA whitebox PASS (+ BA sign-off "
+              "on the process.md rule audit). Signals: 4-5 tasks, one repo, no UI, changes the contract every squad reads",
+    # squad/.claude/squads/plugin-bk261023/scopes/_done/extractor-role/scope.md:8 and :9
+    "extractor": "size: M (PO confirmed 2026-10-17, no QA roles) - signals: research spike gates a build of ~4-5 tasks; new role every squad "
+                 "sees (role instructions + process.md change need PO approval); one repo; no DB/API risk flag",
+    "extractor-qa": "qa: none (PO 2026-10-17): code/test and behaviour checks move to the Tech Lead as in S (tl-review.md, dev-evidence.md)",
+    # enhanced-markdown-vscode/.claude/squads/blueprint/scopes/_done/svgdraw/scope.md:7 (design: yes is line 9)
+    "svg-l": "size: L \u2014 confirmed by PO (E1 a). Signals: AI-authored SVG in webview = security flag; form is a business question; "
+             "user-visible; touches skills/, syntaxes/, validate.mjs",
+    # plugin-bk261023 scopes/_done/report-ui-fix/scope.md:7 (the `size: M \u2014 signals:` shape; svgdraw has no such line)
+    "m-signals": "size: M \u2014 signals: user-visible UI change, ~5 tasks, one repo, no risk flag, PO requires full QA blackbox (confirmed by PO 2026-10-19, E1)",
 }
+# enhanced-markdown-vscode/.claude/squads/blueprint/scopes/grillui/scope.md:7-10
+GRILLUI = ["size: M", "qa: full", "qa-b: yes", "design: yes"]
 
 
 class TeamHomeTest(Base):
@@ -466,7 +473,7 @@ class TeamHomeTest(Base):
         facts = sc.read_home(self.team_home("team: ba, qa-white"))["facts"]
         self.assertEqual([k for k in list(sc.sr.PRESENCE_KEY.values()) + list(sc.sr.DUTIES) if k not in facts], [])
 
-    def test_old_size_line_wins_nothing_when_team_is_present(self):
+    def test_transitional_team_line_wins_and_old_lines_are_ignored_until_task_12(self):
         info = sc.read_home(self.team_home("team: ba", extra="size: L\n"))
         self.assertEqual(info["team"], ["ba"])
         self.assertNotIn("size", info["facts"])
@@ -581,7 +588,13 @@ class LegacyScaffoldTest(Base):
 
     def test_cli_compose_never_uses_the_scaffold(self):
         h = self.old_home("size: L", "qa: full", f"plugin: {PIN_V} abc1234")
-        self.assertNotIn("legacy_scaffold", (BIN / "squadrules_cli.py").read_text(encoding="utf-8"))
+        for path in list(BIN.iterdir()) + list((ROOT / "hooks").rglob("*")):  # nothing outside tests sets it
+            if path.is_file() and path.name != "squadcompose.py" and path.suffix not in (".pyc", ".png"):
+                try:
+                    text = path.read_text(encoding="utf-8")
+                except (UnicodeDecodeError, OSError):
+                    continue
+                self.assertNotIn("legacy_scaffold", text, str(path))
         r = self.run_cli("compose", "manager", "--now", NOW, home=h)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("(size L,", r.stdout)
@@ -589,7 +602,7 @@ class LegacyScaffoldTest(Base):
     def test_real_samples_read_home_takes_sml_anywhere_legacy_team_first_token(self):
         for key, want_size, want_team in (("refine", "M", ["qa-white", "qa-black"]), ("extractor", "M", ["qa-white", "qa-black"]),
                                           ("svg-l", "L", ["ba", "team-lead", "tech-lead", "qa-white", "qa-black"]),
-                                          ("svg-m", "M", ["qa-white", "qa-black"])):
+                                          ("m-signals", "M", ["qa-white", "qa-black"])):
             with self.subTest(sample=key):
                 info = sc.read_home(self.old_home(REAL[key], name=key), legacy_scaffold=True)
                 self.assertEqual(info["facts"]["size"], want_size)
@@ -597,6 +610,16 @@ class LegacyScaffoldTest(Base):
         h = self.old_home("size: confirmed M by PO", name="anywhere")  # where the two rules differ
         self.assertEqual(sc.read_home(h)["facts"]["size"], "M")
         self.assertIsNone(sc.read_home(h, legacy_scaffold=True)["team"])
+
+    def test_grillui_shape_size_m_qa_b_yes_design_yes(self):
+        info = sc.read_home(self.old_home(*GRILLUI, name="grillui"), legacy_scaffold=True)
+        self.assertEqual(info["team"], ["qa-white", "qa-black", "designer"])
+        self.assertEqual((info["facts"]["size"], info["facts"]["design"], info["facts"]["ui-check"]), ("M", "yes", "qa-black"))
+
+    def test_design_yes_qa_b_no_shape_reads_old_and_maps_to_a_valid_team(self):
+        with self.assertRaises(sc.ComposeError):  # the old path still refuses it (task 12 removes the path)
+            sc.read_home(self.old_home("size: M", "qa-b: no", "design: yes", name="dq"))
+        self.assertEqual(sc.sr.legacy_team("M", "no", "yes"), ["qa-white", "designer"])
 
     def test_qa_none_does_not_crash_and_the_line_stays_untouched(self):
         h = self.old_home(REAL["extractor"], REAL["extractor-qa"], name="qn")
@@ -613,6 +636,11 @@ class LegacyScaffoldTest(Base):
         self.assertEqual(sc.read_home(h)["facts"]["qa"], "full")
         (h / "scope.md").write_text("team: none\nqa: light\n", encoding="utf-8")
         self.assertEqual(sc.read_home(h)["facts"]["qa"], "light")
+        (h / "scope.md").write_text("team: none\nqa: maybe\n", encoding="utf-8")
+        with self.assertRaises(sc.ComposeError) as cm:
+            sc.read_home(h)
+        self.assertIn("scope.md:2: qa must be full | light", cm.exception.lines[0])
+        self.assertEqual(self.run_cli("compose", "manager", home=h).returncode, 2)
 
     def test_design_yes_qa_b_no_still_raises_on_the_old_path(self):
         with self.assertRaises(sc.ComposeError):
@@ -633,6 +661,31 @@ class ChooseTest(Base):
                     want = [e for e in rules if sc.role_in(e, role) and sc.sr.matches(e.when, facts)]  # the pre-split body
                     self.assertEqual([e.id for e in sc.choose(rules, role, facts)], [e.id for e in want])
                     self.assertEqual(self.ids(role, h), [e.id for e in want])
+
+    def test_split_compose_is_byte_equal_to_the_base_compose_for_size_homes(self):
+        """Refactor proof: the base compose (`git show 991cab6:bin/squadcompose.py`, before the split) and today's give
+        the same text for the old size path, every role, size S/M/L x design, and a goal home."""
+        import importlib.util
+        base = subprocess.run(["git", "-C", str(ROOT), "show", "991cab6:bin/squadcompose.py"], capture_output=True)
+        if base.returncode != 0:
+            self.skipTest("base sha 991cab6 not in this clone")
+        d = self.tmp / "basemod"
+        d.mkdir()
+        (d / "squadcompose_base.py").write_bytes(base.stdout)
+        spec = importlib.util.spec_from_file_location("squadcompose_base", d / "squadcompose_base.py")
+        old = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(old)
+        homes = [self.home(size=z, design=dz, name=f"h{z}{dz}") for z in "SML" for dz in ("yes", "no")] + [self.goal_home()]
+        n = 0
+        for h in homes:
+            for role in sc.sr.ROLES:
+                got = sc.compose(role, str(h), str(self.root), str(self.overlay_path), role, NOW, (PIN_V, "abc1234"))
+                if sc.read_home(h)["scope"].startswith("goal"):  # the one header change: size n/a -> team undecided
+                    continue
+                want = old.compose(role, str(h), str(self.root), str(self.overlay_path), role, NOW, (PIN_V, "abc1234"))
+                self.assertEqual(got, want, f"{h.name} {role}")
+                n += 1
+        self.assertEqual(n, 60)
 
     def test_choose_is_pure(self):
         rules, _ = sc.load_rules(str(self.root), str(self.overlay_path))
@@ -674,10 +727,9 @@ class WhoDutyLinesTest(Base):
         self.assertEqual(out, ["S: acts: -; aware: -", "M: acts: -; aware: -", "L: acts: ba, dev; aware: manager"])
 
     def test_who_of_a_rule_without_when_has_only_size_lines(self):
-        r = self.run_cli("who", "SQ-1")
-        self.assertEqual([x for x in r.stdout.split("\n") if x][:3],
-                         [x for x in r.stdout.split("\n") if x][:3])
-        self.assertTrue(all(":" in x and " = " not in x for x in r.stdout.split("\n") if x), r.stdout)
+        self.overlay("## add SQ-9 No when\nroles: dev\ntopic: review\nwhy: a\nupstream: local-only\nBody.\n")
+        out = [x for x in self.lines() if x]
+        self.assertEqual(out, ["S: acts: dev; aware: -", "M: acts: dev; aware: -", "L: acts: dev; aware: -"])
 
 
 class RulesviewTest(unittest.TestCase):
@@ -692,12 +744,23 @@ class RulesviewTest(unittest.TestCase):
         self.assertIn("(size M,", rv.composed("dev"))  # old path, scaffold on
         self.assertIn("duties: plan-owner=manager", rv.composed("manager", team="qa-white, qa-black"))
 
-    def test_who_accepts_size_and_duty_lines(self):
+    def test_who_parses_size_and_duty_lines(self):
         sys.path.insert(0, str(ROOT / "tests"))
         import rulesview as rv
-        w = rv.who("REV-3")
-        self.assertEqual(set(w), {"S", "M", "L"} | {k for k in w if " = " in k})
-        self.assertEqual(rv.acts("REV-3", "M"), w["M"][0])
+        rv.who.cache_clear()
+        text = "S: acts: dev; aware: -\nM: acts: -; aware: -\nbusiness-ac = ba: acts: ba, dev; aware: manager\nqa-black = no: acts: -; aware: -\n"
+        fake = type("R", (), {"returncode": 0, "stdout": text, "stderr": ""})()
+        orig = rv.run
+        rv.run = lambda *a: fake
+        try:
+            w = rv.who("X-1")
+        finally:
+            rv.run = orig
+            rv.who.cache_clear()
+        self.assertEqual(w["S"], (("dev",), ()))
+        self.assertEqual(w["business-ac = ba"], (("ba", "dev"), ("manager",)))
+        self.assertEqual(w["qa-black = no"], ((), ()))
+        self.assertEqual(set(w), {"S", "M", "business-ac = ba", "qa-black = no"})
 
 
 if __name__ == "__main__":

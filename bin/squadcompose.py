@@ -59,11 +59,15 @@ HEADER_TEAM_ROLES = ("manager", "team-lead", "tech-lead")  # D5: these headers p
 
 
 def _qa_fact(kv):
-    """`qa:` -> full | light. A value outside the set (`qa: none (PO ...)`) is commentary of a hand-edited line: the
-    line stays untouched and the fact falls back to the default."""
+    """`qa:` -> full | light. A first token `none` (`qa: none (PO ...)`: no QA roles, a hand-edited line) falls back to
+    the default and the line stays untouched; any other value is an error naming the line."""
     value, n = kv.get("qa", (_FACT_DEFAULT["qa"], 0))
     tok = (value.split() or [_FACT_DEFAULT["qa"]])[0].lower()
-    return tok if tok in _FACT_VALUES["qa"] else _FACT_DEFAULT["qa"]
+    if tok == "none":
+        return _FACT_DEFAULT["qa"]
+    if tok not in _FACT_VALUES["qa"]:
+        raise ComposeError(f"scope.md:{n}: qa must be {' | '.join(_FACT_VALUES['qa'])}, got {value!r}")
+    return tok
 
 
 def _size_facts(kv, facts):
