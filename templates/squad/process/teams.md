@@ -46,4 +46,4 @@ No QA whitebox is on the team: confirm that each task's `evidence.md` holds a `#
 roles: manager
 topic: teams
 
-Remove a role only at an iteration boundary with the PO's OK. Its duties move along the chain, its open threads go to the new owner, and the `## Handover` names that owner. Retire the removed role's session. Tasks already passed stay passed; unfinished tasks use the new Done.
+Remove a role only at an iteration boundary with the PO's OK. Its duties move along the chain, its open threads go to the new owner (the `## Handover` names it). Run `squad-team remove <role> --at-boundary`: it edits `team:` and prints who to respawn. Retire the removed role's session. Tasks already passed stay passed; unfinished tasks use the new Done.
