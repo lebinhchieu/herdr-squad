@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CLI = str(ROOT / "bin" / "squad-process")
-ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "designer", "dev", "token-coach")
+ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "designer", "architect", "dev", "token-coach")
 
 
 def _env():
@@ -21,12 +21,12 @@ def run(*args):
 
 
 @functools.lru_cache(maxsize=None)
-def composed(role, size="M", design="no", goal="no", qa="full"):
+def composed(role, size="M", design="no", goal="no", qa="full", *, architecture="no"):
     """Composed rules for `role` in a scope with these facts, whitespace folded to single spaces."""
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "scopes" / "s"
         home.mkdir(parents=True)
-        (home / "scope.md").write_text(f"size: {size}\ndesign: {design}\nqa: {qa}\ngoal: {goal}\n", encoding="utf-8")
+        (home / "scope.md").write_text(f"size: {size}\ndesign: {design}\narchitecture: {architecture}\nqa: {qa}\ngoal: {goal}\n", encoding="utf-8")
         out = Path(tmp) / "rules.md"
         r = run("compose", role, "--home", str(home), "--out", str(out))
         assert r.returncode == 0, r.stderr

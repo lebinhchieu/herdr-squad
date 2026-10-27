@@ -21,8 +21,8 @@ PREFIX_OF = {stem: prefix for prefix, stem in FILE_ORDER}
 PREFIXES = {prefix for prefix, _ in FILE_ORDER}
 REMOVED_FILE = "_removed.md"
 OVERLAY_FILE = "process.local.md"
-ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "designer", "dev", "token-coach")
-WHEN_KEYS = {"size": ("S", "M", "L"), "design": ("yes", "no"), "qa": ("full", "light"),
+ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "designer", "architect", "dev", "token-coach")
+WHEN_KEYS = {"size": ("S", "M", "L"), "design": ("yes", "no"), "architecture": ("yes", "no"), "qa": ("full", "light"),
              "goal": ("yes", "no"), "qa-b": ("yes", "no")}
 PLUGIN_ATTRS = ("roles", "aware", "when", "topic")
 OVERLAY_ATTRS = PLUGIN_ATTRS + ("why", "upstream")

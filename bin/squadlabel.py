@@ -13,7 +13,7 @@ from pathlib import Path
 ROLE_NAMES = {
     "manager": "Manager", "ba": "BA", "team-lead": "Team Lead", "tech-lead": "Tech Lead",
     "qa-whitebox": "QA Whitebox", "qa-blackbox": "QA Blackbox", "dev": "Dev",
-    "designer": "Designer", "token-coach": "Token Coach",
+    "designer": "Designer", "architect": "Architect", "token-coach": "Token Coach",
 }
 MAX_LEN = 32
 NAME_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}")

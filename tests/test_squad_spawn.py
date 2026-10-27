@@ -75,7 +75,8 @@ class SpawnDryRunTest(unittest.TestCase):
                               text=True, encoding="utf-8", capture_output=True, timeout=10)
 
     def test_the_table_covers_every_role(self):
-        self.assertEqual(len(TABLE), 9)
+        self.assertEqual(len(TABLE), 10)
+        self.assertEqual(TABLE["architect"], ("sonnet", "high"))
 
     def test_squad_settings_override_the_template(self):
         self._squad_settings("dev", {"model": "haiku", "effortLevel": "low"})
@@ -746,3 +747,55 @@ class SpawnDesignerTest(unittest.TestCase):
                     self.assertEqual(r.returncode, 1)
                     self.assertIn("scope sc1 has no 'design: yes' in scope.md; only the PO turns the designer on", r.stderr)
                     self.assertFalse(log.exists())
+
+
+class SpawnArchitectTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.squad = scoped_squad(self.tmp.name)
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
+        self.scope_md = self.squad / "scopes/sc1/scope.md"
+
+    def spawn(self, *args, role="architect"):
+        return subprocess.run([str(SCRIPT), role, "arch-sc1", "--scope", "sc1", *args], env=self.env,
+                              text=True, encoding="utf-8", capture_output=True, timeout=10)
+
+    def test_architecture_yes_passes_the_guard(self):
+        self.scope_md.write_text("# Scope\n\narchitecture: Yes\n", encoding="utf-8")
+        r = self.spawn("--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("--agent squad:architect", r.stdout)
+
+    def test_without_architecture_yes_it_refuses_naming_the_line_and_the_po(self):
+        for body in ("# Scope\n\narchitecture: no\n", "# Scope\n\narchitecture: maybe\n", "# Scope\n\ntouches:\n",
+                     "# Scope\n\ndesign: yes\n", "# Scope\n\n# architecture: yes\n", None):
+            for extra in (("--dry-run",), ()):
+                with self.subTest(body=body, extra=extra):
+                    self.scope_md.unlink(missing_ok=True)
+                    if body is not None:
+                        self.scope_md.write_text(body, encoding="utf-8")
+                    r = self.spawn(*extra)
+                    self.assertEqual(r.returncode, 1)
+                    self.assertIn("scope sc1 has no 'architecture: yes' in scope.md; only the PO turns the architect on", r.stderr)
+
+    def test_the_architect_gets_its_template_model_and_no_missing_settings_warning(self):
+        self.scope_md.write_text("# Scope\n\narchitecture: yes\n", encoding="utf-8")
+        r = self.spawn("--dry-run", "--prompt", "go")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertRegex(r.stdout, r"--model sonnet --effort high\b")
+        self.assertNotIn("no model/effortLevel", r.stderr)
+
+    def test_design_yes_does_not_open_the_architect_nor_the_reverse(self):
+        self.scope_md.write_text("# Scope\n\narchitecture: yes\n", encoding="utf-8")
+        r = self.spawn("--dry-run", role="designer")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("'design: yes'", r.stderr)
+
+    def test_model_architect_line_is_accepted(self):
+        self.scope_md.write_text("# Scope\n\narchitecture: yes\nmodel architect: opus high\n", encoding="utf-8")
+        r = self.spawn("--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertRegex(r.stdout, r"--model opus --effort high\b")
+        self.assertNotIn("unknown role", r.stderr)

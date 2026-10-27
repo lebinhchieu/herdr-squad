@@ -174,6 +174,17 @@ class MatchesTest(unittest.TestCase):
         self.assertTrue(sr.matches("qa-b = no", {"qa-b": "no"}))
         self.assertFalse(sr.matches("qa-b = no", {"qa-b": "yes"}))
 
+    def test_architecture_is_a_key(self):
+        self.assertTrue(sr.matches("architecture = yes", {"architecture": "yes"}))
+        self.assertFalse(sr.matches("architecture = yes", {"architecture": "no"}))
+        self.assertTrue(sr.matches("architecture = no", {"architecture": "no"}))
+        self.assertTrue(sr.matches("architecture = yes", {}))
+        with self.assertRaises(ValueError):
+            sr.matches("architecture = maybe", {})
+
+    def test_architect_is_a_known_role(self):
+        self.assertIn("architect", sr.ROLES)
+
     def test_unknown_key_or_value_raises(self):
         for bad in ("colour = red", "size = XL", "size in M, Q", "size M", "size = S and"):
             with self.assertRaises(ValueError, msg=bad):
@@ -208,6 +219,16 @@ class LintClassTest(Clean):
 
     def test_qa_b_when_is_valid(self):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: qa-b = no\ntopic: safety"))
+        self.assertEqual(self.lint()[0], [])
+
+    def test_architecture_when_is_valid_and_bad_value_refused(self):
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: architecture = yes\ntopic: safety"))
+        self.assertEqual(self.lint()[0], [])
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("architecture = yes", "architecture = maybe"))
+        self.only("unknown value 'maybe'")
+
+    def test_architect_role_in_roles_line_is_valid(self):
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("roles: dev", "roles: dev, architect"))
         self.assertEqual(self.lint()[0], [])
 
     def test_id_prefix_not_matching_file(self):

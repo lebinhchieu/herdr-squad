@@ -1,3 +1,49 @@
+## v8 — 2026-10-27
+- snapshot: history/process-v8/
+
+The optional Architect (`architecture: yes`); every rule below composes only with the flag on, so a scope with it `no` is unchanged.
+
+added:
+- SIZE-3a: the `architecture:` flag, PO only (only with `architecture: yes`)
+- SIZE-9a: the Architect delivers `architecture.md`
+- SIZE-22a: duty owners with an Architect (rows replace SIZE-22's)
+- SIZE-23c: `architecture.md` conformance in the technical AC, M
+- SIZE-23d: `architecture.md` conformance in the technical AC, L
+- REV-22a: the S review subagent checks conformance to `architecture.md`
+- WHO-2e: Architect owns the architecture; the PO decides irreversible choices
+- SPAWN-4a: when and how the Manager spawns and retires the Architect
+- START-4a: Architect role-short `arch`
+- START-5a: Architect lifetime row
+- START-20: Architect start
+- LC-11c: S and M plan waits for `architecture.md` final
+- LC-11d: L plan waits for `architecture.md` final
+- LC-19c: Developer builds inside `architecture.md`
+- MSG-20: follow `architecture.md` or `ASK` the Architect; 2 rounds then the Manager
+- MSG-20a: Architect doubts and final, S and M
+- MSG-20b: Architect doubts and final, L
+
+changed:
+- none
+
+removed:
+- none
+
+retargeted:
+- FILE-11: the Architect drafts ADR text in `tasks/` too
+- COST-1: the Architect carries it too (only with `architecture: yes`)
+- COST-2: the Architect carries it too (only with `architecture: yes`)
+- COST-3: the Architect carries it too (only with `architecture: yes`)
+- COST-7: the Architect carries it too (only with `architecture: yes`)
+- COST-9: the Architect carries it too (only with `architecture: yes`)
+- MSG-1: the Architect carries it too (only with `architecture: yes`)
+- MSG-10: the Architect carries it too (only with `architecture: yes`)
+- MSG-2: the Architect carries it too (only with `architecture: yes`)
+- MSG-9: the Architect carries it too (only with `architecture: yes`)
+- SAFE-2: the Architect carries it too (only with `architecture: yes`)
+- SAFE-5: the Architect carries it too (only with `architecture: yes`)
+- START-7: the Architect carries it too (only with `architecture: yes`)
+- START-9: the Architect carries it too (only with `architecture: yes`)
+
 ## v7 — 2026-10-22
 - snapshot: history/process-v7/
 

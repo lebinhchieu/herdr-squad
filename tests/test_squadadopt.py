@@ -192,6 +192,12 @@ class TwoOpsOneItem(Base):
         self.assertIn("candidate rules: LC-3a, LC-3b", out)
 
 
+class RoleFilesTest(unittest.TestCase):
+    def test_architect_is_an_adopt_role_file(self):
+        self.assertIn("architect", sa.ROLE_FILES)
+        self.assertIn("designer", sa.ROLE_FILES)
+
+
 class ArchiveAndSettings(Base):
     """AC 3 and B09-3/8: archive, pin, local settings with only the difference."""
 
@@ -333,7 +339,7 @@ class Scaffold(Base):
         self.assertFalse((sq / "process.md").exists())
         for f in ("process.local.md", "plugin.pin", "project.md"):
             self.assertTrue((sq / f).is_file(), f)
-        self.assertEqual(len(list((sq / "settings").glob("*.local.json"))), 9)
+        self.assertEqual(len(list((sq / "settings").glob("*.local.json"))), 10)
         self.assertEqual(list((sq / "settings").glob("*.json")), list((sq / "settings").glob("*.local.json")))
         self.assertEqual(json.loads((sq / "settings/qa-blackbox.local.json").read_text()), {"codePaths": ["/srv/app/src"]})
         self.assertEqual(json.loads((sq / "settings/dev.local.json").read_text()), {})

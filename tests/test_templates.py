@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 T = Path(__file__).resolve().parent.parent / "templates"
-ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "dev", "token-coach", "designer")
+ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "dev", "token-coach", "designer", "architect")
 
 
 def files(d):

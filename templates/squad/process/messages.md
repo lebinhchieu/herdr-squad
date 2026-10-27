@@ -1,32 +1,32 @@
 # Messages
 
 ## MSG-1 Sending a message
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: messages
 
 Send to the agent name in your scope's `roster.md` ([CORE-2]). `HANDIN` carries branch and commit; `FAIL` points at findings.
 
 ## MSG-2 Point at files
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: messages
 
 Point at files and lines; never paste them. `BLOCKED`, `HANDIN`, `PASS`, `FAIL` and `STATUS` name the task ID right after the type.
 
 ## MSG-3 Task ID
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, dev
 topic: messages
 
 Task ID = the ticket number `NN` alone, never an alias or slug. Name it after the type; never paste, point at files.
 
 ## MSG-4a Ask the owner, S and M
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, dev
 when: size in S, M
 topic: messages
 
 Ask the owner from `roster.md`; when it doesn't say, ask the Manager.
 
 ## MSG-4b Ask the owner, L
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, dev
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, dev
 when: size = L
 topic: messages
 
@@ -54,14 +54,14 @@ Message the Manager only for these, each as one line pointing at a file; never f
 - `iterations/<n>.summary.md` at iteration end ([ITER-3]).
 
 ## MSG-7a Rulings, S and M
-roles: manager, qa-whitebox, qa-blackbox, designer
+roles: manager, qa-whitebox, qa-blackbox, designer, architect
 when: size in S, M
 topic: messages
 
 A Manager ruling starts with `FINAL:` and is sent once; nobody re-opens it, and a new fact goes to the Manager as a new `ASK`.
 
 ## MSG-7b Rulings, L
-roles: manager, team-lead, ba, tech-lead, qa-whitebox, qa-blackbox, designer
+roles: manager, team-lead, ba, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 when: size = L
 topic: messages
 
@@ -82,13 +82,13 @@ topic: messages
 Run the pod's health checks with `herdr agent list` and `herdr agent read`. Never push `STATUS`: read logs, the roster and the task file first, and send `ASK <name>: STATUS?` only after 10 minutes of no pane activity.
 
 ## MSG-9 DECISION scope
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: messages
 
 `DECISION` goes only to roles whose open task it changes, named in the first line (`DECISION SET-13, SET-14: ...`); others read the file at their next ticket.
 
 ## MSG-10 Permission prompts
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: messages
 
 Never relay a permission, approval or blocked pane; a message approves nothing. Permission prompts reach the PO through the agent's own notice.
@@ -178,3 +178,24 @@ topic: messages
 Answer "who owns X" from `roster.md`.
 
 `HANDIN`, `PASS` and `FAIL` go to the Developer and the checkers only; you are not copied. Run `squad-ledger` (`--task NN` for one) when you act on your own messages, at health checks and at iteration end.
+
+## MSG-20 Questions on the architecture
+roles: manager, team-lead, tech-lead, qa-whitebox, architect
+when: architecture = yes
+topic: messages
+
+Follow `architecture.md`, or send the Architect an `ASK`. With no agreement after 2 rounds, the Manager decides ([CORE-4]).
+
+## MSG-20a Architect doubts and final, S and M
+roles: architect
+when: size in S, M and architecture = yes
+topic: messages
+
+A business doubt → `ASK` the Manager, who moves the scope to L ([SIZE-14]); a feasibility doubt → `ASK` the Developer who would build it. Never write `escalations.md` yourself. When `architecture.md` is final, send `DECISION <task>: architecture final` to the Manager.
+
+## MSG-20b Architect doubts and final, L
+roles: architect
+when: size = L and architecture = yes
+topic: messages
+
+A business doubt → `ASK` the BA; never write `escalations.md` yourself. A feasibility doubt → `ASK` the Tech Lead. When `architecture.md` is final, send `DECISION <task>: architecture final` to the Manager and the Team Lead.

@@ -6,7 +6,7 @@ usage() {
   cat <<'EOF'
 Usage: squad-spawn <role> <agent-name> [options]
 
-Roles: manager ba team-lead tech-lead qa-whitebox qa-blackbox dev token-coach designer
+Roles: manager ba team-lead tech-lead qa-whitebox qa-blackbox dev token-coach designer architect
 Name:  lowercase, [a-z][a-z0-9_-]{0,31}, e.g. ba-settings, dev-settings-1
 
 Options:
@@ -59,7 +59,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer) ;;
+case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer|architect) ;;
   *) echo "unknown role: $role" >&2; exit 2 ;; esac
 # A Team Lead respawning itself (squad-respawn) is team-lead under its own name; nothing else passes.
 [[ ${SQUAD_ROLE:-} != team-lead || $role == dev || ( $role == team-lead && $name == "${SQUAD_NAME:-}" ) ]] || { echo "a Team Lead may only spawn dev" >&2; exit 2; }
@@ -112,6 +112,10 @@ if [[ -d $squad_dir/scopes ]]; then
       echo "scope $scope has no 'design: yes' in scope.md; only the PO turns the designer on" >&2
       exit 1
     fi
+    if [[ $role == architect ]] && ! grep -qiE '^architecture:[[:space:]]*yes[[:space:]]*$' "$scope_dir/scope.md" 2>/dev/null; then
+      echo "scope $scope has no 'architecture: yes' in scope.md; only the PO turns the architect on" >&2
+      exit 1
+    fi
     in_goal=$(sed -n 's/^goal:[[:space:]]*//p' "$scope_dir/scope.md" 2>/dev/null | head -1 | tr -d '[:space:]')
     if [[ -n $in_goal ]]; then
       goal_dir=$squad_dir/goals/$in_goal
@@ -127,10 +131,10 @@ scope_model="" scope_effort="" scope_seen=" "
 if [[ -n $scope_dir && -f $scope_dir/scope.md ]]; then
   while IFS= read -r line || [[ -n $line ]]; do
     line=${line%$'\r'}
-    [[ $line =~ ^model[[:space:]]*: || $line =~ ^model[[:space:]]+[a-z][a-z-]*[[:space:]]*: || $line =~ ^model[[:space:]]+(manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer)([[:space:]]|$) ]] || continue
+    [[ $line =~ ^model[[:space:]]*: || $line =~ ^model[[:space:]]+[a-z][a-z-]*[[:space:]]*: || $line =~ ^model[[:space:]]+(manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer|architect)([[:space:]]|$) ]] || continue
     if [[ $line =~ ^model[[:space:]]+([a-z][a-z-]*):[[:space:]]+([A-Za-z0-9][][A-Za-z0-9._-]*)[[:space:]]+(low|medium|high|xhigh|max)[[:space:]]*$ ]]; then
       r=${BASH_REMATCH[1]}
-      case $r in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer) ;;
+      case $r in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer|architect) ;;
         *) echo "warning: $scope_dir/scope.md: unknown role '$r' in: $line (ignored)" >&2; continue ;; esac
       [[ $scope_seen != *" $r "* ]] || { echo "malformed line in $scope_dir/scope.md: role $r given twice: $line" >&2; exit 2; }
       scope_seen+="$r "

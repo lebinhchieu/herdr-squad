@@ -16,8 +16,8 @@ _slurp = sr.read_text  # utf-8-sig, CRLF to LF
 DEFAULT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 INDEX_ROLES = ("manager", "tech-lead")
 _PIN = re.compile(r"^(\S+)\s+(\S+)\s*$")
-_FACT_VALUES = {"design": ("yes", "no"), "qa": ("full", "light"), "qa-b": ("yes", "no")}
-_FACT_DEFAULT = {"design": "no", "qa": "full", "qa-b": "yes"}
+_FACT_VALUES = {"design": ("yes", "no"), "architecture": ("yes", "no"), "qa": ("full", "light"), "qa-b": ("yes", "no")}
+_FACT_DEFAULT = {"design": "no", "architecture": "no", "qa": "full", "qa-b": "yes"}
 
 
 class ComposeError(Exception):
@@ -70,7 +70,7 @@ def read_home(home):
         m = re.search(r"\b[SML]\b", kv["size"][0])
         if m:
             facts["size"] = m.group(0)
-    for key in ("design", "qa", "qa-b"):  # a goal home takes the scope defaults; only size can be missing
+    for key in ("design", "architecture", "qa", "qa-b"):  # a goal home takes the scope defaults; only size can be missing
         value, n = kv.get(key, (_FACT_DEFAULT[key], 0))
         tok = (value.split() or [_FACT_DEFAULT[key]])[0].lower()
         if tok not in _FACT_VALUES[key]:
@@ -184,10 +184,11 @@ def compose(role, home, plugin_root, overlay_path, agent, now, pinned=None):
         plugin_line = f"plugin: {pinned[0]} {pinned[1]}"
     else:
         plugin_line = f"plugin: {running_version()} unpinned"
+    arch = "architecture yes, " if facts.get("architecture") == "yes" else ""  # shown only when on: header and 5 KiB budget unchanged otherwise
     out = [
         "# Your process rules",
         f"agent: {agent or role} · role: {role} · scope: {info['scope']} (size {_fact(facts, 'size')}, "
-        f"design {_fact(facts, 'design')}, qa {_fact(facts, 'qa')}, goal {_fact(facts, 'goal')})",
+        f"design {_fact(facts, 'design')}, {arch}qa {_fact(facts, 'qa')}, goal {_fact(facts, 'goal')})",
         f"{plugin_line} · overlay: {n_ops} operations applied · composed: {now}",
         "rules: " + " ".join(e.id for e in chosen),
     ]
@@ -196,7 +197,9 @@ def compose(role, home, plugin_root, overlay_path, agent, now, pinned=None):
     if role in INDEX_ROLES:
         got = {e.id for e in chosen}
         out += ["", "## Index of other rules"]
-        out += [f"- {e.id} {e.title} ({', '.join(e.roles)})" for e in rules if e.id not in got]
+        on = facts.get("architecture") == "yes"  # architecture rules and the architect name stay out of a scope without it
+        out += [f"- {e.id} {e.title} ({', '.join(r for r in e.roles if on or r != 'architect')})"
+                for e in rules if e.id not in got and (on or "architecture" not in (e.when or ""))]
     return "\n".join(out) + "\n"
 
 
