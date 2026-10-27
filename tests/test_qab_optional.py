@@ -131,8 +131,8 @@ class QabNo(unittest.TestCase):
         for rid in ("REV-9", "REV-11", "REV-13b"):
             out = subprocess.run([sys.executable, "-B", str(ROOT / "bin" / "squad-process"), "who", rid],
                                  capture_output=True, encoding="utf-8").stdout
-            self.assertIn("M qa-b no: acts: -; aware: -", out, rid)
-            self.assertNotIn("M qa-b yes: acts: -", out, rid)
+            self.assertIn("qa-black = no: acts: -; aware: -", out, rid)
+            self.assertNotIn("qa-black = yes: acts: -", out, rid)
 
 
 class QabNoWithDesign(unittest.TestCase):

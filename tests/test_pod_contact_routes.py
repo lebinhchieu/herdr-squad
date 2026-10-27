@@ -24,7 +24,7 @@ class PodContactRoutes(unittest.TestCase):
         dev, qw, qb = (composed(r, "L") for r in ("dev", "qa-whitebox", "qa-blackbox"))
         self.assertNotIn("copy the Team Lead", dev)  # ledger replaces copies
         self.assertIn("Tell the plan owner and wait; it retires you", dev)
-        self.assertIn("the Team Lead (plan or order)", dev)
+        self.assertIn("else the Team Lead", dev)
         self.assertNotIn("copy the Team Lead", qw)  # ledger replaces copies
         self.assertNotIn("copy the Team Lead", qb)  # ledger replaces copies
         self.assertIn("tells the Team Lead", composed("ba", "L"))
