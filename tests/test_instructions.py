@@ -94,6 +94,12 @@ class InstructionsTest(unittest.TestCase):
         self.assertIn("\nteam:\n", (ROOT / "templates/scope/scope.md").read_text())
         self.assertIn("`designer`", composed("manager", "M"))
 
+    def test_scope_template_lines(self):
+        t = (ROOT / "templates/scope/scope.md").read_text()
+        self.assertIn("\nteam:\nqa: full\n", t)
+        for old in ("\nsize:", "\ndesign:", "\narchitecture:", "\nqa-b:"):
+            self.assertNotIn(old, t)
+
     def test_the_architect_starts_by_reading_its_scope_folder(self):
         text = composed("architect", "M", goal="yes", architecture="yes")
         for token in ("$SCOPE_DIR/scope.md", "$GOAL_DIR/goal.md", "shared/", "roles/$SQUAD_NAME.notes.md"):

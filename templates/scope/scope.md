@@ -5,6 +5,7 @@
 goal: {{goal}}
 touches: {{touches}}
 team:
+qa: full
 <!-- Team models: one line per changed role, `model <role>: <model> <effort>`, e.g. `model dev: sonnet medium`. Unlisted roles use their defaults. -->
 
 ## Constraints

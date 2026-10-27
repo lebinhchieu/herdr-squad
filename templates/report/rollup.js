@@ -100,7 +100,7 @@
     var rs = r.roles.filter(function (q) { return q.cost_usd > 0; }).sort(function (a, b) { return b.cost_usd - a.cost_usd; });
     var gap = r.status === "stale" ? staleS(r) : null;
     openDrawer([head,
-      h("div", { class: "mut" }, (r.team ? "team " + r.team : "size " + (r.size || "–")) + " · " + dt(ts(w.start)) + " → " + (r.status === "running" ? "now" : dt(ts(w.end)))),
+      h("div", { class: "mut" }, (r.team ? "team " + r.team : r.size ? "size " + r.size : "–") + " · " + dt(ts(w.start)) + " → " + (r.status === "running" ? "now" : dt(ts(w.end)))),
       h("div", { class: "card", style: "margin-top:8px" }, h("b", null, dur(t.wall_s)), " elapsed · ", h("b", null, dur(t.agent_s)), " agent-time · ", h("b", null, usd(t.cost_usd)), " · ",
         h("b", null, tok(sum(t.tokens))), " tokens ", bar(t.buckets_s, BK, "b-", true), h("div", { style: "height:6px" }), bar(t.tokens, KINDS, "k-")),
       h("p", null, t.tasks + " tasks, " + t.passed + " passed · " + t.returns + " returns" + (t.flagged_tasks ? " (" + t.flagged_tasks + " flagged)" : "") + " · PO wait " + dur(t.po_wait_s) + " · " + (att == null ? "–" : Math.round(att) + "%") + " attributed"),

@@ -228,6 +228,7 @@ class RollupTeamChip(unittest.TestCase):
         self.assertRegex(t, r"team-scope · plugin qa-white, qa-black done")
         self.assertNotRegex(t, r"win-compat · plugin qa-")
         self.assertNotRegex(t, r"team-scope · plugin [SML] done")
+        self.assertFalse("size ?" in t)
 
 
 def _free_port():
