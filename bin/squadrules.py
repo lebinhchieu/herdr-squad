@@ -131,6 +131,10 @@ def rule_hash(attr_text, body):
 
 # ---- when ----------------------------------------------------------------------------------------
 
+class OldKeyError(ValueError):
+    """A `when:` names a key of the old language (`size`, `qa-b`, `qa-whitebox`)."""
+
+
 def _conditions(when):
     for part in when.split(" and "):
         part = part.strip()
@@ -143,7 +147,7 @@ def _conditions(when):
                 raise ValueError(f"cannot read condition {part!r}")
             key, values = m.group(1), [v.strip() for v in m.group(2).split(",")]
         if key in OLD_WHEN_KEYS:
-            raise ValueError(f"when key {key!r} is gone with the team language; use {OLD_WHEN_KEYS[key]}"
+            raise OldKeyError(f"when key {key!r} is gone with the team language; use {OLD_WHEN_KEYS[key]}"
                              " (`squad-process upgrade` lists the overlay operations to change)")
         if key not in WHEN_KEYS:
             raise ValueError(f"unknown when key {key!r}")
@@ -464,7 +468,7 @@ def _check_attrs(vals, rel, n, out, need, rid=None):
         try:
             matches(vals["when"], {})
         except ValueError as e:
-            out.append(f"{rel}:{n}: {rid + ': ' if rid else ''}{e}")
+            out.append(f"{rel}:{n}: {rid + ': ' if rid and isinstance(e, OldKeyError) else ''}{e}")
         else:
             try:
                 check_when_combination(vals["when"])
