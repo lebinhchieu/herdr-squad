@@ -12,6 +12,7 @@ added:
 - REV-1b: the Team Lead confirms a hand-in when no QA is on the team and the Team Lead takes it (`handin-target = team-lead`)
 - REV-13c: Developer hands in to the Team Lead when no QA is on the team
 - REV-13d: Developer hands in to QA blackbox alone (`qa-white = no and qa-black = yes`)
+- LC-20e: Developer is done when the Team Lead sent PASS, told to the Team Lead (`handin-target = team-lead`; no QA on the team)
 - LC-11e: the Tech Lead designs inside `architecture.md`; split from LC-11d so no absent role acts
 - EVID-8: `qa-b.md` is the only reviewer file when QA blackbox is the only QA
 
@@ -43,23 +44,23 @@ changed:
 - LC-2: `plan-owner = team-lead and design = yes`; acts for the Team Lead, the Tech Lead is aware (was L and design)
 - LC-5: base on the last sha that passed the code check, only with QA blackbox (`plan-owner = team-lead and qa-black = yes`); no QA whitebox named
 - LC-5b: same for `plan-owner = manager and qa-black = yes`
-- LC-7a: Manager three-returns rule for `plan-owner = manager`, the 3rd failing checker sends BLOCKED and the Manager's own FAIL counts; merges the S and M twins. ID kept: squad-log-message cites it
+- LC-7a: Manager three-returns rule for `handin-target = manager` (no QA): the Manager steps in and its own 3rd FAIL counts; merges the S and M twins. ID kept: squad-log-message cites it
 - LC-7c: now the QA side: the 3rd failing QA sends the plan owner BLOCKED; was the Manager M variant. ID kept: squad-log-message and suites.md cite it
 - LC-11d: Team Lead only (`plan-owner = team-lead and architecture = yes`); the Tech Lead part is LC-11e
 - LC-14: `plan-owner = team-lead`; names the Team Lead only when it owns the plan
 - LC-15: dropped the words naming the Tech Lead, so no absent role is named
 - LC-16: deploy order is the one in the task or decisions file ([LC-13]); no Tech Lead named
-- LC-20a: Done for the Developer when every checker sent PASS, told to the Manager (`plan-owner = manager`); was S
-- LC-20b: same, told to the Team Lead (`plan-owner = team-lead`); was L with QA blackbox
+- LC-20a: Done for the Developer when the Manager sent PASS, told to the Manager (`handin-target = manager`); was S
+- LC-20b: Done when every checker sent PASS, told to the plan owner (`handin-target = qas`); was L with QA blackbox, now also M
 - LC-22b: follow-ups batched by the Team Lead (`plan-owner = team-lead and qa = light`); was the Tech Lead at L
 - REV-1: Manager confirmation when `handin-target = manager`; was S
-- REV-14a: after a PASS a later commit goes to the same checkers handed in to; merges the S, M and L diff-check twins
+- REV-14a: after a PASS a later commit goes to the same checkers handed in to; with QAs on the team the plan owner hears when every checker passes it; merges the S, M and L diff-check twins
 - REV-19b: hand in to QA whitebox alone (`qa-white = yes and qa-black = no`); the done and Team Lead copy parts moved to LC-20a, LC-20b
 - REV-21: the BA alone writes the business AC (`business-ac = ba and qa-black = no`); tells the owner of the behaviour check, no QA whitebox named
 - REV-21b: cites [SIZE-5a] (the ticket as written) instead of [SIZE-5c]; `business-ac = ticket and qa-black = no`
 - EVID-3a: review record when `handin-target = manager`; was S
 - EVID-3b: both reviewer files (`qa-white = yes and qa-black = yes`); no size words
-- REV-3b: final sha is the latest HANDIN when `tech-lead = no`; the Manager awareness dropped so S Managers do not carry it
+- REV-3b: final sha is the latest HANDIN when `tech-lead = no`; the Manager stays aware, as in the M text
 
 removed:
 - SIZE-3: the Manager proposes the Designer from signals; replaced by SIZE-1
@@ -97,7 +98,7 @@ retargeted:
 - LC-5b: `when: plan-owner = manager and qa-black = yes` (was size = M); roles unchanged or noted above
 - LC-6: `when: plan-owner = team-lead` (was size = L); roles unchanged or noted above
 - LC-6b: `when: plan-owner = manager` (was size in S, M); roles unchanged or noted above
-- LC-7a: `when: plan-owner = manager` (was size = S); roles unchanged or noted above
+- LC-7a: `when: handin-target = manager` (was size = S); roles unchanged or noted above
 - LC-7b: `when: plan-owner = team-lead` (was size = L); roles unchanged or noted above
 - LC-7c: `when: handin-target = qas` (was size = M); roles unchanged or noted above
 - LC-8: `when: tech-ac = tech-lead` (was size = L); roles unchanged or noted above
@@ -119,8 +120,8 @@ retargeted:
 - LC-17b: `when: plan-owner = manager` (was size in S, M); roles unchanged or noted above
 - LC-19: `when: design-notes = tech-lead and design = yes` (was size = L and design = yes); roles unchanged or noted above
 - LC-19b: `when: design-notes = dev and design = yes` (was size in S, M and design = yes); roles unchanged or noted above
-- LC-20a: `when: plan-owner = manager` (was size = S); roles unchanged or noted above
-- LC-20b: `when: plan-owner = team-lead` (was size = L and qa-b = yes); roles unchanged or noted above
+- LC-20a: `when: handin-target = manager` (was size = S); roles unchanged or noted above
+- LC-20b: `when: handin-target = qas` (was size = L and qa-b = yes); roles unchanged or noted above
 - LC-21: `when: qa = light and handin-target = qas` (was qa = light and size in M, L); roles unchanged or noted above
 - LC-22a: `when: qa-white = yes and qa = light` (was qa = light and size in M, L); roles unchanged or noted above
 - LC-22b: `when: plan-owner = team-lead and qa = light` (was qa = light and size = L); roles unchanged or noted above

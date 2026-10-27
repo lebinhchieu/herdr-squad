@@ -20,7 +20,7 @@ class ManagerMLTest(unittest.TestCase):
         s = MS.split("## SPAWN-10a")[1].split("## SPAWN-11")[0] if "## SPAWN-11" in MS.split("## SPAWN-10a")[1] else MS.split("## SPAWN-10a")[1]
         for token in ("`herdr agent list`", "ASK <name>: STATUS?", "Looping", "Context filling"):
             self.assertIn(token, s)
-        self.assertIn("## LC-7a Three returns, S", MS)
+        self.assertIn("## LC-7a Three returns, Manager", MS)
 
     def test_m_l_manager_does_not_spawn_or_poll_developers(self):
         self.assertIn("The Team Lead spawns and retires Developers within its share of the cap; the Manager does not", MM)

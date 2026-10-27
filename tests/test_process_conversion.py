@@ -98,7 +98,7 @@ class Fixes(unittest.TestCase):
         self.assertEqual(self.by["REV-18b"].roles, ["qa-blackbox"])
 
     def test_fix_a_handin_target_by_size(self):
-        self.assertEqual((self.by["REV-13a"].when, self.by["REV-13a"].roles), ("size = S", ["dev"]))
+        self.assertEqual((self.by["REV-13a"].when, self.by["REV-13a"].roles), ("handin-target = manager", ["dev"]))
         self.assertIn("to the Manager", self.by["REV-13a"].body)
         self.assertNotIn("QA", self.by["REV-13a"].body)
         self.assertIn("QA whitebox and QA blackbox", self.by["REV-13b"].body)

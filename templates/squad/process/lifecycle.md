@@ -72,10 +72,10 @@ Give a Developer the next ticket in its area while it stays under the [COST-5] l
 
 ## LC-7a Three returns, Manager
 roles: manager
-when: plan-owner = manager
+when: handin-target = manager
 topic: lifecycle
 
-After 3 returns on one task (a return is a handed-in sha with a `FAIL`; `squad-ledger` counts them) the 3rd failing checker sends you `BLOCKED NN: 3 returns`, and your own 3rd `FAIL` counts: read the findings and decide whether the task, the AC or the Developer is the problem.
+After 3 returns on one task (a return is a handed-in sha with a `FAIL`; `squad-ledger` counts them) you step in; your own 3rd `FAIL` counts: read the findings and decide whether the task, the AC or the Developer is the problem.
 
 ## LC-7b Three returns, Team Lead
 roles: team-lead
@@ -249,17 +249,24 @@ Build inside `$SCOPE_DIR/architecture.md`; a difference is an `ASK` to the Archi
 
 ## LC-20a Done, Manager
 roles: dev
-when: plan-owner = manager
+when: handin-target = manager
 topic: lifecycle
 
-Done when every checker sent `PASS`. Tell the Manager and wait; it retires you.
+Done when the Manager sent `PASS`. Tell the Manager and wait; it retires you.
 
-## LC-20b Done, Team Lead
+## LC-20b Done, QAs
 roles: dev
-when: plan-owner = team-lead
+when: handin-target = qas
 topic: lifecycle
 
-Done when every checker sent `PASS`. Tell the Team Lead and wait; it retires you.
+Done when every checker sent `PASS`. Tell the plan owner and wait; it retires you.
+
+## LC-20e Done, Team Lead alone
+roles: dev
+when: handin-target = team-lead
+topic: lifecycle
+
+Done when the Team Lead sent `PASS`. Tell the Team Lead and wait; it retires you.
 
 ## LC-21 QA light mode
 roles: qa-whitebox, qa-blackbox

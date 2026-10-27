@@ -41,6 +41,7 @@ The Tech Lead names one final sha per task before QA verdicts; doc-only edits wa
 
 ## REV-3b Final sha
 roles: qa-whitebox, qa-blackbox
+aware: manager
 when: tech-lead = no
 topic: review
 
@@ -150,7 +151,7 @@ topic: review
 roles: dev
 topic: review
 
-After a PASS, a later commit goes to the same checkers as `HANDIN <task>: diff check <passed sha>..<new sha>`.
+After a PASS, a later commit goes to the same checkers as `HANDIN <task>: diff check <passed sha>..<new sha>`; with QAs on the team, tell the plan owner after every checker passes it.
 
 ## REV-15 Report deliverables
 roles: manager

@@ -194,9 +194,9 @@ class RuleDutiesTest(unittest.TestCase):
         self.assertIn("## REV-15 Report deliverables", composed("manager", "S"))
         self.assertIn("evidence/<task>/", rev15)
         self.assertIn("handed in", rev15)
-        after = dev.split("## REV-14b")[1].split("##")[0]
+        after = dev.split("## REV-14a")[1].split("##")[0]
         self.assertIn("diff check", after)
-        self.assertIn("both QAs", after)
+        self.assertIn("tell the plan owner", after)
 
     def test_dev_writes_evidence_md_with_inline_screenshots_and_assembles_it(self):
         dev = composed("dev", "S")
