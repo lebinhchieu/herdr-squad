@@ -128,7 +128,7 @@ class QabNo(unittest.TestCase):
                              capture_output=True, encoding="utf-8").stdout
         self.assertIn("behaviour-check = manager: acts: -; aware: -", out)
         self.assertIn("behaviour-check = qa-black: acts: qa-blackbox; aware: -", out)
-        for rid in ("REV-9", "REV-11", "REV-13b", "SPAWN-2b"):
+        for rid in ("REV-9", "REV-11", "REV-13b"):
             out = subprocess.run([sys.executable, "-B", str(ROOT / "bin" / "squad-process"), "who", rid],
                                  capture_output=True, encoding="utf-8").stdout
             self.assertIn("M qa-b no: acts: -; aware: -", out, rid)

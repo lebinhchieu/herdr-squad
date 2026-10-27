@@ -14,13 +14,27 @@ class SuiteRulesTest(unittest.TestCase):
         self.assertIn("You run the full suite for the scope, once, on the final sha", composed("qa-whitebox", "M"))
         self.assertIn("never run the suite", composed("qa-blackbox", "M"))
         self.assertIn("then the full suite once on your final sha", composed("dev", "S"))
-        self.assertEqual(acts("SUITE-3", "L"), ("tech-lead",))
-        self.assertEqual(acts("SUITE-3b", "M"), ("qa-whitebox",))
-        self.assertEqual(acts("SUITE-3", "M"), ())
+        self.assertEqual(acts("SUITE-3", "suite-owner = tech-lead"), ("tech-lead",))
+        self.assertEqual(acts("SUITE-3b", "suite-owner = qa-white"), ("qa-whitebox",))
+        self.assertEqual(acts("SUITE-3", "suite-owner = qa-white"), ())
 
-    def test_every_size_has_a_suite_owner(self):
-        for size, rid, role in (("S", "SUITE-2d", "dev"), ("M", "SUITE-1b", "qa-whitebox"), ("L", "SUITE-1", "tech-lead")):
-            self.assertEqual(acts(rid, size), (role,), (rid, size))
+    def test_every_suite_owner_value_has_a_rule(self):
+        for key, rid, role in (("dev", "SUITE-2d", "dev"), ("qa-white", "SUITE-1b", "qa-whitebox"), ("tech-lead", "SUITE-1", "tech-lead")):
+            self.assertEqual(acts(rid, f"suite-owner = {key}"), (role,), (rid, key))
+            for other in {"dev", "qa-white", "tech-lead"} - {key}:
+                self.assertEqual(acts(rid, f"suite-owner = {other}"), (), (rid, other))
+
+    def test_the_suite_owner_follows_the_team_chain(self):
+        """suite-owner = tech-lead > qa-white > dev: the owner's rule composes for the owner and the Developer names it."""
+        for team, owner, dev_line in (("tech-lead, qa-white, qa-black", "tech-lead", "the full suite is the Tech Lead's"),
+                                      ("qa-white, qa-black", "qa-whitebox", "the full suite is QA whitebox's"),
+                                      ("team-lead, qa-black", "dev", "then the full suite once on your final sha")):
+            self.assertIn(dev_line, composed("dev", team=team), team)
+        self.assertIn("Only the Tech Lead runs the full suite.", composed("tech-lead", team="tech-lead"))
+        self.assertNotIn("You run the full suite for the scope", composed("qa-whitebox", team="tech-lead, qa-white"))
+        self.assertIn("You run the full suite for the scope", composed("qa-whitebox", team="qa-white"))
+        self.assertIn("QA whitebox owns the full suite", composed("qa-blackbox", team="qa-white, qa-black"))
+        self.assertIn("the full suite is the Tech Lead's", composed("qa-whitebox", team="tech-lead, qa-white"))
 
     def test_claude_md_names_the_size_owner(self):
         text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
