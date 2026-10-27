@@ -5,7 +5,7 @@
       A flat squad (roster.md, goal.md ... at the squad root) becomes per-scope: scopes/NAME/ gets roster.md,
       escalations.md, messages.jsonl, activity.jsonl, usage-events.jsonl, iterations/, roles/, evidence/, contracts/,
       work/ (and tasks/ if there is one); the old goal.md and scopes.md go to scopes/NAME/legacy/; scope.md is written
-      from templates/scope/scope.md (brief = the old goal's first bold line, size = the scopes.md row if there is one).
+      from templates/scope/scope.md (brief = the old goal's first bold line, team = the scopes.md size row mapped S none / M qa-white, qa-black / L all but designer, architect; blank when there is none).
       The squad root keeps process.md, project.md, process-log.md and settings/.
   squad-migrate <squad> --scope-to-goal NAME --goal G [--dry-run] [--no-backup]
       Makes goals/G/ (goal.md with a row for NAME, roster.md, escalations.md, shared/decisions.md, shared/summaries/),
@@ -29,6 +29,7 @@ from pathlib import Path
 PLUGIN = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PLUGIN / "bin"))
 import squadio  # noqa: E402
+import squadrules as sr  # noqa: E402
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 FILES = ("roster.md", "escalations.md", "messages.jsonl", "activity.jsonl", "usage-events.jsonl")
 DIRS = ("iterations", "roles", "evidence", "contracts", "work")  # made even when empty, like squad-start
@@ -87,6 +88,15 @@ def size_from_scopes_md(text, name):
         return None
     size = cells(mine[0])[col].replace("**", "")
     return size.split(" (")[0].strip() or None
+
+
+def set_team_line(text, token):
+    """Fill the scope template's `team:` line (a blank token leaves a blank `team:`). A template without one is an
+    error: writing a scope.md that silently lost the scopes.md size would be worse."""
+    line = f"team: {token}".rstrip() if token else "team:"
+    if not re.search(r"(?m)^team:", text):
+        die("templates/scope/scope.md has no `team:` line: cannot write the scope's team")
+    return re.sub(r"(?m)^team:.*$", lambda _: line, text, count=1)
 
 
 def split_roster(text):
@@ -170,8 +180,9 @@ def plan_per_scope(squad, name, plan):
     size = size_from_scopes_md((squad / "scopes.md").read_text(encoding="utf-8"), name) if (squad / "scopes.md").exists() else None
     text = fill((PLUGIN / "templates" / "scope" / "scope.md").read_text(encoding="utf-8"),
                 {"name": name, "brief": brief, "goal": "", "touches": ""})
-    if size:
-        text = re.sub(r"(?m)^size:.*$", lambda _: f"size: {size}", text, count=1)
+    team = sr.legacy_team(size) if size else None  # converter mapping (D3): S none, M qa-white+qa-black, L + the pod
+    team_text = None if team is None else (", ".join(team) or "none")
+    text = set_team_line(text, team_text or "")
     text = text.rstrip("\n") + f"\n\nMigrated from the flat layout on {datetime.date.today()}: the old goal and scope table are in `legacy/`.\n"
 
     plan.mkdir(scope)
@@ -186,8 +197,10 @@ def plan_per_scope(squad, name, plan):
     for f in LEGACY:
         if (squad / f).exists():
             plan.move(squad / f, scope / "legacy" / f)
-    plan.write(scope / "scope.md", text, "from templates/scope/scope.md" + (f", size: {size}" if size else ", no size in scopes.md"))
-    return [f"size: {size or '(none found, left empty)'}", f"brief: {brief}",
+    plan.write(scope / "scope.md", text, "from templates/scope/scope.md" + (f", team: {team_text}" if team_text is not None else ", no size in scopes.md"
+                                                                  if not size else f", size {size!r} not S, M or L: blank team"))
+    return [f"team: {team_text if team_text is not None else '(none found, left blank)'}" +
+            (f" (from size {size})" if size else ""), f"brief: {brief}",
             "next: update project.md paths that still name the flat locations (evidence/, iterations/, roster.md ...)"]
 
 

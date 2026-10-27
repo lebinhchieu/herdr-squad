@@ -9,6 +9,8 @@
 
   squad-process compose <role> --home D [--agent A] [--out F] [--plugin-root R] [--squad-dir D]
                                         composed rules for one role (the <role> --home form)
+  squad-process team --home D [--has ROLE]
+                                        the scope's team (comma list, `none`, `undecided`); --has ROLE exits 0 (on it) / 1
   squad-process upgrade --check | --apply [--resolve ID=choice ...] [--yes] [--squad-dir D] [--plugin-root R]
                                         composed squads: move the overlay to the running plugin one rule at a time
                                         (exit 0 nothing to decide, 3 a decision is needed, 2 refused)
@@ -101,7 +103,7 @@ def main(argv=None):
     if argv and argv[0] in ("upgrade", "upstream"):
         import squadupgrade  # upgrade one rule at a time: ticket 07
         return squadupgrade.main(argv)
-    if argv and (argv[0] in ("lint", "rule", "who")
+    if argv and (argv[0] in ("lint", "rule", "who", "team")
                  or (argv[0] == "compose" and len(argv) > 1 and not argv[1].startswith("-"))):
         import squadrules_cli  # rule files: ticket 02; compose <role> is ticket 04
         return squadrules_cli.main(argv)

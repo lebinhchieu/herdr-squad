@@ -4,6 +4,7 @@
   squad-process compose <role> --home D [--agent A] [--out F] [--plugin-root R] [--squad-dir D] [--now ISO]
   squad-process rule <ID> [--squad-dir D] [--plugin-root R]
   squad-process who <ID> [--squad-dir D] [--plugin-root R]
+  squad-process team --home D [--has ROLE]
 """
 import argparse
 import datetime
@@ -90,6 +91,32 @@ def cmd_rule(a):
     return 0
 
 
+def cmd_team(a):
+    """Print the home's team as a comma list of TEAM_KEYS tokens, `none` or `undecided`; with --has ROLE print nothing
+    and exit 0 when the role is on the team (manager, dev, token-coach always are; an undecided team has only the
+    Manager), 1 when not, 2 on an unknown role or an unreadable home. Never reaches the D1 scaffold: an old-format
+    home exits 2 with the converter pointer."""
+    try:
+        if a.has is not None and a.has not in sr.ROLES:
+            raise sc.ComposeError(f"team: unknown role {a.has!r} (one of {', '.join(sr.ROLES)})")
+        if not os.path.isdir(a.home):
+            raise sc.ComposeError(f"team: --home {a.home!r} is not a directory")
+        info = sc.read_home(a.home)
+        if info["team_source"] == "size":
+            raise sc.old_format_error(a.home)
+    except sc.ComposeError as e:
+        return _fail(e)
+    team = info["team"]
+    if a.has is None:
+        print("undecided" if team is None else ", ".join(team) or "none")
+        return 0
+    if a.has == "manager":
+        return 0
+    if team is None:
+        return 1
+    return 0 if a.has in sr.IMPLICIT_ROLES or sr.ROLE_KEY.get(a.has, a.has) in team else 1
+
+
 def cmd_who(a):
     try:
         e = sc.find_rule(a.plugin_root or sc.DEFAULT_ROOT, _overlay(a), a.id)
@@ -115,6 +142,9 @@ def main(argv=None):
     cp.add_argument("--agent")
     cp.add_argument("--out")
     cp.add_argument("--now")
+    tp = sub.add_parser("team", help="print the scope's team; --has ROLE exits 0/1")
+    tp.add_argument("--home", required=True)
+    tp.add_argument("--has", metavar="ROLE")
     for name in ("rule", "who"):
         p = sub.add_parser(name)
         p.add_argument("id")
@@ -122,7 +152,7 @@ def main(argv=None):
         p.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
         p.add_argument("--plugin-root", default=None)
     a = ap.parse_args(argv)
-    return {"lint": cmd_lint, "compose": cmd_compose, "rule": cmd_rule, "who": cmd_who}[a.cmd](a)
+    return {"lint": cmd_lint, "compose": cmd_compose, "rule": cmd_rule, "who": cmd_who, "team": cmd_team}[a.cmd](a)
 
 
 if __name__ == "__main__":
