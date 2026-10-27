@@ -29,7 +29,7 @@ class PodRulesTest(unittest.TestCase):
     def test_summary_file_row(self):
         self.assertIn("at most 40 lines", composed("team-lead", "L"))
         self.assertIn("team-lead", acts("ITER-3", "L"))
-        self.assertEqual(acts("ITER-3", "M"), ())
+        # 06: sizes dropped; ITER-3 is the plan owner's, ITER-3b the Manager's when the Manager owns the plan
         self.assertEqual(acts("ITER-3b", "M"), ("manager",))
         self.assertIn("at most 40 lines", composed("manager", "M"))
 
