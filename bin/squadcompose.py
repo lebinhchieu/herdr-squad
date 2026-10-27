@@ -91,7 +91,8 @@ def read_home(home, legacy_scaffold=False):
     """-> dict: facts (only the facts the home has), team (token list, [] for `none`, None when undecided or goal),
     team_source ("team" | "undecided" | "goal" | "size"), scope label, pin (version, sha) or None.
 
-    A `team:` line decides the team and every presence and duty fact (never a missing one). A home without one but
+    A `team:` line decides the team and every presence and duty fact (never a missing one); an old line beside it
+    is a ComposeError. A home without a `team:` line but
     with any old line (`size:`, `design:`, `architecture:`, `qa-b:`) takes the old size path (source "size"); with
     `legacy_scaffold=True` (branch-internal, tests of the rule files only, deleted in task 10) its duty facts are
     filled from `squadrules.legacy_team`. A home with none of them is hand-made: undecided."""
@@ -111,6 +112,10 @@ def read_home(home, legacy_scaffold=False):
         _size_facts({}, facts)
     elif "team" in kv:
         source = "team"
+        beside = [(k, kv[k][1]) for k in _OLD_LINES if k in kv]
+        if beside:  # the converter refuses a home with both (C5), so no adopt pointer
+            raise ComposeError(*(f"scope.md:{n}: old line `{k}:` beside `team:`; the team line decides, "
+                                 "delete the old line by hand" for k, n in beside))
         try:
             team = sr.parse_team(kv["team"][0], f"scope.md:{kv['team'][1]}")
         except ValueError as ex:

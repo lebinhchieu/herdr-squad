@@ -473,10 +473,22 @@ class TeamHomeTest(Base):
         facts = sc.read_home(self.team_home("team: ba, qa-white"))["facts"]
         self.assertEqual([k for k in list(sc.sr.PRESENCE_KEY.values()) + list(sc.sr.DUTIES) if k not in facts], [])
 
-    def test_transitional_team_line_wins_and_old_lines_are_ignored_until_task_12(self):
-        info = sc.read_home(self.team_home("team: ba", extra="size: L\n"))
-        self.assertEqual(info["team"], ["ba"])
-        self.assertNotIn("size", info["facts"])
+    def test_old_line_beside_team_is_an_error_naming_each_line(self):
+        # Transitional until 04a-06: a team home has no `size` fact while rule files still key on size.
+        for nl in ("\n", "\r\n"):
+            with self.subTest(newline=nl):
+                h = self.team_home("team: ba", extra="size: M\ndesign: no\narchitecture: no\nqa-b: yes\n",
+                                   newline=nl)
+                with self.assertRaises(sc.ComposeError) as cm:
+                    sc.read_home(h)
+                self.assertEqual(len(cm.exception.lines), 4)
+                for key, n in (("size", 5), ("design", 6), ("architecture", 7), ("qa-b", 8)):
+                    self.assertIn(f"scope.md:{n}: old line `{key}:` beside `team:`; the team line decides, "
+                                  "delete the old line by hand", cm.exception.lines)
+                r = self.run_cli("compose", "manager", home=h)
+                self.assertEqual(r.returncode, 2)
+                self.assertIn("old line `size:` beside `team:`", r.stderr)
+                self.assertNotIn("adopt", r.stderr)
 
     def test_bad_team_lines_exit_2_naming_line_and_token(self):
         cases = (("team: ba, ba", "scope.md:1", "'ba'"), ("team: ba, wizard", "scope.md:1", "'wizard'"),
