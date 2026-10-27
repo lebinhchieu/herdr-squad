@@ -78,7 +78,7 @@ class Base(unittest.TestCase):
                 perms["allow"] = [e for e in perms["allow"] if "squad-process" not in e] + ["Bash(squad-process show:*)",
                                                                                            "Bash(make test:*)"]
                 if f.stem == "qa-blackbox" and code_deny:
-                    perms["deny"] = [e for e in perms["deny"] if "CODE_PATHS" not in e] + [
+                    perms["deny"] = perms["deny"] + [
                         "Read(///srv/app/src/**)", "Read(//srv/app/web/**)", f"Read(//{self.root}/.worktrees/**)"]
                 d.pop("model", None)  # the old files carried no model or effort keys, except where the squad set one
                 d.pop("effortLevel", None)
@@ -230,12 +230,24 @@ class ArchiveAndSettings(Base):
             self.assertNotIn("Bash(git status:*)", allow, role)  # template entry: not repeated
             self.assertNotIn("model", local)
 
-    def test_scalar_the_squad_changed_is_kept_and_code_paths_are_extracted(self):
+    def test_scalar_the_squad_changed_is_kept_and_code_path_denies_are_dropped(self):
         sq = self.adopted()
         self.assertEqual(json.loads((sq / "settings/dev.local.json").read_text())["effortLevel"], "high")
         qb = json.loads((sq / "settings/qa-blackbox.local.json").read_text())
-        self.assertEqual(qb["codePaths"], ["/srv/app/src", "/srv/app/web"])
+        self.assertNotIn("codePaths", qb)
         self.assertNotIn("deny", qb.get("permissions", {}))
+
+    def test_read_deny_is_dropped_for_qa_blackbox_only(self):
+        sq = self.squad()
+        d = json.loads((sq / "settings/dev.json").read_text())
+        d["permissions"]["deny"].append("Read(//home/u/.ssh/**)")
+        (sq / "settings/dev.json").write_text(json.dumps(d), encoding="utf-8")
+        r = self.adopt(sq, "--yes")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        dev = ss.effective("dev", str(sq), str(ROOT))["permissions"]["deny"]
+        qb = ss.effective("qa-blackbox", str(sq), str(ROOT))["permissions"]["deny"]
+        self.assertIn("Read(//home/u/.ssh/**)", dev)
+        self.assertFalse([e for e in qb if e.startswith("Read(")])
 
     def test_effective_settings_keep_every_old_deny_and_allow(self):
         sq = self.adopted()
@@ -245,8 +257,8 @@ class ArchiveAndSettings(Base):
                 for e in old["permissions"][key]:
                     if e == "Bash(squad-process show:*)":
                         self.assertNotIn(e, eff["permissions"][key])
-                    elif e.startswith("Read(//") and "CODE" not in e and not e.startswith("Read(//tmp/"):
-                        self.assertIn("Read(//" + e[len("Read("):].lstrip("/"), eff["permissions"][key])
+                    elif e.startswith("Read(//"):  # retired code-path deny
+                        self.assertFalse([x for x in eff["permissions"][key] if x.startswith("Read(")], f"{role} {e}")
                     else:
                         self.assertIn(e, eff["permissions"][key], f"{role} {key} {e}")
             self.assertNotIn("codePaths", eff)
@@ -333,27 +345,25 @@ class Scaffold(Base):
 
     def test_scaffold_creates_the_composed_layout_and_lints(self):
         sq = self.root / ".claude" / "squads" / "new"
-        r = run("scaffold", "--squad-dir", str(sq), "--plugin-root", str(ROOT), "--new-pin", PIN,
-                "--code-path", "/srv/app/src")
+        r = run("scaffold", "--squad-dir", str(sq), "--plugin-root", str(ROOT), "--new-pin", PIN)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse((sq / "process.md").exists())
         for f in ("process.local.md", "plugin.pin", "project.md"):
             self.assertTrue((sq / f).is_file(), f)
         self.assertEqual(len(list((sq / "settings").glob("*.local.json"))), 10)
         self.assertEqual(list((sq / "settings").glob("*.json")), list((sq / "settings").glob("*.local.json")))
-        self.assertEqual(json.loads((sq / "settings/qa-blackbox.local.json").read_text()), {"codePaths": ["/srv/app/src"]})
+        self.assertEqual(json.loads((sq / "settings/qa-blackbox.local.json").read_text()), {})
         self.assertEqual(json.loads((sq / "settings/dev.local.json").read_text()), {})
         self.assertEqual(rt.mode(str(sq)), "composed")
         lint = run("lint", "--squad-dir", str(sq), "--plugin-root", str(ROOT))
         self.assertEqual(lint.returncode, 0, lint.stdout + lint.stderr)
         self.assertTrue((sq / "scopes").is_dir() and (sq / "goals").is_dir())
 
-    def test_effective_settings_of_a_scaffolded_squad_fail_closed_without_code_paths(self):
+    def test_scaffolded_qa_blackbox_settings_resolve_without_code_paths(self):
         sq = self.root / ".claude" / "squads" / "new"
-        r = run("scaffold", "--squad-dir", str(sq), "--plugin-root", str(ROOT), "--new-pin", PIN)
-        self.assertIn("no codePaths", r.stdout)
-        with self.assertRaises(ss.SettingsError):
-            ss.effective("qa-blackbox", str(sq), str(ROOT))
+        run("scaffold", "--squad-dir", str(sq), "--plugin-root", str(ROOT), "--new-pin", PIN)
+        eff = ss.effective("qa-blackbox", str(sq), str(ROOT))
+        self.assertFalse([e for e in eff["permissions"]["deny"] if e.startswith("Read(")])
 
     def test_scaffold_never_overwrites_and_refuses_a_legacy_squad(self):
         sq = self.root / ".claude" / "squads" / "new"

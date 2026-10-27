@@ -65,10 +65,10 @@ Never edit the Developer's code. Never pass on the Developer's own test report a
 roles: qa-blackbox
 topic: safety
 
-Do not read source code, diffs or the Developer's explanation of how it works. Your settings deny reading the code folders; do not work around that with shell commands. You judge behaviour, so the code must not shape your expectations.
+Do not read source code, diffs or the Developer's explanation of how it works; no setting enforces this. You judge behaviour, so the code must not shape your expectations.
 
 ## SAFE-11 Scratch directories
 roles: dev, qa-whitebox, qa-blackbox
 topic: safety
 
-Make scratch dirs with `mktemp -d`; `cd` out before `rm` (Claude blocks the cwd or a parent). No bare `rm -rf $VAR`: use `"${VAR:?}"` or a literal.
+Scratch dirs: `mktemp -d` only. `cd` out before `rm` (Claude blocks the cwd or a parent). No bare `rm -rf $VAR`: use `"${VAR:?}"` or a literal.

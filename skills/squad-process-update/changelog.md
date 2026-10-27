@@ -136,6 +136,8 @@ changed:
 - COST-5a: wording only, shorter; same duty
 - MSG-4b: wording only, shorter; same duty
 - MSG-11b: wording only, drops the "(technical, business or plan)" gloss; same duty
+- SAFE-10: no setting denies reading code any more (the Read deny is gone); the rule stays, unenforced
+- SAFE-11: scratch dirs come from `mktemp -d` only, so the settings can allow `rm` there
 
 removed:
 - SIZE-3: the Manager proposes the Designer from signals; replaced by SIZE-1

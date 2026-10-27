@@ -24,7 +24,7 @@
   squad-process adopt --squad-dir D [--dry-run] [--resolve KEY=CHOICE ...] [--yes]
                                         v6 squad -> composed: overlay, plugin.pin, local settings, open scopes pinned
                                         (exit 3: a PO item is open or --yes is missing; nothing written)
-  squad-process scaffold --squad-dir D [--code-path P ...]
+  squad-process scaffold --squad-dir D
                                         new squad: process.local.md, plugin.pin, settings/*.local.json, project.md
 
   Legacy squads (a process.md that has not adopted yet):

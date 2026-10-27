@@ -1,6 +1,6 @@
 """squad-process adopt / scaffold (ticket 09): a squad with its own process.md and full settings becomes composed.
 
-  squad-process scaffold --squad-dir D [--code-path P ...] [--plugin-root R] [--new-pin "<version> <sha>"]
+  squad-process scaffold --squad-dir D [--plugin-root R] [--new-pin "<version> <sha>"]
       new squad: process.local.md (header only), plugin.pin, settings/<role>.local.json, project.md (if absent).
   squad-process adopt --squad-dir D [--dry-run] [--resolve L<n>=choice ...] [--yes] [--plugin-root R] [--new-pin ...]
       v6 squad: process.md -> overlay + plugin.pin, settings/<role>.json -> <role>.local.json, open scopes and goals
@@ -80,7 +80,7 @@ def _template_roles(plugin_root):
 
 # ---- scaffold ------------------------------------------------------------------------------------------
 
-def scaffold(squad_dir, plugin_root, pin, code_paths=()):
+def scaffold(squad_dir, plugin_root, pin):
     """Create what a composed squad needs and does not have yet; returns (created paths, notes). Never overwrites."""
     created, notes = [], []
     os.makedirs(squad_dir, exist_ok=True)
@@ -94,11 +94,7 @@ def scaffold(squad_dir, plugin_root, pin, code_paths=()):
     put(sr.OVERLAY_FILE, HEADER)
     put("plugin.pin", f"{pin[0]} {pin[1]}\n")
     for role in _template_roles(plugin_root):
-        local = {"codePaths": list(code_paths)} if role == "qa-blackbox" and code_paths else {}
-        put(f"settings/{role}.local.json", json.dumps(local, indent=2) + "\n")
-        if role == "qa-blackbox" and not code_paths and any("settings/qa-blackbox.local" in c for c in created):
-            notes.append("settings/qa-blackbox.local.json has no codePaths: set them before spawning QA blackbox "
-                         "(spawn refuses without them)")
+        put(f"settings/{role}.local.json", "{}\n")
     tpl = os.path.join(plugin_root, "templates", "squad")
     for name in ("project.md", "process-log.md"):
         if os.path.isfile(os.path.join(tpl, name)):
@@ -256,31 +252,20 @@ def apply_choices(items, resolves, rules, ops):
 
 # ---- settings ------------------------------------------------------------------------------------------
 
-def settings_diff(template, old):
-    """-> (local overlay dict, codePaths, regained entries, gained scalar keys): old = merge(template, local) + codePaths."""
+def settings_diff(template, old, role=None):
+    """-> (local overlay dict, regained entries, gained scalar keys): old = merge(template, local).
+
+    The Read code-path denies of an old qa-blackbox file are dropped (retired); other roles keep theirs."""
     local, regained, gains = {}, [], []
-    code = []
-    has_placeholder = any(isinstance(e, str) and ss.PLACEHOLDER in e
-                          for e in template.get("permissions", {}).get("deny", []))
 
     def walk(t, o, path, out):
         for k, v in o.items():
             here = path + (k,)
             if here in ss.UNION_KEYS and isinstance(v, list) and isinstance(t.get(k, []), list):
                 extra = [e for e in v if e not in t.get(k, []) and e not in RETIRED]
-                if here == ("permissions", "deny") and has_placeholder:
-                    keep = []
-                    for e in extra:
-                        m = _CODE_ENTRY.match(e) if isinstance(e, str) else None
-                        if m and not m.group(1).endswith("/.worktrees"):
-                            code.append("/" + m.group(1).strip("/"))
-                        elif m:
-                            continue  # the project's .worktrees entry: regenerated from the placeholder
-                        else:
-                            keep.append(e)
-                    extra = keep
-                regained.extend(e for e in t.get(k, []) if e not in v and e not in RETIRED
-                                and not (isinstance(e, str) and ss.PLACEHOLDER in e))
+                if here == ("permissions", "deny") and role == "qa-blackbox":
+                    extra = [e for e in extra if not (isinstance(e, str) and _CODE_ENTRY.match(e))]  # retired code-path denies
+                regained.extend(e for e in t.get(k, []) if e not in v and e not in RETIRED)
                 if extra:
                     out[k] = extra
             elif isinstance(v, dict) and isinstance(t.get(k), dict):
@@ -294,7 +279,7 @@ def settings_diff(template, old):
             if k not in o:
                 tv = t[k]
                 if path + (k,) in ss.UNION_KEYS and isinstance(tv, list):
-                    regained.extend(e for e in tv if not (isinstance(e, str) and ss.PLACEHOLDER in e))
+                    regained.extend(e for e in tv if e not in RETIRED)
                 elif not isinstance(tv, (dict, list)):
                     gains.append(".".join(path + (k,)) + f"={tv}")
                 elif isinstance(tv, dict):
@@ -303,9 +288,7 @@ def settings_diff(template, old):
     # regained entries of nested unions that the old file lacked entirely (e.g. no permissions.allow at all)
     for key in ("allow", "deny", "ask"):
         if key not in old.get("permissions", {}) and key in template.get("permissions", {}):
-            regained.extend(e for e in template["permissions"][key] if not (isinstance(e, str) and ss.PLACEHOLDER in e))
-    if code:
-        local["codePaths"] = list(dict.fromkeys(code))
+            regained.extend(template["permissions"][key])
     return local, regained, gains
 
 
@@ -324,7 +307,7 @@ def plan_settings(squad_dir, plugin_root):
             old = ss._load(full, 2, "settings file")
         except ss.SettingsError as e:
             raise AdoptError(e.code, str(e))
-        local, regained, gains = settings_diff(tpl, old)
+        local, regained, gains = settings_diff(tpl, old, role)
         out.append({"role": role, "local": local, "regained": regained, "gains": gains,
                     "template": tpl, "old": old})
     return out
@@ -334,14 +317,12 @@ def check_settings(planned):
     """The effective file must hold every entry the old file had (adopt never narrows a permission silently)."""
     problems = []
     for p in planned:
-        eff = ss.merge(p["template"], {k: v for k, v in p["local"].items() if k != "codePaths"})
-        code = {c.strip("/") for c in p["local"].get("codePaths", [])}
+        eff = ss.merge(p["template"], p["local"])
         for key in ("allow", "deny"):
             have = eff.get("permissions", {}).get(key, [])
             for e in p["old"].get("permissions", {}).get(key, []):
                 m = _CODE_ENTRY.match(e) if isinstance(e, str) else None
-                if e in have or e in RETIRED or (key == "deny" and m and (m.group(1).strip("/") in code
-                                                          or m.group(1).endswith("/.worktrees"))):
+                if e in have or e in RETIRED or (key == "deny" and m and p["role"] == "qa-blackbox"):
                     continue
                 problems.append(f"{p['role']}: {key} entry {e!r} would be lost")
     return problems
@@ -613,8 +594,7 @@ def format_plan(p, dry_run):
             loc = s["local"]
             n_allow = len(loc.get("permissions", {}).get("allow", []))
             n_deny = len(loc.get("permissions", {}).get("deny", []))
-            out.append(f"settings/{s['role']}.json -> {s['role']}.local.json: +{n_allow} allow, +{n_deny} deny"
-                       + (f", codePaths {loc['codePaths']}" if loc.get("codePaths") else ""))
+            out.append(f"settings/{s['role']}.json -> {s['role']}.local.json: +{n_allow} allow, +{n_deny} deny")
         regained = [(s["role"], e) for s in p.settings for e in s["regained"]]
         out.append("")
         out.append("permissions regained from the template (the effective file will contain them):")
@@ -697,7 +677,7 @@ def cmd_scaffold(a):
     pin = new_pin(a.plugin_root, a.new_pin)
     if rt.mode(a.squad_dir) == "legacy":
         raise AdoptError(2, f"{a.squad_dir} has a process.md: run `squad-process adopt` instead")
-    created, notes = scaffold(a.squad_dir, a.plugin_root, pin, a.code_path)
+    created, notes = scaffold(a.squad_dir, a.plugin_root, pin)
     for c in created:
         print(f"created {c}")
     if not created:
@@ -721,8 +701,6 @@ def main(argv=None):
             p.add_argument("--resolve", action="append", default=[], metavar="KEY=CHOICE")
             p.add_argument("--yes", action="store_true")
             p.add_argument("--today", help=argparse.SUPPRESS)
-        else:
-            p.add_argument("--code-path", action="append", default=[])
     a = ap.parse_args(argv)
     if not a.squad_dir:
         print("squad-process: no --squad-dir and $SQUAD_DIR is not set", file=sys.stderr)
