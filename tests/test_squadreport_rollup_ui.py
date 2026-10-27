@@ -5,7 +5,9 @@ Own harness (no shared file with the scope-report UI test). `build_states(outdir
 Skips (not fails) when no Chrome is installed.
 """
 import json
+import os
 import re
+import signal
 import shutil
 import subprocess
 import sys
@@ -44,7 +46,9 @@ def build_states(out):
     dup_old = _scope(src, "teammate-a", "dup", cost=5.0, agent_s=3600, gen="2026-10-01T00:00:00Z")
     dup_new = write(src, "teammate-a/dup2/data.json", scope_json("teammate-a", "dup", 6.0, 7200, gen="2026-10-03T00:00:00Z"))
     red = write(src, "teammate-b/red/data.json", scope_json("teammate-b", "redacted", 9.0, 7200, returns=2, redact=True, size="M"))
+    teamed = _scope(src, "plugin", "team-scope", cost=50.0, agent_s=3600, size="", team="qa-white, qa-black", start="2026-10-07T09:00:00Z", end="2026-10-07T18:00:00Z")
     states = {
+        "teams": ([big, teamed], "goal", "plugin-q4", []),
         "normal": ([big, mid, small], "goal", "plugin-q4", []),
         "mixed": ([big, mid, small, run, stale, old], "goal", "plugin-q4", [ro.entry(squad="plugin", name="token-coach-v2", command="squad-report token-coach-v2")]),
         "files": ([big, mid, run, stale, old, junk, dup_old, dup_new, red], "files", "Teammates' scopes", []),
@@ -191,6 +195,59 @@ class RollupUi(unittest.TestCase):
             self.assertNotIn("<img src=x", dom)
             self.assertNotIn("<svg onload", dom)
             self.assertIn("&lt;/script&gt;", dom)
+
+
+@unittest.skipUnless(CHROME, "no Chrome installed")
+class RollupTeamChip(unittest.TestCase):
+    """Ticket 09 (AC 23): an old row shows its recorded size, a team row its team; the folder is served over http, server stopped by PID."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.tmp.cleanup)
+        cls.paths = build_states(cls.tmp.name)
+        cls.port = _free_port()
+        cls.srv = subprocess.Popen([sys.executable, "-m", "http.server", str(cls.port), "--bind", "127.0.0.1", "--directory", cls.tmp.name],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cls.pid = cls.srv.pid
+        cls.addClassCleanup(cls._stop)
+        _wait_port(cls.port)
+        r = subprocess.run([CHROME, "--headless=new", "--no-sandbox", "--disable-gpu", "--virtual-time-budget=3000", "--window-size=1440,900",
+                            "--dump-dom", "http://127.0.0.1:%d/teams/index.html" % cls.port], capture_output=True, timeout=90)
+        cls.dom = r.stdout.decode("utf-8", "replace")
+
+    @classmethod
+    def _stop(cls):
+        os.kill(cls.pid, signal.SIGTERM)
+        cls.srv.wait(timeout=10)
+
+    def test_rows_show_size_or_team(self):
+        self.assertFalse("Uncaught" in self.dom)
+        t = text(self.dom)
+        self.assertRegex(t, r"win-compat · plugin L done")
+        self.assertRegex(t, r"team-scope · plugin qa-white, qa-black done")
+        self.assertNotRegex(t, r"win-compat · plugin qa-")
+        self.assertNotRegex(t, r"team-scope · plugin [SML] done")
+        self.assertFalse("size ?" in t)
+
+
+def _free_port():
+    import socket
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def _wait_port(port, tries=100):
+    import socket
+    import time
+    for _ in range(tries):
+        try:
+            socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
+            return
+        except OSError:
+            time.sleep(0.1)
+    raise RuntimeError("server did not start")
 
 
 if __name__ == "__main__":

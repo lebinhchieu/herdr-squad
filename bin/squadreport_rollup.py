@@ -85,7 +85,7 @@ def row_from(d):
             g["tokens"] += int(sum(_num(v) for v in (r.get("tokens") or {}).values()))
         att = (t.get("attributed") or {}).get("time_pct")
         return {
-            "name": name, "squad": squad, "size": sc.get("size"), "status": "running" if sc.get("status") == "running" else "done",
+            "name": name, "squad": squad, "size": str(sc.get("size") or ""), "team": str(sc.get("team") or ""), "status": "running" if sc.get("status") == "running" else "done",
             "report_href": None, "window": sc.get("window") or {"start": None, "end": None},
             "generated_at": sc.get("generated_at"), "last_message_at": sc.get("last_message_at"),
             "totals": {"wall_s": int(_num(t.get("wall_s"))), "agent_s": int(_num(t.get("agent_s"))), "buckets_s": buckets,
@@ -197,13 +197,13 @@ def build_rollup(entries, title, form, out_dir, now, goal_name=None):
             rows.append(r)
         elif e["bad"] is not None:
             rows.append({"name": os.path.basename(os.path.dirname(os.path.abspath(e["path"]))) or "file", "squad": "",
-                         "status": e["bad"].status, "reason": e["bad"].reason, "size": None, "report_href": None,
+                         "status": e["bad"].status, "reason": e["bad"].reason, "size": None, "team": None, "report_href": None,
                          "window": {"start": None, "end": None}, "generated_at": None, "last_message_at": None,
                          "totals": None, "roles": [], "source": source_label(e["path"], out_dir), "redacted": False,
                          "top_reason": None, "reasons_n": 0, "_prices": None})
         else:
             rows.append({"name": e["name"], "squad": e["squad"], "status": "no_data", "reason": "No data.json yet.",
-                         "command": e["command"], "size": None, "report_href": None,
+                         "command": e["command"], "size": None, "team": None, "report_href": None,
                          "window": {"start": None, "end": None}, "generated_at": None, "last_message_at": None,
                          "totals": None, "roles": [], "source": None, "redacted": False, "top_reason": None,
                          "reasons_n": 0, "_prices": None})

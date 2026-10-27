@@ -325,6 +325,42 @@ class Config(Base):
         self.assertEqual(set(c["prices"]), {"model-a", "default"})
 
 
+class TeamSizeScope(Base):
+    """Ticket 09: scope object carries `size` (old, as written) and `team` (display text); nothing derives one from the other."""
+
+    def scope(self, text):
+        (self.fx.home / "scope.md").write_text(text, encoding="utf-8")
+        self.fx.session("dev1", [[asst(0), asst(10)]])
+        return self.data()["scope"]
+
+    def test_old_size_scope(self):
+        s = self.scope("# Scope: sc\n\nsize: M\nqa-b: no\n")
+        self.assertEqual((s["size"], s["team"]), ("M", ""))
+
+    def test_team_scope(self):
+        s = self.scope("# Scope: sc\n\nteam: ba, team-lead, qa-white  (a note)\n")
+        self.assertEqual((s["size"], s["team"]), ("", "ba, team-lead, qa-white"))
+
+    def test_none_and_undecided_shown_as_written(self):
+        self.assertEqual(self.scope("team: none\n")["team"], "none")
+        self.assertEqual(self.scope("team: undecided\n")["team"], "undecided")
+
+    def test_blank_and_missing_lines(self):
+        for text in ("size:\nteam:\n", "# Scope: sc\n\ngoal: g\n", ""):
+            s = self.scope(text)
+            self.assertEqual((s["size"], s["team"]), ("", ""), text)
+
+    def test_missing_scope_md(self):
+        (self.fx.home / "scope.md").unlink()
+        self.fx.session("dev1", [[asst(0), asst(10)]])
+        s = self.data()["scope"]
+        self.assertEqual((s["size"], s["team"]), ("", ""))
+
+    def test_old_size_beside_team_is_not_mapped(self):
+        s = self.scope("size: L\nteam: qa-white\n")
+        self.assertEqual((s["size"], s["team"]), ("L", "qa-white"))
+
+
 class GoalLink(Base):
     def setgoal(self, goal, rollup=None):
         (self.fx.home / "scope.md").write_text("# Scope: sc\n\nsize: M\ngoal: %s\n" % goal, encoding="utf-8")
