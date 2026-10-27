@@ -1,5 +1,5 @@
 # Evidence: 09 Report and scope template
-sha: 0bccec6
+sha: ce6b3a1
 
 ## Behaviour
 - Scope data (`squadreport.collect`/`base_data`): `scope` has both `size` (old `size:` first token, as written) and `team` (display text of the `team:` line, trailing `(note)` dropped, `""` when absent/blank/no scope.md). Nothing derives one from the other (`size: L` + `team: qa-white` shows both).
