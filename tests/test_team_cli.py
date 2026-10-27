@@ -229,6 +229,17 @@ class ConverterTest(Base):
         shutil.copyfile(h / "scope.md.pre-team.bak", h / "scope.md")
         self.assertEqual(sc.read_home(str(h), legacy_scaffold=True)["team"], ["qa-white", "qa-black"])
 
+    def test_missing_or_file_home_exits_2_but_home_without_scope_md_is_undecided(self):
+        for bad in (self.tmp / "nope", self.tmp / "afile"):
+            (self.tmp / "afile").write_text("x")
+            r = run("team", "--home", str(bad))
+            self.assertEqual(r.returncode, 2, r.stdout)
+            self.assertEqual(r.stdout, "")
+        empty = self.tmp / "emptyhome"
+        empty.mkdir()
+        r = run("team", "--home", str(empty))
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "undecided"), r.stderr)
+
     def test_blank_size_becomes_blank_team(self):
         sq = self.squad()
         self.home(["size:", "qa: full"], squad=sq)

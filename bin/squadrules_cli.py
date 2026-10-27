@@ -99,6 +99,8 @@ def cmd_team(a):
     try:
         if a.has is not None and a.has not in sr.ROLES:
             raise sc.ComposeError(f"team: unknown role {a.has!r} (one of {', '.join(sr.ROLES)})")
+        if not os.path.isdir(a.home):
+            raise sc.ComposeError(f"team: --home {a.home!r} is not a directory")
         info = sc.read_home(a.home)
         if info["team_source"] == "size":
             raise sc.old_format_error(a.home)
