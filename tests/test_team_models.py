@@ -203,14 +203,11 @@ class RuleTest(unittest.TestCase):
     def test_goal_manager_does_it_per_scope(self):
         self.assertRegex(self.rule("START-3b"), r"goal Manager does this for each scope")
 
-    def test_who_shows_the_manager_acting_at_every_size(self):
+    def test_the_manager_rule_acts_in_every_team(self):
+        """START-3b is `roles: manager` with no `when:`: no condition line, so the Manager acts in every team."""
         r = subprocess.run([str(ROOT / "bin" / "squad-process"), "who", "START-3b"], text=True, encoding="utf-8", capture_output=True)
         self.assertEqual(r.returncode, 0, r.stderr)
-        for size in "SML":
-            lines = [l for l in r.stdout.splitlines() if l.startswith(size)]
-            self.assertTrue(lines, f"no who line for size {size}:\n{r.stdout}")
-            for l in lines:
-                self.assertRegex(l, r"acts: .*manager")
+        self.assertEqual(r.stdout.strip(), "")
 
     def test_size_rule_points_at_it(self):
         self.assertIn("[START-3b]", self.rule("SIZE-1"))

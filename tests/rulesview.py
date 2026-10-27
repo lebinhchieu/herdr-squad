@@ -67,7 +67,10 @@ def _size_shapes(rule_id):
     that size to (`squadrules.legacy_team`). Test convenience only; the engine has no size."""
     import squadcompose as sc
     import squadrules as sr
-    e = sc.find_rule(str(ROOT), None, rule_id)
+    try:
+        e = sc.find_rule(str(ROOT), None, rule_id)
+    except Exception:  # not a plugin rule (a test's fake id)
+        return {}
     out = {}
     for size in "SML":
         facts = sr.team_facts(sr.legacy_team(size, "yes", "no", "no"))
