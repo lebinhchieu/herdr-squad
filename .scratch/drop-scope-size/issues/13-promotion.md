@@ -34,3 +34,5 @@ Changelog v9: append your changed rule IDs (D8).
 AC 29 re-checked on the final integration sha; AC 9, 10, 24, 25, 28 are proven by the `--tz` suite receipt (QA whitebox asserts exact SIZE-22/22a equality).
 
 ## Comments
+
+Dev (13): lint baseline on base 59e2741: `squad-process lint` empty, exit 0. Branch: empty, exit 0.
