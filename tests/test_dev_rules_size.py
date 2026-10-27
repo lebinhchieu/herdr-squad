@@ -129,6 +129,20 @@ class DevRulesSize(unittest.TestCase):
             with self.subTest(team=team, goal=goal):
                 self.assertLessEqual(len(compose_team("manager", team, goal)), n)
 
+    def test_developer_file_cites_evid5_wherever_it_applies(self):
+        import squadrules as sr
+        n = 0
+        for team in TEAMS:
+            facts = sr.team_facts(list(team))
+            rule = next(r for r in sr.load_rules(str(ROOT / "templates/squad/process"), str(ROOT))[0] if r.id == "EVID-5")
+            if not sr.matches(rule.when, facts):
+                continue
+            n += 1
+            for goal, qa in product(("yes", "no"), ("full", "light")):
+                with self.subTest(team=team, goal=goal, qa=qa):
+                    self.assertIn("[EVID-5]", compose_team("dev", team, goal, qa).decode())
+        self.assertGreater(n, 0)
+
     def test_moved_rules_are_cited_from_the_rule_that_keeps_them(self):
         for kept, moved in (("REV-22", "REV-5a"), ("LC-19", "EVID-5")):
             with self.subTest(moved=moved):

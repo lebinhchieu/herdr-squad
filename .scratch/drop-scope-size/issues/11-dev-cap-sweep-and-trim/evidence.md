@@ -7,3 +7,5 @@ sha: d2e8d06
 - Wording trims (changelog v9 `changed:`, duties kept): CORE-4/5/6, START-6/10 (title Dev start), MSG-3, MSG-11b (asks as MSG-4b says), LC-3a, LC-18 (title Dev work), LC-19, LC-19c, LC-25 (title Advisor), REV-14a, REV-22a, EVID-2a/2b/4, COST-5/5a. Pinned texts updated in tests: LC-25 (test_advisor_rules), LC-19c (test_architect_handoff). safety.md and the compose header untouched.
 - Lint baseline (G2b): `squad-process lint` on 90be196 empty, exit 0; branch empty, exit 0.
 - Tests green (touched/grep hits): dev_rules_size, sizes, architect_handoff, instructions, manager_m_l, pod_contact_routes, pod_rules_process, squadruntime, team_lead_role, advisor_rules, windows_safe, crlf_squad_files.
+
+- QAB finding fixed: LC-19b (design notes by the Manager, no Tech Lead) now carries `Shots: [EVID-5]`; changelog row added; `test_developer_file_cites_evid5_wherever_it_applies` checks every team set where EVID-5 applies (fails 129 subtests without the pointer). 512 combos still <= 5120 (worst 5110).

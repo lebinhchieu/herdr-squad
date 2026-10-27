@@ -238,7 +238,7 @@ roles: dev
 when: design-notes = dev and design = yes
 topic: lifecycle
 
-A `Design:` ticket waits for `Status: final`; build every screen and state of `$SCOPE_DIR/ui-design/<task>.md`; `ASK` the Manager on a difference.
+A `Design:` ticket waits for `Status: final`; build every screen and state of `$SCOPE_DIR/ui-design/<task>.md`; `ASK` the Manager on a difference. Shots: [EVID-5].
 
 ## LC-19c Architecture
 roles: dev

@@ -121,6 +121,7 @@ changed:
 - lint: an empty `roles:` value is allowed (the line must still be there), so a rule can be on demand and attached to no role; reason: keeps REV-5a and EVID-5 off the Manager and Developer without moving a duty
 - REV-22: adds the pointer to REV-5a for code that parses another tool's output
 - LC-19: adds the pointer to EVID-5 for the screenshot per state
+- LC-19b: adds the pointer to EVID-5 for the screenshot per state (design notes by the Manager)
 - CORE-2: wording only, shorter; same message types and format
 - REV-22a: wording only, shorter; same duty
 - EVID-2b: wording only, `<file>` for `<review file>`; same duty
