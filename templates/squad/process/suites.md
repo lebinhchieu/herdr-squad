@@ -29,7 +29,7 @@ topic: suites
 
 Run only the test files you touched; the full suite is QA whitebox's; two suite runs never overlap.
 
-## SUITE-2d Suites, Developer
+## SUITE-2d Suites
 roles: dev
 when: suite-owner = dev
 topic: suites

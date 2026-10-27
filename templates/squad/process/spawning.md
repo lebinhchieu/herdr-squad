@@ -11,14 +11,14 @@ roles: manager
 when: plan-owner = manager
 topic: spawning
 
-You spawn `dev`, every other role on `team:` and `token-coach` (only when the PO asks, [ITER-6a]). `squad-spawn` refuses a role that is not on the team.
+You spawn `dev`, every other role on `team:` and `token-coach` as [ITER-6a] and [ITER-6b] say. `squad-spawn` refuses a role that is not on the team.
 
 ## SPAWN-2b Roles the Manager spawns, Team Lead plans
 roles: manager
 when: plan-owner = team-lead
 topic: spawning
 
-You spawn `team-lead`, every other role on `team:` and `token-coach` (only when the PO asks, [ITER-6a]). `squad-spawn` refuses a role that is not on the team.
+You spawn `team-lead`, every other role on `team:` and `token-coach` as [ITER-6a] and [ITER-6b] say. `squad-spawn` refuses a role that is not on the team.
 
 ## SPAWN-2c Developers, Team Lead plans
 roles: manager
@@ -45,7 +45,7 @@ roles: manager
 when: architecture = yes
 topic: spawning
 
-Besides the roles of [SPAWN-2a] and [SPAWN-2c], spawn `architect` only when `architect` is on `team:`, and never suggest it to the PO. Spawn it after the goal check and before the plan: before your task split or the plan. Retire it once `architecture.md` is `Status: final`; respawn it for a question on it.
+Besides the roles of [SPAWN-2a] and [SPAWN-2b], spawn `architect` only when `architect` is on `team:`, and never suggest it to the PO. Spawn it after the goal check and before the plan: before your task split or the plan. Retire it once `architecture.md` is `Status: final`; respawn it for a question on it.
 
 ## SPAWN-5a Developers, Manager plans
 roles: manager

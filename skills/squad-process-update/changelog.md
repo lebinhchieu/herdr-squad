@@ -36,7 +36,7 @@ changed:
 - SIZE-10b: wording only, no size
 - SIZE-11b: the BA tells the plan owner instead of the Team Lead, so no absent role is named
 - MSG-6: `plan-owner = team-lead`; the size-change signal is a signal to add a role. ID kept: MSG-13 cites it
-- MSG-11a: `plan-owner = manager`; a business doubt changes the team, no BA named. ID kept: Developers' on-demand pointers cite it
+- MSG-11a: `plan-owner = manager`; a business doubt changes the team, no BA named. ID kept: same duty
 - MSG-11b: `plan-owner = team-lead`; asks the owner roster.md names, else the Team Lead, so no absent Tech Lead or BA is named
 - MSG-12: `doubt-owner = ba`; takes gaps from the plan owner, not the Team Lead by name
 - MSG-13: `plan-owner = team-lead`; raises gaps to the owner roster.md names, so no absent BA or Tech Lead is named
@@ -44,12 +44,12 @@ changed:
 - MSG-16b: `doubt-owner = ba and design = yes`; a feasibility doubt goes to the owner roster.md names, no absent Tech Lead named
 - MSG-20a: `doubt-owner = manager and architecture = yes`; the Manager changes the team ([SIZE-14]), no move to L
 - MSG-20b: `doubt-owner = ba and architecture = yes`; feasibility to the owner roster.md names; final goes to the Team Lead only if the team has one
-- SPAWN-2a: `plan-owner = manager`; spawns dev and every role on `team:`; was the S list. ID kept: spawning.md and SPAWN-4a cite it
-- SPAWN-2b: `plan-owner = team-lead`; the Manager spawns the Team Lead and every role on `team:`; was the M list. ID kept: SPAWN-4a cites it
-- SPAWN-2c: `plan-owner = team-lead`; only the sentence that the Team Lead spawns Developers; was the L list. ID kept: SPAWN-4a cites it
-- SPAWN-3: the team, not the size, goes in the first prompt; ID kept: SPAWN-2 cites it
+- SPAWN-2a: `plan-owner = manager`; spawns dev and every role on `team:`, the Token Coach as ITER-6a and ITER-6b say; was the S list. ID kept: the frozen v8 snapshot cites it and lint reads snapshots
+- SPAWN-2b: `plan-owner = team-lead`; the Manager spawns the Team Lead and every role on `team:`, the Token Coach as ITER-6a and ITER-6b say; was the M list. ID kept: the frozen v8 snapshot cites it and lint reads snapshots
+- SPAWN-2c: `plan-owner = team-lead`; only the sentence that the Team Lead spawns Developers; was the L list. ID kept: the frozen v8 snapshot cites it and lint reads snapshots
+- SPAWN-3: the team, not the size, goes in the first prompt; ID kept: same duty
 - SPAWN-4: the Designer is spawned when `designer` is on `team:`, not by reading `design: yes`
-- SPAWN-4a: the Architect is spawned when `architect` is on `team:`; cites SPAWN-2a and SPAWN-2c; no S, M, L words
+- SPAWN-4a: the Architect is spawned when `architect` is on `team:`; cites SPAWN-2a and SPAWN-2b; no S, M, L words
 
 removed:
 - SIZE-3: the Manager proposes the Designer from signals; replaced by SIZE-1
