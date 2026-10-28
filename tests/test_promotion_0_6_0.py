@@ -77,7 +77,9 @@ class GlossaryAndAdr(unittest.TestCase):
 
 class Version(unittest.TestCase):
     def test_version_is_identical_in_plugin_json_changelog_and_readme(self):
-        self.assertEqual(json.loads(read(".claude-plugin/plugin.json"))["version"], VERSION)
+        # plugin.json may be patched past the promotion release (0.6.1 ...); changelog and README keep the release's own text
+        cur = tuple(int(n) for n in json.loads(read(".claude-plugin/plugin.json"))["version"].split("."))
+        self.assertGreaterEqual(cur, tuple(int(n) for n in VERSION.split(".")))
         changelog = read("skills/squad-process-update/changelog.md")
         v9 = changelog.split("## v9", 1)[1].split("\n## v8", 1)[0]
         self.assertIn(f"Plugin {VERSION}", v9.split("\nadded:", 1)[0])
