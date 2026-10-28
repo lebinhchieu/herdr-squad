@@ -11,7 +11,6 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadio  # noqa: E402
-import squadprocess as sp  # noqa: E402
 import squadrules as sr  # noqa: E402
 import squadruntime as rt  # noqa: E402
 import squadupgrade as su  # noqa: E402
@@ -119,7 +118,7 @@ def main(argv=None):
         for line in e.lines:
             print(f"squad-process: {line}", file=sys.stderr)
         return e.code
-    except (su.UpgradeError, sp.ProcessError) as e:
+    except su.UpgradeError as e:
         print(f"squad-process: {e}", file=sys.stderr)
         return 1
 
