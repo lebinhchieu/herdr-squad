@@ -245,8 +245,8 @@ class WriteGuards(Base):
         before = self.snapshot(sq)
         r = run(*self.args("--check", "add-free", sq))
         self.assertEqual(r.returncode, 2)
-        self.assertIn("not adopted", r.stderr)
-        self.assertIn("adopt", r.stderr)
+        self.assertIn("not composed", r.stderr)
+        self.assertNotIn("adopt", r.stderr)
         self.assertEqual(run(*self.args("--apply", "add-free", sq, "--yes")).returncode, 2)
         self.assertEqual(self.snapshot(sq), before)
 
@@ -275,7 +275,7 @@ class CiDryRun(unittest.TestCase):
 
     def test_every_overlay_is_placeable(self):
         found = (list(FIX.glob("*/squad/process.local.md")) + list(FIX.glob("overlays/*.md"))
-                 + list(FIX.glob("live-squad.local.md")))  # the last one is built by `adopt` (ticket 09)
+                 + list(FIX.glob("live-squad.local.md")))
         self.assertGreaterEqual(len(found), len(CASES))
         for path in found:
             case = path.parent.parent if path.parent.name == "squad" else None

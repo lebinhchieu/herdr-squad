@@ -200,7 +200,7 @@ class SpawnDryRunTest(unittest.TestCase):
         r = self._spawn_any("--scope", "s")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stderr.count("legacy squad: plugin rules attached, local process.md edits not applied; "
-                                        "run squad-process adopt --dry-run"), 1)
+                                        "new squads: squad-process scaffold (or /squad:squad-init)"), 1)
 
     def test_legacy_real_spawn_writes_the_composed_rules_and_attaches_them(self):
         r = self._real_spawn()
@@ -798,13 +798,13 @@ class SpawnTeamGateTest(_GateBase):
             self.assertEqual(self.spawn("manager", "gate-1", "--dry-run").returncode, 0)
             self.log.unlink(missing_ok=True)
 
-    def test_an_unpinned_scope_on_size_is_refused_with_the_converter_pointer_for_every_role(self):
+    def test_an_unpinned_scope_on_size_is_refused_with_the_team_line_pointer_for_every_role(self):
         self.set_scope("# Scope\n\nsize: M\nqa-b: yes\n")
         for role in ("manager", "dev", "ba", "qa-whitebox"):
             with self.subTest(role=role):
                 r = self.spawn(role, "gate-1")
                 self.assertEqual(r.returncode, 2, r.stderr)
-                self.assertIn("squad-process adopt", r.stderr)
+                self.assertIn("one `team:` line", r.stderr)
                 self.assertIn("size", r.stderr)
                 self.assertEqual(self.created(), [])
 
@@ -814,7 +814,7 @@ class SpawnTeamGateTest(_GateBase):
         t = subprocess.run([str(BIN_DIR / "squad-process"), "team", "--home", str(self.scope)], text=True,
                            encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(t.returncode, 2)
-        self.assertIn("squad-process adopt", t.stderr)
+        self.assertIn("one `team:` line", t.stderr)
         r = self.spawn("dev", "gate-1", "--dry-run")
         self.assertEqual(r.returncode, 2)
         self.assertEqual(r.stderr.strip().splitlines()[-1], t.stderr.strip().splitlines()[-1])
@@ -959,7 +959,7 @@ class SpawnPinnedTest(_GateBase):
             r = self.spawn("manager", "gate-1", *extra)
             self.assertEqual(r.returncode, 2, r.stderr)
             self.assertRegex(r.stderr, r"scope\.md:\d+: old format `size:`")
-            self.assertIn("squad-process adopt", r.stderr)
+            self.assertIn("one `team:` line", r.stderr)
             self.assertNotIn("needs a pin", r.stderr)
             self.assertEqual(self.created(), [])
 
@@ -969,19 +969,14 @@ class SpawnPinnedTest(_GateBase):
         (rt / "bin").mkdir(parents=True)
         (rt / "bin" / "squad-spawn").symlink_to(SCRIPT)
         r = self.spawn("dev", "gate-1")
-        self.assertEqual((r.returncode, "squad-process adopt" in r.stderr), (2, True))  # the new gate, once
+        self.assertEqual((r.returncode, "one `team:` line" in r.stderr), (2, True))  # the new gate, once
         self.assertEqual(self.created(), [])
 
-    def test_the_pinned_scope_md_is_byte_identical_after_spawn_and_the_converter(self):
+    def test_the_pinned_scope_md_is_byte_identical_after_spawn(self):
         self.pin("0.5.2")
         before = self.scope_md.read_bytes()
         self.spawn("dev", "gate-1")
         self.spawn("dev", "gate-2", "--dry-run")
-        for args in ((), ("--yes",)):
-            c = subprocess.run([str(BIN_DIR / "squad-process"), "adopt", "--squad-dir", str(self.squad), *args], env=self.env,
-                               text=True, encoding="utf-8", capture_output=True, timeout=30)
-            self.assertIn("pinned", c.stdout + c.stderr, c.stdout + c.stderr)
-            self.assertEqual(self.scope_md.read_bytes(), before)
         self.assertEqual(self.scope_md.read_bytes(), before)
 
 

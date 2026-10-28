@@ -542,7 +542,6 @@ class InstructionsTest(unittest.TestCase):
         text = (ROOT / "skills" / "squad-init" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("squad-process scaffold", text)
         self.assertIn("never copies `process.md`", text)
-        self.assertIn("squad-process adopt", text)
         self.assertNotIn("Copy everything from", text)
 
     def test_squad_start_skill_tells_the_user_and_never_runs_the_update_unasked(self):

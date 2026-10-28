@@ -473,8 +473,8 @@ def prepare(a):
         raise UpgradeError("squad-process: no --squad-dir and $SQUAD_DIR is not set")
     squad_dir = a.squad_dir
     if rt.mode(squad_dir) != "composed":
-        raise UpgradeError(f"not adopted: {squad_dir} has no {sr.OVERLAY_FILE}; run `squad-process adopt` first "
-                           "(a v6 squad moves with `squad-process plan` / `apply` until then)")
+        raise UpgradeError(f"not composed: {squad_dir} has no {sr.OVERLAY_FILE}; "
+                           "a v6 squad moves with `squad-process plan` / `apply`")
     old_pin, new_pin = read_pin(squad_dir), _new_pin(a)
     new_rules, tombs = load_plugin(a.plugin_root)
     old_root = find_old_root(a, squad_dir, old_pin)
@@ -536,7 +536,7 @@ def cmd_upstream(a):
     if not a.squad_dir:
         raise UpgradeError("squad-process: no --squad-dir and $SQUAD_DIR is not set")
     if rt.mode(a.squad_dir) != "composed":
-        raise UpgradeError(f"not adopted: {a.squad_dir} has no {sr.OVERLAY_FILE}; run `squad-process adopt` first")
+        raise UpgradeError(f"not composed: {a.squad_dir} has no {sr.OVERLAY_FILE}")
     _pre, ops = read_overlay(a.squad_dir)
     chosen = [o for o in ops if o.upstream == "proposed"]
     print(f"upstream: {len(chosen)} proposed operation(s)")

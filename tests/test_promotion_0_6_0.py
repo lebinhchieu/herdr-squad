@@ -12,8 +12,8 @@ SIZE = r"(?i)\bsize\b(?!-\d)"  # `-iw` would also match the surviving SIZE-n rul
 VERSION = "0.6.0"
 # bin/: converter mapping, migrate input, report display, pinned-runtime texts, old-format errors (same list as ticket 12).
 BIN_ALLOW = {
-    "bin/squad-log-message": 1, "bin/squad-manager-guard": 1, "bin/squad-migrate": 10, "bin/squad-respawn": 2,
-    "bin/squad-spawn": 2, "bin/squadadopt.py": 9, "bin/squadcompose.py": 4, "bin/squadreport.py": 3,
+    "bin/squad-log-message": 1, "bin/squad-manager-guard": 1, "bin/squad-respawn": 2,
+    "bin/squad-spawn": 2, "bin/squadcompose.py": 4, "bin/squadreport.py": 3,
     "bin/squadreport_rollup.py": 3, "bin/squadrules.py": 10, "bin/squadruntime.py": 4, "bin/squadteam.py": 2,
     "bin/squadupgrade.py": 4,
 }

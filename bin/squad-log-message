@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PostToolUse hook for SendMessage: append one record to messages.jsonl (squad-migrate reads it), in the agent's own
+# PostToolUse hook for SendMessage: append one record to messages.jsonl, in the agent's own
 # folder: $SCOPE_DIR, else $GOAL_DIR (a goal Manager), else $SQUAD_DIR (a flat squad).
 # Always exits 0, so a logging problem never interrupts the agent.
 set -uo pipefail

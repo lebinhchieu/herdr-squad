@@ -115,12 +115,12 @@ class BinIsWindowsSafe(unittest.TestCase):
 
     def test_the_known_clis_are_among_the_files_checked(self):
         names = {p.name for p in python_files()}
-        for n in ("squad-label", "squad-usage", "squad-migrate", "squad-notify", "squad-start", "squad-inbox",
+        for n in ("squad-label", "squad-usage", "squad-notify", "squad-start", "squad-inbox",
                   "squad-process", "processlint.py", "squadinbox.py", "squadio.py"):
             self.assertIn(n, names)
 
-    def test_write_calls_in_usage_migrate_and_notify_carry_newline_lf(self):
-        for n in ("squad-usage", "squad-migrate"):
+    def test_write_calls_in_usage_and_notify_carry_newline_lf(self):
+        for n in ("squad-usage",):
             src = (BIN / n).read_text(encoding="utf-8")
             self.assertEqual(scan(src, n), [])
             self.assertIn('newline="\\n"', src)  # they do write text

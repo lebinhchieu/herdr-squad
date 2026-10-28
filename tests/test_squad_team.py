@@ -100,7 +100,7 @@ class RefusalTest(Base):
 
     def test_old_size_format_and_missing_scope(self):
         h = self.home(["size: M", "design: no", "qa: full"])
-        self.refused("add", "ba", h, want="adopt")
+        self.refused("add", "ba", h, want="one `team:` line")
         r = self.team("add", "ba", self.tmp / "nope")
         self.assertEqual(r.returncode, 2)
 

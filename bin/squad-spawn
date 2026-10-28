@@ -207,7 +207,7 @@ elif [[ $smode == legacy ]]; then
       --plugin-root "$plugin_root" --out "$rules" >&2 || exit $?
   fi
   rules_args=(--append-system-prompt-file "$rules")
-  echo "legacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run" >&2
+  echo "legacy squad: plugin rules attached, local process.md edits not applied; new squads: squad-process scaffold (or /squad:squad-init)" >&2
   [[ -z $prompt ]] || prompt="$prompt Your process rules are attached to this session ($rules); read no other process file."
 fi
 
@@ -234,7 +234,7 @@ if [[ -f $squad_dir/settings/$role.local.json ]]; then
   [[ ! -f $squad_dir/settings/$role.json ]] || echo "warning: $squad_dir/settings/$role.json is ignored: $role.local.json wins" >&2
 elif [[ -f $squad_dir/settings/$role.json ]]; then
   settings_mode=legacy settings=$squad_dir/settings/$role.json
-  echo "warning: $settings is a full settings file, not an overlay; ticket 09 (adopt) converts it to $role.local.json" >&2
+  echo "warning: $settings is a full settings file, not an overlay; rename it to an overlay, $role.local.json" >&2
 fi
 
 cwd=$project_dir

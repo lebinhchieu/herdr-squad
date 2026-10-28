@@ -54,7 +54,7 @@ def _kv(path):
     return out
 
 
-_OLD_LINES = ("size", "design", "architecture", "qa-b")  # the old scope.md format: rejected, converter input only
+_OLD_LINES = ("size", "design", "architecture", "qa-b")  # the old scope.md format: rejected
 HEADER_TEAM_ROLES = ("manager", "team-lead", "tech-lead")  # D5: these headers print `team:` and `duties:`
 
 
@@ -76,7 +76,7 @@ def read_home(home):
 
     A `team:` line decides the team and every presence and duty fact (never a missing one); an old line beside it
     is a ComposeError. A home without `team:` but with an old line (`size:`, `design:`, `architecture:`, `qa-b:`)
-    is a ComposeError naming `squad-process adopt`, except a pinned one (its own runtime reads it): source "old",
+    is a ComposeError naming the manual `team:` step, except a pinned one (its own runtime reads it): source "old",
     no facts derived, and the callers refuse it. A home with none of them is hand-made: undecided. Nothing here
     derives a duty or presence fact from `size`."""
     scope_md, goal_md = os.path.join(home, "scope.md"), os.path.join(home, "goal.md")
@@ -96,7 +96,7 @@ def read_home(home):
     elif "team" in kv:
         source = "team"
         beside = [(k, kv[k][1]) for k in _OLD_LINES if k in kv]
-        if beside:  # the converter refuses a home with both (C5), so no adopt pointer
+        if beside:  # a home with both is refused
             raise ComposeError(*(f"scope.md:{n}: old line `{k}:` beside `team:`; the team line decides, "
                                  "delete the old line by hand" for k, n in beside))
         try:
@@ -312,9 +312,9 @@ def old_format_lines(home):
 
 def old_format_error(home):
     """The one error text for an old-format home (constraint 11): names file and line of every old line and
-    `squad-process adopt`. Returns a ComposeError (None when the home has no old line); the caller raises it."""
+    the manual step. Returns a ComposeError (None when the home has no old line); the caller raises it."""
     found = old_format_lines(home)
     if not found:
         return None
-    return ComposeError(*(f"scope.md:{n}: old format `{k}:`; run `squad-process adopt` (dry run first) to convert "
-                          "the scope to a `team:` line" for k, n in found))
+    return ComposeError(*(f"scope.md:{n}: old format `{k}:`; replace the old scope lines by one `team:` "
+                          "line (ADR 0018)" for k, n in found))

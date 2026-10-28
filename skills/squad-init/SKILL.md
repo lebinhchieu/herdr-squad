@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 - Project root = `git rev-parse --show-toplevel` (or the directory the user names).
 - Squad name = the name the user gives, else ask for one (short, lowercase, e.g. `billing`). It becomes part of every agent name, which herdr limits to 32 characters, so keep it under 10.
-- If `<root>/.claude/squads/<squad>/` already exists, stop and ask whether to refresh only the missing files. Never touch its `scopes/` or `goals/`. If it has a `process.md` and no `process.local.md`, it is an old squad: tell the user to run `squad-process adopt --squad-dir <squad> --dry-run` (the Manager runs it and shows the PO).
+- If `<root>/.claude/squads/<squad>/` already exists, stop and ask whether to refresh only the missing files. Never touch its `scopes/` or `goals/`. If it has a `process.md` and no `process.local.md`, it is an old squad: stop and tell the user that scaffold only makes new composed squads.
 - Run `${CLAUDE_PLUGIN_ROOT}/bin/squad-process scaffold --squad-dir <root>/.claude/squads/<squad>`. It creates `process.local.md` (empty, header only: the squad's changes to the plugin's rules), `plugin.pin` (the running plugin), `settings/<role>.local.json`, `project.md`, `process-log.md` and the empty `scopes/` and `goals/`. It never copies `process.md` or a full settings file: the rules and settings come from the pinned plugin. The `scopes/` folder marks a squad as per-scope.
 - Check it: `squad-process lint --squad-dir <squad>` must pass.
 

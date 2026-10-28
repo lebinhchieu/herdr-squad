@@ -21,13 +21,10 @@
   squad-process prune --squad-dir D (--home H | --all) [--dry-run] [--protect PATH ...]
                                         delete the pinned runtimes no open scope, goal or plugin.pin holds
 
-  squad-process adopt --squad-dir D [--dry-run] [--resolve KEY=CHOICE ...] [--yes]
-                                        v6 squad -> composed: overlay, plugin.pin, local settings, open scopes pinned
-                                        (exit 3: a PO item is open or --yes is missing; nothing written)
   squad-process scaffold --squad-dir D
                                         new squad: process.local.md, plugin.pin, settings/*.local.json, project.md
 
-  Legacy squads (a process.md that has not adopted yet):
+  Legacy squads (a process.md and no process.local.md):
   squad-process plan [--json]            read-only: changelog items, section states, conflicts
   squad-process compose --out FILE [--resolve "<heading>=ours|theirs|file:<path>" ...]
   squad-process apply --legacy --file FILE [--yes] without --yes: diff, "NOT APPLIED"; with it: backup, write, log
@@ -73,8 +70,7 @@ def _mutating(a):
             print(f"composed {a.out}; check it with: squad-process apply --file {a.out}")
         else:
             if not a.legacy:
-                raise sp.ProcessError("apply is the legacy v6 merge; add --legacy for a squad that has not adopted "
-                                      "(`squad-process adopt` moves it to the composed layout)")
+                raise sp.ProcessError("apply is the legacy v6 merge; add --legacy for a squad with only a process.md")
             r = sp.apply(a.squad_dir, a.plugin_root, a.file, a.yes)
             if "diff" in r:
                 print(r["diff"].rstrip("\n"))
@@ -97,9 +93,9 @@ def main(argv=None):
     if argv and argv[0] in ("mode", "runtime", "prune"):
         import squadruntime  # squad mode and the pinned runtime: ticket 05
         return squadruntime.main(argv)
-    if argv and argv[0] in ("adopt", "scaffold"):
-        import squadadopt  # composed squads from old ones, and new ones: ticket 09
-        return squadadopt.main(argv)
+    if argv and argv[0] == "scaffold":
+        import squadscaffold  # new composed squads
+        return squadscaffold.main(argv)
     if argv and argv[0] in ("upgrade", "upstream"):
         import squadupgrade  # upgrade one rule at a time: ticket 07
         return squadupgrade.main(argv)
@@ -129,7 +125,7 @@ def main(argv=None):
     co.add_argument("--out", required=True)
     co.add_argument("--resolve", action="append", default=[])
     ap_.add_argument("--file", required=True)
-    ap_.add_argument("--legacy", action="store_true", help="required: apply is the v6 merge for a squad that has not adopted")
+    ap_.add_argument("--legacy", action="store_true", help="required: apply is the v6 merge for a squad with only a process.md")
     ap_.add_argument("--yes", action="store_true")
     a = ap.parse_args(argv)
     if a.cmd in ("version", "check") and a.squad_dir:

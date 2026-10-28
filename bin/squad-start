@@ -324,7 +324,7 @@ def main():
     if squadruntime.mode(str(squad)) == "none":
         die(f"no squad folder at {squad} (run /squad:squad-init)")
     if not (squad / "scopes").is_dir():
-        die(f"{squad.name} uses the flat layout (no scopes/ folder); squad-start would convert it, so it refuses. "
+        die(f"{squad.name} uses the flat layout (no scopes/ folder); squad-start refuses it. "
             "Set up a new squad with /squad:squad-init" if (squad / "roster.md").exists()
             else f"{squad} has no scopes/ folder; run /squad:squad-init")
 
