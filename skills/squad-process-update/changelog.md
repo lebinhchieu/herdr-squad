@@ -6,7 +6,7 @@ added:
 none
 
 changed:
-- SAFE-11: scratch dirs: `mktemp -d`, one literal path per `rm`, none of `$`, backtick or `..`; the old advice `rm -rf "${VAR:?}"` carried a `$`, and the settings ask on `$`, so the PO was asked. why: scratch cleanup must not prompt the PO
+- SAFE-11: scratch dirs: `mktemp -d`, one literal path per `rm`, none of `$`, backtick or `..`; an `rm /tmp/tmp.X` with a 2nd path, `$`, backtick or `..` after the prefix hits the settings ask globs and prompts the PO. why: scratch cleanup must not prompt the PO
 
 removed:
 none
