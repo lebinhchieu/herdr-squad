@@ -111,6 +111,28 @@ class EffectiveTest(Base):
             for e in rm:
                 self.assertIn(" /tmp/tmp.", e)
 
+    def test_safe11_rm_examples_match_allow_and_no_ask(self):
+        import fnmatch
+        text = (ROOT / "templates/squad/process/safety.md").read_text(encoding="utf-8")
+        body = re.search(r"(?ms)^## SAFE-11 .*?(?=^## |\Z)", text).group(0)
+        cmds = []
+        for code in re.findall(r"`([^`]+)`", body):
+            cmds += [c.strip() for c in re.split(r"&&|;", code) if c.strip().startswith("rm ")]
+        self.assertTrue(cmds, "SAFE-11 has no rm example")
+        self.assertNotIn("$", "".join(cmds))
+
+        def hit(globs, cmd):
+            return any(fnmatch.fnmatchcase(cmd, g[len("Bash("):-1]) for g in globs if g.startswith("Bash(") and ":*" not in g)
+
+        for role in ("dev", "qa-whitebox", "qa-blackbox", "manager", "tech-lead", "team-lead"):
+            perms = json.loads((ROOT / f"templates/squad/settings/{role}.json").read_text(encoding="utf-8"))["permissions"]
+            for c in cmds:
+                self.assertFalse(hit(perms["ask"], c), f"{role}: ask matches {c}")
+                if "$" not in c:
+                    self.assertTrue(hit(perms["allow"], c), f"{role}: no allow for {c}")
+            self.assertTrue(hit(perms["allow"], "rm -rf /tmp/tmp.A") and not hit(perms["ask"], "rm -rf /tmp/tmp.A"))
+            self.assertTrue(hit(perms["ask"], "rm -rf /tmp/tmp.A /tmp/tmp.B"), role)  # negative control
+
     def test_manager_allows_squad_team(self):
         m = json.loads((ROOT / "templates/squad/settings/manager.json").read_text(encoding="utf-8"))
         self.assertIn("Bash(squad-team:*)", m["permissions"]["allow"])

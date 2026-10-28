@@ -71,4 +71,4 @@ Do not read source code, diffs or the Developer's explanation of how it works; n
 roles: dev, qa-whitebox, qa-blackbox
 topic: safety
 
-Scratch dirs: `mktemp -d` only. `cd` out before `rm` (Claude blocks the cwd or a parent). No bare `rm -rf $VAR`: use `"${VAR:?}"` or a literal.
+Scratch dirs: `mktemp -d` only. `cd` out before `rm`. One path per `rm`, no `$`, backtick or `..` (PO prompt): `rm -rf /tmp/tmp.X`; repeat per dir.

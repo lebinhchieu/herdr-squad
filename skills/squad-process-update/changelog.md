@@ -1,3 +1,19 @@
+## v10 — 2026-10-28
+
+Plugin 0.6.0 stays. Rule text only; no settings change.
+
+added:
+none
+
+changed:
+- SAFE-11: scratch dirs: `mktemp -d`, one literal path per `rm`, none of `$`, backtick or `..`; the old advice `rm -rf "${VAR:?}"` carried a `$`, and the settings ask on `$`, so the PO was asked. why: scratch cleanup must not prompt the PO
+
+removed:
+none
+
+retargeted:
+none
+
 ## v9 — 2026-10-28
 
 Plugin 0.6.0, breaking. Teams replace sizes (drop-scope-size, ADR 0018): `scope.md` carries one `team:` line, rules target the team through presence and duty facts, `size`, `qa-b` and the old `design:`, `architecture:` lines are rejected with a pointer to `squad-process adopt`. Overlay operations on retargeted rules go stale: run `squad-process upgrade`.

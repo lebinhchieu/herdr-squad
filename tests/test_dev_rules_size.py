@@ -151,7 +151,7 @@ class DevRulesSize(unittest.TestCase):
                 self.assertIn("squad-process who <ID>", body)
 
     def test_scratch_rule_reaches_dev_and_both_qas_only(self):
-        have = {r for r in ROLES if "mktemp -d" in compose(r, "M").decode() and "${VAR:?}" in compose(r, "M").decode()}
+        have = {r for r in ROLES if "mktemp -d" in compose(r, "M").decode() and "rm -rf /tmp/tmp." in compose(r, "M").decode()}
         self.assertEqual(have, {"dev", "qa-whitebox", "qa-blackbox"})
         self.assertLessEqual(len(section(compose("dev", "M").decode(), "SAFE-11").split()), 45)
         for r in ("dev", "qa-whitebox", "qa-blackbox"):
