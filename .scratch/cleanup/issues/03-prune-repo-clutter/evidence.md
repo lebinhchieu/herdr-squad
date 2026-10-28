@@ -24,3 +24,11 @@ Base: 60ce7a5. Reader greps exclude .git, .worktrees, .scratch/_done.
 Dead pointers left: docs/adr/0011 -> .scratch/squad-plugin-windows/design.md; bin/squadupgrade.py:8, squadrules.py:3, squadruntime.py:11 -> .scratch/composed-process/...
 
 ## _done file count: 386
+
+## Behaviour
+- Deleted: 6 backups, `handover/2026-10-13-retire-kill.md`, `SETTINGS-NOTES.md`, 385 `.scratch/_done` files (393 total; `git diff --stat --diff-filter=D`: nothing outside the four allowed paths). Kept: `mapping.md`, `TODO.md`, `tests/fixtures/*`.
+- Only edit outside deletes: comment at `tests/test_squadsettings.py:79` (file name dropped).
+- PO untracked dirs `accounts-2026-10-28/`, `plugin-2026-10-28/` are not in this worktree (untracked, live in the main checkout): untouched by construction.
+- Live `.scratch/` dirs: file counts per dir identical before/after (only this evidence dir is new, `.scratch/cleanup/`).
+- No README/CONTEXT/ADR link points at a deleted path (grep of md/py outside `.scratch`: only code/tests that build tmp `squad-backups` dirs).
+- Tests green: test_process_conversion, test_squadsettings, test_squad_close, test_squad_start, test_squadupgrade, test_squadprocess_apply, test_squad_migrate.
