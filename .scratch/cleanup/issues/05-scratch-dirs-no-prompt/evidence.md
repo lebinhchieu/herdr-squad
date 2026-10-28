@@ -22,3 +22,5 @@ Code sha a56d225 (fixes F1-F3 of the TL review on ddc3343).
 | dots | `rm -rf /tmp/tmp.A/../tmp.B` | 1, survive | 1, survive |
 
 **Tests run:** test_squadsettings, test_dev_rules_size, test_team_lead_role, test_team_duties, test_promotion_0_6_0, test_advisor_rules, test_old_language_inventory, test_sizes, test_squadrules, test_squadscaffold: all OK. Full suite: Tech Lead.
+
+**Caveat (QA blackbox):** the T6 "default mode, 0 denials" holds with the PO's user settings loaded (defaultMode auto, /tmp in additionalDirectories). With a fully isolated config in default mode, `mktemp -d` has no allow entry and the `rm` is held as "outside working directory"; outside this task (settings untouched).
