@@ -1,0 +1,1 @@
+{"sha_match": false, "clean": true, "ok_line": false, "verdict": "FAIL"}

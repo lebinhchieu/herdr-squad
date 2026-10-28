@@ -1,0 +1,9 @@
+# State written into ~/.claude-accounts at run time; never part of the repo.
+/default
+/workspace-default/
+/usage-[0-9]*
+/cswitch.log
+/.install-backup/
+*.bak-*
+*.new
+*.orig

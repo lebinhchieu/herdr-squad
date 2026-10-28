@@ -1,0 +1,322 @@
+#!/usr/bin/env bash
+# Start one squad role as its own Claude Code session in a new herdr tab.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: squad-spawn <role> <agent-name> [options]
+
+Roles: manager ba team-lead tech-lead qa-whitebox qa-blackbox dev token-coach designer
+Name:  lowercase, [a-z][a-z0-9_-]{0,31}, e.g. ba-settings, dev-settings-1
+
+Options:
+  --squad NAME     Squad to join: <project>/.claude/squads/NAME (default: $SQUAD,
+                   else the only squad there)
+  --scope S        Scope the agent works in. In a per-scope squad (it has a scopes/ folder) this is
+                   <squad>/scopes/S, which must exist; the agent gets SCOPE_DIR, and GOAL_DIR when
+                   S's scope.md names a goal. In a flat squad it is only a label (SQUAD_SCOPE).
+  --goal G         Per-scope squads: spawn the Manager of goal G (GOAL_DIR=<squad>/goals/G, no worktree)
+  --repo DIR       Git repo to branch from; the agent works in its own worktree
+                   <project>/.worktrees/<squad>/<agent-name> on branch squad/<squad>/<agent-name>
+                   (per-scope squads: .worktrees/<squad>/<scope>/<agent> on squad/<squad>/<scope>/<agent>)
+  --base REF       With --repo: start the new branch from REF (a passed branch or commit) instead of the
+                   repo's HEAD, so a task can build on work that is passed but not yet merged. Refused
+                   (exit 2) when the worktree folder already exists or --worktree is given: use a new name
+  --worktree DIR   Start in this existing worktree instead of making one (squad-respawn uses it so a
+                   respawned Developer keeps its worktree wherever the old layout put it)
+  --title TEXT     Task text shown after the role in the tab label (default: blank). The label is
+                   "<emoji> <Role>[ n][ · title]", built and numbered by squad-label --init; the agent's
+                   address name (env, herdr agent, roster) is unchanged.
+  --prompt TEXT    First message to send once the session is ready
+  --model M        Model override (default: scope.md "model <role>: <model> <effort>", else settings/<role>.json "model", else Claude's default)
+  --effort E       Effort override (low|medium|high|xhigh|max; default: scope.md line, else settings/<role>.json "effortLevel")
+  --dry-run        Print what would run, start nothing
+
+Env:
+  SQUAD             Squad name, same as --squad
+  SQUAD_DIR         Squad folder, overrides --squad (must be <project>/.claude/squads/<name>)
+  SQUAD_PLUGIN_DIR  Load the plugin from this dir with --plugin-dir (when not installed)
+EOF
+}
+
+[[ $# -lt 2 || $1 == -h || $1 == --help ]] && { usage; exit 2; }
+role=$1 name=$2; shift 2
+squad=${SQUAD:-} scope="" goal="" repo="" base="" worktree="" prompt="" title="" model="" effort="" dry=0
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --squad) squad=$2; shift 2 ;;
+    --scope) scope=$2; shift 2 ;;
+    --goal) goal=$2; shift 2 ;;
+    --repo) repo=$2; shift 2 ;;
+    --base) base=$2; shift 2 ;;
+    --worktree) worktree=$2; shift 2 ;;
+    --prompt) prompt=$2; shift 2 ;;
+    --title) title=$2; shift 2 ;;
+    --model) model=$2; shift 2 ;;
+    --effort) effort=$2; shift 2 ;;
+    --dry-run) dry=1; shift ;;
+    *) echo "unknown option: $1" >&2; usage; exit 2 ;;
+  esac
+done
+
+case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer) ;;
+  *) echo "unknown role: $role" >&2; exit 2 ;; esac
+# A Team Lead respawning itself (squad-respawn) is team-lead under its own name; nothing else passes.
+[[ ${SQUAD_ROLE:-} != team-lead || $role == dev || ( $role == team-lead && $name == "${SQUAD_NAME:-}" ) ]] || { echo "a Team Lead may only spawn dev" >&2; exit 2; }
+[[ $role == manager || -n $prompt ]] || echo "warning: $role $name spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)" >&2
+[[ -z $base || -n $repo ]] || { echo "--base needs --repo" >&2; exit 2; }
+for v in "$model" "$effort"; do
+  [[ -z $v || $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad --model/--effort value: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
+done
+[[ $name =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || { echo "bad agent name: $name (herdr needs [a-z][a-z0-9_-]{0,31})" >&2; exit 2; }
+[[ ${HERDR_ENV:-} == 1 ]] || { echo "not inside a herdr pane (HERDR_ENV != 1)" >&2; exit 1; }
+
+plugin_root=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+if [[ -n ${SQUAD_DIR:-} ]]; then
+  squad_dir=$SQUAD_DIR
+else
+  squads_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/squads
+  if [[ -z $squad ]]; then
+    found=()
+    for f in "$squads_root"/*/process.md "$squads_root"/*/process.local.md; do  # a composed squad has only process.local.md
+      [[ -f $f ]] && [[ " ${found[*]:-} " != *" $(dirname "$f") "* ]] && found+=("$(dirname "$f")")
+    done
+    [[ ${#found[@]} == 1 ]] || { echo "pick a squad with --squad (found: $(ls "$squads_root" 2>/dev/null | xargs))" >&2; exit 2; }
+    squad=$(basename "${found[0]}")
+  fi
+  squad_dir=$squads_root/$squad
+fi
+squad_dir=$(readlink -f "$squad_dir")
+# composed = process.local.md present (rules come from the plugin pin), legacy = process.md only, none = not a squad.
+smode=none  # same rule as squadruntime.mode
+[[ ! -f $squad_dir/process.md ]] || smode=legacy
+[[ ! -f $squad_dir/process.local.md ]] || smode=composed
+[[ $smode != none ]] || { echo "no squad folder at $squad_dir (run /squad:squad-init)" >&2; exit 1; }
+squad=$(basename "$squad_dir")
+project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
+
+# Per-scope squads keep each agent's roster, notes and logs in its scope folder (a goal Manager: its goal folder).
+# A flat squad (no scopes/ folder; legacy flat layout) keeps them all in the squad folder.
+home=$squad_dir scope_dir="" goal_dir=""
+if [[ -d $squad_dir/scopes ]]; then
+  [[ -z $scope || -z $goal ]] || { echo "pass --scope or --goal, not both" >&2; exit 2; }
+  if [[ -n $goal ]]; then
+    [[ -z $repo ]] || { echo "a goal Manager has no worktree: drop --repo" >&2; exit 2; }
+    goal_dir=$squad_dir/goals/$goal home=$goal_dir
+    [[ -d $goal_dir ]] || { echo "no goal folder at $goal_dir (run squad-start)" >&2; exit 1; }
+  else
+    [[ -n $scope ]] || { echo "this squad is per-scope: pass --scope or --goal" >&2; exit 2; }
+    scope_dir=$squad_dir/scopes/$scope home=$scope_dir
+    [[ -d $scope_dir ]] || { echo "no scope folder at $scope_dir (run squad-start)" >&2; exit 1; }
+    if [[ $role == designer ]] && ! grep -qiE '^design:[[:space:]]*yes[[:space:]]*$' "$scope_dir/scope.md" 2>/dev/null; then
+      echo "scope $scope has no 'design: yes' in scope.md; only the PO turns the designer on" >&2
+      exit 1
+    fi
+    in_goal=$(sed -n 's/^goal:[[:space:]]*//p' "$scope_dir/scope.md" 2>/dev/null | head -1 | tr -d '[:space:]')
+    if [[ -n $in_goal ]]; then
+      goal_dir=$squad_dir/goals/$in_goal
+      [[ -d $goal_dir ]] || { echo "scope $scope names goal $in_goal, but $goal_dir does not exist" >&2; exit 1; }
+    fi
+  fi
+fi
+
+# scope.md `model <role>: <model> <effort>` lines (ticket 20): the level between a flag/recorded override and the
+# squad settings. A malformed line refuses (exit 2) before anything is made; an unknown role only warns.
+# A value read here is never written to roles/<agent>.overrides.
+scope_model="" scope_effort="" scope_seen=" "
+if [[ -n $scope_dir && -f $scope_dir/scope.md ]]; then
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    [[ $line =~ ^model[[:space:]]*: || $line =~ ^model[[:space:]]+[a-z][a-z-]*[[:space:]]*: || $line =~ ^model[[:space:]]+(manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer)([[:space:]]|$) ]] || continue
+    if [[ $line =~ ^model[[:space:]]+([a-z][a-z-]*):[[:space:]]+([A-Za-z0-9][][A-Za-z0-9._-]*)[[:space:]]+(low|medium|high|xhigh|max)[[:space:]]*$ ]]; then
+      r=${BASH_REMATCH[1]}
+      case $r in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer) ;;
+        *) echo "warning: $scope_dir/scope.md: unknown role '$r' in: $line (ignored)" >&2; continue ;; esac
+      [[ $scope_seen != *" $r "* ]] || { echo "malformed line in $scope_dir/scope.md: role $r given twice: $line" >&2; exit 2; }
+      scope_seen+="$r "
+      [[ $r != "$role" ]] || { scope_model=${BASH_REMATCH[2]} scope_effort=${BASH_REMATCH[3]}; }
+    else
+      echo "malformed line in $scope_dir/scope.md: $line (expected: model <role>: <model> <low|medium|high|xhigh|max>)" >&2
+      exit 2
+    fi
+  done < "$scope_dir/scope.md"
+fi
+
+# Composed mode: the pinned runtime and this agent's composed rules come first, before any herdr call, worktree or
+# label, so a refusal (no pin: exit 2, runtime missing: exit 1, compose error: exit 2) leaves nothing behind.
+plugin_dir=${SQUAD_PLUGIN_DIR:-} rules_args=() runtime_env=()
+if [[ $smode == composed ]]; then
+  rt_args=(--squad-dir "$squad_dir" --home "$home" --plugin-root "$plugin_root")
+  [[ $dry != 1 ]] || rt_args+=(--dry-run)
+  runtime=$("$plugin_root/bin/squad-process" runtime "${rt_args[@]}") || exit $?
+  rules=$home/roles/$name.rules.md
+  if [[ $dry != 1 ]]; then
+    mkdir -p "$home/roles"
+    "$plugin_root/bin/squad-process" compose "$role" --home "$home" --agent "$name" --squad-dir "$squad_dir" \
+      --plugin-root "$runtime" --out "$rules" >&2 || exit $?
+  fi
+  plugin_dir=$runtime
+  rules_args=(--append-system-prompt-file "$rules")
+  runtime_env=(--env "PATH=$runtime/bin:$PATH")
+  [[ -z $prompt ]] || prompt="$prompt Your process rules are attached to this session ($rules); read no other process file."
+elif [[ $smode == legacy ]]; then
+  # Legacy squad: the cards are ability-only, so attach the running plugin's rules (no overlay, no pin, no runtime).
+  rules=$home/roles/$name.rules.md
+  if [[ $dry != 1 ]]; then
+    mkdir -p "$home/roles"
+    "$plugin_root/bin/squad-process" compose "$role" --home "$home" --agent "$name" \
+      --plugin-root "$plugin_root" --out "$rules" >&2 || exit $?
+  fi
+  rules_args=(--append-system-prompt-file "$rules")
+  echo "legacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run" >&2
+  [[ -z $prompt ]] || prompt="$prompt Your process rules are attached to this session ($rules); read no other process file."
+fi
+
+# The Manager hears about a process.md that is behind through its first prompt. Never stops the spawn.
+if [[ $role == manager ]]; then
+  notice=$("$plugin_root/bin/squad-process" check --squad-dir "$squad_dir" --quiet 2>/dev/null) || notice=""
+  if [[ -n $notice ]]; then
+    notice="Process update: $notice Tell the PO in your first message. Do not migrate unless the PO says so."
+    prompt=${prompt:+$prompt }$notice
+  fi
+fi
+
+# Settings: the squad's overlay settings/<role>.local.json merged over the (pinned) template into
+# <home>/roles/<agent>.settings.json; else the old full settings/<role>.json (warns once); else the template.
+tpl_root=$plugin_root
+[[ $smode != composed ]] || tpl_root=$runtime
+# --dry-run does not materialise the pinned runtime: preview with the running plugin's template.
+[[ $dry != 1 || -d $tpl_root/templates ]] || tpl_root=$plugin_root
+eff_json="" settings_mode=template
+settings=$tpl_root/templates/squad/settings/$role.json
+if [[ -f $squad_dir/settings/$role.local.json ]]; then
+  eff_json=$(python3 "$plugin_root/bin/squadsettings.py" effective --role "$role" --squad-dir "$squad_dir" --template-root "$tpl_root" --project-dir "$project_dir") || exit $?
+  settings_mode=overlay settings=$home/roles/$name.settings.json
+  [[ ! -f $squad_dir/settings/$role.json ]] || echo "warning: $squad_dir/settings/$role.json is ignored: $role.local.json wins" >&2
+elif [[ -f $squad_dir/settings/$role.json ]]; then
+  settings_mode=legacy settings=$squad_dir/settings/$role.json
+  echo "warning: $settings is a full settings file, not an overlay; ticket 09 (adopt) converts it to $role.local.json" >&2
+fi
+
+cwd=$project_dir
+if [[ -n $worktree ]]; then
+  [[ -z $base ]] || { echo "refused: --base $base would be ignored, $worktree is an existing worktree; drop --base to reuse it" >&2; exit 2; }
+  [[ -d $worktree ]] || { echo "no worktree at $worktree" >&2; exit 1; }
+  cwd=$(readlink -f "$worktree")
+elif [[ -n $repo ]]; then
+  repo=$(readlink -f "$repo")
+  wt=$project_dir/.worktrees/$squad/$name branch=squad/$squad/$name
+  [[ -z $scope_dir ]] || { wt=$project_dir/.worktrees/$squad/$scope/$name branch=squad/$squad/$scope/$name; }
+  [[ -z $base || ! -d $wt ]] || { echo "refused: --base $base would be ignored, $wt already exists; use a new agent name, or drop --base to reuse the folder" >&2; exit 2; }
+  if [[ ! -d $wt ]]; then
+    if [[ $dry == 1 ]]; then echo "would run: git -C $repo worktree add $wt -b $branch ${base}"
+    else git -C "$repo" worktree add "$wt" -b "$branch" ${base:+"$base"} >&2; fi
+  fi
+  cwd=$wt
+fi
+
+# Overrides given now are what squad-respawn replays; none given means no file (a stale one is removed).
+ovr_model=$model ovr_effort=$effort
+
+# Role defaults come from "model" and "effortLevel" in settings/<role>.json, per key: the squad's file, then the
+# template. --model/--effort win. Still passed as flags: an --agent frontmatter model would beat --settings.
+key_of() { # key -> value from the effective settings (overlay) or the squad file, else the template; refuses a bad value
+  local k=$1 f v
+  if [[ $settings_mode == overlay ]]; then
+    v=$(jq -r --arg k "$k" '.[$k] // empty | if type=="string" then . else error("not a string") end' <<<"$eff_json") || { echo "cannot read $k from the effective settings of $role (needs jq, valid JSON, a string value)" >&2; exit 2; }
+    if [[ -n $v ]]; then
+      [[ $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad $k value in $squad_dir/settings/$role.local.json: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
+      printf '%s' "$v"; return
+    fi
+  else
+    for f in "$squad_dir/settings/$role.json" "$tpl_root/templates/squad/settings/$role.json"; do
+      [[ -f $f ]] || continue
+      v=$(jq -r --arg k "$k" '.[$k] // empty | if type=="string" then . else error("not a string") end' "$f") || { echo "cannot read $k from $f (needs jq, valid JSON, a string value)" >&2; exit 2; }
+      if [[ -n $v ]]; then
+        [[ $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad $k value in $f: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
+        printf '%s' "$v"; return
+      fi
+    done
+  fi
+  echo "warning: no $k for $role in $squad_dir/settings/$role.json or the template; it runs on Claude Code's default" >&2
+}
+[[ -n $model ]] || model=$scope_model
+[[ -n $effort ]] || effort=$scope_effort
+[[ -n $model ]] || model=$(key_of model)
+[[ -n $effort ]] || effort=$(key_of effortLevel)
+
+# Known up front so roster.md can point at the transcript <config dir>/projects/<cwd>/<session>.jsonl.
+session=$(python3 -c 'import uuid; print(uuid.uuid4())')
+
+if [[ $settings_mode == overlay && $dry != 1 ]]; then
+  mkdir -p "$home/roles"
+  printf '%s\n' "$eff_json" > "$settings.tmp" && mv "$settings.tmp" "$settings"
+fi
+
+claude_args=(--agent "squad:$role" --name "$name" --session-id "$session" --permission-mode auto --settings "$settings")
+[[ -n $model ]] && claude_args+=(--model "$model")
+[[ -n $effort ]] && claude_args+=(--effort "$effort")
+[[ -n $plugin_dir ]] && claude_args+=(--plugin-dir "$plugin_dir")
+claude_args+=("${rules_args[@]}")
+
+# Without --workspace herdr uses the focused workspace, which may not be the caller's.
+ws_args=()
+[[ -z ${HERDR_WORKSPACE_ID:-} ]] || ws_args=(--workspace "$HERDR_WORKSPACE_ID")
+
+env_args=(--env "SQUAD=$squad" --env "SQUAD_DIR=$squad_dir" --env "SQUAD_NAME=$name" --env "SQUAD_ROLE=$role" --env "SQUAD_SCOPE=$scope")
+[[ -z $scope_dir ]] || env_args+=(--env "SCOPE_DIR=$scope_dir")
+[[ -z $goal_dir ]] || env_args+=(--env "GOAL_DIR=$goal_dir")
+[[ -n $plugin_dir ]] && env_args+=(--env "SQUAD_PLUGIN_DIR=$plugin_dir")
+env_args+=("${runtime_env[@]}")
+
+# Agents are addressed by bare name, so a second live agent with this name would be unreachable or misrouted.
+# Checked before the label store is written: a refused spawn must not overwrite the live agent's stored label.
+if [[ $dry != 1 ]] && herdr agent get "$name" >/dev/null 2>&1; then
+  echo "an agent named $name is already live; pick another name (include the squad name)" >&2
+  exit 1
+fi
+
+# The tab label. squad-label --init numbers the agent among its live peers and stores role/number/title in
+# <home>/labels/, the folder the agent later reads through its own SCOPE_DIR/GOAL_DIR/SQUAD_DIR.
+# A label must never stop an agent from starting: on failure the label is the name.
+if [[ $dry == 1 ]]; then
+  label=$("$plugin_root/bin/squad-label" --init --dry-run --home "$home" --agent "$name" --role "$role" --title "$title") || label=$name
+else
+  label=$("$plugin_root/bin/squad-label" --init --home "$home" --agent "$name" --role "$role" --title "$title") || label=""
+  if [[ -z $label ]]; then
+    echo "warning: squad-label --init failed; the tab of $name is labelled $name" >&2
+    label=$name
+  fi
+fi
+
+if [[ $dry == 1 ]]; then
+  echo "would run: herdr tab create --cwd $cwd --label $label --no-focus ${ws_args[*]} ${env_args[*]}"
+  echo "would run: squad-usage --squad-dir $home --set-session $name $session --role $role --scope $scope"
+  echo "would run: herdr agent start $name --kind claude --pane <pane> -- ${claude_args[*]}"
+  exit 0
+fi
+
+tab_json=$(herdr tab create --cwd "$cwd" --label "$label" --no-focus "${ws_args[@]}" "${env_args[@]}")
+pane=$(jq -r '.result.root_pane.pane_id' <<<"$tab_json")
+tab=$(jq -r '.result.tab.tab_id' <<<"$tab_json")
+
+herdr agent start "$name" --kind claude --pane "$pane" --timeout 120000 -- "${claude_args[@]}" >/dev/null || {
+  echo "agent did not become ready; inspect with: herdr agent read $name --lines 40" >&2
+  jq -n --arg name "$name" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" \
+    '{name:$name, tab:$tab, pane:$pane, cwd:$cwd, status:"not_ready"}'
+  exit 1
+}
+
+"$plugin_root/bin/squad-usage" --squad-dir "$home" --set-session "$name" "$session" --role "$role" --scope "$scope"
+
+ovr_file=$home/roles/$name.overrides
+rm -f "$ovr_file"
+if [[ -n $ovr_model || -n $ovr_effort ]]; then
+  mkdir -p "$home/roles"
+  { [[ -z $ovr_model ]] || echo "model=$ovr_model"; [[ -z $ovr_effort ]] || echo "effort=$ovr_effort"; } > "$ovr_file"
+fi
+
+[[ -n $prompt ]] && herdr agent prompt "$name" "$prompt" >/dev/null
+
+jq -n --arg name "$name" --arg role "$role" --arg scope "$scope" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" --arg session "$session" \
+  '{name:$name, role:$role, scope:$scope, tab:$tab, pane:$pane, cwd:$cwd, session:$session, status:"ready"}'

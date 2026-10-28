@@ -1,0 +1,6 @@
+# QA whitebox 02 — PASS on 6ebcfbd (final sha of the scope)
+Checked: diff 3ffabe7..6ebcfbd vs tasks/02.md T1-T6. closing.md CLOSE-1/2/4/5, process.md Closing + lifetime row, starting.md START-5 row, bin/squad-migrate comment (my carry-over), changelog v7 + history/process-v6.md (both forced by test_sizes / test_process_history; accepted). Wording matches 01 (scope/goal keep Manager, chat-only after, `squad-retire <manager>`; squad close retires all, Managers last). CLOSE-3a/b/c untouched, still true. Grep for stale wording in templates/README/CONTEXT/docs/skills/agents/hooks/bin: only frozen history v1-v5 and unrelated `--resume` "Manager is gone" remain. `bin/squad-process lint` rc 0. promote.md: none needed (no lasting business rule or glossary term; behaviour is in the process rules themselves).
+
+# Full suite (SUITE-1b/3b) on 6ebcfbd, clean=yes: FAILED, receipt evidence/suite/suite-default.txt
+Two files fail: test_qab_optional (54 subtests, `test_every_role_matches_the_4901cab_golden`) and test_squadinbox (`test_no_pyc`).
+Both fail identically on the scope base 5adfc45 (run from tests/: 68 tests, failures=55 = 54 golden + 1 pyc). Not caused by this scope; no task is returned (SUITE-5b needs the failing files to be the task's).

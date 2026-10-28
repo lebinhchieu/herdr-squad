@@ -1,0 +1,1 @@
+- TL final: full --tz suite on cf3b5c0 OK (suite-default.txt, suite-tz.txt; first line sha cf3b5c0 clean=yes). Accepted deviation: process-version stays integer 6 (ADR 0016 retired the line; squadprocess.py accepts only int); 0.6.0 four-way = plugin.json/changelog/README/snapshot. Final sha cf3b5c0 (code 4dde33e).

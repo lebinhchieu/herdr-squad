@@ -1,0 +1,17 @@
+# QA whitebox 04 — on code c97299a (HANDIN 0763658, evidence-only after). Verdict held until the Tech Lead names the final sha (REV-3).
+Checked read-only in worktree plugin-dev-dsz-04. Passed:
+- Tests OK: test_squad_spawn (85), test_squad_respawn (21), test_squad_log_message (22), test_squadruntime (64), test_squad_start (48). `squad-process lint` exit 0 empty (= base).
+- Diff vs design D7/C2/C3: gate order (refusal before any worktree/label/herdr), undecided -> Manager only, `qa-whitebox` gated on `qa-white`, hand-off once (runtime == this script is not re-entered), pin >= 0.6.0 / no pin / malformed line paths, runtime missing script refused. Test names cover the pin boundary table, hostile `team:` value, byte-identical pinned scope.md, golden from base sha 2949573 (git archive, composed by the pin's own engine).
+- REV-5b live (copy of this squad: pinned 0.5.2, `size: L`, stub herdr): `squad-respawn` from an agent session and PO shell: dry run prints "would hand off to the pinned runtime"; real run exec'd the pin's own squad-respawn -> pin's squad-spawn: rules recomposed with "size L", roster session id updated, old pane closed, scope.md byte-identical. `squad-spawn qa-whitebox` (dry) on the pinned copy hands off; no pin line -> refused with pin message, no herdr call; a hostile `team:` line on a mixed old/new scope.md refused (exit 2), nothing run (no PWNED files).
+
+## F1 (correctness) bin/squad-spawn (hand-off block, `if [[ $dry == 1 ]]`) and bin/squad-respawn (same block)
+`--dry-run` exits 0 with "would hand off to the pinned runtime: .../bin/squad-spawn ..." BEFORE the `[[ -f $runtime/bin/squad-spawn ]]` check. Repro: composed squad, scope.md `size: L` + `plugin: 0.5.2 <sha>`, pin runtime folder with plugin.json but no bin/squad-spawn: `squad-spawn dev d1 --scope s1 --prompt hi --dry-run` -> rc 0 "would hand off"; without `--dry-run` -> rc 1 "has no bin/squad-spawn; refusing, nothing created". Ticket extra AC: runtime without the script -> refuse with a warning, no fallback. A dry run must predict that refusal.
+Pass: move the `-f` check above the dry-run branch in both scripts (dry run then warns and exits 1) + one test per script for the dry case (the existing test_a_runtime_without_squad_spawn... covers only the real run).
+
+## F2 (style, REV-17 all in one return) bin/squad-spawn + bin/squad-respawn
+The pin-version read (`sed` on plugin.json, basename fallback), the `0.N` < 6 test and the exec guard are the same ~10 lines in both scripts. Not a blocker alone; a single shared helper (e.g. a `squad-process runtime --pin-version` / small sourced function) would keep the boundary in one place. Pass: either dedupe, or one line in evidence.md saying why not.
+
+# Re-check on final code sha b2dcc52 — PASS (LC-3b: changed files only)
+- F1 closed: `-f` check now precedes the dry-run branch in squad-spawn and squad-respawn; live repro (pin 0.5.2 runtime without the script): `--dry-run` rc 1 with the warning, same as the real run. Tests added in test_squad_spawn (87) and test_squad_respawn (23).
+- F2 accepted: no shared helper (a pinned runtime cannot share code with the running engine; evidence.md says so; Tech Lead agreed).
+- squadruntime.cmd_runtime: an unpinned `size:` scope now gets the converter pointer instead of the pin text (live: `scope.md:5: old format size:; run squad-process adopt`). Tests OK: spawn, respawn, log_message (23), squadruntime (64), start (48), squadcompose (85). Lint exit 0 empty.

@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sizes and Advisor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: left = pinned picture (role × size matrix, today vs proposed, plus the advisor flow); right = questions with preset answers and a copy box. Mango Parrot light only. */
+:root{
+  color-scheme: light;
+  --bg:#FCF8F1; --panel:#F4ECDD; --line:#E7DBC8; --ink:#3E372E; --muted:#857A68; --card:#FFFDF9;
+  --mango:#E8820E; --teal:#0C8A80; --red:#DB3B22; --blue:#2A6DC0; --purple:#9A40CF; --green:#368A1E; --amber:#9E7A00;
+  --red-soft:#F7DCD4; --green-soft:#DDEBD5; --amber-soft:#F1E6C4; --mango-soft:#FBE2C3; --blue-soft:#DCE6F3; --purple-soft:#EBDDF4;
+  --f-display:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1500px;margin:0 auto;padding:24px max(16px,env(safe-area-inset-right,0px)) 48px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:22px}
+h1,h2,h3{font-family:var(--f-display);margin:0;line-height:1.15;text-wrap:balance}
+h1{font-size:28px} h2{font-size:19px} h3{font-size:15.5px}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:12.5px}
+.eyebrow{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.lead{font-size:16.5px;max-width:95ch}
+.lead b{background:var(--mango-soft);padding:0 3px;border-radius:3px}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;white-space:nowrap;vertical-align:middle}
+.tag.v{background:var(--green-soft);color:var(--green)}
+.tag.i{background:var(--amber-soft);color:var(--amber)}
+.tag.done{background:var(--green-soft);color:var(--green)}
+.grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:1100px){.grid{grid-template-columns:1fr}}
+.pin{position:sticky;top:12px;display:flex;flex-direction:column;gap:16px}
+@media (max-width:1100px){.pin{position:static}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 7px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+td:first-child,th:first-child{text-align:left;white-space:nowrap}
+th.new{color:var(--mango)}
+.on{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--green)}
+.off{color:var(--line)}
+.q-cell{background:var(--mango-soft);font-weight:700;color:#A65A00;font-family:var(--f-mono);font-size:11.5px}
+.old{opacity:.55}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
+.step{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:5px 9px}
+.step.op{border-color:var(--purple);background:var(--purple-soft)}
+.arrow{color:var(--mango);font-weight:700}
+.note{background:var(--amber-soft);border-radius:8px;padding:9px 12px;font-size:13.5px}
+.note b{color:var(--amber)}
+.good{background:var(--green-soft);border-radius:8px;padding:9px 12px;font-size:13.5px}
+.good b{color:var(--green)}
+.qs{display:flex;flex-direction:column;gap:12px}
+fieldset{border:1px solid var(--line);border-radius:8px;padding:10px 12px 8px;margin:0;background:var(--card)}
+legend{font-weight:600;font-size:14px;padding:0 4px}
+.why{font-size:12.5px;color:var(--muted);margin:0 0 6px}
+label.opt{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;padding:3px 0;cursor:pointer}
+label.opt input{margin-top:3px;flex:none}
+.rec{font-size:10.5px;font-weight:700;color:var(--green);background:var(--green-soft);padding:0 6px;border-radius:999px;margin-left:4px;white-space:nowrap}
+.copy{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.copy textarea{width:100%;min-height:230px;font-family:var(--f-mono);font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:8px;background:var(--card);color:var(--ink);resize:vertical}
+.copy button{align-self:flex-start;font:600 13.5px var(--f-body);background:var(--ink);color:var(--bg);border:0;border-radius:6px;padding:7px 14px;cursor:pointer}
+.st{font-size:12.5px;color:var(--green);min-height:1.2em}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+footer pre{margin:0;font-family:var(--f-mono);font-size:12px;white-space:pre-wrap;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;max-width:90ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Round 1 (updated: S/M/L, no XS) · team sizes, Manager model, Opus advisor · 2026-10-21</div>
+  <h1>Sizes and Advisor</h1>
+  <p class="lead"><b>Done already:</b> the Manager now defaults to Sonnet at effort high <span class="tag done">templates/squad/settings/manager.json</span>. <b>Verified:</b> Claude Code has a built-in Opus advisor, and <code>claude --advisor opus</code> worked on your 2.1.306. <b>New sizes (your update):</b> S = Manager + Developers; M = Manager + Developers + both QAs; L = every role. S and M have no Tech Lead, so its duties (plan, technical AC, review, full suite, migrations) need new owners. The questions below settle that and when the advisor is used.</p>
+</header>
+
+<div class="grid">
+
+  <div class="pin">
+    <section class="panel">
+      <h2>Who is in each size</h2>
+      <div class="tbl"><table>
+        <tr><th>Role</th><th class="old">S today</th><th class="old">M, L today</th><th class="new">S new</th><th class="new">M new</th><th class="new">L new</th></tr>
+        <tr><td>Manager</td><td class="old"><span class="on"></span></td><td class="old"><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td></tr>
+        <tr><td>Developers</td><td class="old"><span class="on"></span></td><td class="old"><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td><td><span class="on"></span></td></tr>
+        <tr><td>QA whitebox, QA blackbox</td><td class="old off">–</td><td class="old"><span class="on"></span></td><td class="off">–</td><td><span class="on"></span></td><td><span class="on"></span></td></tr>
+        <tr><td>Tech Lead</td><td class="old"><span class="on"></span></td><td class="old"><span class="on"></span></td><td class="off">–</td><td class="off">–</td><td><span class="on"></span></td></tr>
+        <tr><td>BA, Team Lead</td><td class="old off">–</td><td class="old"><span class="on"></span></td><td class="off">–</td><td class="off">–</td><td><span class="on"></span></td></tr>
+        <tr><td>Designer</td><td colspan="5" style="text-align:center;color:var(--muted)">only with <code>design: yes</code>, any size (unchanged)</td></tr>
+      </table></div>
+      <h3>Tech Lead, Team Lead and BA duties that need a new owner</h3>
+      <div class="tbl"><table>
+        <tr><th>Duty</th><th class="new">S</th><th class="new">M</th><th>L</th></tr>
+        <tr><td>Plan, order, assignment, spawning Devs</td><td class="q-cell">Q2</td><td class="q-cell">Q2</td><td>Team Lead</td></tr>
+        <tr><td>Technical design and AC</td><td class="q-cell">Q2</td><td class="q-cell">Q3</td><td>Tech Lead</td></tr>
+        <tr><td>Business AC</td><td>ticket as written</td><td class="q-cell">Q3</td><td>BA</td></tr>
+        <tr><td>Check the code ("done")</td><td class="q-cell">Q1</td><td>QA whitebox</td><td>QA whitebox</td></tr>
+        <tr><td>Check behaviour</td><td>Dev's <code>evidence.md</code></td><td>QA blackbox</td><td>QA blackbox</td></tr>
+        <tr><td>Full suite before PO merge</td><td class="q-cell">Q4</td><td class="q-cell">Q4</td><td>Tech Lead</td></tr>
+        <tr><td><code>promote.md</code>, migrations, deploy notes</td><td class="q-cell">Q3</td><td class="q-cell">Q3</td><td>Tech Lead</td></tr>
+      </table></div>
+      <p class="note"><b>Rules this changes:</b> "only the Tech Lead runs the full suite", which is in both <code>process.md</code> and the repo's <code>CLAUDE.md</code>, and "the Manager never does a role's work" if the Manager plans. Who owns a migration without a Tech Lead is why Q5 asks whether risk flags now force L.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Opus advisor: how it works</h2>
+      <div class="flow">
+        <span class="step">Sonnet role working</span><span class="arrow">→</span>
+        <span class="step">hard problem / 3rd FAIL / stuck</span><span class="arrow">→</span>
+        <span class="step op">calls <code>advisor</code> (Opus reads the transcript)</span><span class="arrow">→</span>
+        <span class="step">advice in the same turn</span>
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:13.5px;display:flex;flex-direction:column;gap:3px">
+        <li>Turned on with <code>"advisorModel": "opus"</code> in role settings. Subagents inherit it. <span class="tag v">docs + probe</span></li>
+        <li><b>The model decides when to call it.</b> There is no setting to force or cap calls, so "must consult at the 3rd FAIL" has to be a rule, plus a hook reminder (ticket 12's 3-return notice).</li>
+        <li>Toggling it doesn't break the main prompt cache, but the advisor's own read of the transcript isn't cached. On a subscription it counts against plan limits.</li>
+        <li>The advisor needs the Anthropic API, so it doesn't work on Bedrock or Vertex. Experimental.</li>
+      </ul>
+      <p class="good"><b>Cost tie-in:</b> this replaces cost rule 4 (step up one notch of model on failure). Switching a model mid-session breaks the cache; the advisor doesn't.</p>
+    </section>
+  </div>
+
+  <div class="qs" id="qs">
+    <fieldset><legend>Q1 · S: who checks a task is done?</legend>
+      <p class="why">S now has no QA and no Tech Lead. The research says a fresh-context reviewer is the strongest quality lever.</p>
+      <label class="opt"><input type="radio" name="q1" value="Developer's checks + evidence.md, plus one fresh-context review subagent (Opus) before HANDIN; Manager only confirms evidence.md and review exist" checked>The Developer's own checks plus <code>evidence.md</code>, and <b>one fresh-context Opus review subagent</b> before HANDIN. The Manager only confirms both exist<span class="rec">rec</span></label>
+      <label class="opt"><input type="radio" name="q1" value="Manager reads the diff and evidence.md and PASSes">The Manager reads the diff and <code>evidence.md</code> and PASSes</label>
+      <label class="opt"><input type="radio" name="q1" value="Developer's own checks + evidence.md only; PO reviews at merge">The Developer's own checks only; the PO reviews at merge</label>
+    </fieldset>
+
+    <fieldset><legend>Q2 · S and M: who plans, designs and spawns Developers?</legend>
+      <p class="why">Today the Tech Lead plans in S and the Team Lead in M and L. In the new sizes the Team Lead exists only in L.</p>
+      <label class="opt"><input type="radio" name="q2" value="Manager plans and spawns Devs in S and M (tasks, order, files touched); each Developer writes its own design notes in the task file; the Manager-never-does-role-work rule gets an S/M exception for planning" checked>The <b>Manager plans and spawns Developers</b> in S and M (tasks, order, files touched); each Developer writes its own design notes in the task file. Adds an S/M exception to "the Manager never does a role's work"<span class="rec">rec</span></label>
+      <label class="opt"><input type="radio" name="q2" value="The first Developer plans and the Manager approves">The first Developer plans; the Manager approves</label>
+    </fieldset>
+
+    <fieldset><legend>Q3 · M: who owns technical AC, business AC and promote.md?</legend>
+      <label class="opt"><input type="radio" name="q3" value="M: QA whitebox writes technical AC (agreed with the Developer) and keeps promote.md; business AC = the ticket as written, QA blackbox tests against it; a business doubt moves the scope to L" checked><b>QA whitebox</b> writes the technical AC, agreed with the Developer, and keeps <code>promote.md</code>. Business AC = the ticket as written; QA blackbox tests against it. A business doubt moves the scope to L<span class="rec">rec</span></label>
+      <label class="opt"><input type="radio" name="q3" value="Developer writes technical AC, QA whitebox agrees; Manager keeps promote.md">The Developer writes the technical AC and QA whitebox agrees; the Manager keeps <code>promote.md</code></label>
+      <p class="why" style="margin-top:6px">S: no technical AC beyond the ticket. <code>promote.md</code> is kept by the Developer: one line per lasting fact, or "nothing to promote".</p>
+    </fieldset>
+
+    <fieldset><legend>Q4 · S and M: who runs the full suite?</legend>
+      <label class="opt"><input type="radio" name="q4" value="M: QA whitebox runs it once on the final sha; S: the Developer runs it once on its final sha; L: Tech Lead (unchanged); CLAUDE.md and process rule updated to 'the suite owner of the size'" checked>M: <b>QA whitebox</b> once on the final sha. S: <b>the Developer</b> once on its final sha. L: the Tech Lead, as today. The rule becomes "the size's suite owner", in process and <code>CLAUDE.md</code><span class="rec">rec</span></label>
+      <label class="opt"><input type="radio" name="q4" value="Only targeted tests in S/M; the PO runs the full suite before merge">Only targeted tests in S and M; the PO runs the full suite before merging</label>
+    </fieldset>
+
+    <fieldset><legend>Q5 · Risk flags: do they now force L?</legend>
+      <p class="why">Today a risk flag (data migration, breaking API change, security, anything another team sees) forces at least M, because M had a Tech Lead to own migrations and compatibility. The new M has no Tech Lead.</p>
+      <label class="opt"><input type="radio" name="q5" value="Every risk flag forces L (the Tech Lead owns migrations, compatibility and deploy notes)" checked>Every risk flag forces <b>L</b>, so a Tech Lead always owns migrations, compatibility and deploy notes<span class="rec">rec</span></label>
+      <label class="opt"><input type="radio" name="q5" value="Data migration and breaking API force L; security or other-team visibility force at least M">Data migration and breaking API changes force L; security or anything another team sees forces at least M</label>
+      <label class="opt"><input type="radio" name="q5" value="Risk flags force at least M; QA whitebox owns migration checks in M">Risk flags force at least M; QA whitebox owns the migration checks in M</label>
+    </fieldset>
+
+    <fieldset><legend>Q6 · When is it S, M or L?</legend>
+      <label class="opt"><input type="radio" name="q6" value="S: 1-2 tasks, no user-visible change, no risk flag, existing tests cover it. M: 1-6 tasks, user-visible behaviour, clear ticket or AC, no business question, no risk flag. L: business questions, risk flag, cross-repo, or ordering matters. Unsure: size up" checked><b>S:</b> 1–2 tasks, nothing user-visible, no risk flag, covered by existing tests. <b>M:</b> up to ~6 tasks, user-visible, clear ticket or AC, no business question, no risk flag. <b>L:</b> business questions, a risk flag, cross-repo, or ordering matters. When unsure, size up<span class="rec">rec</span></label>
+      <label class="opt"><input type="radio" name="q6" value="Same signals, but S only when the PO asks for it">Same signals, but S only when the PO asks for it</label>
+    </fieldset>
+
+    <fieldset><legend>Q7 · Advisor: mechanism</legend>
+      <label class="opt"><input type="radio" name="q7" value="Built-in advisor: advisorModel opus in every role's settings (whole team incl. Manager) + rules for when it must be called" checked><b>Built-in advisor:</b> <code>advisorModel: opus</code> in every role's settings, Manager included, plus rules for when it must be called<span class="rec">rec</span></label>
+      <label class="opt"><input type="radio" name="q7" value="Built-in advisor + a squad:reviewer Opus subagent with fresh context for the 3-FAIL case">Built-in advisor, plus a fresh-context Opus reviewer subagent for the 3-FAIL case</label>
+      <label class="opt"><input type="radio" name="q7" value="Only an explicit Opus subagent (works on any provider)">Only an explicit Opus subagent (works on any provider)</label>
+    </fieldset>
+
+    <fieldset><legend>Q8 · Advisor: when it must be called</legend>
+      <p class="why">Outside these triggers the model decides for itself.</p>
+      <label class="opt"><input type="radio" name="q8" value="Must: Developer on a task's 3rd FAIL before re-hand-in; anyone after 2 failed attempts at the same error or a BLOCKED unanswered for 2 rounds; Tech Lead/Manager before an irreversible design choice. Each forced call leaves a 3-line note in the task file" checked><b>Must:</b> the Developer on a task's 3rd FAIL, before handing in again; anyone after 2 failed attempts at the same error, or a BLOCKED unanswered for 2 rounds; the Tech Lead or Manager before an irreversible design choice. Each required call leaves a 3-line note in the task file<span class="rec">rec</span></label>
+      <label class="opt"><input type="radio" name="q8" value="Must only on the 3rd FAIL; otherwise model-decided">Only on the 3rd FAIL; otherwise the model decides</label>
+      <label class="opt"><input type="radio" name="q8" value="Model-decided only, no forced triggers">The model decides; no required triggers</label>
+    </fieldset>
+
+    <fieldset><legend>Q9 · When to ship this</legend>
+      <label class="opt"><input type="radio" name="q9" value="Settings (advisorModel) now; sizes and advisor rules as new tickets 17-18 in composed-process, written straight into the new rule files" checked>Advisor settings <b>now</b>. Sizes and advisor rules as new tickets 17–18 in composed-process, written straight into the new rule files<span class="rec">rec</span></label>
+      <label class="opt"><input type="radio" name="q9" value="All now as process v7 in the current process.md; ticket 03 then converts v7">All now, as process v7 in today's <code>process.md</code>; ticket 03 then converts v7</label>
+    </fieldset>
+
+    <section class="copy" aria-label="Your answers">
+      <h3>Your answers</h3>
+      <textarea id="out" readonly aria-label="Answers to copy"></textarea>
+      <button type="button" id="cp">Copy answers</button>
+      <span class="st" id="st" aria-live="polite"></span>
+    </section>
+  </div>
+</div>
+
+<footer>
+<pre>Reader:     you (PO, plugin author) → settle the new sizes and advisor policy
+Question:   Who takes the Tech Lead's, Team Lead's and BA's duties in the new S and M, and when must the Opus advisor be used?
+Dimension:  Structure (role × size matrix, duty owners), then Comparison (options)
+Form:       pinned role/duty matrix + preset-answer questions, not prose: every open
+            duty is a cell, so a gap is visible</pre>
+</footer>
+</div>
+<script>
+(function(){
+  var out=document.getElementById("out"),st=document.getElementById("st");
+  function render(){
+    var lines=["Sizes and advisor: my answers"];
+    for(var i=1;i<=9;i++){var el=document.querySelector('input[name="q'+i+'"]:checked');lines.push("Q"+i+": "+(el?el.value:"-"));}
+    out.value=lines.join("\n");
+  }
+  document.getElementById("qs").addEventListener("change",render);render();
+  document.getElementById("cp").addEventListener("click",function(){
+    function sel(){out.focus();out.select();st.textContent="Selected: press Ctrl+C";}
+    try{navigator.clipboard.writeText(out.value).then(function(){st.textContent="Copied";setTimeout(function(){st.textContent="";},1800);},sel);}catch(e){sel();}
+  });
+})();
+</script>
+</body>
+</html>

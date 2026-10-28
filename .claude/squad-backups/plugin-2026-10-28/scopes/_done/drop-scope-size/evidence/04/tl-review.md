@@ -1,0 +1,1 @@
+sha b2dcc52 (final code, 04, return fixes): TL re-ran spawn/respawn/log_message/squadruntime/start tests OK, lint empty; read diff c97299a..b2dcc52: -f check above dry run, size-without-pin pointer, notice test. Dedup skip accepted (pinned runtime cannot share a helper).

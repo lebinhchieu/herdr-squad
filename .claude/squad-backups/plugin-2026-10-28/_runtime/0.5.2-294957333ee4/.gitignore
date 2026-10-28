@@ -1,0 +1,6 @@
+.worktrees/
+tests/__pycache__
+.claude/squads
+.playwright
+.playwright-cli
+__pycache__/

@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>squad-report</title>
+<style>
+:root{--bg:#FCF8F1;--panel:#F4ECDD;--border:#E7DBC8;--ink:#3E372E;--muted:#857A68;--muted2:#A99C86;--mango:#E8820E;--mangotxt:#CE7000;
+--work:#368A1E;--wait:#2A6DC0;--block:#DB3B22;--po:#9A40CF;--idle:#AFA48C;--teal:#0C8A80;--fail:#CE1D6C}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--mangotxt)}
+.muted{color:var(--muted)}
+/* shell */
+html{scroll-behavior:smooth}
+header.page{padding:18px 24px 10px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+header.page h1{margin:0;font-size:22px}
+header.page .meta{margin-left:auto;text-align:right;font-size:12px;color:var(--muted)}
+nav.sections{position:sticky;top:0;z-index:40;background:var(--bg);border-bottom:1px solid var(--border);padding:6px 24px;display:flex;gap:4px;flex-wrap:wrap}
+nav.sections a{color:var(--muted);text-decoration:none;padding:3px 10px;border-radius:14px;font-size:13px}
+nav.sections a:hover{background:#E8820E12;color:var(--ink)}nav.sections a.on{background:#E8820E25;color:var(--ink);font-weight:600}
+main{padding:14px 24px 60px;max-width:1280px;margin:auto}
+main section{margin:22px 0;padding:0;scroll-margin-top:80px}
+main .two>*,main .kpis>*,main .digest>*{min-width:0}
+@media(max-width:760px){main,header.page{padding-left:12px;padding-right:12px}nav.sections{padding:6px 12px}}
+.chip{display:inline-block;margin-left:6px;border-radius:12px;padding:1px 9px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--bg);color:var(--muted);white-space:nowrap}
+.chip.run{background:#E8820E22;border-color:var(--mango);color:var(--mangotxt)}.chip.done{background:#368A1E18;border-color:var(--work);color:var(--work)}
+.chip.bad{background:#DB3B2218;border-color:var(--block);color:var(--block)}.chip.warn,.chip.amber{background:#9E7A0018;border-color:#9E7A00;color:#9E7A00}
+/* banners */
+.banner{border:1px solid var(--border);border-left:4px solid var(--mango);background:#fff;border-radius:8px;padding:9px 12px;margin:10px 0;display:flex;gap:10px;align-items:flex-start}
+.banner.bad,.banner.red{border-left-color:var(--block)}.banner.info{border-left-color:var(--wait)}.banner b{overflow-wrap:anywhere}
+.banner .ic{font-weight:800;color:var(--mango)}.banner.bad .ic{color:var(--block)}.banner.info .ic{color:var(--wait)}
+.banner a{color:var(--mangotxt);font-weight:600;cursor:pointer}
+/* overview */
+section h2{margin:8px 0;font-size:16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.card.amber{border-color:var(--mango)}.card.red{border-color:var(--block);box-shadow:inset 3px 0 var(--block)}
+.card .lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}.card .big{font-size:26px;font-weight:600}.card .sub{font-size:12px;color:var(--muted)}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--border);margin:4px 0;min-width:60px}
+.bar>i{display:block;height:100%}
+.b-working{background:var(--work)}.b-waiting{background:var(--wait)}
+.b-blocking{background:repeating-linear-gradient(45deg,var(--block) 0 4px,#E9705B 4px 7px)}
+.b-po{background:repeating-linear-gradient(45deg,var(--po) 0 3px,#B966E8 3px 5px)}
+.b-idle{background:var(--idle);opacity:.55}
+.t-input{background:var(--wait)}.t-cache_read{background:var(--teal)}.t-cache_write{background:var(--po)}.t-output{background:var(--mango)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted);margin-top:6px}
+.legend span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.legend .sw{display:inline-block;width:11px;height:11px;border-radius:3px}
+.digest{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:8px;padding:0;list-style:none}
+.digest button,.digest>li>div{width:100%;text-align:left;font:inherit;color:inherit;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 10px;cursor:pointer;display:flex;gap:10px;height:100%}
+.digest>li>div{cursor:default}
+.digest>li{display:flex}.digest .t{font-size:13px}.digest .t small{display:block;color:var(--muted);font-size:12px}
+.digest .n{font-weight:600;color:var(--mangotxt);margin-right:6px}
+.chip.po{border-color:var(--po);color:var(--po);background:var(--bg);margin-left:0}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:14px}
+.two>div{min-width:0}
+/* tabs */
+.faint{color:var(--muted2)}
+.idlesub{margin-top:2px;font-size:12px;color:var(--muted)}
+section>.sh{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+section>.sh h2{margin:0;font-size:16px}
+section>.sh .sub{color:var(--muted);font-size:12.5px}
+section>.sh .tools{margin:0 0 0 auto}
+.frame{overflow:auto;border:1px solid var(--border);border-radius:10px;background:#fff}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle;white-space:nowrap}
+th{position:sticky;top:0;background:var(--panel);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;cursor:pointer;user-select:none}
+th:hover{color:var(--ink)}th.nosort{cursor:default}th.nosort:hover{color:var(--muted)}
+th[aria-sort=ascending]::after{content:" \25B2";color:var(--mango)}th[aria-sort=descending]::after{content:" \25BC";color:var(--mango)}
+:focus-visible{outline:2px solid var(--mango);outline-offset:2px}
+th:focus,tr:focus,button:focus,select:focus,input:focus{outline:2px solid var(--mango)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr{cursor:pointer}tbody tr:hover{background:#E8820E12}tbody tr.sel{background:#E8820E25}
+tr.over td{color:var(--muted)}tr.flag{box-shadow:inset 3px 0 var(--block)}
+td .chip{margin-left:0}td b+.chip{margin-left:6px}
+td.ell{max-width:280px;overflow:hidden;text-overflow:ellipsis}
+td .tb{display:inline-flex;align-items:center;gap:8px}td .bar{width:90px;display:inline-flex;vertical-align:middle;margin:0}td .tb .d{min-width:48px;text-align:right}
+.pill{display:inline-block;min-width:22px;text-align:center;border-radius:11px;padding:0 7px;font-weight:700;background:var(--border);color:var(--muted)}
+.pill.m{background:#E8820E22;color:var(--mangotxt)}.pill.r{background:var(--block);color:#fff}
+tfoot td{font-weight:700;background:var(--panel);cursor:default}
+.empty{padding:26px;text-align:center;color:var(--muted)}.empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
+.tools input[type=search],.tools select{background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 8px;font:inherit;color:var(--ink)}
+.tools label{color:var(--muted)}
+.chip.btn{cursor:pointer;margin-left:0;font:inherit;font-size:12px;font-weight:600;padding:1px 9px}.chip.btn:hover{border-color:var(--mango)}
+.chip.btn[aria-pressed=true]{background:#E8820E25;border-color:var(--mango);color:var(--ink)}
+.nodata{color:var(--muted);padding:16px;text-align:center}
+.mx td,.mx th{text-align:center;padding:5px 8px}.mx th{cursor:default}.mx tr{cursor:default}
+.mx td.rl,.mx th.rl{text-align:left;position:sticky;left:0;z-index:1}.mx td.rl{background:#fff}.mx th.rl{background:var(--panel)}
+.mx td.cell{cursor:pointer;font-variant-numeric:tabular-nums;min-width:68px}.mx td.cell:hover{outline:2px solid var(--mango);outline-offset:-2px}
+.mx td.cell.sel{outline:2px solid var(--ink);outline-offset:-2px}.mx td.zero{color:var(--muted2)}.mx td.tot{cursor:default}
+.mx tfoot td.rl{background:var(--panel)}
+.hint{font-size:12px;color:var(--muted);margin-top:4px}
+.tl{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px;overflow:hidden}
+.tl svg{display:block;width:100%}.tl .lane-l{font-size:12px;fill:var(--ink);cursor:pointer}.tl .lane-l:hover{fill:var(--mangotxt);font-weight:700}
+.tl .lane-l.po{cursor:default;fill:var(--po)}.tl .lane-l.po:hover{fill:var(--po);font-weight:400}
+.tl .ax{font-size:11px;fill:var(--muted)}.tl .gaptx{font-size:11px;fill:var(--muted)}
+.tl .seg.dim{opacity:.18}.tl .ev{cursor:pointer}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(460px,100vw);background:var(--bg);border-left:1px solid var(--border);box-shadow:-8px 0 24px #3E372E22;transform:translateX(105%);transition:transform .18s,visibility 0s .18s;z-index:60;overflow:auto;padding:14px 16px;visibility:hidden}
+.drawer.open{transform:none;visibility:visible;transition:transform .18s}
+.drawer .x{position:absolute;top:10px;right:12px;background:none;border:0;font-size:20px;cursor:pointer;color:var(--muted)}
+.drawer h2{margin:0;font-size:16px;padding-right:26px}
+.drawer h3{font-size:13px;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.drawer table{font-size:12.5px}.drawer td{white-space:normal;overflow-wrap:anywhere}.drawer td.num,.drawer td .tb{white-space:nowrap}.drawer .frame{margin:6px 0 14px}
+.drawer .acts{display:flex;gap:8px;flex-wrap:wrap}
+.drawer p.note{font-size:12px;color:var(--muted)}
+button.act{background:var(--mango);color:var(--bg);border:0;border-radius:8px;padding:6px 12px;font:inherit;font-weight:600;cursor:pointer}
+button.act.ghost{background:var(--bg);color:var(--ink);border:1px solid var(--border)}
+tr.rsn td{border-top:0;padding-top:0;font-size:12.5px;color:var(--ink);white-space:normal;overflow-wrap:anywhere}
+.reason{display:block;max-width:100%}
+#tip{position:fixed;z-index:80;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12px;padding:5px 8px;border-radius:6px;max-width:300px;display:none}
+.flash{animation:fl 1.4s}@keyframes fl{0%,60%{background:#E8820E25}100%{background:transparent}}
+.errbox{max-width:640px;margin:60px auto;text-align:center}
+code{background:var(--panel);padding:1px 5px;border-radius:4px;font-size:12.5px}.errbox h1{margin:0;font-size:22px}
+.errbox pre{text-align:left;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12.5px;overflow:auto}
+.hidden{display:none!important}
+@media(max-width:700px){.errbox{margin:30px 12px}}
+@media print{nav.sections,.drawer,.tools{display:none!important}.frame{max-height:none;overflow:visible}}
+
+#tasks th{white-space:normal;line-height:1.2;vertical-align:bottom}
+
+</style>
+</head>
+<body>
+<noscript><div class="banner red">JavaScript is off. This report needs it to draw the tables; the numbers are in the embedded data.json block.</div></noscript>
+<div id="app"></div>
+<script type="application/json" id="report-data">{"agents":[{"events":[[1244,"ANSWER",null],[3857,"ANSWER",null],[3933,"ASK",null],[4087,"DECISION",null],[4133,"ANSWER",null],[4332,"ANSWER","03"],[4390,"DECISION","01"],[4716,"DECISION","03"],[4717,"DECISION",null]],"live":false,"name":"plugin-mgr-drop-scope-size","role":"manager","segments":[[0,238,"w",null,null],[238,367,"b",null,"PO"],[367,508,"w",null,null],[508,781,"b",null,"PO"],[781,915,"w",null,null],[915,1236,"i",null,null],[1246,1417,"i",null,null],[1450,1592,"i",null,null],[1599,2706,"b",null,"PO"],[2728,2806,"i",null,null],[2843,3729,"b",null,"PO"],[3729,3793,"w",null,null],[3793,3853,"i",null,null],[3859,3927,"i",null,null],[3936,4051,"b",null,"plugin-arch-drop-scope-size"],[4136,4328,"i",null,null],[4401,4617,"b","01","PO"],[4617,4728,"w","01",null],[4768,5159,"i",null,null],[12828,12941,"w","02",null],[12941,17462,"i",null,null],[17489,18590,"i",null,null],[18603,22004,"i",null,null],[22004,22229,"w","11",null],[22229,22400,"i",null,null],[22411,23399,"i",null,null],[23428,23514,"i",null,null],[23514,23722,"w","13",null],[23722,23787,"b","13","PO"],[23838,45505,"b","13","PO"],[45505,45642,"w","13",null],[45642,46373,"b","13","PO"],[46373,46446,"w","13",null]],"transcript_found":true},{"events":[[1306,"ANSWER",null],[1308,"ASK",null],[1417,"DECISION",null],[2806,"DECISION",null],[4051,"DECISION",null],[4053,"ANSWER",null]],"live":false,"name":"plugin-arch-drop-scope-size","role":"architect","segments":[[899,1363,"w",null,null],[2721,2810,"w",null,null],[3758,4072,"w",null,null]],"transcript_found":true},{"events":[[1233,"ANSWER",null],[1236,"ASK",null],[4108,"ASK",null],[4118,"BLOCKED",null],[4153,"ANSWER",null],[4290,"ASK",null]],"live":false,"name":"plugin-ba-drop-scope-size","role":"ba","segments":[[904,1251,"w",null,null],[3780,3864,"w",null,null],[3864,4087,"i",null,null],[4327,4398,"w",null,null]],"transcript_found":true},{"events":[[1387,"ANSWER",null],[3931,"ASK",null],[4093,"ASK",null],[4183,"ANSWER",null],[4277,"ANSWER","REV-7"],[4294,"DECISION",null],[4922,"ANSWER","01"],[4924,"DECISION","01"],[5146,"DECISION","01"],[5826,"ANSWER","02"],[5902,"DECISION","02"],[6074,"DECISION","02"],[6076,"ANSWER","02"],[6141,"DECISION","03"],[6186,"ANSWER","03"],[6215,"ANSWER","05"],[6362,"ANSWER","09"],[6365,"DECISION","03"],[6406,"DECISION","09"],[6533,"ANSWER","09"],[6617,"DECISION","09"],[6731,"FAIL","09"],[6736,"FAIL","03"],[6846,"ANSWER","09"],[6847,"DECISION","03"],[6850,"ANSWER","03"],[7096,"ANSWER","03"],[7099,"DECISION","03"],[7100,"FAIL","03"],[7102,"ANSWER","05"],[7527,"ANSWER","06"],[7824,"ASK","INT1"],[7860,"ANSWER","INT1"],[8184,"ANSWER","06"],[8188,"ANSWER","07"],[8619,"DECISION","06"],[13471,"ANSWER","09"],[13585,"DECISION","09"],[13719,"DECISION","09"],[13964,"DECISION","07"],[14414,"DECISION","07"],[14698,"DECISION","07"],[15024,"PASS","INT2"],[15102,"DECISION","INT2"],[15504,"ANSWER","08"],[15585,"DECISION","08"],[15667,"ANSWER","08"],[15797,"DECISION","08"],[16032,"FAIL","08"],[16363,"FAIL","INT3"],[16363,"DECISION","INT3"],[16428,"ANSWER","INT3"],[16438,"DECISION","11"],[16659,"DECISION","INT3"],[17437,"FAIL","11"],[17459,"DECISION","11"],[17460,"ANSWER","11"],[17603,"ANSWER","11"],[17843,"FAIL","14"],[17994,"ANSWER","14"],[18031,"DECISION","14"],[18189,"PASS","14"],[18408,"FAIL","11"],[18409,"ANSWER","11"],[18520,"DECISION","11"],[18566,"ANSWER","11"],[19133,"DECISION","11"],[19234,"PASS","11"],[19278,"ANSWER",null],[19573,"FAIL","INT4"],[19774,"DECISION","INT4"],[19824,"PASS","INT4"],[21582,"DECISION","12"],[21586,"PASS","12"],[21946,"DECISION","12"],[21949,"PASS","12"],[23437,"DECISION","13"],[23469,"PASS","13"]],"live":false,"name":"plugin-tech-drop-scope-size","role":"tech-lead","segments":[[908,1026,"w",null,null],[1026,1308,"i",null,null],[1308,1391,"w",null,null],[1464,1634,"w",null,null],[3784,3910,"w",null,null],[3946,4053,"b",null,"plugin-arch-drop-scope-size"],[4301,4805,"i",null,null],[4805,4934,"w","01",null],[4973,5070,"i",null,null],[5149,5792,"i",null,null],[5792,5854,"w","02",null],[5936,6060,"i",null,null],[6219,6345,"i",null,null],[6345,6414,"w","09",null],[6429,6531,"i",null,null],[6535,6601,"i",null,null],[6634,6767,"w","03",null],[6787,6853,"w","09",null],[6883,7012,"i",null,null],[7012,7113,"w","03",null],[7177,7380,"i",null,null],[7402,7521,"i",null,null],[7530,7797,"i",null,null],[7896,8113,"i",null,null],[8113,8193,"w","06",null],[8193,8574,"i",null,null],[8574,8660,"w","06",null],[13004,13431,"i",null,null],[13646,13724,"w","09",null],[13724,13905,"i",null,null],[13977,14365,"i",null,null],[14420,14634,"i",null,null],[14634,14782,"w","07",null],[14782,14935,"i",null,null],[15113,15474,"i",null,null],[15509,15582,"i",null,null],[15673,15740,"i",null,null],[15740,15800,"w","08",null],[15800,15950,"i",null,null],[15954,16021,"i",null,null],[16059,16222,"i",null,null],[16283,16378,"w","INT3",null],[16716,17338,"i",null,null],[17338,17436,"w","INT3",null],[17436,17506,"w","11",null],[17607,17814,"i",null,null],[17853,17980,"i",null,null],[18018,18091,"w","14",null],[18091,18166,"i",null,null],[18206,18297,"i",null,null],[18297,18423,"w","14",null],[18583,18824,"i",null,null],[18824,19139,"w","11",null],[19284,19422,"i",null,null],[19593,19683,"i",null,null],[19810,19879,"w","INT4",null],[19879,21412,"i",null,null],[21412,21490,"w","INT4",null],[21624,21781,"i",null,null],[21977,22225,"i",null,null],[22249,23228,"i",null,null],[23228,23330,"w","12",null]],"transcript_found":true},{"events":[[4135,"ASK",null],[4328,"ASK","03"],[4789,"ANSWER",null],[4971,"ANSWER","01"],[5159,"ASK","02"],[7037,"ANSWER","21"],[7831,"ASK","INT1"],[7831,"ANSWER","INT1"],[8633,"ANSWER","06"],[12993,"DECISION","09"],[12993,"DECISION","07"],[13359,"ANSWER","09"],[14796,"DECISION","INT2"],[16062,"DECISION","INT3"],[17466,"DECISION","11"],[17467,"DECISION","14"],[21808,"DECISION","12"],[22225,"ASK","12"],[22400,"DECISION",null],[22675,"ANSWER","13"]],"live":false,"name":"plugin-tl-drop-scope-size","role":"team-lead","segments":[[4078,4142,"w",null,null],[4195,4291,"i",null,null],[4405,4716,"i",null,null],[4791,4963,"i",null,null],[4974,5142,"i",null,null],[5187,5902,"i",null,null],[5907,6074,"i",null,null],[6098,6162,"w","03",null],[6162,6367,"i",null,null],[6429,6617,"i",null,null],[6621,6849,"i",null,null],[6885,7027,"i",null,null],[7114,7383,"i",null,null],[7462,7824,"i",null,null],[7909,8587,"i",null,null],[8664,9967,"w","06",null],[12913,12999,"w","06",null],[12999,13059,"i",null,null],[13069,13266,"i",null,null],[13277,13339,"i",null,null],[13361,13585,"i",null,null],[13655,13757,"i",null,null],[13795,13905,"i",null,null],[13999,14278,"i",null,null],[14283,14637,"i",null,null],[14649,14760,"i",null,null],[14819,15024,"i",null,null],[15057,15122,"i",null,null],[15129,15491,"i",null,null],[15546,15741,"i",null,null],[15744,16022,"i",null,null],[16066,16225,"i",null,null],[16228,16438,"i",null,null],[16457,16662,"i",null,null],[16662,16722,"w","INT3",null],[16722,17340,"i",null,null],[17482,17815,"i",null,null],[17822,18034,"i",null,null],[18038,18166,"i",null,null],[18193,18298,"i",null,null],[18302,18391,"i",null,null],[18397,18481,"i",null,null],[18609,19090,"i",null,null],[19140,19229,"i",null,null],[19282,19774,"i",null,null],[19774,19868,"w","INT4",null],[19868,20799,"i",null,null],[20843,21413,"i",null,null],[21431,21585,"i",null,null],[21596,21800,"i",null,null],[21858,21949,"i",null,null],[22013,22215,"i",null,null],[22254,22375,"i",null,null],[22456,22672,"i",null,null],[22680,23440,"i",null,null]],"transcript_found":true},{"events":[[4232,"ANSWER","REV-7"],[4290,"PASS","REV-7"],[5070,"FAIL","01"],[5119,"PASS","01"],[6049,"FAIL","02"],[6073,"PASS","02"],[6582,"FAIL","09"],[6631,"PASS","09"],[6857,"PASS","09"],[7071,"FAIL","03"],[7071,"ASK","03"],[7206,"PASS","03"],[7284,"PASS","05"],[7828,"PASS","INT1"],[8268,"FAIL","06"],[13733,"PASS","09"],[13973,"FAIL","07"],[14709,"PASS","07"],[15020,"PASS","INT2"],[15950,"PASS","08"],[16396,"PASS","INT3"],[16527,"PASS","INT3"],[16668,"PASS","INT3"],[17494,"FAIL","11"],[17983,"FAIL","14"],[18059,"PASS","14"],[18557,"FAIL","11"],[18570,"BLOCKED","11"],[19226,"PASS","11"],[19784,"PASS","INT4"],[21621,"PASS","12"],[21953,"PASS","12"],[23451,"PASS","13"]],"live":false,"name":"plugin-qaw-drop-scope-size","role":"qa-whitebox","segments":[[4082,4154,"w",null,null],[4156,4237,"w",null,null],[4296,4924,"i",null,null],[4924,5122,"w","01",null],[5122,5878,"i",null,null],[5878,6075,"w","01",null],[6075,6414,"i",null,null],[6414,6587,"w","02",null],[6636,6786,"i",null,null],[6786,7110,"w","09",null],[7110,7173,"w","05",null],[7173,7292,"w","03",null],[7292,7798,"i",null,null],[7848,8110,"i",null,null],[8110,8297,"w","06",null],[8297,8571,"i",null,null],[8571,8663,"w","06",null],[12922,13075,"w","06",null],[13121,13264,"w","09",null],[13264,13339,"w","07",null],[13339,13639,"w","09",null],[13639,13719,"w","07",null],[13719,13844,"w","09",null],[13844,13964,"i",null,null],[13978,14276,"i",null,null],[14276,14382,"w","07",null],[14414,14513,"w","07",null],[14513,14635,"i",null,null],[14635,14713,"w","07",null],[14713,14936,"i",null,null],[14936,15024,"w","07",null],[15024,15103,"i",null,null],[15111,15471,"i",null,null],[15471,16012,"w","08",null],[16012,16223,"i",null,null],[16223,16407,"w","08",null],[16533,16659,"i",null,null],[16671,17336,"i",null,null],[17336,17500,"w","11",null],[17514,17810,"i",null,null],[17810,18008,"w","14",null],[18063,18294,"i",null,null],[18294,18618,"w","11",null],[18618,18825,"i",null,null],[18825,19234,"w","11",null],[19234,19424,"i",null,null],[19424,19587,"w","11",null],[19593,19684,"i",null,null],[19788,21409,"i",null,null],[21409,21628,"w","12",null],[21628,21854,"i",null,null],[21957,23225,"i",null,null],[23225,23437,"w","13",null]],"transcript_found":true},{"events":[[4108,"BLOCKED",null],[4114,"ANSWER",null],[4327,"ANSWER",null],[5026,"PASS","01"],[5932,"ASK","02"],[5944,"PASS","02"],[6097,"PASS","02"],[6531,"ASK","09"],[6665,"PASS","09"],[6836,"ASK","09"],[6848,"PASS","09"],[7027,"PASS","03"],[7027,"ASK","21"],[7364,"PASS","03"],[7376,"PASS","05"],[7854,"ASK","INT1"],[7862,"PASS","INT1"],[8172,"ASK","06"],[13429,"ASK","09"],[13481,"FAIL","09"],[13596,"PASS","09"],[13874,"PASS","09"],[14704,"PASS","07"],[15815,"PASS","08"],[16664,"PASS","INT3"],[17462,"ASK","11"],[18156,"PASS","14"],[18536,"PASS","11"],[19179,"PASS","11"],[19784,"PASS","INT4"],[21781,"FAIL","12"],[21968,"PASS","12"],[22375,"FAIL",null],[22432,"PASS",null],[23462,"PASS","13"]],"live":false,"name":"plugin-qab-drop-scope-size","role":"qa-blackbox","segments":[[4208,4290,"i",null,null],[4332,4717,"i",null,null],[4717,4794,"w",null,null],[4794,4952,"i",null,null],[4952,5034,"w",null,null],[5099,5879,"i",null,null],[5879,5950,"w","02",null],[5950,6089,"b","02","plugin-tech-drop-scope-size"],[6099,6416,"i",null,null],[6416,6531,"w","02",null],[6531,6669,"w","09",null],[6669,6788,"i",null,null],[6846,7068,"w","09",null],[7111,7378,"w","21",null],[7378,7799,"i",null,null],[7891,8111,"i",null,null],[8111,8200,"w","INT1",null],[8200,8572,"i",null,null],[8572,8665,"w","06",null],[12961,13123,"i",null,null],[13123,13429,"w","06",null],[13429,13683,"w","09",null],[13719,13892,"w","09",null],[13892,14277,"i",null,null],[14277,14369,"w","09",null],[14433,14636,"i",null,null],[14708,14937,"i",null,null],[14937,15129,"w","07",null],[15129,15472,"i",null,null],[15472,15629,"w","INT2",null],[15629,15739,"i",null,null],[15739,15823,"w","08",null],[15823,16224,"i",null,null],[16224,16324,"w","08",null],[16370,16482,"i",null,null],[16504,16660,"i",null,null],[16670,17336,"i",null,null],[17336,17446,"w","INT3",null],[17482,17812,"b","11","plugin-mgr-drop-scope-size"],[17812,18175,"w","11",null],[18197,18295,"b","14","plugin-mgr-drop-scope-size"],[18295,18436,"w","14",null],[18480,18583,"w","11",null],[18583,18826,"b","11","plugin-mgr-drop-scope-size"],[18826,19187,"w","11",null],[19187,19424,"b","11","plugin-mgr-drop-scope-size"],[19424,19556,"w","11",null],[19713,19774,"b","INT4","plugin-mgr-drop-scope-size"],[19787,21411,"b","INT4","plugin-mgr-drop-scope-size"],[21411,21815,"w","INT4",null],[21852,21972,"w","12",null],[22012,22214,"b","12","plugin-mgr-drop-scope-size"],[22214,22383,"w","12",null],[22440,23226,"i",null,null],[23226,23467,"w","12",null]],"transcript_found":true},{"events":[[4951,"HANDIN","01"],[5085,"HANDIN","01"]],"live":false,"name":"plugin-dev-dsz-1","role":"dev","segments":[[4322,4462,"w","01",null],[4463,4827,"w","01",null],[4827,4922,"i",null,null],[4959,5026,"i",null,null]],"transcript_found":true},{"events":[[5792,"ASK","02"],[5877,"HANDIN","02"],[6059,"HANDIN","02"]],"live":false,"name":"plugin-dev-dsz-2","role":"dev","segments":[[5185,5883,"w","02",null],[5883,5944,"i",null,null],[5946,6049,"i",null,null]],"transcript_found":true},{"events":[[6169,"ASK","03"],[6852,"HANDIN","03"],[7173,"HANDIN","03"],[7380,"HANDIN","03"]],"live":false,"name":"plugin-dev-dsz-3","role":"dev","segments":[[6124,6675,"w","03",null],[6675,6736,"i",null,null],[6857,7027,"i",null,null],[7071,7147,"w","03",null],[7207,7364,"i",null,null]],"transcript_found":true},{"events":[[6201,"ASK","05"],[7110,"HANDIN","05"],[7390,"HANDIN","05"]],"live":false,"name":"plugin-dev-dsz-5","role":"dev","segments":[[6129,7038,"w","05",null],[7038,7102,"i",null,null],[7113,7284,"i",null,null],[7286,7365,"i",null,null]],"transcript_found":true},{"events":[[6345,"ASK","09"],[6371,"HANDIN","09"],[6599,"HANDIN","09"],[6787,"HANDIN","09"]],"live":false,"name":"plugin-dev-dsz-9","role":"dev","segments":[[6133,6352,"w","09",null],[6420,6582,"i",null,null],[6731,6793,"w","09",null],[6876,7414,"i",null,null]],"transcript_found":true},{"events":[[7797,"HANDIN","INT1"]],"live":false,"name":"plugin-dev-dsz-int1","role":"dev","segments":[[7467,7578,"w",null,null],[7578,7641,"a",null,null],[7644,7711,"a",null,null],[7714,7787,"a",null,null]],"transcript_found":true},{"events":[[7521,"ASK","06"],[8110,"HANDIN","06"],[8571,"HANDIN","06"],[13814,"HANDIN","06"]],"live":false,"name":"plugin-dev-dsz-06","role":"dev","segments":[[7437,7721,"w","06",null],[7723,8117,"w","06",null],[8117,8184,"i",null,null],[8184,8590,"w","06",null],[13822,14799,"i",null,null]],"transcript_found":true},{"events":[[8124,"ASK","07"],[13264,"HANDIN","07"],[14276,"HANDIN","07"],[14635,"HANDIN","07"],[14760,"HANDIN","07"]],"live":false,"name":"plugin-dev-dsz-07","role":"dev","segments":[[7442,8658,"w","07",null],[12958,13272,"w","07",null],[13272,13973,"i",null,null],[13973,14285,"w","07",null],[14285,14412,"i",null,null],[14412,14643,"w","07",null],[14710,14771,"w","07",null]],"transcript_found":true},{"events":[[13121,"HANDIN","09"],[13441,"ANSWER","09"],[13646,"HANDIN","09"],[13905,"HANDIN","09"]],"live":false,"name":"plugin-dev-dsz-04","role":"dev","segments":[[7907,8718,"w","09",null],[12962,13129,"w","09",null],[13129,13429,"i",null,null],[13474,13655,"w","09",null],[13655,13719,"i",null,null],[13729,13800,"i",null,null],[13806,13874,"i",null,null]],"transcript_found":true},{"events":[[13345,"HANDIN","09"],[13757,"HANDIN","09"]],"live":false,"name":"plugin-dev-dsz-10","role":"dev","segments":[[8606,8666,"w","09",null],[12967,13354,"w","09",null],[13361,13596,"i",null,null],[13601,13733,"i",null,null]],"transcript_found":true},{"events":[[15471,"HANDIN","08"],[15656,"ASK","08"],[15738,"HANDIN","08"],[16021,"HANDIN","08"]],"live":false,"name":"plugin-dev-dsz-08","role":"dev","segments":[[13934,15499,"w","08",null],[15540,15747,"w","08",null],[15822,15950,"i",null,null],[15950,16026,"w","08",null]],"transcript_found":true},{"events":[[14935,"HANDIN","INT2"]],"live":false,"name":"plugin-dev-dsz-int2","role":"dev","segments":[[14791,14851,"w","INT2",null],[14854,14943,"w","INT2",null],[14943,15020,"i",null,null]],"transcript_found":true},{"events":[[16222,"HANDIN","INT3"],[16481,"HANDIN","INT3"]],"live":false,"name":"plugin-dev-dsz-int3","role":"dev","segments":[[16054,16235,"w","INT3",null],[16235,16363,"i",null,null],[16363,16489,"w","INT3",null],[16531,16661,"i",null,null]],"transcript_found":true},{"events":[[17336,"HANDIN","11"],[17563,"ASK","11"],[18294,"HANDIN","11"],[18479,"HANDIN","11"],[18824,"HANDIN","11"]],"live":false,"name":"plugin-dev-dsz-11","role":"dev","segments":[[16701,17402,"w","11",null],[17451,18325,"w","11",null],[18325,18391,"i",null,null],[18408,18487,"w","11",null],[18557,18824,"w","LC-7b",null],[18824,19075,"w","11",null]],"transcript_found":true},{"events":[[17810,"HANDIN","14"],[17980,"HANDIN","14"],[18166,"HANDIN","14"]],"live":false,"name":"plugin-dev-dsz-14","role":"dev","segments":[[16705,16867,"w","14",null],[16867,17467,"i",null,null],[17467,17824,"w","14",null],[17843,18025,"w","14",null],[18063,18156,"i",null,null]],"transcript_found":true},{"events":[[19422,"HANDIN","INT4"],[19683,"HANDIN","INT4"],[19810,"HANDIN","INT4"]],"live":false,"name":"plugin-dev-dsz-int4","role":"dev","segments":[[19267,19429,"w",null,null],[19429,19573,"i",null,null],[19573,19691,"w","INT4",null],[19691,19774,"i",null,null]],"transcript_found":true},{"events":[],"live":false,"name":"plugin-dev-dsz-12","role":"dev","segments":[[19817,20952,"w","12",null]],"transcript_found":true},{"events":[[21409,"HANDIN","12"],[21851,"HANDIN","12"]],"live":false,"name":"plugin-dev-dsz-12b","role":"dev","segments":[[20826,21418,"w","12",null],[21418,21586,"i",null,null],[21627,21781,"i",null,null],[21781,21860,"w","12",null],[21860,21949,"i",null,null]],"transcript_found":true},{"events":[[22672,"ASK","13"],[23225,"HANDIN","13"],[23493,"HANDIN","13"]],"live":false,"name":"plugin-dev-dsz-13","role":"dev","segments":[[22443,23063,"w","13",null],[23126,23232,"w","13",null],[23232,23439,"i",null,null]],"transcript_found":true},{"events":[],"live":false,"name":"plugin-coach-drop-scope-size","role":"token-coach","segments":[[23700,23819,"w",null,null],[23833,46386,"b",null,"PO"]],"transcript_found":true}],"config":{"min_segment_s":60,"prices":{"claude-haiku-4-5":{"cache_read":0.14,"cache_write":2.8,"cache_write_5m":1.75,"input":1.4,"output":7.0},"claude-haiku-5-5":{"cache_read":0.03,"cache_write":0.6,"cache_write_5m":0.375,"input":0.3,"output":1.5},"claude-opus-5":{"cache_read":0.5,"cache_write":10.0,"cache_write_5m":6.25,"input":5.0,"output":25.0},"claude-opus-5-5":{"cache_read":0.27,"cache_write":5.4,"cache_write_5m":3.375,"input":2.7,"output":13.5},"claude-sonnet-5":{"cache_read":0.19,"cache_write":3.8,"cache_write_5m":2.375,"input":1.9,"output":9.5},"claude-sonnet-5-5":{"cache_read":0.15,"cache_write":3.0,"cache_write_5m":1.875,"input":1.5,"output":7.5},"default":{"cache_read":0.2,"cache_write":4.0,"cache_write_5m":2.5,"input":2.0,"output":10.0}},"stall_s":300,"wait_patterns":["run_suite.py"]},"digest":[{"id":"po_wait","kind":"po_wait","target":{"id":"po","view":"waits"},"text":"PO wait 7h24m over 8 escalations (57.4% of elapsed)","unit":"s","value":26659,"weight":0.574},{"id":"top_cost_role","kind":"top_cost_role","target":{"id":"dev","view":"roles"},"text":"Role dev took 41.9% of cost ($36.60)","unit":"pct","value":41.9,"weight":0.4194},{"id":"idle_share","kind":"idle_share","target":{"id":"idle","view":"timeline"},"text":"Agents sat idle 16h51m of 42h01m agent-time (40.1%)","unit":"pct","value":40.1,"weight":0.4012},{"id":"most_returns","kind":"most_returns","target":{"id":"11","view":"returns"},"text":"Task 11 came back 4 times (20 returns in all): \"dsz-11 is not reachable, please route to it or a new Developer. (1) FINAL: the 32 pinned sets (\u003c=5443 B, designer/archit…\" (+3 more)","unit":"count","value":4,"weight":0.2},{"id":"longest_block","kind":"longest_block","target":{"id":"plugin-coach-drop-scope-size","view":"timeline"},"text":"plugin-coach-drop-scope-size waited 6h15m on PO (14.9% of agent-time)","unit":"s","value":22553,"weight":0.1491},{"id":"scope_overhead","kind":"scope_overhead","target":{"id":"overhead","view":"matrix"},"text":"14.4% of cost ($12.55) belongs to no task","unit":"pct","value":14.4,"weight":0.1439},{"id":"parallelism","kind":"parallelism","target":{"id":null,"view":"timeline"},"text":"Parallelism 3.26 across 27 agents","unit":"x","value":3.26,"weight":0.1207},{"id":"rework_cost","kind":"rework_cost","target":{"id":"rework","view":"returns"},"text":"Rework after returns cost $9.97 (11.4% of cost)","unit":"pct","value":11.4,"weight":0.1142}],"iterations":[{"agent_s":104656,"cost_usd":83.1667,"n":1,"returns":20,"window":{"end":"2026-10-27T18:49:47Z","start":"2026-10-27T12:29:57Z"}}],"kind":"scope","matrix":[{"agent":"plugin-arch-drop-scope-size","buckets_s":{"blocking":41,"idle":0,"waiting":0,"working":935},"cost_usd":2.4189,"task":null,"time_s":976,"tokens":{"cache_read":4479132,"cache_write":356093,"input":126,"output":90474}},{"agent":"plugin-ba-drop-scope-size","buckets_s":{"blocking":48,"idle":326,"waiting":1,"working":663},"cost_usd":1.8383,"task":null,"time_s":1038,"tokens":{"cache_read":4520565,"cache_write":221151,"input":124,"output":66211}},{"agent":"plugin-coach-drop-scope-size","buckets_s":{"blocking":22566,"idle":41,"waiting":0,"working":132},"cost_usd":0.4445,"task":null,"time_s":22739,"tokens":{"cache_read":316520,"cache_write":101271,"input":16,"output":12429}},{"agent":"plugin-dev-dsz-04","buckets_s":{"blocking":0,"idle":533,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":533,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-06","buckets_s":{"blocking":0,"idle":1049,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":1049,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-07","buckets_s":{"blocking":0,"idle":890,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":890,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-08","buckets_s":{"blocking":0,"idle":200,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":200,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-1","buckets_s":{"blocking":0,"idle":242,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":242,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-10","buckets_s":{"blocking":0,"idle":379,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":379,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-11","buckets_s":{"blocking":0,"idle":281,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":281,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-12b","buckets_s":{"blocking":0,"idle":462,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":462,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-13","buckets_s":{"blocking":0,"idle":227,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":227,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-14","buckets_s":{"blocking":0,"idle":741,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":741,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-2","buckets_s":{"blocking":0,"idle":184,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":184,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-3","buckets_s":{"blocking":0,"idle":549,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":549,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-5","buckets_s":{"blocking":0,"idle":320,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":320,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-9","buckets_s":{"blocking":0,"idle":897,"waiting":0,"working":0},"cost_usd":0.0,"task":null,"time_s":897,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-int1","buckets_s":{"blocking":0,"idle":64,"waiting":208,"working":156},"cost_usd":0.3787,"task":null,"time_s":428,"tokens":{"cache_read":1190870,"cache_write":53734,"input":44,"output":5167}},{"agent":"plugin-dev-dsz-int2","buckets_s":{"blocking":0,"idle":94,"waiting":0,"working":5},"cost_usd":0.0,"task":null,"time_s":99,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-dev-dsz-int3","buckets_s":{"blocking":0,"idle":310,"waiting":0,"working":8},"cost_usd":0.0734,"task":null,"time_s":318,"tokens":{"cache_read":11810,"cache_write":23297,"input":2,"output":230}},{"agent":"plugin-dev-dsz-int4","buckets_s":{"blocking":0,"idle":235,"waiting":0,"working":155},"cost_usd":0.2377,"task":null,"time_s":390,"tokens":{"cache_read":658554,"cache_write":36974,"input":34,"output":3723}},{"agent":"plugin-mgr-drop-scope-size","buckets_s":{"blocking":2510,"idle":11754,"waiting":0,"working":778},"cost_usd":2.8417,"task":null,"time_s":15042,"tokens":{"cache_read":5339767,"cache_write":331505,"input":168,"output":38559}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":16,"idle":6758,"waiting":0,"working":282},"cost_usd":0.7917,"task":null,"time_s":7056,"tokens":{"cache_read":1955038,"cache_write":107477,"input":90,"output":23450}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":9525,"waiting":2,"working":148},"cost_usd":0.4659,"task":null,"time_s":9675,"tokens":{"cache_read":635492,"cache_write":84244,"input":20,"output":15705}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":150,"idle":11241,"waiting":5,"working":707},"cost_usd":2.5101,"task":null,"time_s":12103,"tokens":{"cache_read":6357928,"cache_write":349182,"input":258,"output":67791}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":39,"idle":13405,"waiting":0,"working":115},"cost_usd":0.5538,"task":null,"time_s":13559,"tokens":{"cache_read":1364542,"cache_write":84944,"input":44,"output":12562}},{"agent":"plugin-dev-dsz-1","buckets_s":{"blocking":0,"idle":0,"waiting":1,"working":593},"cost_usd":1.4088,"task":"01","time_s":594,"tokens":{"cache_read":4137742,"cache_write":168345,"input":126,"output":37723}},{"agent":"plugin-mgr-drop-scope-size","buckets_s":{"blocking":216,"idle":0,"waiting":0,"working":110},"cost_usd":0.2955,"task":"01","time_s":326,"tokens":{"cache_read":1316572,"cache_write":13834,"input":26,"output":7533}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":74},"cost_usd":0.2243,"task":"01","time_s":74,"tokens":{"cache_read":823398,"cache_write":17478,"input":26,"output":6444}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":369},"cost_usd":0.7936,"task":"01","time_s":369,"tokens":{"cache_read":2213082,"cache_write":101754,"input":66,"output":20837}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":167},"cost_usd":0.4412,"task":"01","time_s":167,"tokens":{"cache_read":1796965,"cache_write":34472,"input":44,"output":9095}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":43},"cost_usd":0.1802,"task":"01","time_s":43,"tokens":{"cache_read":869779,"cache_write":6605,"input":20,"output":3987}},{"agent":"plugin-dev-dsz-2","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":739},"cost_usd":1.8497,"task":"02","time_s":739,"tokens":{"cache_read":5968689,"cache_write":198499,"input":148,"output":47822}},{"agent":"plugin-mgr-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":127},"cost_usd":0.4229,"task":"02","time_s":127,"tokens":{"cache_read":993632,"cache_write":80971,"input":28,"output":4125}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":139,"idle":0,"waiting":0,"working":143},"cost_usd":0.3547,"task":"02","time_s":282,"tokens":{"cache_read":1725630,"cache_write":15475,"input":40,"output":6582}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":194},"cost_usd":0.3761,"task":"02","time_s":194,"tokens":{"cache_read":1587304,"cache_write":24505,"input":38,"output":8586}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":132},"cost_usd":0.5279,"task":"02","time_s":132,"tokens":{"cache_read":1724288,"cache_write":64668,"input":60,"output":10021}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":9,"idle":0,"waiting":0,"working":69},"cost_usd":0.2416,"task":"02","time_s":78,"tokens":{"cache_read":1186412,"cache_write":9343,"input":28,"output":4748}},{"agent":"plugin-dev-dsz-3","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":724},"cost_usd":1.9724,"task":"03","time_s":724,"tokens":{"cache_read":6694708,"cache_write":202432,"input":174,"output":48088}},{"agent":"plugin-mgr-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":59},"cost_usd":0.1577,"task":"03","time_s":59,"tokens":{"cache_read":806410,"cache_write":5659,"input":18,"output":2636}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":1},"cost_usd":0.0,"task":"03","time_s":1,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":160},"cost_usd":0.5166,"task":"03","time_s":160,"tokens":{"cache_read":1624468,"cache_write":62746,"input":44,"output":11284}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":293},"cost_usd":0.9565,"task":"03","time_s":293,"tokens":{"cache_read":3338376,"cache_write":101190,"input":96,"output":20266}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":108},"cost_usd":0.5066,"task":"03","time_s":108,"tokens":{"cache_read":1953796,"cache_write":50454,"input":74,"output":8272}},{"agent":"plugin-dev-dsz-5","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":955},"cost_usd":2.9423,"task":"05","time_s":955,"tokens":{"cache_read":11451414,"cache_write":250827,"input":176,"output":62917}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":68},"cost_usd":0.2836,"task":"05","time_s":68,"tokens":{"cache_read":1264279,"cache_write":18542,"input":28,"output":5112}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":101},"cost_usd":0.2282,"task":"05","time_s":101,"tokens":{"cache_read":804130,"cache_write":26387,"input":24,"output":3788}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":100},"cost_usd":0.2499,"task":"05","time_s":100,"tokens":{"cache_read":975375,"cache_write":18710,"input":30,"output":6316}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":14,"working":51},"cost_usd":0.141,"task":"05","time_s":65,"tokens":{"cache_read":579057,"cache_write":8774,"input":20,"output":3704}},{"agent":"plugin-dev-dsz-06","buckets_s":{"blocking":0,"idle":0,"waiting":2,"working":1127},"cost_usd":3.0496,"task":"06","time_s":1129,"tokens":{"cache_read":11041265,"cache_write":300868,"input":238,"output":65388}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":461},"cost_usd":1.1497,"task":"06","time_s":461,"tokens":{"cache_read":3592767,"cache_write":132718,"input":122,"output":28327}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":462},"cost_usd":1.2767,"task":"06","time_s":462,"tokens":{"cache_read":3702640,"cache_write":177189,"input":102,"output":25284}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":210},"cost_usd":0.6058,"task":"06","time_s":210,"tokens":{"cache_read":1864168,"cache_write":82028,"input":52,"output":10664}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":1421},"cost_usd":0.2777,"task":"06","time_s":1421,"tokens":{"cache_read":652237,"cache_write":49028,"input":28,"output":4369}},{"agent":"plugin-dev-dsz-07","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":2154},"cost_usd":4.4385,"task":"07","time_s":2154,"tokens":{"cache_read":16998632,"cache_write":329611,"input":296,"output":119927}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":246},"cost_usd":0.4981,"task":"07","time_s":246,"tokens":{"cache_read":2056945,"cache_write":27864,"input":50,"output":14122}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":536},"cost_usd":1.0054,"task":"07","time_s":536,"tokens":{"cache_read":3857863,"cache_write":72910,"input":108,"output":27704}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":266},"cost_usd":0.7064,"task":"07","time_s":266,"tokens":{"cache_read":2251344,"cache_write":89035,"input":54,"output":13537}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":58},"cost_usd":0.1206,"task":"07","time_s":58,"tokens":{"cache_read":562274,"cache_write":5262,"input":26,"output":2729}},{"agent":"plugin-dev-dsz-08","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":1901},"cost_usd":3.8303,"task":"08","time_s":1901,"tokens":{"cache_read":15520337,"cache_write":285236,"input":262,"output":86153}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":218},"cost_usd":0.4017,"task":"08","time_s":218,"tokens":{"cache_read":1090256,"cache_write":48539,"input":46,"output":12330}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":714},"cost_usd":1.079,"task":"08","time_s":714,"tokens":{"cache_read":3974385,"cache_write":98857,"input":90,"output":24813}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":134},"cost_usd":0.3885,"task":"08","time_s":134,"tokens":{"cache_read":1897269,"cache_write":16441,"input":50,"output":7263}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":98},"cost_usd":0.1066,"task":"08","time_s":98,"tokens":{"cache_read":518277,"cache_write":4021,"input":18,"output":2234}},{"agent":"plugin-dev-dsz-04","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":1234},"cost_usd":2.3867,"task":"09","time_s":1234,"tokens":{"cache_read":8410605,"cache_write":234535,"input":188,"output":56160}},{"agent":"plugin-dev-dsz-10","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":493},"cost_usd":1.2625,"task":"09","time_s":493,"tokens":{"cache_read":3683383,"cache_write":159785,"input":104,"output":30728}},{"agent":"plugin-dev-dsz-9","buckets_s":{"blocking":10,"idle":0,"waiting":0,"working":379},"cost_usd":1.2017,"task":"09","time_s":389,"tokens":{"cache_read":4855531,"cache_write":96858,"input":134,"output":24348}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":6,"idle":0,"waiting":0,"working":886},"cost_usd":2.1426,"task":"09","time_s":892,"tokens":{"cache_read":8721024,"cache_write":148141,"input":190,"output":51965}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":855},"cost_usd":1.7058,"task":"09","time_s":855,"tokens":{"cache_read":7404024,"cache_write":107138,"input":124,"output":36473}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":300},"cost_usd":0.7083,"task":"09","time_s":300,"tokens":{"cache_read":3142690,"cache_write":45926,"input":88,"output":13199}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":162},"cost_usd":0.3315,"task":"09","time_s":162,"tokens":{"cache_read":1534577,"cache_write":15358,"input":64,"output":7354}},{"agent":"plugin-dev-dsz-11","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":1966},"cost_usd":3.6496,"task":"11","time_s":1966,"tokens":{"cache_read":15263846,"cache_write":252537,"input":338,"output":80251}},{"agent":"plugin-mgr-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":305},"cost_usd":1.1652,"task":"11","time_s":305,"tokens":{"cache_read":4311904,"cache_write":123946,"input":86,"output":19526}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":854,"idle":0,"waiting":0,"working":1021},"cost_usd":1.2855,"task":"11","time_s":1875,"tokens":{"cache_read":5319245,"cache_write":86388,"input":152,"output":30429}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":1069},"cost_usd":1.3011,"task":"11","time_s":1069,"tokens":{"cache_read":4839760,"cache_write":110286,"input":118,"output":32550}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":1,"working":632},"cost_usd":0.9021,"task":"11","time_s":633,"tokens":{"cache_read":4070764,"cache_write":50918,"input":118,"output":18468}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":220},"cost_usd":0.4544,"task":"11","time_s":220,"tokens":{"cache_read":2331507,"cache_write":16495,"input":64,"output":7350}},{"agent":"plugin-dev-dsz-12","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":1135},"cost_usd":2.5652,"task":"12","time_s":1135,"tokens":{"cache_read":10630102,"cache_write":194200,"input":166,"output":51710}},{"agent":"plugin-dev-dsz-12b","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":701},"cost_usd":0.9154,"task":"12","time_s":701,"tokens":{"cache_read":3623493,"cache_write":78184,"input":124,"output":18279}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":272,"idle":0,"waiting":0,"working":604},"cost_usd":1.5833,"task":"12","time_s":876,"tokens":{"cache_read":5879619,"cache_write":149529,"input":160,"output":33671}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":269},"cost_usd":0.4768,"task":"12","time_s":269,"tokens":{"cache_read":2017747,"cache_write":33075,"input":54,"output":9983}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":39,"working":230},"cost_usd":0.8528,"task":"12","time_s":269,"tokens":{"cache_read":3308013,"cache_write":83984,"input":94,"output":13930}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":13,"idle":0,"waiting":0,"working":213},"cost_usd":0.4315,"task":"12","time_s":226,"tokens":{"cache_read":1920489,"cache_write":24774,"input":90,"output":9191}},{"agent":"plugin-dev-dsz-13","buckets_s":{"blocking":0,"idle":0,"waiting":7,"working":836},"cost_usd":1.6738,"task":"13","time_s":843,"tokens":{"cache_read":6438395,"cache_write":163393,"input":164,"output":29009}},{"agent":"plugin-mgr-drop-scope-size","buckets_s":{"blocking":22463,"idle":0,"waiting":1,"working":471},"cost_usd":1.4811,"task":"13","time_s":22935,"tokens":{"cache_read":5079244,"cache_write":189869,"input":70,"output":19927}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":8},"cost_usd":0.0276,"task":"13","time_s":8,"tokens":{"cache_read":85033,"cache_write":3082,"input":4,"output":745}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":233},"cost_usd":0.5659,"task":"13","time_s":233,"tokens":{"cache_read":1745753,"cache_write":75823,"input":38,"output":10197}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":81},"cost_usd":0.2001,"task":"13","time_s":81,"tokens":{"cache_read":830884,"cache_write":14790,"input":36,"output":4139}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":73},"cost_usd":0.1383,"task":"13","time_s":73,"tokens":{"cache_read":587546,"cache_write":8721,"input":22,"output":3202}},{"agent":"plugin-dev-dsz-11","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":30},"cost_usd":0.0734,"task":"14","time_s":30,"tokens":{"cache_read":268333,"cache_write":3214,"input":6,"output":3130}},{"agent":"plugin-dev-dsz-14","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":734},"cost_usd":1.1765,"task":"14","time_s":734,"tokens":{"cache_read":4339720,"cache_write":103512,"input":118,"output":28640}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":112,"idle":0,"waiting":0,"working":119},"cost_usd":0.2573,"task":"14","time_s":231,"tokens":{"cache_read":1204020,"cache_write":9086,"input":26,"output":6587}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":244},"cost_usd":0.3942,"task":"14","time_s":244,"tokens":{"cache_read":1686184,"cache_write":27023,"input":36,"output":8020}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":228},"cost_usd":0.6358,"task":"14","time_s":228,"tokens":{"cache_read":2207257,"cache_write":74967,"input":72,"output":10630}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":46},"cost_usd":0.181,"task":"14","time_s":46,"tokens":{"cache_read":941585,"cache_write":7088,"input":28,"output":2464}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":294},"cost_usd":0.6814,"task":"21","time_s":294,"tokens":{"cache_read":2030703,"cache_write":87685,"input":58,"output":15152}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":13},"cost_usd":0.0449,"task":"21","time_s":13,"tokens":{"cache_read":214421,"cache_write":2898,"input":10,"output":531}},{"agent":"plugin-dev-dsz-int1","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":41},"cost_usd":0.2049,"task":"INT1","time_s":41,"tokens":{"cache_read":998478,"cache_write":8850,"input":36,"output":3803}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":3,"idle":0,"waiting":0,"working":69},"cost_usd":0.3527,"task":"INT1","time_s":72,"tokens":{"cache_read":1693822,"cache_write":17536,"input":34,"output":6129}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":11},"cost_usd":0.0704,"task":"INT1","time_s":11,"tokens":{"cache_read":386250,"cache_write":2278,"input":10,"output":744}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":4,"idle":0,"waiting":11,"working":83},"cost_usd":0.4125,"task":"INT1","time_s":98,"tokens":{"cache_read":2108772,"cache_write":16838,"input":50,"output":6086}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":40,"idle":0,"waiting":0,"working":56},"cost_usd":0.1298,"task":"INT1","time_s":96,"tokens":{"cache_read":561845,"cache_write":6130,"input":24,"output":3609}},{"agent":"plugin-dev-dsz-int2","buckets_s":{"blocking":0,"idle":0,"waiting":3,"working":158},"cost_usd":0.2555,"task":"INT2","time_s":161,"tokens":{"cache_read":733561,"cache_write":36563,"input":38,"output":4766}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":139},"cost_usd":0.4475,"task":"INT2","time_s":139,"tokens":{"cache_read":2008011,"cache_write":25553,"input":36,"output":9279}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":12},"cost_usd":0.0505,"task":"INT2","time_s":12,"tokens":{"cache_read":268316,"cache_write":2102,"input":8,"output":531}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":53,"working":93},"cost_usd":0.2602,"task":"INT2","time_s":146,"tokens":{"cache_read":1293422,"cache_write":12981,"input":44,"output":3623}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":63},"cost_usd":0.1064,"task":"INT2","time_s":63,"tokens":{"cache_read":492342,"cache_write":5235,"input":16,"output":2241}},{"agent":"plugin-dev-dsz-int3","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":323},"cost_usd":0.597,"task":"INT3","time_s":323,"tokens":{"cache_read":2354726,"cache_write":48413,"input":80,"output":13129}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":152},"cost_usd":0.2474,"task":"INT3","time_s":152,"tokens":{"cache_read":969262,"cache_write":14446,"input":36,"output":7810}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":118},"cost_usd":0.1856,"task":"INT3","time_s":118,"tokens":{"cache_read":770200,"cache_write":12167,"input":32,"output":4473}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":140,"working":340},"cost_usd":0.9147,"task":"INT3","time_s":480,"tokens":{"cache_read":3527408,"cache_write":86644,"input":104,"output":16739}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":67},"cost_usd":0.1381,"task":"INT3","time_s":67,"tokens":{"cache_read":642187,"cache_write":5920,"input":18,"output":3197}},{"agent":"plugin-dev-dsz-int4","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":155},"cost_usd":0.1829,"task":"INT4","time_s":155,"tokens":{"cache_read":761928,"cache_write":11140,"input":36,"output":4688}},{"agent":"plugin-qab-drop-scope-size","buckets_s":{"blocking":1744,"idle":0,"waiting":0,"working":429},"cost_usd":1.1533,"task":"INT4","time_s":2173,"tokens":{"cache_read":5022677,"cache_write":69361,"input":118,"output":25555}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":71},"cost_usd":0.1227,"task":"INT4","time_s":71,"tokens":{"cache_read":570217,"cache_write":6322,"input":24,"output":2427}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":131,"working":357},"cost_usd":1.1252,"task":"INT4","time_s":488,"tokens":{"cache_read":4701233,"cache_write":96671,"input":126,"output":17313}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":104},"cost_usd":0.2622,"task":"INT4","time_s":104,"tokens":{"cache_read":857265,"cache_write":37358,"input":26,"output":2870}},{"agent":"plugin-dev-dsz-11","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":235},"cost_usd":0.2748,"task":"LC-7b","time_s":235,"tokens":{"cache_read":1348323,"cache_write":10668,"input":18,"output":5403}},{"agent":"plugin-tl-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":1},"cost_usd":0.0,"task":"LC-7b","time_s":1,"tokens":{"cache_read":0,"cache_write":0,"input":0,"output":0}},{"agent":"plugin-qaw-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":24},"cost_usd":0.1338,"task":"REV-7","time_s":24,"tokens":{"cache_read":499899,"cache_write":10719,"input":12,"output":3551}},{"agent":"plugin-tech-drop-scope-size","buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":63},"cost_usd":0.2318,"task":"REV-7","time_s":63,"tokens":{"cache_read":673741,"cache_write":24612,"input":22,"output":7581}}],"roles":[{"buckets_s":{"blocking":25189,"idle":11754,"waiting":1,"working":1850},"cache_expiries":2,"cost_usd":6.3642,"expiry_cost_usd":0.6519,"idle_s":{"human_input":988,"peer":10766},"live":false,"name":"plugin-mgr-drop-scope-size","respawns":3,"role":"manager","sessions":4,"tokens":{"cache_read":17847529,"cache_write":745784,"input":396,"output":92306},"transcript_found":true},{"buckets_s":{"blocking":41,"idle":0,"waiting":0,"working":935},"cache_expiries":0,"cost_usd":2.4189,"expiry_cost_usd":0.0,"idle_s":{"human_input":0,"peer":0},"live":false,"name":"plugin-arch-drop-scope-size","respawns":3,"role":"architect","sessions":4,"tokens":{"cache_read":4479132,"cache_write":356093,"input":126,"output":90474},"transcript_found":true},{"buckets_s":{"blocking":48,"idle":326,"waiting":1,"working":663},"cache_expiries":0,"cost_usd":1.8383,"expiry_cost_usd":0.0,"idle_s":{"human_input":0,"peer":326},"live":false,"name":"plugin-ba-drop-scope-size","respawns":1,"role":"ba","sessions":2,"tokens":{"cache_read":4520565,"cache_write":221151,"input":124,"output":66211},"transcript_found":true},{"buckets_s":{"blocking":154,"idle":11241,"waiting":380,"working":4416},"cache_expiries":0,"cost_usd":12.6297,"expiry_cost_usd":0.0,"idle_s":{"human_input":0,"peer":11241},"live":false,"name":"plugin-tech-drop-scope-size","respawns":12,"role":"tech-lead","sessions":13,"tokens":{"cache_read":46069897,"cache_write":1264057,"input":1398,"output":256661},"transcript_found":true},{"buckets_s":{"blocking":101,"idle":13405,"waiting":14,"working":2981},"cache_expiries":0,"cost_usd":4.3463,"expiry_cost_usd":0.0,"idle_s":{"human_input":262,"peer":13143},"live":false,"name":"plugin-tl-drop-scope-size","respawns":3,"role":"team-lead","sessions":4,"tokens":{"cache_read":17770138,"cache_write":348408,"input":620,"output":84614},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":9525,"waiting":2,"working":5590},"cache_expiries":0,"cost_usd":10.7483,"expiry_cost_usd":0.0,"idle_s":{"human_input":0,"peer":9525},"live":false,"name":"plugin-qaw-drop-scope-size","respawns":8,"role":"qa-whitebox","sessions":9,"tokens":{"cache_read":38587714,"cache_write":1035525,"input":948,"output":246950},"transcript_found":true},{"buckets_s":{"blocking":3146,"idle":6758,"waiting":0,"working":5214},"cache_expiries":0,"cost_usd":11.8825,"expiry_cost_usd":0.0,"idle_s":{"human_input":55,"peer":6703},"live":false,"name":"plugin-qab-drop-scope-size","respawns":9,"role":"qa-blackbox","sessions":10,"tokens":{"cache_read":45441729,"cache_write":978900,"input":1216,"output":283689},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":242,"waiting":1,"working":593},"cache_expiries":0,"cost_usd":1.4088,"expiry_cost_usd":0.0,"idle_s":{"human_input":10,"peer":232},"live":false,"name":"plugin-dev-dsz-1","respawns":1,"role":"dev","sessions":2,"tokens":{"cache_read":4137742,"cache_write":168345,"input":126,"output":37723},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":184,"waiting":0,"working":739},"cache_expiries":0,"cost_usd":1.8497,"expiry_cost_usd":0.0,"idle_s":{"human_input":4,"peer":180},"live":false,"name":"plugin-dev-dsz-2","respawns":1,"role":"dev","sessions":2,"tokens":{"cache_read":5968689,"cache_write":198499,"input":148,"output":47822},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":549,"waiting":0,"working":724},"cache_expiries":0,"cost_usd":1.9724,"expiry_cost_usd":0.0,"idle_s":{"human_input":7,"peer":542},"live":false,"name":"plugin-dev-dsz-3","respawns":1,"role":"dev","sessions":2,"tokens":{"cache_read":6694708,"cache_write":202432,"input":174,"output":48088},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":320,"waiting":0,"working":955},"cache_expiries":0,"cost_usd":2.9423,"expiry_cost_usd":0.0,"idle_s":{"human_input":0,"peer":320},"live":false,"name":"plugin-dev-dsz-5","respawns":1,"role":"dev","sessions":2,"tokens":{"cache_read":11451414,"cache_write":250827,"input":176,"output":62917},"transcript_found":true},{"buckets_s":{"blocking":10,"idle":897,"waiting":0,"working":379},"cache_expiries":0,"cost_usd":1.2017,"expiry_cost_usd":0.0,"idle_s":{"human_input":538,"peer":359},"live":false,"name":"plugin-dev-dsz-9","respawns":0,"role":"dev","sessions":1,"tokens":{"cache_read":4855531,"cache_write":96858,"input":134,"output":24348},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":64,"waiting":208,"working":197},"cache_expiries":0,"cost_usd":0.5835,"expiry_cost_usd":0.0,"idle_s":{"human_input":21,"peer":43},"live":false,"name":"plugin-dev-dsz-int1","respawns":0,"role":"dev","sessions":1,"tokens":{"cache_read":2189348,"cache_write":62584,"input":80,"output":8970},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":1049,"waiting":2,"working":1127},"cache_expiries":0,"cost_usd":3.0496,"expiry_cost_usd":0.0,"idle_s":{"human_input":982,"peer":67},"live":false,"name":"plugin-dev-dsz-06","respawns":2,"role":"dev","sessions":3,"tokens":{"cache_read":11041265,"cache_write":300868,"input":238,"output":65388},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":890,"waiting":0,"working":2154},"cache_expiries":0,"cost_usd":4.4385,"expiry_cost_usd":0.0,"idle_s":{"human_input":5,"peer":885},"live":false,"name":"plugin-dev-dsz-07","respawns":1,"role":"dev","sessions":2,"tokens":{"cache_read":16998632,"cache_write":329611,"input":296,"output":119927},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":533,"waiting":0,"working":1234},"cache_expiries":0,"cost_usd":2.3867,"expiry_cost_usd":0.0,"idle_s":{"human_input":2,"peer":531},"live":false,"name":"plugin-dev-dsz-04","respawns":1,"role":"dev","sessions":2,"tokens":{"cache_read":8410605,"cache_write":234535,"input":188,"output":56160},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":379,"waiting":0,"working":493},"cache_expiries":0,"cost_usd":1.2625,"expiry_cost_usd":0.0,"idle_s":{"human_input":7,"peer":372},"live":false,"name":"plugin-dev-dsz-10","respawns":1,"role":"dev","sessions":2,"tokens":{"cache_read":3683383,"cache_write":159785,"input":104,"output":30728},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":200,"waiting":0,"working":1901},"cache_expiries":0,"cost_usd":3.8303,"expiry_cost_usd":0.0,"idle_s":{"human_input":7,"peer":193},"live":false,"name":"plugin-dev-dsz-08","respawns":1,"role":"dev","sessions":2,"tokens":{"cache_read":15520337,"cache_write":285236,"input":262,"output":86153},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":94,"waiting":3,"working":163},"cache_expiries":0,"cost_usd":0.2555,"expiry_cost_usd":0.0,"idle_s":{"human_input":17,"peer":77},"live":false,"name":"plugin-dev-dsz-int2","respawns":0,"role":"dev","sessions":1,"tokens":{"cache_read":733561,"cache_write":36563,"input":38,"output":4766},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":310,"waiting":0,"working":331},"cache_expiries":0,"cost_usd":0.6704,"expiry_cost_usd":0.0,"idle_s":{"human_input":13,"peer":297},"live":false,"name":"plugin-dev-dsz-int3","respawns":0,"role":"dev","sessions":1,"tokens":{"cache_read":2366536,"cache_write":71710,"input":82,"output":13359},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":281,"waiting":0,"working":2231},"cache_expiries":0,"cost_usd":3.9978,"expiry_cost_usd":0.0,"idle_s":{"human_input":10,"peer":271},"live":false,"name":"plugin-dev-dsz-11","respawns":1,"role":"dev","sessions":2,"tokens":{"cache_read":16880502,"cache_write":266419,"input":362,"output":88784},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":741,"waiting":0,"working":734},"cache_expiries":0,"cost_usd":1.1765,"expiry_cost_usd":0.0,"idle_s":{"human_input":1,"peer":740},"live":false,"name":"plugin-dev-dsz-14","respawns":0,"role":"dev","sessions":1,"tokens":{"cache_read":4339720,"cache_write":103512,"input":118,"output":28640},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":235,"waiting":0,"working":310},"cache_expiries":0,"cost_usd":0.4206,"expiry_cost_usd":0.0,"idle_s":{"human_input":0,"peer":235},"live":false,"name":"plugin-dev-dsz-int4","respawns":0,"role":"dev","sessions":1,"tokens":{"cache_read":1420482,"cache_write":48114,"input":70,"output":8411},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":1135},"cache_expiries":0,"cost_usd":2.5652,"expiry_cost_usd":0.0,"idle_s":{"human_input":0,"peer":0},"live":false,"name":"plugin-dev-dsz-12","respawns":0,"role":"dev","sessions":1,"tokens":{"cache_read":10630102,"cache_write":194200,"input":166,"output":51710},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":462,"waiting":0,"working":701},"cache_expiries":0,"cost_usd":0.9154,"expiry_cost_usd":0.0,"idle_s":{"human_input":7,"peer":455},"live":false,"name":"plugin-dev-dsz-12b","respawns":0,"role":"dev","sessions":1,"tokens":{"cache_read":3623493,"cache_write":78184,"input":124,"output":18279},"transcript_found":true},{"buckets_s":{"blocking":0,"idle":227,"waiting":7,"working":836},"cache_expiries":0,"cost_usd":1.6738,"expiry_cost_usd":0.0,"idle_s":{"human_input":3,"peer":224},"live":false,"name":"plugin-dev-dsz-13","respawns":1,"role":"dev","sessions":2,"tokens":{"cache_read":6438395,"cache_write":163393,"input":164,"output":29009},"transcript_found":true},{"buckets_s":{"blocking":22566,"idle":41,"waiting":0,"working":132},"cache_expiries":1,"cost_usd":0.4445,"expiry_cost_usd":0.1418,"idle_s":{"human_input":41,"peer":0},"live":false,"name":"plugin-coach-drop-scope-size","respawns":0,"role":"token-coach","sessions":1,"tokens":{"cache_read":316520,"cache_write":101271,"input":16,"output":12429},"transcript_found":true}],"schema_version":1,"scope":{"generated_at":"2026-10-28T01:07:08Z","goal":null,"iterations":[1],"last_message_at":"2026-10-27T18:49:47Z","name":"drop-scope-size","partial":false,"partial_reasons":[],"rollup_href":null,"size":"L","squad":"plugin","status":"done","window":{"end":"2026-10-28T01:07:03Z","start":"2026-10-27T12:12:54Z"}},"sources":{"agents_total":27,"agents_with_transcript":27,"escalations":8,"harness_origin":true,"messages":375,"ticket_dir":null,"transcripts":78,"unpriced_models":[]},"tasks":[{"aliases":[],"buckets_s":{"blocking":216,"idle":0,"waiting":1,"working":1356},"cost_usd":3.3437,"cycle_s":729,"dev":"plugin-dev-dsz-1","flag":false,"id":"01","iteration":1,"returns":1,"returns_list":[{"fail_at":"2026-10-27T13:37:24Z","fail_by":"plugin-qaw-drop-scope-size","handin_at":"2026-10-27T13:37:39Z","reason":"one finding on d5a4b9c, test-only; everything else passes. Details: $SCOPE_DIR/evidence/01/qa-w.md. 1. tests/test_team_duties.py SAMPLES: the C4 fixture `size: M — signals: ...` is missing and your co"}],"review_waits":[{"handin_at":"2026-10-27T13:35:25Z","verdict":"FAIL","verdict_at":"2026-10-27T13:37:24Z","wait_s":119},{"handin_at":"2026-10-27T13:37:39Z","verdict":"PASS","verdict_at":"2026-10-27T13:38:13Z","wait_s":34}],"rework_cost_usd":0.116,"rework_s":15,"status":"passed","title":"01 Engine vocabulary: squadrules","tokens":{"cache_read":11157538,"cache_write":342488,"input":308,"output":85619},"window":{"end":"2026-10-27T13:38:40Z","start":"2026-10-27T13:26:04Z"}},{"aliases":[],"buckets_s":{"blocking":148,"idle":0,"waiting":0,"working":1404},"cost_usd":3.7729,"cycle_s":938,"dev":"plugin-dev-dsz-2","flag":false,"id":"02","iteration":1,"returns":1,"returns_list":[{"fail_at":"2026-10-27T13:53:43Z","fail_by":"plugin-qaw-drop-scope-size","handin_at":"2026-10-27T13:53:53Z","reason":"QA whitebox on 08ecf4f, one style finding (F1): three duplicate tests for the design-yes + qa-b-no shape in tests/test_squadcompose.py:631-634, 657-659, 661-662; keep one, delete the other two. Everyt"}],"review_waits":[{"handin_at":"2026-10-27T13:50:51Z","verdict":"FAIL","verdict_at":"2026-10-27T13:53:43Z","wait_s":172},{"handin_at":"2026-10-27T13:53:53Z","verdict":"PASS","verdict_at":"2026-10-27T13:54:31Z","wait_s":38}],"rework_cost_usd":0.0495,"rework_s":10,"status":"passed","title":"02 Engine vocabulary: squadcompose","tokens":{"cache_read":13185955,"cache_write":393461,"input":342,"output":81884},"window":{"end":"2026-10-27T13:55:10Z","start":"2026-10-27T13:38:53Z"}},{"aliases":[],"buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":1345},"cost_usd":4.1098,"cycle_s":3036,"dev":"plugin-dev-dsz-3","flag":true,"id":"03","iteration":1,"returns":3,"returns_list":[{"fail_at":"2026-10-27T14:05:10Z","fail_by":"plugin-tech-drop-scope-size","handin_at":"2026-10-27T14:07:06Z","reason":"I read the bin diff (6ec3a75..61fff86), ran test_team_cli, test_squad_migrate, test_squadadopt, test_squadcompose, test_squadrules, test_crlf_squad_files and test_windows_safe (all OK), lint exit 0, a"},{"fail_at":"2026-10-27T14:10:45Z","fail_by":"plugin-qaw-drop-scope-size","handin_at":"2026-10-27T14:12:27Z","reason":"QA whitebox on 13ed665, two findings. F1: bin/squadrules_cli.py cmd_team, `squad-process team --home \u003cmissing dir\u003e` prints `undecided` exit 0 (docstring and evidence say exit 2); make a non-directory "},{"fail_at":"2026-10-27T14:11:14Z","fail_by":"plugin-tech-drop-scope-size","handin_at":"2026-10-27T14:12:27Z","reason":"fix QAW F1 (evidence/03/qa-w.md): `squad-process team --home \u003cmissing dir\u003e` must exit 2 with a message when --home is not a directory (existing home without scope.md stays `undecided`); tests for both"}],"review_waits":[{"handin_at":"2026-10-27T14:07:06Z","verdict":"FAIL","verdict_at":"2026-10-27T14:11:14Z","wait_s":248},{"handin_at":"2026-10-27T14:12:27Z","verdict":"PASS","verdict_at":"2026-10-27T14:15:38Z","wait_s":191},{"handin_at":"2026-10-27T14:15:54Z","verdict":"none","verdict_at":null,"wait_s":39069}],"rework_cost_usd":1.0129,"rework_s":218,"status":"passed","title":"03 `squad-process team` CLI and converter (migration path)","tokens":{"cache_read":14417758,"cache_write":422481,"input":406,"output":90546},"window":{"end":"2026-10-27T14:16:00Z","start":"2026-10-27T13:25:02Z"}},{"aliases":[],"buckets_s":{"blocking":0,"idle":0,"waiting":14,"working":1275},"cost_usd":3.8451,"cycle_s":1175,"dev":"plugin-dev-dsz-5","flag":false,"id":"05","iteration":1,"returns":0,"returns_list":[],"review_waits":[{"handin_at":"2026-10-27T14:11:24Z","verdict":"PASS","verdict_at":"2026-10-27T14:15:50Z","wait_s":266},{"handin_at":"2026-10-27T14:16:04Z","verdict":"none","verdict_at":null,"wait_s":39059}],"rework_cost_usd":0,"rework_s":0,"status":"passed","title":"05 Rules: new `teams.md` + `sizes.md`","tokens":{"cache_read":15074255,"cache_write":323240,"input":278,"output":81837},"window":{"end":"2026-10-27T14:16:11Z","start":"2026-10-27T13:56:15Z"}},{"aliases":[],"buckets_s":{"blocking":0,"idle":0,"waiting":2,"working":3681},"cost_usd":6.3595,"cycle_s":null,"dev":"plugin-dev-dsz-06","flag":false,"id":"06","iteration":1,"returns":1,"returns_list":[{"fail_at":"2026-10-27T14:30:42Z","fail_by":"plugin-qaw-drop-scope-size","handin_at":"2026-10-27T14:35:45Z","reason":"ebe85ec. Two findings, details evidence/06/qa-w.md. F1 iterations.md ITER-3b: `handin-target = qas` is also true with a Team Lead on the team, so the L Manager now gets ITER-3b (base: M only); use `pl"}],"review_waits":[{"handin_at":"2026-10-27T14:28:04Z","verdict":"FAIL","verdict_at":"2026-10-27T14:30:42Z","wait_s":158},{"handin_at":"2026-10-27T14:35:45Z","verdict":"none","verdict_at":null,"wait_s":37878},{"handin_at":"2026-10-27T16:03:08Z","verdict":"none","verdict_at":null,"wait_s":32635}],"rework_cost_usd":0.8682,"rework_s":303,"status":"open","title":"06 Rules: small files","tokens":{"cache_read":20853077,"cache_write":741831,"input":542,"output":134032},"window":{"end":"2026-10-27T16:19:13Z","start":"2026-10-27T14:18:15Z"}},{"aliases":[],"buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":3260},"cost_usd":6.769,"cycle_s":6585,"dev":"plugin-dev-dsz-07","flag":false,"id":"07","iteration":1,"returns":1,"returns_list":[{"fail_at":"2026-10-27T16:05:47Z","fail_by":"plugin-qaw-drop-scope-size","handin_at":"2026-10-27T16:10:50Z","reason":"426706d. Findings F1-F5 in $SCOPE_DIR/evidence/07/qa-w.md (file:line, what passes). Tech Lead rulings (DECISION 07): F1 fix every listed red test to new IDs/keys, no weakening; only deferral = test_si"}],"review_waits":[{"handin_at":"2026-10-27T15:53:58Z","verdict":"FAIL","verdict_at":"2026-10-27T16:05:47Z","wait_s":709},{"handin_at":"2026-10-27T16:10:50Z","verdict":"none","verdict_at":null,"wait_s":32173},{"handin_at":"2026-10-27T16:16:49Z","verdict":"PASS","verdict_at":"2026-10-27T16:18:03Z","wait_s":74},{"handin_at":"2026-10-27T16:18:54Z","verdict":"none","verdict_at":null,"wait_s":31689}],"rework_cost_usd":0.4722,"rework_s":303,"status":"passed","title":"07 Rules: lifecycle, review, evidence","tokens":{"cache_read":25727058,"cache_write":524682,"input":534,"output":178019},"window":{"end":"2026-10-27T16:18:54Z","start":"2026-10-27T14:28:18Z"}},{"aliases":[],"buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":3065},"cost_usd":5.806,"cycle_s":479,"dev":"plugin-dev-dsz-08","flag":false,"id":"08","iteration":1,"returns":1,"returns_list":[{"fail_at":"2026-10-27T16:40:06Z","fail_by":"plugin-tech-drop-scope-size","handin_at":null,"reason":"evidence 90b824b. `squad-evidence check .scratch/drop-scope-size/issues/08-rules-messages-cost-suites --base f041603` exits 1 from your worktree: \".scratch/drop-scope-size/evidence/08/evidence.md chan"}],"review_waits":[{"handin_at":"2026-10-27T16:30:45Z","verdict":"none","verdict_at":null,"wait_s":30978},{"handin_at":"2026-10-27T16:35:12Z","verdict":"PASS","verdict_at":"2026-10-27T16:38:44Z","wait_s":212},{"handin_at":"2026-10-27T16:39:55Z","verdict":"FAIL","verdict_at":"2026-10-27T16:40:06Z","wait_s":11}],"rework_cost_usd":0,"rework_s":0,"status":"passed","title":"08 Rules: messages, cost, suites, spawning, safety","tokens":{"cache_read":23000524,"cache_write":453094,"input":466,"output":132793},"window":{"end":"2026-10-27T16:40:29Z","start":"2026-10-27T16:30:45Z"}},{"aliases":["04","1","10"],"buckets_s":{"blocking":16,"idle":0,"waiting":0,"working":4309},"cost_usd":9.739,"cycle_s":7529,"dev":"plugin-dev-dsz-9","flag":true,"id":"09","iteration":1,"returns":3,"returns_list":[{"fail_at":"2026-10-27T14:02:36Z","fail_by":"plugin-qaw-drop-scope-size","handin_at":"2026-10-27T14:02:53Z","reason":"QA whitebox on 95bfcf2, two test-only findings. F1: tests/test_squadreport_rollup_ui.py:209-218, RollupTeamChip leaks the http.server and temp dir when setUpClass raises (tearDownClass doesn't run); r"},{"fail_at":"2026-10-27T14:05:05Z","fail_by":"plugin-tech-drop-scope-size","handin_at":"2026-10-27T14:06:01Z","reason":"one finding, so the final sha moves again. F1: templates/scope/scope.md lost the `qa: full` line (6ec3a75 had `size:`, `qa: full`, `design: no`, `architecture: no`). architecture.md:48 says \"`qa:` sta"},{"fail_at":"2026-10-27T15:57:35Z","fail_by":"plugin-qab-drop-scope-size","handin_at":"2026-10-27T16:00:20Z","reason":"c97299a/0763658, one finding from QA blackbox (details evidence/04/qa-b.md, F1; everything else I tested passes, incl. AC 12 notice with your recipe). F1 AC 26: composed scope with no `plugin:` line a"}],"review_waits":[{"handin_at":"2026-10-27T13:59:05Z","verdict":"FAIL","verdict_at":"2026-10-27T14:02:36Z","wait_s":211},{"handin_at":"2026-10-27T14:02:53Z","verdict":"FAIL","verdict_at":"2026-10-27T14:05:05Z","wait_s":132},{"handin_at":"2026-10-27T14:06:01Z","verdict":"PASS","verdict_at":"2026-10-27T14:07:11Z","wait_s":70},{"handin_at":"2026-10-27T15:51:35Z","verdict":"none","verdict_at":null,"wait_s":33328},{"handin_at":"2026-10-27T15:55:19Z","verdict":"PASS","verdict_at":"2026-10-27T15:59:30Z","wait_s":251},{"handin_at":"2026-10-27T16:00:20Z","verdict":"PASS","verdict_at":"2026-10-27T16:01:47Z","wait_s":87},{"handin_at":"2026-10-27T16:02:11Z","verdict":"PASS","verdict_at":"2026-10-27T16:04:08Z","wait_s":117},{"handin_at":"2026-10-27T16:04:39Z","verdict":"none","verdict_at":null,"wait_s":32544}],"rework_cost_usd":1.229,"rework_s":238,"status":"passed","title":"09 Report and scope template","tokens":{"cache_read":37751834,"cache_write":807741,"input":892,"output":220227},"window":{"end":"2026-10-27T16:05:08Z","start":"2026-10-27T13:58:39Z"}},{"aliases":["cb8888a"],"buckets_s":{"blocking":854,"idle":0,"waiting":1,"working":5213},"cost_usd":8.7579,"cycle_s":2796,"dev":"plugin-dev-dsz-11","flag":true,"id":"11","iteration":1,"returns":4,"returns_list":[{"fail_at":"2026-10-27T17:03:31Z","fail_by":"plugin-tech-drop-scope-size","handin_at":"2026-10-27T17:17:48Z","reason":"dsz-11 is not reachable, please route to it or a new Developer. (1) FINAL: the 32 pinned sets (\u003c=5443 B, designer/architect, \u003c=1 QA) are accepted under AC 09's \"pinned by team set, \u003c=5443\" clause; no "},{"fail_at":"2026-10-27T17:04:28Z","fail_by":"plugin-qaw-drop-scope-size","handin_at":"2026-10-27T17:17:48Z","reason":"cb8888a. One finding, F1 in .claude/squads/plugin/scopes/drop-scope-size/evidence/11/qa-w.md: REV-5a (review.md:55) and EVID-5 (evidence.md:~65) changed `roles: dev` -\u003e `manager`, so the Manager is co"},{"fail_at":"2026-10-27T17:19:42Z","fail_by":"plugin-tech-drop-scope-size","handin_at":"2026-10-27T17:20:53Z","reason":"one finding (QAB, verified by me): EVID-5 (when ui-check=manager and design=yes) has no pointer in the Developer file when design-notes=dev, i.e. no QAB + designer + no Tech Lead: LC-19b has no \"[EVID"},{"fail_at":"2026-10-27T17:22:11Z","fail_by":"plugin-qaw-drop-scope-size","handin_at":"2026-10-27T17:26:38Z","reason":"f86b26b. Findings in .claude/squads/plugin/scopes/drop-scope-size/evidence/11/qa-w.md (last section). F1: changelog v9 has no line for four changed rules: LC-18, MSG-3, START-6, START-10 (G5). F2: REV"}],"review_waits":[{"handin_at":"2026-10-27T17:01:50Z","verdict":"FAIL","verdict_at":"2026-10-27T17:04:28Z","wait_s":158},{"handin_at":"2026-10-27T17:17:48Z","verdict":"FAIL","verdict_at":"2026-10-27T17:19:42Z","wait_s":114},{"handin_at":"2026-10-27T17:20:53Z","verdict":"FAIL","verdict_at":"2026-10-27T17:22:11Z","wait_s":78},{"handin_at":"2026-10-27T17:26:38Z","verdict":"PASS","verdict_at":"2026-10-27T17:33:28Z","wait_s":410}],"rework_cost_usd":3.9571,"rework_s":1195,"status":"passed","title":"11 Developer 5 KiB sweep and trim","tokens":{"cache_read":36137026,"cache_write":640570,"input":876,"output":188574},"window":{"end":"2026-10-27T17:33:28Z","start":"2026-10-27T16:46:52Z"}},{"aliases":[],"buckets_s":{"blocking":285,"idle":0,"waiting":39,"working":3152},"cost_usd":6.8249,"cycle_s":1169,"dev":"plugin-dev-dsz-12b","flag":false,"id":"12","iteration":1,"returns":1,"returns_list":[{"fail_at":"2026-10-27T18:15:55Z","fail_by":"plugin-qab-drop-scope-size","handin_at":"2026-10-27T18:17:05Z","reason":"309cc49 (final by Tech Lead). One finding, evidence/12/qa-b.md. F1 AC 21: with a local rule `roles: tech-lead` (also `team-lead`, and both) and `when: size = L`, `squad-process upgrade --check` prints"}],"review_waits":[{"handin_at":"2026-10-27T18:09:43Z","verdict":"FAIL","verdict_at":"2026-10-27T18:15:55Z","wait_s":372},{"handin_at":"2026-10-27T18:17:05Z","verdict":"PASS","verdict_at":"2026-10-27T18:19:02Z","wait_s":117}],"rework_cost_usd":0.4556,"rework_s":70,"status":"passed","title":"12 Cutover: engine rejects the old language","tokens":{"cache_read":27379463,"cache_write":563746,"input":688,"output":136764},"window":{"end":"2026-10-27T18:23:36Z","start":"2026-10-27T17:59:33Z"}},{"aliases":[],"buckets_s":{"blocking":22463,"idle":0,"waiting":8,"working":1702},"cost_usd":4.0867,"cycle_s":797,"dev":"plugin-dev-dsz-13","flag":false,"id":"13","iteration":1,"returns":0,"returns_list":[],"review_waits":[{"handin_at":"2026-10-27T18:39:59Z","verdict":"PASS","verdict_at":"2026-10-27T18:44:03Z","wait_s":244},{"handin_at":"2026-10-27T18:44:27Z","verdict":"none","verdict_at":null,"wait_s":22956}],"rework_cost_usd":0,"rework_s":0,"status":"passed","title":"13 Promotion","tokens":{"cache_read":14766855,"cache_write":455678,"input":334,"output":67219},"window":{"end":"2026-10-27T18:44:48Z","start":"2026-10-27T18:30:46Z"}},{"aliases":[],"buckets_s":{"blocking":112,"idle":0,"waiting":0,"working":1401},"cost_usd":2.7182,"cycle_s":722,"dev":"plugin-dev-dsz-14","flag":false,"id":"14","iteration":1,"returns":2,"returns_list":[{"fail_at":"2026-10-27T17:10:17Z","fail_by":"plugin-tech-drop-scope-size","handin_at":"2026-10-27T17:12:34Z","reason":"the allow `Bash(rm -rf /tmp/tmp.*)` (and rm -r/rm/rmdir, in all 6 templates) matches paths with no space, so `rm -rf /tmp/tmp.x/../../home/me/proj` runs unprompted (`*` matches `/`, `..`); same for `/"},{"fail_at":"2026-10-27T17:12:37Z","fail_by":"plugin-qaw-drop-scope-size","handin_at":"2026-10-27T17:15:40Z","reason":"cb9b925. One finding, F1 in .claude/squads/plugin/scopes/drop-scope-size/evidence/14/qa-w.md: squadadopt.py:266-267 and :324-326 drop any `Read(//…/**)` deny from every role's old settings (base 90be1"}],"review_waits":[{"handin_at":"2026-10-27T17:09:44Z","verdict":"FAIL","verdict_at":"2026-10-27T17:10:17Z","wait_s":33},{"handin_at":"2026-10-27T17:12:34Z","verdict":"PASS","verdict_at":"2026-10-27T17:15:30Z","wait_s":176},{"handin_at":"2026-10-27T17:15:40Z","verdict":"PASS","verdict_at":"2026-10-27T17:16:03Z","wait_s":23}],"rework_cost_usd":1.0275,"rework_s":320,"status":"passed","title":"14 Remove QA blackbox Read deny; stop `rm /tmp` prompts","tokens":{"cache_read":10647099,"cache_write":224890,"input":286,"output":59471},"window":{"end":"2026-10-27T17:16:08Z","start":"2026-10-27T17:04:01Z"}},{"aliases":[],"buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":307},"cost_usd":0.7262,"cycle_s":null,"dev":null,"flag":false,"id":"21","iteration":1,"returns":0,"returns_list":[],"review_waits":[],"rework_cost_usd":0,"rework_s":0,"status":"open","title":null,"tokens":{"cache_read":2245124,"cache_write":90583,"input":68,"output":15683},"window":{"end":"2026-10-27T14:10:11Z","start":"2026-10-27T14:10:01Z"}},{"aliases":[],"buckets_s":{"blocking":47,"idle":0,"waiting":11,"working":260},"cost_usd":1.1703,"cycle_s":65,"dev":"plugin-dev-dsz-int1","flag":false,"id":"INT1","iteration":1,"returns":0,"returns_list":[],"review_waits":[{"handin_at":"2026-10-27T14:22:51Z","verdict":"PASS","verdict_at":"2026-10-27T14:23:56Z","wait_s":65}],"rework_cost_usd":0,"rework_s":0,"status":"passed","title":null,"tokens":{"cache_read":5749167,"cache_write":51632,"input":154,"output":20371},"window":{"end":"2026-10-27T14:24:23Z","start":"2026-10-27T14:22:51Z"}},{"aliases":[],"buckets_s":{"blocking":0,"idle":0,"waiting":56,"working":465},"cost_usd":1.1202,"cycle_s":228,"dev":"plugin-dev-dsz-int2","flag":false,"id":"INT2","iteration":1,"returns":0,"returns_list":[],"review_waits":[{"handin_at":"2026-10-27T16:21:49Z","verdict":"PASS","verdict_at":"2026-10-27T16:23:18Z","wait_s":89}],"rework_cost_usd":0,"rework_s":0,"status":"passed","title":null,"tokens":{"cache_read":4795652,"cache_write":82434,"input":142,"output":20440},"window":{"end":"2026-10-27T16:24:43Z","start":"2026-10-27T16:19:30Z"}},{"aliases":[],"buckets_s":{"blocking":0,"idle":0,"waiting":140,"working":1000},"cost_usd":2.0829,"cycle_s":606,"dev":"plugin-dev-dsz-int3","flag":false,"id":"INT3","iteration":1,"returns":1,"returns_list":[{"fail_at":"2026-10-27T16:45:37Z","fail_by":"plugin-tech-drop-scope-size","handin_at":"2026-10-27T16:47:35Z","reason":"32aa75b. My suite run (--if-changed fed0c95) is red: test_squadruntime, 10 failures + 2 errors (receipt $SCOPE_DIR/evidence/INT3/suite-default.txt line ~103). Cause: make_plugin() copies tests/fixture"}],"review_waits":[{"handin_at":"2026-10-27T16:43:16Z","verdict":"PASS","verdict_at":"2026-10-27T16:46:10Z","wait_s":174},{"handin_at":"2026-10-27T16:47:35Z","verdict":"PASS","verdict_at":"2026-10-27T16:50:42Z","wait_s":187}],"rework_cost_usd":0.5483,"rework_s":118,"status":"passed","title":null,"tokens":{"cache_read":8263783,"cache_write":167590,"input":270,"output":45348},"window":{"end":"2026-10-27T16:51:27Z","start":"2026-10-27T16:40:36Z"}},{"aliases":["dsz-int4"],"buckets_s":{"blocking":1744,"idle":0,"waiting":131,"working":1116},"cost_usd":2.8464,"cycle_s":552,"dev":"plugin-dev-dsz-int4","flag":false,"id":"INT4","iteration":1,"returns":1,"returns_list":[{"fail_at":"2026-10-27T17:39:07Z","fail_by":"plugin-tech-drop-scope-size","handin_at":"2026-10-27T17:40:57Z","reason":"suite --if-changed 90be196 on 964c443 fails 1 file: tests/test_team_lead_perms.py::test_allow_set_is_exact_and_denies_are_kept (TL_ALLOW lacks 14's 4 entries `Bash(rm /tmp/tmp.*)`, `Bash(rm -r /tmp/tm"}],"review_waits":[{"handin_at":"2026-10-27T17:36:36Z","verdict":"FAIL","verdict_at":"2026-10-27T17:39:07Z","wait_s":151},{"handin_at":"2026-10-27T17:40:57Z","verdict":"PASS","verdict_at":"2026-10-27T17:42:38Z","wait_s":101},{"handin_at":"2026-10-27T17:43:04Z","verdict":"PASS","verdict_at":"2026-10-27T17:43:18Z","wait_s":14}],"rework_cost_usd":0.2302,"rework_s":110,"status":"passed","title":null,"tokens":{"cache_read":11913320,"cache_write":220852,"input":330,"output":52853},"window":{"end":"2026-10-27T17:43:18Z","start":"2026-10-27T17:34:06Z"}},{"aliases":[],"buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":236},"cost_usd":0.2748,"cycle_s":null,"dev":null,"flag":false,"id":"LC-7b","iteration":1,"returns":0,"returns_list":[],"review_waits":[],"rework_cost_usd":0,"rework_s":0,"status":"open","title":null,"tokens":{"cache_read":1348323,"cache_write":10668,"input":18,"output":5403},"window":{"end":"2026-10-27T17:22:43Z","start":"2026-10-27T17:22:43Z"}},{"aliases":[],"buckets_s":{"blocking":0,"idle":0,"waiting":0,"working":87},"cost_usd":0.3656,"cycle_s":58,"dev":null,"flag":false,"id":"REV-7","iteration":1,"returns":0,"returns_list":[],"review_waits":[],"rework_cost_usd":0,"rework_s":0,"status":"passed","title":null,"tokens":{"cache_read":1173640,"cache_write":35331,"input":34,"output":11132},"window":{"end":"2026-10-27T13:24:24Z","start":"2026-10-27T13:23:26Z"}}],"totals":{"agent_s":151299,"attributed":{"cost_pct":85.6,"layers":{"branch":7369,"message":53553,"overhead":29670},"time_pct":67.2},"blocking_s":{"peer":3598,"po":47657},"buckets_s":{"blocking":51255,"idle":60707,"waiting":619,"working":38718},"cost_delta_pct":-5.5,"cost_per_passed_task_usd":5.4546,"cost_reported_usd":85.0706,"cost_usd":87.2737,"idle_s":{"human_input":2980,"peer":57727},"parallelism":3.26,"po_wait":{"count":8,"items":[{"answered_at":"2026-10-27T12:20:59Z","id":"E1","raised_at":"2026-10-27T12:16:03Z","title":"drop-scope-size: confirm size L, plan and team models","wait_s":296},{"answered_at":"2026-10-27T12:26:33Z","id":"E2","raised_at":"2026-10-27T12:21:22Z","title":"drop-scope-size: confirm the team picked per role, and its models","wait_s":311},{"answered_at":"2026-10-27T13:29:58Z","id":"E3","raised_at":"2026-10-27T12:33:38Z","title":"drop-scope-size: two team-rule choices (BA proposals)","wait_s":3380},{"answered_at":"2026-10-27T13:15:13Z","id":"E4","raised_at":"2026-10-27T12:36:46Z","title":"drop-scope-size: confirm the architecture choices I1 to I7","wait_s":2307},{"answered_at":"2026-10-27T13:29:58Z","id":"E5","raised_at":"2026-10-27T13:21:42Z","title":"drop-scope-size: QA blackbox cannot read its scope files (permission deny)","wait_s":496},{"answered_at":"2026-10-27T18:50:06Z","id":"E6","raised_at":"2026-10-27T18:48:07Z","title":"drop-scope-size: all passed; clear 15 untracked ticket files so I can merge e52d","wait_s":119},{"answered_at":"2026-10-28T01:06:00Z","id":"E7","raised_at":"2026-10-27T18:50:07Z","title":"drop-scope-size: committing the 15 files makes the merge conflict on 9","wait_s":22553},{"answered_at":"2026-10-28T01:05:50Z","id":"E8","raised_at":"2026-10-28T00:53:34Z","title":"drop-scope-size: merge stopped on 9 ticket-file conflicts","wait_s":736}],"longest_s":22553,"pct_of_elapsed":57.4,"total_s":26659},"respawn_gap_s":48283,"returns":20,"stalled_s":1260,"tasks_passed":16,"tokens":{"cache_read":312417669,"cache_write":8302864,"input":7894,"output":1964516},"wall_s":46449}}</script>
+<script>
+(function () {
+"use strict";
+var app = document.getElementById("app");
+var D;
+try { D = JSON.parse(document.getElementById("report-data").textContent); } catch (e) { D = null; }
+
+function el(tag, cls, text, attrs) {
+  var n = document.createElement(tag);
+  if (cls) n.setAttribute("class", cls);
+  if (text !== undefined && text !== null) n.textContent = String(text);
+  if (attrs) for (var k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+function add(p) { for (var i = 1; i < arguments.length; i++) if (arguments[i]) p.appendChild(arguments[i]); return p; }
+function dur(s) {
+  s = Math.round(s || 0);
+  if (s <= 0) return "0s";
+  var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  if (d) return d + "d " + h + "h";
+  if (h) return h + "h " + m + "m";
+  if (m) return m + "m" + (s < 600 && s % 60 ? " " + (s % 60) + "s" : "");
+  return s + "s";
+}
+function usd(x) { x = x || 0; return "$" + (x >= 100 ? Math.round(x) : x.toFixed(2)); }
+function tok(n) { n = n || 0; return n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n); }
+function sum(o) { var t = 0; for (var k in o) t += o[k] || 0; return t; }
+function ts(iso) { return iso ? Date.parse(iso) / 1000 : null; }
+function hm(iso) { return iso ? iso.replace("T", " ").replace(/:\d\dZ$/, "Z") : "–"; }
+var BK = ["working", "waiting", "blocking", "idle"];
+var BN = { working: "Working", waiting: "Waiting (long tool call or background job)", blocking: "Blocking (waiting on a reply or the PO)", idle: "Idle (waiting for work, or for the PO's chat reply)" };
+
+function bar(vals, keys, cls, total) {
+  var b = el("div", "bar"), t = total || sum(vals) || 1;
+  keys.forEach(function (k) {
+    var v = vals[k] || 0;
+    if (v <= 0) return;
+    add(b, el("i", cls(k), null, { style: "width:" + (v / t * 100).toFixed(2) + "%", "data-tip": k + " " + dur(v) }));
+  });
+  return b;
+}
+function sw(cls, text) { var s = el("span"); add(s, el("i", "sw " + cls), document.createTextNode(text)); return s; }
+function legend(extra, durs) {
+  var l = el("div", "legend");
+  BK.forEach(function (k) { add(l, sw("b-" + k, durs ? k.charAt(0).toUpperCase() + k.slice(1) + " " + dur(durs[k]) : BN[k])); });
+  if (extra) add(l, sw("b-po", "Blocking on the PO (timeline)"));
+  return l;
+}
+function tokbar(t) { return bar(t, ["input", "cache_read", "cache_write", "output"], function (k) { return "t-" + k; }); }
+function card(lbl, big, sub, cls) {
+  var c = el("div", "card" + (cls ? " " + cls : ""));
+  return add(c, el("div", "lbl", lbl), el("div", "big", big), el("div", "sub", sub));
+}
+
+// ---------- error state ----------
+function fail(title, text, detail) {
+  var e = el("div", "errbox"), b = el("div", "banner bad", null, { role: "alert" });
+  add(b, el("span", "ic", "!"), add(el("div"), el("b", null, title), document.createTextNode(" " + text)));
+  add(e, el("h1", null, "The report data could not be read"), add(el("p", "muted"), document.createTextNode("This page shows "), el("code", null, "data.json"), document.createTextNode(", and it failed a check.")), b,
+    el("pre", null, detail + "\nFix: run  squad-report <scope>  to rebuild report.html with the installed plugin."));
+  app.appendChild(e);
+}
+if (!D || typeof D !== "object") { fail("The embedded data is not valid JSON.", "The report cannot be drawn.", "report/data.json  not valid JSON"); return; }
+if (D.schema_version !== 1) { fail("schema_version " + D.schema_version + " not supported.", "This report was written by a newer squad-report; this page understands version 1.", "report/data.json  schema_version: " + D.schema_version + "\nexpected: 1"); return; }
+if (D.kind !== "scope" || !D.totals || !D.scope) { fail("The data is not a scope report.", "Expected kind scope with totals and scope blocks.", "report/data.json  kind: " + D.kind); return; }
+
+var S = D.scope, T = D.totals, tasks = D.tasks || [], roles = D.roles || [], agents = D.agents || [];
+var hasData = (D.sources && D.sources.transcripts > 0) || T.agent_s > 0;
+var selected = null, drawerEl = null;
+var st = { sort: { k: "cost", dir: -1 }, rsort: { k: "cost", dir: -1 }, q: "", f: { ret: 0, flag: 0, run: 0 }, iter: "", metric: "cost", compress: true, hi: "" };
+
+// ---------- helpers on data ----------
+function roleRows() {
+  var m = {}, order = [];
+  roles.forEach(function (a) {
+    var k = a.role || a.name;
+    var r = m[k];
+    if (!r) { r = m[k] = { role: k, agents: [], sessions: 0, buckets: { working: 0, waiting: 0, blocking: 0, idle: 0 }, idle_s: { peer: 0, human_input: 0 }, tokens: { input: 0, cache_read: 0, cache_write: 0, output: 0 }, cost: 0, live: false, missing: false }; order.push(k); }
+    r.agents.push(a); r.sessions += a.sessions || 0;
+    BK.forEach(function (b) { r.buckets[b] += (a.buckets_s || {})[b] || 0; });
+    r.idle_s.peer += (a.idle_s || {}).peer || 0; r.idle_s.human_input += (a.idle_s || {}).human_input || 0;
+    for (var k2 in r.tokens) r.tokens[k2] += (a.tokens || {})[k2] || 0;
+    r.cost += a.cost_usd || 0; r.live = r.live || !!a.live; r.missing = r.missing || a.transcript_found === false;
+  });
+  return order.map(function (k) { return m[k]; });
+}
+function roleOf(agent) { var a = roles.filter(function (x) { return x.name === agent; })[0]; return a ? (a.role || a.name) : agent; }
+function taskById(id) { return tasks.filter(function (t) { return t.id === id; })[0]; }
+function tLabel(t) { return t.id + (t.title ? " " + t.title : ""); }
+function share(c) { return T.cost_usd ? Math.round(c / T.cost_usd * 100) + "%" : "–"; }
+function ttime(t) { return sum(t.buckets_s || {}); }
+
+// ---------- header + banners ----------
+function header() {
+  var h = el("header", "page"), l = el("div"), t = el("h1", null, S.name);
+  var running = S.status === "running";
+  add(t, el("span", "chip " + (running ? "run" : "done"), running ? "running · partial" : (S.status || "done")),
+    el("span", "chip", "size " + (S.size || "?")));
+  add(l, t, el("div", "muted", "Scope report · " + hm(S.window && S.window.start) + " → " + (running ? "now" : hm(S.window && S.window.end))));
+  var m = el("div", "meta");
+  add(m, document.createTextNode("Generated " + hm(S.generated_at)), el("br"),
+    document.createTextNode("Derived from transcripts, gaps classified by what ends them · cost estimated at list price · schema v" + D.schema_version));
+  var href = S.rollup_href;
+  if (S.goal && typeof href === "string" && /^[\w.\/-]+\.html$/.test(href) && href.indexOf("//") < 0)
+    add(m, el("br"), el("a", null, "Rollup: " + S.goal + " goal →", { href: href }));
+  add(h, l, m);
+  return h;
+}
+function banner(kind, title, text, links) {
+  var b = el("div", "banner " + kind, null, { role: kind === "bad" ? "alert" : "status" });
+  var d = el("div");
+  add(d, el("b", null, title));
+  if (text) add(d, document.createTextNode(" " + text));
+  (links || []).forEach(function (l, i) { add(d, document.createTextNode(i ? ", " : " "), l); });
+  add(b, el("span", "ic", kind === "info" ? "i" : "!"), d);
+  return b;
+}
+// order as the mock: partial, empty, missing, low attribution, flag; each only when true for the data
+function banners() {
+  var box = el("div");
+  if (S.status === "running")
+    add(box, banner("info", "Partial: the scope is still running.", "Numbers cover up to " + hm(S.window && S.window.end) + ". Open tasks show their time so far. Re-run `squad-report " + S.name + "` to refresh; it is rebuilt on `squad-close`."));
+  if (!hasData)
+    add(box, banner("info", "No session data found for this scope.", "No transcript matched the roster and there are no messages yet. Nothing to chart. Check that the scope ran under this project, then run `squad-report " + S.name + "` again."));
+  var miss = hasData ? roles.filter(function (a) { return a.transcript_found === false; }).map(function (a) { return a.name; }) : [];
+  if (miss.length) add(box, banner("warn", "Transcripts missing:", miss.join(", ") + ". Their time and cost are not in the totals (shown as \u201cno transcript\u201d)."));
+  var pct = T.attributed ? T.attributed.time_pct : null;
+  if (hasData && pct !== null && pct < 60) add(box, banner("warn", "Only " + Math.round(pct) + "% of agent-time is attributed to tasks.", "Most work lands in Scope overhead, so the task table understates real task cost. Roles and totals are still right."));
+  var flagged = tasks.filter(function (t) { return t.flag; });
+  if (flagged.length) {
+    var rw = tasks.reduce(function (a, t) { return a + (t.rework_s || 0); }, 0), rc = tasks.reduce(function (a, t) { return a + (t.rework_cost_usd || 0); }, 0);
+    var n = flagged.length, fb = banner("bad", n + " task" + (n > 1 ? "s" : "") + " reached 3 or more returns", ""), bd = fb.querySelector("div");
+    add(bd, document.createTextNode(" ("));
+    flagged.forEach(function (t, i) {
+      var a = el("a", null, "Task " + t.id, { href: "#tasks" });
+      a.addEventListener("click", function (e) { e.preventDefault(); openTask(t.id); });
+      add(bd, i ? document.createTextNode(", ") : null, a, document.createTextNode(": " + t.returns));
+    });
+    add(bd, document.createTextNode(") of " + (T.returns || 0) + " in all. Rework so far " + dur(rw) + ", about " + usd(rc) + "."));
+    add(box, fb);
+  }
+  return box;
+}
+function nav() {
+  var n = el("nav", "sections", null, { "aria-label": "Sections" });
+  [["overview", "Overview"], ["tasks", "Tasks"], ["roles", "Roles"], ["grid", "Task × role"], ["timeline", "Timeline"]].forEach(function (p) {
+    add(n, el("a", null, p[1], { href: "#" + p[0], "data-nav": p[0] }));
+  });
+  return n;
+}
+
+// ---------- overview ----------
+function overview() {
+  var s = el("section", null, null, { id: "overview" });
+  var k = el("div", "kpis");
+  var par = T.wall_s ? (T.agent_s / T.wall_s) : 0;
+  var nd = !hasData;
+  var c1 = card("Elapsed · derived", nd ? "–" : dur(T.wall_s), nd ? "no data" : "agent-time " + dur(T.agent_s) + " (derived) · parallelism ×" + par.toFixed(1) + "");
+  if (nd) add(c1, el("div", "sub", roles.length + " agents · bars are shares of agent-time"));
+  if (!nd) {
+    add(c1, bar(T.buckets_s, BK, function (b) { return "b-" + b; }), legend(false, T.buckets_s || {}));
+    var l = el("div", "sub");
+    l.textContent = "Idle: waiting for work " + dur((T.idle_s || {}).peer) + " · waiting for your chat reply " + dur((T.idle_s || {}).human_input) + " (not PO wait)";
+    add(c1, l);
+    add(c1, el("div", "sub", roles.length + " agents · bars are shares of agent-time"));
+  }
+  var po = T.po_wait || { count: 0, total_s: 0, longest_s: 0 }, open = (po.items || []).some(function (i) { return !i.answered_at; });
+  var c2 = card("PO wait · elapsed (derived)", nd ? "–" : dur(po.total_s), nd ? "no data" : po.count + " escalation" + (po.count === 1 ? "" : "s") + " · longest " + dur(po.longest_s) + (open ? " (open now)" : "") + " · " + (po.pct_of_elapsed || 0) + "% of elapsed · not agent cost");
+  var c3 = card("Estimated cost · list price", nd ? "–" : usd(T.cost_usd), nd ? "no data" : usd(T.cost_per_passed_task_usd) + " per passed task (" + (T.tasks_passed || 0) + " passed) · estimated, list price");
+  if (!nd && T.cost_reported_usd !== null && T.cost_reported_usd !== undefined)
+    add(c3, el("div", "sub", "Claude Code reported " + usd(T.cost_reported_usd) + (T.cost_delta_pct !== null && T.cost_delta_pct !== undefined ? " (estimate off by " + Math.abs(T.cost_delta_pct) + "%)" : "")));
+  var tk = T.tokens || {};
+  var c4 = card("Tokens", nd ? "–" : tok(sum(tk)), nd ? "no data" : "input " + tok(tk.input) + " · cache read " + tok(tk.cache_read) + " · cache write " + tok(tk.cache_write) + " · output " + tok(tk.output));
+  if (!nd) add(c4, tokbar(tk));
+  var anyFlag = tasks.some(function (t) { return t.flag; });
+  var rw = tasks.reduce(function (a, t) { return a + (t.rework_s || 0); }, 0), rc = tasks.reduce(function (a, t) { return a + (t.rework_cost_usd || 0); }, 0);
+  var c5 = card("Returns (FAIL messages)", nd ? "0" : (T.returns || 0) + (anyFlag ? " ⚑" : ""), nd ? "none yet" : "rework " + dur(rw) + " (derived) · ≈" + usd(rc) + " (estimated, list price)", anyFlag ? "red" : (T.returns ? "amber" : ""));
+  var pct = T.attributed ? T.attributed.time_pct : null;
+  var c6 = card("Attributed to tasks", nd || pct === null ? "–" : Math.round(pct) + "%", nd ? "no data" : "of agent-time (not idle)", !nd && pct !== null && pct < 60 ? "amber" : "");
+  c6.setAttribute("title", "Developer time by roster and branch; other roles by the window first mention → PASS.");
+  if (nd) add(c6, bar({ a: 0, b: 100 }, ["a"], function () { return "b-working"; }, 100));
+  if (!nd && pct !== null) add(c6, bar({ a: pct, b: 100 - pct }, ["a"], function () { return "b-working"; }, 100));
+  [c1, c2, c3, c4, c5, c6].forEach(function (c) { k.appendChild(c); });
+  add(s, el("h2", null, "Overview"), k);
+
+  add(s, el("h2", null, "Worth a look"));
+  var ul = el("ul", "digest");
+  (D.digest || []).slice(0, 8).forEach(function (d, i) {
+    var li = el("li"), inner;
+    if (d.target) { inner = el("button"); inner.addEventListener("click", function () { go(d.target); }); } else inner = el("div");
+    var tx = d.text || "", q = tx.indexOf(': "'), sb = q >= 0 ? tx.slice(q + 2) : digestSub(d);
+    if (q >= 0) tx = tx.slice(0, q);
+    var t = el("span", "t", tx);
+    if (sb) add(t, el("small", null, sb));
+    add(inner, el("span", "n", i + 1), t);
+    add(li, inner); ul.appendChild(li);
+  });
+  if (!(D.digest || []).length) add(ul, el("li", "nodata", "Nothing stands out yet."));
+  add(s, ul);
+
+  var cols = el("div", "two");
+  var lb = el("div"); add(lb, el("h2", null, "Longest blocks"));
+  var blocks = longestBlocks();
+  if (!blocks.length) add(lb, el("div", "nodata", "No blocks yet."));
+  if (blocks.length) {
+    var bt = el("table"), bh = el("thead"), br = el("tr");
+    ["Who", "Waited on", "Task", "For"].forEach(function (h) { add(br, el("th", h === "For" ? "nosort num" : "nosort", h)); });
+    add(bh, br); add(bt, bh);
+    var bb = el("tbody");
+    blocks.forEach(function (b) {
+      var r = el("tr"), on = el("td");
+      if (b.on === "PO") add(on, el("span", "chip po", "PO")); else on.textContent = b.on || "?";
+      add(r, add(el("td"), el("b", null, b.agent)), on, el("td", null, b.task || "–"), el("td", "num", dur(b.len)));
+      bb.appendChild(r);
+    });
+    add(bt, bb); add(lb, add(el("div", "frame"), bt));
+  }
+  var bi = el("div"); add(bi, el("h2", null, "By iteration"), el("div", "sub muted", "Each row covers the iteration's message window only, not a full breakdown."));
+  var its = D.iterations || [];
+  if (!its.length) add(bi, el("div", "nodata", "No iterations."));
+  else {
+    var tb = el("table"), th = el("thead"), tr = el("tr");
+    ["Iter", "Window", "Agent-time", "Cost", "Returns"].forEach(function (h) { add(tr, el("th", "nosort", h)); });
+    add(th, tr); add(tb, th);
+    var tbd = el("tbody");
+    its.forEach(function (it) {
+      var r = el("tr");
+      add(r, el("td", null, it.n), el("td", null, hm(it.window && it.window.start) + " → " + hm(it.window && it.window.end)), el("td", "num", dur(it.agent_s)), el("td", "num", usd(it.cost_usd)), el("td", "num", it.returns));
+      tbd.appendChild(r);
+    });
+    add(tb, tbd); add(bi, add(el("div", "frame"), tb));
+  }
+  add(cols, lb, bi); s.appendChild(cols);
+  return s;
+}
+function digestSub(d) {
+  var id = d.target && d.target.id, t = id ? taskById(id) : null, pw = T.po_wait || {};
+  if (d.kind === "top_cost_task" && t) return usd(t.cost_usd) + " · " + t.returns + " return" + (t.returns === 1 ? "" : "s");
+  if (d.kind === "top_cost_role") return "roles · " + id;
+  if (d.kind === "scope_overhead") return "no task";
+  if (d.kind === "rework_cost") return "rework " + dur(tasks.reduce(function (a, x) { return a + (x.rework_s || 0); }, 0)) + " · estimated";
+  if (d.kind === "respawns") return "cache writes after idle > 5 min";
+  if (d.kind === "idle_share" || d.kind === "parallelism") return "parallelism ×" + (T.wall_s ? T.agent_s / T.wall_s : 0).toFixed(1);
+  if (d.kind === "longest_block") return "see Timeline";
+  if (d.kind === "po_wait") return "longest " + dur(pw.longest_s) + " · " + (pw.pct_of_elapsed || 0) + "% of elapsed";
+  if (d.kind === "review_wait") return "HANDIN to PASS/FAIL";
+  if (d.kind === "most_returns") return "no reason recorded";
+  if (d.kind === "attribution_low") return "the rest is in Scope overhead";
+  return "";
+}
+function longestBlocks() {
+  var out = [];
+  agents.forEach(function (a) {
+    (a.segments || []).forEach(function (g) {
+      if (g[2] === "b" || g[2] === "a") out.push({ agent: a.name, start: g[0], len: g[1] - g[0], bucket: g[2] === "b" ? "blocking" : "waiting", task: g[3], on: g[4] });
+    });
+  });
+  out.sort(function (a, b) { return b.len - a.len; });
+  return out.slice(0, 3);
+}
+
+// ---------- tables ----------
+function faint(t) { return el("span", "faint", t); }
+function fa(v, f) { return v ? f(v) : faint("–"); }
+function table(cols, rows, sortState, rerender, onRow, emptyNode) {
+  var tb = el("table"), th = el("thead"), tr = el("tr");
+  cols.forEach(function (c) {
+    var h = el("th", (c.num ? "num " : "") + (c.sort ? "" : "nosort"), c.h);
+    if (c.tip) h.setAttribute("title", c.tip);
+    if (c.sort) {
+      h.setAttribute("tabindex", "0"); h.setAttribute("role", "columnheader");
+      if (sortState.k === c.k) h.setAttribute("aria-sort", sortState.dir < 0 ? "descending" : "ascending");
+      var f = function () { if (sortState.k === c.k) sortState.dir = -sortState.dir; else { sortState.k = c.k; sortState.dir = c.num ? -1 : 1; } rerender(); };
+      h.addEventListener("click", f);
+      h.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); f(); } });
+    }
+    tr.appendChild(h);
+  });
+  add(th, tr); tb.appendChild(th);
+  var tbd = el("tbody");
+  if (!rows.length && emptyNode) add(tbd, add(el("tr", null, null, { style: "cursor:default" }), add(el("td", null, null, { colspan: String(cols.length) }), emptyNode)));
+  rows.forEach(function (r) {
+    var row = el("tr", (r.cls || ""), null, { tabindex: "0", "data-key": r.key });
+    if (selected === r.key) row.classList.add("sel");
+    cols.forEach(function (c) {
+      var v = c.cell(r.item), td = el("td", c.num ? "num" : "");
+      if (c.ell) td.classList.add("ell");
+      if (v && v.nodeType) td.appendChild(v); else td.textContent = v === undefined || v === null ? "–" : v;
+      if (c.ttip) td.setAttribute("title", c.ttip(r.item) || "");
+      row.appendChild(td);
+    });
+    var open = function () { setSel(r.key); onRow(r.item); };
+    row.addEventListener("click", open);
+    row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+    tbd.appendChild(row);
+  });
+  tb.appendChild(tbd);
+  return tb;
+}
+function frame(t) { return add(el("div", "frame"), t); }
+function emptyBox(b, msg) { return add(el("div", "empty"), el("b", null, b), document.createTextNode(msg)); }
+function setSel(key) {
+  selected = key;
+  Array.prototype.forEach.call(document.querySelectorAll("tr.sel,td.sel"), function (x) { x.classList.remove("sel"); });
+  if (key) Array.prototype.forEach.call(document.querySelectorAll('tr[data-key="' + String(key).replace(/"/g, "") + '"]'), function (x) { x.classList.add("sel"); });
+}
+function sortRows(items, key, dir, getters, pinLast) {
+  var g = getters[key];
+  var main = items.filter(function (i) { return !(pinLast && pinLast(i)); }), pin = items.filter(function (i) { return pinLast && pinLast(i); });
+  main.sort(function (a, b) {
+    var x = g(a), y = g(b);
+    if (typeof x === "string") return dir * (x < y ? -1 : x > y ? 1 : 0);
+    return dir * ((x || 0) - (y || 0));
+  });
+  return main.concat(pin);
+}
+function tb(buckets, total) { return add(el("span", "tb"), bar(buckets, BK, function (b) { return "b-" + b; }), el("span", "d", dur(total))); }
+function costCell(c) { var w = el("span"); add(w, document.createTextNode(usd(c) + " "), faint(share(c))); return w; }
+function ret(n, flag) {
+  var p = el("span", "pill" + (n >= 3 ? " r" : n ? " m" : ""), n + (flag ? " ⚑" : ""));
+  if (n >= 3) p.setAttribute("title", "3 or more returns: flagged");
+  return p;
+}
+function sh(title, sub, tools) { return add(el("div", "sh"), el("h2", null, title), el("span", "sub", sub), tools); }
+
+// ---------- tasks ----------
+function overheadItem() {
+  var row = { id: "overhead", over: true, title: "Scope overhead (unattributed)", buckets_s: { working: 0, waiting: 0, blocking: 0, idle: 0 }, tokens: { input: 0, cache_read: 0, cache_write: 0, output: 0 }, cost_usd: 0 };
+  (D.matrix || []).filter(function (m) { return !m.task; }).forEach(function (m) {
+    BK.forEach(function (b) { row.buckets_s[b] += (m.buckets_s || {})[b] || 0; });
+    for (var k in row.tokens) row.tokens[k] += (m.tokens || {})[k] || 0;
+    row.cost_usd += m.cost_usd || 0;
+  });
+  return row;
+}
+function reviewWait(t) { return (t.review_waits || []).reduce(function (a, r) { return a + (r.wait_s || 0); }, 0); }
+function taskCols() {
+  return [
+    { h: "Task", k: "id", sort: 1, cell: function (t) { return t.over ? "—" : el("b", null, t.id); } },
+    { h: "Title", k: "title", sort: 1, ell: 1, cell: function (t) { var s = t.title || ""; return el("span", t.over ? "muted" : "", s.length > 34 ? s.slice(0, 33) + "…" : (s || "–")); }, ttip: function (t) { return t.title; } },
+    { h: "Iter", k: "iter", sort: 1, num: 1, cell: function (t) { return t.over ? "" : t.iteration; } },
+    { h: "Dev", k: "dev", sort: 1, cell: function (t) { return t.over || !t.dev ? faint("–") : el("span", null, t.dev.replace(/^[^-]+-/, ""), { title: t.dev }); } },
+    { h: "Status", k: "status", sort: 1, cell: function (t) { return t.over ? "" : el("span", "chip " + (t.status === "passed" ? "done" : t.status === "running" ? "run" : ""), t.status); } },
+    { h: "Returns (FAIL)", k: "returns", sort: 1, num: 1, cell: function (t) { return t.over ? "" : ret(t.returns || 0, t.flag); } },
+    { h: "Time by bucket", k: "time", sort: 1, num: 1, cell: function (t) { return tb(t.buckets_s || {}, ttime(t)); } },
+    { h: "Cycle", k: "cycle", sort: 1, num: 1, cell: function (t) { return t.over || !t.cycle_s ? faint("–") : document.createTextNode(dur(t.cycle_s) + (t.status === "running" ? " …" : "")); } },
+    { h: "Review wait", k: "rw", sort: 1, num: 1, cell: function (t) { return fa(t.over ? 0 : reviewWait(t), dur); } },
+    { h: "Tokens", k: "tokens", sort: 1, num: 1, cell: function (t) { return tok(sum(t.tokens || {})); } },
+    { h: "Cost", k: "cost", sort: 1, num: 1, tip: "Estimated cost at list price", cell: function (t) { return costCell(t.cost_usd || 0); } },
+    { h: "Rework", k: "rework", sort: 1, num: 1, cell: function (t) { return t.rework_s ? dur(t.rework_s) + " · " + usd(t.rework_cost_usd) : faint("–"); } }
+  ];
+}
+var TG = {
+  id: function (t) { return t.id; }, title: function (t) { return t.title || ""; }, iter: function (t) { return t.iteration; }, dev: function (t) { return t.dev || ""; },
+  status: function (t) { return t.status || ""; }, returns: function (t) { return t.returns; }, time: ttime, cycle: function (t) { return t.cycle_s; },
+  rw: reviewWait, tokens: function (t) { return sum(t.tokens || {}); }, cost: function (t) { return t.cost_usd; }, rework: function (t) { return t.rework_s; }
+};
+function tasksSection() {
+  var s = el("section", null, null, { id: "tasks" }), body = el("div");
+  function draw() {
+    body.textContent = "";
+    var q = st.q.toLowerCase();
+    var list = tasks.filter(function (t) {
+      if (q && (t.id + " " + (t.title || "") + " " + (t.dev || "")).toLowerCase().indexOf(q) < 0) return false;
+      if (st.f.ret && !t.returns) return false;
+      if (st.f.flag && !t.flag) return false;
+      if (st.f.run && (!t.status || t.status === "passed")) return false;
+      if (st.iter && String(t.iteration) !== st.iter) return false;
+      return true;
+    });
+    var rows = sortRows(list, st.sort.k, st.sort.dir, TG).map(function (t) { return { item: t, key: "t" + t.id, cls: t.flag ? "flag" : "" }; });
+    if (tasks.length && !q && !st.f.ret && !st.f.flag && !st.f.run && !st.iter) { var o = overheadItem(); rows.push({ item: o, key: "over", cls: "over" }); }
+    var none = tasks.length ? emptyBox("No task matches the filter.", "Clear the filter or chips.") : emptyBox("No tasks yet.", "Tasks appear when the scope has sessions and messages.");
+    add(body, frame(table(taskCols(), rows, st.sort, draw, function (t) { if (t.over) openTask("overhead"); else openTask(t.id); }, none)));
+  }
+  var tools = el("div", "tools");
+  var inp = el("input", null, null, { type: "search", id: "tq", placeholder: "Filter tasks…", "aria-label": "Filter tasks" });
+  inp.addEventListener("input", function () { st.q = inp.value; draw(); });
+  add(tools, inp);
+  [["ret", "Has returns"], ["flag", "Flagged"], ["run", "Not passed"]].forEach(function (c) {
+    var b = el("button", "chip btn", c[1], { type: "button", "aria-pressed": "false" });
+    b.addEventListener("click", function () { st.f[c[0]] = !st.f[c[0]]; b.setAttribute("aria-pressed", String(!!st.f[c[0]])); draw(); });
+    tools.appendChild(b);
+  });
+  var iters = {}; tasks.forEach(function (t) { if (t.iteration !== null && t.iteration !== undefined) iters[t.iteration] = 1; });
+  var sel = el("select", null, null, { "aria-label": "Iteration", id: "itf" });
+  add(sel, el("option", null, "all", { value: "" }));
+  Object.keys(iters).sort().forEach(function (i) { add(sel, el("option", null, i, { value: i })); });
+  sel.addEventListener("change", function () { st.iter = sel.value; draw(); drawGrid(); });
+  add(tools, add(el("label"), document.createTextNode("Iteration "), sel));
+  add(s, sh("Tasks", "click a row for the task × role detail", tools), body, legend(false));
+  draw();
+  return s;
+}
+
+// ---------- roles ----------
+var RG = {
+  role: function (r) { return r.role; }, agents: function (r) { return r.agents.length; }, resp: function (r) { return Math.max(0, r.sessions - r.agents.length); },
+  time: function (r) { return sum(r.buckets); }, po: function (r) { return r.po; }, tokens: function (r) { return sum(r.tokens); }, cost: function (r) { return r.cost; }
+};
+function rolesSection() {
+  var s = el("section", null, null, { id: "roles" }), body = el("div");
+  add(s, sh("Roles", "scope-wide, per agent"), body);
+  var rr = roleRows();
+  rr.forEach(function (r) { r.po = poByRole()[r.role] || 0; r.gone = r.agents.every(function (a) { return a.transcript_found === false; }); });
+  var cols = [
+    { h: "Role", k: "role", sort: 1, cell: function (r) { var w = el("span"); add(w, el("b", null, r.role)); if (r.live) add(w, el("span", "chip run", "live")); return w; } },
+    { h: "Agents", k: "agents", sort: 1, num: 1, cell: function (r) { return r.gone ? el("span", "chip warn", "no transcript") : r.agents.length; } },
+    { h: "Respawns", k: "resp", sort: 1, num: 1, cell: function (r) { return r.gone ? "–" : RG.resp(r); } },
+    { h: "Time by bucket", k: "time", sort: 1, num: 1, cell: function (r) { return r.gone ? faint("–") : tb(r.buckets, sum(r.buckets)); } },
+    { h: "Blocked on PO", k: "po", sort: 1, num: 1, cell: function (r) { return fa(r.po, dur); } },
+    { h: "Tokens", k: "tokens", sort: 1, num: 1, cell: function (r) { return r.gone ? "–" : tok(sum(r.tokens)); } },
+    { h: "Cost", k: "cost", sort: 1, num: 1, tip: "Estimated cost at list price", cell: function (r) { return r.gone ? "–" : costCell(r.cost); } }
+  ];
+  function draw() {
+    body.textContent = "";
+    var rows = sortRows(rr, st.rsort.k, st.rsort.dir, RG).map(function (r) { return { item: r, key: "r" + r.role }; });
+    add(body, frame(table(cols, rows, st.rsort, draw, function (r) { openRole(r.role); }, emptyBox("No roles.", "")))); 
+  }
+  draw();
+  return s;
+}
+var poBy = null;
+function poByRole() {
+  if (poBy) return poBy;
+  poBy = {};
+  agents.forEach(function (a) { var k = roleOf(a.name); (a.segments || []).forEach(function (g) { if (g[2] === "b" && g[4] === "PO") poBy[k] = (poBy[k] || 0) + g[1] - g[0]; }); });
+  return poBy;
+}
+
+// ---------- grid ----------
+var gridBody;
+function cellVal(m) { return st.metric === "cost" ? m.cost_usd : st.metric === "time" ? sum(m.buckets_s || {}) : sum(m.tokens || {}); }
+function fmtVal(v) { return st.metric === "cost" ? usd(v) : st.metric === "time" ? dur(v) : tok(v); }
+function drawGrid() {
+  if (!gridBody) return;
+  gridBody.textContent = "";
+  var mat = D.matrix || [];
+  var trs = tasks.filter(function (t) { return !st.iter || String(t.iteration) === st.iter; }).map(function (t) { return { id: t.id, t: t }; });
+  if (mat.some(function (m) { return !m.task; })) trs.push({ id: "", t: null });
+  var rl = roleRows().map(function (r) { return r.role; });
+  if (!tasks.length || !rl.length) { add(gridBody, add(el("div", "card empty"), el("b", null, "Nothing to cross yet."), document.createTextNode("The grid needs at least one task and one agent with a transcript."))); return; }
+  var cells = {}, mx = 0;
+  mat.forEach(function (m) {
+    var k = (m.task || "") + "|" + roleOf(m.agent); cells[k] = (cells[k] || 0) + cellVal(m);
+  });
+  var rows = trs.map(function (r) { return rl.map(function (c) { var v = cells[r.id + "|" + c] || 0; mx = Math.max(mx, v); return v; }); });
+  var rt = rows.map(function (a) { return a.reduce(function (x, y) { return x + y; }, 0); });
+  var ct = rl.map(function (c, j) { return rows.reduce(function (x, a) { return x + a[j]; }, 0); });
+  var tbl = el("table", "mx"), h = el("tr");
+  add(h, el("th", "rl nosort"));
+  rl.forEach(function (r) {
+    var n = roleRows().filter(function (x) { return x.role === r; })[0].agents.length;
+    add(h, el("th", "nosort", r, { title: n + " agent(s)" }));
+  });
+  add(h, el("th", "nosort", "Total")); add(tbl, add(el("thead"), h));
+  var tbd = el("tbody");
+  trs.forEach(function (r, i) {
+    var tr = el("tr", null, null, { "data-key": "g" + r.id }), lab = el("td", "rl");
+    if (r.t) {
+      var ti = r.t.title || "";
+      add(lab, el("b", null, r.t.id), document.createTextNode(" "), el("span", "muted", ti.slice(0, 22) + (ti.length > 22 ? "…" : "")));
+      if (r.t.flag) lab.appendChild(document.createTextNode(" ⚑"));
+    } else add(lab, el("span", "muted", "overhead"));
+    tr.appendChild(lab);
+    rl.forEach(function (c, j) {
+      var v = rows[i][j], a = mx ? Math.min(0.85, v / mx * 0.85) : 0;
+      var td = el("td", "cell" + (v ? "" : " zero"), v ? fmtVal(v) : "·", { style: "background:rgba(232,130,14," + a.toFixed(2) + ")" });
+      if (v) {
+        td.setAttribute("tabindex", "0");
+        var f = function () { setSel(null); openCell(r.id, c); td.classList.add("sel"); };
+        td.addEventListener("click", f); td.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); f(); } });
+      }
+      tr.appendChild(td);
+    });
+    add(tr, add(el("td", "cell zero tot"), el("b", null, fmtVal(rt[i])))); tbd.appendChild(tr);
+  });
+  tbl.appendChild(tbd);
+  var fr = el("tr"); add(fr, el("td", "rl", "Total"));
+  ct.forEach(function (v) { add(fr, el("td", null, fmtVal(v))); });
+  add(fr, el("td", null, fmtVal(rt.reduce(function (a, b) { return a + b; }, 0))));
+  add(tbl, add(el("tfoot"), fr));
+  add(gridBody, frame(tbl), el("div", "hint", "Cell colour = share of the largest cell. “·” = no activity."));
+}
+function gridSection() {
+  var s = el("section", null, null, { id: "grid" });
+  var tools = el("div", "tools");
+  var sel = el("select", null, null, { id: "mx", "aria-label": "Metric" });
+  [["cost", "Cost"], ["time", "Time"], ["tokens", "Tokens"]].forEach(function (m) { add(sel, el("option", null, m[1], { value: m[0] })); });
+  sel.value = st.metric;
+  sel.addEventListener("change", function () { st.metric = sel.value; drawGrid(); });
+  add(tools, add(el("label"), document.createTextNode("Show "), sel));
+  gridBody = el("div");
+  add(s, sh("Task × role", "who spent what on which task; click a cell. Follows the iteration filter", tools), gridBody);
+  drawGrid();
+  return s;
+}
+
+// ---------- timeline ----------
+var tlBody;
+var SVGNS = "http:" + "//www.w3.org/2000/svg";
+function sv(tag, attrs, text) {
+  var n = document.createElementNS(SVGNS, tag);
+  if (attrs) for (var k in attrs) n.setAttribute(k, attrs[k]);
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+function dt(sec) {
+  return new Date(sec * 1000).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+}
+function timelineSection() {
+  var s = el("section", null, null, { id: "timeline" });
+  var tools = el("div", "tools");
+  var cb = el("input", null, null, { type: "checkbox", id: "cmp" });
+  cb.checked = st.compress;
+  cb.addEventListener("change", function () { st.compress = cb.checked; drawTimeline(); });
+  var sel = el("select", null, null, { "aria-label": "Highlight task", id: "hi" });
+  add(sel, el("option", null, "none", { value: "" }));
+  tasks.forEach(function (t) { add(sel, el("option", null, t.id, { value: t.id })); });
+  sel.addEventListener("change", function () { st.hi = sel.value; drawTimeline(); });
+  add(tools, add(el("label"), cb, document.createTextNode(" Compress idle gaps > 1 h")), add(el("label"), document.createTextNode("Highlight task "), sel));
+  tlBody = el("div", "tl");
+  var lg = legend(false), gl = el("div", "legend");
+  add(gl, el("span", null, "▲ blocked"), el("span", null, "✕ FAIL (return)", { style: "color:var(--fail)" }), el("span", null, "▸ HANDIN", { style: "color:var(--mangotxt)" }), el("span", null, "✓ PASS", { style: "color:var(--work)" }), sw("b-po", "blocking, waiting on the PO"));
+  add(s, sh("Timeline", "one lane per agent, coloured by bucket", tools), tlBody, lg, gl);
+  return s;
+}
+function drawTimeline() {
+  tlBody.textContent = "";
+  var items = (T.po_wait || {}).items || [];
+  if (!agents.some(function (a) { return (a.segments || []).length; })) { add(tlBody, emptyBox("No timeline.", "No agent has transcript activity in this scope yet.")); return; }
+  var t0 = ts(S.window && S.window.start) || 0;
+  var T1 = T.wall_s || Math.max.apply(null, agents.map(function (a) { var g = a.segments || []; return g.length ? g[g.length - 1][1] : 0; }));
+  var wend = ts(S.window && S.window.end) ? ts(S.window.end) - t0 : T1;
+  var W = Math.max(300, tlBody.clientWidth - 24), LW = W > 700 ? 150 : 90, LH = 22, GAP = 6, TOP = 22, H = TOP + (agents.length + 1) * (LH + GAP) + 8;
+  var act = [];
+  agents.forEach(function (a) { (a.segments || []).forEach(function (g) { if (g[2] !== "i") act.push([g[0], g[1]]); }); });
+  pw = items.map(function (i) { var a = ts(i.raised_at) - t0; return [a, (i.answered_at ? ts(i.answered_at) - t0 : wend), !i.answered_at, i]; });
+  var pw = items.map(function (i) { var a = ts(i.raised_at) - t0; return [a, (i.answered_at ? ts(i.answered_at) - t0 : wend), !i.answered_at, i]; });
+  pw.forEach(function (p) { act.push([p[0], p[1]]); });
+  act.sort(function (a, b) { return a[0] - b[0]; });
+  var un = [];
+  act.forEach(function (g) { var l = un[un.length - 1]; if (l && g[0] <= l[1] + 3600) l[1] = Math.max(l[1], g[1]); else un.push([g[0], g[1]]); });
+  var pcs = [], c = 0;
+  if (st.compress) {
+    un.forEach(function (u) { if (u[0] > c + 3600) pcs.push({ a: c, b: u[0], z: 1 }); pcs.push({ a: Math.max(c, u[0] > c + 3600 ? u[0] : c), b: u[1] }); c = u[1]; });
+    if (T1 > c + 3600) pcs.push({ a: c, b: T1, z: 1 }); else pcs.push({ a: c, b: T1 });
+  } else pcs = [{ a: 0, b: T1 }];
+  var CW = 34, nz = pcs.filter(function (p) { return p.z; }).length, usable = W - LW - nz * CW;
+  var secs = pcs.filter(function (p) { return !p.z; }).reduce(function (a, p) { return a + p.b - p.a; }, 0) || 1, k = usable / secs, x = LW;
+  pcs.forEach(function (p) { p.x = x; p.w = p.z ? CW : (p.b - p.a) * k; x += p.w; });
+  function X(t) { var p = pcs.filter(function (q) { return t >= q.a && t <= q.b; })[0] || pcs[pcs.length - 1]; return p.x + (t - p.a) / (p.b - p.a || 1) * p.w; }
+  var hiT = st.hi ? taskById(st.hi) : null;
+  var svg = sv("svg", { viewBox: "0 0 " + W + " " + H, height: H, role: "img", "aria-label": "Per-agent timeline" });
+  var defs = sv("defs");
+  [["hatch", "#DB3B22", "#E9705B"], ["hatchpo", "#9A40CF", "#B966E8"]].forEach(function (p) {
+    var pt = sv("pattern", { id: p[0], width: 6, height: 6, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" });
+    add(pt, sv("rect", { width: 6, height: 6, fill: p[1] }), sv("rect", { width: 3, height: 6, fill: p[2] }));
+    defs.appendChild(pt);
+  });
+  svg.appendChild(defs);
+  pcs.forEach(function (p) {
+    if (p.z) {
+      var cx = p.x + p.w / 2;
+      add(svg, sv("rect", { x: p.x, y: TOP - 4, width: p.w, height: H - TOP, fill: "#F4ECDD" }),
+        sv("text", { "class": "gaptx", x: cx, y: TOP + 14, "text-anchor": "middle", transform: "rotate(-90 " + cx + " " + (TOP + 14) + ")", dy: 3, "data-tip": "Idle gap " + dur(p.b - p.a) + " compressed" }, "⋯ " + dur(p.b - p.a)));
+    } else {
+      add(svg, sv("line", { x1: p.x, x2: p.x, y1: TOP - 4, y2: H, stroke: "#E7DBC8" }));
+      if (st.compress && !(S.status === "running" && p.x > W - 100)) { var late = p.x > W - 100; add(svg, sv("text", { "class": "ax", x: late ? p.x - 3 : p.x + 3, y: 12, "text-anchor": late ? "end" : "start" }, dt(t0 + p.a).replace(" UTC", ""))); }
+    }
+  });
+  if (!st.compress) for (var t = Math.ceil(t0 / 21600) * 21600; t < t0 + T1; t += 21600)
+    add(svg, sv("line", { x1: X(t - t0), x2: X(t - t0), y1: TOP - 4, y2: H, stroke: "#E7DBC8", "stroke-dasharray": "2 4" }), sv("text", { "class": "ax", x: X(t - t0) + 3, y: 12 }, new Date(t * 1000).toISOString().slice(5, 16).replace("T", " ")));
+  if (hiT && hiT.window) {
+    var ha = Math.max(ts(hiT.window.start) - t0, 0), hb = Math.min(ts(hiT.window.end) - t0, T1);
+    if (hb > ha) add(svg, sv("rect", { x: X(ha), y: TOP - 4, width: Math.max(2, X(hb) - X(ha)), height: H - TOP, fill: "#E8820E", opacity: ".08" }));
+  }
+  function shortLane(name, mc) {
+    var rl = roleOf(name), m = /-(\d+)$/.exec(name), lb = rl && rl !== name ? rl + (m && !/\d$/.test(rl) ? " " + m[1] : "") : name;
+    return lb.length > mc ? lb.slice(0, Math.ceil((mc - 1) / 2)) + "…" + lb.slice(lb.length - Math.floor((mc - 1) / 2)) : lb;
+  }
+  function lane(i, name, cls, onName, full) {
+    var y = TOP + i * (LH + GAP), mc = Math.floor((LW - 12) / 6.4);
+    var lbl = sv("text", { "class": "lane-l" + (cls ? " " + cls : ""), x: LW - 8, y: y + LH / 2 + 4, "text-anchor": "end" }, name.length > mc ? shortLane(name, mc) : name);
+    if (name.length > mc || full) lbl.setAttribute("data-tip", full || name);
+    if (onName) { lbl.setAttribute("tabindex", "0"); lbl.addEventListener("click", onName); lbl.addEventListener("keydown", function (e) { if (e.key === "Enter") onName(); }); }
+    add(svg, lbl, sv("rect", { x: LW, y: y, width: W - LW, height: LH, fill: "#FCF8F1", stroke: "#E7DBC8", rx: 3 }));
+    return y;
+  }
+  var py = lane(0, "PO wait", "po");
+  pw.forEach(function (p) {
+    add(svg, sv("rect", { x: X(p[0]), y: py + 2, width: Math.max(2, X(p[1]) - X(p[0])), height: LH - 4, fill: "url(#hatchpo)", "data-tip": "Escalation open " + dur(p[1] - p[0]) + (p[2] ? " (still open)" : "") + " · " + dt(t0 + p[0]) }));
+  });
+  var CLS = { w: "working", a: "waiting", b: "blocking", i: "idle" }, FILL = { w: "var(--work)", a: "var(--wait)", i: "var(--idle)" };
+  var GL = { FAIL: ["✕", "#CE1D6C"], HANDIN: ["▸", "#CE7000"], PASS: ["✓", "#368A1E"] };
+  agents.forEach(function (a, i0) {
+    var y = lane(i0 + 1, a.name, "", function () { openAgent(a.name); });
+    if (a.transcript_found === false) { add(svg, sv("text", { "class": "gaptx", x: LW + 8, y: y + LH / 2 + 4 }, "no transcript")); return; }
+    (a.segments || []).forEach(function (g) {
+      var x1 = X(g[0]), x2 = X(g[1]), w = Math.max(1, x2 - x1), po = g[2] === "b" && g[4] === "PO";
+      if (g[2] === "i" && x2 - x1 < 0.5) return;
+      var dim = hiT && g[3] !== hiT.id;
+      var r = sv("rect", { "class": "seg" + (dim ? " dim" : ""), x: x1.toFixed(1), y: y + 2, width: w.toFixed(1), height: LH - 4, fill: g[2] === "b" ? (po ? "url(#hatchpo)" : "url(#hatch)") : FILL[g[2]],
+        "data-tip": a.name + " · " + BN[CLS[g[2]]] + (po ? " – waiting on the PO" : g[4] ? " – on " + g[4] : "") + " · " + dur(g[1] - g[0]) + (g[3] ? " · task " + g[3] : "") + " · " + dt(t0 + g[0]) });
+      if (g[2] === "i") r.setAttribute("opacity", ".35");
+      svg.appendChild(r);
+    });
+    (a.events || []).forEach(function (e) {
+      var g = GL[e[1]]; if (!g) return;
+      var dim = hiT && e[2] !== hiT.id;
+      var ev = sv("text", { "class": "ev", x: X(e[0]), y: y + LH / 2 + 5, "text-anchor": "middle", "font-size": 14, "font-weight": 800, fill: g[1], stroke: "#fff", "stroke-width": 2.5, "paint-order": "stroke", "data-tip": e[1] + (e[2] ? " task " + e[2] : "") + " · " + dt(t0 + e[0]) }, g[0]);
+      if (dim) ev.setAttribute("opacity", ".25");
+      svg.appendChild(ev);
+    });
+    if (a.live) add(svg, sv("text", { x: W - 6, y: y + LH / 2 + 4, "text-anchor": "end", "font-size": 11, fill: "#CE7000" }, "▸ live"));
+  });
+  if (S.status === "running") add(svg, sv("line", { x1: X(T1), x2: X(T1), y1: TOP - 4, y2: H, stroke: "#E8820E", "stroke-width": 2, "stroke-dasharray": "4 3" }), sv("text", { "class": "ax", x: X(T1) - 4, y: 12, "text-anchor": "end", fill: "#CE7000" }, "now"));
+  tlBody.appendChild(svg);
+}
+
+// ---------- drawer ----------
+var closeT = 0;
+drawerEl = el("aside", "drawer", null, { role: "dialog", "aria-label": "Details", "aria-hidden": "true" });
+function closeDrawer() {
+  drawerEl.classList.remove("open"); drawerEl.setAttribute("aria-hidden", "true");
+  setSel(null);
+  clearTimeout(closeT);
+  closeT = setTimeout(function () { if (!drawerEl.classList.contains("open")) drawerEl.textContent = ""; }, 300);
+}
+function drawer(label) {
+  clearTimeout(closeT);
+  drawerEl.textContent = "";
+  drawerEl.setAttribute("aria-label", label); drawerEl.removeAttribute("aria-hidden");
+  var x = el("button", "x", "×", { "aria-label": "Close", type: "button" });
+  x.addEventListener("click", closeDrawer);
+  drawerEl.appendChild(x);
+  drawerEl.classList.add("open"); drawerEl.scrollTop = 0; x.focus();
+  return drawerEl;
+}
+function h3(text, extra) { var h = el("h3", null, text); if (extra) add(h, document.createTextNode(" "), extra); return h; }
+function mini(rows, heads, nums) {
+  nums = nums || [];
+  var t = el("table");
+  if (heads) { var tr = el("tr"); heads.forEach(function (h, i) { add(tr, el("th", "nosort" + (nums.indexOf(i) >= 0 ? " num" : ""), h)); }); add(t, add(el("thead"), tr)); }
+  var tbd = el("tbody");
+  rows.forEach(function (r) {
+    var row = el("tr");
+    r.cells.forEach(function (c, i) { var td = el("td", nums.indexOf(i) >= 0 ? "num" : ""); if (c && c.nodeType) td.appendChild(c); else td.textContent = c === undefined || c === null ? "" : c; row.appendChild(td); });
+    if (r.onclick) { row.setAttribute("tabindex", "0"); row.addEventListener("click", r.onclick); row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); r.onclick(); } }); }
+    else row.style.cursor = "default";
+    tbd.appendChild(row);
+  });
+  t.appendChild(tbd); return frame(t);
+}
+function btn(text, f, ghost) { var b = el("button", "act" + (ghost ? " ghost" : ""), text, { type: "button" }); b.addEventListener("click", f); return b; }
+function idleSub(peer, human) {
+  var d = el("div", "idlesub", "Idle: waiting for work " + dur(peer) + " · waiting for your chat reply " + dur(human) + " ");
+  return add(d, faint("(not PO wait)"));
+}
+function legendK() {
+  var l = el("div", "legend"), L = { input: "Input", cache_read: "Cache read", cache_write: "Cache write", output: "Output" };
+  ["input", "cache_read", "cache_write", "output"].forEach(function (k) { add(l, sw("t-" + k, L[k])); });
+  return l;
+}
+function showInTimeline(task) {
+  if (task) { st.hi = task; var s = document.getElementById("hi"); if (s) s.value = task; drawTimeline(); }
+  closeDrawer(); scrollTo("timeline");
+}
+function byTaskRows(filter, role) {
+  var by = {};
+  (D.matrix || []).forEach(function (m) {
+    if (!filter(m)) return;
+    var k = m.task || "overhead", o = by[k] = by[k] || { b: { working: 0, waiting: 0, blocking: 0, idle: 0 }, c: 0 };
+    BK.forEach(function (b) { o.b[b] += (m.buckets_s || {})[b] || 0; }); o.c += m.cost_usd || 0;
+  });
+  return Object.keys(by).sort(function (a, b) { return by[b].c - by[a].c; }).map(function (k) {
+    var o = by[k];
+    return { cells: [k === "overhead" ? "overhead" : "Task " + k, bar(o.b, BK, function (b) { return "b-" + b; }), dur(sum(o.b)), usd(o.c)], onclick: role && k !== "overhead" ? function () { openCell(k, role); } : role ? function () { openCell("", role); } : null };
+  });
+}
+function openTask(id) {
+  var over = id === "overhead", t = over ? overheadItem() : taskById(id); if (!t) return;
+  var d = drawer(over ? "Scope overhead" : "Task " + t.id);
+  setSel(over ? "over" : "t" + id);
+  var h = el("h2", null, over ? "Scope overhead " : "Task " + t.id + " ");
+  add(h, over ? el("span", "chip", "unattributed") : el("span", "chip " + (t.status === "passed" ? "done" : t.status === "running" ? "run" : ""), t.status));
+  add(d, h);
+  var info = el("div", "muted", null, { style: "margin:2px 0 10px" });
+  add(info, document.createTextNode((t.title || "") + (t.dev ? " · dev " + t.dev : "")));
+  if (t.window && t.window.start) add(info, el("br"), document.createTextNode(dt(ts(t.window.start)) + " → " + dt(ts(t.window.end))));
+  if ((t.aliases || []).length) add(info, el("br"), faint("also named " + t.aliases.join(", ")));
+  add(d, info);
+  var c = el("div", "card"), b = function (x) { return el("b", null, x); };
+  add(c, b(dur(ttime(t))), document.createTextNode(" agent-time" + (t.cycle_s ? " · cycle " + dur(t.cycle_s) : "") + (!over && reviewWait(t) ? " · review wait " + dur(reviewWait(t)) : "") + " · "), b(usd(t.cost_usd)), document.createTextNode(" · "), b(tok(sum(t.tokens || {}))), document.createTextNode(" tokens "),
+    bar(t.buckets_s, BK, function (k) { return "b-" + k; }), el("div", null, null, { style: "height:6px" }), tokbar(t.tokens || {}));
+  add(d, c);
+  add(d, h3("Returns (FAIL messages)", t.flag ? el("span", "chip bad", "3+ flagged") : null));
+  var rl = t.returns_list || [];
+  if (!rl.length) add(d, el("div", "muted", "No returns."));
+  else {
+    var tbl = el("table"), hr = el("tr");
+    [["#", 0], ["FAIL · by", 0], ["Next HANDIN", 0], ["Rework", 1]].forEach(function (x) { add(hr, el("th", "nosort" + (x[1] ? " num" : ""), x[0])); });
+    add(tbl, add(el("thead"), hr));
+    var tbd = el("tbody");
+    rl.forEach(function (r, i) {
+      var row = el("tr", null, null, { style: "cursor:default" }), f = el("td");
+      add(f, document.createTextNode(r.fail_at ? dt(ts(r.fail_at)) : "–"));
+      if (r.fail_by) add(f, el("br"), faint("by " + r.fail_by));
+      add(row, el("td", null, i + 1), f, el("td", null, r.handin_at ? dt(ts(r.handin_at)) : "–"), el("td", "num", r.rework_s ? dur(r.rework_s) : "–"));
+      tbd.appendChild(row);
+      var rr = el("tr", "rsn", null, { style: "cursor:default" }), td = el("td", null, null, { colspan: "3" }), hide = r.reason === null || r.reason === undefined;
+      add(td, hide ? faint("not shared") : el("span", "reason", r.reason));
+      add(rr, el("td"), td); tbd.appendChild(rr);
+    });
+    add(tbl, tbd, add(el("tfoot"), add(el("tr"), el("td", null, "Total rework", { colspan: "3" }), el("td", "num", dur(t.rework_s) + " · " + usd(t.rework_cost_usd)))));
+    add(d, frame(tbl));
+  }
+  add(d, h3("By role"));
+  var byRole = {};
+  (D.matrix || []).filter(function (m) { return over ? !m.task : m.task === t.id; }).forEach(function (m) {
+    var r = roleOf(m.agent), o = byRole[r] = byRole[r] || { b: { working: 0, waiting: 0, blocking: 0, idle: 0 }, c: 0 };
+    BK.forEach(function (k) { o.b[k] += (m.buckets_s || {})[k] || 0; }); o.c += m.cost_usd || 0;
+  });
+  var rows = Object.keys(byRole).sort(function (p, q) { return byRole[q].c - byRole[p].c; }).map(function (r) {
+    return { cells: [r, tb(byRole[r].b, sum(byRole[r].b)), usd(byRole[r].c)], onclick: function () { openCell(over ? "" : t.id, r); } };
+  });
+  add(d, rows.length ? mini(rows, ["Role", "Time", "Cost"], [2]) : el("div", "muted", "No agent time."));
+  add(d, add(el("div", "acts"), btn("Show in timeline", function () { if (over) { closeDrawer(); scrollTo("timeline"); } else showInTimeline(t.id); }), btn("Show in grid", function () { closeDrawer(); scrollTo("grid"); }, true)));
+  add(d, el("p", "note", over ? "Time that no rule could attach to a task: planning, BA, Manager, retro." : "Developer time by roster and branch; other roles by the window first mention → PASS."));
+}
+function openOverhead() { openTask("overhead"); }
+function openRole(name) {
+  var r = roleRows().filter(function (x) { return x.role === name; })[0]; if (!r) return;
+  if (r.agents.every(function (a) { return a.transcript_found === false; })) return;
+  var d = drawer("Role " + name); setSel("r" + name);
+  var respawns = Math.max(0, r.sessions - r.agents.length);
+  add(d, add(el("h2", null, name + " "), el("span", "chip", r.agents.length + " agent" + (r.agents.length > 1 ? "s" : "") + " · " + respawns + " respawns")));
+  var c = el("div", "card", null, { style: "margin-top:8px" });
+  add(c, el("b", null, dur(sum(r.buckets))), document.createTextNode(" · "), el("b", null, usd(r.cost)), document.createTextNode(" "), bar(r.buckets, BK, function (b) { return "b-" + b; }), idleSub(r.idle_s.peer, r.idle_s.human_input));
+  add(d, c, h3("Agents"));
+  add(d, mini(r.agents.map(function (a) {
+    var ok = a.transcript_found !== false;
+    return { cells: [a.name, ok ? a.sessions + " session" + (a.sessions > 1 ? "s" : "") : el("span", "chip warn", "no transcript"), ok ? dur(sum(a.buckets_s || {})) : "", ok ? usd(a.cost_usd) : ""], onclick: function () { openAgent(a.name); } };
+  }), null, [2, 3]));
+  add(d, h3("By task"), mini(byTaskRows(function (m) { return roleOf(m.agent) === name; }, name), null, [2, 3]));
+}
+function openAgent(name) {
+  var a = roles.filter(function (x) { return x.name === name; })[0]; if (!a || a.transcript_found === false) return;
+  var d = drawer("Agent " + name); setSel(null);
+  add(d, el("h2", null, name), el("div", "muted", (a.role || "") + " · " + a.sessions + " session" + (a.sessions > 1 ? "s" : "")));
+  var c = el("div", "card", null, { style: "margin-top:8px" });
+  add(c, el("b", null, dur(sum(a.buckets_s || {}))), document.createTextNode(" · "), el("b", null, usd(a.cost_usd)), document.createTextNode(" "), bar(a.buckets_s, BK, function (b) { return "b-" + b; }), idleSub((a.idle_s || {}).peer, (a.idle_s || {}).human_input));
+  add(d, c, h3("By task"), mini(byTaskRows(function (m) { return m.agent === name; }, null), null, [2, 3]));
+  add(d, add(el("div", "acts"), btn("← " + (a.role || "role"), function () { openRole(a.role || name); }, true), btn("Show lane in timeline", function () { closeDrawer(); scrollTo("timeline"); })));
+}
+function openCell(task, role) {
+  var d = drawer((task ? "Task " + task : "Scope overhead") + " × " + role); setSel(null);
+  add(d, el("h2", null, (task ? "Task " + task : "Scope overhead") + " × " + role));
+  var ms = (D.matrix || []).filter(function (m) { return (m.task || "") === (task || "") && roleOf(m.agent) === role; });
+  var b = { working: 0, waiting: 0, blocking: 0, idle: 0 }, tk = { input: 0, cache_read: 0, cache_write: 0, output: 0 }, c = 0;
+  ms.forEach(function (m) { BK.forEach(function (k) { b[k] += (m.buckets_s || {})[k] || 0; }); for (var k in tk) tk[k] += (m.tokens || {})[k] || 0; c += m.cost_usd || 0; });
+  if (!ms.length) add(d, emptyBox("No activity.", "This agent did not work on this task."));
+  else {
+    var cd = el("div", "card");
+    add(cd, el("b", null, dur(sum(b))), document.createTextNode(" · "), el("b", null, usd(c)), document.createTextNode(" · "), el("b", null, tok(sum(tk))), document.createTextNode(" tokens "),
+      bar(b, BK, function (k) { return "b-" + k; }), el("div", null, null, { style: "height:6px" }), tokbar(tk), legendK());
+    add(d, cd);
+  }
+  var t0 = ts(S.window && S.window.start) || 0, evs = [];
+  agents.forEach(function (a) { if (roleOf(a.name) === role) (a.events || []).forEach(function (e) { if (e[1] !== "BLOCKED" && (e[2] || "") === (task || "")) evs.push(e); }); });
+  evs.sort(function (p, q) { return p[0] - q[0]; });
+  if (evs.length) add(d, h3("Messages"), mini(evs.map(function (e) { return { cells: [dt(t0 + e[0]), el("b", null, e[1])] }; }), null));
+  var acts = el("div", "acts", null, { style: "margin-top:10px" });
+  if (task && taskById(task)) add(acts, btn("← Task " + task, function () { openTask(task); }, true));
+  add(acts, btn("Show in timeline", function () { showInTimeline(task && taskById(task) ? task : ""); }));
+  add(d, acts);
+}
+function go(target) {
+  if ((target.view === "tasks" || target.view === "returns") && target.id && taskById(target.id)) { scrollTo("tasks"); openTask(target.id); }
+  else if (target.view === "roles" && target.id) { scrollTo("roles"); openRole(target.id); }
+  else if (target.view === "tasks") scrollTo("tasks");
+  else if (target.view === "roles") scrollTo("roles");
+  else if (target.view === "matrix") scrollTo("grid");
+  else if (target.view === "timeline" || target.view === "waits" || target.view === "returns") scrollTo(target.view === "returns" ? "tasks" : "timeline");
+  else scrollTo("overview");
+}
+function scrollTo(id) {
+  var n = document.getElementById(id); if (!n) return;
+  n.scrollIntoView({ block: "start" });
+  n.classList.remove("flash"); void n.offsetWidth; n.classList.add("flash");
+}
+
+var tipEl = el("div", null, null, { id: "tip" });
+document.addEventListener("mousemove", function (e) {
+  var t = e.target.closest && e.target.closest("[data-tip]");
+  if (!t) { tipEl.style.display = "none"; return; }
+  tipEl.textContent = t.getAttribute("data-tip"); tipEl.style.display = "block";
+  tipEl.style.left = Math.max(4, Math.min(e.clientX + 12, innerWidth - 310)) + "px"; tipEl.style.top = (e.clientY + 14) + "px";
+});
+document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeDrawer(); });
+
+// ---------- assemble ----------
+var mainEl = el("main");
+add(mainEl, banners(), overview(), tasksSection(), rolesSection(), gridSection(), timelineSection());
+add(app, header(), nav(), mainEl);
+document.body.appendChild(drawerEl); document.body.appendChild(tipEl);
+drawTimeline();
+var rzT; window.addEventListener("resize", function () { clearTimeout(rzT); rzT = setTimeout(drawTimeline, 120); });
+function spy() {
+  var cur = "overview";
+  ["overview", "tasks", "roles", "grid", "timeline"].forEach(function (id) { var n = document.getElementById(id); if (n && n.getBoundingClientRect().top < 90) cur = id; });
+  Array.prototype.forEach.call(document.querySelectorAll("nav.sections a"), function (a) { a.classList.toggle("on", a.getAttribute("data-nav") === cur); });
+}
+window.addEventListener("scroll", spy);
+spy();
+})();
+
+</script>
+</body>
+</html>

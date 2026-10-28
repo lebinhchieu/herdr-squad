@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+"""cautoswitch [--threshold 90] [--interval 300] [--once] [--dry-run]
+
+Every interval, for each herdr workspace that has a squad agent (a Claude pane whose
+process carries SQUAD_NAME): when its default account's 5-hour usage reaches the
+threshold and another account is lower on both 5h and 7d, make that account the
+workspace's default (never the global one), then cswitch every squad agent of the
+workspace that runs off its default, one at a time. Run it in its own herdr tab.
+Usage: cautoswitch --interval 300 in a dedicated tab; it retries off-default panes every tick.
+"""
+import argparse, datetime, json, os, subprocess, sys, time, urllib.request
+
+H = os.path.expanduser("~/.claude-accounts")
+CFG = {"1": os.path.expanduser("~/.claude"), "2": os.path.expanduser("~/.claude-2"), "3": os.path.expanduser("~/.claude-3")}
+CACHE_MAX_AGE = 900  # status-line cache older than this is too stale to act on
+ACCT_OF = {v: k for k, v in CFG.items()}
+REFRESH_FAILED = {}  # acct -> time of the last failed claude -p refresh
+PENDING_DIR = f"{H}/wake-pending"
+MARKER_MAX_AGE = 1800  # a wake marker older than this is deleted unsent
+OLD_ACCT = {}  # pane -> account it ran on before its last cswitch (for the wake text)
+
+
+def log(msg):
+    line = f"{time.strftime('%Y-%m-%dT%H:%M:%S')} autoswitch: {msg}"
+    print(line, flush=True)
+    with open(f"{H}/cswitch.log", "a") as f:
+        f.write(line + "\n")
+
+
+def read_creds(acct):
+    return json.load(open(f"{CFG[acct]}/.credentials.json"))["claudeAiOauth"]
+
+
+def refresh_token(acct):
+    """An expired access token is renewed by Claude Code itself: one tiny claude -p under that account."""
+    if time.time() - REFRESH_FAILED.get(acct, 0) < 1800:
+        return
+    env = {**os.environ, "ACCT_NO_WS_DEFAULT": "1"}  # a refresh must not become a workspace default
+    try:
+        rc = subprocess.run([f"{H}/bin/c{acct}", "-p", "ok", "--model", "haiku", "--no-session-persistence"],
+                            env=env, cwd=H, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, timeout=60).returncode
+    except Exception as e:
+        rc = type(e).__name__
+    try:
+        ok = read_creds(acct).get("expiresAt", 0) / 1000 > time.time() + 60
+    except Exception:
+        ok = False
+    if ok:
+        log(f"c{acct} token expired; refreshed via claude -p")
+    else:
+        REFRESH_FAILED[acct] = time.time()
+        log(f"c{acct} token still expired after claude -p (rc={rc})")
+
+
+def usage(acct):
+    """(five_pct, week_pct) from the live usage endpoint, else a fresh cache, else None."""
+    try:
+        c = read_creds(acct)
+        if c.get("expiresAt", 0) / 1000 <= time.time() + 60:
+            refresh_token(acct)
+            c = read_creds(acct)
+        if c.get("expiresAt", 0) / 1000 > time.time():
+            req = urllib.request.Request("https://api.anthropic.com/api/oauth/usage", headers={
+                "Authorization": "Bearer " + c["accessToken"], "anthropic-beta": "oauth-2025-04-20"})
+            d = json.loads(urllib.request.urlopen(req, timeout=8).read())
+            return d["five_hour"]["utilization"], d["seven_day"]["utilization"]
+    except Exception:
+        pass
+    try:
+        f5, _, f7, _, at = open(f"{H}/usage-{acct}").read().split()
+        if time.time() - float(at) < CACHE_MAX_AGE:
+            return float(f5), float(f7)
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def squad_panes():
+    """{pane_id: (squad_name, account, workspace)} for every running claude process with SQUAD_NAME."""
+    out = {}
+    for pid in subprocess.run(["pgrep", "-x", "claude"], capture_output=True, text=True).stdout.split():
+        try:
+            env = dict(kv.split("=", 1) for kv in open(f"/proc/{pid}/environ").read().split("\0") if "=" in kv)
+            # the "claude daemon run" child shares the pane's env but can keep the old account after a cswitch
+            if open(f"/proc/{pid}/cmdline").read().split("\0")[1:2] == ["daemon"]:
+                continue
+        except OSError:
+            continue
+        acct = ACCT_OF.get(env.get("CLAUDE_CONFIG_DIR") or CFG["1"])
+        if env.get("SQUAD_NAME") and env.get("HERDR_PANE_ID") and env.get("HERDR_WORKSPACE_ID") and acct:
+            out[env["HERDR_PANE_ID"]] = (env["SQUAD_NAME"], acct, env["HERDR_WORKSPACE_ID"])
+    return out
+
+
+def workspace_default(ws):
+    """cdefault is the one source of truth for the file format and the global fallback."""
+    r = subprocess.run([f"{H}/bin/cdefault"], capture_output=True, text=True,
+                       env={**os.environ, "HERDR_ENV": "1", "HERDR_WORKSPACE_ID": ws})
+    return r.stdout.strip() if r.stdout.strip() in CFG else "1"
+
+
+def pending(pane):
+    """True when the pane's last cswitch.log line is a '-> account' line younger than 15 min."""
+    last = ""
+    try:
+        with open(f"{H}/cswitch.log") as f:
+            for l in f:
+                w = l.split()
+                if len(w) > 1 and w[1] == pane:
+                    last = l
+    except OSError:
+        return False
+    if " -> account " not in last:
+        return False
+    try:
+        return time.time() - datetime.datetime.fromisoformat(last.split()[0]).timestamp() < 900
+    except ValueError:
+        return False
+
+
+def log_ts(line):
+    """Epoch of a cswitch.log line (the leading `date -Is` stamp), else None."""
+    try:
+        return datetime.datetime.fromisoformat(line.split()[0]).timestamp()
+    except (ValueError, IndexError):
+        return None
+
+
+def markers():
+    """{pane: (epoch, name, reason)} of wake-pending/."""
+    out = {}
+    try:
+        files = os.listdir(PENDING_DIR)
+    except OSError:
+        return out
+    for pane in files:
+        if pane.startswith("."):
+            continue
+        try:
+            with open(f"{PENDING_DIR}/{pane}") as f:
+                e, name, reason = (f.read().split(None, 2) + [""])[:3]
+            out[pane] = (int(e), name, reason.strip())
+        except (OSError, ValueError):
+            pass
+    return out
+
+
+def batch_start(panes):
+    """Epoch of the first '-> account' line of these panes in the last 30 min (T0 of the batch), else None."""
+    t0 = None
+    try:
+        with open(f"{H}/cswitch.log") as f:
+            for l in f:
+                w = l.split()
+                if len(w) > 1 and w[1] in panes and " -> account " in l:
+                    t = log_ts(l)
+                    if t and time.time() - t < MARKER_MAX_AGE and (t0 is None or t < t0):
+                        t0 = t
+    except OSError:
+        pass
+    return t0
+
+
+def woken_since(pane, t0):
+    """True when cswitch.log has a 'wake sent|skipped' line of the pane at or after t0."""
+    try:
+        with open(f"{H}/cswitch.log") as f:
+            for l in f:
+                w = l.split()
+                if len(w) > 3 and w[1] == pane and w[-2] == "wake" and w[-1] in ("sent", "skipped") \
+                        and (log_ts(l) or 0) >= t0:
+                    return True
+    except OSError:
+        pass
+    return False
+
+
+def wake_step(panes, target, back):
+    """After the per-pane loop: expire old markers, then wake each marked pane that is back on its workspace's
+    default, once its workspace has no cswitch in flight. `back` = panes known to be on target.
+    A pane that failed or is still running keeps its marker and is not woken (the others are not held up)."""
+    for pane, (epoch, name, _) in markers().items():
+        if time.time() - epoch > MARKER_MAX_AGE:
+            os.remove(f"{PENDING_DIR}/{pane}")
+            log(f"wake marker of {name}({pane}) older than 30 min; deleted unsent")
+    gap = float(os.environ.get("CSWITCH_WAKE_GAP", "3"))
+    for ws in target:
+        wp = {p for p, v in panes.items() if v[2] == ws}
+        if any(pending(p) for p in wp):
+            continue  # a cswitch of this workspace is still within its 15 min: wake next tick
+        t0 = batch_start(wp)
+        if t0 is not None:
+            for p in sorted(wp & back):
+                if not woken_since(p, t0):
+                    subprocess.run([f"{H}/bin/cwake", "--mark", p, "--clauses", "2", "--since", str(t0)])
+        due = sorted((m[p][0], p) for m in [markers()] for p in m if p in wp and p in back)
+        for i, (_, p) in enumerate(due):
+            if i:
+                time.sleep(gap)
+            old = OLD_ACCT.get(p)
+            subprocess.run([f"{H}/bin/cwake", p, *(["--old", old, "--new", target[ws]] if old else [])])
+
+
+def tick(threshold, dry):
+    panes = squad_panes()
+    target = {ws: workspace_default(ws) for ws in sorted({p[2] for p in panes.values()})}
+    seen = {}
+
+    def use(acct):  # at most one fetch (so one refresh attempt) per account per tick
+        if acct not in seen:
+            seen[acct] = usage(acct)
+        return seen[acct]
+
+    fmt = lambda u: f"5h {u[0]:.0f}% 7d {u[1]:.0f}%" if u else "n/a"
+    status = []
+    for ws in target:
+        t = target[ws]
+        ut = use(t)
+        status.append(f"{ws} -> c{t} {fmt(ut)}")
+        if ut is None or ut[0] < threshold:
+            continue
+        better = {o: use(o) for o in CFG if o != t}
+        better = {o: u for o, u in better.items() if u and u[0] < ut[0] and u[1] < ut[1]}
+        if not better:
+            log(f"{ws} c{t} over {threshold}% but no other account is lower on both; staying. c{t} {fmt(ut)}")
+            continue
+        other = min(better, key=lambda o: better[o][0])
+        log(f"{'[dry-run] would set' if dry else 'setting'} {ws} default to c{other}: c{t} {fmt(ut)}; c{other} {fmt(better[other])}")
+        if not dry:
+            subprocess.run([f"{H}/bin/cdefault", "--ws", ws, other], check=True)
+            target[ws] = other
+    print(f"{time.strftime('%H:%M:%S')} ok: {' | '.join(status) or 'no squad panes'}", flush=True)
+    wake_on = os.environ.get("CSWITCH_WAKE", "on") != "off"
+    back = {p for p, (_, acct, ws) in panes.items() if acct == target[ws] and not pending(p)}
+    # One pane at a time: if every session restarts together, messages between agents fail.
+    for pane, (name, acct, ws) in panes.items():
+        if acct == target[ws]:
+            continue
+        if dry:
+            log(f"[dry-run] would cswitch {name}({pane}) c{acct} -> c{target[ws]}")
+            continue
+        if pending(pane):
+            continue
+        log(f"retry: cswitch {name}({pane}) c{acct} -> c{target[ws]}")
+        start = os.path.getsize(f"{H}/cswitch.log")
+        OLD_ACCT[pane] = acct
+        subprocess.run([f"{H}/bin/cswitch", target[ws], pane])
+        deadline = time.time() + 900  # cswitch waits up to 10 min for idle, then restarts
+        while time.time() < deadline:
+            time.sleep(5)
+            with open(f"{H}/cswitch.log") as f:
+                f.seek(start)
+                res = [l for l in f if len(w := l.split()) > 1 and w[1] == pane and (" done" in l or "FAILED" in l)]
+            if res:
+                if " done" in res[-1] and "FAILED" not in res[-1]:
+                    back.add(pane)
+                break
+    if wake_on and not dry:
+        wake_step(panes, target, back)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--threshold", type=float, default=90)
+    ap.add_argument("--interval", type=int, default=300)
+    ap.add_argument("--once", action="store_true")
+    ap.add_argument("--dry-run", action="store_true")
+    a = ap.parse_args()
+    if os.environ.get("HERDR_ENV") != "1":
+        sys.exit("not inside Herdr")
+    while True:
+        try:
+            tick(a.threshold, a.dry_run)
+        except Exception as e:  # one bad tick must not stop the watcher
+            log(f"error: {e}")
+        if a.once:
+            return
+        time.sleep(a.interval)
+
+
+if __name__ == "__main__":
+    main()

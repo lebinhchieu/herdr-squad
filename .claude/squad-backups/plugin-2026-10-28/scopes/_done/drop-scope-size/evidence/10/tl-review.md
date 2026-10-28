@@ -1,0 +1,1 @@
+sha d792d78 (final code, 10): TL re-ran test_squad_team 26, instructions/sizes/windows_safe 75 OK, lint empty; read bin/squadteam.py: refusals before write, atomic write, pin/size/undecided/goal guards. No finding.

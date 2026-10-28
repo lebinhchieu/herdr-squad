@@ -1,0 +1,25 @@
+{
+ "candidate": "usage2",
+ "arm_alias": "haiku",
+ "run": 2,
+ "date": "2026-10-16",
+ "session": "8cbe0f58-158d-4492-8dfd-4c60d2a8cb5d",
+ "models": [
+  "claude-haiku-5-5"
+ ],
+ "n_message_ids": 2,
+ "tokens": {
+  "input_tokens": 4,
+  "output_tokens": 2759,
+  "cache_read_input_tokens": 9441,
+  "ephemeral_5m": 0,
+  "ephemeral_1h": 4087
+ },
+ "cost_usd": 0.002292,
+ "unpriced": [],
+ "defects": [],
+ "seconds": 13.2,
+ "exit": 0,
+ "stderr_len": 0,
+ "transcript_files": 1
+}

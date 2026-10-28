@@ -1,0 +1,14 @@
+{
+  "name": "herdr-squad",
+  "owner": {
+    "name": "Chieu Le"
+  },
+  "plugins": [
+    {
+      "name": "squad",
+      "source": "./",
+      "description": "Self-managing Claude Code dev team run by a Manager session in herdr"
+    }
+  ],
+  "description": "Marketplace for the squad plugin"
+}

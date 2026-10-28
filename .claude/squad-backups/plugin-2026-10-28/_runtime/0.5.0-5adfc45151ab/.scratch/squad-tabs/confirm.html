@@ -1,0 +1,74 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>squad-tabs, confirm size and plan</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{--bg:#FCF8F1;--panel:#F4ECDD;--line:#E7DBC8;--ink:#3E372E;--muted:#857A68;--mango:#E8820E;--teal:#0C8A80;--red:#DB3B22;--blue:#2A6DC0;--purple:#9A40CF;--green:#368A1E;--yellow:#9E7A00;
+--display:"Fraunces",Georgia,serif;--body:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace;color-scheme:light}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--body);padding-block:20px 40px;padding-inline:max(16px,3vw);margin:0}
+h1{font:600 28px/1.2 var(--display);margin:0}h2{font:600 18px/1.3 var(--display);margin:0 0 10px}
+.lede{max-width:78ch;color:var(--muted);margin:6px 0 0}
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:28px;margin-top:18px;align-items:start}
+@media (max-width:960px){.grid{grid-template-columns:1fr}}
+.sticky{position:sticky;top:12px}@media (max-width:960px){.sticky{position:static}}
+.strip{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.strip .hd{font:600 12px var(--mono);background:var(--panel);padding:6px 10px;color:var(--muted);display:flex;justify-content:space-between}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;padding:8px;background:#fff}
+.tab{font:12.5px var(--mono);border:1px solid var(--line);border-radius:5px 5px 0 0;padding:4px 8px;white-space:nowrap}
+.tab.bad{background:#DB3B2210;border-color:#DB3B2255}.tab.good{background:#368A1E10;border-color:#368A1E55}
+.ws{font:600 12px var(--mono);padding:4px 10px;border-bottom:1px dashed var(--line);background:#fff}
+.mk{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--mango);color:#fff;font:600 10.5px var(--mono);margin-left:5px;vertical-align:middle;padding:0 3px}
+.code{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.code .hd{font:600 12px var(--mono);background:var(--panel);padding:6px 10px;color:var(--muted)}
+.code pre{margin:0;padding:6px 0;font:12px/1.6 var(--mono);overflow-x:auto;background:var(--bg)}
+.ln{display:block;padding:0 10px;white-space:pre}.ln .n{color:var(--muted);display:inline-block;width:3ch;margin-right:8px;text-align:right}.ln.hl{background:#E8820E1F}
+.note{font-size:13px;color:var(--ink);margin:-4px 0 12px;padding-left:10px;border-left:3px solid var(--line)}
+.tag{font:600 10.5px var(--mono);padding:1px 6px;border-radius:4px;white-space:nowrap}.v{color:var(--green);background:#368A1E18}.i{color:var(--yellow);background:#9E7A0018}
+.q{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.q h3{font:600 15px var(--body);margin:0 0 4px;display:flex;gap:8px;align-items:center}
+.q p{margin:4px 0 8px;max-width:72ch;font-size:14px}
+.pin{display:inline-grid;place-items:center;min-width:24px;height:22px;border-radius:11px;background:var(--mango);color:#fff;font:600 11px var(--mono);padding:0 4px}
+.opts{display:grid;gap:6px}.opts label{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:6px;padding:7px 9px;cursor:pointer;font-size:14px}
+.opts label:has(input:checked){border-color:var(--mango);background:#E8820E10}.opts input{margin-top:3px;accent-color:var(--mango)}
+.rec{font:600 10.5px var(--mono);color:var(--mango);margin-left:4px}
+textarea{width:100%;box-sizing:border-box;font:13px var(--body);border:1px solid var(--line);border-radius:6px;padding:6px;background:#fff;color:var(--ink);margin-top:6px}
+.copy{border:2px solid var(--mango);border-radius:10px;padding:14px}.copy pre{font:13px/1.5 var(--mono);background:var(--panel);padding:10px;border-radius:6px;white-space:pre-wrap;margin:8px 0}
+button.cta{font:600 14px var(--body);background:var(--mango);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.settled{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.settled span{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:2px 10px;background:var(--panel)}.settled span::before{content:"default ✓ ";color:var(--green);font:600 11px var(--mono)}
+footer{margin-top:28px;font:12px/1.6 var(--mono);color:var(--muted);white-space:pre-wrap;border-top:1px solid var(--line);padding-top:12px;overflow-x:auto}
+</style>
+
+<style>.cmp td,.cmp th{vertical-align:top;font-size:13.5px}.cmp td:first-child{font:600 12px var(--mono);color:var(--muted);white-space:nowrap}.ok{color:var(--green)}.no{color:var(--red)}.warn{color:var(--yellow)}table{border-collapse:collapse;width:100%}.tw{overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:12px}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}th{font:600 11.5px var(--mono);text-transform:uppercase;color:var(--muted);background:var(--panel)}th.recc{color:var(--mango)}</style>
+<style>.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:14px}.card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#fff;font-size:13.5px}.card h4{margin:0 0 6px;font:600 13px var(--mono);color:var(--muted)}.card ul{margin:0;padding-left:18px}.lane{display:grid;grid-template-columns:70px 1fr;gap:6px 10px;align-items:start;font-size:13.5px;margin-bottom:12px}.lane .st{font:600 11px var(--mono);color:var(--muted);padding-top:6px}.chips{display:flex;flex-wrap:wrap;gap:6px}.t{border:1px solid var(--line);border-left:4px solid var(--teal);border-radius:6px;padding:5px 8px;background:#fff}.t b{font-family:var(--mono)}.t.last{border-left-color:var(--mango)}</style>
+<h1>squad-tabs: confirm size M and the plan</h1>
+<p class="lede">The grill is settled: 14 decisions in <code>.scratch/squad-tabs/decisions.md</code>. I propose size <b>M</b>: Tech Lead, BA, QA whitebox, QA blackbox and up to 3 Developers, for about 6 tasks. T1 (labels) and T4 (toast hook) start together, then T2, T3 and T5, and T6 integrates and flips your herdr line. Confirm, and I spawn the Tech Lead and BA first.</p>
+<div class="grid"><section class="sticky" aria-label="What was decided">
+<h2>What was decided</h2>
+<div class="cols">
+<div class="card"><h4>tabs + board</h4><ul><li><code>🦀 Manager</code>, <code>🤖 Dev 1 · TAB-02 tab labels</code>, <code>📋 Board</code></li><li>no squad or scope name; blank task → role only</li><li>address names unchanged</li><li><code>--title</code> at spawn, <code>squad-label</code> on a new ticket</li></ul></div>
+<div class="card"><h4>workspace</h4><ul><li>goal name for a goal, else scope name</li><li>last start wins</li></ul></div>
+<div class="card"><h4>toasts</h4><ul><li>squad: Manager waits, or any agent blocked</li><li>non-squad Claude: as today</li><li>skip the active tab</li><li><code>squad-tabs · 🦀 Manager</code> / <code>Waiting for you</code></li><li>herdr toast off, plugin hook sends all</li></ul></div>
+</div>
+<h2>Plan (Tech Lead may re-cut)</h2>
+<div class="lane"><span class="st">start</span><div class="chips"><span class="t"><b>T1</b> labels: spawn, respawn, board-start, squad-label</span><span class="t"><b>T4</b> toast hook (hooks.json + script)</span></div>
+<span class="st">then</span><div class="chips"><span class="t"><b>T2</b> workspace rename (squad-start)</span><span class="t"><b>T3</b> board shows label</span><span class="t"><b>T5</b> role files: manager.md, dev.md + CONTEXT.md</span></div>
+<span class="st">last</span><div class="chips"><span class="t last"><b>T6</b> integrate, full suite, herdr <code>delivery = "off"</code> with backup, live check<span class="mk">3</span></span></div></div>
+<p class="note">Why M, not S or L: user-visible, one repo, ~6 tasks, no open questions left after the grill. No risk flag forces higher. <span class="tag v">verified: process.md Sizes</span></p>
+<p class="note">Backup name: <code>config.toml.squad-tabs.bak</code>, because <code>~/.config/herdr/config.toml.bak</code> already exists (134 B) and must not be overwritten. <span class="tag v">verified: ls ~/.config/herdr</span></p>
+</section><section aria-label="Confirm">
+<div class="q"><h3><span class="pin">1</span>Size</h3><p></p><div class="opts"><label><input type="radio" name="q1" value="M" checked><span>M: Tech Lead + BA + QA whitebox + QA blackbox + Developers (cap 3)<span class=rec>REC</span></span></label><label><input type="radio" name="q1" value="L"><span>L: add a Team Lead for the plan</span></label><label><input type="radio" name="q1" value="S"><span>S: Tech Lead review only, no QA (process.md: user-visible change forces at least M)</span></label></div><textarea id="n1" rows="1" placeholder="Note (optional)"></textarea></div>
+<div class="q"><h3><span class="pin">2</span>Role-instruction edits in T5</h3><p>process.md says role files change only with your OK. Your brief asks for it: the Manager passes <code>--title</code>, a Developer runs <code>squad-label</code> on a new ticket.</p><div class="opts"><label><input type="radio" name="q2" value="approve T5 edits to agents/manager.md and agents/dev.md" checked><span>Approve the edits to agents/manager.md and agents/dev.md; I show you the diff at the check-in<span class=rec>REC</span></span></label><label><input type="radio" name="q2" value="show me the diff before it merges"><span>Approve, but stop for my review of the diff before it counts as done</span></label></div><textarea id="n2" rows="1" placeholder="Note (optional)"></textarea></div>
+<div class="q"><h3><span class="pin">3</span>Where QA blackbox tests live tabs and toasts</h3><p>Testing tab labels and toasts needs real herdr tabs, which pop toasts on your screen.</p><div class="opts"><label><input type="radio" name="q3" value="throwaway workspace" checked><span>A throwaway herdr workspace <code>squad-tabs-test</code>, closed by its PID-tracked script when done; toasts may pop during the test<span class=rec>REC</span></span></label><label><input type="radio" name="q3" value="in this workspace"><span>In this workspace, next to the live pod</span></label></div><textarea id="n3" rows="1" placeholder="Note (optional)"></textarea></div>
+<div class="copy"><h2>Your answers</h2><pre id="out"></pre><button class="cta" id="copyBtn">Copy answers</button> <span id="copied" style="font:12px var(--mono);color:var(--muted)"></span></div>
+</section></div>
+<footer>Reader:     the PO → confirm size and plan, then the Manager spawns
+Question:   Is size M with this 6-task plan the right way to build the 14 decisions?
+Dimension:  Structure
+Form:       decision cards + task lanes beside a confirm box, not a full spec: the decisions file holds the detail
+Source:     .scratch/squad-tabs/decisions.md D1-D14; $SCOPE_DIR/iterations/1.md</footer>
+<script>
+const out=document.getElementById('out');
+function render(){const l=[];for(let i=1;i<=3;i++){const v=document.querySelector(`input[name=q${i}]:checked`).value;const n=document.getElementById('n'+i).value.trim();l.push(`C Q${i}: ${v}${n?' | '+n:''}`);}out.textContent=l.join('\n');}
+document.addEventListener('input',render);document.addEventListener('change',render);render();
+document.getElementById('copyBtn').addEventListener('click',()=>{const c=document.getElementById('copied');navigator.clipboard.writeText(out.textContent).then(()=>c.textContent='Copied').catch(()=>{const r=document.createRange();r.selectNodeContents(out);const s=getSelection();s.removeAllRanges();s.addRange(r);c.textContent='Selected, press Ctrl+C';});});
+</script>

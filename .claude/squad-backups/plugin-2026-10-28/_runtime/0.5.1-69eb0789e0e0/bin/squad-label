@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""Relabel a squad agent's herdr tab. The label is built from the stored role, number and title.
+
+  squad-label "<text>"                     set the caller's task text ("" clears it) and rename its tab
+  squad-label --agent NAME "<text>"        the same for another agent (Manager only)
+  squad-label --init --home DIR --agent NAME --role R [--title T]
+                                           squad-spawn: number NAME among live peers, store it in DIR (the
+                                           caller's env is ignored), rename the peers that got a number,
+                                           print NAME's label
+  squad-label --init --dry-run ...         the same, but print the label only: no store file, no rename
+  squad-label --get-title --home DIR --agent NAME
+                                           squad-respawn: print NAME's stored title (empty if none)
+
+Env: SQUAD_NAME, SQUAD_ROLE, SCOPE_DIR (else GOAL_DIR, else SQUAD_DIR: the folder holding labels/),
+HERDR_ENV (1 = inside herdr; otherwise only the store is updated).
+"""
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
+import squadlabel as sl  # noqa: E402
+
+
+def herdr(*args):
+    return subprocess.run(["herdr", *args], capture_output=True, text=True, timeout=15,
+                          encoding="utf-8", errors="replace")
+
+
+def rename_tab(agent, label):
+    """Best effort: the store is the truth, so a herdr failure only warns."""
+    if os.environ.get("HERDR_ENV") != "1":
+        return
+    try:
+        r = herdr("agent", "get", agent)
+        tab = json.loads(r.stdout)["result"]["agent"]["tab_id"] if r.returncode == 0 else None
+        if not tab:
+            raise RuntimeError(f"no tab for {agent}")
+        r = herdr("tab", "rename", tab, label)
+        if r.returncode != 0:
+            raise RuntimeError(r.stderr.strip() or f"herdr exit {r.returncode}")
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError) as e:
+        print(f"squad-label: warning: tab of {agent} not renamed: {e}", file=sys.stderr)
+
+
+def live_names():
+    if os.environ.get("HERDR_ENV") != "1":
+        return set()
+    try:
+        r = herdr("agent", "list")
+        return {a["name"] for a in json.loads(r.stdout)["result"]["agents"] if a.get("name")}
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        return set()
+
+
+def own_home():
+    for v in ("SCOPE_DIR", "GOAL_DIR", "SQUAD_DIR"):
+        if os.environ.get(v):
+            return os.environ[v]
+    sys.exit("squad-label: SCOPE_DIR, GOAL_DIR and SQUAD_DIR are all unset")
+
+
+def homes_for_lookup():
+    homes = [os.environ.get(v) for v in ("SCOPE_DIR", "GOAL_DIR")]
+    sq = os.environ.get("SQUAD_DIR")
+    if sq:
+        homes.append(sq)
+        homes += sorted(str(p) for p in Path(sq, "scopes").glob("*") if p.is_dir() and p.name != "_done")
+    seen = []
+    for h in homes:
+        if h and h not in seen:
+            seen.append(h)
+    return seen
+
+
+def main():
+    squadio.utf8_stdio()
+    ap = argparse.ArgumentParser(prog="squad-label")
+    ap.add_argument("text", nargs="?")
+    ap.add_argument("--agent")
+    ap.add_argument("--init", action="store_true")
+    ap.add_argument("--role")
+    ap.add_argument("--title", default="")
+    ap.add_argument("--home")
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--get-title", action="store_true")
+    a = ap.parse_args()
+    caller = os.environ.get("SQUAD_NAME")
+
+    if a.get_title:
+        if not (a.home and a.agent):
+            ap.error("--get-title needs --home and --agent")
+        e = sl.read_entry(a.home, a.agent)
+        print(e["title"] if e else "")
+        return 0
+
+    if a.init:
+        if not (a.home and a.agent and a.role):
+            ap.error("--init needs --home, --agent and --role")
+        home = a.home
+        if a.dry_run:  # assign_number stores peers' new numbers, so number on a throwaway copy of the store
+            tmp = tempfile.mkdtemp(prefix="squad-label-")
+            try:
+                if Path(home, "labels").is_dir():
+                    shutil.copytree(Path(home, "labels"), Path(tmp, "labels"))
+                number, _ = sl.assign_number(tmp, a.agent, a.role, live_names())
+            except ValueError as e:
+                sys.exit(f"squad-label: {e}")
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
+            print(sl.build_label(a.role, number, a.title))
+            return 0
+        try:
+            number, changed = sl.assign_number(home, a.agent, a.role, live_names())
+            sl.write_entry(home, a.agent, a.role, number, sl.clean_title(a.title))
+        except ValueError as e:
+            sys.exit(f"squad-label: {e}")
+        for peer, n in changed:
+            e = sl.read_entry(home, peer)
+            rename_tab(peer, sl.build_label(e["role"], n, e["title"]))
+        print(sl.build_label(a.role, number, a.title))
+        return 0
+
+    if a.text is None:
+        ap.error("missing label text")
+    target = a.agent or caller
+    if not target:
+        sys.exit("squad-label: SQUAD_NAME is not set (use --agent NAME)")
+    if target != caller and os.environ.get("SQUAD_ROLE") != "manager":
+        print("only the Manager may relabel another agent", file=sys.stderr)
+        return 2
+    try:
+        if target == caller:
+            home = own_home()
+            entry = sl.read_entry(home, target)
+        else:
+            found = [(h, e) for h in homes_for_lookup() if (e := sl.read_entry(h, target))]
+            uniq = {os.path.realpath(h): (h, e) for h, e in found}
+            if len(uniq) != 1:
+                print(f"squad-label: {'no label entry' if not uniq else 'several label entries'} for {target}",
+                      file=sys.stderr)
+                return 1
+            home, entry = next(iter(uniq.values()))
+    except ValueError as e:
+        sys.exit(f"squad-label: {e}")
+    if entry is None:
+        role = os.environ.get("SQUAD_ROLE")
+        if not role:
+            print(f"squad-label: no label entry for {target} and SQUAD_ROLE is not set", file=sys.stderr)
+            return 1
+        entry = {"role": role, "number": None, "title": ""}
+    title = sl.clean_title(a.text)
+    sl.write_entry(home, target, entry["role"], entry["number"], title)
+    label = sl.build_label(entry["role"], entry["number"], title)
+    rename_tab(target, label)
+    print(label)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

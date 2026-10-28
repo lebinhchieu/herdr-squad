@@ -1,0 +1,10 @@
+# QA blackbox 03 — commit 5189427 (docs + version; read docs/promote.md, ran CLI tools in scratch squad; no code read)
+
+| AC | Did | Saw | Result |
+|---|---|---|---|
+| 1 CONTEXT + ADR 0017 consistent with 02 rules | read CONTEXT.md Architect / architecture flag / Tech Lead entries and docs/adr/0017-architect-role.md; compared with composed rules (SIZE-3a, SIZE-9a, WHO-2e, SIZE-22a, SPAWN-4a, MSG-20, SIZE-23c/d, REV-22a) | Terms match the rules verbatim: optional, PO-only flag default `no`, any size, `architecture.md` Status draft\|final before the plan, above Tech Lead (L) and Developer design notes (S, M), Architect proposes / PO decides irreversible choices, conformance in technical AC (S review subagent, M QA whitebox, L Tech Lead + QA whitebox), 2 rounds then Manager, flag-off unchanged. Tech Lead `_Avoid_: architect` line is gone; Tech Lead entry says per-task design stays inside `architecture.md`. ADR 0017 states "Amends 0016" (owner rows → WHO-2e/SIZE-22a) and "Consistent with 0010" | PASS |
+| 2 README | grep README.md | Roles list names "an optional Architect (only when the PO sets `architecture: yes`)" next to the Designer / `design: yes`; Designer paragraph followed by the Architect/`architecture:` sentence | PASS |
+| 3 version, snapshot, changelog; old pin unaffected | plugin.json; changelog `## v8`; history dir; scratch scopes pinned `0.5.1 69eb078…`; `squad-spawn dev --dry-run` | plugin.json 0.6.0; changelog v8 block with `snapshot: history/process-v8/`, added IDs match the rules I saw in 02 (SIZE-3a…MSG-20b), changed/removed none; `history/process-v8/` has 20 files like `process-v7/`. A scope pinned to 0.5.1 still resolves `_runtime/0.5.1-69eb0789e0e0` with the 0.6.0 tools. 138/138 composed files (108 no/absent vs base 30de602, 30 yes vs 02 output) byte-identical; lint clean | PASS |
+| 4 promote.md | read `$SCOPE_DIR/promote.md` | Lists CONTEXT.md, ADR 0017, README only; "Not promoted" names ticket mechanics, tests, evidence, changelog. Those three docs contain the listed changes | PASS |
+
+Verdict: PASS.

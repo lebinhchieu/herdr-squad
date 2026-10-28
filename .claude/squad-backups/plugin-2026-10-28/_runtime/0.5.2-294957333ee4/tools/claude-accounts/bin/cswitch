@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# cswitch 1|2|3 [pane-id] -> once the Claude agent in a Herdr pane (default: this
+# pane) is idle, /exit it and resume the same session on the given account,
+# keeping its original launch args (--agent, --settings, --model, ...) and herdr name.
+. "$HOME/.claude-accounts/lib.sh"
+acct="${1:-}"; pane="${2:-${HERDR_PANE_ID:-}}"
+case "$acct" in 1|2|3) launcher="c$acct" ;; *) echo "usage: cswitch 1|2|3 [pane]" >&2; exit 2 ;; esac
+[ "${HERDR_ENV:-}" = 1 ] || { echo "not inside Herdr" >&2; exit 1; }
+info=$(herdr pane get "$pane" 2>/dev/null)
+sid=$(jq -er '.result.pane.agent_session.value' <<<"$info") \
+  || { echo "no Claude session found in pane $pane" >&2; exit 1; }
+name=$(herdr agent list | jq -r --arg p "$pane" '.result.agents[] | select(.pane_id==$p) | .name // empty')
+
+# The pane's claude process carries the original args; find it by its HERDR_PANE_ID.
+# Skip "claude daemon run" children (argv[1]=daemon); other users' processes are unreadable, so ask for ours only.
+tuipid() {
+  local p a1
+  for p in $(pgrep -u "$(id -u)" -x claude); do
+    a1=$({ tr '\0' '\n' <"/proc/$p/cmdline" | sed -n 2p; } 2>/dev/null)
+    [ "$a1" = daemon ] && continue
+    { tr '\0' '\n' <"/proc/$p/environ" | grep -qx "HERDR_PANE_ID=$pane"; } 2>/dev/null && { echo "$p"; return 0; }
+  done
+  return 1
+}
+pid=$(tuipid)
+args=()
+if [ -n "$pid" ]; then
+  mapfile -d '' -t old < "/proc/$pid/cmdline"
+  # Drop argv[0], any earlier resume/continue and --session-id (claude rejects it with --resume) so the session resumes exactly once.
+  i=1
+  while [ $i -lt ${#old[@]} ]; do
+    case "${old[$i]}" in
+      --resume|-r) i=$((i+2)); continue ;;
+      --resume=*|--continue|-c|--session-id=*) i=$((i+1)); continue ;;
+      --session-id) i=$((i+2)); continue ;;
+    esac
+    args+=("${old[$i]}"); i=$((i+1))
+  done
+fi
+cmd=$(printf '%q ' "$HOME/.claude-accounts/bin/$launcher" "${args[@]}" --resume "$sid")
+
+# Detached: when called from the agent being switched, its own exit must not kill this.
+nohup bash -c '
+  pane=$0 cmd=$1 name=$2
+  # idle or done only: a blocked pane (permission dialog) is waited on, so /exit never lands in the dialog.
+  herdr agent wait "$pane" --until idle --until done --timeout 600000 >/dev/null
+  # Pending-work sample (clauses 1 and 3) while the pane is quiet and still on the old account; no-op when CSWITCH_WAKE=off.
+  [ "${CSWITCH_WAKE:-on}" = off ] || "$HOME/.claude-accounts/bin/cwake" --mark "$pane" --clauses 13 >/dev/null 2>&1
+  # herdr can drop "agent" before claude has exited; typing then loses the command, so watch the process itself.
+  tuipid() { for p in $(pgrep -u "$(id -u)" -x claude); do a1=$({ tr "\0" "\n" <"/proc/$p/cmdline" | sed -n 2p; } 2>/dev/null); [ "$a1" = daemon ] && continue; { tr "\0" "\n" <"/proc/$p/environ" | grep -qx "HERDR_PANE_ID=$pane"; } 2>/dev/null && { echo "$p"; return 0; }; done; return 1; }
+  alive() { tuipid >/dev/null; }
+  herdr agent prompt "$pane" "/exit" >/dev/null
+  for i in $(seq 240); do alive || break; sleep 0.5; done
+  alive && { echo "$(date -Is) $pane FAILED: claude did not exit"; exit 1; }
+  sleep 1
+  ok=""
+  for try in 1 2; do
+    herdr pane run "$pane" "$cmd"
+    pid1=""
+    for i in $(seq 60); do pid1=$(tuipid) && break; sleep 0.5; done
+    [ -n "$pid1" ] || continue
+    # Up is not enough: a bad launch shows claude for a moment, then it exits.
+    sleep 5
+    [ "$(tuipid)" = "$pid1" ] || continue
+    for i in $(seq 60); do herdr pane get "$pane" | grep -q "\"agent\":\"claude\"" && { ok=1; break; }; sleep 0.5; done
+    break  # claude is up and stable: a retry would type the command into it
+  done
+  [ -n "$ok" ] || { echo "$(date -Is) $pane FAILED: claude did not restart"; exit 1; }
+  if [ -n "$name" ]; then
+    for i in $(seq 60); do herdr pane get "$pane" | grep -q "\"agent\":\"claude\"" && break; sleep 0.5; done
+    herdr agent rename "$pane" "$name" >/dev/null
+  fi
+  echo "$(date -Is) $pane ${name:-?} done"
+' "$pane" "$cmd" "$name" >>"$ACCT_HOME/cswitch.log" 2>&1 &
+echo "$(date -Is) $pane ${name:-?} -> account $acct: $cmd" >>"$ACCT_HOME/cswitch.log"
+echo "will resume session $sid on account $acct in pane $pane once idle"

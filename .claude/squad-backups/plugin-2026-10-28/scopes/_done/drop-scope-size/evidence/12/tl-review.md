@@ -1,0 +1,6 @@
+- 2026-10-28 Tech review 12: code 309cc49, evidence-only 1aebbf8 (squad-evidence check --base 309cc49 exit 0). Diff read: scaffold/legacy_scaffold/_size_facts/who size lines gone; read_home old->error (pinned->"old"); non-Manager undecided exit 2; OLD_WHEN_KEYS lint+compose; upgrade old_when (exit 3, apply refuses). lint 0. Full --tz on 1aebbf8: OK 1747 clean=yes (suite-default.txt; tz skipped: no TZ_FILES). Inventory test: 220 raw hits all allow-listed (history/changelog excluded).
+- Minor (no block): test_squadcompose scaffold test needle "qa-b\b" is a non-raw string (backspace), so that needle is vacuous; inventory test still covers squadcompose count 4.
+- Note: 12b based on 2175bd2, lacks 17b88b9 (INT4 evidence QA sections); merge it evidence-only when 13/L branch is cut.
+- 2026-10-28 12 returned (QAB FAIL AC21 upgrade alternatives team-lead/tech-lead); my design translation table missed spec line 170. FINAL to Dev: fix in squadupgrade.py. Sha 1aebbf8 void; QAW had PASS on 309cc49. After fix: re-review diff, run --if-changed 1aebbf8 (+ then --tz on final), name new final sha.
+- 2026-10-28 round 2: code c768b94, evidence 59e2741 (check exit 0). Diff read OK. Full --tz on 59e2741 OK (evidence/12r2). Final sha 59e2741.
+- 2026-10-28 12 PASS: QAW + QAB on 59e2741.

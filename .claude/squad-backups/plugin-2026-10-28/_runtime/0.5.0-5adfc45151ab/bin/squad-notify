@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Claude Stop/Notification hook: at most one desktop toast per event, delivered as an OSC 777
+sequence to the herdr client terminal(s) (route A, D15). Always exits 0, never writes stdout."""
+import glob
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
+
+TIMEOUT = 3
+SQUAD_STOP_ROLE = "manager"
+
+
+def decide(event, ntype, env, subagent=False):
+    """Toast body for this event, or None. Pure: no herdr, no tty."""
+    if env.get("HERDR_ENV") != "1" or subagent:
+        return None
+    if env.get("SQUAD_NAME"):
+        if event == "Stop":
+            return "Waiting for you" if env.get("SQUAD_ROLE") == SQUAD_STOP_ROLE else None
+        return {"permission_prompt": "Permission prompt", "elicitation_dialog": "Question waiting"}.get(ntype)
+    if event == "Stop":
+        return "Done"
+    return "Needs input" if ntype in ("permission_prompt", "elicitation_dialog") else None
+
+
+def delivery_off(path):
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    section = re.search(r"(?ms)^\[ui\.toast\]\s*$(.*?)(?=^\[|\Z)", text)
+    return bool(section and re.search(r'(?m)^\s*delivery\s*=\s*"off"\s*(#.*)?$', section.group(1)))
+
+
+def find_clients(proc_root="/proc"):
+    """tty paths of every process named exactly `herdr` (the client; the server has argv `herdr server`)."""
+    ttys = []
+    for p in glob.glob(os.path.join(proc_root, "[0-9]*")):
+        try:
+            if Path(p, "comm").read_text(encoding="utf-8", errors="replace").strip() != "herdr":
+                continue
+            if Path(p, "cmdline").read_text(encoding="utf-8", errors="replace").strip("\0") != "herdr":
+                continue
+            tty = os.readlink(p + "/fd/1")
+        except OSError:
+            continue
+        if tty.startswith("/dev/pts/") and tty not in ttys:
+            ttys.append(tty)
+    return ttys
+
+
+def clean(text):
+    return re.sub(r"[\x00-\x1f\x7f-\x9f;]", "", text)
+
+
+def osc(title, body):
+    return f"\x1b]777;notify;{clean(title)};{clean(body)}\x1b\\".encode()
+
+
+def deliver(title, body, ttys):
+    """One write per client tty. Returns how many succeeded."""
+    sent = 0
+    for tty in ttys:
+        try:
+            fd = os.open(tty, os.O_WRONLY | os.O_NOCTTY | os.O_NONBLOCK)
+            try:
+                os.write(fd, osc(title, body))
+                sent += 1
+            finally:
+                os.close(fd)
+        except OSError as e:
+            log(f"cannot write {tty}: {e}")
+    return sent
+
+
+def herdr(args, env):
+    out = subprocess.run([env.get("HERDR_BIN_PATH") or "herdr", *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                         timeout=TIMEOUT, env=env, stdin=subprocess.DEVNULL)
+    return json.loads(out.stdout)["result"] if out.returncode == 0 else {}
+
+
+def log(msg):
+    print(f"squad-notify: {msg}", file=sys.stderr)
+
+
+def run(payload, env, proc_root="/proc"):
+    event = payload.get("hook_event_name", "")
+    body = decide(event, payload.get("notification_type", ""), env, bool(payload.get("agent_id")))
+    if not body:
+        return
+    config = env.get("HERDR_CONFIG_PATH") or os.path.expanduser("~/.config/herdr/config.toml")
+    if not delivery_off(config):
+        return
+    ws = herdr(["workspace", "get", env.get("HERDR_WORKSPACE_ID", "")], env).get("workspace", {})
+    if ws.get("focused") and ws.get("active_tab_id") == env.get("HERDR_TAB_ID"):
+        return
+    tab = herdr(["tab", "get", env.get("HERDR_TAB_ID", "")], env).get("tab", {})
+    title = f"{ws.get('label', '')} · {tab.get('label', '')}".strip(" ·") or "herdr"
+    if not os.path.isdir(proc_root):  # Windows: no /proc, so no client tty to toast; nothing to say
+        return
+    ttys = find_clients(proc_root)
+    if not ttys:
+        log("no herdr client tty found")
+        return
+    deliver(title, body, ttys)
+
+
+def main():
+    squadio.utf8_stdio()
+    try:
+        run(json.loads(sys.stdin.read() or "{}"), dict(os.environ))
+    except Exception as e:  # never harm the session
+        log(f"{type(e).__name__}: {e}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

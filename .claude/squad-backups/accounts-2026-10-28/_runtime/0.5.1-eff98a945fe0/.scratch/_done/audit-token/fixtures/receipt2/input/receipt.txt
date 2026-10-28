@@ -1,0 +1,9 @@
+sha 7c1e90ab34d25f68e0a1b9c3d47f52e6a8b01d3c clean=yes
+test_alpha ... ok
+test_login_failure_message ... ok
+test_retry_after_FAIL_state ... ok
+test_delta ... ok
+----------------------------------------------------------------------
+Ran 4 tests in 0.009s
+
+OK

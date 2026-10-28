@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+. "$HOME/.claude-accounts/lib.sh"
+[ "${ACCT_NO_WS_DEFAULT:-}" = 1 ] || set_workspace_default 3 || true
+run_claude 3 "$@"

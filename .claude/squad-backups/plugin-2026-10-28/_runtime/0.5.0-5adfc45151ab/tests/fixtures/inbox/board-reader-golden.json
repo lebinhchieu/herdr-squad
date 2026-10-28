@@ -1,0 +1,182 @@
+{
+ "_doc": "captured from the board's reader at 39ab34a, the oracle the board's removal deletes",
+ "tables": {
+  "home/escalations.md": {
+   "rows": [
+    {
+     "#": "15",
+     "date": "2026-10-14",
+     "question": "Withdrawn by the Manager",
+     "options": "(a) x; (b) y",
+     "manager's recommendation": "",
+     "blocks": "",
+     "answer": "withdrawn: no longer needed"
+    },
+    {
+     "#": "14",
+     "date": "2026-10-14",
+     "question": "Answered in chat",
+     "options": "(a) x; (b) y",
+     "manager's recommendation": "",
+     "blocks": "",
+     "answer": "(a) x"
+    },
+    {
+     "#": "13",
+     "date": "2026-10-14",
+     "question": "Answered and delivered",
+     "options": "(a) x; (b) y",
+     "manager's recommendation": "",
+     "blocks": "",
+     "answer": "(b) y<br>with a note"
+    },
+    {
+     "#": "11",
+     "date": "2026-10-14",
+     "question": "Answered, waiting for the Manager",
+     "options": "(a) x; (b) y",
+     "manager's recommendation": "",
+     "blocks": "PI-02",
+     "answer": "(a) x"
+    },
+    {
+     "#": "8",
+     "date": "2026-10-14",
+     "question": "Ship the badge?<br>It touches CART-04.",
+     "options": "(a) yes; (b) no; (c) later",
+     "manager's recommendation": "a",
+     "blocks": "CART-04",
+     "answer": ""
+    },
+    {
+     "#": "7",
+     "date": "2026-10-13",
+     "question": "Already settled by hand?",
+     "options": "(a) x; (b) y",
+     "manager's recommendation": "a",
+     "blocks": "",
+     "answer": "settled by hand: x"
+    },
+    {
+     "#": "",
+     "date": "",
+     "question": "",
+     "options": "",
+     "manager's recommendation": "",
+     "blocks": "",
+     "answer": ""
+    },
+    {
+     "#": "6",
+     "date": "2026-10-13",
+     "question": "Use a | b or c?",
+     "options": "see (a) above",
+     "manager's recommendation": "",
+     "blocks": "",
+     "answer": ""
+    },
+    {
+     "#": "",
+     "date": "2026-10-12",
+     "question": "A row with no number",
+     "options": "",
+     "manager's recommendation": "",
+     "blocks": "",
+     "answer": ""
+    },
+    {
+     "#": "8",
+     "date": "2026-10-12",
+     "question": "Same number as the badge row",
+     "options": "(b) x; (a) y",
+     "manager's recommendation": "",
+     "blocks": "",
+     "answer": ""
+    },
+    {
+     "#": "9",
+     "date": "2026-10-12"
+    },
+    {
+     "#": "1",
+     "date": "2026-10-12",
+     "question": "goal.md sets size S but also says done = QA whitebox PASS. S has no QA whitebox, allows 1–2 tasks, and no risk flag; this scope has about 10 tasks and a security flag (localhost bind, token-guarded jump). Which size?",
+     "options": "A) S + QA whitebox: Tech Lead plans, QA whitebox signs off, Developer evidence replaces QA blackbox. Logged as a process exception. B) Full M: add a BA and a QA blackbox (testing via replay mode). C) S exactly as in process.md: Tech Lead review only.",
+     "manager's recommendation": "A. The spec is complete, so a BA adds little. QA whitebox matches goal.md's done rule and covers the security flag. Revisit QA blackbox in iteration 2 when the page exists.",
+     "blocks": "Spawning anyone",
+     "answer": "2026-10-12: A"
+    },
+    {
+     "#": "2",
+     "date": "2026-10-12",
+     "question": "BRD-02..06 must branch from code that has BRD-01, and only the PO merges. When BRD-01 passes QA whitebox, will you merge squad/dev-board-1 into squad\u002dboard-spec? Please also commit the tickets, design.md and the --effort change first, so new worktrees have them.",
+     "options": "A) PO merges BRD-01 as soon as it passes, and the Manager pings you. B) Developers stack on squad/dev-board-1, branching from it by hand; this needs a base-ref option in squad-spawn, which is outside the goal.",
+     "manager's recommendation": "A. One merge unblocks 5 tickets.",
+     "blocks": "BRD-02..06",
+     "answer": "2026-10-12: PO delegated decisions to the Manager. Manager chose stacking: the Manager creates each worktree from the passed BRD-01 commit before squad-spawn, which reuses it. A final integration ticket combines the passed branches on one Developer branch. The PO merges once at the end."
+    },
+    {
+     "#": "3",
+     "date": "2026-10-12",
+     "question": "The Developer permission settings deny git merge, so dev-board-8 can't merge the passed branches into its own BRD-09 branch. The Manager's stacked-branches plan missed this; neither the Manager nor an agent may work around it.",
+     "options": "A) Allow merge for this run: remove Bash(git merge:*) from the project copy squad/settings/dev.json only (the plugin template stays). git push, rebase, reset --hard and checkout main stay denied. B) The PO runs the merges into squad/dev-board-8 by hand (5 now, 1 more for BRD-06, ~7 in iteration 2). C) The PO merges each passed branch into squad\u002dboard-spec as it passes, as in the original process.",
+     "manager's recommendation": "A. It's one change, and it ends the blocks for both integrations. The process already limits merges to a Developer's own branch.",
+     "blocks": "BRD-09, then BRD-08 and all of iteration 2",
+     "answer": "2026-10-12: A (PO). Done: merge allowed in squad/settings/dev.json."
+    }
+   ]
+  },
+  "no-table/escalations.md": {
+   "rows": []
+  },
+  "empty": {
+   "rows": [],
+   "text": ""
+  },
+  "header-only": {
+   "rows": [],
+   "text": "| a |\n|---|\n"
+  },
+  "short-row": {
+   "rows": [
+    {
+     "#": "1",
+     "question": "Ship it"
+    },
+    {
+     "#": "2",
+     "question": "Next",
+     "answer": "yes"
+    }
+   ],
+   "text": "| # | Question | Answer |\n|---|---|---|\n| 1 | Ship it |\n| 2 | Next | yes |\n"
+  },
+  "crlf": {
+   "rows": [
+    {
+     "#": "1",
+     "question": "A b"
+    },
+    {
+     "#": "2",
+     "question": "C"
+    }
+   ],
+   "text": "| # | Question |\r\n|---|---|\r\n| 1 | A **b** |\r\n| 2 | C |\r\n"
+  },
+  "no-final-newline": {
+   "rows": [
+    {
+     "#": "1",
+     "question": "A | b"
+    }
+   ],
+   "text": "| # | Question |\n|---|---|\n| 1 | A \\| `b`"
+  }
+ },
+ "clean_cell": {
+  "a \\| b": "a | b",
+  "**bold** `code`": "bold code",
+  "  x  ": "x"
+ }
+}

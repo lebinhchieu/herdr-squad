@@ -1,0 +1,2 @@
+sha ea196bb283bf247caa9efa2d1e8fe2c8a16e2e4b clean=yes
+skipped: no time files (TZ_FILES is empty and no --also given)

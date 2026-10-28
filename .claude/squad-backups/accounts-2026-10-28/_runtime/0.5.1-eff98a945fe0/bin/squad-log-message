@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# PostToolUse hook for SendMessage: append one record to messages.jsonl (squad-migrate reads it), in the agent's own
+# folder: $SCOPE_DIR, else $GOAL_DIR (a goal Manager), else $SQUAD_DIR (a flat squad).
+# Always exits 0, so a logging problem never interrupts the agent.
+set -uo pipefail
+
+[[ -n ${SQUAD_NAME:-} && -n ${SQUAD_DIR:-} && -d ${SQUAD_DIR:-} ]] || exit 0
+home=${SCOPE_DIR:-${GOAL_DIR:-$SQUAD_DIR}}  # legacy flat layout: SQUAD_DIR
+[[ -d $home ]] || exit 0
+command -v jq >/dev/null || { echo "squad-log-message: jq not found, message not logged (Windows: winget install jqlang.jq)" >&2; exit 0; }
+input=$(cat) || exit 0
+
+max=-1
+for f in "$home"/iterations/*.md; do
+  n=$(basename "$f" .md)
+  [[ $n =~ ^[0-9]+$ ]] && (( 10#$n > max )) && max=$((10#$n))
+done
+iteration=null
+(( max >= 0 )) && iteration=$max
+
+# ASCII-safe: typed prefixes and task IDs are ASCII by convention (process.md → Messages).
+record=$(jq -c --arg from "$SQUAD_NAME" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --argjson iteration "$iteration" '
+  select(.tool_name == "SendMessage" and .tool_response.success != false)
+  | (.tool_input.message // "") as $text
+  | {ts: $ts, msg_id: .tool_response.msg_id, from: $from,
+     to: (.tool_input.to // .tool_input.recipient),
+     type: ($text | capture("^(?<t>ASK|ANSWER|DECISION|BLOCKED|HANDIN|PASS|FAIL|STATUS)(?=[\\s:]|$)").t? // null),
+     task: ($text | (capture("^(?:ASK|ANSWER|DECISION|BLOCKED|HANDIN|PASS|FAIL|STATUS)[ \\t]+(?<id>[A-Z][A-Z0-9]*-[0-9]+|[0-9]+)(?![A-Za-z0-9-])").id?
+                      // [match("\\b[A-Z][A-Z0-9]*-[0-9]+\\b").string][0]? // null)),
+     text: $text, iteration: $iteration}' <<<"$input" 2>/dev/null) || exit 0
+[[ -n $record ]] || exit 0
+
+log=$home/messages.jsonl
+
+# 3rd return: the first FAIL on the 3rd failing sha of a task tells its sender to raise it ([LC-7a], [LC-7b]).
+# A return = a handed-in sha with at least one FAIL (same rule as squad-ledger); shas compare by prefix.
+# Computed inside the lock, from the log including the record just appended, so two FAILs sent together
+# on the 3rd sha give one notice. Any problem here: no notice.
+notice=
+third_return() {
+  [[ $(jq -r '.type // empty' <<<"$record" 2>/dev/null) == FAIL ]] || return 0
+  local size who lc
+  size=$(sed -n 's/^size:[[:space:]]*\([A-Za-z]\).*/\1/p' "$home/scope.md" 2>/dev/null | head -n1)
+  case $size in  # S and M have no Team Lead: the Manager gets the notice
+    S) who=Manager lc=LC-7a ;;
+    M) who=Manager lc=LC-7c ;;
+    *) who="Team Lead" lc=LC-7b ;;
+  esac
+  notice=$(jq -Rrn --arg who "$who" --arg lc "$lc" --arg size "$size" '
+    def shaof: (capture("\\.\\.(?<s>[0-9a-fA-F]{6,40})").s? // capture("(?:commit|sha)[ \\t:]+(?<s>[0-9a-fA-F]{6,40})").s? // null) | if . then ascii_downcase else . end;
+    def key: if . == null then null elif test("^[0-9]+$") then sub("^0+(?=.)"; "") else . end;
+    def canon($known): . as $s | ([$known[] | select(. as $k | $k | startswith($s) or ($s | startswith($k)))][0]) // $s;
+    [inputs | fromjson? | select(type == "object")] as $all
+    | ($all | length) as $n | ($all[$n-1]) as $this
+    | ($this.task | key) as $t | select($t != null)
+    | (reduce $all[] as $r ({cur: null, known: [], fails: []};
+        if ($r.task | key) != $t then .
+        elif $r.type == "HANDIN" and ($r.text | test("evidence[ \\t]+sha"; "i")) then .
+        elif $r.type == "HANDIN" then
+          ($r.text | shaof) as $h
+          | if $h then (.known) as $k | ($h | canon($k)) as $c | .cur = $c | .known = ($k + [$c] | unique) else . end
+        elif $r.type == "FAIL" then
+          ((.known) as $k | [($r.text | ascii_downcase | match("\\b[0-9a-f]{6,40}\\b").string) | canon($k)
+                             | select(. as $c | $k | index([$c]))][0]) as $named
+          | .fails += [$named // .cur // "?"]
+        else . end)) as $st
+    | ($st.fails[:-1] | unique) as $prior | ($st.fails[-1]) as $s
+    | select(($prior | index([$s])) == null and ($prior | length) == 2)
+    | if $size == "S" then "task \($this.task) has 3 returns: record the budget line and consult the advisor [LC-25]"
+      else "task \($this.task) has 3 returns: also send `BLOCKED \($this.task): 3 returns` to \($who) [\($lc)]; tell the Developer to consult the advisor before the next HANDIN; note it in the task file [LC-25]" end' "$log" 2>/dev/null) || notice=
+}
+
+# Records can exceed PIPE_BUF, so lock instead of relying on atomic O_APPEND writes.
+{ flock 9 2>/dev/null; printf '%s\n' "$record" >&9; third_return; } 9>>"$log" || true
+
+if [[ -n $notice ]]; then
+  jq -nc --arg c "$notice" '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $c}}' 2>/dev/null || true
+fi
+exit 0

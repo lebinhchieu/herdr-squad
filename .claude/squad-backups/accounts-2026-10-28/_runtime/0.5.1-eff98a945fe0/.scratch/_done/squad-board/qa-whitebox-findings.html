@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What QA whitebox caught: squad-board, BRD-01 to 15</title>
+<style>
+  :root{--bg:#FCF8F1;--panel:#F4ECDD;--border:#E7DBC8;--ink:#3E372E;--muted:#857A68;--mango:#E8820E;
+        --teal:#0C8A80;--red:#DB3B22;--blue:#2A6DC0;--purple:#9A40CF;--green:#368A1E;--pink:#CE1D6C;--yellow:#9E7A00;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{max-width:1500px;margin:0 auto;padding:28px 32px 60px}
+  h1{font-size:26px;margin:0 0 4px}
+  h2{font-size:16px;margin:0 0 10px;letter-spacing:.02em}
+  .sub{color:var(--muted);margin:0 0 18px}
+  .answer{background:var(--panel);border:1px solid var(--border);border-left:5px solid var(--mango);border-radius:10px;padding:16px 20px;margin-bottom:20px}
+  .answer b{color:var(--red)} .answer .y{color:var(--yellow);font-weight:700}
+  .first{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;margin-bottom:24px}
+  .card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+  .stack{display:flex;height:44px;border-radius:8px;overflow:hidden;border:1px solid var(--border);margin:10px 0 8px}
+  .stack div{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted)}
+  .dot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .tickets{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:8px}
+  .t{border:1px solid var(--border);border-radius:8px;padding:7px 9px;background:var(--bg);font-size:12px}
+  .t b{display:block;font-size:13px}
+  .t .pips{margin-top:4px;display:flex;gap:3px;flex-wrap:wrap}
+  .pip{width:11px;height:11px;border-radius:3px}
+  .t.ok{border-color:var(--green)} .t.ok .r{color:var(--green)}
+  .t .r{color:var(--muted)}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:20px;align-items:start}
+  .item{border:1px solid var(--border);border-left:5px solid var(--red);border-radius:8px;padding:11px 13px;margin-bottom:11px;background:#fff}
+  .item.g{border-left-color:var(--yellow)} .item.h{border-left-color:var(--muted)}
+  .item h3{margin:0 0 3px;font-size:14px}
+  .item p{margin:3px 0;font-size:13.5px}
+  .tag{display:inline-block;font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;margin-right:6px;color:#fff}
+  .tag.t{background:var(--blue)} .tag.v{background:var(--green)} .tag.i{background:var(--yellow)}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+  code{background:var(--panel);border-radius:4px;padding:0 4px}
+  pre{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:8px 0;overflow:auto;font-size:12.5px;line-height:1.55}
+  .mk{display:inline-block;width:18px;height:18px;border-radius:50%;background:var(--mango);color:#fff;font-size:11px;font-weight:700;text-align:center;line-height:18px;margin-right:4px}
+  .hl{background:#E8820E33;border-radius:3px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  td,th{border-bottom:1px solid var(--border);padding:5px 7px;text-align:left;vertical-align:top}
+  th{color:var(--muted);font-weight:600}
+  details{margin:0 0 10px} summary{cursor:pointer;font-weight:600}
+  .rec{margin-top:26px;border-top:2px solid var(--border);padding-top:14px;color:var(--muted);font-size:13px}
+  .rec .mono{display:block;white-space:pre-wrap}
+  @media (max-width:900px){.first{grid-template-columns:1fr} main{padding:18px 14px} .cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<h1>What QA whitebox caught</h1>
+<p class="sub">squad-board, tickets BRD-01 to BRD-15 and BRD-18 · source: <code>evidence/BRD-NN/qa-w.md</code> (round 1 to 3) · 2026-10-13</p>
+
+<div class="answer">
+  <b>7 of 25 findings were real defects</b> (wrong behaviour, a broken spec rule, a security leak). <span class="y">17 were test gaps</span> where the code was already right, and 1 was a committed-file slip.
+  Every one of the 7 came from running the thing or reading the code, not from the mutation runs, so the <b>light QA rule still catches all 7</b>; it only stops returning tickets for the 17.
+  <span class="tag v" style="margin-left:6px">verified</span><span style="color:var(--muted);font-size:13px">tallied from each qa-w.md; "found by reading or running, not mutants" is inferred for BRD-06 N5.</span>
+</div>
+
+<div class="first">
+  <div class="card">
+    <h2>25 findings by kind</h2>
+    <div class="stack">
+      <div style="width:28%;background:var(--red)">7 real</div>
+      <div style="width:68%;background:var(--yellow)">17 test gaps</div>
+      <div style="width:4%;background:var(--muted)"></div>
+    </div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--red)"></i>Real defect: 7 (28%)</span>
+      <span><i class="dot" style="background:var(--yellow)"></i>Test gap, code right: 17 (68%)</span>
+      <span><i class="dot" style="background:var(--muted)"></i>Hygiene: 1 (4%)</span>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:12px 0 0">Returns cost the most: 11 returns on 14 handed-in tickets, nearly all for the yellow kind (BRD-10 alone: 5 test-gap findings over 3 rounds, 2 h 22 min first hand-in to PASS).</p>
+  </div>
+  <div class="card">
+    <h2>By ticket (one pip per finding)</h2>
+    <div class="tickets">
+      <div class="t"><b>BRD-01</b><span class="r">1 return</span><div class="pips"><i class="pip" style="background:var(--yellow)"></i><i class="pip" style="background:var(--yellow)"></i></div></div>
+      <div class="t ok"><b>BRD-02</b><span class="r">clean</span></div>
+      <div class="t"><b>BRD-03</b><span class="r">1 return</span><div class="pips"><i class="pip" style="background:var(--red)"></i></div></div>
+      <div class="t"><b>BRD-04</b><span class="r">1 return</span><div class="pips"><i class="pip" style="background:var(--yellow)"></i></div></div>
+      <div class="t"><b>BRD-05</b><span class="r">1 return</span><div class="pips"><i class="pip" style="background:var(--yellow)"></i><i class="pip" style="background:var(--yellow)"></i><i class="pip" style="background:var(--yellow)"></i></div></div>
+      <div class="t"><b>BRD-06</b><span class="r">2 returns</span><div class="pips"><i class="pip" style="background:var(--yellow)"></i><i class="pip" style="background:var(--yellow)"></i><i class="pip" style="background:var(--red)"></i></div></div>
+      <div class="t ok"><b>BRD-07</b><span class="r">clean</span></div>
+      <div class="t ok"><b>BRD-08</b><span class="r">clean</span></div>
+      <div class="t ok"><b>BRD-09</b><span class="r">PASS, 2 noted</span><div class="pips"><i class="pip" style="background:var(--red)"></i><i class="pip" style="background:var(--red)"></i></div></div>
+      <div class="t"><b>BRD-10</b><span class="r">2 returns</span><div class="pips"><i class="pip" style="background:var(--yellow)"></i><i class="pip" style="background:var(--yellow)"></i><i class="pip" style="background:var(--yellow)"></i><i class="pip" style="background:var(--yellow)"></i><i class="pip" style="background:var(--yellow)"></i></div></div>
+      <div class="t ok"><b>BRD-11</b><span class="r">clean (light)</span></div>
+      <div class="t"><b>BRD-12</b><span class="r">2 returns</span><div class="pips"><i class="pip" style="background:var(--muted)"></i><i class="pip" style="background:var(--red)"></i><i class="pip" style="background:var(--yellow)"></i><i class="pip" style="background:var(--yellow)"></i><i class="pip" style="background:var(--yellow)"></i></div></div>
+      <div class="t"><b>BRD-13</b><span class="r">1 return</span><div class="pips"><i class="pip" style="background:var(--red)"></i></div></div>
+      <div class="t"><b>BRD-15</b><span class="r">1 return</span><div class="pips"><i class="pip" style="background:var(--red)"></i><i class="pip" style="background:var(--yellow)"></i></div></div>
+      <div class="t ok"><b>BRD-18</b><span class="r">clean</span></div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin:10px 0 0">BRD-14 and BRD-16 are not reviewed yet. Green border = passed with no return.</p>
+  </div>
+</div>
+
+<div class="cols">
+  <section>
+    <h2 style="color:var(--red)">The 7 real defects (what light QA keeps)</h2>
+
+    <div class="item"><h3>BRD-03 · a blank table row became a needs-you item that can never clear</h3>
+      <p><span class="mono">bin/squad-board ~305-311</span> <code>derive_needs_you</code>: a row of empty cells (<code>| | | | |</code>) has an empty Answer cell, so it was listed as <code>escalation:&lt;row&gt;</code> with empty text.</p>
+      <p style="color:var(--muted)">Found by reproducing with a fixture · fixed round 2 (fe5eda2) · <span class="tag v">verified</span></p></div>
+
+    <div class="item"><h3>BRD-09 · one FAIL counted as three returns (spec rule D1)</h3>
+      <p>A verdict goes to the Developer and is copied to the Manager and Tech Lead; each copy is its own log record, so one FAIL tripped the "3 returns, Manager steps in" rule falsely.</p>
+      <p style="color:var(--muted)">Found by running on the real squad log · fixed in BRD-18 (e9ca502) · <span class="tag v">verified</span></p></div>
+
+    <div class="item"><h3>BRD-09 · a finished task went back to "building" (spec rule D2)</h3>
+      <p>After <code>PASS</code>, a later <code>STATUS</code> or <code>DECISION</code> mentioning the task reopened it.</p>
+      <p style="color:var(--muted)">Found on real data · fixed in BRD-18, done is now sticky · <span class="tag v">verified</span></p></div>
+
+    <div class="item"><h3>BRD-12 · page and server disagree on who the Manager is</h3>
+      <p><span class="mono">bin/squad-board.html:245</span> <code>role === 'Manager'</code>, but the server lowercases first, so a roster role <code>manager</code> showed the wrong pod size.</p>
+      <p style="color:var(--muted)">Found by reading both sides · fixed round 2 · <span class="tag v">verified</span></p></div>
+
+    <div class="item"><h3>BRD-13 · an arrow arriving off-screen keeps the page redrawing forever</h3>
+      <p>Breaks E16 (animate only when something moves). Probe: 60-message history, scrolled to top, one message appended.</p>
+<pre>requestAnimationFrame calls in 2.5 s
+<span class="hl">append off-screen : 51</span>   <span class="mk">1</span>
+control (no append) : 0</pre>
+      <p><span class="mk">1</span> a hot idle loop on a live board nobody is watching. Found by a probe script · fixed 3cea6e6 · <span class="tag v">verified</span></p></div>
+
+    <div class="item"><h3>BRD-15 · the token appears in a response body (security)</h3>
+<pre>GET /notes/dev board?token=&lt;T&gt; HTTP/1.1
+<span class="hl">400 {"error": "Bad request syntax ('GET /notes/dev board?token=&lt;T&gt; ...')"}</span> <span class="mk">1</span></pre>
+      <p><span class="mk">1</span> the AC says the token never appears in any body or header. Low risk (only the sender sees it) but the AC is literal. Found by a hostile probe · fixed 09cf802 · <span class="tag v">verified</span></p></div>
+
+    <div class="item"><h3>BRD-06 · a huge env knob breaks the server (operator-only)</h3>
+      <p><code>SQUAD_BOARD_REQUEST_TIMEOUT_S=1e300</code> made every request fail; <code>POLL_S=1e300</code> killed the watcher thread. Capped at one day in d057b06.</p>
+      <p style="color:var(--muted)">Found by probing the knob validation · <span class="tag i">inferred</span> that it was not a mutant find</p></div>
+  </section>
+
+  <section>
+    <h2 style="color:var(--yellow)">The 17 test gaps (what light QA stops returning)</h2>
+    <p style="font-size:13.5px;margin-top:0">Each one: the code was right, and a mutant (a deliberate code break) survived the test suite. All 17 now go into BRD-21 as "follow-up" instead of returning the ticket.</p>
+    <table>
+      <tr><th>Ticket</th><th>Gap</th></tr>
+      <tr><td>BRD-01 ×2</td><td>U+2028 inside a JSON string must not split a record; the <code>RecursionError</code> guard on deep nesting</td></tr>
+      <tr><td>BRD-04</td><td>file truncated to a prefix of itself (the size check)</td></tr>
+      <tr><td>BRD-05 ×3</td><td><code>PORT_TRIES</code> boundary; a <code>SO_REUSEPORT</code> gate hole (<code>allow_reuse_port</code>); jump query-string strip</td></tr>
+      <tr><td>BRD-06 ×2</td><td>keepalive timer reset; <code>version</code> update before a failing rebuild</td></tr>
+      <tr><td>BRD-10 ×5</td><td>millisecond digits of <code>ts</code>; snapshot/subscribe socket timeout; <code>RecursionError</code> in the reply wait; reply-shape guards; the write-error catch (3 mutants)</td></tr>
+      <tr><td>BRD-12 ×3</td><td>"+N more" text; both call sites of the name cut (B9); the "+N" count</td></tr>
+      <tr><td>BRD-15 ×1</td><td>a flaky fd-count test (a test bug, not a leak)</td></tr>
+    </table>
+    <details style="margin-top:12px"><summary>Example: BRD-10 F1, the kind of finding that cost a round</summary>
+<pre>event_stamp:  "%03dZ" % (now.microsecond // 1000)
+mutant:       "%03dZ" % <span class="hl">(now.microsecond % 1000)</span>   <span class="mk">1</span>
+result:       all 396 tests still green</pre>
+      <p style="font-size:13px"><span class="mk">1</span> the timestamp's fraction would be wrong by up to 999 ms, and no test looked at it. A real gap, but the shipped code was correct.</p></details>
+
+    <h2 style="color:var(--muted);margin-top:22px">The 1 hygiene slip</h2>
+    <div class="item h"><h3>BRD-12 · ten <code>.pyc</code> files committed</h3>
+      <p><code>tests/__pycache__/*.cpython-313.pyc</code> were in the branch; removed in abc9e99. Briefings now say "never commit pyc".</p></div>
+  </section>
+</div>
+
+<div class="rec">
+<span class="mono">Reader:     the PO → decide whether the light QA rule loses anything that matters
+Question:   what did QA whitebox actually catch, and how much of it was real?
+Dimension:  quantity (a count split by kind), with the real findings shown in place
+Form:       one stacked bar + per-ticket pips + finding cards with excerpts, not a timeline: the order of the rounds does not answer the question
+Sources:    evidence/BRD-01..15,18/qa-w.md; return counts from messages.jsonl; classification is mine (a finding is "real" if it changed behaviour or leaked data)</span>
+</div>
+</main>
+</body>
+</html>

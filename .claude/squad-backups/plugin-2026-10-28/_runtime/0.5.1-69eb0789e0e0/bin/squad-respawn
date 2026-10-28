@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# Replace a squad agent's session with a fresh one: same name, role, scope and worktree, the model and effort
+# in settings/<role>.json unless squad-spawn recorded an override in roles/<agent>.overrides. The new session starts from roles/<agent>.notes.md. roster.md gets the new session id.
+# Safe to run from the agent's own pane: the old pane is closed last.
+set -euo pipefail
+
+[[ $# -lt 1 || $1 == -h || $1 == --help ]] && { echo "Usage: squad-respawn <agent-name> [--dry-run]"; exit 2; }
+name=$1 dry=0
+[[ ${2:-} == --dry-run ]] && dry=1
+
+command -v jq >/dev/null || { echo "squad-respawn needs jq: install it (Windows: winget install jqlang.jq)" >&2; exit 1; }
+bin=$(dirname "$(readlink -f "$0")")
+# The folder holding this agent's roster and notes: its scope, else its goal, else (flat squad) the squad.
+if [[ -n ${SCOPE_DIR:-} ]]; then home=$SCOPE_DIR home_var=SCOPE_DIR
+elif [[ -n ${GOAL_DIR:-} ]]; then home=$GOAL_DIR home_var=GOAL_DIR
+else home=${SQUAD_DIR:-} home_var=SQUAD_DIR; fi  # legacy flat layout
+[[ -n ${SQUAD_DIR:-} && -f $home/roster.md ]] || { echo "SQUAD_DIR is not set, or $home_var has no roster.md" >&2; exit 1; }
+squad_dir=$(readlink -f "$SQUAD_DIR")
+
+smode=none  # same rule as squadruntime.mode
+[[ ! -f $squad_dir/process.md ]] || smode=legacy
+[[ ! -f $squad_dir/process.local.md ]] || smode=composed
+[[ $smode != none ]] || { echo "no squad folder at $squad_dir (neither process.md nor process.local.md)" >&2; exit 1; }
+# Composed squad: refuse before any herdr call when the pin or its runtime is missing (exit 2 / 1, nothing renamed).
+if [[ $smode == composed ]]; then
+  rt_args=(--squad-dir "$squad_dir" --home "$home")
+  [[ $dry != 1 ]] || rt_args+=(--dry-run)
+  "$bin/squad-process" runtime "${rt_args[@]}" >/dev/null || exit $?
+fi
+
+# Split by hand: `read` with a tab IFS collapses an empty scope (the Manager has none) and shifts the columns.
+row=$("$bin/squad-usage" --squad-dir "$home" --get "$name")
+role=${row%%$'\t'*}
+rest=${row#*$'\t'}
+scope=${rest%%$'\t'*}
+role=$(tr 'A-Z ' 'a-z-' <<<"$role")
+
+project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
+squad=$(basename "$squad_dir")
+# A Developer keeps its worktree, branch and uncommitted work. Newest layout first, then the legacy flat layouts.
+wt_args=()
+candidates=("$project_dir/.worktrees/$squad/$name" "$project_dir/.worktrees/$name")
+[[ -z $scope ]] || candidates=("$project_dir/.worktrees/$squad/$scope/$name" "${candidates[@]}")
+for c in "${candidates[@]}"; do
+  [[ -d $c ]] && { wt_args=(--worktree "$c"); break; }
+done
+
+scope_args=(--scope "$scope")
+[[ $home_var == GOAL_DIR ]] && scope_args=(--goal "$(basename "$GOAL_DIR")")
+
+# The tab label comes back with the stored title; the stored number is kept by squad-label --init.
+title=$("$bin/squad-label" --get-title --home "$home" --agent "$name" 2>/dev/null || true)
+title_args=()
+[[ -z $title ]] || title_args=(--title "$title")
+
+# Every agent has its rules attached (squad-spawn composes them, so a size change shows); only the notes remain to read.
+prompt="RESPAWN: you are $name, restarted fresh. Read your notes \$$home_var/roles/$name.notes.md and continue from them."
+# --model/--effort recorded by squad-spawn survive the respawn. Values are checked, never evaluated.
+ovr_args=()
+if [[ -f $home/roles/$name.overrides ]]; then
+  while IFS='=' read -r k v || [[ -n $k ]]; do
+    case $k in model|effort) ;; *) continue ;; esac
+    [[ $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad $k value in $home/roles/$name.overrides: refusing" >&2; exit 1; }
+    ovr_args+=("--$k" "$v")
+  done < "$home/roles/$name.overrides"
+fi
+spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" "${title_args[@]}" "${ovr_args[@]}" --prompt "$prompt")
+
+notes=$home/roles/$name.notes.md
+if [[ -f $notes ]] && (( $(wc -l <"$notes") > 100 )); then
+  echo "warning: $name's notes are $(wc -l <"$notes") lines (cap ~80, see process.md → Notes); the new session reads all of it, so trim it" >&2
+fi
+
+# Not "$name-prev": a name over 27 characters would break herdr's 32-character limit.
+prev=prev-$$
+
+if [[ $dry == 1 ]]; then
+  echo "would run: herdr agent rename $name $prev"
+  echo "would run: ${spawn[*]}"
+  echo "would run: herdr pane close <old pane of $name>"
+  exit 0
+fi
+
+# The pane, not the tab: other agents may share the tab, and closing a tab kills them all.
+old_pane=$(herdr agent get "$name" | jq -r '.result.agent.pane_id // .result.pane_id // empty')
+[[ -n $old_pane ]] || { echo "no live agent named $name" >&2; exit 1; }
+
+herdr agent rename "$name" "$prev" >/dev/null
+SQUAD_DIR=$squad_dir "${spawn[@]}" || {
+  rc=$?
+  herdr agent rename "$prev" "$name" >/dev/null
+  exit "$rc"  # 2 = refused (no pin, compose error), 1 = runtime missing or other
+}
+herdr pane close "$old_pane" >/dev/null

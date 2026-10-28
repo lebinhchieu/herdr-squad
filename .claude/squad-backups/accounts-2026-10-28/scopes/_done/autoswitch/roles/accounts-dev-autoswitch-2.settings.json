@@ -1,0 +1,51 @@
+{
+  "model": "sonnet",
+  "effortLevel": "medium",
+  "advisorModel": "opus",
+  "permissions": {
+    "allow": [
+      "SendMessage",
+      "ListAgents",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(echo:*)",
+      "Bash(squad-respawn:*)",
+      "Bash(squad-process rule:*)",
+      "Bash(squad-process who:*)",
+      "Bash(squad-evidence:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git merge:*)",
+      "Bash(bash -n:*)",
+      "Bash(python3 -m py_compile:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git checkout main:*)",
+      "Bash(git checkout dev:*)",
+      "mcp__atlassian__createJiraIssue",
+      "mcp__atlassian__editJiraIssue",
+      "mcp__atlassian__transitionJiraIssue",
+      "mcp__atlassian__addOrEditJiraIssueComment",
+      "mcp__atlassian__createConfluenceContent",
+      "mcp__atlassian__updateConfluenceContent",
+      "mcp__atlassian__executeWrite",
+      "mcp__atlassian__executeDestructive",
+      "mcp__claude_ai_Atlassian_Rovo__createJiraIssue",
+      "mcp__claude_ai_Atlassian_Rovo__editJiraIssue",
+      "mcp__claude_ai_Atlassian_Rovo__transitionJiraIssue",
+      "mcp__claude_ai_Atlassian_Rovo__addCommentToJiraIssue",
+      "mcp__claude_ai_Atlassian_Rovo__addWorklogToJiraIssue",
+      "mcp__claude_ai_Atlassian_Rovo__createIssueLink",
+      "mcp__claude_ai_Atlassian_Rovo__createConfluencePage",
+      "mcp__claude_ai_Atlassian_Rovo__updateConfluencePage",
+      "mcp__claude_ai_Atlassian_Rovo__createConfluenceFooterComment",
+      "mcp__claude_ai_Atlassian_Rovo__createConfluenceInlineComment"
+    ]
+  }
+}

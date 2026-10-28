@@ -1,0 +1,328 @@
+# <src> <first>-<last> <target>   (src: P = templates/squad/process.md, card names = agents/<name>.md, log = log row)
+P 3-3 dropped: structure
+P 5-5 WHO-6
+P 7-12 dropped: replaced by compose
+P 14-27 FILE-1
+P 29-34 FILE-2
+P 36-36 FILE-2
+P 40-40 CORE-5
+P 41-41 FILE-3
+P 42-42 FILE-4
+P 43-43 FILE-3
+P 47-51 FILE-6
+P 52-52 FILE-8
+P 53-54 FILE-7
+P 55-57 FILE-9
+P 58-58 FILE-6
+P 59-59 NOTE-1
+P 60-60 FILE-6
+P 61-63 FILE-10
+P 67-67 START-1
+P 69-69 START-2a, START-2b
+P 70-71 START-1
+P 75-75 START-3
+P 76-76 START-4
+P 77-77 START-4
+P 78-78 START-3
+P 79-79 START-3, START-2b
+P 83-91 START-5
+P 95-95 SIZE-1
+P 97-101 SIZE-2
+P 103-103 SIZE-3
+P 105-107 SIZE-4
+P 113-113 SIZE-5a, SIZE-5b
+P 114-114 SIZE-6a, SIZE-6b
+P 115-115 SIZE-7a, SIZE-7b
+P 116-116 SIZE-8a, SIZE-8b
+P 117-117 SIZE-9
+P 118-118 SIZE-10a, SIZE-10b
+P 119-119 SIZE-11a, SIZE-11b
+P 121-121 SIZE-6b
+P 125-125 SIZE-13, SIZE-14
+P 126-126 SIZE-15
+P 127-128 SIZE-16
+manager 25-25 SIZE-13, SIZE-15, SIZE-16
+manager 26-26 SIZE-18
+ba 21-21 SIZE-17a
+team-lead 6-6 SIZE-17b
+P 132-133 GOAL-1
+P 134-135 GOAL-2
+P 136-136 GOAL-2, GOAL-3a, GOAL-3b
+P 137-138 GOAL-5
+P 139-139 GOAL-6a, GOAL-6c
+P 140-140 GOAL-6a
+P 141-141 GOAL-7
+P 142-142 GOAL-4
+P 146-146 PROMO-1
+P 148-148 PROMO-2, PROMO-3a, PROMO-3b
+P 149-149 PROMO-4
+P 150-151 PROMO-6
+P 152-152 PROMO-7
+P 156-156 CLOSE-1
+P 157-157 CLOSE-2
+P 158-158 CLOSE-3a, CLOSE-3b
+P 159-159 CLOSE-4
+P 160-160 CLOSE-5
+manager 62-63 GOAL-1
+manager 64-64 dropped: duplicate of GOAL-6a
+manager 65-65 dropped: duplicate of CLOSE-3a
+manager 66-66 CLOSE-3b
+manager 67-67 PROMO-6
+manager 68-68 CLOSE-4
+manager 72-72 CLOSE-1, CLOSE-2
+tech-lead 21-21 GOAL-3a
+tech-lead 22-22 PROMO-2
+tech-lead 23-23 CLOSE-3a
+tech-lead 24-24 GOAL-6a
+qa-whitebox 23-23 GOAL-3b
+qa-whitebox 24-24 PROMO-8
+dev 30-30 GOAL-6b, PROMO-5
+ba 22-22 PROMO-3a
+P 164-164 MSG-1, CORE-2
+P 166-174 MSG-1, CORE-2
+P 176-176 MSG-2
+P 177-177 MSG-3
+P 178-178 MSG-4a, MSG-4b
+P 179-179 MSG-5
+P 180-180 MSG-6
+P 181-181 CORE-4
+P 182-182 MSG-7a, MSG-7b
+P 183-183 MSG-8a, MSG-8b
+P 184-184 MSG-9
+P 185-185 MSG-10
+P 191-191 WHO-1b
+P 192-192 WHO-2, CORE-3
+P 193-193 WHO-1a, WHO-1b
+P 194-194 WHO-3a, WHO-3b
+P 195-195 WHO-4
+P 196-196 WHO-2b, WHO-2c
+P 197-197 WHO-1a, WHO-1b
+P 198-198 WHO-2
+P 199-200 WHO-5
+P 202-202 WHO-7
+manager 28-28 FILE-4, FILE-5a, FILE-5b
+manager 29-29 MSG-18
+manager 30-30 WHO-6
+manager 31-31 MRG-1
+manager 32-32 WHO-8, WHO-8a, WHO-8b, MSG-7a, MSG-7b, GOAL-7
+team-lead 20-20 MSG-13
+team-lead 27-27 MSG-19
+team-lead 28-28 FILE-4, FILE-5c
+team-lead 29-29 WHO-8c
+team-lead 34-34 dropped: duplicate of MSG-10
+team-lead 35-35 MSG-6
+team-lead 41-41 MSG-6
+team-lead 42-42 MSG-6
+team-lead 43-43 MSG-6
+team-lead 44-44 MSG-6
+team-lead 45-45 MSG-6, ITER-3
+dev 21-21 MSG-11a, MSG-11b
+ba 20-20 MSG-12
+tech-lead 30-30 MSG-14
+tech-lead 33-33 MSG-15
+designer 19-19 MSG-17
+designer 20-20 MSG-16a, MSG-16b
+P 206-206 CORE-1
+P 208-208 LC-1
+P 209-209 LC-2
+P 210-210 LC-3a, LC-3b
+P 211-211 LC-4
+P 212-212 LC-5
+P 213-213 LC-6
+P 214-214 REV-4, REV-5a, REV-5b
+P 215-215 REV-6
+P 216-216 LC-21
+P 217-217 LC-22a, LC-22b
+P 218-218 LC-7a, LC-7b
+P 219-219 EVID-1
+P 220-220 EVID-2a, EVID-2b, EVID-2c
+P 221-221 EVID-3a, EVID-3b
+P 225-225 ITER-1
+P 227-231 ITER-1
+P 233-233 dropped: structure
+P 234-234 ITER-6, ITER-6a, ITER-6b
+P 235-235 ITER-7
+P 236-236 ITER-10
+P 237-237 ITER-9
+P 241-241 COST-1
+P 243-243 COST-2
+P 244-244 COST-3, COST-5
+P 245-245 COST-8
+P 246-246 COST-9
+P 247-247 COST-11
+P 248-248 COST-12
+P 252-252 NOTE-1
+P 254-256 NOTE-1
+P 257-258 NOTE-2
+P 262-262 SAFE-1a
+P 263-264 MRG-1
+P 265-265 MRG-2
+P 266-266 MRG-3
+P 267-267 MRG-4
+P 268-268 SAFE-2
+P 269-269 SUITE-1
+P 270-270 SUITE-2a, SUITE-2b
+P 271-271 SUITE-3
+P 272-272 SUITE-4
+P 273-273 SUITE-5
+P 274-274 SUITE-6
+P 275-275 SAFE-3
+P 276-276 SAFE-4
+log 33-33 COST-8
+log 34-34 COST-4b
+log 35-35 LC-3b
+log 36-36 START-5
+log 37-37 COST-4a
+log 38-38 REV-3
+log 39-39 LC-8
+log 40-40 COST-5, COST-6a, COST-6b
+log 41-41 COST-8
+log 42-42 LC-9
+log 43-43 SAFE-5
+log 44-44 COST-7
+log 45-45 COST-10a, COST-10b
+log 46-46 MSG-3
+log 47-47 COST-6a, COST-6b
+log 48-48 REV-16, REV-17
+log 49-49 REV-18a, REV-18b
+manager 1-4 stays in card
+manager 6-6 stays in card
+manager 10-13 START-18
+manager 14-14 SAFE-7
+manager 15-16 START-18
+manager 20-21 START-19
+manager 27-27 START-2a, START-2c
+manager 34-40 stays in card
+manager 44-48 SPAWN-1
+manager 50-50 SPAWN-2a, SPAWN-2b
+manager 51-51 SPAWN-3
+manager 52-52 START-2c
+manager 53-53 dropped: duplicate of START-4
+manager 54-54 SPAWN-4
+manager 55-55 SPAWN-5a, GOAL-5
+manager 56-56 SPAWN-6
+manager 57-57 SPAWN-7
+manager 58-58 SPAWN-8a, SPAWN-8b
+manager 76-76 SPAWN-11
+manager 78-82 SPAWN-10b
+manager 84-89 SPAWN-10a
+manager 90-90 LC-7a, LC-7b
+manager 94-94 ITER-2
+manager 95-95 ITER-4
+manager 96-97 ITER-5
+manager 98-99 ITER-11
+manager 100-100 ITER-12
+manager 104-104 SAFE-1b
+manager 105-105 SAFE-6
+manager 106-106 SAFE-7
+manager 107-107 dropped: duplicate of WHO-7
+manager 111-111 NOTE-2
+team-lead 1-4 stays in card
+team-lead 8-8 stays in card
+team-lead 12-12 START-6, START-7
+team-lead 13-13 START-9
+team-lead 14-14 START-15
+team-lead 15-15 COST-1
+team-lead 19-19 stays in card
+team-lead 21-22 LC-15, LC-16
+team-lead 23-23 SPAWN-5b, SPAWN-8b
+team-lead 24-24 START-2b
+team-lead 25-25 LC-17
+team-lead 26-26 MSG-8b, LC-7b
+team-lead 33-33 SPAWN-9
+team-lead 39-39 MSG-6
+team-lead 49-50 dropped: duplicate of WHO-1b
+team-lead 54-54 LC-17, NOTE-3
+team-lead 58-58 dropped: duplicate of NOTE-1
+tech-lead 1-4 stays in card
+tech-lead 6-6 stays in card
+tech-lead 10-10 START-6, START-7
+tech-lead 11-11 START-16
+tech-lead 12-12 START-9
+tech-lead 13-13 COST-1
+tech-lead 17-17 LC-10
+tech-lead 18-18 SIZE-6a, SIZE-16, LC-14
+tech-lead 19-19 REV-1, EVID-2c, SIZE-14, SIZE-11a
+tech-lead 20-20 SIZE-16
+tech-lead 25-25 SUITE-3, SUITE-4, SUITE-5
+tech-lead 26-26 LC-14
+tech-lead 27-27 REV-4, REV-5a, REV-5b, REV-6
+tech-lead 28-28 REV-7
+tech-lead 29-29 LC-11, REV-1
+tech-lead 31-31 LC-12
+tech-lead 32-32 LC-13
+tech-lead 37-39 dropped: duplicate of WHO-2
+tech-lead 43-43 dropped: duplicate of NOTE-1
+ba 1-4 stays in card
+ba 6-6 stays in card
+ba 10-10 START-6, START-7
+ba 11-11 START-9
+ba 12-12 START-11
+ba 13-13 COST-1
+ba 17-18 stays in card
+ba 19-19 REV-8
+ba 23-23 SIZE-11b
+ba 27-27 dropped: duplicate of WHO-1b
+ba 28-28 dropped: duplicate of CORE-3
+ba 29-29 dropped: duplicate of WHO-1b
+ba 33-33 dropped: duplicate of NOTE-1
+designer 1-4 stays in card
+designer 6-6 stays in card
+designer 10-10 START-6, START-7
+designer 11-11 START-9
+designer 12-12 START-12
+designer 13-13 COST-1
+designer 17-18 LC-23
+designer 24-24 dropped: duplicate of FILE-9
+designer 25-25 SAFE-8
+designer 29-29 dropped: duplicate of NOTE-1
+qa-whitebox 1-4 stays in card
+qa-whitebox 6-6 stays in card
+qa-whitebox 10-10 START-6, START-7
+qa-whitebox 11-11 START-9, START-14
+qa-whitebox 12-12 COST-1
+qa-whitebox 16-16 REV-7
+qa-whitebox 17-21 REV-2
+qa-whitebox 22-22 REV-4, REV-5b, REV-6
+qa-whitebox 25-25 SIZE-17c
+qa-whitebox 26-26 REV-10
+qa-whitebox 27-27 REV-12
+qa-whitebox 31-31 stays in card
+qa-whitebox 35-35 SAFE-9
+qa-blackbox 1-4 stays in card
+qa-blackbox 6-6 stays in card
+qa-blackbox 10-10 START-6, START-8
+qa-blackbox 11-11 START-13
+qa-blackbox 12-12 COST-1
+qa-blackbox 16-16 SAFE-10
+qa-blackbox 20-20 REV-8
+qa-blackbox 21-21 REV-9
+qa-blackbox 22-22 SIZE-17d
+qa-blackbox 23-23 REV-11
+qa-blackbox 24-24 REV-12
+qa-blackbox 28-28 stays in card
+dev 1-4 stays in card
+dev 6-6 stays in card
+dev 10-10 START-6, START-7
+dev 11-13 START-10
+dev 14-14 COST-1
+dev 18-19 LC-18
+dev 20-20 LC-19, EVID-5, SIZE-10a
+dev 22-22 LC-18
+dev 23-23 SUITE-2a
+dev 24-24 EVID-4, SIZE-8a, REV-13a
+dev 25-25 SAFE-1a
+dev 26-26 REV-13a, REV-13b
+dev 27-27 REV-15
+dev 28-28 REV-14a, REV-14b
+dev 29-29 EVID-2b
+dev 31-31 LC-3a
+dev 35-35 LC-20a, LC-20b
+token-coach 1-4 stays in card
+token-coach 6-6 stays in card
+token-coach 10-11 START-17
+token-coach 15-15 ITER-8
+token-coach 16-16 ITER-7, ITER-8
+token-coach 17-17 ITER-8
+token-coach 18-18 ITER-7
+token-coach 22-24 ITER-9

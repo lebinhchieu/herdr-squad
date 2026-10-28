@@ -1,0 +1,9 @@
+# 13 Promotion QA whitebox (HANDIN cf3b5c0, code 4dde33e) — pre-check CLEAN, verdict pending Tech's final sha
+- PROMO-8: ADR 0018, 0016/0017 "Amended by 0018" lines, CONTEXT.md (Team/Duty owner/Checker added, Size gone, qa-white/qa-black), README 0.6.0 note, changelog v9 header + snapshot line, plugin.json 0.6.0: all match `promote.md`; nothing undecided. ADR 0018 states what it overrides (0016 Sizes/Duty owners; 0017 sentence + flags). F3 listed as open item in promote.md; no rule/changelog change.
+- Snapshot `history/process-v9/` byte-equal to `templates/squad/process/` (diff -rq empty).
+- AC 11 greps (`(?i)\bsize\b(?!-\d)`): rules outside _removed.md 0 hits; README/CONTEXT/agents/skills 0; bin/hooks hits are per-file-count allow-listed in tests/test_promotion_0_6_0.py (converter, migrate, report display, fs.stat false positives); `qa-b\b` in rules only `qa-b.md` file name.
+- Deviation (non-blocking, Dev flagged): AC says 0.6.0 in `process-version`; `process-version: 6` left unchanged — bin/squadprocess.py:16 only accepts a positive integer and ADR 0016 retired it. Four-way check is plugin.json / changelog / README / snapshot line. Tech to confirm it accepts this.
+- Allow-list lives in the test (per-file counts) with reasons in evidence.md, not file:line in the ticket as AC says; same shape Tech accepted on 12.
+- F1 spawn refusal text names who adds the role (designer/architect: PO confirms first, then squad-team add); test in test_squad_spawn.
+- SIZE-22 equality: duties lines of the six shapes (S, M, L, L-no-QB, M+designer, M+architect) re-composed; owners equal the base SIZE-22/22a table (code check at S = Manager per tech-design, accepted in task 01).
+- Lint 0. Tests (git-initialised archive of cf3b5c0): promotion, spawn, respawn, compose, inventory, sizes, dev_rules_size, upgrade, squadrules, process_conversion, squadprocess: 380 OK, 2 skips.

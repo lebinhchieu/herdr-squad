@@ -1,0 +1,37 @@
+{
+  "model": "sonnet",
+  "effortLevel": "high",
+  "advisorModel": "opus",
+  "permissions": {
+    "allow": [
+      "SendMessage",
+      "ListAgents",
+      "Bash(squad-process rule:*)",
+      "Bash(squad-process who:*)",
+      "Bash(squad-usage:*)",
+      "Bash(echo:*)",
+      "Bash(git log:*)",
+      "Write(/.claude/squads/*/scopes/*/iterations/*.coach.md)",
+      "Edit(/.claude/squads/*/scopes/*/iterations/*.coach.md)",
+      "Write(/.claude/squads/*/goals/*/coach/*.coach.md)",
+      "Edit(/.claude/squads/*/goals/*/coach/*.coach.md)",
+      "Bash(python3 tests/run_suite.py:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset --hard:*)",
+      "Write(/.claude/squads/*/*.md)",
+      "Edit(/.claude/squads/*/*.md)",
+      "Write(/.claude/squads/*/scopes/*/*.md)",
+      "Edit(/.claude/squads/*/scopes/*/*.md)",
+      "Write(/.claude/squads/*/goals/*/*.md)",
+      "Edit(/.claude/squads/*/goals/*/*.md)",
+      "Write(/.claude/squads/*/settings/**)",
+      "Edit(/.claude/squads/*/settings/**)",
+      "Read(~/.claude/projects/**)",
+      "Read(~/.claude-2/projects/**)"
+    ]
+  }
+}

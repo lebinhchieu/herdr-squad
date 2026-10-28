@@ -1,0 +1,418 @@
+#!/usr/bin/env python3
+"""Start a task or a goal in a per-scope squad: make its folder and brief, then start a fresh Manager.
+
+  squad-start "<text>" [--touches A,B] [--name N] [--squad S] [--model M] [--effort E] [--yes] [--dry-run]
+      Plain text is a lone task: scopes/<name>/ and a Manager <squad>-mgr-<name> that lives with the scope.
+      Text starting with "goal:" is a goal: goals/<name>/ and a goal Manager.
+  squad-start "<text>" --in-goal G --name N [--touches ...]
+      A scope inside goal G: scopes/N/ with `goal: G`. No Manager; the goal Manager runs it.
+  squad-start --resume NAME [--model M] [--effort E]
+      A new Manager for an existing scope or goal whose Manager is gone. Its files are not touched.
+
+The name is the first ticket id in the text (SEC-04 -> sec04), else a short slug; --name overrides it.
+--touches lists the repos or paths the work changes. If it overlaps an open scope's `touches:` the script lists
+the overlaps and exits 3 without creating anything; the PO decides, and --yes goes ahead.
+scope.md lines `model <role>: <model> <effort>` set a role's model for every spawn in that scope (flags and a recorded override win; settings and template lose).
+--model and --effort set the Manager's model and effort (default: the model and effort in settings/manager.json); it does not change the roles the Manager spawns.
+--dry-run prints the Manager's model and effort and where each came from (flag, recorded override on --resume, scope.md `model manager:` on --resume, squad settings, template).
+Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
+"""
+import argparse
+import json
+import ntpath
+import os
+import posixpath
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+PLUGIN = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PLUGIN / "bin"))
+import squadio  # noqa: E402
+import squadprocess  # noqa: E402
+import squadruntime  # noqa: E402
+STOP = {"the", "a", "an", "of", "to", "for", "and", "in", "on", "with", "from"}
+NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+MAX_AGENT = 32  # herdr's limit on an agent name
+
+
+def die(msg, code=1):
+    print(msg, file=sys.stderr)
+    sys.exit(code)
+
+
+def pick_bash(which, exists, nt, system_root):
+    """The bash that runs squad-spawn, or None. On Windows the System32 and WindowsApps hits are the WSL launcher
+    and the Store stub, the wrong bash; fall back to the Git for Windows bash found from git.exe."""
+    path = ntpath if nt else posixpath
+    found = which("bash")
+    if found:
+        low = found.replace("/", "\\").lower()
+        sys32 = path.join(system_root, "System32").replace("/", "\\").lower() + "\\" if system_root else None
+        if not nt or not (("\\windowsapps\\" in low) or (sys32 and low.startswith(sys32))):
+            return found
+    git = which("git")
+    if nt and git:
+        root = git
+        for _ in range(3):
+            root = path.dirname(root)
+            candidate = path.join(root, "bin", "bash.exe")
+            if exists(candidate):
+                return candidate
+    return None
+
+
+def need_bash():
+    bash = pick_bash(shutil.which, os.path.exists, os.name == "nt", os.environ.get("SystemRoot", ""))
+    if not bash:
+        die("bash not found: squad-start runs squad-spawn through bash; install Git for Windows or add its bin folder to PATH")
+    return bash
+
+
+def squad_dir(name):
+    if os.environ.get("SQUAD_DIR"):
+        return Path(os.environ["SQUAD_DIR"]).resolve()
+    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip() or os.getcwd()
+    root = Path(top) / ".claude" / "squads"
+    if name:
+        return (root / name).resolve()
+    found = sorted({p.parent for n in ("process.md", "process.local.md") for p in root.glob(f"*/{n}")})
+    if len(found) != 1:
+        die(f"pick a squad with --squad (found: {' '.join(p.name for p in found)})", 2)
+    return found[0].resolve()
+
+
+def recorded_overrides(home, manager):
+    """{model, effort} from <home>/roles/<manager>.overrides (ADR 0008); {} when absent or unreadable."""
+    out = {}
+    try:
+        for line in (home / "roles" / f"{manager}.overrides").read_text(encoding="utf-8").splitlines():
+            k, _, v = line.partition("=")
+            if k.strip() in ("model", "effort") and v.strip():
+                out[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return out
+
+
+def scope_md_models(target, manager_role="manager"):
+    """{model, effort} from the `model manager: <model> <effort>` line of <target>/scope.md ({} when absent; squad-spawn
+    refuses a malformed line)."""
+    try:
+        text = (target / "scope.md").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return {}
+    m = re.search(rf"(?m)^model[ \t]+{manager_role}:[ \t]+(\S+)[ \t]+(\S+)[ \t]*$", text)
+    return {"model": m.group(1), "effort": m.group(2)} if m else {}
+
+
+def manager_defaults(squad, model=None, effort=None, recorded=None, pin=None, scope_md=None):
+    """The Manager's model and effort as {key: (value, source)}, resolved as squad-spawn does: the flag, the recorded
+    override, then scope.md's `model manager:` line, then the settings -- the overlay merged over the template when manager.local.json exists (the full
+    manager.json is then ignored), else the full manager.json, else the template. In a composed squad the template is
+    the pinned runtime's when it exists (a dry run does not build it), else the plugin's. Read-only."""
+    tpl_root = PLUGIN
+    if pin and squadruntime.mode(str(squad)) == "composed":
+        rt = squadruntime.runtime_path(str(squad), pin[0], pin[1])
+        if os.path.isdir(os.path.join(rt, "templates")):
+            tpl_root = Path(rt)
+    tpl = None
+    try:
+        tpl = json.loads((tpl_root / "templates" / "squad" / "settings" / "manager.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    local = squad / "settings" / "manager.local.json"
+    full = squad / "settings" / "manager.json"
+    layers = []  # (source, dict), first hit per key wins
+    try:
+        if local.is_file():
+            layers.append(("squad settings", json.loads(local.read_text(encoding="utf-8"))))
+        elif full.is_file():
+            layers.append(("squad settings", json.loads(full.read_text(encoding="utf-8"))))
+    except (OSError, ValueError):
+        pass
+    if isinstance(tpl, dict):
+        layers.append(("template", tpl))
+    layers = [(src, d) for src, d in layers if isinstance(d, dict)]
+    out = {}
+    for key, name, flag in (("model", "model", model), ("effort", "effortLevel", effort)):
+        if flag:
+            out[key] = (flag, "flag")
+        elif recorded and recorded.get(key):
+            out[key] = (recorded[key], "recorded override")
+        elif scope_md and scope_md.get(key):
+            out[key] = (scope_md[key], "scope.md")
+        else:
+            out[key] = next(((d[name], src) for src, d in layers if isinstance(d.get(name), str) and d[name]), ("Claude's default", "none"))
+    return out
+
+
+def resume_pin(squad, target):
+    """The pin of the resumed scope or goal in a composed squad, else None (a bad pin is squad-spawn's to refuse)."""
+    if squadruntime.mode(str(squad)) != "composed":
+        return None
+    try:
+        return squadruntime.home_pin(str(target))
+    except squadruntime.RuntimeError_:
+        return None
+
+
+def print_manager_defaults(squad, a, recorded=None, pin=None, scope_md=None):
+    for key, (v, src) in manager_defaults(squad, a.model, a.effort, recorded, pin, scope_md).items():
+        print(f"manager {key}: {v} (from {src})")
+
+
+def process_update(squad):
+    """The one-line warning when the squad's process.md is not current, else None. Warns, never stops the start."""
+    if squadruntime.mode(str(squad)) == "composed":  # rules come from the plugin pin: no process.md to check
+        return None
+    try:
+        msg = squadprocess.check(squad, PLUGIN)["message"]
+    except Exception:  # a bad file or template must not block a start
+        print("process version not checked; run `squad-process check` for the reason", file=sys.stderr)
+        return None
+    if msg:
+        print(f"process update: {msg}", file=sys.stderr)
+    return msg or None
+
+
+def name_workspace(name):
+    """Name the caller's herdr workspace after the goal or lone scope; a refusal never stops the start."""
+    ws = os.environ.get("HERDR_WORKSPACE_ID")
+    if os.environ.get("HERDR_ENV") != "1" or not ws:
+        return
+    try:
+        r = subprocess.run(["herdr", "workspace", "rename", ws, name], capture_output=True, text=True, timeout=10,
+                           encoding="utf-8", errors="replace")
+    except (OSError, subprocess.TimeoutExpired) as e:
+        print(f"workspace not renamed: {e}", file=sys.stderr)
+        return
+    if r.returncode != 0:
+        reason = (r.stderr.strip().splitlines() or ["no reason given"])[-1]
+        print(f"workspace not renamed: {reason}", file=sys.stderr)
+
+
+def derive_name(text):
+    ticket = re.search(r"\b[A-Z][A-Z0-9]*-\d+\b", text)
+    if ticket:
+        return re.sub(r"[^a-z0-9]", "", ticket.group(0).lower())
+    words = [w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOP] or [""]
+    name = words[0][:16]
+    for w in words[1:]:
+        if len(name) + 1 + len(w) > 16:
+            break
+        name += "-" + w
+    return name
+
+
+def tokens(s):
+    return [t.rstrip("/") for t in re.split(r"[,\s]+", s) if t]
+
+
+def overlaps(a, b):
+    return a == b or a.startswith(b + "/") or b.startswith(a + "/")
+
+
+def open_scope_touches(squad):
+    for f in sorted((squad / "scopes").glob("*/scope.md")):
+        m = re.search(r"(?m)^touches:[ \t]*(.*)$", f.read_text(encoding="utf-8", errors="replace"))
+        yield f.parent.name, tokens(m.group(1)) if m else []
+
+
+def render(template_dir, target, values):
+    shutil.copytree(template_dir, target)
+    for f in target.glob("*.md"):
+        with open(f, encoding="utf-8") as fh:
+            text = fh.read()
+        for k, v in values.items():
+            text = text.replace("{{" + k + "}}", v)
+        with open(f, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+
+
+def resume(squad, a, update):
+    if a.text or a.in_goal or a.name:
+        die("--resume takes only the name of an existing scope or goal", 2)
+    for kind, base in (("goal", "goals"), ("scope", "scopes")):
+        target = squad / base / a.resume
+        if target.is_dir():
+            break
+    else:
+        die(f"no open scope or goal named {a.resume} in {squad}")
+    if kind == "scope":
+        m = re.search(r"(?m)^goal:[ \t]*(\S+)", (target / "scope.md").read_text(encoding="utf-8", errors="replace")) if (target / "scope.md").exists() else None
+        if m:
+            die(f"scope {a.resume} belongs to goal {m.group(1)} and is run by that goal's Manager: squad-start --resume {m.group(1)}")
+    manager = f"{squad.name}-mgr-{a.resume}"
+    home_var = "GOAL_DIR" if kind == "goal" else "SCOPE_DIR"
+    read = "" if squadruntime.mode(str(squad)) == "composed" else "Read $SQUAD_DIR/process.md, then your"
+    prompt = (f"RESPAWN: you are {manager}, restarted for {kind} {a.resume}. {read or 'Read your'} notes "
+              f"${home_var}/roles/{manager}.notes.md if it exists, then the brief and the roster, and continue where the files say.")
+    spawn = [(PLUGIN / "bin" / "squad-spawn").as_posix(), "manager", manager, "--goal" if kind == "goal" else "--scope", a.resume, "--prompt", prompt]
+    rec = recorded_overrides(target, manager)  # a plain resume keeps the recorded choice (squad-spawn would drop the file)
+    for key in ("model", "effort"):
+        v = getattr(a, key) or rec.get(key)
+        if v:
+            spawn += [f"--{key}", v]
+    if a.dry_run:
+        print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
+        print_manager_defaults(squad, a, rec, resume_pin(squad, target), scope_md_models(target) if kind == "scope" else None)
+        return
+    r = subprocess.run([need_bash(), *spawn], env={**os.environ, "SQUAD_DIR": squad.as_posix()}, capture_output=True,
+                       text=True, encoding="utf-8", errors="replace")
+    if r.returncode != 0:
+        die(f"could not start the Manager:\n{r.stderr.strip()}")
+    try:
+        tab = json.loads(r.stdout).get("tab")
+    except ValueError:
+        tab = None
+    name_workspace(a.resume)
+    print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab, "process_update": update}))
+
+
+def choose_pin(squad, in_goal):
+    """The pin a new scope or goal gets in a composed squad -> (version, sha, note): the goal's for --in-goal, else
+    $SQUAD_DIR/plugin.pin, else the running plugin's version and HEAD. Warns on stderr; raises RuntimeError_."""
+    if in_goal:
+        pin = squadruntime.home_pin(str(squad / "goals" / in_goal))
+        if pin:
+            return (*pin, "goal")
+    pin = squadruntime.read_pin_file(str(squad))
+    running = squadruntime.running_version(str(PLUGIN))
+    if pin:
+        if squadruntime.vkey(pin[0]) < squadruntime.vkey(running):
+            print(f"warning: plugin.pin is {pin[0]}, older than the installed plugin {running}; "
+                  f"the scope runs on {pin[0]}. Update plugin.pin to move it", file=sys.stderr)
+        return (*pin, "plugin.pin")
+    version, sha, dirty = squadruntime.running_pin(str(PLUGIN))
+    if dirty:
+        print(f"warning: plugin tree has uncommitted changes, pin uses commit {sha[:12]} without them", file=sys.stderr)
+    return version, sha, "running plugin"
+
+
+def add_pin_line(target, kind, pin):
+    """Insert `plugin: <version> <sha>` before the first `## ` heading of the new scope.md / goal.md."""
+    f = target / ("goal.md" if kind == "goal" else "scope.md")
+    text = f.read_text(encoding="utf-8")
+    line = f"plugin: {pin[0]} {pin[1]}\n\n"
+    i = text.find("\n## ")
+    text = text[:i + 1] + line + text[i + 1:] if i >= 0 else text.rstrip("\n") + "\n\n" + line
+    with open(f, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
+
+
+def main():
+    squadio.utf8_stdio()
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("text", nargs="?")
+    p.add_argument("--resume", metavar="NAME")
+    p.add_argument("--name")
+    p.add_argument("--touches", default="")
+    p.add_argument("--in-goal")
+    p.add_argument("--squad")
+    p.add_argument("--model")
+    p.add_argument("--effort")
+    p.add_argument("--yes", action="store_true")
+    p.add_argument("--dry-run", action="store_true")
+    # Only matters on POSIX under a non-UTF-8 locale (Windows decodes argv correctly): argv arrives as surrogate
+    # escapes, which cannot be written to scope.md; re-decode the original bytes. Identity on UTF-8.
+    a = p.parse_args([os.fsencode(x).decode("utf-8", "replace") for x in sys.argv[1:]])
+
+    squad = squad_dir(a.squad)
+    if squadruntime.mode(str(squad)) == "none":
+        die(f"no squad folder at {squad} (run /squad:squad-init)")
+    if not (squad / "scopes").is_dir():
+        die(f"{squad.name} uses the flat layout (no scopes/ folder); squad-start would convert it, so it refuses. "
+            "Set up a new squad with /squad:squad-init" if (squad / "roster.md").exists()
+            else f"{squad} has no scopes/ folder; run /squad:squad-init")
+
+    update = process_update(squad)
+    if a.resume:
+        return resume(squad, a, update)
+    if not a.text:
+        die("give the task as text, or --resume NAME", 2)
+    m = re.match(r"\s*goal:\s*(.*)", a.text, re.I | re.S)
+    if m and a.in_goal:
+        die("a goal cannot be started inside a goal", 2)
+    kind = "goal" if m else "scope"
+    brief = (m.group(1) if m else a.text).strip()
+    name = a.name or derive_name(brief)
+    if not NAME_RE.match(name):
+        die(f"cannot make a name from {brief[:40]!r}; pass --name (lowercase letters, digits, dashes, starting with a letter)", 2)
+    manager = None if a.in_goal else f"{squad.name}-mgr-{name}"
+    if manager and len(manager) > MAX_AGENT:
+        die(f"Manager name {manager} is {len(manager)} characters, over herdr's {MAX_AGENT}; pass a shorter --name", 2)
+
+    for rel in (f"scopes/{name}", f"goals/{name}", f"scopes/_done/{name}", f"goals/_done/{name}"):
+        if (squad / rel).exists():
+            die(f"{name} already exists as {rel}; scopes and goals share one namespace, pass another --name")
+    if a.in_goal and not (squad / "goals" / a.in_goal).is_dir():
+        die(f"no goal {a.in_goal} in {squad}/goals")
+
+    mine = tokens(a.touches)
+    hits = [(s, t, x) for s, ts in open_scope_touches(squad) for t in ts for x in mine if overlaps(t, x)]
+    if hits and not a.yes:
+        for s, t, x in hits:
+            print(f"overlap: open scope {s} touches {t}, and {name} would touch {x}", file=sys.stderr)
+        die("two scopes editing the same files only collide at merge; run again with --yes to go ahead", 3)
+
+    target = squad / ("goals" if kind == "goal" else "scopes") / name
+    flag = "--goal" if kind == "goal" else "--scope"
+    prompt = None
+    if manager:
+        what = ("$GOAL_DIR/goal.md (the PO's brief), do your start-of-session routine, split it into scopes with their order "
+                "and dependencies in goal.md" if kind == "goal" else
+                "$SCOPE_DIR/scope.md (the PO's brief), do your start-of-session routine, size the scope")
+        prompt = f"Start of run. Your {kind} is {name}: read {what}, and propose the plan to the PO (me) before spawning anyone."
+    spawn = [(PLUGIN / "bin" / "squad-spawn").as_posix(), "manager", manager or "", flag, name, "--prompt", prompt or ""]
+    if a.model:
+        spawn += ["--model", a.model]
+    if a.effort:
+        spawn += ["--effort", a.effort]
+
+    composed = squadruntime.mode(str(squad)) == "composed"
+    pin = None
+    if composed:
+        try:
+            pin = choose_pin(squad, a.in_goal)
+            if not a.dry_run:  # nothing is created when the runtime cannot be built
+                squadruntime.materialise(str(squad), pin[0], pin[1], str(PLUGIN))
+        except squadruntime.RuntimeError_ as e:
+            die("\n".join(e.lines), e.code)
+
+    if a.dry_run:
+        print(f"would create {target} from templates/{kind}")
+        if pin:
+            print(f"would pin plugin: {pin[0]} {pin[1]} (from {pin[2]})")
+        if manager:
+            print("would run: " + " ".join(spawn[:6]) + " --prompt ...")
+            print_manager_defaults(squad, a, None, pin)
+        return
+
+    bash = need_bash() if manager else None
+    render(PLUGIN / "templates" / kind, target, {"name": name, "brief": brief, "goal": a.in_goal or "", "touches": ", ".join(mine)})
+    if pin:
+        add_pin_line(target, kind, pin)
+    for d in (("shared/summaries", "shared/contracts", "roles") if kind == "goal" else ("tasks", "evidence", "roles", "iterations")):
+        (target / d).mkdir(parents=True, exist_ok=True)
+
+    tab = None
+    if manager:
+        r = subprocess.run([bash, *spawn], env={**os.environ, "SQUAD_DIR": squad.as_posix()}, capture_output=True,
+                           text=True, encoding="utf-8", errors="replace")
+        if r.returncode != 0:
+            shutil.rmtree(target, ignore_errors=True)
+            die(f"could not start the Manager, so {target.name} was not created:\n{r.stderr.strip()}")
+        try:
+            tab = json.loads(r.stdout).get("tab")
+        except ValueError:
+            pass
+    if manager:
+        name_workspace(name)
+    print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab, "process_update": update}))
+
+
+if __name__ == "__main__":
+    main()

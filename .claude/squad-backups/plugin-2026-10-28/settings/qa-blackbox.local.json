@@ -1,0 +1,10 @@
+{
+  "codePaths": [
+    "/nonexistent/qa-blackbox-read-deny-removed-E5"
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(python3 tests/run_suite.py:*)"
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+ "candidate": "usage2",
+ "arm_alias": "sonnet",
+ "run": 1,
+ "date": "2026-10-16",
+ "session": "fe457b70-e403-4cc2-90b1-7212e1cf874d",
+ "models": [
+  "claude-sonnet-5-5"
+ ],
+ "n_message_ids": 2,
+ "tokens": {
+  "input_tokens": 4,
+  "output_tokens": 1053,
+  "cache_read_input_tokens": 8663,
+  "ephemeral_5m": 0,
+  "ephemeral_1h": 3309
+ },
+ "cost_usd": 0.02464,
+ "unpriced": [],
+ "defects": [],
+ "seconds": 10.9,
+ "exit": 0,
+ "stderr_len": 0,
+ "transcript_files": 1
+}

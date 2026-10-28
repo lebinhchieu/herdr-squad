@@ -1,0 +1,2 @@
+07 done: code 0f1dc44 (both QA PASS), evidence sha 0067a5d handed in to Tech and TL. Nothing open. Retire (COST-5).
+Successor notes: 5 KiB dev-rules tests are skipped ("5 KiB trim is ticket 11"); un-skip in tickets 11/12 (test_sizes 1, test_dev_rules_size 3). A `when:` allows one duty/role key (lint). Old copy .scratch/drop-scope-size/evidence/07/evidence.md kept on purpose (deleting it fails the evidence-only check).

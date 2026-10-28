@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>inbox-visual: audit, cost, release</title>
+<style>
+:root{--bg:#FCF8F1;--panel:#F4ECDD;--border:#E7DBC8;--ink:#3E372E;--muted:#857A68;--mango:#E8820E;
+--teal:#0C8A80;--red:#DB3B22;--blue:#2A6DC0;--purple:#9A40CF;--green:#368A1E;--yellow:#9E7A00}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1440px;margin:0 auto;padding:24px}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:17px;margin:0 0 10px}
+h3{font-size:14px;margin:14px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+p{max-width:70ch;margin:6px 0}
+.sub{color:var(--muted);margin:0 0 18px}
+.answer{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:20px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.big{font-size:28px;font-weight:700;line-height:1.1}
+.lbl{color:var(--muted);font-size:13px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:18px;align-items:start}
+section{background:#fff8;border:1px solid var(--border);border-radius:12px;padding:16px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--muted);font-weight:600}
+.scroll{overflow-x:auto}
+.pass{color:var(--green);font-weight:600}.fail{color:var(--red);font-weight:600}.warn{color:var(--yellow);font-weight:600}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.ret{display:inline-block;min-width:16px;height:16px;border-radius:3px;background:var(--red);color:#fff;font-size:11px;text-align:center;margin-right:2px;line-height:16px}
+.bars .row{display:grid;grid-template-columns:150px 1fr 54px;gap:8px;align-items:center;margin:3px 0;font-size:13px}
+.bar{height:14px;border-radius:3px}
+.track{background:var(--panel);border-radius:3px}
+.legend{font-size:12.5px;color:var(--muted);margin:6px 0}
+.tag{font-size:11px;padding:1px 6px;border-radius:8px;border:1px solid var(--border);color:var(--muted);white-space:nowrap}
+.tag.v{border-color:var(--green);color:var(--green)}.tag.i{border-color:var(--yellow);color:var(--yellow)}
+.lane{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.step{flex:1 1 120px;border-left:4px solid var(--teal);background:var(--panel);padding:6px 8px;border-radius:4px;font-size:12.5px}
+.step b{display:block}
+.area{display:grid;grid-template-columns:120px 1fr;gap:8px;margin:5px 0;font-size:13px;align-items:center}
+.stack{display:flex;height:14px;border-radius:3px;overflow:hidden}
+code{background:var(--panel);padding:0 4px;border-radius:3px;font-size:12.5px}
+ul{margin:4px 0;padding-left:18px}li{margin:3px 0}
+.mark{display:inline-block;width:18px;height:18px;border-radius:50%;background:var(--mango);color:#fff;font-size:11px;text-align:center;line-height:18px;margin-right:4px;font-weight:700}
+footer{margin-top:20px;font:12.5px/1.5 ui-monospace,monospace;color:var(--muted);white-space:pre-wrap;background:var(--panel);padding:12px;border-radius:8px}
+@media (max-width:520px){main{padding:12px}.bars .row{grid-template-columns:110px 1fr 46px}.area{grid-template-columns:90px 1fr}}
+</style>
+</head>
+<body><main>
+<h1>inbox-visual: delivered, merged, and what it cost</h1>
+<p class="sub">Scope closed 2026-10-16 · size M + Designer · merged into <code>main</code> as <code>09cb409</code> (<code>git merge --no-ff 6bbb999</code>)</p>
+
+<div class="answer">
+  <div class="card"><div class="big pass">7 / 7</div><div class="lbl">tickets passed both QAs, then merged <span class="tag v">verified</span></div></div>
+  <div class="card"><div class="big">1.10M</div><div class="lbl">output tokens · 157M cache reads · 4.2M cache writes, 12 agents, 32 sessions <span class="tag v">verified</span></div></div>
+  <div class="card"><div class="big">5 h 05</div><div class="lbl">wall clock 10:57 to 16:02, pause included · 8 h 45 active agent time, summed <span class="tag i">inferred</span></div></div>
+  <div class="card"><div class="big">+4,061 / −186</div><div class="lbl">28 files: <code>hooks/po-inbox</code> code and tests, spec, glossary, ADR 0007 <span class="tag v">verified</span></div></div>
+</div>
+
+<div class="grid3">
+
+<!-- 1. AUDIT -->
+<section>
+<h2>1 · Audit: did each ticket really pass?</h2>
+<div class="scroll"><table>
+<tr><th>Ticket</th><th>What</th><th>Returns</th><th>Passed sha (QAW / QAB)</th></tr>
+<tr><td>IV-01</td><td>markdown-subset parser <code>markup.ts</code></td><td><span class="ret">1</span></td><td class="pass">b497266 / 59ef08e</td></tr>
+<tr><td>IV-02</td><td>core helpers (<code>rowsFor</code>, widths, tones)</td><td><span class="ret">1</span><span class="ret">2</span></td><td class="pass">d5593f4 / 4b2539c</td></tr>
+<tr><td>IV-03</td><td>item screen: pointer, body, option blocks</td><td><span class="ret">1</span><span class="ret">2</span><span class="ret">3</span><span class="ret">4</span></td><td class="pass">245ac65 / 245ac65</td></tr>
+<tr><td>IV-04</td><td>band and list, 7-row fold</td><td><span class="ret">1</span><span class="ret">2</span></td><td class="pass">8e176ca / 8e176ca</td></tr>
+<tr><td>IV-05</td><td>done list</td><td><span class="ret">1</span></td><td class="pass">0a33014 / 0a33014</td></tr>
+<tr><td>IV-06</td><td>integration, 536 tests OK, live drive</td><td>none</td><td class="pass">82ffe98 / 82ffe98</td></tr>
+<tr><td>IV-07</td><td>promotion to CONTEXT.md and ADR 0007</td><td>none</td><td class="pass">6bbb999 / 6bbb999</td></tr>
+</table></div>
+<p class="legend">Returns are FAIL verdicts in <code>messages.jsonl</code>, grouped by 10-minute window; IV-02's second comes from the iteration log. <span class="tag i">inferred count</span></p>
+
+<h3>What the audit found</h3>
+<ul>
+<li><span class="mark">1</span><b class="fail">IV-03 reached 4 returns, and I didn't step in.</b> The rule is to step in at 3. I only saw 2 of them, because QA whitebox's returns went straight to the Developer and never reached me. Each return was a real defect, and the ticket ended clean. <span class="tag v">verified</span></li>
+<li><span class="mark">2</span><b class="warn">The spec assumed 7 visible rows. The real pane shows 6.</b> QA whitebox measured it on a real pane, so the layout rule now uses <code>scroll.bodyRows</code> and the BA, Designer and tests were all updated. <span class="tag v">verified</span></li>
+<li><span class="mark">3</span><b class="warn">The merge was blocked once.</b> Your project root had an untracked <code>.scratch/inbox-visual/</code> that the branch also commits. I checked every file was byte-identical, then removed it on your answer to E3. <span class="tag v">verified</span></li>
+<li><span class="mark">4</span><b class="warn">My context peaked at 168k, past the 100k respawn rule.</b> I stayed in one session, which cost 15.6M cache-read tokens. <span class="tag v">verified</span></li>
+<li><span class="mark">5</span>A real defect found by QA blackbox: <code>rowsFor</code> counted one cell short after a row filled exactly to the width. It's fixed and checked on a real pane, and the rule is recorded in ADR 0007. <span class="tag v">verified</span></li>
+</ul>
+<h3>Open, not blocking</h3>
+<ul>
+<li><b>F1:</b> at 30 columns, the band wraps between a count and its word. That's below the 40-column width the design covers.</li>
+<li><b>F2:</b> the <code>fitCap</code> floor is untested below 5 body rows.</li>
+</ul>
+</section>
+
+<!-- 2. COST -->
+<section>
+<h2>2 · Cost: where did the tokens and time go?</h2>
+<div class="legend"><span class="dot" style="background:var(--purple)"></span>QA <span class="dot" style="background:var(--teal)"></span>Developer <span class="dot" style="background:var(--blue)"></span>BA / Tech Lead / Designer <span class="dot" style="background:var(--muted)"></span>Manager / Coach</div>
+<h3>Output tokens (k)</h3>
+<div class="bars">
+<div class="row"><span>QA blackbox</span><div class="track"><div class="bar" style="width:100%;background:var(--purple)"></div></div><span>217</span></div>
+<div class="row"><span>Dev 3 · IV-03</span><div class="track"><div class="bar" style="width:81%;background:var(--teal)"></div></div><span>176</span></div>
+<div class="row"><span>QA whitebox</span><div class="track"><div class="bar" style="width:72%;background:var(--purple)"></div></div><span>157</span></div>
+<div class="row"><span>Tech Lead</span><div class="track"><div class="bar" style="width:55%;background:var(--blue)"></div></div><span>119</span></div>
+<div class="row"><span>Designer</span><div class="track"><div class="bar" style="width:45%;background:var(--blue)"></div></div><span>97</span></div>
+<div class="row"><span>Dev 4 · IV-04/05</span><div class="track"><div class="bar" style="width:41%;background:var(--teal)"></div></div><span>89</span></div>
+<div class="row"><span>Manager (me)</span><div class="track"><div class="bar" style="width:27%;background:var(--muted)"></div></div><span>60</span></div>
+<div class="row"><span>BA</span><div class="track"><div class="bar" style="width:26%;background:var(--blue)"></div></div><span>57</span></div>
+<div class="row"><span>Dev 1 · IV-01</span><div class="track"><div class="bar" style="width:24%;background:var(--teal)"></div></div><span>51</span></div>
+<div class="row"><span>Dev 5 · IV-06/07</span><div class="track"><div class="bar" style="width:16%;background:var(--teal)"></div></div><span>36</span></div>
+<div class="row"><span>Dev 2 · IV-02</span><div class="track"><div class="bar" style="width:15%;background:var(--teal)"></div></div><span>32</span></div>
+<div class="row"><span>Token Coach</span><div class="track"><div class="bar" style="width:2%;background:var(--muted)"></div></div><span>4</span></div>
+</div>
+<p><b>QA is 34% of the output tokens (374k).</b> Developers are 35% (384k), and Dev 3 alone spent 176k on IV-03 because of its 4 returns.</p>
+
+<h3>Cache reads (M): the bulk of the input</h3>
+<div class="bars">
+<div class="row"><span>QA blackbox</span><div class="track"><div class="bar" style="width:100%;background:var(--purple)"></div></div><span>37.7</span></div>
+<div class="row"><span>Dev 3</span><div class="track"><div class="bar" style="width:62%;background:var(--teal)"></div></div><span>23.4</span></div>
+<div class="row"><span>QA whitebox</span><div class="track"><div class="bar" style="width:61%;background:var(--purple)"></div></div><span>23.1</span></div>
+<div class="row"><span>Tech Lead</span><div class="track"><div class="bar" style="width:54%;background:var(--blue)"></div></div><span>20.3</span></div>
+<div class="row"><span>Manager</span><div class="track"><div class="bar" style="width:41%;background:var(--muted)"></div></div><span>15.6</span></div>
+<div class="row"><span>other 7</span><div class="track"><div class="bar" style="width:100%;background:var(--border)"></div></div><span>41.3</span></div>
+</div>
+
+<h3>Time</h3>
+<div class="lane">
+<div class="step"><b>10:57</b>Brief, E1, E2</div>
+<div class="step"><b>11:14</b>Pod spawned, spec and plan</div>
+<div class="step"><b>11:21–11:48</b>IV-01 and IV-02 built</div>
+<div class="step" style="border-color:var(--yellow)"><b>pause</b>Account switch</div>
+<div class="step"><b>11:39–13:34</b>IV-04, IV-05</div>
+<div class="step" style="border-color:var(--red)"><b>11:38–14:58</b>IV-03 and its 4 returns</div>
+<div class="step"><b>13:45–15:24</b>IV-06, IV-07</div>
+<div class="step" style="border-color:var(--green)"><b>~16:00</b>Merged 09cb409</div>
+</div>
+<p class="legend">Spans are each agent's first and last turn. Active time adds up the gaps between turns that are shorter than 5 minutes. The pause has no recorded timestamp. <span class="tag i">inferred</span></p>
+<div class="scroll"><table>
+<tr><th>Agent</th><th>Active min</th><th>Sessions</th><th>Turns</th></tr>
+<tr><td>QA blackbox</td><td>127</td><td>5</td><td>340</td></tr>
+<tr><td>Tech Lead</td><td>81</td><td>5</td><td>230</td></tr>
+<tr><td>QA whitebox</td><td>69</td><td>4</td><td>234</td></tr>
+<tr><td>Dev 3</td><td>60</td><td>4</td><td>258</td></tr>
+<tr><td>Manager</td><td>39</td><td>1</td><td>137</td></tr>
+<tr><td>Dev 4</td><td>38</td><td>2</td><td>129</td></tr>
+<tr><td>other 6</td><td>111</td><td>11</td><td>361</td></tr>
+</table></div>
+<h3>Process changes made from this run</h3>
+<ul>
+<li>After a return, a QA re-checks only the changed files and their AC.</li>
+<li>The BA retires once the spec and AC are final.</li>
+<li>The Tech Lead splits any Developer task likely to need a respawn.</li>
+</ul>
+<p class="legend">Logged in <code>process-log.md</code>; processlint passed, 22,496 B. Proposals 4 and 5 went to the backlog.</p>
+</section>
+
+<!-- 3. RELEASE -->
+<section>
+<h2>3 · Release: what changed for you?</h2>
+<p><b>The inbox now reads at a glance instead of as prose.</b> It's still text in the terminal, with no HTML.</p>
+<ul>
+<li><b>Item screen.</b> The item's kind, what it blocks, its title and a one-row <code>✓ recommends (c)</code> pointer all fit in the first 6 rows of a 24-row terminal.</li>
+<li><b>Body.</b> Headings, bullets, numbered lists, bold, code, fenced code, tables and <code>[rec]</code> tags now show as structure. Any other markup shows as plain text, so nothing is dropped.</li>
+<li><b>Options.</b> Each option is its own block, and the recommended one is marked green. When the screen is narrow, the borders go.</li>
+<li><b>Colour.</b> Green means passed or recommended, red means blocking or failed, amber means waiting or warning, and dim is metadata. <code>blocks X</code> turns dim once the work is released.</li>
+<li><b>Band and list.</b> The band's counts are never cut off. Each group shows 7 rows, and <code>+N more</code> opens the rest in place. The "answered, waiting for the Manager" group is coloured.</li>
+<li><b>Unchanged:</b> <code>squad-inbox add</code> and the Manager's instructions. The recommended option comes from the key already written in <code>--rec</code>.</li>
+</ul>
+<h3>Lines changed, by area</h3>
+<div class="area"><span>Tests</span><div class="stack"><div style="width:100%;background:var(--green)"></div></div></div>
+<div class="legend" style="margin-top:-2px">2,301 lines: item, list, done, markup, core-visual, testkit</div>
+<div class="area"><span>Mod code</span><div class="stack"><div style="width:63%;background:var(--green)"></div><div style="width:5%;background:var(--red)"></div></div></div>
+<div class="legend" style="margin-top:-2px">1,444 lines changed: <code>ui.tsx</code>, <code>draw.tsx</code>, <code>markup.ts</code>, <code>core.ts</code>, <code>testkit.ts</code></div>
+<div class="area"><span>Spec and tickets</span><div class="stack"><div style="width:19%;background:var(--green)"></div></div></div>
+<div class="legend" style="margin-top:-2px">+487: <code>.scratch/inbox-visual/</code></div>
+<div class="area"><span>Lasting docs</span><div class="stack"><div style="width:1%;background:var(--green)"></div></div></div>
+<div class="legend" style="margin-top:-2px">+13: 3 glossary terms and 1 rule in <code>CONTEXT.md</code>, 3 consequences in ADR 0007 · plugin version 0.3.0</div>
+<p class="legend">Source: <code>git diff --stat 09cb409^1 09cb409</code>. The area totals are summed by hand from its 28 rows. <span class="tag v">verified</span></p>
+<h3>Not merged</h3>
+<p>Branches <code>squad/plugin/inbox-visual/plugin-dev-inbox-visual-1..5</code> are kept; all of their work is inside <code>09cb409</code>. Nothing was pushed.</p>
+</section>
+</div>
+
+<footer>Reader:     PO → sign off the closed scope and decide on F1 and F2
+Question:   Did inbox-visual deliver cleanly, what did it cost, and what changed?
+Dimension:  Quantity (cost), with Comparison (audit per ticket) and Change (release) as secondary panels
+Form:       answer cards + three side-by-side panels with bars, not one long table: a 12-row number table hides who dominated the cost
+Sources:    $SCOPE_DIR/messages.jsonl, roster sessions read with squad-usage's own parser, summary.md, iterations/1.md, git diff --stat 09cb409^1 09cb409</footer>
+</main></body></html>

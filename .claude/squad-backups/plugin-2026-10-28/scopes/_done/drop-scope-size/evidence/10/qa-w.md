@@ -1,0 +1,5 @@
+# QA whitebox 10 — PASS on d792d78 (Tech Lead's final sha)
+- Lint exit 0 empty. Tests OK: test_squad_team (26), test_instructions, test_sizes, test_windows_safe, test_crlf_squad_files, test_processlint, test_team_duties.
+- Diff read: bin/squad-team, bin/squadteam.py (every refusal is a ComposeError before scope.md is touched; token from fixed TEAM_KEYS; atomic os.replace; BOM/CRLF kept), SIZE-13/TEAM-7 pointers, changelog.
+- Live (REV-5b) on a temp CRLF scope.md with commentary, pin 0.6.0 + --plugin-root: dry run unchanged; add team-lead -> `plan-owner: manager -> team-lead`, spawn team-lead, respawn manager, tech-lead; 5 CRs kept, commentary kept, canonical order; add designer needs --po-ok; add present / remove absent refused; remove needs --at-boundary; remove down to `team: none`; hostile role name refused, nothing ran. Pin 0.5.2 refused (rc 2, scope.md unchanged).
+- Note (non-blocking): on this branch `running_version()` is still 0.5.2 (bump is ticket 13), so without --plugin-root a 0.6.0 pin is refused as "other than running"; correct by design.

@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""Token usage per squad agent, read from Claude Code transcripts.
+
+  squad-usage [--squad-dir DIR]                 table for every roster.md row with a session id
+  squad-usage --check SESSION [--transcript F]  print the cost rule that fired (fresh|idle), or nothing
+  squad-usage --get NAME                        print "role<TAB>scope<TAB>session" of a roster row
+  squad-usage --set-session NAME SESSION [--role R --scope S]
+                                                record a session id in roster.md (adds the column)
+
+Env: SCOPE_DIR, else GOAL_DIR, else SQUAD_DIR: the folder holding roster.md. CLAUDE_CONFIG_DIR (default ~/.claude).
+"""
+import argparse
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
+from squadtranscript import CACHE_TTL_S, agent_sessions, find_transcript, is_expiry, read_session  # noqa: E402
+
+FRESH_CTX = 120_000          # process.md: fresh when context is over 120k
+IDLE_CTX = 100_000           # process.md: idle over 1h and context over 100k
+
+
+def summarize(path):
+    """One session. Context, expiries and model follow the agent's own turns; turns and out include its subagents."""
+    every, compactions = read_session(path)
+    rows = [t for t in every if not t["side"]]
+    if not rows:
+        return None
+    expiries = sum(is_expiry(a, b) for a, b in zip(rows, rows[1:]))
+    last = rows[-1]
+    return {"model": last["model"], "effort": last["effort"] or "-", "turns": len(rows),
+            "subagents": sum(t["out"] for t in every if t["side"]),
+            "peak": max(t["ctx"] for t in rows), "last": last["ctx"], "out": sum(t["out"] for t in every),
+            "expiries": expiries, "compactions": compactions, "last_ts": last["ts"],
+            "just_expired": len(rows) > 1 and is_expiry(rows[-2], last)}
+
+
+def summarize_agent(paths):
+    """Every session of one agent: turns, out, expiries, compactions sum; the newest session gives ctx and model."""
+    ss = [s for s in map(summarize, paths) if s]
+    if not ss:
+        return None
+    newest = max(ss, key=lambda s: s["last_ts"])
+    return {**newest, **{k: sum(s[k] for s in ss) for k in ("turns", "subagents", "out", "expiries", "compactions")}}
+
+
+def check(s, now=None):
+    now = now or datetime.now(timezone.utc)
+    if s["compactions"] or s["last"] > FRESH_CTX:
+        return "fresh"
+    # The Stop hook runs right after a turn, so "now - last_ts" is ~0 there: the gap shows in the last two turns.
+    idle = (now - s["last_ts"]).total_seconds() > CACHE_TTL_S or s["just_expired"]
+    if idle and s["last"] > IDLE_CTX:
+        return "idle"
+    return None
+
+
+def table_rows(text):
+    return [[c.strip() for c in l.strip().strip("|").split("|")] for l in text.splitlines() if l.startswith("|")]
+
+
+def roster_sessions(roster):
+    rows = table_rows(roster.read_text(encoding="utf-8"))
+    if not rows or "Session" not in rows[0]:
+        return []
+    si, ai = rows[0].index("Session"), rows[0].index("Agent")
+    return [(r[ai], r[si]) for r in rows[2:] if len(r) > si and r[si]]
+
+
+def roster_get(roster, name):
+    rows = table_rows(roster.read_text(encoding="utf-8"))
+    col = {h: i for i, h in enumerate(rows[0])} if rows else {}
+    for r in rows[2:]:
+        if r and r[0] == name:
+            cell = lambda h: r[col[h]] if h in col and len(r) > col[h] else ""
+            return cell("Role"), cell("Scope"), cell("Session")
+
+
+def set_session(roster, name, session, role="", scope=""):
+    lines = roster.read_text(encoding="utf-8").splitlines() if roster.exists() else []
+    out, header_seen, width, done = [], False, 0, False
+    for l in lines:
+        if not l.startswith("|"):
+            out.append(l)
+            continue
+        cells = [c.strip() for c in l.strip().strip("|").split("|")]
+        if not header_seen:
+            header_seen = True
+            if "Session" not in cells:
+                cells.append("Session")
+            width, si = len(cells), cells.index("Session")
+        elif set(l) <= set("|-: "):
+            cells = ["---"] * width
+        else:
+            cells += [""] * (width - len(cells))
+            if cells[0] == name:
+                cells[si], done = session, True
+        out.append("| " + " | ".join(cells) + " |")
+    if not header_seen:
+        sys.exit(f"no table in {roster}")
+    if not done:
+        row = [name, role, scope, "", "live"] + [""] * (width - 5)
+        row[si] = session
+        out.append("| " + " | ".join(row) + " |")
+    with open(roster, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(out) + "\n")
+
+
+def fmt_k(n):
+    return f"{n / 1000:.0f}k"
+
+
+def report(squad_dir):
+    entries = roster_sessions(squad_dir / "roster.md")
+    if not entries:
+        sys.exit("no session ids in roster.md")
+    head = ("agent", "model/effort", "turns", "peak ctx", "last ctx", "out", "expiries", "compactions", "subagents")
+    body, seen, unsure = [], set(), []
+    for name, sid in entries:
+        if name in seen:
+            continue
+        seen.add(name)
+        found = find_transcript(sid)
+        paths, certain = agent_sessions(name, found)
+        if found:
+            paths.append(str(found))
+        elif not certain:
+            unsure.append(name)
+        s = summarize_agent(sorted(set(paths)))
+        if not s:
+            body.append((name, "no transcript", "-", "-", "-", "-", "-", "-", "-"))
+            continue
+        body.append((name, f"{s['model']}/{s['effort']}", s["turns"], fmt_k(s["peak"]), fmt_k(s["last"]),
+                     fmt_k(s["out"]), s["expiries"], s["compactions"],
+                     str(s["subagents"]) if s["subagents"] < 1000 else fmt_k(s["subagents"])))
+    widths = [max(len(str(r[i])) for r in [head] + body) for i in range(len(head))]
+    for r in [head] + body:
+        print("  ".join(str(c).ljust(w) for c, w in zip(r, widths)).rstrip())
+    print("note: turns = main-thread turns only; out includes subagents; subagents = their output tokens (inside out);"
+          " peak/last ctx, expiries, model are the agent's own thread")
+    if unsure:
+        print("note: roster session not found, so the squad could not be told; no other sessions were scanned for: "
+              + ", ".join(unsure))
+
+
+def main():
+    squadio.utf8_stdio()
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--squad-dir")
+    p.add_argument("--check", metavar="SESSION")
+    p.add_argument("--transcript")
+    p.add_argument("--get", metavar="NAME")
+    p.add_argument("--set-session", nargs=2, metavar=("NAME", "SESSION"))
+    p.add_argument("--role", default="")
+    p.add_argument("--scope", default="")
+    a = p.parse_args()
+    # SQUAD_DIR alone is the legacy flat layout
+    squad_dir = a.squad_dir or os.environ.get("SCOPE_DIR") or os.environ.get("GOAL_DIR") or os.environ.get("SQUAD_DIR")
+
+    if a.check:
+        path = Path(a.transcript) if a.transcript else find_transcript(a.check)
+        s = summarize(path) if path and path.exists() else None
+        rule = check(s) if s else None
+        if rule:
+            print(rule)
+        return
+    if not squad_dir:
+        sys.exit("set SQUAD_DIR or pass --squad-dir")
+    if a.get:
+        row = roster_get(Path(squad_dir) / "roster.md", a.get)
+        if not row:
+            sys.exit(f"{a.get} is not in roster.md")
+        print("\t".join(row))
+        return
+    if a.set_session:
+        set_session(Path(squad_dir) / "roster.md", *a.set_session, role=a.role, scope=a.scope)
+        return
+    report(Path(squad_dir))
+
+
+if __name__ == "__main__":
+    main()

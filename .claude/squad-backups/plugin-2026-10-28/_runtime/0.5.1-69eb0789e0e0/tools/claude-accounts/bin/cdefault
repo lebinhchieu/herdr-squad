@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# cdefault -> print the default here (workspace one in herdr, else global); cdefault 1|2|3 -> set the global one;
+# cdefault --ws [<workspace id|panel number|label>] <1|2|3> -> set one workspace's default (no ref = the current one)
+. "$HOME/.claude-accounts/lib.sh"
+[ -z "${1:-}" ] && { default_account; exit; }
+if [ "$1" = --ws ]; then
+  u="usage: cdefault --ws [<workspace id|panel number|label>] <1|2|3>"
+  if [ $# -eq 2 ] && [[ "$2" =~ ^[123]$ ]]; then
+    { [ "${HERDR_ENV:-}" = 1 ] && ws_id_ok "${HERDR_WORKSPACE_ID:-}"; } || { echo "usage: not inside herdr: give a workspace" >&2; exit 2; }
+    id=$HERDR_WORKSPACE_ID
+  elif [ $# -eq 3 ] && [[ "$3" =~ ^[123]$ ]]; then
+    id=$(resolve_workspace "$2") || exit 2
+  else echo "$u" >&2; exit 2; fi
+  set_workspace_default "${@: -1}" "$id" || { echo "could not write the workspace default" >&2; exit 1; }
+  echo "default account of $id: ${*: -1}"; exit
+fi
+case "$1" in 1|2|3) echo "$1" > "$ACCT_HOME/default"; echo "default account: $1" ;; *) echo "use 1, 2 or 3" >&2; exit 2 ;; esac

@@ -1,0 +1,6 @@
+upgrade: plugin 0.4.0 aaaaaaa1 -> 0.5.0 bbbbbbb2
+plugin changes: added 0, changed 1, removed 0, retargeted 0
+overlay: 1 operations: 0 unaffected, 0 re-targeted, 0 dropped, 1 need a decision
+decide:
+  REV-2 stale: the plugin changed the rule your `replace` was written for (@ca54601d -> @cfd2ee3b)
+    --resolve REV-2=<keep | take | file:<path>>

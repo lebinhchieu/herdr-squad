@@ -1,0 +1,102 @@
+{
+ "add-clash": {
+  "desc": "Add, local rule with the same topic: listed for review",
+  "variants": {
+   "apply": []
+  }
+ },
+ "add-free": {
+  "desc": "Add, no op on it: applied",
+  "variants": {
+   "apply": []
+  }
+ },
+ "adopted": {
+  "desc": "Op text now shipped by the plugin: removed by apply",
+  "variants": {
+   "apply": []
+  }
+ },
+ "change-free": {
+  "desc": "Change, no op on it: applied",
+  "variants": {
+   "apply": []
+  }
+ },
+ "change-stale": {
+  "desc": "Change, op on it: stale",
+  "variants": {
+   "file": [
+    "REV-2=file:own.md"
+   ],
+   "keep": [
+    "REV-2=keep"
+   ],
+   "take": [
+    "REV-2=take"
+   ]
+  }
+ },
+ "remove-flag": {
+  "desc": "Remove, op on it: flagged",
+  "variants": {
+   "drop": [
+    "COST-2=drop"
+   ],
+   "local": [
+    "COST-2=local"
+   ],
+   "retarget": [
+    "COST-2=retarget:COST-1"
+   ]
+  }
+ },
+ "remove-free": {
+  "desc": "Remove, no op on it: applied",
+  "variants": {
+   "apply": []
+  }
+ },
+ "retarget-free": {
+  "desc": "Retarget only, no op on it: applied",
+  "variants": {
+   "apply": []
+  }
+ },
+ "retarget-op": {
+  "desc": "Retarget only, op keeps its body and takes the new targeting",
+  "variants": {
+   "apply": []
+  }
+ },
+ "retarget-own": {
+  "desc": "Retarget only, op sets its own roles: kept",
+  "variants": {
+   "apply": []
+  }
+ },
+ "semantic-clash": {
+  "desc": "Local add in topic review plus a changed plugin review rule: listed, not blocked",
+  "variants": {
+   "apply": []
+  }
+ },
+ "split": {
+  "desc": "Split (tombstone with replaced_by), op on it: as Remove",
+  "variants": {
+   "drop": [
+    "COST-2=drop"
+   ],
+   "local": [
+    "COST-2=local"
+   ],
+   "retarget": [
+    "COST-2=retarget:COST-4"
+   ]
+  }
+ },
+ "unhandled": {
+  "desc": "Op on an unknown ID: refused",
+  "variants": {}
+ }
+}

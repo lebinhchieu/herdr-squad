@@ -1,0 +1,362 @@
+#!/usr/bin/env bash
+# Close finished work and tidy up after it. Branches are only reported, never deleted: merging and deleting
+# them is the PO's call.
+#
+#   squad-close <squad> --scope S   per-scope squad: retire S's agents (not its Manager: it stays for the PO, who ends it
+#                                   with `squad-retire <mgr>`), remove worktrees whose
+#                                   branch is merged and clean, move scopes/S to scopes/_done/S.
+#                                   Worktrees are found by branch (`git worktree list`), wherever they sit; untracked
+#                                   files (caches, pid files) do not block removal and are listed.
+#                                   flat squad (legacy): retire the agents whose Scope column is S and drop their
+#                                   roster rows; the squad stays.
+#                                   Also lists untracked files in the project root outside .claude/squads/ (warns only).
+#                                   Refuses while the last iteration's Went well, Friction or Process changes made is
+#                                   empty (ITER-16); --force overrides and logs it in that file.
+#   squad-close <squad> --goal G    move goals/G to goals/_done/G; the goal Manager stays. Refuses while a scope of
+#                                   G is still open, or while shared/decisions.md has entries and goal.md has no
+#                                   `promoted:` line yet (the goal's knowledge would be lost). --force overrides.
+#   squad-close <squad>             retire every agent, Managers last, remove merged worktrees, archive the squad folder to
+#                                   .claude/squads/_done/<squad>/ (evidence included).
+#   Scope, goal and squad closes also delete the pinned runtimes in _runtime/ that no open scope, goal or plugin.pin
+#   holds (all of them on a whole-squad close), never the one this script runs from, and on a scope or goal close
+#   never the closing home's own pin (its kept Manager still runs from it; the next close prunes it); after the
+#   worktrees, before the folder moves. A kept Manager is chat-only after the move (its folder is in _done).
+set -euo pipefail
+
+usage() { echo "Usage: squad-close <squad> [--scope S | --goal G] [--into BRANCH] [--force] [--dry-run]"; }
+[[ $# -lt 1 || $1 == -h || $1 == --help ]] && { usage; exit 2; }
+squad=$1; shift
+scope="" goal="" into="" force=0 dry=0
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --scope) scope=$2; shift 2 ;;
+    --goal) goal=$2; shift 2 ;;
+    --into) into=$2; shift 2 ;;
+    --force) force=1; shift ;;
+    --dry-run) dry=1; shift ;;
+    *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+[[ -z $scope || -z $goal ]] || { echo "pass --scope or --goal, not both" >&2; exit 2; }
+
+bin=$(dirname "$(readlink -f "$0")")
+if [[ -n ${SQUAD_DIR:-} && $(basename "$SQUAD_DIR") == "$squad" ]]; then
+  squad_dir=$SQUAD_DIR
+else
+  squad_dir=$(git rev-parse --show-toplevel)/.claude/squads/$squad
+fi
+# A squad folder holds process.local.md (composed) or process.md (legacy); same rule as squadruntime.mode.
+[[ -f $squad_dir/process.md || -f $squad_dir/process.local.md ]] \
+  || { echo "no squad folder at $squad_dir (neither process.md nor process.local.md)" >&2; exit 1; }
+squad_dir=$(readlink -f "$squad_dir")
+squads_root=$(dirname "$squad_dir")
+project_dir=$(dirname "$(dirname "$squads_root")")
+wt_root=$project_dir/.worktrees/$squad
+layout=flat; [[ -d $squad_dir/scopes ]] && layout=scoped
+
+# What this run closes: the roster files to read, the folder to archive.
+rosters=() src="" dst="" mode=squad
+if [[ -n $goal ]]; then
+  [[ $layout == scoped ]] || { echo "--goal needs a per-scope squad" >&2; exit 1; }
+  mode=goal src=$squad_dir/goals/$goal dst=$squad_dir/goals/_done/$goal
+  [[ -d $src ]] || { echo "no goal folder at $src" >&2; exit 1; }
+  rosters=("$src/roster.md")
+elif [[ -n $scope && $layout == scoped ]]; then
+  mode=scope src=$squad_dir/scopes/$scope dst=$squad_dir/scopes/_done/$scope
+  [[ -d $src ]] || { echo "no scope folder at $src" >&2; exit 1; }
+  rosters=("$src/roster.md")
+elif [[ -n $scope ]]; then
+  mode=label   # legacy flat layout: Scope is only a column in roster.md
+  rosters=("$squad_dir/roster.md")
+else
+  dst=$squads_root/_done/$squad
+  rosters=("$squad_dir/roster.md")
+  if [[ $layout == scoped ]]; then
+    rosters+=("$squad_dir"/scopes/*/roster.md "$squad_dir"/goals/*/roster.md)
+  fi
+fi
+# Checked first so a refusal leaves everything running.
+[[ -z $dst || ! -e $dst ]] || { echo "$dst already exists; move it away first" >&2; exit 1; }
+
+unpromoted() {  # goal folder $1 has shared decisions that were never promoted to the project docs
+  [[ -f $1/shared/decisions.md ]] && grep -q '^- ' "$1/shared/decisions.md" && ! grep -q '^promoted:' "$1/goal.md" 2>/dev/null
+}
+if [[ $mode == goal && $force == 0 ]]; then
+  open=$(grep -lE "^goal:[[:space:]]*$goal[[:space:]]*$" "$squad_dir"/scopes/*/scope.md 2>/dev/null | xargs -r -n1 dirname | xargs -r -n1 basename | xargs || true)
+  [[ -z $open ]] || { echo "goal $goal still has open scopes: $open (close them first, or --force)" >&2; exit 1; }
+  ! unpromoted "$src" || { echo "goal $goal has unpromoted decisions in shared/decisions.md and no 'promoted:' line in goal.md (promote first, or --force)" >&2; exit 1; }
+fi
+
+# An answer item still open, or answered but not yet read by the Manager, is a question the PO would lose with this
+# folder. A broken inbox warns and never traps a close.
+inbox_blockers() {  # stdout: the blocking items; stderr: warnings
+  local json
+  json=$("$bin/squad-inbox" --home "$1" list --json --no-write 2>/dev/null) || { echo "warning: could not read the inbox of $1; not checked" >&2; return 0; }
+  python3 -X utf8 -c '
+import json, sys
+sys.stdout.reconfigure(newline="\n")
+try:
+    d = json.loads(sys.stdin.read())
+    items, errors = d["items"], d.get("errors", [])
+except Exception:
+    print("warning: the inbox of %s did not answer with JSON; not checked" % sys.argv[1], file=sys.stderr)
+    sys.exit(0)
+for e in errors:
+    print("warning: %s row %s: %s (it may be an open question)" % (e.get("file"), e.get("row"), e.get("message")), file=sys.stderr)
+for i in items:
+    if i.get("kind") == "answer" and i.get("state") == "open":
+        print("%s %s" % (i["id"], i.get("title")))
+    elif i.get("kind") == "answer" and i.get("state") == "answered-waiting":
+        print("%s %s (answered, not yet read by the Manager)" % (i["id"], i.get("title")))
+' "$1" <<<"$json"
+}
+if [[ $mode == goal || $mode == scope ]] && [[ $force == 0 ]]; then
+  blockers=$(inbox_blockers "$src")
+  if [[ -n $blockers ]]; then
+    echo "$mode $(basename "$src") has $(wc -l <<<"$blockers") open answer items: $(sed ':a;N;$!ba;s/\n/, /g' <<<"$blockers") (answer or withdraw them first, or --force)" >&2
+    exit 1
+  fi
+fi
+
+# A scope does not close with a blank retro (ITER-16): the last iteration file (highest n) needs text after
+# Went well, Friction and Process changes made. "none" counts; a <...> placeholder alone does not. No iteration file
+# (or a legacy flat squad) is not checked. --force closes anyway and logs it under ## Log in that file.
+retro_check() {  # $1 scope folder, $2 apply the --force log line (1/0); stdout: the empty labels; exit 1 when any
+  python3 -X utf8 - "$1" "$2" <<'PY'
+import datetime, re, sys
+from pathlib import Path
+
+LABELS = ("Went well", "Friction", "Process changes made")
+folder, log = Path(sys.argv[1]) / "iterations", sys.argv[2] == "1"
+files = sorted((int(m.group(1)), f) for f in folder.glob("*.md") if (m := re.fullmatch(r"(\d+)\.md", f.name)))
+if not files:
+    sys.exit(0)
+path = files[-1][1]
+lines = path.read_text(encoding="utf-8").replace("\r\n", "\n").split("\n")
+
+def level(l):
+    m = re.match(r"(#{1,6})\s", l)
+    return len(m.group(1)) if m else 0
+
+retro = []  # lines of every section whose heading starts with "Retro"
+i = 0
+while i < len(lines):
+    if level(lines[i]) and re.match(r"#{1,6}\s+retro\b", lines[i], re.I):
+        lv, j = level(lines[i]), i + 1
+        while j < len(lines) and not (level(lines[j]) and level(lines[j]) <= lv):
+            retro.append(lines[j]); j += 1
+        i = j
+    else:
+        i += 1
+
+def text_of(label):
+    """Text after `- **label:**` (and its continuation), or under a `### label` heading; None when absent."""
+    for k, l in enumerate(retro):
+        m = re.match(r"(\s*)(?:[-*+]\s+)?\*\*\s*" + re.escape(label) + r"\s*:?\s*\*\*\s*:?\s*(.*)$", l, re.I)
+        h = re.match(r"#{1,6}\s+" + re.escape(label) + r"\s*:?\s*$", l, re.I)
+        if not (m or h):
+            continue
+        parts = [m.group(2)] if m else []
+        for n in retro[k + 1:]:
+            if level(n) or re.match(r"[-*+]\s+\*\*", n):  # next heading, or next top-level labelled bullet
+                break
+            parts.append(n)
+        return " ".join(p.strip() for p in parts).strip()
+    return None
+
+empty = []
+for label in LABELS:
+    t = text_of(label)
+    if t is None or not t or re.fullmatch(r"<[^<>]*>", t):
+        empty.append(label)
+if not empty:
+    sys.exit(0)
+print(", ".join(empty))
+if log:
+    line = "- %s squad-close --force: empty retro (%s)" % (datetime.date.today().isoformat(), ", ".join(empty))
+    for k, l in enumerate(lines):
+        if re.match(r"##\s+log\b", l, re.I):
+            e = k + 1
+            while e < len(lines) and not re.match(r"#{1,2}\s", lines[e]):
+                e += 1
+            while e > k + 1 and not lines[e - 1].strip():
+                e -= 1
+            lines.insert(e, line)
+            break
+    else:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines += ["", "## Log", line, ""]
+    path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    sys.exit(0)
+sys.exit(1)
+PY
+}
+retro_empty=""
+if [[ $mode == scope ]]; then
+  if [[ $force == 1 ]]; then
+    [[ $dry == 1 ]] || retro_empty=$(retro_check "$src" 1) || true
+  else
+    retro_empty=$(retro_check "$src" 0) || { echo "scope $(basename "$src") has an empty retro in its last iteration file: $retro_empty (fill Went well, Friction and Process changes made, or --force)" >&2; exit 1; }
+  fi
+  [[ -z $retro_empty ]] || echo "WARNING: closing with an empty retro (--force): $retro_empty"
+fi
+
+agents=() roles=() labels=()
+for r in "${rosters[@]}"; do
+  [[ -f $r ]] || continue
+  while read -r a ro la; do agents+=("$a"); roles+=("$ro"); labels+=("$la"); done < \
+    <(awk -F'|' '/^\|/ { n++; if (n > 2) { for (i = 2; i <= 4; i++) gsub(/ /, "", $i); print $2, tolower($3), $4 } }' "$r")
+done
+others=() managers=()
+for i in "${!agents[@]}"; do
+  if [[ ${roles[i]} == manager ]]; then
+    [[ $mode == label ]] || managers+=("${agents[i]}")
+  elif [[ $mode != label || ${labels[i]} == "$scope" ]]; then
+    others+=("${agents[i]}")
+  fi
+done
+[[ $mode != label || ${#others[@]} -gt 0 ]] || { echo "no agents with scope $scope in roster.md" >&2; exit 1; }
+
+# Worktrees to tidy: `git worktree list --porcelain` entries (the main worktree excluded) whose branch is one of this
+# squad's: squad/<squad>/..., or a squad/... branch ending in the name of an agent being closed (the older
+# .worktrees/<agent> layout). Found by branch, never by folder.
+in_scope() {  # branch $1 belongs to what this run closes
+  local tail=${1##*/}
+  case $mode in
+    label) [[ $1 == squad/* && " ${others[*]} " == *" $tail "* ]] ;;
+    scope) [[ $1 == squad/$squad/$scope/* ]] || { [[ $1 == squad/* ]] && [[ " ${agents[*]} " == *" $tail "* ]]; } ;;
+    *) [[ $1 == squad/$squad/* ]] || { [[ $1 == squad/* ]] && [[ " ${agents[*]} " == *" $tail "* ]]; } ;;
+  esac
+}
+main_branch="" wt_paths=() wt_branches=()
+if [[ $mode != goal ]]; then
+  first=1 path="" branch=""
+  while IFS= read -r line; do
+    case $line in
+      "worktree "*) path=${line#worktree }; branch="" ;;
+      "branch refs/heads/"*) branch=${line#branch refs/heads/} ;;
+      "")
+        if [[ -n $path ]]; then
+          if [[ $first == 1 ]]; then main_branch=$branch
+          elif [[ -n $branch ]] && in_scope "$branch"; then wt_paths+=("$path"); wt_branches+=("$branch"); fi
+          first=0 path=""
+        fi ;;
+    esac
+  done < <(git -C "$project_dir" worktree list --porcelain; echo)
+fi
+
+retire() {
+  for a in "$@"; do
+    if [[ $dry == 1 ]]; then echo "would retire $a"
+    else "$bin/squad-retire" "$a" --no-notes >/dev/null 2>&1 && echo "retired $a" || echo "skipped $a (not live)"; fi
+  done
+}
+
+# The report is built before anything is retired or moved; a failure only warns and never changes the close.
+if [[ $dry == 0 && ( $mode == scope || $mode == goal ) ]]; then
+  python3 "$bin/squad-report" "${scope:-$goal}" --squad "$squad_dir" --final --quiet --deadline 60 >/dev/null || echo "warning: report not generated (squad-report exited $?)" >&2
+fi
+
+# Drafts written in the project root by a role the path guard does not see (FILE-11). Warns, never refuses.
+if [[ $mode == scope || $mode == goal ]]; then
+  stray=$(git -C "$project_dir" status --porcelain --untracked-files=all 2>/dev/null | sed -n 's/^?? //p' \
+    | grep -v -e '^"\?\.claude/squads/' -e '^"\?\.worktrees/' || true)
+  if [[ -n $stray ]]; then
+    echo "WARNING: untracked files in the project root outside .claude/squads/ (drafts belong in the scope's tasks/ folder, FILE-11):"
+    sed 's/^/  /' <<<"$stray"
+  fi
+fi
+
+echo "== agents"
+retire "${others[@]}"
+
+if [[ $mode != goal ]]; then
+  echo "== branches"
+  target=${into:-$main_branch}
+  for i in "${!wt_paths[@]}"; do
+    wt=${wt_paths[i]} branch=${wt_branches[i]}
+    [[ -n $target ]] || { echo "$branch: the main worktree has no branch; pass --into BRANCH" >&2; exit 1; }
+    status=$(git -C "$wt" status --porcelain)
+    tracked=$(grep -v '^?? ' <<<"$status" || true)
+    untracked=$(sed -n 's/^?? //p' <<<"$status" | head -5 | paste -sd, - | sed 's/,/, /g')
+    [[ -z $untracked ]] || untracked="; untracked files $([[ $dry == 1 ]] && echo "would go" || echo "removed") with it: $untracked"
+    if ! git -C "$project_dir" merge-base --is-ancestor "$branch" "$target"; then
+      echo "$branch: NOT merged into $target, kept"
+    elif [[ -n $tracked ]]; then
+      echo "$branch: merged into $target, kept (uncommitted changes)"
+    elif [[ $dry == 1 ]]; then
+      echo "$branch: merged into $target, would remove worktree$untracked"
+    elif git -C "$project_dir" worktree remove --force "$wt" 2>/dev/null; then
+      echo "$branch: merged into $target, worktree removed$untracked"
+    else
+      echo "$branch: merged into $target, kept (could not remove, locked?)"
+    fi
+  done
+  if [[ $dry == 0 && -d $wt_root ]]; then
+    [[ $mode == scope ]] && rmdir "$wt_root/$scope" 2>/dev/null || true
+    rmdir "$wt_root" 2>/dev/null || true
+  fi
+fi
+
+if [[ $mode == squad && $layout == scoped ]]; then
+  for g in "$squad_dir"/goals/*/; do
+    [[ -d $g ]] || continue
+    [[ $(basename "$g") == _done ]] || ! unpromoted "${g%/}" || echo "WARNING: goal $(basename "$g") has unpromoted decisions in shared/decisions.md"
+  done
+fi
+
+if [[ $mode == label ]]; then
+  echo "== roster"
+  if [[ $dry == 1 ]]; then
+    echo "would drop ${#others[@]} rows of scope $scope"
+  else
+    tmp=$(mktemp)
+    awk -F'|' -v names=" ${others[*]} " '/^\|/ { n++; if (n > 2) { a = $2; gsub(/ /, "", a); if (index(names, " " a " ")) next } } { print }' \
+      "$squad_dir/roster.md" >"$tmp"
+    cat "$tmp" >"$squad_dir/roster.md"; rm "$tmp"  # keeps the file mode
+    echo "dropped ${#others[@]} rows of scope $scope"
+  fi
+  exit 0
+fi
+
+# Pinned runtimes nobody holds any more (CLOSE-2). After the agents and worktrees (no live agent runs from a removed
+# runtime), before the folder moves; on a squad close the Managers are retired last, below. The runtime this script
+# runs from is protected, and on a scope or goal close so is the closing home's own pin. A failure only warns and never stops the close.
+if [[ -d $squad_dir/_runtime ]]; then
+  echo "== runtimes"
+  prune_args=(--squad-dir "$squad_dir" --protect "$bin")
+  if [[ $mode == squad ]]; then prune_args+=(--all); else
+    prune_args+=(--home "$src")
+    # The kept Manager still runs from the closing home's pinned runtime.
+    pin_name=$(python3 -X utf8 -c 'import sys; sys.path.insert(0, sys.argv[1]); import squadruntime as r
+p = r.home_pin(sys.argv[2])
+n = "%s-%s" % (p[0], p[1][:12]) if p else ""
+print("" if n in r._holders(sys.argv[3], sys.argv[2]) else n)' "$bin" "$src" "$squad_dir" 2>/dev/null || true)
+    if [[ -n $pin_name && ${#managers[@]} -gt 0 && -d $squad_dir/_runtime/$pin_name ]]; then
+      prune_args+=(--protect "$squad_dir/_runtime/$pin_name")
+      echo "kept $pin_name (${managers[*]} still runs from it; the next scope or squad close prunes it)"
+    fi
+  fi
+  [[ $dry == 0 ]] || prune_args+=(--dry-run)
+  python3 "$bin/squad-process" prune "${prune_args[@]}" || echo "warning: runtime cleanup failed (exit $?); the close continues" >&2
+fi
+
+echo "== folder"
+from=${src:-$squad_dir}
+if [[ $dry == 1 ]]; then
+  echo "would move $from to $dst"
+else
+  mkdir -p "$(dirname "$dst")"
+  mv "$from" "$dst"
+  echo "archived to $dst"
+fi
+
+# Whole-squad close only, last, because the caller may be a Manager: closing its tab ends this script. A scope or
+# goal close keeps its Manager; the PO ends it with `squad-retire`.
+echo "== manager"
+if [[ $mode == squad ]]; then
+  retire ${managers[@]+"${managers[@]}"}
+else
+  for m in ${managers[@]+"${managers[@]}"}; do echo "kept $m (Manager stays; squad-retire $m ends it)"; done
+fi

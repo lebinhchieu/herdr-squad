@@ -1,0 +1,1 @@
+{"ts":"2026-10-22T18:20:27.479Z","agent":"plugin-dev-squad-close-1","role":"dev","session":"0b4d3d1a-cefb-4f07-af28-d8e79782bbc8","rule":"fresh","action":"write roles/plugin-dev-squad-close-1.notes.md; if your ticket is handed in or passed, tell the Team Lead and stop ([COST-5], no squad-respawn); if you are mid-ticket, run once: squad-respawn plugin-dev-squad-close-1"}
