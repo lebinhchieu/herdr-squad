@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Upgrade a squad's rules
 
-Runs in the Manager's session on the PO's word. The PO never edits a file by hand. All mechanics are `${CLAUDE_PLUGIN_ROOT}/bin/squad-process`; you explain, ask and decide nothing for the PO. Nothing is written until the PO confirms. Mechanics: nothing is written until the PO confirms. Mechanics: `squad-process upgrade` and `upstream`.
+Runs in the Manager's session on the PO's word. The PO never edits a file by hand. All mechanics are `${CLAUDE_PLUGIN_ROOT}/bin/squad-process`; you explain, ask and decide nothing for the PO. Nothing is written until the PO confirms. Mechanics: `squad-process upgrade` and `upstream`.
 
 1. **Check:** `squad-process upgrade --check --squad-dir <squad>`. Exit 0: say how many operations were handled silently (the output counts them) and go to step 4. Exit 3: flagged items follow. Exit 1: the old pin's runtime is missing; show the message. Exit 2: report it as written.
 2. **One inbox answer item** for all flagged items: `squad-inbox add --kind answer --title "Process upgrade <old> -> <new>: <n> decisions" --body-file <file> --options "(a) <ID> keep; (b) <ID> take; ..."`. The body file explains each flagged item in plain words: the rule ID and title, what the plugin changed and why (the changelog line for that ID), the squad's own text, and each option with its consequence. One option per ID-and-choice; the PO's answer names one choice for every ID.
