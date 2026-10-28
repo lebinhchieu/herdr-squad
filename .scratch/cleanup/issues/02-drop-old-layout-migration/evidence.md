@@ -49,3 +49,5 @@ Byte diff of scaffold vs base: `diff` of stdout (paths substituted) and `diff -r
 **T3-T5 exit codes:** `squad-process adopt --squad-dir X` 2; old-format `compose dev --home <h>` 2, stdout empty; `upgrade --check` on process.md-only squad 2; flat `squad-start` refusal covered by test_squad_start (green); legacy spawn by test_squad_spawn (green).
 
 **T6 counts** (bin/, `size` word): squad-log-message 1, squad-manager-guard 1, squad-respawn 2, squad-spawn 2, squadcompose 4, squadreport 3, squadreport_rollup 3, squadrules 10, squadruntime 4, squadteam 2, squadupgrade 4. Inventory (`size:` etc.): squad-log-message 1, squad-respawn 2, squad-spawn 2, squadcompose 4, squadinbox 1, squadreport 3, squadreport_rollup 3, squadrules 10, squadruntime 1, squadteam 2, squadupgrade 4. Only change: the two removed files' entries.
+
+Final sha e31aaf8; QAW finding 1 (dead squadprocess import in squadscaffold.py) fixed. Both QAs PASS e31aaf8.
