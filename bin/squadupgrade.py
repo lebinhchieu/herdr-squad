@@ -499,7 +499,7 @@ def prepare(a):
     squad_dir = a.squad_dir
     if rt.mode(squad_dir) != "composed":
         raise UpgradeError(f"not composed: {squad_dir} has no {sr.OVERLAY_FILE}; "
-                           "a v6 squad moves with `squad-process plan` / `apply`")
+                           "new squads: squad-process scaffold (or /squad:squad-init)")
     old_pin, new_pin = read_pin(squad_dir), _new_pin(a)
     new_rules, tombs = load_plugin(a.plugin_root)
     old_root = find_old_root(a, squad_dir, old_pin)

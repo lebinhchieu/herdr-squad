@@ -472,7 +472,7 @@ class CliTest(unittest.TestCase):
 
 
 class DelegationTest(unittest.TestCase):
-    """compose <role> goes to the composer; compose --out F stays the v6 merge."""
+    """compose <role> goes to the composer; compose --out F is a usage error (the v6 merge is gone)."""
 
     def load(self):
         loader = importlib.machinery.SourceFileLoader("squad_process_cli", str(BIN / "squad-process"))
