@@ -76,7 +76,7 @@ class EffectiveTest(Base):
         self.assertEqual(c.exception.code, 2)
 
     def test_team_lead_empty_local_has_spawn_dev_and_herdr_entries(self):
-        # v4 gap in SETTINGS-NOTES.md: a squad file written before T5 lacked these; the overlay cannot lose them.
+        # v4 gap: a squad file written before T5 lacked these; the overlay cannot lose them.
         self.local("team-lead", {})
         allow = self.eff("team-lead")["permissions"]["allow"]
         for e in ("Bash(squad-spawn dev:*)", "Bash(squad-retire:*)", "Bash(herdr agent list:*)",
