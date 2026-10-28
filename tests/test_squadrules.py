@@ -487,17 +487,16 @@ class DelegationTest(unittest.TestCase):
         seen = []
         old = squadrules_cli.main
         squadrules_cli.main = lambda argv=None: seen.append(list(argv)) or 7
-        mod._mutating = lambda a: seen.append(("v6", a.cmd, a.out)) or 3
         try:
             self.assertEqual(mod.main(["compose", "dev", "--home", "D"]), 7)
-            self.assertEqual(mod.main(["compose", "--out", "F"]), 3)
-            self.assertEqual(mod.main(["compose", "--out", "F", "--resolve", "## H=ours"]), 3)
+            self.assertEqual(mod.main(["compose", "--out", "F"]), 7)
+            self.assertEqual(mod.main(["version"]), 7)
             self.assertEqual(mod.main(["lint"]), 7)
             self.assertEqual(mod.main(["rule", "REV-3"]), 7)
             self.assertEqual(mod.main(["who", "REV-3"]), 7)
         finally:
             squadrules_cli.main = old
-        self.assertEqual(seen, [["compose", "dev", "--home", "D"], ("v6", "compose", "F"), ("v6", "compose", "F"),
+        self.assertEqual(seen, [["compose", "dev", "--home", "D"], ["compose", "--out", "F"], ["version"],
                                 ["lint"], ["rule", "REV-3"], ["who", "REV-3"]])
 
     def test_compose_by_role_without_home_exits_2(self):

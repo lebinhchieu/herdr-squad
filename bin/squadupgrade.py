@@ -20,12 +20,12 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadio  # noqa: E402
 import squadcompose as sc  # noqa: E402
-import squadprocess as sp  # noqa: E402
 import squadrules as sr  # noqa: E402
 import squadruntime as rt  # noqa: E402
 
@@ -33,6 +33,31 @@ DEFAULT_ROOT = sc.DEFAULT_ROOT
 _slurp = sr.read_text
 STALE_CHOICES = "keep | take | file:<path>"
 REMOVED_CHOICES = "drop | retarget:<ID> | local"
+LOG_HEADER = ("# Process log\n\n**Every change to `process.md`, newest first.**\n\n"
+              "| Date | Change | Why |\n|---|---|---|\n")
+
+
+def _atomic_write(path, text):
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+        if path.exists():
+            shutil.copymode(path, tmp)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def _insert_log(old, rows):
+    lines = (old or LOG_HEADER).splitlines()
+    at = next((k + 1 for k, ln in enumerate(lines) if re.fullmatch(r"\|[ \-|:]+\|", ln.strip())), None)
+    if at is None:
+        lines += ["", *LOG_HEADER.splitlines()[-2:]]
+        at = len(lines)
+    return "\n".join(lines[:at] + rows + lines[at:]) + "\n"
+
 
 
 class UpgradeError(Exception):
@@ -462,7 +487,7 @@ def _write_log(squad_dir, rows, today):
     log = os.path.join(squad_dir, "process-log.md")
     old = open(log, encoding="utf-8", newline="").read().replace("\r\n", "\n") if os.path.isfile(log) else ""
     table = [f"| {today} | {c} | {w} |" for c, w in rows]
-    sp._atomic_write(Path(log), sp._insert_log(old, table))
+    _atomic_write(Path(log), _insert_log(old, table))
     return table
 
 
@@ -521,11 +546,11 @@ def cmd_apply(a):
         return 3
     today = a.today or str(datetime.date.today())
     backup = _backup(squad_dir, today)
-    sp._atomic_write(Path(squad_dir) / sr.OVERLAY_FILE, text)
+    _atomic_write(Path(squad_dir) / sr.OVERLAY_FILE, text)
     rows = [(f"Upgraded plugin {' '.join(old_pin) if old_pin else '(no pin)'} -> {' '.join(new_pin)}; running "
              "scopes keep their scope.md pin", "squad-process upgrade --apply")] + rows
     table = _write_log(squad_dir, rows, today)
-    sp._atomic_write(Path(squad_dir) / "plugin.pin", f"{new_pin[0]} {new_pin[1]}\n")  # last: a crash re-runs safely
+    _atomic_write(Path(squad_dir) / "plugin.pin", f"{new_pin[0]} {new_pin[1]}\n")  # last: a crash re-runs safely
     print(f"backup: {backup}")
     print("log rows:\n" + "\n".join(table))
     print(f"applied: overlay {len(new_ops)} operations; plugin.pin = {new_pin[0]} {new_pin[1]}")

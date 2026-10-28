@@ -24,4 +24,3 @@ disable-model-invocation: true
    - **Exit 3 = overlap** with an open scope. Show the user each overlap line and ask whether to go ahead. Two scopes editing the same files only collide at merge. If yes, run again with `--yes`.
    - **Any other error** is printed as is (a name already used, a name too long, a Manager that wouldn't start; nothing is left behind when the Manager fails). Fix it and run again.
 7. Tell the user the scope or goal name and which herdr tab the Manager is in. From now on they talk to that Manager there. Each scope or goal has its own Manager, so several can run side by side in different tabs.
-   If `process_update` is not `null`, tell the user that sentence and that `/squad:squad-process-update` updates it on their word. Never run it unasked.

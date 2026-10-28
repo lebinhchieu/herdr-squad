@@ -33,7 +33,7 @@ class OldLanguageInventory(unittest.TestCase):
     def test_hits_are_allow_listed(self):
         out = subprocess.run(
             ["git", "grep", "-nE", PATTERN, "--", "bin", "hooks", "agents", "skills",
-             ":!skills/*/history/*", ":!skills/*/changelog.md"],
+             ":!skills/*/changelog.md"],
             cwd=ROOT, capture_output=True, text=True, check=False).stdout
         got = Counter(line.split(":", 1)[0] for line in out.splitlines())
         want = {f: n for f, (n, _) in ALLOW.items()}

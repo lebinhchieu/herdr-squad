@@ -15,7 +15,7 @@ def files(d):
 class TemplateLayersTest(unittest.TestCase):
     def test_standing_squad_has_no_per_scope_files(self):
         got = files(T / "squad")
-        self.assertTrue({"process.md", "project.md", "process-log.md"} <= got)
+        self.assertTrue({"project.md", "process-log.md"} <= got)
         for banned in ("goal.md", "roster.md", "scopes.md", "escalations.md"):
             self.assertNotIn(banned, got)
         self.assertFalse([f for f in got if f.startswith(("iterations/", "contracts/", "roles/"))])

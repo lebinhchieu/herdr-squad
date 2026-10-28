@@ -72,13 +72,15 @@ class Scaffold(Base):
 
 
 class Retirement(Base):
-    def test_show_is_retired_and_apply_needs_legacy(self):
+    def test_show_is_retired_and_apply_is_gone(self):
         self.assertNotEqual(run("show", "dev").returncode, 0)
         sq = self.root / ".claude" / "squads" / "x"
         sq.mkdir(parents=True)
-        r = run("apply", "--file", str(self.root / "f.md"), "--squad-dir", str(sq))
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("--legacy", r.stderr)
+        for cmd in (("apply", "--legacy", "--file", str(self.root / "f.md")), ("plan",), ("version",), ("check",),
+                    ("compose", "--out", str(self.root / "o.md"))):
+            r = run(*cmd, "--squad-dir", str(sq))
+            self.assertEqual(r.returncode, 2, cmd)
+            self.assertNotIn("Traceback", r.stderr, cmd)
 
     def test_no_command_card_or_prompt_calls_show(self):
         hits = []

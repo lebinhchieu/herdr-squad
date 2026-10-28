@@ -135,12 +135,6 @@ class ModeTest(Base):
                            capture_output=True, text=True, encoding="utf-8")
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "none"))
 
-    def test_check_is_quiet_in_a_composed_squad(self):
-        self.composed()
-        r = subprocess.run([sys.executable, str(BIN / "squad-process"), "check", "--quiet", "--squad-dir", str(self.squad)],
-                           capture_output=True, text=True, encoding="utf-8")
-        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
-
 
 class PinTest(Base):
     def test_a_bad_sha_or_version_exits_2(self):
@@ -495,12 +489,6 @@ class RespawnComposedTest(Base):
         prompt = [ln for ln in self.herdr().splitlines() if ln.startswith("agent prompt")][0]
         self.assertIn("goals/g1/roles/t-mgr-g1.notes.md".replace("goals/g1", "$GOAL_DIR"), prompt)
         self.assertNotIn("process.md", prompt)
-
-    def test_check_and_version_json_stay_json_in_a_composed_squad(self):
-        self.composed()
-        r = subprocess.run([sys.executable, str(BIN / "squad-process"), "check", "--json", "--squad-dir", str(self.squad)],
-                           capture_output=True, text=True, encoding="utf-8")
-        self.assertEqual(json.loads(r.stdout)["state"], "composed")
 
 
 class StartComposedTest(Base):

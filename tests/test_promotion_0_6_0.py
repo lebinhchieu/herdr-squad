@@ -51,8 +51,7 @@ class NoSizeWord(unittest.TestCase):
                     self.assertTrue(line[m.start():].startswith("qa-b.md"), f"{f}: {line}")
 
     def test_docs_agents_and_skills_have_none(self):
-        self.assertEqual(grep(SIZE, "README.md", "CONTEXT.md", "agents", "skills", ":!skills/*/history/*",
-                              ":!skills/*/changelog.md"), {})
+        self.assertEqual(grep(SIZE, "README.md", "CONTEXT.md", "agents", "skills", ":!skills/*/changelog.md"), {})
 
     def test_bin_and_hooks_hits_are_allow_listed(self):
         self.assertEqual(grep(SIZE, "bin"), BIN_ALLOW)
@@ -76,24 +75,13 @@ class GlossaryAndAdr(unittest.TestCase):
         self.assertIn("Amended by 0018", read("docs/adr/0017-architect-role.md"))
 
 
-class VersionAndSnapshot(unittest.TestCase):
+class Version(unittest.TestCase):
     def test_version_is_identical_in_plugin_json_changelog_and_readme(self):
         self.assertEqual(json.loads(read(".claude-plugin/plugin.json"))["version"], VERSION)
         changelog = read("skills/squad-process-update/changelog.md")
         v9 = changelog.split("## v9", 1)[1].split("\n## v8", 1)[0]
         self.assertIn(f"Plugin {VERSION}", v9.split("\nadded:", 1)[0])
         self.assertIn(f"**{VERSION} (breaking)", read("README.md"))
-        self.assertIn("- snapshot: history/process-v9/", v9)
-
-    def test_process_version_integer_of_the_retired_template_is_unchanged(self):
-        self.assertRegex(read("templates/squad/process.md"), r"(?m)^process-version: 6$")
-
-    def test_snapshot_v9_equals_the_rule_folder(self):
-        src = ROOT / "templates/squad/process"
-        snap = ROOT / "skills/squad-process-update/history/process-v9"
-        self.assertEqual(sorted(p.name for p in src.glob("*.md")), sorted(p.name for p in snap.glob("*.md")))
-        for p in src.glob("*.md"):
-            self.assertEqual(p.read_bytes(), (snap / p.name).read_bytes(), p.name)
 
     def test_tombstones_carry_why_and_replaced_by(self):
         blocks = re.split(r"(?m)^## ", read("templates/squad/process/_removed.md"))[1:]

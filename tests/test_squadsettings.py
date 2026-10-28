@@ -162,7 +162,7 @@ class SpawnTest(Base):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(f"--settings {self.squad}/settings/dev.json", r.stdout)
         self.assertEqual(r.stderr.count("warning:"), 1)
-        self.assertIn("09", r.stderr)
+        self.assertIn("not an overlay", r.stderr)
 
     def test_no_squad_files_uses_the_template_without_warning(self):
         r = self.spawn()

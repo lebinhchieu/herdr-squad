@@ -130,7 +130,7 @@ A handed-in sha with at least one FAIL. The process counts these as a task's ret
 _Avoid_: bounce
 
 **Process changelog**:
-The plugin's list, per released version, of the rule IDs added, changed, removed and retargeted, each with a reason (`skills/squad-process-update/changelog.md`). Frozen copies of old versions sit in the skill's `history/`. The upgrade reads it.
+The plugin's list, per released version, of the rule IDs added, changed, removed and retargeted, each with a reason (`skills/squad-process-update/changelog.md`). The upgrade reads it.
 _Avoid_: release notes
 
 **Process update**:
