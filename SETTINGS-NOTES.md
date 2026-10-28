@@ -36,9 +36,11 @@ Without the Team Lead entries, every Developer spawn and retire in an M or L sco
 
 ## Rules for every settings migration
 
-- **Add only.** Keep the squad's own entries: every file allows `python3 tests/run_suite.py` and `python3 -m unittest`. `qa-blackbox.json` also denies reading this repo's `bin/`, `hooks/`, `skills/` and `tests/`. Never copy a template file over a squad file: the template carries the placeholder `CODE_PATHS_SET_BY_SQUAD_INIT` where the squad has those deny paths.
+- **Add only.** Keep the squad's own entries: every file allows `python3 tests/run_suite.py` and `python3 -m unittest`. `qa-blackbox.json` has no Read deny (E5): drop old `Read(//…/**)` code-path entries when migrating.
 - **Check after editing** (prints nothing when every file parses):
 
 ```bash
 cd /home/chieule/workspace/squad && for f in .claude/squads/plugin/settings/*.json; do python3 -m json.tool "$f" >/dev/null || echo "BAD $f"; done
 ```
+
+- **Scratch `rm`.** dev, qa-whitebox, qa-blackbox, manager, tech-lead, team-lead allow `rm -rf`, `rm -r`, `rm`, `rmdir` of `/tmp/tmp.*` and *ask* when a second path follows (`/tmp/tmp.* *`): the glob's `*` matches spaces, so without the ask entry `rm -rf /tmp/tmp.x /etc` would be allowed (tested live). `..` paths are blocked by Claude itself.

@@ -2,6 +2,8 @@
 
 Status: accepted (add-architecture, PO confirmed the design as written 2026-10-27)
 
+Amended by 0018 (team replaces scope size): the Manager-never-proposes sentence and the two flags.
+
 Amends 0016: the "Irreversible design choice" owner rows (WHO-2, WHO-2d, SIZE-22) get an `architecture: yes` variant (WHO-2e, SIZE-22a). Consistent with 0010: the Team Lead still runs the pod and the Tech Lead still owns per-task design, quality and security at L; the Architect sits above both.
 
 **Decision:** the **Architect** is an optional role, turned on by the **architecture flag** (`architecture: yes|no` in `scope.md`, default `no`) the way the **design flag** adds the UI/UX Designer. Only the PO turns it on; the Manager never proposes it. It works at any size and writes one `$SCOPE_DIR/architecture.md` (`Status: draft|final`) before the plan. The plan waits for `final`.

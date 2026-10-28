@@ -31,5 +31,3 @@ Before HANDIN: `squad-process lint` (record the base-sha baseline in this ticket
 Changelog v9: append your changed rule IDs (D8).
 
 ## Comments
-
-Tech DECISION: the `squad-team add|remove` pointer in SIZE-13/TEAM-7 (rule text naming the command for mid-scope role changes) comes with this ticket.

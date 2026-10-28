@@ -31,7 +31,7 @@ G7 Security and robustness (C9): `squad-process team` prints only tokens from th
 ### Ticket extras
 Extra AC: spec AC 22, 28 with design AC 02: a converted copy of `plugin-bk261023` composes for every role, and owners per duty equal the old size's.
 
-Spec AC added (BA, 1-31 agreed): AC 22 variants: `size: L` + `qa-b: no`, `size: S` -> `team: none`. (AC 21 moved to ticket 12, Tech DECISION.)
+Spec AC added (BA, 1-31 agreed): AC 21/22 variants: `size: L` + `qa-b: no`, `size: S` -> `team: none`; `squad-process upgrade --check|--apply --yes`.
 
 Before HANDIN: `squad-process lint` (record the base-sha baseline in this ticket, G2b); `grep -rl '<touched path or changed string>' tests/` and run every hit (CLAUDE.md). Tech Lead names the final sha; QAs verdict on it.
 Changelog v9: append your changed rule IDs (D8).

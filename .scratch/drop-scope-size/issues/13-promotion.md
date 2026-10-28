@@ -33,10 +33,6 @@ Changelog v9: append your changed rule IDs (D8).
 ### Spec AC added (BA, 1-31 agreed)
 AC 29 re-checked on the final integration sha; AC 9, 10, 24, 25, 28 are proven by the `--tz` suite receipt (QA whitebox asserts exact SIZE-22/22a equality).
 
-### Added by Team Lead (Tech FINAL on 12 L findings)
-- F1: one-line fix of the spawn refusal text for tech-lead/qa-whitebox/qa-blackbox (today ends "only the PO adds the designer or architect"; misleading) + a test; run every `grep -rl` hit. Source: `$SCOPE_DIR/evidence/L/manager-run.md:14`.
-- F3 (Manager `team:` inbox-reply recording has no command) is a follow-up outside this scope: list it in `promote.md` open items; no rule text change, no changelog row.
-- Fold the vacuous needle `qa-b\b` (non-raw string) fix in `test_squadcompose` CutoverTest.
-- Cut the branch from 59e2741 and merge 17b88b9 evidence-only.
-
 ## Comments
+
+Dev (13): lint baseline on base 59e2741: `squad-process lint` empty, exit 0. Branch: empty, exit 0.

@@ -1,116 +1,98 @@
-# Sizes
+# Teams and duty owners
 
-## SIZE-1 Choosing a size
+## SIZE-1 Proposing the team
 roles: manager
 topic: sizes
 
-The Manager proposes each scope's size with its signals, the PO confirms it at the goal check, and `size:` in `scope.md` records it. Scopes of a goal can differ. Work bigger than one L scope is a goal. The size proposal carries the team's models ([START-3b]).
+The Manager proposes every optional role, picks and non-picks, in one table in one inbox item, with a signal per row and the team's models ([START-3b]). Nothing is spawned before the PO confirms; `team:` in `scope.md` records the confirmed team. Each scope of a goal gets its own table. When signals disagree, task count loses; when unsure, add the role.
 
-## SIZE-2 The three sizes
+| Role | Propose when | If the signals are silent |
+|---|---|---|
+| BA | open business question, unclear or contradicting AC, an outside decision maker's answer needed, output other teams see | out: the ticket is the AC |
+| Tech Lead | a risk flag, cross-repo work, design choices several Developers depend on | out: the Developer's design notes |
+| Team Lead | 4 or more tasks, order matters, parallel Developers | out: the Manager plans |
+| QA whitebox | any task changes code or tests | in; out only for 2 tasks or fewer, one repo, no user-visible change, no risk flag, existing tests cover it |
+| QA blackbox | a task changes what a person observes (screen, CLI or hook output, exit code, generated file or report, message to the PO), or a Designer is on the team | out: state "no observable change" |
+| Designer | UI screens, states or flows are built or changed | out |
+| Architect | an irreversible choice is likely (data model, new dependency, vendor), or a contract across components must be set before the plan | out |
+
+- **Risk flags:** DB migration or data change, breaking API or contract change, security or permissions: Tech Lead and QA whitebox. Anything another team will see: also the BA. A business doubt: the BA. The PO may confirm without them; log that override in the iteration file.
+- **A request for a role in the brief** counts as a confirmed pick and still appears in the table. A bigger job than one scope can finish under the Developer cap is a goal, not a bigger team.
+
+## SIZE-2 Done, both QAs
 roles: manager, ba, team-lead, tech-lead
+when: qa-white = yes and qa-black = yes
 topic: sizes
 
-| Size | Roles | Use when | Done = |
-|---|---|---|---|
-| **S** Quick fix | Manager, Developers | 1–2 tasks, one repo, nothing user-visible, no risk flag, existing tests cover it | The Developer's checks + `evidence.md` + `## Review` (one fresh-context Sonnet review subagent (high effort) before `HANDIN`); the Manager only confirms both exist |
-| **M** Feature | + QA whitebox, QA blackbox | 1–6 tasks, user-visible, clear ticket or AC, no business question, no risk flag | QA whitebox PASS + QA blackbox PASS |
-| **L** Full pod | Every role: + BA, Team Lead, Tech Lead | Business questions, any risk flag, cross-repo, ordering matters | QA whitebox PASS + QA blackbox PASS |
+Done = every checker on the team has passed the task: QA whitebox PASS and QA blackbox PASS, and with a Designer the built-UI check ([SIZE-10b]). One PASS is never enough, nor are the Developer's own checks. Link each task's `evidence.md` in the plan.
 
-## SIZE-3 Design flag
+## SIZE-5a Business AC, ticket
 roles: manager
+when: business-ac = ticket
 topic: sizes
 
-A `design:` line in `scope.md` (`yes|no`, default `no`) adds the Designer to a scope of any size. The Manager sets `design: yes` only when the PO asks; it never proposes it. It logs the answer in the iteration file.
+Business AC are the ticket as written. A business doubt: add the BA ([SIZE-13]).
 
-## SIZE-3a Architecture flag
-roles: manager
-when: architecture = yes
-topic: sizes
-
-An `architecture:` line in `scope.md` (`yes|no`, default `no`) adds the Architect to a scope of any size. Only the PO turns it on; you never propose it. Log the answer in the iteration file.
-
-## SIZE-4 Signals and risk flags
-roles: manager
-topic: sizes
-
-- **Signals:** tasks, repos touched, user-visible change, open questions, risk flags; when they disagree, task count loses.
-- **Every risk flag forces L:** DB migration or data change, breaking API or contract change, security or permissions, anything another team will see.
-- When unsure, size up.
-
-## SIZE-5a Business AC, S
-roles: manager
-when: size = S
-topic: sizes
-
-Business AC are the ticket as written. A business doubt moves the scope to L ([SIZE-13]).
-
-## SIZE-5c Business AC, M
-roles: manager, qa-blackbox
+## SIZE-5c Business AC, tested by QA blackbox
+roles: qa-blackbox
 aware: qa-whitebox
-when: size = M
+when: business-ac = ticket and qa-black = yes
 topic: sizes
 
-Business AC are the ticket as written, and QA blackbox tests against them. A business doubt moves the scope to L ([SIZE-13]).
+Business AC are the ticket as written, and you test against them. One a person cannot observe is a finding.
 
-## SIZE-5b Business AC, L
+## SIZE-5b Business AC, BA
 roles: ba
-when: size = L and qa-b = yes
+when: business-ac = ba and qa-black = yes
 topic: sizes
 
 The BA owns the business AC and writes them with QA blackbox.
 
-## SIZE-6a Plan owner, S and M
+## SIZE-6a Plan owner, Manager
 roles: manager
-when: size in S, M
+when: plan-owner = manager
 topic: sizes
 
-The Manager owns the plan, task order and Developer spawning, in the plan file format used in every size: an exception to "never does a role's work". Each task file cites the on-demand rules its Developer needs: [GOAL-6b] integration, [PROMO-5] promotion, [REV-15] report deliverable.
+The Manager owns the plan, task order and Developer spawning, in the plan file format every team uses: an exception to "never does a role's work". Each task file cites the on-demand rules its Developer needs: [GOAL-6b] integration, [PROMO-5] promotion, [REV-15] report deliverable.
 
-## SIZE-6c Developer duties, S
-roles: manager
-when: size = S
-topic: sizes
-
-Manager: start each task file with `Duties:` (a respawned Developer reads it): put design notes in the task file; technical AC are yours; business AC are the ticket; keep `promote.md`; risk flag, user-visible change or business doubt: `BLOCKED <task>` ([SIZE-14]).
-
-## SIZE-6d Developer duties, M
-roles: manager
-when: size = M
-topic: sizes
-
-Manager: start each task file with `Duties:`: put design notes in the task file; technical AC are QA whitebox's; business AC are the ticket; risk flag or business doubt: `BLOCKED <task>` ([SIZE-14]).
-
-## SIZE-6b Plan owner, L
+## SIZE-6b Plan owner, Team Lead
 roles: team-lead
-when: size = L
+when: plan-owner = team-lead
 topic: sizes
 
-The Team Lead owns the plan, task order and assignment, in the same plan file and format in every size. A task of those kinds cites its rule in the task file ([GOAL-6b], [PROMO-5], [REV-15]) because the Developer does not carry them.
+The Team Lead owns the plan, task order and assignment, in the same plan file and format the Manager uses. A task of those kinds cites its rule in the task file ([GOAL-6b], [PROMO-5], [REV-15]) because the Developer does not carry them.
 
-## SIZE-7a Code and test check, S
+## SIZE-6c Developer duties
 roles: manager
-when: size = S
+when: plan-owner = manager
+topic: sizes
+
+Start each task file with `Duties:` (a respawned Developer reads it), copied from the `duties:` line of your header: who owns design notes, technical AC, business AC, `promote.md` and the full suite for this team. A risk flag, user-visible change or business doubt found while building: `BLOCKED <task>` ([SIZE-14]).
+
+## SIZE-7a Code and test check, Manager
+roles: manager
+when: code-check = manager
 topic: sizes
 
 Confirm `evidence.md` and its `## Review` exist ([REV-1]); do not redo the Developer's checks.
 
-## SIZE-7b Code and test check, M and L
+## SIZE-7b Code and test check, QA whitebox
 roles: qa-whitebox
-when: size in M, L
+when: code-check = qa-white
 topic: sizes
 
 QA whitebox checks the code and the tests of every task ([REV-2]).
 
-## SIZE-8a Behaviour check, S
+## SIZE-8a Behaviour check, Manager
 roles: manager
-when: size = S
+when: behaviour-check = manager
 topic: sizes
 
-There is no QA blackbox: confirm `evidence.md` `## Behaviour` holds Playwright or API evidence of each AC.
+No QA is on the team: confirm `evidence.md` `## Behaviour` holds Playwright or API evidence of each AC.
 
-## SIZE-8b Behaviour check, M and L
+## SIZE-8b Behaviour check, QA blackbox
 roles: qa-blackbox
-when: size in M, L and qa-b = yes
+when: behaviour-check = qa-black
 topic: sizes
 
 QA blackbox checks the behaviour of every task on the running app.
@@ -120,14 +102,14 @@ roles: designer
 when: design = yes
 topic: sizes
 
-The Designer designs the screens, states and flows of the scope's UI tasks, in every size.
+The Designer designs the screens, states and flows of the scope's UI tasks.
 
 ## SIZE-9a Architecture
 roles: architect
 when: architecture = yes
 topic: sizes
 
-In every size, deliver `$SCOPE_DIR/architecture.md` with a `Status: draft|final` line, holding:
+Deliver `$SCOPE_DIR/architecture.md` with a `Status: draft|final` line, holding:
 - the components and modules the scope touches
 - boundaries and seams
 - contracts and data shapes
@@ -136,190 +118,150 @@ In every size, deliver `$SCOPE_DIR/architecture.md` with a `Status: draft|final`
 
 Draft ADR text in `$SCOPE_DIR/tasks/` ([FILE-11]). Before you recommend an irreversible choice, consult the advisor and leave the [LC-25] note. You write no code and check no built code.
 
-## SIZE-10a Built UI against the design, S
+## SIZE-10a Built UI against the design, Manager
 roles: manager
-when: size = S and design = yes
+when: ui-check = manager and design = yes
 topic: sizes
 
 Confirm `evidence.md` holds a screenshot of each screen and state of the design.
 
-## SIZE-10b Built UI against the design, M and L
+## SIZE-10b Built UI against the design, QA blackbox
 roles: qa-blackbox
-when: size in M, L and design = yes
+when: ui-check = qa-black and design = yes
 topic: sizes
 
 QA blackbox walks every screen and state of the design on the built UI.
 
-## SIZE-11a Outside questions, S and M
+## SIZE-11a Outside questions, Manager
 roles: manager
-when: size in S, M
+when: doubt-owner = manager
 topic: sizes
 
-Write a question for an outside decision maker to the open-points place `project.md` names, never to that person; the scope moves to L.
+Write a question for an outside decision maker to the open-points place `project.md` names, never to that person; add the BA ([SIZE-13]).
 
-## SIZE-11b Outside questions, L
+## SIZE-11b Outside questions, BA
 roles: ba
-when: size = L
+when: doubt-owner = ba
 topic: sizes
 
-The BA writes a question for an outside decision maker to the open-points place `project.md` names, never to that person, with the BA's proposed answer. The BA marks the affected work blocked and tells the Team Lead.
+The BA writes a question for an outside decision maker to the open-points place `project.md` names, never to that person, with the BA's proposed answer. The BA marks the affected work blocked and tells the plan owner.
 
-## SIZE-12 Duties of a missing role
+## SIZE-13 Adding a role
 roles: manager
 topic: sizes
 
-When a role is left out at a size, its duties move to the role named for that size ([SIZE-22]); they are never dropped.
+- **Add:** on a late signal the Manager adds the role on its own: business doubt (BA), risk flag or migration (Tech Lead, QA whitebox if absent), user-visible change (QA blackbox), 4 or more tasks or order that matters (Team Lead). UI work (Designer) and an irreversible choice (Architect) wait for the PO's yes. Report it at the check-in.
+- Run `squad-team add <role>` (`--po-ok` for the Designer or Architect, after the PO's yes): it edits `team:` and prints who to respawn. Write the `## Handover` when a duty owner changes, brief the joiner with it, respawn the listed roles, log the change in the iteration file.
 
-## SIZE-13 Moving up
+## SIZE-14 Late signal found while building
 roles: manager
 topic: sizes
 
-- **Up:** the Manager moves a scope up on its own when a business doubt, risk flag, user-visible change or more tasks appear, and reports it at the check-in. S to M: a user-visible change. Business doubt, risk flag, cross-repo or ordering: straight to L.
-- It writes the `## Handover` section in the plan, spawns the missing roles (S to M: QA whitebox, QA blackbox; to L: BA, Team Lead, Tech Lead) with a briefing that points at it, and logs the move in `scope.md` and the iteration file.
-
-## SIZE-14 Behaviour change found in S
-roles: manager
-when: size = S
-topic: sizes
-
-A user-visible change found while building moves the scope to M; a business doubt or risk flag moves it to L. The Developer tells you with `BLOCKED <task>`.
-
-## SIZE-15 Moving down
-roles: manager
-topic: sizes
-
-**Down:** only at an iteration boundary, with the PO's OK. The Manager retires the roles that drop out (L to M: BA, Team Lead, Tech Lead; M to S: both QAs) and keeps the plan.
+A user-visible change, business doubt or risk flag found while building reaches you as `BLOCKED <task>` from the Developer, or as `ASK` from a checker. Add the role it needs ([SIZE-13]); the duty owner chain ([SIZE-22]) names who acts meanwhile.
 
 ## SIZE-16 Handover
 roles: manager
 topic: sizes
 
-- **Handover on moving up:** the Manager writes a `## Handover` section in the scope plan (decided, built, open); a joining role starts from it, and the Manager's briefing to each joining role points at it.
-- Built work passes the new size's checks before it counts as done.
-- The Manager logs every size change in `scope.md` and the iteration file.
+- **Handover on adding a role:** the Manager writes a `## Handover` section in the scope plan (decided, built, open); a joining role starts from it, and the Manager's briefing to each joining role points at it.
+- Built work passes the new team's checks before it counts as done.
+- The Manager logs every team change in `scope.md` and the iteration file.
 
-## SIZE-17a Joining after a move up, BA
+## SIZE-17a Joining a team, BA
 roles: ba
+when: ba = yes
 topic: sizes
 
-Joining a scope that moved up: start from the plan's `## Handover` section; the business AC so far were the ticket as written, so check them first.
+Joining a scope already under way: start from the plan's `## Handover` section; the business AC so far were the ticket as written, so check them first.
 
-## SIZE-17b Joining after a move up, Team Lead
+## SIZE-17b Joining a team, Team Lead
 roles: team-lead
+when: team-lead = yes
 topic: sizes
 
-Joining because a scope moved up: take over the existing plan file from the Manager (same format) and read its `## Handover` section first.
+Joining a scope already under way: take over the existing plan file from the Manager (same format) and read its `## Handover` section first.
 
-## SIZE-17c Joining after a move up, QA whitebox
+## SIZE-17c Joining a team, QA whitebox
 roles: qa-whitebox
+when: qa-white = yes
 topic: sizes
 
-Joining a scope that moved up: work already built goes through your full check before it counts as done. Start from the plan's `## Handover` section.
+Joining a scope already under way: work already built goes through your full check before it counts as done. Start from the plan's `## Handover` section.
 
-## SIZE-17d Joining after a move up, QA blackbox
+## SIZE-17d Joining a team, QA blackbox
 roles: qa-blackbox
+when: qa-black = yes
 topic: sizes
 
-Joining a scope that moved up from S: test everything already built against the business AC; the Developer's `evidence.md` `## Behaviour` does not count as your check.
+Joining a scope already under way: test everything already built against the business AC; the Developer's `evidence.md` `## Behaviour` does not count as your check.
 
-## SIZE-17e Joining after a move up, Tech Lead
+## SIZE-17e Joining a team, Tech Lead
 roles: tech-lead
+when: tech-lead = yes
 topic: sizes
 
-Joining a scope that moved up to L: start from the plan's `## Handover` section; the technical AC so far were written by QA whitebox with the Developers, so check them first.
+Joining a scope already under way: start from the plan's `## Handover` section; the technical AC so far were written by QA whitebox with the Developers, or by the Developers alone, so check them first.
 
 ## SIZE-18 Extra hands
 roles: manager
-when: size = L
+when: plan-owner = team-lead
 topic: sizes
 
-Add a second BA, Tech Lead or QA when a scope is large.
+Add a second BA, Tech Lead or QA when the scope is large.
 
-## SIZE-19 QA blackbox off
+## SIZE-21a Spawning the confirmed team
 roles: manager
 topic: sizes
 
-Propose `qa-b: no` (M or L, never with `design: yes`) when no task changes what a person using the product observes (a screen, CLI or hook output, exit code, generated file or report, message to the PO). State that signal; the PO confirms it at the goal check; `qa-b:` in `scope.md` records it.
+Spawn only the roles in `team:` of `scope.md`, plus Developers and the Token Coach. `squad-spawn` refuses a role not on the team; its duties pass along the chain ([SIZE-22]) and are never dropped.
 
-## SIZE-20 Done without QA blackbox
-roles: manager, ba, team-lead, tech-lead
-when: size in M, L and qa-b = no
-topic: sizes
-
-With `qa-b: no` there is one checker, QA whitebox: Done = QA whitebox PASS. Wherever a rule says "both checkers", "both QAs", "QA whitebox + QA blackbox" or "PASS + QA blackbox PASS" ([SIZE-2], the task-done owner table, the merge and check-in rules), read QA whitebox alone. It checks the Developer's `## Behaviour` against the business AC.
-
-## SIZE-21a Spawn without QA blackbox, M
-roles: manager
-when: size = M and qa-b = no
-topic: sizes
-
-You spawn Developers, `qa-whitebox` and `token-coach`, not QA blackbox. A user-visible change found later: set `qa-b: yes` in `scope.md`, respawn the Developers and QA whitebox (their composed rules change), spawn QA blackbox with a briefing that points at the built tasks, and note it in the iteration file.
-
-## SIZE-21b Spawn without QA blackbox, L
-roles: manager
-when: size = L and qa-b = no
-topic: sizes
-
-You spawn `ba`, `team-lead`, `tech-lead`, `qa-whitebox` and `token-coach`, not QA blackbox. A user-visible change found later: as [SIZE-21a], with the Team Lead's Developers respawned.
-
-## SIZE-22 Duty owners by size
+## SIZE-22 Duty owner chains
 roles: manager
 topic: sizes
 
-| Duty | S | M | L |
-|---|---|---|---|
-| Plan, Developer spawning | Manager | Manager | Team Lead |
-| Design notes | Developer | Developer | Tech Lead |
-| Technical AC | Developer | QA whitebox with the Developer | Tech Lead with QA whitebox |
-| Business AC | ticket as written | ticket as written | BA with QA blackbox |
-| Code check | Developer + Sonnet review subagent | QA whitebox | QA whitebox |
-| Behaviour check | Developer's `evidence.md` | QA blackbox | QA blackbox |
-| Hand in to / done told to | Manager / Manager | QAs / Manager | QAs / Team Lead |
-| Full suite | Developer | QA whitebox | Tech Lead |
-| `promote.md` | Developer | QA whitebox | Tech Lead, BA |
-| Migration, contract change, risk flag, business doubt | Manager moves to L | Manager moves to L | Tech Lead, BA |
-| Irreversible design choice | Manager | Manager | Tech Lead |
-| 3 returns | Manager | Manager | Team Lead |
+The first present role in each chain owns the duty. Every chain ends at the Manager, a Developer or the ticket, so no duty is orphaned. The `duties:` line of your header gives the owners for this team.
 
-## SIZE-22a Duty owners with an Architect
-roles: manager
-when: architecture = yes
-topic: sizes
-
-These rows replace the same-named rows of [SIZE-22]:
-
-| Duty | S | M | L |
-|---|---|---|---|
-| Architecture | Architect | Architect | Architect |
-| Design notes | Developer, inside it | Developer, inside it | Tech Lead, inside it |
-| Irreversible design choice | Architect proposes, PO decides | Architect proposes, PO decides | Architect proposes, PO decides |
+| Duty | Owner chain |
+|---|---|
+| Plan, Developer spawning, routine messages, 3 returns | Team Lead, then Manager |
+| Design notes | Tech Lead, then Developer (inside `architecture.md` with an Architect) |
+| Technical AC | Tech Lead, then QA whitebox with the Developer, then Developer |
+| Business AC | BA (with QA blackbox when present), then the ticket as written |
+| Code check | QA whitebox, then Developer's `## Review` confirmed by Tech Lead, then by Manager |
+| Behaviour check | QA blackbox, then QA whitebox checking `## Behaviour`, then Manager confirming `evidence.md` |
+| Built-UI check (with a Designer) | QA blackbox, then Manager confirming the screenshots |
+| Hand in to | the QAs on the team, then Team Lead, then Manager |
+| Full suite, `promote.md` | Tech Lead, then QA whitebox, then Developer |
+| Migration, contract change, risk flag | Tech Lead, then Manager (adds the Tech Lead) |
+| Business doubt, outside question | BA, then Manager (adds the BA) |
+| Irreversible design choice | Architect, then Tech Lead, then Manager propose; the PO decides every time |
 
 You escalate each irreversible choice to the PO ([WHO-2e]).
 
-## SIZE-23b Technical AC, M
+## SIZE-23b Technical AC, QA whitebox
 roles: qa-whitebox
-when: size = M
+when: tech-ac = qa-white
 topic: sizes
 
 Write the technical AC before work starts (tests that must exist, lint clean, patterns followed, security checks, performance limits) and agree them with the Developer in the task file.
 
-## SIZE-23c Architecture in the technical AC, M
+## SIZE-23c Architecture in the technical AC, QA whitebox
 roles: qa-whitebox
-when: size = M and architecture = yes
+when: qa-white = yes and architecture = yes
 topic: sizes
 
-Add "conforms to `architecture.md`" to the technical AC and check the diff against it; a difference is a finding.
+Check each task's diff against `architecture.md`; a difference is a finding. When you own the technical AC, add "conforms to `architecture.md`" to it.
 
-## SIZE-23d Architecture in the technical AC, L
-roles: tech-lead, qa-whitebox
-when: size = L and architecture = yes
+## SIZE-23d Architecture in the technical AC, Tech Lead
+roles: tech-lead
+when: tech-ac = tech-lead and architecture = yes
 topic: sizes
 
-Put "conforms to `architecture.md`" in each task's technical AC. The Tech Lead and QA whitebox each check the diff against it; a difference is a finding.
+Put "conforms to `architecture.md`" in each task's technical AC and check the diff against it; a difference is a finding.
 
-## SIZE-24b promote.md, M
+## SIZE-24b promote.md, QA whitebox
 roles: qa-whitebox
-when: size = M
+when: promote-owner = qa-white
 topic: sizes
 
 Keep `promote.md` as in [PROMO-2], including the lasting business rules and glossary terms the ticket and the tests show.

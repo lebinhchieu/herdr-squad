@@ -98,14 +98,14 @@ class Fixes(unittest.TestCase):
         self.assertEqual(self.by["REV-18b"].roles, ["qa-blackbox"])
 
     def test_fix_a_handin_target_by_size(self):
-        self.assertEqual((self.by["REV-13a"].when, self.by["REV-13a"].roles), ("size = S", ["dev"]))
+        self.assertEqual((self.by["REV-13a"].when, self.by["REV-13a"].roles), ("handin-target = manager", ["dev"]))
         self.assertIn("to the Manager", self.by["REV-13a"].body)
         self.assertNotIn("QA", self.by["REV-13a"].body)
         self.assertIn("QA whitebox and QA blackbox", self.by["REV-13b"].body)
 
     def test_fix_b_tech_lead_tells_manager_parallel_tasks_in_s(self):
         r = self.by["START-2d"]
-        self.assertEqual((r.when, r.roles), ("size = L", ["tech-lead"]))
+        self.assertEqual((r.when, r.roles), ("plan-owner = team-lead", ["tech-lead"]))
         self.assertIn("ready in parallel", r.body)
 
     def test_fix_c_designer_business_doubt(self):
@@ -126,6 +126,9 @@ class Mapping(unittest.TestCase):
     def setUpClass(cls):
         cls.rules, _ = _load()
         cls.ids = {r.id for r in cls.rules}
+        # historic conversion record: a rule since tombstoned in _removed.md still counts
+        removed = (ROOT / "templates/squad/process/_removed.md").read_text(encoding="utf-8")
+        cls.removed = set(re.findall(r"^## (\S+) \(removed in v\d+\)", removed, re.M))
         cls.rows = _mapping()
 
     def test_every_v6_line_has_a_row(self):
@@ -148,7 +151,7 @@ class Mapping(unittest.TestCase):
             else:
                 parts = [t.strip() for t in target.split(",")]
             for rid in parts:
-                self.assertIn(rid, self.ids, f"{src} -> {target}")
+                self.assertIn(rid, self.ids | self.removed, f"{src} -> {target}")
 
     def test_rows_48_and_49_map_to_rules(self):
         for n in (48, 49):

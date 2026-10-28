@@ -14,6 +14,7 @@ TL_ALLOW = {
     "Bash(git branch:*)", "Bash(echo:*)", "Bash(squad-respawn:*)",
     "Bash(squad-spawn dev:*)", "Bash(squad-retire:*)", "Bash(squad-process rule:*)", "Bash(squad-process who:*)", "Bash(herdr agent list:*)", "Bash(herdr agent get:*)",
     "Bash(herdr agent read:*)",
+    "Bash(rm /tmp/tmp.*)", "Bash(rm -r /tmp/tmp.*)", "Bash(rm -rf /tmp/tmp.*)", "Bash(rmdir /tmp/tmp.*)",
 }
 FAKE_HERDR = """#!/usr/bin/env bash
 echo "$@" >> "$HERDR_LOG"
@@ -50,7 +51,7 @@ class GateTest(unittest.TestCase):
         self.scope = self.squad / "scopes" / "s"
         self.scope.mkdir(parents=True)
         (self.squad / "process.md").write_text("x")
-        (self.scope / "scope.md").write_text("size: M\n")
+        (self.scope / "scope.md").write_text("team: ba, team-lead, tech-lead, qa-white, qa-black\n")
         (self.scope / "roster.md").write_text(ROSTER)
         fake = root / "fakebin"
         fake.mkdir()

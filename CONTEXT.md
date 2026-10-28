@@ -5,46 +5,46 @@ A self-managing dev team made of Claude Code sessions. For each request from a h
 ## People
 
 **PO**:
-The human who makes the requests, confirms scope sizes, and alone decides a merge (the Manager runs it on request), a push or a deploy.
+The human who makes the requests, confirms each scope's team, and alone decides a merge (the Manager runs it on request), a push or a deploy.
 _Avoid_: user, owner, client
 
 **Manager**:
-The role that runs one scope (a lone task) or one goal (several scopes): sizes the work, starts and retires the other roles (in L the Team Lead does) and keeps them unblocked (in L the Team Lead does). In S and M it also plans the tasks and takes the pod's messages. It starts fresh for each request and never does another role's work. The one running a goal is the **goal Manager**.
+The role that runs one scope (a lone task) or one goal (several scopes): proposes the team, starts and retires the other roles (the Team Lead does when one is on the team) and keeps them unblocked (the Team Lead does when on the team). With no Team Lead it also plans the tasks and takes the pod's messages. It starts fresh for each request and never does another role's work. The one running a goal is the **goal Manager**.
 _Avoid_: orchestrator, lead
 
 **BA**:
-The role that owns the business need and the business AC of one scope. Present in L scopes.
+The role that owns the business need and the business AC of one scope. Optional: on the team when the Manager proposes it and the PO confirms.
 _Avoid_: analyst, product owner
 
 **Team Lead**:
-The role that owns the plan (which tasks, in which order, who does each) and runs the pod in L scopes: spawns and retires the Developers, checks on the pod, routes its questions, and is the pod's **single point of contact**. Takes the plan from the Tech Lead. Present in L scopes.
+The role that owns the plan (which tasks, in which order, who does each) and runs the pod when on the team: spawns and retires the Developers, checks on the pod, routes its questions, and is the pod's **single point of contact**. Takes the plan from the Tech Lead. Optional.
 _Avoid_: project manager, scrum master
 
 **Single point of contact**:
-In an L scope, the role every pod member messages for routine matters: the Team Lead. The Manager hears from it only an escalation to the PO, a size-change signal, a dispute the pod could not settle, 3 returns on one task and one summary per iteration (`iterations/<n>.summary.md`).
+With a Team Lead on the team, the role every pod member messages for routine matters: the Team Lead. The Manager hears from it only an escalation to the PO, a team-change signal, a dispute the pod could not settle, 3 returns on one task and one summary per iteration (`iterations/<n>.summary.md`).
 _Avoid_: relay, gateway
 
 **Manager traffic**:
-The four things the Manager hears from an L pod: an escalation to the PO, a size-change signal, a dispute the pod could not settle, and the iteration summary; plus one line when a task has had 3 returns.
+The four things the Manager hears from a pod with a Team Lead: an escalation to the PO, a team-change signal, a dispute the pod could not settle, and the iteration summary; plus one line when a task has had 3 returns.
 _Avoid_: status, relay
 
 **Tech Lead**:
-The role that owns technical design, quality and security of one scope. The Team Lead owns the plan. Present in L scopes. With `architecture: yes` its per-task design stays inside the **Architect**'s `architecture.md`.
+The role that owns technical design, quality and security of one scope. The Team Lead owns the plan. Optional. With `architecture: yes` its per-task design stays inside the **Architect**'s `architecture.md`.
 
 **QA whitebox**:
-The role that checks a task is built right: reads the diff, runs tests and lint. Agrees the technical AC with the Tech Lead (L) or the Developer (M). Present in M and L scopes.
+The role that checks a task is built right: reads the diff, runs tests and lint. Agrees the technical AC with the Tech Lead, else with the Developer. Optional; its team key is `qa-white`.
 _Avoid_: code reviewer, tester
 
 **QA blackbox**:
-The role that checks the running app does what the business asked, without reading code. Agrees the business AC with the BA (L); at M the ticket is the AC. Present in M and L scopes.
+The role that checks the running app does what the business asked, without reading code. Agrees the business AC with the BA; with no BA the ticket is the AC. Optional; its team key is `qa-black`.
 _Avoid_: tester, acceptance tester
 
 **UI/UX Designer**:
-The role that delivers a design (screens, states, flows, optional HTML prototype) for a scope's UI tasks before they are built. It joins only when the PO sets `design: yes`, delivers a design only, and does not check the built UI.
+The role that delivers a design (screens, states, flows, optional HTML prototype) for a scope's UI tasks before they are built. It joins only when the PO confirms it for the team (`designer`), delivers a design only, and does not check the built UI.
 _Avoid_: UX, designer (alone), design reviewer
 
 **Architect**:
-The role that designs a scope's architecture before the plan: components, boundaries, contracts, constraints, and the list of irreversible choices with options and a recommendation. It writes `architecture.md` and ADR drafts, never code, and checks no built code. It joins only when the PO sets `architecture: yes`, sits above the Tech Lead (L) and above the Developer's design notes (S, M), proposes irreversible choices but never decides them (the PO does), and retires once `architecture.md` is `Status: final`.
+The role that designs a scope's architecture before the plan: components, boundaries, contracts, constraints, and the list of irreversible choices with options and a recommendation. It writes `architecture.md` and ADR drafts, never code, and checks no built code. It joins only when the PO confirms it for the team (`architect`), sits above the Tech Lead and, with none, above the Developer's design notes, proposes irreversible choices but never decides them (the PO does), and retires once `architecture.md` is `Status: final`.
 _Avoid_: system designer, tech lead (the Tech Lead owns per-task design, quality and security inside the architecture)
 
 **Developer**:
@@ -52,7 +52,7 @@ The role that builds one task in its own worktree until the checkers pass it.
 _Avoid_: engineer, coder
 
 **Token Coach**:
-The role started when an M or L scope or a goal closes, that finds wasted tokens and proposes changes to the process rules. It never changes anything itself.
+The role started when a scope with a QA or Team Lead, or a goal, closes, that finds wasted tokens and proposes changes to the process rules. It never changes anything itself.
 _Avoid_: cost bot, optimizer
 
 **Role**:
@@ -67,7 +67,7 @@ _Avoid_: session (that is the process behind the agent), bot
 
 **Squad**:
 The standing setup of one project or module: how the team works (`process.local.md`, settings) and where the project's truth lives (`project.md`). It holds many scopes and goals over time, and several squads can run side by side.
-_Avoid_: team, project
+_Avoid_: project
 
 **Scope**:
 The unit of work and of freshness: one task or one part of a goal. It has its own folder, a fresh pod, and closes with one move. A lone scope shares nothing with other scopes.
@@ -75,14 +75,22 @@ _Avoid_: module, workstream
 
 **Pod**:
 The group of agents that delivers one scope.
-_Avoid_: team, squad (a squad is the whole)
+_Avoid_: squad (a squad is the whole)
 
-**Size**:
-How many roles a scope gets: S (Manager + Developers), M (+ QA whitebox and QA blackbox), L (every role: + BA, Team Lead and Tech Lead). The Manager proposes it, the PO confirms it. Bigger work is a goal.
-_Avoid_: tier, T-shirt size
+**Team**:
+The optional roles of one scope, on the `team:` line of `scope.md`: any subset of `ba`, `team-lead`, `tech-lead`, `qa-white`, `qa-black`, `designer`, `architect` (the Manager and Developers are always there). The Manager proposes each role with its signal; the PO confirms. The keys `qa-white`/`qa-black` name the QA whitebox and QA blackbox roles; the term QA stays. Every subset is valid. Bigger work is a goal. Replaces the S, M, L presets (ADR 0018).
+_Avoid_: tier, preset
+
+**Duty owner**:
+The role that owns one duty (plan, business AC, code check, behaviour check, suite run and so on) on a given team: the first present role in that duty's fallback chain, every chain ending at the Manager or the Developer. One table (`DUTIES`) derives it; rules target it with a duty fact in `when:`.
+_Avoid_: responsible role
+
+**Checker**:
+A role on the team that checks a task before it is done: QA whitebox, QA blackbox, and the Designer's built-UI check. With none on the team the code-check owner confirms the Developer's evidence.
+_Avoid_: reviewer, approver
 
 **Risk flag**:
-A sign that forces a scope to size L: data migration, breaking API change, security, or anything another team sees. A business doubt forces L too.
+A sign that the team needs more roles: data migration, breaking API change, security, or anything another team sees. A business doubt asks for a BA. The Manager names it in the team proposal.
 _Avoid_: red flag
 
 **Contract**:
@@ -156,7 +164,7 @@ A branch that builds on a passed but unmerged branch, so a later scope of a goal
 _Avoid_: dependent branch
 
 **Integration task**:
-The last task of a scope with several tasks: a Developer merges the scope's passed branches into its own branch and runs the targeted tests; the size's suite owner (S Developer, M QA whitebox, L Tech Lead) then runs the full suite.
+The last task of a scope with several tasks: a Developer merges the scope's passed branches into its own branch and runs the targeted tests; the suite owner (the Tech Lead, else QA whitebox, else the Developer) then runs the full suite.
 _Avoid_: merge task
 
 ## Work
@@ -166,14 +174,8 @@ One work cycle inside a scope: goal check, plan, build and verify, retro, check-
 _Avoid_: sprint
 
 **Goal check**:
-The start of an iteration, where the Manager and PO agree the iteration's goal and the PO confirms the scope's size.
+The start of an iteration, where the Manager and PO agree the iteration's goal and the PO confirms the scope's team.
 _Avoid_: kickoff
-
-**design flag**:
-The `design: yes|no` line in `scope.md`, default `no`. Only the PO's request turns it on, and the Manager never proposes it. It adds the UI/UX Designer to a scope of any size.
-
-**architecture flag**:
-The `architecture: yes|no` line in `scope.md`, default `no`. Only the PO's request turns it on, and the Manager never proposes it. It adds the Architect to a scope of any size; `squad-spawn architect` refuses without it. Rules that mention the Architect compose only when it is `yes`, so a scope with it `no` is unchanged.
 
 **Check-in**:
 The end of an iteration, where the Manager shows the PO what is done, open escalations and proposed role changes.
@@ -192,7 +194,7 @@ Acceptance criteria a task must pass. **Business AC** is agreed by the BA and QA
 _Avoid_: requirements, definition of done
 
 **Done**:
-A task is done when its size's checkers pass it: in S the Developer's checks, `evidence.md` and the review subagent's `## Review` (the Manager confirms they exist); in M and L both QAs.
+A task is done when every checker on the team has passed it; with no QA on the team, the Developer's checks, `evidence.md` and the review subagent's `## Review` exist and the code-check owner confirms them.
 _Avoid_: finished, complete
 
 **Evidence**:
@@ -207,7 +209,7 @@ _Avoid_: evidence dir, proof folder
 The commit where the Developer assembled the reviewers' files into `evidence.md` after every checker passed; its diff to the passed sha touches only evidence folders, and the Manager may merge it as the passed sha.
 
 **Handover**:
-A plan section the Tech Lead writes when a scope moves up in size: what was decided, built and left open. Not the same as a HANDIN.
+A plan section the Tech Lead writes when a role is added to a scope: what was decided, built and left open. Not the same as a HANDIN.
 _Avoid_: handoff
 
 **HANDIN**:
@@ -316,9 +318,10 @@ Every time figure in a report. **Estimated, list price**: every dollar figure. L
 ## Relationships
 
 - A **Squad** holds many **Scopes** and **Goals** over time, each with its own folder and fresh **Manager** (a **Goal** has one **goal Manager** for all its **Scopes**).
-- A **Pod** delivers exactly one **Scope**; the **Scope**'s **Size** decides which **Roles** the **Pod** has.
+- A **Pod** delivers exactly one **Scope**; the **Scope**'s **Team** decides which **Roles** the **Pod** has.
 - A **Scope** is split into **Tasks**; one **Developer** builds one **Task**.
-- A **Task** is **Done** only when the checkers its **Size** names pass it.
+- A **Task** is **Done** only when every **Checker** on the **Team** has passed it.
+- Each duty has one **Duty owner** on the **Team**.
 - A **Home** belongs to one **Goal** or **Scope**.
 - An **Inbox** shows the open **Escalations** of its **Home** (answer items) and its own read items; the PO's answer is written into the escalation's Answer cell.
 - Rendering never drops or changes the Manager's or the PO's text: unknown markup shows as plain text and every word stays reachable.

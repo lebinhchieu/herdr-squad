@@ -13,7 +13,7 @@ disable-model-invocation: true
 - Project root = `git rev-parse --show-toplevel` (or the directory the user names).
 - Squad name = the name the user gives, else ask for one (short, lowercase, e.g. `billing`). It becomes part of every agent name, which herdr limits to 32 characters, so keep it under 10.
 - If `<root>/.claude/squads/<squad>/` already exists, stop and ask whether to refresh only the missing files. Never touch its `scopes/` or `goals/`. If it has a `process.md` and no `process.local.md`, it is an old squad: tell the user to run `squad-process adopt --squad-dir <squad> --dry-run` (the Manager runs it and shows the PO).
-- Run `${CLAUDE_PLUGIN_ROOT}/bin/squad-process scaffold --squad-dir <root>/.claude/squads/<squad> [--code-path <absolute code folder> ...]` (steps 2 and 3 tell you the code paths). It creates `process.local.md` (empty, header only: the squad's changes to the plugin's rules), `plugin.pin` (the running plugin), `settings/<role>.local.json`, `project.md`, `process-log.md` and the empty `scopes/` and `goals/`. It never copies `process.md` or a full settings file: the rules and settings come from the pinned plugin. The `scopes/` folder marks a squad as per-scope.
+- Run `${CLAUDE_PLUGIN_ROOT}/bin/squad-process scaffold --squad-dir <root>/.claude/squads/<squad>`. It creates `process.local.md` (empty, header only: the squad's changes to the plugin's rules), `plugin.pin` (the running plugin), `settings/<role>.local.json`, `project.md`, `process-log.md` and the empty `scopes/` and `goals/`. It never copies `process.md` or a full settings file: the rules and settings come from the pinned plugin. The `scopes/` folder marks a squad as per-scope.
 - Check it: `squad-process lint --squad-dir <squad>` must pass.
 
 ## 2. Fill `<squad>/project.md`
@@ -29,7 +29,6 @@ Read the project's CLAUDE.md files, README, docs folders and repo layout. Fill e
 ## 3. Tune `<squad>/settings/<role>.local.json`
 
 Each file holds only this squad's difference from the plugin's template (`squad-process` merges the two when it spawns a role).
-- **QA blackbox:** `"codePaths": ["/abs/code/folder", ...]`, one absolute path per code folder (the template denies reading them; the project's `.worktrees` is added for you). Pass them to `scaffold --code-path`, or write them into `qa-blackbox.local.json` before the first spawn: a spawn without them is refused.
 - **Every role:** add the project's exact test and lint commands from `project.md` as `"permissions": {"allow": ["Bash(<command>:*)"]}`. A local file can add an `allow` or `deny` entry, never remove a template entry.
 - Validate each file with `jq empty`.
 

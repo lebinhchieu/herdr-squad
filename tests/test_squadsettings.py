@@ -1,5 +1,6 @@
 """Ticket 08: effective settings = template + squad overlay (bin/squadsettings.py) and the squad-spawn wiring."""
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -82,38 +83,42 @@ class EffectiveTest(Base):
                   "Bash(herdr agent get:*)", "Bash(herdr agent read:*)"):
             self.assertIn(e, allow)
 
-    def test_qa_blackbox_denies_the_local_code_paths_not_the_placeholder(self):
-        self.local("qa-blackbox", {"codePaths": ["/home/me/proj/bin", "/home/me/proj/tests/"]})
-        e = self.eff("qa-blackbox")
-        deny = e["permissions"]["deny"]
-        self.assertIn("Read(//home/me/proj/bin/**)", deny)
-        self.assertIn("Read(//home/me/proj/tests/**)", deny)
-        self.assertNotIn("codePaths", e)
-        self.assertNotIn("CODE_PATHS_SET_BY_SQUAD_INIT", json.dumps(e))
-        self.assertIn("Bash(git push:*)", deny)  # template deny kept
-
-    def test_placeholder_without_code_paths_fails_closed(self):
-        for data in ({}, {"codePaths": []}):
+    def test_qa_blackbox_has_no_read_deny_and_a_codepaths_key_is_ignored(self):
+        for data in ({}, {"codePaths": []}, {"codePaths": ["/home/me/proj/bin"]}, {"codePaths": ["bin"]}):
             with self.subTest(data=data):
                 self.local("qa-blackbox", data)
-                with self.assertRaises(ss.SettingsError) as c:
-                    self.eff("qa-blackbox")
-                self.assertEqual(c.exception.code, 2)
+                e = self.eff("qa-blackbox")
+                self.assertNotIn("codePaths", e)
+                self.assertFalse([d for d in e["permissions"]["deny"] if d.startswith("Read(")])
+                self.assertNotIn("CODE_PATHS_SET_BY_SQUAD_INIT", json.dumps(e))
+                self.assertIn("Bash(git push:*)", e["permissions"]["deny"])
 
-    def test_qa_blackbox_also_denies_the_project_worktrees(self):
-        self.local("qa-blackbox", {"codePaths": ["/p/bin"]})
-        deny = ss.effective("qa-blackbox", str(self.squad), str(ROOT), "/p")["permissions"]["deny"]
-        self.assertIn("Read(//p/.worktrees/**)", deny)
+    def test_scratch_rm_allowed_only_under_mktemp_dirs(self):
+        d = ROOT / "templates/squad/settings"
+        roles = ("dev", "qa-whitebox", "qa-blackbox", "manager", "tech-lead", "team-lead")
+        for f in sorted(d.glob("*.json")):
+            perms = json.loads(f.read_text(encoding="utf-8"))["permissions"]
+            rm = [e for e in perms.get("allow", []) if e.startswith(("Bash(rm ", "Bash(rmdir "))]
+            if f.stem in roles:
+                self.assertEqual(sorted(rm), sorted(f"Bash({c} /tmp/tmp.*)" for c in ("rm -rf", "rm -r", "rm", "rmdir")), f.name)
+                # ask beats allow: the glob's `*` also matches spaces, `..`, `$(...)` and backticks
+                for e in rm:
+                    cmd = e[len("Bash("):-len(" /tmp/tmp.*)")]
+                    for tail in ("* *", "*..*", "*$*", "*`*"):
+                        self.assertIn(f"Bash({cmd} /tmp/tmp.{tail})", perms["ask"], f"{f.name} {e}")
+            else:
+                self.assertEqual(rm, [], f.name)
+            for e in rm:
+                self.assertIn(" /tmp/tmp.", e)
+
+    def test_manager_allows_squad_team(self):
+        m = json.loads((ROOT / "templates/squad/settings/manager.json").read_text(encoding="utf-8"))
+        self.assertIn("Bash(squad-team:*)", m["permissions"]["allow"])
 
     def test_ask_unions_and_other_arrays_are_replaced(self):
         r = ss.merge({"permissions": {"ask": ["a"]}, "l": [1, 2]}, {"permissions": {"ask": ["b"]}, "l": [3]})
         self.assertEqual(r["permissions"]["ask"], ["a", "b"])
         self.assertEqual(r["l"], [3])
-
-    def test_relative_code_path_refused(self):
-        self.local("qa-blackbox", {"codePaths": ["bin"]})
-        with self.assertRaises(ss.SettingsError):
-            self.eff("qa-blackbox")
 
 
 class SpawnTest(Base):
@@ -146,11 +151,10 @@ class SpawnTest(Base):
                            text=True, capture_output=True)
         self.assertEqual(r.returncode, 1)
 
-    def test_dry_run_qa_blackbox_without_code_paths_is_refused(self):
+    def test_dry_run_qa_blackbox_without_code_paths_spawns(self):
         self.local("qa-blackbox", {})
         r = self.spawn("qa-blackbox")
-        self.assertEqual(r.returncode, 2)
-        self.assertNotIn("would run: herdr agent start", r.stdout)
+        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_old_layout_keeps_the_file_and_warns_once(self):
         (self.squad / "settings" / "dev.json").write_text(json.dumps({"model": "haiku", "effortLevel": "low"}), encoding="utf-8")
@@ -184,7 +188,7 @@ exit 0
 
 class ComposedSpawnTest(Base):
     """A composed squad: the pinned runtime's template is the one merged, dry-run or not."""
-    VERSION = json.loads((ROOT / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))["version"]
+    VERSION = "0.6.0"  # the copy of the running plugin below stands for a release with the team language (no hand-off)
     SHA = "a" * 40
 
     def setUp(self):
@@ -194,9 +198,11 @@ class ComposedSpawnTest(Base):
         (self.squad / "settings").mkdir(parents=True)
         (self.squad / "scopes/sc1").mkdir(parents=True)
         (self.squad / "process.local.md").write_text("", encoding="utf-8")
-        (self.squad / "scopes/sc1/scope.md").write_text(f"# Scope\n\nplugin: {self.VERSION} {self.SHA}\n", encoding="utf-8")
+        (self.squad / "scopes/sc1/scope.md").write_text(f"# Scope\n\nteam: ba\nplugin: {self.VERSION} {self.SHA}\n", encoding="utf-8")
         rt = self.squad / "_runtime" / f"{self.VERSION}-{self.SHA[:12]}"
         shutil.copytree(ROOT, rt, ignore=shutil.ignore_patterns(".git", ".worktrees", ".scratch", "tests", "__pycache__"))
+        pj = rt / ".claude-plugin" / "plugin.json"
+        pj.write_text(re.sub(r'("version"\s*:\s*)"[^"]*"', rf'\1"{self.VERSION}"', pj.read_text(encoding="utf-8")), encoding="utf-8")
         d = json.loads((rt / "templates/squad/settings/dev.json").read_text(encoding="utf-8"))
         d["permissions"]["allow"].append("Bash(pinned-only:*)")
         (rt / "templates/squad/settings/dev.json").write_text(json.dumps(d), encoding="utf-8")

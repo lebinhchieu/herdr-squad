@@ -15,7 +15,7 @@ FIX = Path(__file__).resolve().parent / "fixtures" / "rules"
 sys.path.insert(0, str(BIN))
 import squadrules as sr  # noqa: E402
 
-GOLDEN_ATTRS = "roles: qa-whitebox, qa-blackbox\naware: dev, team-lead\nwhen: size in M, L\ntopic: review"
+GOLDEN_ATTRS = "roles: qa-whitebox, qa-blackbox\naware: dev, team-lead\nwhen: qa-white = yes\ntopic: review"
 GOLDEN_BODY = ("The Tech Lead names one final sha per task before QA verdicts; "
                "each QA gives one verdict on that sha.")
 SAFE_SENTENCE = "The Developer edits files only inside the own worktree and never pushes."
@@ -73,10 +73,10 @@ class ParseTest(Clean):
         self.assertEqual(core.line, 3)
         self.assertEqual(core.title, "Task states")
         self.assertEqual((rev3.roles, rev3.aware, rev3.when, rev3.topic),
-                         (["qa-whitebox", "qa-blackbox"], ["dev", "team-lead"], "size in M, L", "review"))
+                         (["qa-whitebox", "qa-blackbox"], ["dev", "team-lead"], "qa-white = yes", "review"))
         self.assertEqual((rev3.body, rev3.line, rev3.body_line), (GOLDEN_BODY, 3, 9))
         self.assertEqual(rev3.attr_text, GOLDEN_ATTRS)
-        self.assertEqual((rev4.when, rev4.line), ("qa-b = no and size = S", 11))
+        self.assertEqual((rev4.when, rev4.line), ("qa-black = no and qa-white = no", 11))
         self.assertTrue(rev4.body.startswith("- The Developer saves"))
         self.assertEqual(safe.body, SAFE_SENTENCE)
         self.assertEqual([(t.id, t.version, t.replaced_by, t.line) for t in tombs],
@@ -85,7 +85,7 @@ class ParseTest(Clean):
     def test_two_topic_files_and_overlay(self):
         ops = sr.parse_overlay(sr.read_text(str(self.squad / "process.local.md")), "process.local.md", [])
         self.assertEqual([(o.kind, o.id, o.hash, o.line) for o in ops],
-                         [("replace", "REV-3", "203fa130", 1), ("add", "SQ-1", "", 6), ("remove", "SAFE-1", "22f7e05d", 15)])
+                         [("replace", "REV-3", "022a37df", 1), ("add", "SQ-1", "", 6), ("remove", "SAFE-1", "22f7e05d", 15)])
         self.assertEqual((ops[0].why, ops[0].upstream), ("report-ui-fix: 8 style returns", "proposed"))
         self.assertTrue(ops[0].body.startswith("The Tech Lead names one final sha"))
         self.assertEqual((ops[1].title, ops[1].attrs["roles"], ops[1].attrs["topic"]), ("Style contract", "tech-lead, qa-blackbox", "review"))
@@ -134,7 +134,7 @@ class ParseTest(Clean):
 
 class HashTest(unittest.TestCase):
     def test_golden(self):
-        self.assertEqual(sr.rule_hash(GOLDEN_ATTRS, GOLDEN_BODY), "203fa130")
+        self.assertEqual(sr.rule_hash(GOLDEN_ATTRS, GOLDEN_BODY), "022a37df")
 
     def test_stable_across_crlf_bom_and_trailing_spaces(self):
         want = sr.rule_hash(GOLDEN_ATTRS, GOLDEN_BODY)
@@ -144,7 +144,7 @@ class HashTest(unittest.TestCase):
     def test_changes_with_a_word_or_an_attribute_or_their_order(self):
         want = sr.rule_hash(GOLDEN_ATTRS, GOLDEN_BODY)
         self.assertNotEqual(sr.rule_hash(GOLDEN_ATTRS, GOLDEN_BODY.replace("one verdict", "two verdicts")), want)
-        self.assertNotEqual(sr.rule_hash(GOLDEN_ATTRS.replace("M, L", "S"), GOLDEN_BODY), want)
+        self.assertNotEqual(sr.rule_hash(GOLDEN_ATTRS.replace("= yes", "= no"), GOLDEN_BODY), want)
         a = GOLDEN_ATTRS.split("\n")
         self.assertNotEqual(sr.rule_hash("\n".join([a[1], a[0], a[2], a[3]]), GOLDEN_BODY), want)
 
@@ -154,25 +154,32 @@ class HashTest(unittest.TestCase):
             src = (FIX / "clean" / PROC / "review.md").read_bytes()
             p.write_bytes(src.replace(b"\n", b"\r\n"))
             rules = sr.parse_rule_file(sr.read_text(str(p)), "review.md", [])
-            self.assertEqual(rules[0].hash, "203fa130")
+            self.assertEqual(rules[0].hash, "022a37df")
 
 
 class MatchesTest(unittest.TestCase):
     def test_truth_table(self):
-        w = "size in M, L"
-        self.assertFalse(sr.matches(w, {"size": "S"}))
-        self.assertTrue(sr.matches(w, {"size": "M"}))
+        w = "qa-white = yes"
+        self.assertFalse(sr.matches(w, {"qa-white": "no"}))
+        self.assertTrue(sr.matches(w, {"qa-white": "yes"}))
         self.assertTrue(sr.matches(w, {}))
-        w = "size = S and design = yes"
-        self.assertTrue(sr.matches(w, {"size": "S", "design": "yes"}))
-        self.assertFalse(sr.matches(w, {"size": "S", "design": "no"}))
-        self.assertFalse(sr.matches(w, {"size": "M", "design": "yes"}))
-        self.assertTrue(sr.matches(w, {"size": "S"}))  # design missing: true
-        self.assertTrue(sr.matches("", {"size": "S"}))
+        w = "qa-white = no and design = yes"
+        self.assertTrue(sr.matches(w, {"qa-white": "no", "design": "yes"}))
+        self.assertFalse(sr.matches(w, {"qa-white": "no", "design": "no"}))
+        self.assertFalse(sr.matches(w, {"qa-white": "yes", "design": "yes"}))
+        self.assertTrue(sr.matches(w, {"qa-white": "no"}))  # design missing: true
+        self.assertTrue(sr.matches("", {"qa-white": "no"}))
 
-    def test_qa_b_is_a_key(self):
-        self.assertTrue(sr.matches("qa-b = no", {"qa-b": "no"}))
-        self.assertFalse(sr.matches("qa-b = no", {"qa-b": "yes"}))
+    def test_old_when_keys_are_rejected_naming_the_new_key(self):
+        for old, new in (("size = L", "ba"), ("size in M, L", "ba"), ("qa-b = no", "qa-black"),
+                         ("qa-whitebox = yes", "qa-white"), ("ba = yes and size = S", "ba")):
+            with self.subTest(when=old):
+                with self.assertRaises(ValueError) as cm:
+                    sr.matches(old, {})
+                self.assertIn(new, str(cm.exception))
+                self.assertIn("gone", str(cm.exception))
+        for gone in ("size", "qa-b", "qa-whitebox"):
+            self.assertNotIn(gone, sr.WHEN_KEYS)
 
     def test_architecture_is_a_key(self):
         self.assertTrue(sr.matches("architecture = yes", {"architecture": "yes"}))
@@ -186,12 +193,12 @@ class MatchesTest(unittest.TestCase):
         self.assertIn("architect", sr.ROLES)
 
     def test_unknown_key_or_value_raises(self):
-        for bad in ("colour = red", "size = XL", "size in M, Q", "size M", "size = S and"):
+        for bad in ("colour = red", "qa-white = maybe", "qa-white in yes, Q", "qa-white yes", "qa-white = no and"):
             with self.assertRaises(ValueError, msg=bad):
                 sr.matches(bad, {})
 
     def test_missing_fact_keys(self):
-        self.assertEqual(sr.missing_fact_keys("size = S and design = no", {"design": "no"}), ["size"])
+        self.assertEqual(sr.missing_fact_keys("qa-white = no and design = no", {"design": "no"}), ["qa-white"])
 
 
 class LintClassTest(Clean):
@@ -202,6 +209,10 @@ class LintClassTest(Clean):
     def test_missing_roles(self):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("roles: dev\n", ""))
         self.only("missing roles:")
+
+    def test_empty_roles_is_on_demand_and_lints_clean(self):
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("roles: dev\n", "roles:\n", 1))
+        self.assertEqual(self.lint()[0], [])
 
     def test_missing_topic(self):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety\n", ""))
@@ -214,18 +225,52 @@ class LintClassTest(Clean):
     def test_unknown_when_key_and_value(self):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: colour = red\ntopic: safety"))
         self.only("unknown when key 'colour'")
-        self.edit(f"{PROC}/safety.md", lambda t: t.replace("colour = red", "size = XL"))
-        self.only("unknown value 'XL'")
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("colour = red", "qa-white = maybe"))
+        self.only("unknown value 'maybe'")
 
-    def test_qa_b_when_is_valid(self):
-        self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: qa-b = no\ntopic: safety"))
-        self.assertEqual(self.lint()[0], [])
+    def test_old_when_keys_are_a_lint_error_naming_rule_and_new_key(self):
+        for old, new in (("qa-b = no", "qa-black"), ("size in M, L", "duty or role key"), ("qa-whitebox = yes", "qa-white")):
+            with self.subTest(when=old):
+                self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", f"when: {old}\ntopic: safety", 1))
+                errs = self.lint()[0]
+                self.assertEqual(len(errs), 1, errs)
+                self.assertIn("SAFE-1: when key", errs[0])
+                self.assertIn(new, errs[0])
+                self.edit(f"{PROC}/safety.md", lambda t: t.replace(f"when: {old}\n", "", 1))
+
+    def test_two_role_or_duty_keys_in_one_when_are_a_lint_error(self):
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: ba = yes and plan-owner = manager\ntopic: safety", 1))
+        self.only("at most one of them")
+
+    def test_old_when_key_in_an_overlay_op_is_a_lint_error(self):
+        ov = self.root / "squad" / "process.local.md"
+        ov.write_text(ov.read_text(encoding="utf-8").replace("when: qa-white = yes", "when: size in M, L"), encoding="utf-8")
+        r = cli("lint", root=self.root, squad=self.root / "squad")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("SQ-1", r.stdout)
+        self.assertIn("gone", r.stdout)
 
     def test_architecture_when_is_valid_and_bad_value_refused(self):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: architecture = yes\ntopic: safety"))
         self.assertEqual(self.lint()[0], [])
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("architecture = yes", "architecture = maybe"))
         self.only("unknown value 'maybe'")
+
+    def test_team_language_when_is_valid_for_duty_plus_orthogonal(self):
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: business-ac = ba and qa-black = yes\ntopic: safety"))
+        self.assertEqual(self.lint()[0], [])
+
+    def test_two_duty_keys_in_one_when_name_the_rule(self):
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace(
+            "topic: safety", "when: business-ac = ba and code-check = qa-white\ntopic: safety"))
+        errs = self.lint()[0]
+        self.assertEqual(len(errs), 1, errs)
+        self.assertIn("SAFE-1", errs[0])
+        self.assertIn("at most one", errs[0])
+
+    def test_duty_value_outside_its_set_is_refused(self):
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: business-ac = qa-black\ntopic: safety"))
+        self.only("unknown value 'qa-black' for when key 'business-ac'")
 
     def test_architect_role_in_roles_line_is_valid(self):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("roles: dev", "roles: dev, architect"))
@@ -241,7 +286,7 @@ class LintClassTest(Clean):
 
     def test_attribute_order(self):
         self.edit(f"{PROC}/review.md", lambda t: t.replace(
-            "roles: dev\nwhen: qa-b = no and size = S\ntopic: review", "when: qa-b = no and size = S\nroles: dev\ntopic: review"))
+            "roles: dev\nwhen: qa-black = no and qa-white = no\ntopic: review", "when: qa-black = no and qa-white = no\nroles: dev\ntopic: review"))
         self.only("out of order")
 
     def test_text_outside_a_rule(self):
@@ -366,7 +411,7 @@ class CliTest(unittest.TestCase):
             f"{s}:20: missing topic:",
             f"{s}:25: unknown role 'wizard' in roles:",
             f"{s}:25: unknown when key 'colour'",
-            f"{s}:44: unknown value 'XL' for when key 'size'",
+            f"{s}:44: unknown value 'maybe' for when key 'qa-white'",
             f"{s}:32: ID REV-9 does not match the file prefix SAFE",
             f"{s}:42: length: 61 words > 60",
             f"{s}:51: attribute lines out of order (expected roles, aware, when, topic)",
@@ -401,7 +446,7 @@ class CliTest(unittest.TestCase):
     def test_hashes_after_problems_do_not_change_exit(self):
         r = cli("lint", "--hashes", root=FIX / "clean", squad=FIX / "clean" / "squad")
         self.assertEqual(r.returncode, 0)
-        self.assertIn("REV-3 203fa130", r.stdout.splitlines())
+        self.assertIn("REV-3 022a37df", r.stdout.splitlines())
         self.assertEqual([ln.split()[0] for ln in r.stdout.splitlines()], ["CORE-1", "REV-3", "REV-4", "SAFE-1"])
         bad = cli("lint", "--hashes", root=FIX / "errors", squad=FIX / "errors" / "squad")
         self.assertEqual(bad.returncode, 1)

@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""Change the team of a scope mid-scope: edit `team:` in scope.md and list the roles to respawn. No LLM, no network.
+
+  squad-team add ROLE    [--po-ok] [--home D] [--squad-dir D] [--plugin-root R] [--dry-run]
+  squad-team remove ROLE [--at-boundary] [--home D] [--squad-dir D] [--plugin-root R] [--dry-run]
+
+Exit 0 done, 2 refused or usage error (scope.md unchanged).
+"""
+import os
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
+
+
+def main(argv=None):
+    squadio.utf8_stdio()
+    argv = list(sys.argv[1:] if argv is None else argv)
+    import squadteam
+    return squadteam.run(argv)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

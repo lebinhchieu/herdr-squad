@@ -28,7 +28,7 @@ Runs in the Manager's session on the PO's word. The PO never edits a file by han
 
 ## Adopting an old squad
 
-Same promise: nothing is written until the PO confirms. Mechanics: `squad-process adopt`. `process.md` becomes an overlay (`process.local.md`) plus a pin (`plugin.pin`); each `settings/<role>.json` becomes `<role>.local.json` with only its difference from the template and `codePaths`.
+Same promise: nothing is written until the PO confirms. Mechanics: `squad-process adopt`. `process.md` becomes an overlay (`process.local.md`) plus a pin (`plugin.pin`); each `settings/<role>.json` becomes `<role>.local.json` with only its difference from the template.
 
 1. **Dry run:** `squad-process adopt --squad-dir <squad> --dry-run` (writes nothing). It lists the overlay operations, the changes the plugin already carries, the **PO items** (anything it cannot map exactly; it never guesses), the permissions the squad regains from the template, and the open scopes and goals it will pin. Exit 0: nothing to decide. Exit 3: PO items are open.
 2. **One inbox answer item** for all PO items, as in "Composed squads" step 2; the options per item are `drop` (the plugin's rule stays), `add:<roles>` (the text becomes a squad rule for those roles; you name the roles, never the tool) or `replace:<ID>:<file>` (the PO's wording in a temp file). Explain the regained permissions and the pinned scopes in the same body.

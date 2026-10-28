@@ -9,24 +9,23 @@ A task, reviewed and merged like any other, writes what must outlive a scope or 
 
 ## PROMO-2 Keep promote.md
 roles: tech-lead
-when: size = L
+when: promote-owner = tech-lead
 topic: promotion
 
 Keep `promote.md` in your scope folder while the work runs: each lasting decision, glossary term, business rule or ADR candidate, with its `project.md` target file and the exact wording. In a goal the facts go to `shared/decisions.md` instead ([PROMO-6]).
 
 ## PROMO-3a Business rules, BA
 roles: ba
-when: size = L
 topic: promotion
 
-Hand the Tech Lead the lasting business rules and glossary terms the scope found, one line each, so they reach `promote.md` (or, in a goal, `shared/decisions.md`). Business knowledge belongs in the project docs, not in the squad.
+Hand the owner of `promote.md` ([SIZE-22]) the lasting business rules and glossary terms the scope found, one line each, so they reach `promote.md` (or, in a goal, `shared/decisions.md`). Business knowledge belongs in the project docs, not in the squad.
 
-## PROMO-3b Promote.md, S
+## PROMO-3b Promote.md, Developer
 roles: manager
-when: size = S
+when: promote-owner = dev
 topic: promotion
 
-Before the last task passes, check the Developer's `promote.md` ([PROMO-2]; the `Duties:` line carries it): it holds the lasting business rules and glossary terms the ticket shows, with no BA to hand them over.
+Before the last task passes, check the Developer's `promote.md` ([PROMO-2]; the `Duties:` line carries it): it holds the lasting business rules and glossary terms the ticket shows, and the BA's when a BA is on the team.
 
 ## PROMO-4 Promotion of a lone scope
 roles: manager
@@ -38,17 +37,17 @@ The scope's last task: a Developer commits `promote.md` to the project docs on t
 
 ## PROMO-5 Promotion task, Developer
 roles: team-lead
-when: size = L
+when: plan-owner = team-lead
 topic: promotion
 
 A promotion task commits `promote.md` into the project docs, following the rule `project.md` names for editing them. It is handed in like any task.
 
-## PROMO-5b Promotion task, S and M
+## PROMO-5b Promotion task, Manager
 roles: manager
-when: size in S, M
+when: plan-owner = manager
 topic: promotion
 
-Cite [PROMO-5] in the task file of a promotion task; its Developer commits `promote.md` into the project docs, and at M QA whitebox then checks it ([PROMO-8]).
+Cite [PROMO-5] in the task file of a promotion task; its Developer commits `promote.md` into the project docs, and QA whitebox, when on the team, then checks it ([PROMO-8]).
 
 ## PROMO-6 Promotion of a goal
 roles: manager
@@ -69,7 +68,6 @@ An abandoned goal keeps its knowledge in `goals/_done/<goal>/shared/`. `squad-cl
 
 ## PROMO-8 Check a promotion
 roles: qa-whitebox
-when: size in M, L
 topic: promotion
 
 Check the project-doc edits of a promotion task like any other change: they match `promote.md`, follow the project's rule for editing those files, and contain nothing the scope did not decide.

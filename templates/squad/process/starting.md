@@ -7,11 +7,11 @@ topic: defaults
 Every scope and goal starts with these; its brief may override them.
 
 - **Budget:** the Manager checks in with the PO at each iteration's end and after 3 returns on one task.
-- **Done means:** the size's Done rule ([SIZE-2]), evidence saved, branches ready for PO review.
+- **Done means:** the team's Done rule ([SIZE-2]), evidence saved, branches ready for PO review.
 
-## START-2a Developer cap, S and M
+## START-2a Developer cap, Manager plans
 roles: manager
-when: size in S, M
+when: plan-owner = manager
 topic: developers
 
 - **Developer cap:** 3 at once. Spawn one Developer per ready task, up to the cap, and queue the rest. A task is ready when its dependencies are done, its AC are agreed and it touches no file another running task touches; the cap is the brief's, else this one.
@@ -20,16 +20,16 @@ topic: developers
 
 ## START-2b Developer cap, Team Lead
 roles: team-lead
-when: size = L
+when: plan-owner = team-lead
 topic: developers
 
 - **Developer cap:** spawn Developers within your share from the Manager's briefing (a lone scope has the whole cap, 3 at once); the rest waits. With your share used up, the next task waits as `ready`.
 - A finished scope's share goes to the scopes still running, at their next briefing or respawn.
 - The cap is a rule, not a lock: nothing stops a spawn over it, so count `herdr agent list` before each spawn.
 
-## START-2c Developer cap, Manager in L
+## START-2c Developer cap, Manager with a Team Lead
 roles: manager
-when: size = L
+when: plan-owner = team-lead
 topic: developers
 
 - The Team Lead spawns and retires Developers within its share of the cap; the Manager does not.
@@ -37,7 +37,7 @@ topic: developers
 
 ## START-2d Parallel tasks, Tech Lead
 roles: tech-lead
-when: size = L
+when: plan-owner = team-lead
 topic: developers
 
 Tell the Manager which tasks are ready in parallel (dependencies done, AC agreed, no shared files); the Team Lead spawns one Developer per such task.
@@ -48,13 +48,13 @@ topic: starting
 
 1. The PO runs `/squad:squad-start "<text>"`; it makes the folder and brief (`scope.md`, or `goal.md` for text starting `goal:`) and starts a fresh Manager. `squad-start --resume <name>` starts a new Manager for unfinished work whose Manager is gone.
 2. **Overlap.** `touches:` lists the repos or paths the work changes. `squad-start` compares it with every open scope and stops on an overlap for the PO.
-3. The Manager reads the brief, sizes the scope ([SIZE-1]), proposes the plan, and spawns the pod only after the PO confirms.
+3. The Manager reads the brief, proposes the team ([SIZE-1]), proposes the plan, and spawns the pod only after the PO confirms.
 
 ## START-3b Team models, first move
 roles: manager
 topic: starting
 
-- With the size and the plan, show the PO one table in the same inbox item: each role the size brings, its default model and effort, and the advisor on or off (read-only unless the advisor probe found an off value).
+- With the team and the plan, show the PO one table in the same inbox item: each role of the proposed team, its default model and effort, and the advisor on or off (read-only unless the advisor probe found an off value).
 - Offer to keep the table or change any row.
 - Write only the changed rows to `scope.md`, one line each, `model <role>: <model> <effort>` (for example `model dev: sonnet medium`), then spawn. Roles not listed use their defaults.
 - A goal Manager does this for each scope, before that scope's first spawn.
@@ -103,7 +103,7 @@ roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, 
 topic: start
 
 1. `echo $SQUAD_DIR $SCOPE_DIR $GOAL_DIR $SQUAD_NAME $SQUAD_SCOPE`; empty → ask the Manager.
-2. Read `project.md`, `$SCOPE_DIR/scope.md`, `roster.md`, your `roles/$SQUAD_NAME.notes.md` if any; in a goal also `$GOAL_DIR/goal.md`, `$GOAL_DIR/shared/`.
+2. Read `project.md`, `$SCOPE_DIR/scope.md`, `roster.md`, your `roles/$SQUAD_NAME.notes.md` if any; in a goal `$GOAL_DIR/goal.md` and `shared/`.
 
 ## START-7 Start inside a goal
 roles: ba, team-lead, tech-lead, qa-whitebox, designer, architect
@@ -125,13 +125,11 @@ topic: start
 
 Read the Manager's briefing: your scope, your tasks and AC where it names them, and your peers.
 
-## START-10 Developer start
+## START-10 Dev start
 roles: dev
 topic: start
 
-1. Read your briefing (task, AC, design, peers).
-2. `git status`, `git branch --show-current`: expect `squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME`, work only there.
-3. Read CLAUDE.md and the `project.md` conventions.
+Read your briefing (task, AC, design, peers), CLAUDE.md and `project.md` conventions. `git branch --show-current` must be `squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME`; work only there.
 
 ## START-11 BA start
 roles: ba
@@ -188,12 +186,12 @@ topic: start
 3. Check live agents with `herdr agent list` and reconcile `roster.md` with it (mark dead agents, note who needs respawning).
 4. Tell the PO in 3–5 lines: where the work stands, what you do next, anything waiting on them. A brand-new scope has no iteration file yet: that is your first move ([START-19]).
 
-## START-19 First move: size and plan
+## START-19 First move: team and plan
 roles: manager
 topic: starting
 
-- Scope Manager: read the brief, size the scope ([SIZE-1]) with its signals, write the size into `scope.md`, create `iterations/1.md` with the iteration goal and the plan, and ask the PO to confirm the size and plan before you spawn anyone. When unsure, size up.
-- Goal Manager: split the brief into scopes. Write them into `goal.md` in order, with what each depends on and what it touches. Propose each scope's size too. Ask the PO to confirm the split, then start the scopes whose dependencies are done ([GOAL-1]).
+- Scope Manager: read the brief, propose the team ([SIZE-1]) with its signals, write the confirmed `team:` into `scope.md`, create `iterations/1.md` with the iteration goal and the plan, and ask the PO to confirm the team and plan before you spawn anyone. When unsure, add the role.
+- Goal Manager: split the brief into scopes. Write them into `goal.md` in order, with what each depends on and what it touches. Propose each scope's team too. Ask the PO to confirm the split, then start the scopes whose dependencies are done ([GOAL-1]).
 
 ## START-20 Architect start
 roles: architect

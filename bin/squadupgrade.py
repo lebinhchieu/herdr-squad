@@ -55,9 +55,47 @@ class Item:
         return self.kind in ("stale", "removed")
 
 
+# Old `when:` conditions and what to write now (AC 21). The size ones are the nearest team-language reading, a hint:
+# the PO decides, the upgrade never rewrites a `when:` by itself.
+_OLD_COND = re.compile(r"(size|qa-b|qa-whitebox) (=|in) (\S+(?:, ?\S+)*)")
+_TRANSLATE = {("size", "S"): "qa-white = no", ("size", "M"): "qa-white = yes", ("size", "L"): "ba = yes",
+              ("qa-b", "yes"): "qa-black = yes", ("qa-b", "no"): "qa-black = no",
+              ("qa-whitebox", "yes"): "qa-white = yes", ("qa-whitebox", "no"): "qa-white = no"}
+
+
+def old_when_conditions(when):
+    """-> [(old condition text, suggested translation or '')] for each `size`, `qa-b`, `qa-whitebox` condition."""
+    out = []
+    for part in (when or "").split(" and "):
+        m = _OLD_COND.fullmatch(part.strip())
+        if not m:
+            continue
+        key, _op, vals = m.groups()
+        vals = [v.strip() for v in vals.split(",")]
+        new = [_TRANSLATE.get((key, v)) for v in vals]
+        if None in new:
+            text = ""
+        elif len(set(new)) == 1:
+            text = new[0]
+        else:
+            k = {n.split(" = ")[0] for n in new}
+            text = (f"{k.pop()} in {', '.join(n.split(' = ')[1] for n in new)}" if len(k) == 1
+                    else "no single key (write one rule per case)")
+        out.append((part.strip(), text))
+    return out
+
+
+def _other_l_role(op):
+    """True when the op's `roles:` names an L role other than the BA (a rule about the Team Lead or Tech Lead): the
+    L-only `ba = yes` is then not the only reading, `team-lead = yes` and `tech-lead = yes` are listed too (AC 21)."""
+    roles = {r.strip() for r in (op.attrs.get("roles") or "").split(",")}
+    return bool(roles & {"team-lead", "tech-lead"})
+
+
 class Plan:
     def __init__(self):
         self.items, self.review, self.counts, self.old_known = [], [], {}, False
+        self.old_when = []  # [(op, [(old condition, translation)])]
 
     @property
     def flagged(self):
@@ -167,6 +205,9 @@ def classify(old, new, tombs, ops):
     if old is not None:
         plan.counts = plugin_counts(old, new)
     for o in ops:
+        conds = old_when_conditions(o.attrs.get("when"))
+        if conds:
+            plan.old_when.append((o, conds))
         if o.kind == "add":
             if not re.fullmatch(r"SQ-\d+[a-z]?", o.id):
                 plan.items.append(Item("unhandled", o, why=f"add needs an SQ-<n> ID, got {o.id}"))
@@ -257,10 +298,18 @@ def format_check(plan, old_pin, new_pin, why_of=None):
             lines.append(f"  {o.id} removed: the plugin removed the rule your `{o.kind}` was written for "
                          f"(replaced_by: {rb}; why: {i.tomb.why}){extra}")
             lines.append(f"    --resolve {o.id}=<{REMOVED_CHOICES}>")
+    if plan.old_when:
+        lines.append("old `when:` language (the engine rejects it; edit these operations by hand, nothing was written):")
+        for o, conds in plan.old_when:
+            for old, new in conds:
+                lines.append(f"  {o.id} (line {o.line}): {old} -> {new or 'no direct translation: pick a duty or role key'}")
+                if new == "ba = yes" and _other_l_role(o):
+                    lines += [f"  {o.id} (line {o.line}): alternative: team-lead = yes",
+                              f"  {o.id} (line {o.line}): alternative: tech-lead = yes"]
     if plan.review:
         lines.append("review (not blocking):")
         lines += [f"  {r}" for r in plan.review]
-    if not plan.flagged:
+    if not plan.flagged and not plan.old_when:
         lines.append("nothing needs a decision.")
     return "\n".join(lines) + "\n"
 
@@ -441,7 +490,7 @@ def cmd_check(a):
         sys.stdout.write(format_check(plan, old_pin, new_pin))
         return 2
     sys.stdout.write(format_check(plan, old_pin, new_pin, _changelog_why(a.plugin_root, new_pin[0])))
-    return 3 if plan.flagged else 0
+    return 3 if plan.flagged or plan.old_when else 0
 
 
 def cmd_apply(a):
@@ -449,6 +498,10 @@ def cmd_apply(a):
     if plan.unhandled:
         sys.stdout.write(format_check(plan, old_pin, new_pin))
         return 2
+    if plan.old_when:
+        sys.stdout.write(format_check(plan, old_pin, new_pin))
+        print(f"NOT APPLIED: {len(plan.old_when)} operation(s) use the old `when:` language; nothing was written.")
+        return 3
     resolves = parse_resolves(a.resolve, plan)
     missing = [i for i in plan.flagged if i.op.id not in resolves]
     if missing:

@@ -30,13 +30,9 @@ G7 Security and robustness (C9): `squad-process team` prints only tokens from th
 ### Ticket extras
 Extra AC: lint rejects a `when:` with two role/duty keys; non-Manager compose on an undecided home exits 2; permanent test that no `read_home` path derives facts from `size` (Manager's condition for the scaffold).
 
-Spec AC added (BA, 1-31 agreed): AC 21: `squad-process upgrade --check` prints `qa-b = no -> qa-black = no` and `size = L -> ba = yes` for overlay rules, files byte-identical after `--check`; `--apply --yes` is the only writer. AC 29: `grep -iw size` over PO-visible output (`squad-start`, `squad-spawn`, `squad-process who`, Manager proposal, new `scope.md`) has no hit except the legacy-squad error (AC 26), converter output (AC 22) and overlay report (AC 21); reword any other hit (e.g. "file size").
+Spec AC added (BA, 1-31 agreed): AC 29: `grep -iw size` over PO-visible output (`squad-start`, `squad-spawn`, `squad-process who`, Manager proposal, new `scope.md`) has no hit except the legacy-squad error (AC 26), converter output (AC 22) and overlay report (AC 21); reword any other hit (e.g. "file size").
 
 Before HANDIN: `squad-process lint` (record the base-sha baseline in this ticket, G2b); `grep -rl '<touched path or changed string>' tests/` and run every hit (CLAUDE.md). Tech Lead names the final sha; QAs verdict on it.
 Changelog v9: append your changed rule IDs (D8).
-
-Added (Tech DECISION): un-skip the two 5 KiB dev-rules tests (skip reason 'ticket 11'); no skip with that reason remains at cutover (grep).
-Ticket 12 also owns the `legacy_scaffold` removal.
-Mirror: at cutover `grep -rn "ticket 11" tests/` finds no skip.
 
 ## Comments

@@ -43,7 +43,8 @@ class ModelEffortSettingsTest(unittest.TestCase):
                 old, now = json.loads(old.stdout), json.loads((ROOT / rel).read_text())
                 self.assertLessEqual(set(old) - {"permissions"}, set(now))
                 for kind, entries in old["permissions"].items():
-                    self.assertLessEqual(set(entries) - {"Bash(squad-process show:*)"},  # retired with `show` (ticket 09)
+                    self.assertLessEqual(set(entries) - {"Bash(squad-process show:*)",  # retired with `show` (ticket 09)
+                                                    "Read(//CODE_PATHS_SET_BY_SQUAD_INIT/**)"},  # retired (E5)
                                      set(now["permissions"].get(kind, [])), f"{kind} lost entries")
                 self.assertEqual(set(now) - set(old), {"model", "effortLevel", "advisorModel"})
 

@@ -33,4 +33,7 @@ Extra AC (R9): `qa-b` -> `qa-black` in every `when:` of these files (23 lines ac
 Before HANDIN: `squad-process lint` (record the base-sha baseline in this ticket, G2b); `grep -rl '<touched path or changed string>' tests/` and run every hit (CLAUDE.md). Tech Lead names the final sha; QAs verdict on it.
 Changelog v9: append your changed rule IDs (D8).
 
+## Baseline (G2b)
+`squad-process lint` on base 6389642: empty output, rc 0. On the branch: empty, rc 0 (no new line).
+
 ## Comments

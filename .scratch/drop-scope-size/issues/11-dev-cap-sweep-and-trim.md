@@ -30,10 +30,4 @@ G7 Security and robustness (C9): `squad-process team` prints only tokens from th
 Before HANDIN: `squad-process lint` (record the base-sha baseline in this ticket, G2b); `grep -rl '<touched path or changed string>' tests/` and run every hit (CLAUDE.md). Tech Lead names the final sha; QAs verdict on it.
 Changelog v9: append your changed rule IDs (D8).
 
-Added (Tech DECISION): un-skip the two 5 KiB dev-rules tests (skip reason 'ticket 11'); no skip with that reason remains at cutover (grep).
-
-Added (QAW INT3 note, Tech DECISION): four skipped tests carry "5 KiB trim is ticket 11" (`test_dev_rules_size` x3, `test_sizes` x1). Un-skip all four; today they fail (S 5196 B, M+arch 5124 B > 5120). The PINNED values are stale (real 5522/5521/5226/5225): re-pin or delete them per design 09. `grep -rn "ticket 11" tests/` returns no skip at HANDIN.
-
 ## Comments
-
-- LC-7b (TL, 3 returns): cause = AC conflict (Tech pinned-exception ruling vs business AC 24, withdrawn) + 2 small QAW findings, not the Dev. AC stands, same Dev continues. Fix QAW F1 (changelog v9 lines LC-18, MSG-3, START-6, START-10, reason each) and F2 (restore REV-22a conformance clause), re-measure 512 combos <=5120. One more return goes to the Manager for a decision.

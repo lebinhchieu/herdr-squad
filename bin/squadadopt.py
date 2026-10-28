@@ -1,6 +1,6 @@
 """squad-process adopt / scaffold (ticket 09): a squad with its own process.md and full settings becomes composed.
 
-  squad-process scaffold --squad-dir D [--code-path P ...] [--plugin-root R] [--new-pin "<version> <sha>"]
+  squad-process scaffold --squad-dir D [--plugin-root R] [--new-pin "<version> <sha>"]
       new squad: process.local.md (header only), plugin.pin, settings/<role>.local.json, project.md (if absent).
   squad-process adopt --squad-dir D [--dry-run] [--resolve L<n>=choice ...] [--yes] [--plugin-root R] [--new-pin ...]
       v6 squad: process.md -> overlay + plugin.pin, settings/<role>.json -> <role>.local.json, open scopes and goals
@@ -22,6 +22,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadio  # noqa: E402
+import squadcompose as sc  # noqa: E402
 import squadprocess as sp  # noqa: E402
 import squadrules as sr  # noqa: E402
 import squadruntime as rt  # noqa: E402
@@ -79,7 +80,7 @@ def _template_roles(plugin_root):
 
 # ---- scaffold ------------------------------------------------------------------------------------------
 
-def scaffold(squad_dir, plugin_root, pin, code_paths=()):
+def scaffold(squad_dir, plugin_root, pin):
     """Create what a composed squad needs and does not have yet; returns (created paths, notes). Never overwrites."""
     created, notes = [], []
     os.makedirs(squad_dir, exist_ok=True)
@@ -93,11 +94,7 @@ def scaffold(squad_dir, plugin_root, pin, code_paths=()):
     put(sr.OVERLAY_FILE, HEADER)
     put("plugin.pin", f"{pin[0]} {pin[1]}\n")
     for role in _template_roles(plugin_root):
-        local = {"codePaths": list(code_paths)} if role == "qa-blackbox" and code_paths else {}
-        put(f"settings/{role}.local.json", json.dumps(local, indent=2) + "\n")
-        if role == "qa-blackbox" and not code_paths and any("settings/qa-blackbox.local" in c for c in created):
-            notes.append("settings/qa-blackbox.local.json has no codePaths: set them before spawning QA blackbox "
-                         "(spawn refuses without them)")
+        put(f"settings/{role}.local.json", "{}\n")
     tpl = os.path.join(plugin_root, "templates", "squad")
     for name in ("project.md", "process-log.md"):
         if os.path.isfile(os.path.join(tpl, name)):
@@ -255,31 +252,20 @@ def apply_choices(items, resolves, rules, ops):
 
 # ---- settings ------------------------------------------------------------------------------------------
 
-def settings_diff(template, old):
-    """-> (local overlay dict, codePaths, regained entries, gained scalar keys): old = merge(template, local) + codePaths."""
+def settings_diff(template, old, role=None):
+    """-> (local overlay dict, regained entries, gained scalar keys): old = merge(template, local).
+
+    The Read code-path denies of an old qa-blackbox file are dropped (retired); other roles keep theirs."""
     local, regained, gains = {}, [], []
-    code = []
-    has_placeholder = any(isinstance(e, str) and ss.PLACEHOLDER in e
-                          for e in template.get("permissions", {}).get("deny", []))
 
     def walk(t, o, path, out):
         for k, v in o.items():
             here = path + (k,)
             if here in ss.UNION_KEYS and isinstance(v, list) and isinstance(t.get(k, []), list):
                 extra = [e for e in v if e not in t.get(k, []) and e not in RETIRED]
-                if here == ("permissions", "deny") and has_placeholder:
-                    keep = []
-                    for e in extra:
-                        m = _CODE_ENTRY.match(e) if isinstance(e, str) else None
-                        if m and not m.group(1).endswith("/.worktrees"):
-                            code.append("/" + m.group(1).strip("/"))
-                        elif m:
-                            continue  # the project's .worktrees entry: regenerated from the placeholder
-                        else:
-                            keep.append(e)
-                    extra = keep
-                regained.extend(e for e in t.get(k, []) if e not in v and e not in RETIRED
-                                and not (isinstance(e, str) and ss.PLACEHOLDER in e))
+                if here == ("permissions", "deny") and role == "qa-blackbox":
+                    extra = [e for e in extra if not (isinstance(e, str) and _CODE_ENTRY.match(e))]  # retired code-path denies
+                regained.extend(e for e in t.get(k, []) if e not in v and e not in RETIRED)
                 if extra:
                     out[k] = extra
             elif isinstance(v, dict) and isinstance(t.get(k), dict):
@@ -293,7 +279,7 @@ def settings_diff(template, old):
             if k not in o:
                 tv = t[k]
                 if path + (k,) in ss.UNION_KEYS and isinstance(tv, list):
-                    regained.extend(e for e in tv if not (isinstance(e, str) and ss.PLACEHOLDER in e))
+                    regained.extend(e for e in tv if e not in RETIRED)
                 elif not isinstance(tv, (dict, list)):
                     gains.append(".".join(path + (k,)) + f"={tv}")
                 elif isinstance(tv, dict):
@@ -302,9 +288,7 @@ def settings_diff(template, old):
     # regained entries of nested unions that the old file lacked entirely (e.g. no permissions.allow at all)
     for key in ("allow", "deny", "ask"):
         if key not in old.get("permissions", {}) and key in template.get("permissions", {}):
-            regained.extend(e for e in template["permissions"][key] if not (isinstance(e, str) and ss.PLACEHOLDER in e))
-    if code:
-        local["codePaths"] = list(dict.fromkeys(code))
+            regained.extend(template["permissions"][key])
     return local, regained, gains
 
 
@@ -323,7 +307,7 @@ def plan_settings(squad_dir, plugin_root):
             old = ss._load(full, 2, "settings file")
         except ss.SettingsError as e:
             raise AdoptError(e.code, str(e))
-        local, regained, gains = settings_diff(tpl, old)
+        local, regained, gains = settings_diff(tpl, old, role)
         out.append({"role": role, "local": local, "regained": regained, "gains": gains,
                     "template": tpl, "old": old})
     return out
@@ -333,14 +317,12 @@ def check_settings(planned):
     """The effective file must hold every entry the old file had (adopt never narrows a permission silently)."""
     problems = []
     for p in planned:
-        eff = ss.merge(p["template"], {k: v for k, v in p["local"].items() if k != "codePaths"})
-        code = {c.strip("/") for c in p["local"].get("codePaths", [])}
+        eff = ss.merge(p["template"], p["local"])
         for key in ("allow", "deny"):
             have = eff.get("permissions", {}).get(key, [])
             for e in p["old"].get("permissions", {}).get(key, []):
                 m = _CODE_ENTRY.match(e) if isinstance(e, str) else None
-                if e in have or e in RETIRED or (key == "deny" and m and (m.group(1).strip("/") in code
-                                                          or m.group(1).endswith("/.worktrees"))):
+                if e in have or e in RETIRED or (key == "deny" and m and p["role"] == "qa-blackbox"):
                     continue
                 problems.append(f"{p['role']}: {key} entry {e!r} would be lost")
     return problems
@@ -369,11 +351,171 @@ def unpinned_homes(squad_dir):
 
 
 def pin_home_file(path, pin):
-    text = _slurp(path)
+    with open(path, encoding="utf-8", newline="") as f:
+        raw = f.read()
+    crlf = "\r\n" in raw
+    text = raw.replace("\r\n", "\n")
     line = f"plugin: {pin[0]} {pin[1]}\n\n"
     i = text.find("\n## ")
     text = text[:i + 1] + line + text[i + 1:] if i >= 0 else text.rstrip("\n") + "\n\n" + line
-    _atomic(path, text)
+    _atomic(path, text.replace("\n", "\r\n") if crlf else text)
+
+
+# ---- scope.md: size/design/architecture/qa-b -> team: (drop-scope-size) ---------------------------------------
+# One entry per open scope: status convert | noop | skip (pinned) | error. Dry run lists them and writes nothing;
+# apply writes a backup `scope.md.pre-team.bak` beside the file, then the new scope.md (atomic), and a second
+# run finds no old line (noop, no second backup).
+
+BACKUP_SUFFIX = ".pre-team.bak"
+_KEYLINE = re.compile(r"^([a-z][a-z-]*):[ \t]*(.*)$")
+_CONTRADICT = re.compile(r"(?i)\b(custom|pod|no qa|no blackbox|no whitebox|without|only|instead|except)\b")
+
+
+class ScopeEntry:
+    def __init__(self, rel, path):
+        self.rel, self.path = rel, path
+        self.status, self.team, self.note, self.check = "noop", None, "", []
+        self.text = self.new_text = None
+
+
+def _header_end(lines):
+    for i, l in enumerate(lines):
+        if l.startswith("## "):
+            return i
+    return len(lines)
+
+
+def _plan_scope(squad_dir, rel, path):
+    e = ScopeEntry(rel, path)
+    root = os.path.realpath(squad_dir)
+    folder = os.path.dirname(path)
+    if (os.path.islink(path) or os.path.islink(folder)
+            or os.path.commonpath([root, os.path.realpath(path)]) != root):
+        e.status, e.note = "error", f"{rel}/scope.md is a symlink or resolves outside the squad folder; refused"
+        return e
+    try:
+        with open(path, encoding="utf-8", newline="") as f:
+            text = f.read()
+    except (OSError, UnicodeDecodeError) as ex:
+        e.status, e.note = "error", f"{rel}/scope.md cannot be read as UTF-8: {ex}"
+        return e
+    e.text = text
+    eol = "\r\n" if "\r\n" in text else "\n"
+    lines = text.split(eol) if eol == "\r\n" else text.split("\n")
+    end = _header_end(lines)
+    found = {}  # key -> [(index, value)]
+    for i, l in enumerate(lines):
+        m = _KEYLINE.match(l.rstrip())
+        if m and (m.group(1) in sc._OLD_LINES or m.group(1) == "team"):
+            found.setdefault(m.group(1), []).append((i, m.group(2).strip()))
+    old = [k for k in sc._OLD_LINES if k in found]
+    if re.search(r"(?m)^plugin:[ \t]*\S", text):
+        e.status, e.note = "skip", "pinned (plugin: line): it runs its own runtime, scope.md left as is"
+        return e
+    if "team" in found and old:
+        names = [f"`team:` line {found['team'][0][0] + 1}"] + [f"`{k}:` line {found[k][0][0] + 1}" for k in old]
+        e.status, e.note = "error", f"{rel}/scope.md has both old and new format: " + ", ".join(names) + "; fix by hand, nothing written"
+        return e
+    if not old:
+        e.note = "already in team format" if "team" in found else "no size/team line (hand-made: undecided)"
+        return e
+    outside = [(k, i + 1) for k in old for i, _v in found[k] if i >= end]
+    if outside:
+        e.status, e.note = "error", f"{rel}/scope.md: old line `{outside[0][0]}:` at line {outside[0][1]} is below the header; fix by hand"
+        return e
+    val = {k: found[k][0][1] if k in found else "" for k in sc._OLD_LINES}
+    try:
+        team = sr.legacy_team(val["size"], val["qa-b"] or "yes", val["design"] or "no", val["architecture"] or "no")
+    except ValueError as ex:
+        e.status, e.note = "error", f"{rel}/scope.md: {ex}"
+        return e
+    e.team = team
+    token = "" if team is None else (", ".join(team) or "none")
+    commentary = [f"{k}: {found[k][0][1]}" for k in sc._OLD_LINES if k in found and
+                  (len(found[k][0][1].split()) > 1)]
+    qa = _KEYLINE.match(next((l.rstrip() for l in lines if l.startswith("qa:")), "") or "")
+    if qa and (qa.group(2).split() or [""])[0].lower() == "none":
+        commentary.append("qa: " + qa.group(2).strip())
+        e.check.append("`qa: none`: no QA roles said by hand")
+    if val["size"].strip() and team is None:
+        e.check.append(f"size {val['size'].strip()!r} is not S, M or L: team left blank")
+    if not val["size"].strip() and (val["design"] == "yes" or val["architecture"] == "yes"):
+        e.check.append("blank size: design/architecture flag is not carried into a blank team")
+    if any(_CONTRADICT.search(c) for c in commentary):
+        e.check.append("commentary may contradict the mapping")
+    if e.check or not token:  # a check entry or a blank team: keep every dropped old line verbatim
+        have = set(commentary)
+        commentary = [c for c in (f"{k}: {found[k][0][1]}" for k in sc._OLD_LINES if k in found)
+                      if c not in have] + commentary
+    e.commentary = commentary
+    first = min(i for k in old for i, _v in found[k][:1])
+    drop = {found[k][0][0] for k in old}
+    out = []
+    for i, l in enumerate(lines):
+        if i == first:
+            out.append(f"team: {token}".rstrip() if token else "team:")
+            if commentary:
+                out.append("<!-- converted from " + "; ".join(c.replace("--", "- -") for c in commentary) + " -->")
+        if i not in drop:
+            out.append(l)
+    e.new_text = eol.join(out)
+    e.status = "convert"
+    e.note = f"team: {token or '(blank, undecided)'}"
+    return e
+
+
+def plan_scopes(squad_dir):
+    """-> [ScopeEntry] for every open scope (goals have no size). Errors are entries, raised by the caller."""
+    base = os.path.join(squad_dir, "scopes")
+    out = []
+    if not os.path.isdir(base):
+        return out
+    for name in sorted(os.listdir(base)):
+        f = os.path.join(base, name, "scope.md")
+        if not name.startswith("_") and (os.path.isfile(f) or os.path.islink(f)):
+            out.append(_plan_scope(squad_dir, f"scopes/{name}", f))
+    return out
+
+
+def scope_errors(entries):
+    return [e.note for e in entries if e.status == "error"]
+
+
+def format_scopes(entries, dry_run):
+    out = ["scope.md conversion (size/design/architecture/qa-b -> team:):"]
+    for e in entries:
+        if e.status == "convert":
+            out.append(f"  {'would convert' if dry_run else 'convert'} {e.rel}/scope.md -> {e.note}")
+            for c in getattr(e, "commentary", []):
+                out.append(f"      commentary kept beside it: {c[:120]}")
+            for c in e.check:
+                out.append(f"      check: {c}")
+        elif e.status == "skip":
+            out.append(f"  skip {e.rel}/scope.md: {e.note}")
+        else:
+            out.append(f"  {e.status} {e.rel}/scope.md: {e.note}")
+    return "\n".join(out + (["  (no open scopes)"] if not entries else []))
+
+
+def _backup_name(path):
+    n, cand = 1, path + BACKUP_SUFFIX
+    while os.path.exists(cand):
+        n += 1
+        cand = f"{path}{BACKUP_SUFFIX}.{n}"
+    return cand
+
+
+def apply_scopes(entries):
+    """Backup then atomic write, per converting entry. Returns the backup paths."""
+    done = []
+    for e in entries:
+        if e.status != "convert":
+            continue
+        b = _backup_name(e.path)
+        _atomic(b, e.text)
+        done.append(b)
+        _atomic(e.path, e.new_text)
+    return done
 
 
 # ---- adopt -----------------------------------------------------------------------------------------------
@@ -452,8 +594,7 @@ def format_plan(p, dry_run):
             loc = s["local"]
             n_allow = len(loc.get("permissions", {}).get("allow", []))
             n_deny = len(loc.get("permissions", {}).get("deny", []))
-            out.append(f"settings/{s['role']}.json -> {s['role']}.local.json: +{n_allow} allow, +{n_deny} deny"
-                       + (f", codePaths {loc['codePaths']}" if loc.get("codePaths") else ""))
+            out.append(f"settings/{s['role']}.json -> {s['role']}.local.json: +{n_allow} allow, +{n_deny} deny")
         regained = [(s["role"], e) for s in p.settings for e in s["regained"]]
         out.append("")
         out.append("permissions regained from the template (the effective file will contain them):")
@@ -475,6 +616,7 @@ def format_plan(p, dry_run):
 def execute(p, today):
     """The writes, in the order that keeps a half-done run valid: overlay first, archives last."""
     sd = p.squad_dir
+    apply_scopes(p.scopes)  # before the pin lines go in: a pinned scope is skipped, a new pin is not a skip reason
     if not p.composed:
         _atomic(os.path.join(sd, sr.OVERLAY_FILE), su.emit_overlay(HEADER.rstrip("\n"), p.ops))
         for s in p.settings:
@@ -508,8 +650,14 @@ def cmd_adopt(a):
         resolves[k] = v
     pin = new_pin(a.plugin_root, a.new_pin)
     p = build_plan(squad_dir, a.plugin_root, pin, resolves)
+    p.scopes = plan_scopes(squad_dir)
     print(format_plan(p, a.dry_run))
-    if p.composed and not p.leftovers and not p.unpinned:
+    print("\n" + format_scopes(p.scopes, a.dry_run))
+    errs = scope_errors(p.scopes)
+    if errs:
+        raise AdoptError(2, *errs)
+    converting = any(e.status == "convert" for e in p.scopes)
+    if p.composed and not p.leftovers and not p.unpinned and not converting:
         return 0
     open_items = getattr(p, "open_items", [])
     if a.dry_run:
@@ -529,7 +677,7 @@ def cmd_scaffold(a):
     pin = new_pin(a.plugin_root, a.new_pin)
     if rt.mode(a.squad_dir) == "legacy":
         raise AdoptError(2, f"{a.squad_dir} has a process.md: run `squad-process adopt` instead")
-    created, notes = scaffold(a.squad_dir, a.plugin_root, pin, a.code_path)
+    created, notes = scaffold(a.squad_dir, a.plugin_root, pin)
     for c in created:
         print(f"created {c}")
     if not created:
@@ -553,8 +701,6 @@ def main(argv=None):
             p.add_argument("--resolve", action="append", default=[], metavar="KEY=CHOICE")
             p.add_argument("--yes", action="store_true")
             p.add_argument("--today", help=argparse.SUPPRESS)
-        else:
-            p.add_argument("--code-path", action="append", default=[])
     a = ap.parse_args(argv)
     if not a.squad_dir:
         print("squad-process: no --squad-dir and $SQUAD_DIR is not set", file=sys.stderr)

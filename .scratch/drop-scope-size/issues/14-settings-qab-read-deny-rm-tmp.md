@@ -16,6 +16,4 @@ Part 2: allow `rm`/`rmdir` of `/tmp/tmp.*` only in the dev, qa-whitebox, qa-blac
 Per the draft: tests that template settings parse; the allow entries exist for the listed roles; no entry allows `rm` outside `/tmp/tmp.*`; no `codePaths` failure. Global G1-G7, G2b of `$SCOPE_DIR/tasks/tech-design.md` apply. Remove this squad's interim `qa-blackbox.local.json` `codePaths` workaround is the Manager's, after merge.
 Before HANDIN: `squad-process lint` (baseline G2b), `grep -rl` of touched paths and run every hit. Tech Lead names the final sha.
 
-Added (TL, from dev 10): add `Bash(squad-team:*)` to the allow list in `templates/squad/settings/manager.json` (squad-team from ticket 10 has none); test the entry exists.
-
 ## Comments

@@ -18,7 +18,7 @@ ROSTER = ("| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|
           "| manager-t | manager |  |  | live | s0 |\n| t-dev-s-1 | dev | s | task 1 | live | s2 |\n"
           "| t-qa-s | qa-whitebox | s | qa | live | s3 |\n")
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-SCOPE = "# Scope s\n\ngoal: g1\ndesign: yes\nqa: full\n"
+SCOPE = "# Scope s\n\ngoal: g1\nteam: designer\nqa: full\n"
 
 
 def bullet(rel, label):

@@ -1,3 +1,339 @@
+## v9 — 2026-10-28
+- snapshot: history/process-v9/
+
+Plugin 0.6.0, breaking. Teams replace sizes (drop-scope-size, ADR 0018): `scope.md` carries one `team:` line, rules target the team through presence and duty facts, `size`, `qa-b` and the old `design:`, `architecture:` lines are rejected with a pointer to `squad-process adopt`. Overlay operations on retargeted rules go stale: run `squad-process upgrade`.
+
+added:
+- TEAM-1: Done when QA whitebox is the only QA (`qa-white = yes and qa-black = no`)
+- TEAM-2: Done when QA blackbox is the only QA
+- TEAM-3: Done with no QA on the team: the Developer's evidence confirmed by the code-check owner
+- TEAM-4: QA whitebox checks the Developer's `## Behaviour` when no QA blackbox is on the team
+- TEAM-5: the BA owns the business AC alone when no QA blackbox is on the team
+- TEAM-6: the Tech Lead confirms the Developer's `## Review` when no QA whitebox is on the team
+- TEAM-7: removing a role (iteration boundary, PO's OK, Handover names the new owner); runs `squad-team remove`
+- WHO-1c: business scope, business AC and business doubt owned by the BA (`business-ac = ba`); the BA part of the old WHO-1b
+- WHO-1d: business AC are the ticket and the Manager adds the BA on a doubt (`business-ac = ticket`); the Manager part of the old WHO-1a
+- WHO-1e: the Team Lead owns plan, order and assignment (`plan-owner = team-lead`); the plan row of the old WHO-1b
+- WHO-2f: the Developer owns `promote.md` (`promote-owner = dev`); the Developer half of the old WHO-2b
+- REV-1b: the Team Lead confirms a hand-in when no QA is on the team and the Team Lead takes it (`handin-target = team-lead`)
+- REV-13c: Developer hands in to the Team Lead when no QA is on the team
+- REV-13d: Developer hands in to QA blackbox alone (`qa-white = no and qa-black = yes`)
+- LC-20e: Developer is done when the Team Lead sent PASS, told to the Team Lead (`handin-target = team-lead`; no QA on the team)
+- LC-11e: the Tech Lead designs inside `architecture.md`; split from LC-11d so no absent role acts
+- EVID-8: `qa-b.md` is the only reviewer file when QA blackbox is the only QA
+- SUITE-2f: QA blackbox on a team whose `suite-owner = dev` had no suites rule (SUITE-2d reaches only the Developer); runs touched test files, the Developer owns the full suite
+- COST-4c: `when: tech-lead = yes`; a Tech Lead on a team with no Team Lead had no respawn rule (COST-4b needs the Team Lead); respawn once design and AC are in files. With a Team Lead the Tech Lead gets both COST-4b and COST-4c, accepted (one `when:` primary key only)
+
+changed:
+- SIZE-1: now the team proposal table (a row for every role), signals and risk flags; was the size proposal. Body rewritten, ID kept because starting.md cites it
+- SIZE-2: now Done = every checker, both QAs variant (`qa-white = yes and qa-black = yes`); was the table of three sizes. ID kept: starting, lifecycle and spawning cite it
+- SIZE-5a: business AC are the ticket when `business-ac = ticket`; the move-to-L sentence is now add the BA
+- SIZE-5c: acts for QA blackbox only (`business-ac = ticket and qa-black = yes`); the Manager part moved to SIZE-5a so no absent role acts
+- SIZE-6c: one Developer-duties rule for `plan-owner = manager`, copying the `duties:` header line; was the S variant of two twins
+- SIZE-11a: when `doubt-owner = manager`; the scope moves to L is now add the BA
+- SIZE-13: now adding a role by late signal; was moving a scope up a size. ID kept: review.md and who.md cite it; runs `squad-team add`
+- SIZE-14: now a late signal found while building, add the role; was a behaviour change in S. ID kept: messages.md cites it
+- SIZE-16: Handover on adding a role; wording only, no size
+- SIZE-17a: joining a scope already under way; composes only with its own role on the team (`<role> = yes`), wording without size
+- SIZE-17b: joining a scope already under way; composes only with its own role on the team (`<role> = yes`), wording without size
+- SIZE-17c: joining a scope already under way; composes only with its own role on the team (`<role> = yes`), wording without size
+- SIZE-17d: joining a scope already under way; composes only with its own role on the team (`<role> = yes`), wording without size
+- SIZE-17e: joining a scope already under way; composes only with its own role on the team (`<role> = yes`), wording without size
+- SIZE-23c: QA whitebox checks the diff against `architecture.md` whenever it is on the team (`qa-white = yes and architecture = yes`); adds it to the AC when it owns it
+- SIZE-23d: acts for the Tech Lead only (`tech-ac = tech-lead and architecture = yes`); QA whitebox's check moved to SIZE-23c so no absent role acts
+- SIZE-18: extra hands when `plan-owner = team-lead`
+- SIZE-21a: now spawning the confirmed team (every team); was spawn without QA blackbox at M. ID kept: history snapshots cite it
+- SIZE-22: now the duty owner chain table by team; was the table by size. ID kept: promotion.md cites it
+- SIZE-9: dropped the words in every size; the duty is unchanged
+- SIZE-9a: dropped the words in every size; the duty is unchanged
+- SIZE-10a: wording only, no size
+- SIZE-10b: wording only, no size
+- SIZE-11b: the BA tells the plan owner instead of the Team Lead, so no absent role is named
+- WHO-1a: now the plan owner row for a Manager who plans; business AC, task done and doubt rows moved to WHO-1b, WHO-1d
+- WHO-1b: now the task-done row for every team (every checker, else the Manager confirms); was the owner table of an L scope
+- WHO-2d: when `tech-lead = no`, QA whitebox agrees the technical AC when on the team; was S and M
+- WHO-2e: wording only, the design notes line no longer says S, M, L
+- WHO-2b: now the QA whitebox as promotion owner (`promote-owner = qa-white`); the Developer half moved to WHO-2f
+- WHO-2c: promotion owner Tech Lead, the BA when on the team; was Tech Lead and BA at L
+- WHO-3a: the team replaces the scope size in the process row
+- WHO-3b: the team replaces the scope size in the process row
+- START-1: the team's Done rule, not the size's
+- START-3: the Manager proposes the team, not a size
+- START-3b: the team table lists the roles of the proposed team
+- START-19: first move is proposing the team, not sizing; was "First move: size and plan"
+- FILE-6: `team:` in `scope.md`; promote.md and roster owners by duty, not by size
+- FILE-7: plan owner and design notes by duty, not by size
+- FILE-10: goal files owned by the risk owner (Tech Lead, else Manager), not by size
+- GOAL-3a: the contract is agreed with the other scope's Tech Lead or, without one, its Manager
+- GOAL-3c: when `tech-lead = no`, the Manager writes the contract; the Review check applies when no QA whitebox is on the team
+- GOAL-6b: citation adds WHO-2f
+- PROMO-3a: the BA hands lasting business rules to the owner of `promote.md`, not only the Tech Lead
+- PROMO-3b: when `promote-owner = dev`; the BA's rules are checked too when a BA is on the team
+- PROMO-5b: QA whitebox checks the promotion when on the team
+- CLOSE-1: closing waits for every checker on the team, not both checkers
+- ITER-1: the PO confirms the team; the roles on the team talk, not "by size"
+- ITER-3b: the Manager writes the pod summary when it owns the plan and a QA is on the team (`handin-target = qas`); was M
+- ITER-6: the Coach prompt names the team, not the size
+- ITER-6a: Coach on request when no QA and no Team Lead (`handin-target = manager`); was S
+- ITER-6b: Coach at every close with a QA or Team Lead; was M and L
+- LC-2: `plan-owner = team-lead and design = yes`; acts for the Team Lead, the Tech Lead is aware (was L and design)
+- LC-5: base on the last sha that passed the code check, only with QA blackbox (`plan-owner = team-lead and qa-black = yes`); no QA whitebox named
+- LC-5b: same for `plan-owner = manager and qa-black = yes`
+- LC-7a: Manager three-returns rule for `plan-owner = manager`; with QAs on the team the 3rd failing QA sends BLOCKED, and the Manager's own 3rd FAIL counts; merges the S and M twins. ID kept: squad-log-message cites it
+- LC-7c: now the QA side: the 3rd failing QA sends the plan owner BLOCKED; was the Manager M variant. ID kept: squad-log-message and suites.md cite it
+- LC-11d: Team Lead only (`plan-owner = team-lead and architecture = yes`); the Tech Lead part is LC-11e
+- LC-14: `plan-owner = team-lead`; names the Team Lead only when it owns the plan
+- LC-15: dropped the words naming the Tech Lead, so no absent role is named
+- LC-16: deploy order is the one in the task or decisions file ([LC-13]); no Tech Lead named
+- LC-20a: Done for the Developer when the Manager sent PASS, told to the Manager (`handin-target = manager`); was S
+- LC-20b: Done when every checker sent PASS, told to the plan owner (`handin-target = qas`); was L with QA blackbox, now also M
+- LC-22b: follow-ups batched by the Team Lead (`plan-owner = team-lead and qa = light`); was the Tech Lead at L
+- REV-1: Manager confirmation when `handin-target = manager`; was S
+- REV-14a: after a PASS a later commit goes to the same checkers handed in to; with QAs on the team the plan owner hears when every checker passes it; merges the S, M and L diff-check twins
+- REV-19b: hand in to QA whitebox alone (`qa-white = yes and qa-black = no`); the done and Team Lead copy parts moved to LC-20a, LC-20b
+- REV-21: the BA alone writes the business AC (`business-ac = ba and qa-black = no`); tells the owner of the behaviour check, no QA whitebox named
+- REV-21b: cites [SIZE-5a] (the ticket as written) instead of [SIZE-5c]; `business-ac = ticket and qa-black = no`
+- EVID-3a: review record when `handin-target = manager`; was S
+- EVID-3b: both reviewer files (`qa-white = yes and qa-black = yes`); no size words
+- REV-3b: final sha is the latest HANDIN unless [REV-3] names another (`handin-target = qas`); no Manager awareness, so S Managers (no QA) carry nothing
+- MSG-6: `plan-owner = team-lead`; the size-change signal is a signal to add a role. ID kept: MSG-13 cites it
+- MSG-11a: `plan-owner = manager`; a business doubt changes the team, no BA named. ID kept: same duty
+- MSG-11b: `plan-owner = team-lead`; asks the owner roster.md names, else the Team Lead, so no absent Tech Lead or BA is named
+- MSG-12: `doubt-owner = ba`; takes gaps from the plan owner, not the Team Lead by name
+- MSG-13: `plan-owner = team-lead`; raises gaps to the owner roster.md names, so no absent BA or Tech Lead is named
+- MSG-16a: `doubt-owner = manager and design = yes`; a business doubt changes the team ([SIZE-14]), no move to L
+- MSG-16b: `doubt-owner = ba and design = yes`; a feasibility doubt goes to the owner roster.md names, no absent Tech Lead named
+- MSG-20a: `doubt-owner = manager and architecture = yes`; the Manager changes the team ([SIZE-14]), no move to L
+- MSG-20b: `doubt-owner = ba and architecture = yes`; feasibility to the owner roster.md names; final goes to the Team Lead only if the team has one
+- SPAWN-2a: `plan-owner = manager`; spawns dev and every role on `team:`, the Token Coach as ITER-6a and ITER-6b say; was the S list. ID kept: the frozen v8 snapshot cites it and lint reads snapshots
+- SPAWN-2b: `plan-owner = team-lead`; the Manager spawns the Team Lead and every role on `team:`, the Token Coach as ITER-6a and ITER-6b say; was the M list. ID kept: the frozen v8 snapshot cites it and lint reads snapshots
+- SPAWN-2c: `plan-owner = team-lead`; only the sentence that the Team Lead spawns Developers; was the L list. ID kept: the frozen v8 snapshot cites it and lint reads snapshots
+- SPAWN-3: the team, not the size, goes in the first prompt; ID kept: same duty
+- SPAWN-4: the Designer is spawned when `designer` is on `team:`, not by reading `design: yes`
+- SPAWN-4a: the Architect is spawned when `architect` is on `team:`; cites SPAWN-2a and SPAWN-2b; no S, M, L words
+- CORE-3: wording only, "team" replaces "size"; the owners it cites are unchanged
+- REV-5a: on demand, attached to no role (`roles:` empty), cited from REV-22; off the Developer's 5 KiB, one `squad-process rule REV-5a` away
+- EVID-5: on demand, attached to no role (`roles:` empty), cited from LC-19; off the Developer's 5 KiB, one `squad-process rule EVID-5` away
+- CORE-6: wording only, shorter; same command pointers
+- COST-5: wording only, "respawn once; the Team Lead splits the rest" for "respawn once, then the Team Lead splits the rest"; same duty
+- EVID-2a: wording only, "Write" for "You write", shots as `![alt](img/<file>)`; same duty
+- EVID-4: wording only, "under the AC" for "under their AC"; same duty
+- LC-18: title "Dev work"; the "test new behaviour" clause moves from the hand-in line to "Implement as designed"; same duty
+- MSG-3: drops the sentence "Name it after the type" (CORE-2 already fixes `<TYPE> <TASK-ID>`); the ticket number `NN` alone and never paste, point at files are unchanged
+- START-6: wording only, "in a goal `$GOAL_DIR/goal.md` and `shared/`"; same files read
+- START-10: title "Dev start"; one paragraph; the `git status` call is dropped because only the branch check matters, and `git branch --show-current` stays
+- CORE-4: wording only, its owner decides; same duty
+- CORE-5: wording only, shorter; same duty
+- LC-3a: wording only, shorter; same duty
+- LC-19c: wording only, shorter; the Manager still decides after 2 rounds; same duty
+- LC-25: title Advisor; trigger "2 unanswered `BLOCKED`" for "the same `BLOCKED` sent twice with no `ANSWER`" (same trigger, shorter), "failed tries" for "failed attempts", "Note it in the task file, 3 lines" for "Add a 3-line note to the task file", "Advisor off: say so"; same duty
+- lint: an empty `roles:` value is allowed (the line must still be there), so a rule can be on demand and attached to no role; reason: keeps REV-5a and EVID-5 off the Manager and Developer without moving a duty
+- REV-22: adds the pointer to REV-5a for code that parses another tool's output
+- LC-19: adds the pointer to EVID-5 for the screenshot per state
+- LC-19b: adds the pointer to EVID-5 for the screenshot per state (design notes by the Manager)
+- CORE-2: wording only, shorter; same message types and format
+- REV-22a: title "Architecture review"; shorter, the subagent is still given architecture.md to check the diff conforms; same duty
+- EVID-2b: wording only, `<file>` for `<review file>`, "After all `PASS`:" for "After every checker passed:"; same duty
+- MSG-4a: wording only, shorter; same duty
+- COST-5a: wording only, shorter; same duty
+- MSG-4b: wording only, shorter; same duty
+- MSG-11b: wording only, drops the "(technical, business or plan)" gloss; same duty
+- SAFE-10: no setting denies reading code any more (the Read deny is gone); the rule stays, unenforced
+- SAFE-11: scratch dirs come from `mktemp -d` only, so the settings can allow `rm` there
+
+removed:
+- SIZE-3: the Manager proposes the Designer from signals; replaced by SIZE-1
+- SIZE-3a: the Manager proposes the Architect from signals; replaced by SIZE-1
+- SIZE-4: signals and risk flags fold into the team proposal; replaced by SIZE-1
+- SIZE-6d: twin of SIZE-6c; replaced by SIZE-6c
+- SIZE-12: duties of a missing role are the duty owner chains; replaced by SIZE-22
+- SIZE-15: moving down is removing a role; replaced by TEAM-7
+- SIZE-19: QA blackbox off is a non-pick of the proposal; replaced by SIZE-1
+- SIZE-20: Done without QA blackbox is a Done variant; replaced by TEAM-1
+- SIZE-21b: twin of SIZE-21a; replaced by SIZE-21a
+- SIZE-22a: Architect rows fold into the chain table; replaced by SIZE-22
+- LC-20c: Done is told to the plan owner; replaced by LC-20a
+- REV-14b: diff check folded into REV-14a, the plan owner hears of it in LC-20a and LC-20b; replaced by REV-14a
+- REV-14c: diff check folded into REV-14a; replaced by REV-14a
+- REV-19: hand in to QA whitebox alone is REV-19b, Done is in LC-20a and LC-20b; replaced by REV-19b
+
+retargeted:
+- SIZE-5b: `when: business-ac = ba and qa-black = yes` (was size = L and qa-b = yes)
+- SIZE-6a: `when: plan-owner = manager` (was size in S, M)
+- SIZE-6b: `when: plan-owner = team-lead` (was size = L)
+- SIZE-7a: `when: code-check = manager` (was size = S)
+- SIZE-7b: `when: code-check = qa-white` (was size in M, L)
+- SIZE-8a: `when: behaviour-check = manager` (was size = S)
+- SIZE-8b: `when: behaviour-check = qa-black` (was size in M, L and qa-b = yes)
+- SIZE-10a: `when: ui-check = manager and design = yes` (was size = S and design = yes)
+- SIZE-10b: `when: ui-check = qa-black and design = yes` (was size in M, L and design = yes)
+- SIZE-23b: `when: tech-ac = qa-white` (was size = M)
+- SIZE-24b: `when: promote-owner = qa-white` (was size = M)
+- WHO-1a: `when: plan-owner = manager` (was size in S, M)
+- WHO-2: `when: tech-lead = yes` (was size = L)
+- WHO-2d: `when: tech-lead = no` (was size in S, M)
+- WHO-2b: `when: promote-owner = qa-white` (was size in S, M)
+- WHO-2c: `when: promote-owner = tech-lead` (was size = L)
+- WHO-3a: `when: plan-owner = manager` (was size in S, M)
+- WHO-3b: `when: plan-owner = team-lead` (was size = L)
+- WHO-8a: `when: plan-owner = manager` (was size in S, M)
+- WHO-8b: `when: plan-owner = team-lead` (was size = L)
+- WHO-8c: `when: plan-owner = team-lead` (was size = L)
+- START-2a: `when: plan-owner = manager` (was size in S, M)
+- START-2b: `when: plan-owner = team-lead` (was size = L)
+- START-2c: `when: plan-owner = team-lead` (was size = L)
+- START-2d: `when: plan-owner = team-lead` (was size = L)
+- FILE-5a: `when: plan-owner = manager` (was size in S, M)
+- FILE-5b: `when: plan-owner = team-lead` (was size = L)
+- FILE-5c: `when: plan-owner = team-lead` (was size = L)
+- FILE-8: `when: handin-target in qas, team-lead` (was size in M, L)
+- GOAL-3b: `when: goal = yes` (was goal = yes and size in M, L)
+- GOAL-6a: `when: goal = yes` (was goal = yes and size = L)
+- GOAL-6d: `when: goal = yes and tech-lead = no` (was goal = yes and size in S, M)
+- PROMO-2: `when: promote-owner = tech-lead` (was size = L)
+- PROMO-5: `when: plan-owner = team-lead` (was size = L)
+- PROMO-8: no `when:`, QA whitebox only (was size in M, L)
+- CLOSE-3a: `when: goal = yes` (was goal = yes and size = L)
+- CLOSE-3c: `when: goal = yes and tech-lead = no` (was goal = yes and size in S, M)
+- NOTE-3: no `when:`, the Team Lead only (was size = L)
+- ITER-3: no `when:`, the Team Lead only (was size = L)
+- LC-2: `when: plan-owner = team-lead and design = yes` (was size = L and design = yes); roles unchanged or noted above
+- LC-2b: `when: plan-owner = manager and design = yes` (was size in S, M and design = yes); roles unchanged or noted above
+- LC-3b: `when: handin-target = qas` (was size in M, L); roles unchanged or noted above
+- LC-4: `when: handin-target = qas` (was size in M, L); roles unchanged or noted above
+- LC-5: `when: plan-owner = team-lead and qa-black = yes` (was size = L); roles unchanged or noted above
+- LC-5b: `when: plan-owner = manager and qa-black = yes` (was size = M); roles unchanged or noted above
+- LC-6: `when: plan-owner = team-lead` (was size = L); roles unchanged or noted above
+- LC-6b: `when: plan-owner = manager` (was size in S, M); roles unchanged or noted above
+- LC-7a: `when: plan-owner = manager` (was size = S); roles unchanged or noted above
+- LC-7b: `when: plan-owner = team-lead` (was size = L); roles unchanged or noted above
+- LC-7c: `when: handin-target = qas` (was size = M); roles unchanged or noted above
+- LC-8: `when: tech-ac = tech-lead` (was size = L); roles unchanged or noted above
+- LC-8b: `when: tech-ac = qa-white` (was size = M); roles unchanged or noted above
+- LC-8c: `when: tech-ac = dev` (was size = S); roles unchanged or noted above
+- LC-9: `when: design-notes = tech-lead` (was size = L); roles unchanged or noted above
+- LC-9b: `when: design-notes = dev` (was size in S, M); roles unchanged or noted above
+- LC-10: `when: design-notes = tech-lead` (was size = L); roles unchanged or noted above
+- LC-11: `when: tech-lead = yes and design = yes` (was size = L and design = yes); roles unchanged or noted above
+- LC-11b: `when: plan-owner = manager and design = yes` (was size in S, M and design = yes); roles unchanged or noted above
+- LC-11c: `when: plan-owner = manager and architecture = yes` (was size in S, M and architecture = yes); roles unchanged or noted above
+- LC-11d: `when: plan-owner = team-lead and architecture = yes` (was size = L and architecture = yes); roles unchanged or noted above
+- LC-12: `when: risk-owner = tech-lead` (was size = L); roles unchanged or noted above
+- LC-13: `when: risk-owner = tech-lead` (was size = L); roles unchanged or noted above
+- LC-14: `when: tech-lead = yes` (was size = L); roles unchanged or noted above
+- LC-15: `when: plan-owner = team-lead` (was size = L); roles unchanged or noted above
+- LC-16: `when: plan-owner = team-lead` (was size = L); roles unchanged or noted above
+- LC-17: `when: plan-owner = team-lead` (was size = L); roles unchanged or noted above
+- LC-17b: `when: plan-owner = manager` (was size in S, M); roles unchanged or noted above
+- LC-19: `when: design-notes = tech-lead and design = yes` (was size = L and design = yes); roles unchanged or noted above
+- LC-19b: `when: design-notes = dev and design = yes` (was size in S, M and design = yes); roles unchanged or noted above
+- LC-20a: `when: handin-target = manager` (was size = S); roles unchanged or noted above
+- LC-20b: `when: handin-target = qas` (was size = L and qa-b = yes); roles unchanged or noted above
+- LC-21: `when: qa = light and handin-target = qas` (was qa = light and size in M, L); roles unchanged or noted above
+- LC-22a: `when: qa-white = yes and qa = light` (was qa = light and size in M, L); roles unchanged or noted above
+- LC-22b: `when: plan-owner = team-lead and qa = light` (was qa = light and size = L); roles unchanged or noted above
+- LC-22c: `when: plan-owner = manager and qa = light` (was qa = light and size = M); roles unchanged or noted above
+- REV-1: `when: handin-target = manager` (was size = S); roles unchanged or noted above
+- REV-2: `when: qa-white = yes` (was size in M, L); roles unchanged or noted above
+- REV-2b: `when: risk-owner = tech-lead` (was size = L); roles unchanged or noted above
+- REV-3: `when: tech-lead = yes` (was size = L); roles unchanged or noted above
+- REV-3b: `when: handin-target = qas` (was size = M); roles unchanged or noted above
+- REV-4: `when: qa-white = yes` (was size in M, L); roles unchanged or noted above
+- REV-5a: `when: qa-white = no` (was size = S); roles unchanged or noted above
+- REV-5b: `when: qa-white = yes` (was size in M, L); roles unchanged or noted above
+- REV-6: `when: qa-white = yes` (was size in M, L); roles unchanged or noted above
+- REV-7: `when: tech-ac = tech-lead` (was size = L); roles unchanged or noted above
+- REV-8: `when: business-ac = ba and qa-black = yes` (was size = L and qa-b = yes); roles unchanged or noted above
+- REV-9: `when: qa-black = yes` (was size in M, L and qa-b = yes); roles unchanged or noted above
+- REV-10: `when: qa-white = yes` (was size in M, L); roles unchanged or noted above
+- REV-11: `when: qa-black = yes` (was size in M, L and qa-b = yes); roles unchanged or noted above
+- REV-12: `when: handin-target = qas` (was size in M, L); roles unchanged or noted above
+- REV-13a: `when: handin-target = manager` (was size = S); roles unchanged or noted above
+- REV-13b: `when: qa-white = yes and qa-black = yes` (was size in M, L and qa-b = yes); roles unchanged or noted above
+- REV-14a: `when: (none)` (was size = S); roles unchanged or noted above
+- REV-16: `when: tech-lead = yes` (was size = L); roles unchanged or noted above
+- REV-17: `when: handin-target = qas` (was size in M, L); roles unchanged or noted above
+- REV-18a: `when: qa-white = yes and qa-black = yes` (was size in M, L); roles unchanged or noted above
+- REV-18b: `when: qa-white = yes and qa-black = yes` (was size in M, L); roles unchanged or noted above
+- REV-19b: `when: qa-white = yes and qa-black = no` (was size = M and qa-b = no); roles unchanged or noted above
+- REV-20: `when: behaviour-check = qa-white` (was size in M, L and qa-b = no); roles unchanged or noted above
+- REV-21: `when: business-ac = ba and qa-black = no` (was size = L and qa-b = no); roles unchanged or noted above
+- REV-21b: `when: business-ac = ticket and qa-black = no` (was size = M and qa-b = no); roles unchanged or noted above
+- REV-22: `when: qa-white = no` (was size = S); roles unchanged or noted above
+- REV-22a: `when: qa-white = no and architecture = yes` (was size = S and architecture = yes); roles unchanged or noted above
+- EVID-2a: `when: handin-target = qas` (was size in M, L); roles unchanged or noted above
+- EVID-2b: `when: tech-ac = tech-lead` (was size = L); roles unchanged or noted above
+- EVID-2d: `when: tech-ac = qa-white` (was size = M); roles unchanged or noted above
+- EVID-2c: `when: tech-lead = yes` (was size = L); roles unchanged or noted above
+- EVID-2e: `when: tech-ac = qa-white` (was size = M); roles unchanged or noted above
+- EVID-3a: `when: handin-target = manager` (was size = S); roles unchanged or noted above
+- EVID-3b: `when: qa-white = yes and qa-black = yes` (was size in M, L and qa-b = yes); roles unchanged or noted above
+- EVID-4: `when: behaviour-check = manager` (was size = S); roles unchanged or noted above
+- EVID-5: `when: ui-check = manager and design = yes` (was size = S and design = yes); roles unchanged or noted above
+- EVID-6: `when: behaviour-check = qa-white` (was size in M, L and qa-b = no); roles unchanged or noted above
+- EVID-7: `when: qa-white = yes and qa-black = no` (was size in M, L and qa-b = no); roles unchanged or noted above
+- MSG-4a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- MSG-4b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-5: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-7a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- MSG-7b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-8a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- MSG-8b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-14: `when: tech-lead = yes` (was size = L); roles unchanged
+- MSG-15: `when: ba = yes` (was size = L); roles unchanged
+- MSG-17: `when: design-notes = tech-lead and design = yes` (was size = L and design = yes); roles unchanged
+- MSG-17b: `when: design-notes = dev and design = yes` (was size in S, M and design = yes); roles unchanged
+- MSG-18: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- MSG-19: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- COST-4a: `when: tech-lead = yes` (was size = L); roles unchanged
+- COST-4b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- COST-5: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- COST-5a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- COST-6a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- COST-6b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- COST-10a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- COST-10b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- COST-13a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- COST-13b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- COST-14a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- COST-14b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- SUITE-1: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-1b: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SUITE-2a: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-2c: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SUITE-2d: `when: suite-owner = dev` (was size = S); roles unchanged
+- SUITE-2b: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-2e: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SUITE-3: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-4: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-4b: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SUITE-5: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-5b: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SUITE-3b: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SUITE-6: `when: suite-owner = tech-lead` (was size = L); roles unchanged
+- SUITE-6b: `when: suite-owner = qa-white` (was size = M); roles unchanged
+- SPAWN-5a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- SPAWN-5b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- SPAWN-8a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- SPAWN-8b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- SPAWN-9: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- SPAWN-10a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- SPAWN-10b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- SAFE-9: `when: (none)` (was size in M, L); roles unchanged
+- SAFE-10: `when: (none)` (was size in M, L); roles unchanged
+- MSG-6: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-11a: `when: plan-owner = manager` (was size in S, M); roles unchanged
+- MSG-11b: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-12: `when: doubt-owner = ba` (was size = L); roles unchanged
+- MSG-13: `when: plan-owner = team-lead` (was size = L); roles unchanged
+- MSG-16a: `when: doubt-owner = manager and design = yes` (was size in S, M and design = yes); roles unchanged
+- MSG-16b: `when: doubt-owner = ba and design = yes` (was size = L and design = yes); roles unchanged
+- MSG-20a: `when: doubt-owner = manager and architecture = yes` (was size in S, M and architecture = yes); roles unchanged
+- MSG-20b: `when: doubt-owner = ba and architecture = yes` (was size = L and architecture = yes); roles unchanged
+- SPAWN-2a: `when: plan-owner = manager` (was size = S); roles unchanged
+- SPAWN-2b: `when: plan-owner = team-lead` (was size = M and qa-b = yes); roles unchanged
+- SPAWN-2c: `when: plan-owner = team-lead` (was size = L and qa-b = yes); roles unchanged
+
 ## v8 — 2026-10-27
 - snapshot: history/process-v8/
 
@@ -368,6 +704,13 @@ retargeted:
 - SAFE-11: scratch dirs: `cd` out before `rm`; Claude Code denies removing the cwd or an ancestor
 - SIZE-1: points at START-3b: the size proposal carries the team's models
 - ITER-6: the spawn line carries --prompt (scope, output file, message back); the Coach no longer starts idle
+- SIZE-23c: QA whitebox checks the diff against `architecture.md` whenever it is on the team (`qa-white = yes and architecture = yes`); adds it to the AC when it owns it
+- SIZE-23d: acts for the Tech Lead only (`tech-ac = tech-lead and architecture = yes`); QA whitebox's check moved to SIZE-23c so no absent role acts
+- SIZE-17a: also gated on `ba = yes`, so it composes only for a BA on the team
+- SIZE-17b: also gated on `team-lead = yes`
+- SIZE-17c: also gated on `qa-white = yes`
+- SIZE-17d: also gated on `qa-black = yes`
+- SIZE-17e: also gated on `tech-lead = yes`
 - SIZE-18: extra hands only exist at L: when size = L
 - SPAWN-4: the Manager's plan, not the absent Tech Lead's (S and M)
 - CLOSE-1: closing keeps the Manager on scope and goal close (squad-close spares it); squad close still retires all

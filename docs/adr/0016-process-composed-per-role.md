@@ -2,6 +2,8 @@
 
 Status: accepted (composed-process, PO answers D1–D16 2026-10-21/22)
 
+Amended by 0018 (team replaces scope size): Sizes and Duty owners sections.
+
 Supersedes 0005. Amends 0006: the Writing rule applies per rule block; processlint checks rule files.
 
 **Decision:** the plugin's process is a folder of rule files, `templates/squad/process/*.md`. Each rule is one `## <ID> <title>` block with `roles:`, `aware:`, `when:` and `topic:` lines. A squad never copies it. Its own changes live in `process.local.md` as `replace`, `add` and `remove` operations on rule IDs, each pinned to a hash of the plugin text it changes. At spawn and respawn, `squad-process compose` keeps the rules whose `roles` or `aware` name the role and whose `when` matches the scope (`size`, `design`, `qa`, `goal`), adds `core.md`, and writes `roles/<agent>.rules.md`; `squad-spawn` attaches that file with `--append-system-prompt-file`. Role cards (`agents/*.md`) hold identity, stance and tools only. The Manager and the Tech Lead get their own rules plus a one-line index of every rule; `squad-process rule <ID>` prints any rule in full. Each scope records a plugin pin (`plugin:` in `scope.md`) and runs on that version until it closes; an upgrade applies between scopes only.
@@ -33,7 +35,7 @@ Supersedes 0005. Amends 0006: the Writing rule applies per rule block; processli
 - **Pinned runtime:** `git archive <sha>` into `$SQUAD_DIR/_runtime/<version>-<sha12>/`, shared per pin; a role launches with `--plugin-dir` on it and `PATH=<runtime>/bin:$PATH`, so role cards, rules and settings template all come from the pin. `squad-close` prunes runtimes held by no open scope, goal or `plugin.pin` (orphans included, the closing scope's own pin excluded, never the runtime it runs from; failure warns only).
 - `plugin.pin` is written by `squad-start` and by the PO-confirmed `upgrade --apply --yes` or `adopt`. `adopt` also adds `plugin: <version> <sha>` to every open `scope.md`/`goal.md` that lacks one, listed in its dry run.
 - **Upgrade compares** the overlay's hashes with the running plugin; the old rule set is the pinned runtime. `adopt` writes operations only for verbatim matches; everything else is listed for the PO.
-- **Settings** = pinned template + `settings/<role>.local.json`. The QA blackbox placeholder fails closed when `codePaths` is missing.
+- **Settings** = pinned template + `settings/<role>.local.json`. A `codePaths` key in an old local file is ignored (QA blackbox has no code-path Read deny).
 - **Rule on demand:** a rule attached to no role is read with `squad-process rule <ID>`; `who <ID>` lists the roles and sizes it reaches. The composed Developer rules at S stay under 5120 B (`test_dev_rules_size`); a rule every role needs but a Developer rarely does becomes `aware:` or on demand.
 - Lint also checks pointers in rule bodies (an unknown `[ID]` with a table prefix is an error). Role-card text that duplicates a rule fails `lint --cards`.
 - **Sizes.** S = Manager + Developers; M = + QA whitebox and QA blackbox (QA blackbox absent when `qa-b: no`); L = every role. `ba`, `team-lead`, `tech-lead` exist only at L. A risk flag or a business doubt moves the scope to L. A `design: yes` scope adds the Designer at any size.

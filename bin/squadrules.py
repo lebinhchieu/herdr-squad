@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import processlint as pl  # noqa: E402
 
 FILE_ORDER = [
-    ("CORE", "core"), ("FILE", "files"), ("START", "starting"), ("SIZE", "sizes"), ("GOAL", "goal"),
+    ("CORE", "core"), ("FILE", "files"), ("START", "starting"), ("SIZE", "sizes"), ("TEAM", "teams"), ("GOAL", "goal"),
     ("PROMO", "promotion"), ("CLOSE", "closing"), ("MSG", "messages"), ("WHO", "who"),
     ("LC", "lifecycle"), ("REV", "review"), ("EVID", "evidence"), ("ITER", "iterations"),
     ("COST", "cost"), ("NOTE", "notes"), ("SAFE", "safety"), ("SUITE", "suites"),
@@ -22,8 +22,41 @@ PREFIXES = {prefix for prefix, _ in FILE_ORDER}
 REMOVED_FILE = "_removed.md"
 OVERLAY_FILE = "process.local.md"
 ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "designer", "architect", "dev", "token-coach")
-WHEN_KEYS = {"size": ("S", "M", "L"), "design": ("yes", "no"), "architecture": ("yes", "no"), "qa": ("full", "light"),
-             "goal": ("yes", "no"), "qa-b": ("yes", "no")}
+# Team model (drop-scope-size, architecture.md sections 2 and 3). `team:` tokens in scope.md; the `when:` presence
+# key of a token is PRESENCE_KEY (designer -> design, architect -> architecture, the rest the same string).
+TEAM_KEYS = ("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect")
+IMPLICIT_ROLES = ("manager", "dev", "token-coach")
+ROLE_KEY = {"qa-whitebox": "qa-white", "qa-blackbox": "qa-black"}  # role name -> team token; other roles map to themselves
+PRESENCE_KEY = {"ba": "ba", "team-lead": "team-lead", "tech-lead": "tech-lead", "qa-white": "qa-white",
+                "qa-black": "qa-black", "designer": "design", "architect": "architecture"}
+# Duty facts: first present chain item owns the duty; every chain ends at manager, dev or ticket. `qas` stands for
+# "qa-white or qa-black on the team" (the hand-in goes to the QAs).
+DUTIES = {
+    "plan-owner": ("team-lead", "manager"),
+    "design-notes": ("tech-lead", "dev"),
+    "tech-ac": ("tech-lead", "qa-white", "dev"),
+    "business-ac": ("ba", "ticket"),
+    "code-check": ("qa-white", "tech-lead", "manager"),
+    "behaviour-check": ("qa-black", "qa-white", "manager"),
+    "ui-check": ("qa-black", "manager"),
+    "handin-target": ("qas", "team-lead", "manager"),
+    "suite-owner": ("tech-lead", "qa-white", "dev"),
+    "promote-owner": ("tech-lead", "qa-white", "dev"),
+    "risk-owner": ("tech-lead", "manager"),
+    "doubt-owner": ("ba", "manager"),
+    "choice-owner": ("architect", "tech-lead", "manager"),
+}
+_DUTY_TERMINAL = ("manager", "dev", "ticket")
+# The old language (`size`, `qa-b`, `qa-whitebox` in a `when:`) is gone: OLD_WHEN_KEYS names the key to use instead.
+OLD_WHEN_KEYS = {"size": "a duty or role key (`squad-process who` lists them), e.g. `ba = yes` for what size L had",
+                 "qa-b": "qa-black", "qa-whitebox": "qa-white"}
+WHEN_KEYS = {"design": ("yes", "no"), "architecture": ("yes", "no"), "qa": ("full", "light"),
+             "goal": ("yes", "no"),
+             **{k: ("yes", "no") for k in ("ba", "team-lead", "tech-lead", "qa-white", "qa-black")},
+             **{fact: chain for fact, chain in DUTIES.items()}}
+# A `when:` that uses a key of the team language holds at most one PRIMARY key; the rest are EXTRA (orthogonal).
+PRIMARY_KEYS = frozenset(DUTIES) | {"ba", "team-lead", "tech-lead", "qa-white"}
+EXTRA_KEYS = frozenset({"goal", "qa", "design", "architecture", "qa-black"})
 PLUGIN_ATTRS = ("roles", "aware", "when", "topic")
 OVERLAY_ATTRS = PLUGIN_ATTRS + ("why", "upstream")
 UPSTREAM = ("proposed", "local-only", "rejected")
@@ -98,6 +131,10 @@ def rule_hash(attr_text, body):
 
 # ---- when ----------------------------------------------------------------------------------------
 
+class OldKeyError(ValueError):
+    """A `when:` names a key of the old language (`size`, `qa-b`, `qa-whitebox`)."""
+
+
 def _conditions(when):
     for part in when.split(" and "):
         part = part.strip()
@@ -109,12 +146,28 @@ def _conditions(when):
             if not m:
                 raise ValueError(f"cannot read condition {part!r}")
             key, values = m.group(1), [v.strip() for v in m.group(2).split(",")]
+        if key in OLD_WHEN_KEYS:
+            raise OldKeyError(f"when key {key!r} is gone with the team language; use {OLD_WHEN_KEYS[key]}"
+                             " (`squad-process upgrade` lists the overlay operations to change)")
         if key not in WHEN_KEYS:
             raise ValueError(f"unknown when key {key!r}")
         for v in values:
             if v not in WHEN_KEYS[key]:
                 raise ValueError(f"unknown value {v!r} for when key {key!r}")
         yield key, values
+
+
+def check_when_combination(when):
+    """ValueError when a `when:` breaks one-primary-key (constraint 5): two role/duty keys, or a key outside both sets."""
+    if not when or not when.strip():
+        return
+    keys = [k for k, _ in _conditions(when)]
+    primary = [k for k in keys if k in PRIMARY_KEYS]
+    if len(primary) > 1:
+        raise ValueError(f"when uses {len(primary)} duty/role keys ({', '.join(primary)}); at most one of them is allowed")
+    bad = [k for k in keys if k not in PRIMARY_KEYS and k not in EXTRA_KEYS]
+    if bad:
+        raise ValueError(f"when mixes the team keys with {', '.join(bad)}; only goal, qa, design, architecture, qa-black may join one")
 
 
 def matches(when, facts):
@@ -130,6 +183,96 @@ def missing_fact_keys(when, facts):
     if not when or not when.strip():
         return []
     return [key for key, _ in _conditions(when) if key not in facts]
+
+
+# ---- team ----------------------------------------------------------------------------------------
+
+def role_key(role):
+    """Team token of a role name (`qa-whitebox` -> `qa-white`); ValueError for a name that is not a role."""
+    if role not in ROLES:
+        raise ValueError(f"unknown role {role!r}")
+    return ROLE_KEY.get(role, role)
+
+
+def parse_team(value, where="scope.md"):
+    """Value of a `team:` line -> list of tokens (None when blank = undecided; [] for `none`). ValueError names `where`.
+
+    A trailing `(note)` is commentary. Unknown, duplicate or implicit tokens are errors; `qa-whitebox` and
+    `qa-blackbox` are role names, not tokens, and the error names the token to use."""
+    text = re.sub(r"\s*\([^)]*\)\s*$", "", (value or "").replace("\r", "")).strip()
+    if not text:
+        return None
+    if text.lower() == "none":
+        return []
+    seen = set()
+    for raw in text.split(","):
+        tok = raw.strip()
+        if tok in ROLE_KEY:
+            raise ValueError(f"{where}: team token {tok!r} is a role name; write {ROLE_KEY[tok]!r}")
+        if tok in IMPLICIT_ROLES:
+            raise ValueError(f"{where}: {tok!r} is always on the team; do not list it in team:")
+        if tok not in TEAM_KEYS:
+            raise ValueError(f"{where}: unknown team token {tok!r} (allowed: {', '.join(TEAM_KEYS)}, or none)")
+        if tok in seen:
+            raise ValueError(f"{where}: team token {tok!r} listed twice")
+        seen.add(tok)
+    return [t for t in TEAM_KEYS if t in seen]
+
+
+def resolve_duties(team):
+    """team (tokens) -> {duty: owner}. Pure; the first present chain item owns the duty."""
+    team = frozenset(team)
+    out = {}
+    for fact, chain in DUTIES.items():
+        for item in chain:
+            if item == "qas":
+                if "qa-white" in team or "qa-black" in team:
+                    out[fact] = "qas"
+                    break
+            elif item in _DUTY_TERMINAL or item in team:
+                out[fact] = item
+                break
+    return out
+
+
+def team_facts(team):
+    """team (tokens) -> every presence and duty fact for a `when:` (a decided team never has a missing fact)."""
+    team = frozenset(team)
+    facts = {PRESENCE_KEY[t]: "yes" if t in team else "no" for t in TEAM_KEYS}
+    facts.update(resolve_duties(team))
+    return facts
+
+
+def _first_token(value):
+    toks = (value or "").split()
+    return toks[0] if toks else ""
+
+
+def legacy_team(size, qa_b="yes", design="no", architecture="no"):
+    """Old `size:`, `qa-b:`, `design:`, `architecture:` values (raw text, commentary allowed) -> team tokens.
+
+    For the converter and the branch-internal scaffold only (D1/D3). Uses the FIRST token of each value, so
+    `size: M (confirmed ...)` is M and `size: confirmed M` is not (read_home's `\\b[SML]\\b` finds it anywhere). A blank
+    or unreadable size gives None (undecided, a blank `team:`). A bad qa-b/design/architecture token is a ValueError."""
+    sz = _first_token(size).rstrip(",;:.")
+    if sz not in ("S", "M", "L"):
+        return None
+    flags = {}
+    for name, value in (("qa-b", qa_b), ("design", design), ("architecture", architecture)):
+        tok = _first_token(value).lower() or ("yes" if name == "qa-b" else "no")
+        if tok not in ("yes", "no"):
+            raise ValueError(f"{name} must be yes | no, got {value!r}")
+        flags[name] = tok
+    team = set()
+    if sz in ("M", "L"):
+        team |= {"qa-white"} | ({"qa-black"} if flags["qa-b"] == "yes" else set())
+    if sz == "L":
+        team |= {"ba", "team-lead", "tech-lead"}
+    if flags["design"] == "yes":
+        team.add("designer")
+    if flags["architecture"] == "yes":
+        team.add("architect")
+    return [t for t in TEAM_KEYS if t in team]
 
 
 # ---- parsing -------------------------------------------------------------------------------------
@@ -313,7 +456,7 @@ def _check_roles(value, key, rel, n, out):
             out.append(f"{rel}:{n}: unknown role {r!r} in {key}:")
 
 
-def _check_attrs(vals, rel, n, out, need):
+def _check_attrs(vals, rel, n, out, need, rid=None):
     """Shared checks of a rule or an overlay op: roles, aware, when, topic. vals: key -> raw string."""
     for key in need:
         if not vals.get(key, "").strip():
@@ -325,7 +468,12 @@ def _check_attrs(vals, rel, n, out, need):
         try:
             matches(vals["when"], {})
         except ValueError as e:
-            out.append(f"{rel}:{n}: {e}")
+            out.append(f"{rel}:{n}: {rid + ': ' if rid and isinstance(e, OldKeyError) else ''}{e}")
+        else:
+            try:
+                check_when_combination(vals["when"])
+            except ValueError as e:
+                out.append(f"{rel}:{n}: {rid + ': ' if rid else ''}{e}")
     if vals.get("topic") and not _TOPIC.match(vals["topic"]):
         out.append(f"{rel}:{n}: topic {vals['topic']!r} is not [a-z][a-z0-9-]*")
 
@@ -347,7 +495,9 @@ def _structure(rules, tombs, out):
     for r in rules:
         raw = {k: v for k, v in (("roles", ", ".join(r.roles)), ("aware", ", ".join(r.aware)),
                                  ("when", r.when), ("topic", r.topic)) if v}
-        _check_attrs(raw, r.file, r.line, out, ("roles", "topic"))
+        # an empty `roles:` line = on demand, attached to no role (ADR 0016); a missing line stays an error
+        has_roles = any(a.startswith("roles:") for a in r.attr_text.split("\n"))
+        _check_attrs(raw, r.file, r.line, out, ("topic",) if has_roles else ("roles", "topic"), r.id)
 
 
 def _writing(body, body_line, rel, out):
@@ -473,7 +623,7 @@ def _lint_ops(ops, rules_by_id):
                 errs.append(f"{rel}:{o.line}: add {o.id} has no title")
             if not o.body:
                 errs.append(f"{rel}:{o.line}: add {o.id} has no body")
-            _check_attrs(o.attrs, rel, o.line, errs, ("roles", "topic"))
+            _check_attrs(o.attrs, rel, o.line, errs, ("roles", "topic"), o.id)
         else:
             if o.id not in rules_by_id:
                 errs.append(f"{rel}:{o.line}: {o.kind} of {o.id}, which does not exist")
@@ -484,7 +634,7 @@ def _lint_ops(ops, rules_by_id):
                 if extra:
                     errs.append(f"{rel}:{o.line}: remove takes only why: and upstream:, got {', '.join(extra)}")
             else:
-                _check_attrs(o.attrs, rel, o.line, errs, ())
+                _check_attrs(o.attrs, rel, o.line, errs, (), o.id)
         if not (o.why or "").strip():
             errs.append(f"{rel}:{o.line}: {o.kind} {o.id} has no why:")
         if not (o.upstream or "").strip():

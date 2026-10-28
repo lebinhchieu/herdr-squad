@@ -33,6 +33,4 @@ Extra AC (R9): `qa-b` -> `qa-black` in every `when:` of these files (23 lines ac
 Before HANDIN: `squad-process lint` (record the base-sha baseline in this ticket, G2b); `grep -rl '<touched path or changed string>' tests/` and run every hit (CLAUDE.md). Tech Lead names the final sha; QAs verdict on it.
 Changelog v9: append your changed rule IDs (D8).
 
-Re-enable the 2 skipped test_qab_optional tests (REV-19/21 composition) when this lands (Tech DECISION). The 18 `qa-b` `when:` lines in evidence/lifecycle/review/spawning belong to 07/08.
-
 ## Comments

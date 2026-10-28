@@ -7,14 +7,14 @@ from rulesview import acts, composed, who
 
 class PodRulesTest(unittest.TestCase):
     def test_m_roles_include_team_lead_and_l_is_as_m(self):  # was test_m_roles_include_team_lead_and_l_is_as_m
-        self.assertIn("team-lead", acts("MSG-5", "L"))
-        for size in "SM":  # Team Lead exists at L only
-            self.assertEqual(acts("MSG-5", size), ())
+        self.assertIn("team-lead", acts("MSG-5", "plan-owner = team-lead"))
+        self.assertEqual(acts("MSG-5", "plan-owner = manager"), ())  # the Team Lead plans only when the team has one
 
     def test_plan_duty_is_manager_in_s_and_m(self):  # was test_plan_duty_row_is_tech_lead_in_s_only
         self.assertIn("manager", acts("SIZE-6a", "S"))
-        self.assertIn("team-lead", acts("LC-15", "L"))
-        self.assertEqual(acts("LC-15", "S"), ())
+        self.assertEqual(acts("LC-15", "plan-owner = team-lead"), ("team-lead",))
+        self.assertEqual(acts("LC-15", "plan-owner = manager"), ())
+        self.assertEqual(acts("LC-17b", "plan-owner = manager"), ("manager",))
 
     # deleted: test_s_row_is_unchanged (compared the v6 size table with V3; the table is in SIZE rules, covered by test_squadrules)
 
@@ -29,7 +29,7 @@ class PodRulesTest(unittest.TestCase):
     def test_summary_file_row(self):
         self.assertIn("at most 40 lines", composed("team-lead", "L"))
         self.assertIn("team-lead", acts("ITER-3", "L"))
-        self.assertEqual(acts("ITER-3", "M"), ())
+        # 06: sizes dropped; ITER-3 is the plan owner's, ITER-3b the Manager's when the Manager owns the plan
         self.assertEqual(acts("ITER-3b", "M"), ("manager",))
         self.assertIn("at most 40 lines", composed("manager", "M"))
 
@@ -43,7 +43,7 @@ class PodRulesTest(unittest.TestCase):
         self.assertIn("Never relay a permission, approval or blocked pane", composed("team-lead", "L"))
 
     def test_down_and_handover_clauses(self):
-        self.assertIn("The Manager retires the roles that drop out", composed("manager", "M"))
+        self.assertIn("Retire the removed role's session", composed("manager", "M"))
         self.assertIn("the Manager writes a `## Handover` section", composed("manager", "L"))
 
     def test_s_keeps_the_confirm_gate_for_all_spawns(self):

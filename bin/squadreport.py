@@ -79,6 +79,7 @@ class Collected:
     squad: str
     name: str
     size: str
+    team: str
     window: tuple
     agents: dict
     msgs: list
@@ -189,6 +190,17 @@ def _scope_field(scope_md, key):
             m = re.match(r"\s*%s\s*:\s*(\S*)" % key, line, re.I)
             if m:
                 return m.group(1)
+    return ""
+
+
+def _scope_team(scope_md):
+    """Display text of the `team:` line (no mapping, no validation): `""` when absent. A trailing `(note)` is dropped."""
+    p = Path(scope_md)
+    if p.exists():
+        for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = re.match(r"\s*team\s*:\s*(.*)$", line, re.I)
+            if m:
+                return re.sub(r"\s*\(.*$", "", m.group(1)).strip()
     return ""
 
 
@@ -421,7 +433,7 @@ def collect(scope_home, squad_dir, plugin_root, final=False, deadline=None):
                "unpriced_models": sorted(unpriced), "ticket_dir": None, "harness_origin": bool(harness),
                "_reported": (reported, computed_cov) if any_reported else None}
     return Collected(scope_home, squad_dir.name, scope_home.name, _scope_field(scope_home / "scope.md", "size") or "",
-                     window, agents, msgs, escs, roster, {k: cfg[k] for k in ("stall_s", "wait_patterns", "min_segment_s", "prices") if k in cfg},
+                     _scope_team(scope_home / "scope.md"), window, agents, msgs, escs, roster, {k: cfg[k] for k in ("stall_s", "wait_patterns", "min_segment_s", "prices") if k in cfg},
                      sources, reasons)
 
 
@@ -480,7 +492,7 @@ def base_data(c):
     msgs = c.msgs
     goal, rollup_href = _goal_link(c.scope_home)
     return {"schema_version": 1, "kind": "scope",
-            "scope": {"name": c.name, "squad": c.squad, "size": c.size,
+            "scope": {"name": c.name, "squad": c.squad, "size": c.size, "team": c.team,
                       "status": "running" if "running" in c.partial_reasons else "done",
                       "partial": bool(c.partial_reasons), "partial_reasons": list(c.partial_reasons),
                       "generated_at": None, "window": {"start": iso(t0), "end": iso(t1)},

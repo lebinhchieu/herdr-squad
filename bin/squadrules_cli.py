@@ -4,6 +4,7 @@
   squad-process compose <role> --home D [--agent A] [--out F] [--plugin-root R] [--squad-dir D] [--now ISO]
   squad-process rule <ID> [--squad-dir D] [--plugin-root R]
   squad-process who <ID> [--squad-dir D] [--plugin-root R]
+  squad-process team --home D [--has ROLE]
 """
 import argparse
 import datetime
@@ -90,6 +91,32 @@ def cmd_rule(a):
     return 0
 
 
+def cmd_team(a):
+    """Print the home's team as a comma list of TEAM_KEYS tokens, `none` or `undecided`; with --has ROLE print nothing
+    and exit 0 when the role is on the team (manager, dev, token-coach always are; an undecided team has only the
+    Manager), 1 when not, 2 on an unknown role or an unreadable home. An old-format
+    home exits 2 with the converter pointer."""
+    try:
+        if a.has is not None and a.has not in sr.ROLES:
+            raise sc.ComposeError(f"team: unknown role {a.has!r} (one of {', '.join(sr.ROLES)})")
+        if not os.path.isdir(a.home):
+            raise sc.ComposeError(f"team: --home {a.home!r} is not a directory")
+        info = sc.read_home(a.home)
+        if info["team_source"] == "old":
+            raise sc.old_format_error(a.home)
+    except sc.ComposeError as e:
+        return _fail(e)
+    team = info["team"]
+    if a.has is None:
+        print("undecided" if team is None else ", ".join(team) or "none")
+        return 0
+    if a.has == "manager":
+        return 0
+    if team is None:
+        return 1
+    return 0 if a.has in sr.IMPLICIT_ROLES or sr.ROLE_KEY.get(a.has, a.has) in team else 1
+
+
 def cmd_who(a):
     try:
         e = sc.find_rule(a.plugin_root or sc.DEFAULT_ROOT, _overlay(a), a.id)
@@ -103,10 +130,11 @@ def main(argv=None):
     squadio.utf8_stdio()
     ap = argparse.ArgumentParser(prog="squad-process", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    lp = sub.add_parser("lint", help="check the rule files and the squad's overlay")
+    lp = sub.add_parser("lint", help="check the rule files and the squad's overlay",
+                        description="check the rule files and the squad's overlay; a when: key must be one of the team language (qa-white, qa-black, ba, team-lead, tech-lead, design, architecture, a duty, goal, qa)")
     lp.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
     lp.add_argument("--plugin-root", default=DEFAULT_ROOT)
-    lp.add_argument("--home", action="append", help="also check this scope or goal home's facts (qa-b: no needs design: no)")
+    lp.add_argument("--home", action="append", help="also check this scope or goal home's team: line")
     lp.add_argument("--cards", choices=("error", "warn"), default="error")
     lp.add_argument("--hashes", action="store_true", help="after any problems print `<ID> <hash>` per rule")
     cp = sub.add_parser("compose", help="composed rules for one role")
@@ -115,14 +143,19 @@ def main(argv=None):
     cp.add_argument("--agent")
     cp.add_argument("--out")
     cp.add_argument("--now")
-    for name in ("rule", "who"):
-        p = sub.add_parser(name)
+    tp = sub.add_parser("team", help="print the scope's team; --has ROLE exits 0/1")
+    tp.add_argument("--home", required=True)
+    tp.add_argument("--has", metavar="ROLE")
+    for name, text in (("rule", "print the effective text of a rule"),
+                       ("who", "which roles a rule acts on or only knows about, for each value of the duty and role "
+                               "keys in its when: (ba, team-lead, tech-lead, qa-white, qa-black, plan-owner, ...)")):
+        p = sub.add_parser(name, help=text, description=text)
         p.add_argument("id")
     for p in (cp, sub.choices["rule"], sub.choices["who"]):
         p.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
         p.add_argument("--plugin-root", default=None)
     a = ap.parse_args(argv)
-    return {"lint": cmd_lint, "compose": cmd_compose, "rule": cmd_rule, "who": cmd_who}[a.cmd](a)
+    return {"lint": cmd_lint, "compose": cmd_compose, "rule": cmd_rule, "who": cmd_who, "team": cmd_team}[a.cmd](a)
 
 
 if __name__ == "__main__":

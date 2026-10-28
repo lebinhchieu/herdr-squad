@@ -91,15 +91,21 @@ class InstructionsTest(unittest.TestCase):
         process = (ROOT / "templates/squad/process.md").read_text()
         for token in ("design: yes", "ui-design/", "`ux`"):
             self.assertIn(token, process)
-        self.assertIn("\ndesign: no\n", (ROOT / "templates/scope/scope.md").read_text())
-        self.assertIn("`designer`", composed("manager", "M"))
+        self.assertIn("\nteam:\n", (ROOT / "templates/scope/scope.md").read_text())
+        self.assertIn("`designer`", composed("manager", "M", "yes"))
+
+    def test_scope_template_lines(self):
+        t = (ROOT / "templates/scope/scope.md").read_text()
+        self.assertIn("\nteam:\nqa: full\n", t)
+        for old in ("\nsize:", "\ndesign:", "\narchitecture:", "\nqa-b:"):
+            self.assertNotIn(old, t)
 
     def test_the_architect_starts_by_reading_its_scope_folder(self):
         text = composed("architect", "M", goal="yes", architecture="yes")
         for token in ("$SCOPE_DIR/scope.md", "$GOAL_DIR/goal.md", "shared/", "roles/$SQUAD_NAME.notes.md"):
             self.assertIn(token, text)
         self.assertIn("`architect`", composed("manager", "M", architecture="yes"))
-        self.assertIn("\narchitecture: no\n", (ROOT / "templates/scope/scope.md").read_text())
+        self.assertIn("\nteam:\n", (ROOT / "templates/scope/scope.md").read_text())
 
 
 class ManagerInboxTest(unittest.TestCase):
@@ -188,9 +194,9 @@ class RuleDutiesTest(unittest.TestCase):
         self.assertIn("## REV-15 Report deliverables", composed("manager", "S"))
         self.assertIn("evidence/<task>/", rev15)
         self.assertIn("handed in", rev15)
-        after = dev.split("## REV-14b")[1].split("##")[0]
+        after = dev.split("## REV-14a")[1].split("##")[0]
         self.assertIn("diff check", after)
-        self.assertIn("both QAs", after)
+        self.assertIn("tell the plan owner", after)
 
     def test_dev_writes_evidence_md_with_inline_screenshots_and_assembles_it(self):
         dev = composed("dev", "S")

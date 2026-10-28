@@ -364,7 +364,7 @@ def main():
     if manager:
         what = ("$GOAL_DIR/goal.md (the PO's brief), do your start-of-session routine, split it into scopes with their order "
                 "and dependencies in goal.md" if kind == "goal" else
-                "$SCOPE_DIR/scope.md (the PO's brief), do your start-of-session routine, size the scope")
+                "$SCOPE_DIR/scope.md (the PO's brief), do your start-of-session routine, propose the team")
         prompt = f"Start of run. Your {kind} is {name}: read {what}, and propose the plan to the PO (me) before spawning anyone."
     spawn = [(PLUGIN / "bin" / "squad-spawn").as_posix(), "manager", manager or "", flag, name, "--prompt", prompt or ""]
     if a.model:
