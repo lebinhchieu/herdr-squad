@@ -9,7 +9,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bin"))
 import processlint  # noqa: E402
 
-TEMPLATE = ROOT / "templates/squad/process.md"
 
 # (check, line-text prefix, reason): each one approved by the BA. None yet.
 EXCEPTIONS = []
@@ -27,9 +26,6 @@ MANAGER = ROOT / "agents/manager.md"
 
 
 class ProcessWritingTest(unittest.TestCase):
-    def test_template_lints_clean(self):
-        self.assertEqual(processlint.lint(TEMPLATE.read_text(), exceptions=EXCEPTIONS), [])
-
     def test_every_exception_has_a_reason(self):
         for exc in EXCEPTIONS:
             self.assertEqual(len(exc), 3, exc)
@@ -53,9 +49,6 @@ class ProcessWritingTest(unittest.TestCase):
     def test_no_byte_budget_anywhere(self):
         self.assertNotIn("budget", inspect.signature(processlint.lint).parameters)
         self.assertNotRegex(MANAGER.read_text(), r"stays within [\d,]+ bytes")
-
-    def test_version_line_is_line_3(self):
-        self.assertRegex(TEMPLATE.read_text().splitlines()[2], r"^process-version: [1-9]\d*$")
 
 
 if __name__ == "__main__":

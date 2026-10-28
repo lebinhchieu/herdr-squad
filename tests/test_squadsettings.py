@@ -76,7 +76,7 @@ class EffectiveTest(Base):
         self.assertEqual(c.exception.code, 2)
 
     def test_team_lead_empty_local_has_spawn_dev_and_herdr_entries(self):
-        # v4 gap in SETTINGS-NOTES.md: a squad file written before T5 lacked these; the overlay cannot lose them.
+        # v4 gap: a squad file written before T5 lacked these; the overlay cannot lose them.
         self.local("team-lead", {})
         allow = self.eff("team-lead")["permissions"]["allow"]
         for e in ("Bash(squad-spawn dev:*)", "Bash(squad-retire:*)", "Bash(herdr agent list:*)",
@@ -110,6 +110,28 @@ class EffectiveTest(Base):
                 self.assertEqual(rm, [], f.name)
             for e in rm:
                 self.assertIn(" /tmp/tmp.", e)
+
+    def test_safe11_rm_examples_match_allow_and_no_ask(self):
+        import fnmatch
+        text = (ROOT / "templates/squad/process/safety.md").read_text(encoding="utf-8")
+        body = re.search(r"(?ms)^## SAFE-11 .*?(?=^## |\Z)", text).group(0)
+        cmds = []
+        for code in re.findall(r"`([^`]+)`", body):
+            cmds += [c.strip() for c in re.split(r"&&|;", code) if c.strip().startswith("rm ")]
+        self.assertTrue(cmds, "SAFE-11 has no rm example")
+        self.assertNotIn("$", "".join(cmds))
+
+        def hit(globs, cmd):
+            return any(fnmatch.fnmatchcase(cmd, g[len("Bash("):-1]) for g in globs if g.startswith("Bash(") and ":*" not in g)
+
+        for role in ("dev", "qa-whitebox", "qa-blackbox", "manager", "tech-lead", "team-lead"):
+            perms = json.loads((ROOT / f"templates/squad/settings/{role}.json").read_text(encoding="utf-8"))["permissions"]
+            for c in cmds:
+                self.assertFalse(hit(perms["ask"], c), f"{role}: ask matches {c}")
+                if "$" not in c:
+                    self.assertTrue(hit(perms["allow"], c), f"{role}: no allow for {c}")
+            self.assertTrue(hit(perms["allow"], "rm -rf /tmp/tmp.A") and not hit(perms["ask"], "rm -rf /tmp/tmp.A"))
+            self.assertTrue(hit(perms["ask"], "rm -rf /tmp/tmp.A /tmp/tmp.B"), role)  # negative control
 
     def test_manager_allows_squad_team(self):
         m = json.loads((ROOT / "templates/squad/settings/manager.json").read_text(encoding="utf-8"))
@@ -162,7 +184,7 @@ class SpawnTest(Base):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(f"--settings {self.squad}/settings/dev.json", r.stdout)
         self.assertEqual(r.stderr.count("warning:"), 1)
-        self.assertIn("09", r.stderr)
+        self.assertIn("not an overlay", r.stderr)
 
     def test_no_squad_files_uses_the_template_without_warning(self):
         r = self.spawn()

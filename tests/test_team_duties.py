@@ -335,8 +335,8 @@ class LintWhen(unittest.TestCase):
 class ChangelogV9(unittest.TestCase):
     def test_empty_v9_block_exists_with_the_four_headings(self):
         text = (ROOT / "skills" / "squad-process-update" / "changelog.md").read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("## v9"))
-        head = text.split("## v8")[0]
+        self.assertIn("## v9", text)
+        head = text.split("## v9")[1].split("## v8")[0]
         for h in ("added:", "changed:", "removed:", "retargeted:"):
             self.assertIn(h, head)
 

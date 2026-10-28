@@ -200,7 +200,7 @@ class SpawnDryRunTest(unittest.TestCase):
         r = self._spawn_any("--scope", "s")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stderr.count("legacy squad: plugin rules attached, local process.md edits not applied; "
-                                        "run squad-process adopt --dry-run"), 1)
+                                        "new squads: squad-process scaffold (or /squad:squad-init)"), 1)
 
     def test_legacy_real_spawn_writes_the_composed_rules_and_attaches_them(self):
         r = self._real_spawn()
@@ -639,74 +639,35 @@ class SpawnLabelTest(unittest.TestCase):
         self.assertFalse((self.squad / "scopes" / "sc1" / "labels").exists())
 
 
-def toy_plugin(root, version):
-    """A copy of the plugin whose template process.md is `version` (None: no version line)."""
-    plugin = Path(root) / "plugin"
-    shutil.rmtree(plugin, ignore_errors=True)
-    shutil.copytree(BIN_DIR, plugin / "bin", ignore=shutil.ignore_patterns("__pycache__"))
-    os.symlink(BIN_DIR.parent / "agents", plugin / "agents")
-    shutil.copytree(BIN_DIR.parent / "templates", plugin / "templates")
-    (plugin / "templates" / "squad" / "process.md").write_text(
-        "# T\n" + (f"\nprocess-version: {version}\n" if version else ""), encoding="utf-8")
-    return plugin
-
-
-class SpawnProcessUpdateTest(unittest.TestCase):
-    """The Manager's first prompt carries the process-update sentence; nobody else's does; nothing blocks."""
+class SpawnLegacyPromptTest(unittest.TestCase):
+    """No role's first prompt carries a process-update sentence, whatever the squad's process.md says."""
     setUp, tearDown, calls = SpawnLabelTest.setUp, SpawnLabelTest.tearDown, SpawnLabelTest.calls
 
-    def spawn_from(self, plugin_version, squad_text, role="manager", name="t-mgr-sc1", *args):
-        plugin = toy_plugin(self.root, plugin_version)
+    def spawn(self, squad_text, role="manager", name="t-mgr-sc1", *args):
         (self.squad / "process.md").write_text(squad_text, encoding="utf-8")
-        r = subprocess.run([str(plugin / "bin" / "squad-spawn"), role, name, "--scope", "sc1", *args], env=self.env,
+        r = subprocess.run([str(BIN_DIR / "squad-spawn"), role, name, "--scope", "sc1", *args], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
-        return (self.calls("agent prompt") or [""])[0]
+        return r, (self.calls("agent prompt") or [""])[0]
 
     def attached(self, name):  # the legacy "rules are attached" sentence (ticket 24)
         return f"Your process rules are attached to this session ({self.squad}/scopes/sc1/roles/{name}.rules.md); read no other process file."
 
-    def test_behind_manager_gets_the_sentence_after_its_own_prompt(self):
-        p = self.spawn_from(2, "process-version: 1\n", "manager", "t-mgr-sc1", "--prompt", "Start of run.")
-        self.assertTrue(p.startswith(f"agent prompt t-mgr-sc1 Start of run. {self.attached('t-mgr-sc1')} Process update: "), p)
-        for s in ("version 1", "is 2", "migrate the process", "Tell the PO in your first message", "Do not migrate unless the PO says so"):
-            self.assertIn(s, p)
+    def test_manager_prompt_has_no_process_update_sentence(self):
+        for text in ("process-version: 1\n", "# T\n", "process-version: 99\n"):
+            with self.subTest(text=text):
+                r, p = self.spawn(text, "manager", "t-mgr-sc1", "--prompt", "Start of run.")
+                self.assertEqual(p, f"agent prompt t-mgr-sc1 Start of run. {self.attached('t-mgr-sc1')}")
+                self.assertNotIn("Process update", p + r.stdout + r.stderr)
+                self.log.unlink()
 
-    def test_empty_prompt_becomes_the_sentence(self):
-        p = self.spawn_from(2, "# T\n")
-        self.assertTrue(p.startswith("agent prompt t-mgr-sc1 Process update: "), p)
-        self.assertIn("treated as version 1", p)
-
-    def test_other_roles_get_nothing(self):
-        p = self.spawn_from(2, "process-version: 1\n", "dev", "t-dev-sc1-1", "--prompt", "Do RP-1.")
+    def test_other_roles_and_dry_run_are_unchanged(self):
+        _, p = self.spawn("process-version: 1\n", "dev", "t-dev-sc1-1", "--prompt", "Do RP-1.")
         self.assertEqual(p, f"agent prompt t-dev-sc1-1 Do RP-1. {self.attached('t-dev-sc1-1')}")
-
-    def test_current_manager_prompt_is_unchanged_and_without_prompt_none_is_sent(self):
-        self.assertEqual(self.spawn_from(2, "process-version: 2\n", "manager", "t-mgr-sc1", "--prompt", "Go."),
-                         f"agent prompt t-mgr-sc1 Go. {self.attached('t-mgr-sc1')}")
-        self.log.unlink()
-        self.assertEqual(self.spawn_from(2, "process-version: 2\n", "manager", "t-mgr-sc2"), "")
-
-    def test_a_failing_check_or_a_template_without_the_line_never_stops_the_spawn(self):
-        self.assertEqual(self.spawn_from(None, "process-version: 1\n", "manager", "t-mgr-sc1", "--prompt", "Go."),
-                         f"agent prompt t-mgr-sc1 Go. {self.attached('t-mgr-sc1')}")
-        self.log.unlink()
-        plugin = self.root / "plugin"
-        (plugin / "bin" / "squad-process").write_text(
-            f'#!/bin/sh\n[ "$1" = check ] && exit 1\nexec {BIN_DIR}/squad-process "$@"\n', encoding="utf-8")
-        r = subprocess.run([str(plugin / "bin" / "squad-spawn"), "manager", "t-mgr-sc1", "--scope", "sc1", "--prompt", "Go."],
-                           env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=30)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.calls("agent prompt")[0], f"agent prompt t-mgr-sc1 Go. {self.attached('t-mgr-sc1')}")
-
-    def test_dry_run_is_unchanged(self):
-        plugin = toy_plugin(self.root, 2)
-        (self.squad / "process.md").write_text("process-version: 1\n", encoding="utf-8")
-        r = subprocess.run([str(plugin / "bin" / "squad-spawn"), "manager", "t-mgr-sc1", "--scope", "sc1", "--dry-run"],
+        r = subprocess.run([str(BIN_DIR / "squad-spawn"), "manager", "t-mgr-sc1", "--scope", "sc1", "--dry-run"],
                            env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("Process update", r.stdout + r.stderr)
-
 
 
 class _GateBase(unittest.TestCase):
@@ -798,13 +759,13 @@ class SpawnTeamGateTest(_GateBase):
             self.assertEqual(self.spawn("manager", "gate-1", "--dry-run").returncode, 0)
             self.log.unlink(missing_ok=True)
 
-    def test_an_unpinned_scope_on_size_is_refused_with_the_converter_pointer_for_every_role(self):
+    def test_an_unpinned_scope_on_size_is_refused_with_the_team_line_pointer_for_every_role(self):
         self.set_scope("# Scope\n\nsize: M\nqa-b: yes\n")
         for role in ("manager", "dev", "ba", "qa-whitebox"):
             with self.subTest(role=role):
                 r = self.spawn(role, "gate-1")
                 self.assertEqual(r.returncode, 2, r.stderr)
-                self.assertIn("squad-process adopt", r.stderr)
+                self.assertIn("one `team:` line", r.stderr)
                 self.assertIn("size", r.stderr)
                 self.assertEqual(self.created(), [])
 
@@ -814,7 +775,7 @@ class SpawnTeamGateTest(_GateBase):
         t = subprocess.run([str(BIN_DIR / "squad-process"), "team", "--home", str(self.scope)], text=True,
                            encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(t.returncode, 2)
-        self.assertIn("squad-process adopt", t.stderr)
+        self.assertIn("one `team:` line", t.stderr)
         r = self.spawn("dev", "gate-1", "--dry-run")
         self.assertEqual(r.returncode, 2)
         self.assertEqual(r.stderr.strip().splitlines()[-1], t.stderr.strip().splitlines()[-1])
@@ -959,7 +920,7 @@ class SpawnPinnedTest(_GateBase):
             r = self.spawn("manager", "gate-1", *extra)
             self.assertEqual(r.returncode, 2, r.stderr)
             self.assertRegex(r.stderr, r"scope\.md:\d+: old format `size:`")
-            self.assertIn("squad-process adopt", r.stderr)
+            self.assertIn("one `team:` line", r.stderr)
             self.assertNotIn("needs a pin", r.stderr)
             self.assertEqual(self.created(), [])
 
@@ -969,19 +930,14 @@ class SpawnPinnedTest(_GateBase):
         (rt / "bin").mkdir(parents=True)
         (rt / "bin" / "squad-spawn").symlink_to(SCRIPT)
         r = self.spawn("dev", "gate-1")
-        self.assertEqual((r.returncode, "squad-process adopt" in r.stderr), (2, True))  # the new gate, once
+        self.assertEqual((r.returncode, "one `team:` line" in r.stderr), (2, True))  # the new gate, once
         self.assertEqual(self.created(), [])
 
-    def test_the_pinned_scope_md_is_byte_identical_after_spawn_and_the_converter(self):
+    def test_the_pinned_scope_md_is_byte_identical_after_spawn(self):
         self.pin("0.5.2")
         before = self.scope_md.read_bytes()
         self.spawn("dev", "gate-1")
         self.spawn("dev", "gate-2", "--dry-run")
-        for args in ((), ("--yes",)):
-            c = subprocess.run([str(BIN_DIR / "squad-process"), "adopt", "--squad-dir", str(self.squad), *args], env=self.env,
-                               text=True, encoding="utf-8", capture_output=True, timeout=30)
-            self.assertIn("pinned", c.stdout + c.stderr, c.stdout + c.stderr)
-            self.assertEqual(self.scope_md.read_bytes(), before)
         self.assertEqual(self.scope_md.read_bytes(), before)
 
 

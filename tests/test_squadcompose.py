@@ -594,7 +594,7 @@ class CutoverTest(Base):
                 h = self.old_home(*lines)
                 with self.assertRaises(sc.ComposeError) as cm:
                     sc.read_home(h)
-                self.assertIn("squad-process adopt", "\n".join(cm.exception.lines))
+                self.assertIn("one `team:` line", "\n".join(cm.exception.lines))
                 self.assertIn("scope.md:1", cm.exception.lines[0])
 
     def test_compose_of_a_size_home_exits_2_for_every_role(self):
@@ -605,7 +605,7 @@ class CutoverTest(Base):
                     sc.compose(role, str(h), str(self.root), None, role, NOW, None)
                 r = self.run_cli("compose", role, "--now", NOW, home=h)
                 self.assertEqual(r.returncode, 2, r.stderr)
-                self.assertIn("squad-process adopt", r.stderr)
+                self.assertIn("one `team:` line", r.stderr)
                 self.assertIn("scope.md:1", r.stderr)
                 self.assertEqual(r.stdout, "")
 

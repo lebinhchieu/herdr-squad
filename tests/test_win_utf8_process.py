@@ -2,14 +2,13 @@
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "bin"))
-import squadprocess as sp  # noqa: E402
-import test_squadprocess_apply as ap  # noqa: E402
 
 TEXT = "→ 🦀 é"
 WIN_ENV = {**os.environ, "PYTHONUTF8": "0", "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "cp1252"}
@@ -19,34 +18,21 @@ def run(*cmd):
     return subprocess.run([sys.executable, *map(str, cmd)], capture_output=True, env=WIN_ENV)
 
 
-class SquadProcessWinTest(ap.Base):
-    def squad_with_text(self):
-        return self.squad(ap.V1.replace("a1", "a1 " + TEXT))
+class ProcessLintWinTest(unittest.TestCase):
+    tmp = Path()
 
-    def cli_win(self, *args, d):
-        return run(ap.CLI, *args, "--squad-dir", d, "--plugin-root", self.plugin)
+    def setUp(self):
+        self._d = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._d.name)
+        self.addCleanup(self._d.cleanup)
 
-    def test_check_version_exit_0_and_print_utf8(self):  # `show` is retired (ticket 09)
-        d = self.squad_with_text()
-        for cmd in (("check",), ("version",)):
-            r = run(ap.CLI, *cmd, "--squad-dir", d, "--plugin-root", self.plugin)
+    def test_composed_rule_and_who_print_lf_utf8(self):
+        for cmd in (("rule", "CORE-1"), ("who", "CORE-1")):
+            r = run(ROOT / "bin" / "squad-process", *cmd)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertNotIn(b"\r", r.stdout)
             self.assertNotIn(b"Traceback", r.stderr)
-
-    def test_apply_writes_utf8_lf_bytes(self):
-        d = self.squad_with_text()
-        f = self.tmp / "combined.md"
-        sp.compose(d, self.plugin, f, {"## A": "ours"})
-        self.assertIn(TEXT, f.read_text(encoding="utf-8"))
-        before_log = (d / "process-log.md").read_bytes()
-        r = self.cli_win("apply", "--legacy", "--file", f, "--yes", d=d)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual((d / "process.md").read_bytes(), f.read_bytes())
-        log = (d / "process-log.md").read_bytes()
-        self.assertNotIn(b"\r", log)
-        log.decode("utf-8")
-        self.assertIn(before_log.split(b"\n")[-2], log)  # the old row is intact
+            r.stdout.decode("utf-8")
 
     def test_processlint_exit_0_on_non_ascii(self):
         f = self.tmp / "p.md"

@@ -31,7 +31,6 @@ from pathlib import Path
 PLUGIN = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PLUGIN / "bin"))
 import squadio  # noqa: E402
-import squadprocess  # noqa: E402
 import squadruntime  # noqa: E402
 STOP = {"the", "a", "an", "of", "to", "for", "and", "in", "on", "with", "from"}
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -164,20 +163,6 @@ def print_manager_defaults(squad, a, recorded=None, pin=None, scope_md=None):
         print(f"manager {key}: {v} (from {src})")
 
 
-def process_update(squad):
-    """The one-line warning when the squad's process.md is not current, else None. Warns, never stops the start."""
-    if squadruntime.mode(str(squad)) == "composed":  # rules come from the plugin pin: no process.md to check
-        return None
-    try:
-        msg = squadprocess.check(squad, PLUGIN)["message"]
-    except Exception:  # a bad file or template must not block a start
-        print("process version not checked; run `squad-process check` for the reason", file=sys.stderr)
-        return None
-    if msg:
-        print(f"process update: {msg}", file=sys.stderr)
-    return msg or None
-
-
 def name_workspace(name):
     """Name the caller's herdr workspace after the goal or lone scope; a refusal never stops the start."""
     ws = os.environ.get("HERDR_WORKSPACE_ID")
@@ -232,7 +217,7 @@ def render(template_dir, target, values):
             fh.write(text)
 
 
-def resume(squad, a, update):
+def resume(squad, a):
     if a.text or a.in_goal or a.name:
         die("--resume takes only the name of an existing scope or goal", 2)
     for kind, base in (("goal", "goals"), ("scope", "scopes")):
@@ -269,7 +254,7 @@ def resume(squad, a, update):
     except ValueError:
         tab = None
     name_workspace(a.resume)
-    print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab, "process_update": update}))
+    print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab}))
 
 
 def choose_pin(squad, in_goal):
@@ -324,13 +309,12 @@ def main():
     if squadruntime.mode(str(squad)) == "none":
         die(f"no squad folder at {squad} (run /squad:squad-init)")
     if not (squad / "scopes").is_dir():
-        die(f"{squad.name} uses the flat layout (no scopes/ folder); squad-start would convert it, so it refuses. "
+        die(f"{squad.name} uses the flat layout (no scopes/ folder); squad-start refuses it. "
             "Set up a new squad with /squad:squad-init" if (squad / "roster.md").exists()
             else f"{squad} has no scopes/ folder; run /squad:squad-init")
 
-    update = process_update(squad)
     if a.resume:
-        return resume(squad, a, update)
+        return resume(squad, a)
     if not a.text:
         die("give the task as text, or --resume NAME", 2)
     m = re.match(r"\s*goal:\s*(.*)", a.text, re.I | re.S)
@@ -411,7 +395,7 @@ def main():
             pass
     if manager:
         name_workspace(name)
-    print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab, "process_update": update}))
+    print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab}))
 
 
 if __name__ == "__main__":

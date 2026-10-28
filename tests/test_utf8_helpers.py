@@ -76,7 +76,7 @@ class Base(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         # a legacy squad fixture prints exactly these two notices (ticket 24 / squad-process), nothing else
         notices = (b"squad-process: no `plugin:` pin in the home; composing from the running plugin",
-                   b"legacy squad: plugin rules attached, local process.md edits not applied; run squad-process adopt --dry-run")
+                   b"legacy squad: plugin rules attached, local process.md edits not applied; new squads: squad-process scaffold (or /squad:squad-init)")
         extra = [ln for ln in r.stderr.split(b"\n") if ln and ln not in notices]
         self.assertEqual(extra, [], r.stderr)
 
@@ -165,20 +165,6 @@ class NotifyTest(Base):
         r = self.cli("squad-notify", stdin=json.dumps({"hook_event_name": "Stop", "x": "🦀"}, ensure_ascii=False).encode("utf-8"))
         self.assertEqual(r.returncode, 0, r.stderr)
 
-
-class MigrateTest(Base):
-    def test_a_flat_squad_with_non_ascii_text_migrates_to_utf8_lf(self):
-        flat = self.root / "flat" / ".claude" / "squads" / "f"
-        flat.mkdir(parents=True)
-        (flat / "process.md").write_text("x", encoding="utf-8")
-        (flat / "goal.md").write_bytes("# G\n\n**Fix café 🦀**\n".encode("utf-8"))
-        (flat / "roster.md").write_bytes("| Agent | Role |\n|---|---|\n| a | dev |\n".encode("utf-8"))
-        r = self.cli("squad-migrate", flat, "--to", "per-scope", "--scope", "s1")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertNotIn(b"Traceback", r.stderr)
-        raw = (flat / "scopes" / "s1" / "scope.md").read_bytes()
-        self.assertIn("café 🦀".encode("utf-8"), raw)
-        self.assertNotIn(b"\r", raw)
 
 
 class JqTest(Base):

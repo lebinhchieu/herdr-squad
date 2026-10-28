@@ -85,7 +85,7 @@ def plan(mode, role, home, squad_dir, plugin_root, po_ok=False, at_boundary=Fals
             raise sc.ComposeError(f"squad-team: pin is plugin {before['pin'][0]} but the running plugin is "
                                   f"{sc.running_version()}; pass --plugin-root <that version's plugin folder>")
     if before["team_source"] == "old":
-        raise sc.ComposeError(f"{scope_md}: old `size:` format; run `squad-process adopt --squad-dir <squad>` first")
+        raise sc.ComposeError(f"{scope_md}: old `size:` format; replace the old lines by one `team:` line by hand first")
     if before["team"] is None:
         raise sc.ComposeError(f"{scope_md}: the team is undecided; the Manager writes the first `team:` after the PO's "
                               "reply, then use squad-team")

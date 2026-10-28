@@ -122,7 +122,7 @@ The entry in `process/_removed.md` for a removed rule ID (`why:`, `replaced_by:`
 _Avoid_: deleted rule, deprecated rule
 
 **Composed mode** / **Legacy mode**:
-A squad is in composed mode when `process.local.md` exists, and then needs a pin to spawn; with only `process.md` it is in legacy mode and its roles get the running plugin's rules with no overlay until `squad-process adopt` converts it.
+A squad is in composed mode when `process.local.md` exists, and then needs a pin to spawn; with only `process.md` it is in legacy mode and its roles get the running plugin's rules with no overlay.
 _Avoid_: new/old squad
 
 **Failing sha**:
@@ -130,12 +130,12 @@ A handed-in sha with at least one FAIL. The process counts these as a task's ret
 _Avoid_: bounce
 
 **Process changelog**:
-The plugin's list, per released version, of the rule IDs added, changed, removed and retargeted, each with a reason (`skills/squad-process-update/changelog.md`). Frozen copies of old versions sit in the skill's `history/`. The upgrade reads it.
+The plugin's list, per released version, of the rule IDs added, changed, removed and retargeted, each with a reason (`skills/squad-process-update/changelog.md`). The upgrade reads it.
 _Avoid_: release notes
 
 **Process update**:
-The skill `/squad:squad-process-update`, which drives `squad-process upgrade` between scopes: it applies every rule the **Overlay** does not touch and lists for the PO only the stale operations (target hash changed), the operations whose target was removed, and the local rules that share a `topic` with a changed plugin rule. `adopt` converts a legacy squad. Nothing is written without the PO's yes.
-_Avoid_: migration (that word is `squad-migrate`, for folder layouts)
+The skill `/squad:squad-process-update`, which drives `squad-process upgrade` between scopes: it applies every rule the **Overlay** does not touch and lists for the PO only the stale operations (target hash changed), the operations whose target was removed, and the local rules that share a `topic` with a changed plugin rule. Nothing is written without the PO's yes.
+_Avoid_: migration
 
 **Home**:
 A folder with its own roster, escalations, logs, `iterations/` and `roles/`: `goals/<g>/` or `scopes/<s>/` in a per-scope squad, the squad folder itself in a flat one.

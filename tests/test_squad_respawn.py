@@ -313,7 +313,7 @@ class RespawnPinnedTest(RespawnTest):
         r = self.run_respawn()
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertRegex(r.stderr, r"scope\.md:\d+: old format `size:`")
-        self.assertIn("squad-process adopt", r.stderr)
+        self.assertIn("one `team:` line", r.stderr)
         self.assertNotIn("needs a pin", r.stderr)
         self.assertFalse(self.log.exists())
 

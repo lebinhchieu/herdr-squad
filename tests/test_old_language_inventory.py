@@ -12,10 +12,8 @@ PATTERN = r"size:|'size'|\"size\"|qa-b\b"
 CONVERTER = "converter input or old-format rejection (names the old key to point at the converter)"
 ALLOW = {
     "bin/squad-log-message": (1, "comment: old `size:` scope.md is not guessed"),
-    "bin/squad-migrate": (1, "migrate input: the old table's size column"),
     "bin/squad-respawn": (2, "pinned-runtime comment and refusal text (D7)"),
     "bin/squad-spawn": (2, "pinned-runtime comment and refusal text (D7)"),
-    "bin/squadadopt.py": (7, "converter mapping: old size/qa-b to team"),
     "bin/squadcompose.py": (4, CONVERTER),
     "bin/squadinbox.py": (1, "false positive: os.stat st_size"),
     "bin/squadreport.py": (3, "report display of legacy rows"),
@@ -35,7 +33,7 @@ class OldLanguageInventory(unittest.TestCase):
     def test_hits_are_allow_listed(self):
         out = subprocess.run(
             ["git", "grep", "-nE", PATTERN, "--", "bin", "hooks", "agents", "skills",
-             ":!skills/*/history/*", ":!skills/*/changelog.md"],
+             ":!skills/*/changelog.md"],
             cwd=ROOT, capture_output=True, text=True, check=False).stdout
         got = Counter(line.split(":", 1)[0] for line in out.splitlines())
         want = {f: n for f, (n, _) in ALLOW.items()}

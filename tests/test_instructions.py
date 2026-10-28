@@ -6,8 +6,9 @@ from pathlib import Path
 from rulesview import composed, run
 
 ROOT = Path(__file__).resolve().parent.parent
+RULES = "\n".join(f.read_text() for f in sorted((ROOT / "templates/squad/process").glob("*.md")))  # the rule folder
 AGENTS = sorted((ROOT / "agents").glob("*.md"))
-INSTRUCTIONS = AGENTS + [ROOT / "templates/squad/process.md", ROOT / "templates/squad/project.md"] \
+INSTRUCTIONS = AGENTS + [ROOT / "templates/squad/project.md"] \
     + sorted((ROOT / "skills").glob("*/SKILL.md")) + sorted((ROOT / "templates/scope").rglob("*.md")) \
     + sorted((ROOT / "templates/goal").rglob("*.md"))
 # Files and places that no longer exist at squad level.
@@ -61,8 +62,8 @@ class InstructionsTest(unittest.TestCase):
                 start = f.read_text()[max(0, m.start() - 12):m.start()]
                 self.assertNotIn("$SQUAD_DIR/", start, f.name)
 
-    def test_process_documents_every_variable_and_every_squad_command(self):  # v6 template, until ticket 09 retires it
-        text = (ROOT / "templates/squad/process.md").read_text()
+    def test_process_documents_every_variable_and_every_squad_command(self):  # old assertion on the v6 template, now on the rule folder
+        text = RULES
         for token in ("SQUAD_DIR", "SCOPE_DIR", "GOAL_DIR", "squad-start", "squad-close", "squad-respawn",
                       "squad-spawn", "--base", "--in-goal", "promoted:", "shared/decisions.md", "scopes/_done"):
             self.assertIn(token, text)
@@ -88,9 +89,8 @@ class InstructionsTest(unittest.TestCase):
             self.assertIn(token, text)
 
     def test_the_designer_is_wired_into_process_manager_and_scope_template(self):
-        process = (ROOT / "templates/squad/process.md").read_text()
-        for token in ("design: yes", "ui-design/", "`ux`"):
-            self.assertIn(token, process)
+        for token in ("design = yes", "ui-design/", "`ux`"):  # was `design: yes` in the v6 template
+            self.assertIn(token, RULES)
         self.assertIn("\nteam:\n", (ROOT / "templates/scope/scope.md").read_text())
         self.assertIn("`designer`", composed("manager", "M", "yes"))
 
