@@ -9,7 +9,7 @@ Status: accepted (cleanup; PO accepted the plan and Q1 = drop `squad-migrate` an
 - the converters: `squad-migrate` (flat to per-scope layout, `--scope-to-goal`) and `squad-process adopt`. `squad-process scaffold` moved to `bin/squadscaffold.py` and is unchanged.
 - tracked clutter: `.claude/squad-backups/*.md`, `.scratch/_done/`, `handover/`, `SETTINGS-NOTES.md`. Git history keeps all of it (the squad/plugin/cleanup branch). `TODO.md` stays (open item).
 
-**Why:** each was kept only for squads that had not moved to 0.6.0. The version history was 474 KB, the old-layout converters 1,000 lines with their tests; nothing read them but each other.
+**Why:** each was kept only for squads that had not moved to 0.6.0. The version history was 461 KB, the old-layout converters 1,000 lines with their tests; nothing read them but each other.
 
 **Consequences:**
 - Removed commands fail as argparse usage errors, exit 2, no stub.
