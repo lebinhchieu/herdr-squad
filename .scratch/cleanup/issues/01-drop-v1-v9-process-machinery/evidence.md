@@ -1,5 +1,5 @@
 # Evidence 01: drop v1-v9 process.md machinery
-
+sha: d4cda49
 ## Behaviour
 
 Base 5274494 (02), merged 03 (09ab86f..6ab2bf7, no conflict; GOAL-6b integration step). Scratch dirs under `.worktrees/scratch`.
@@ -46,3 +46,49 @@ Coverage move (`test_instructions`, tokens checked against the rule folder `temp
 **Tests run** (touched + `grep -rl` hits: every test file naming squad-process, squad-start, squad-spawn, squadupgrade, process-update, changelog, templates/squad, CONTEXT.md, README.md, process.md, history): 934 tests, OK (2 skipped). Full suite `--tz`: Tech Lead on the final sha.
 
 **Feature loss for the PO:** `squad-process version|check|plan|apply|compose --out`, the squad-start "process behind" nag and the Manager's first-prompt sentence are gone. A process.md-only squad can no longer be updated by the plugin.
+
+## QA whitebox
+
+### QA whitebox 01, sha 9d8890d: FAIL (1 finding)
+
+#### Finding 1: doubled sentence in the skill text
+`skills/squad-process-update/SKILL.md:9`: "Nothing is written until the PO confirms. Mechanics: nothing is written until the PO confirms. Mechanics: `squad-process upgrade` and `upstream`." The rewrite pasted the sentence twice. It is the text the Manager reads when the PO says "upgrade the process".
+Pass: one sentence, e.g. "Nothing is written until the PO confirms. Mechanics: `squad-process upgrade` and `upstream`." Doc-only; re-run `test_instructions` and `test_squad_start`.
+
+#### Checked OK
+- H1: `git grep` of the listed patterns outside ADRs, `.scratch`, backups: only tests that assert absence (`process-version: N` squad fixtures in test_squad_start/test_squad_spawn, the `plan/apply --legacy/version/check` usage-error cases in test_squadscaffold). No code, doc or skill hit. `history/`, `templates/squad/process.md`, `bin/squadprocess.py` gone.
+- H2: `_changelog_why` for versions 6-10 gives byte-identical output (md5) on the 02 sha and 9d8890d (v7 317 IDs, v8 31, v9 267). `_atomic_write`, `_insert_log`, `LOG_HEADER` moved verbatim into squadupgrade.
+- H3/H3b: `plan`, `apply --legacy`, `version`, `check`, `adopt`, `compose --out F` (no role) each exit 2, argparse usage line, no Traceback. `lint`, `rule`, `who`, `mode`, `upgrade --check` output identical to the 02 sha on a scaffolded squad. Docstring lists exactly the parser/dispatch commands (lint compose team upgrade upstream mode runtime prune scaffold, plus rule/who).
+- H4: `process_update` removed from both JSON prints in squad-start (keys kind,name,dir,manager,tab) and from squad-start SKILL.md; the squad-spawn notice block is gone.
+- H5: `squad-process lint --plugin-root` rc 0 (same as before); processlint untouched.
+- H6: reader check and token move in evidence. Note for the Tech Lead: the token `design: yes` exists nowhere in the rule folder, so the test now asserts `design = yes`; same intent, recorded in evidence.
+- H7: changelog diff is deletions only: the three `snapshot:` lines of v9/v8/v7 and the v6..v1 blocks; v9/v8/v7 text unchanged.
+- H8: SKILL.md has no process-version/plan/apply/legacy/adopt/squad-migrate text (apart from finding 1); description names the composed upgrade only.
+- Tests (21 modules incl. all listed, test_sizes, test_team_duties, test_templates, test_team_cli, test_windows_safe) green in a git-init'd export: 602 tests OK, 2 skipped.
+- 01 deletes `.scratch/_done/.../mapping.md` and `test_process_conversion` together (P3 closed). H10 full suite: Tech Lead.
+
+#### Re-check d4cda49 (LC-3b)
+Diff 9d8890d..d4cda49: only skills/squad-process-update/SKILL.md:9; doubled sentence gone, one "Mechanics:" clause left. Ran test_team_duties, test_promotion_0_6_0, test_sizes in the dev worktree at d4cda49: 81 OK. Verdict: PASS.
+
+## QA blackbox
+
+### QA blackbox 01 (final sha d4cda49; behaviour run on 9d8890d, d4cda49 only changes SKILL.md:9)
+
+Method: same commands from main (60ce7a5), 02's sha (B1) and 01's branch; scratch HOME/squads under `.worktrees/scratch`, SQUAD_* unset, paths/shas normalised, stdout/stderr/exit compared. All scratch dirs removed.
+
+| AC | Did | Saw | Result |
+|---|---|---|---|
+| H3 removed forms | `squad-process` adopt, apply --legacy, compose --out F, plan, version, check | each exit 2, empty stdout, argparse usage error on stderr, 0 tracebacks; `squad-migrate` absent | PASS |
+| H3 unchanged forms | scaffold, compose dev/qa-blackbox --home, rule CORE-1, who CORE-1, lint, team (--has), mode, runtime, upgrade --check, `--help` of runtime/prune/upstream/upgrade/scaffold/compose | 02-sha vs 01 identical (stdout+exit), apart from the removed `--out FILE`/v6 wording in `compose --help` | PASS |
+| H2 upgrade --check | pin 0.6.0@60ce7a5, old-root = archive with CORE-1 changed; no overlay, and overlay `replace CORE-1 @hash` (stale) | main vs 01 identical: "changed 1", "1 need a decision / CORE-1 stale ... --resolve", exit 3; only the new-plugin sha differs. No `why:` line printed in either (this stale path does not print one), so `_changelog_why` text itself was NOT observed | PASS (limit noted) |
+| H4 squad-start JSON | composed scratch squad, stub herdr | keys exactly kind,name,dir,manager,tab (main also had process_update) | PASS |
+| H4 legacy squad | `squad-start` on process.md-only squad | main printed "process update: process.md is version 1 ... migrate the process"; 01 prints nothing, JSON has no process_update | PASS |
+| H4 spawn | `squad-spawn manager --dry-run` composed scope | no process-update/version text on stdout or stderr | PASS |
+| Legacy messages | `upgrade --check` on process.md-only squad | exit 2 "not composed: ... new squads: squad-process scaffold (or /squad:squad-init)", no plan/apply named | PASS (closes 02 flag) |
+| H5 | `squad-process lint --plugin-root <01>` | exit 0 | PASS |
+| H1/H6 files | ls | no history/, templates/squad/process.md, bin/squadprocess.py, .scratch/_done | PASS |
+| H8 SKILL.md | read whole file | composed-upgrade steps only; no process-version/plan/apply(legacy)/adopt/migrate; `upgrade --apply` is the composed command | PASS |
+| H9 --help | `squad-process --help` | lists lint, compose, team, rule, who, each works. Observation: scaffold, upgrade, upstream, runtime, prune, mode work but are not in --help (same on main) | PASS (note) |
+
+Not checked (whitebox/TL): suite, changelog diff (H7), test re-pointing (H6 coverage), greps (H1).
+Verdict: PASS on d4cda49.
