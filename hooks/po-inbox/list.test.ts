@@ -410,7 +410,7 @@ test('short tier at 24 rows: heading, 2 group headings and 3 items fit the 6 bod
   // rows 1-6: heading, Blocks work, E1, E2, Blocks nothing, E5; each item is one row, the others lie below
   const at = (s: string) => ls.findIndex((l) => l.includes(s))
   expect([at('Blocks work'), at('E1'), at('E2'), at('Blocks nothing'), at('E5'), at('R1')].every((x, i, a) => x > -1 && (i === 0 || x > a[i - 1]))).toBe(true)
-  expect(top(await ui.drawn()).text).toBe(withHint('Inbox · 3 to answer · 2 to read   [ Done (3) (d) ]', '↓ 2 more', 80))
+  expect(top(await ui.drawn()).text).toBe(withHint('Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', '↓ 2 more', 80))
 })
 
 test('tall tier: the item rows keep their two rows and no age at the right end; only the heading row changes', async ($, on) => {
@@ -421,7 +421,7 @@ test('tall tier: the item rows keep their two rows and no age at the right end; 
   const ls = lines(await ui.drawn())
   expect(ls.filter((l) => l.startsWith('    blocks '))).toHaveLength(5)
   expect(ls).toContain('    blocks BRD-02..06 · created 8h ago')
-  expect(top(await ui.drawn()).text).toBe(withHint('Inbox · 3 to answer · 2 to read   [ Done (3) (d) ]', '↓ 1 more', 80))
+  expect(top(await ui.drawn()).text).toBe(withHint('Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', '↓ 1 more', 80))
 })
 
 test('the Done button is on the heading row only, with its hotkey; the bottom one is gone', async ($, on) => {
@@ -467,10 +467,10 @@ test('heading hint: a `+N more` fold below counts its hidden items; none shown w
 test('heading row, drop order: hint, then the long words, then the Done button on its own row (80, 60, 59, 47, 40 columns)', async ($, on) => {
   await boot($, on, snap(seeded().concat(done3)))
   const want: Record<number, { text: string; rows: number }> = {
-    80: { text: withHint('Inbox · 3 to answer · 2 to read   [ Done (3) (d) ]', '↓ 2 more', 80), rows: 1 },
-    60: { text: withHint('Inbox · 3 to answer · 2 to read   [ Done (3) (d) ]', '↓ 2 more', 60), rows: 1 },
-    59: { text: withHint('Inbox · 3 answer · 2 read   [ Done (3) (d) ]', '↓ 2 more', 59), rows: 1 },
-    47: { text: 'Inbox · 3 answer · 2 read   [ Done (3) (d) ]', rows: 1 },
+    80: { text: withHint('Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', '↓ 2 more', 80), rows: 1 },
+    60: { text: withHint('Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', '↓ 2 more', 60), rows: 1 },
+    59: { text: withHint('Inbox · 3 answer · 2 read  [ Done (3) (d) ]', '↓ 2 more', 59), rows: 1 },
+    47: { text: 'Inbox · 3 answer · 2 read  [ Done (3) (d) ]', rows: 1 },
     40: { text: 'Inbox · 3 answer · 2 read\n[ Done (3) (d) ]', rows: 2 },
   }
   for (const cols of [80, 60, 59, 47, 40]) {
@@ -497,7 +497,7 @@ test('heading row: three counts at 47 columns put the Done button under the head
 test('empty list with done items: the heading row still carries the Done button; the empty text stays', async ($, on) => {
   await boot($, on, snap(done3))
   const ui = await $.ui.mount(pane('terminal', 80, SHORT))
-  expect(top(await ui.drawn()).text).toBe('Inbox   [ Done (3) (d) ]')
+  expect(top(await ui.drawn()).text).toBe('Inbox  [ Done (3) (d) ]')
   expect(await dump(ui)).toContain('Nothing waits on you.')
 })
 

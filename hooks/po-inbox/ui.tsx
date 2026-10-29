@@ -144,13 +144,14 @@ function headingNode(parts: Part[], T: any) {
 const BUTTON_PAD = 4 // `[ ` and ` ]` around a button label
 const buttonWidth = (label: string): number => cellWidth(label) + BUTTON_PAD
 const HEAD_GAP = 3
+const DONE_GAP = 2 // list heading: counts text, then the Done button
 
 // Row 1 of the list (list.md sections 2 and 7). Drop order when it does not fit: the `↓ N more` hint, the long words,
 // then the Done button moves to its own row. The hint `h` is drawn only on the first layout, which holds it.
 function headingRow(snap: InboxSnapshot, cols: number, empty: boolean, doneLabel: string | null, hint: string | null, onDone: () => void, T: any) {
   const { Box, Text, Button } = T
   const btn = doneLabel === null ? null : <Button key="done" hotkey="d" label={doneLabel} onPress={onDone} />
-  const bw = doneLabel === null ? 0 : HEAD_GAP + buttonWidth(doneLabel)
+  const bw = doneLabel === null ? 0 : DONE_GAP + buttonWidth(doneLabel)
   const longOk = cols >= BODY_COLUMNS_FULL
   const long = empty ? [] : headingParts(snap, false)
   const short = empty ? [] : headingParts(snap, true)
@@ -164,7 +165,7 @@ function headingRow(snap: InboxSnapshot, cols: number, empty: boolean, doneLabel
       node: (
         <Box key="top">
           {node}
-          {btn ? <Text key="gap">{' '.repeat(HEAD_GAP)}</Text> : null}
+          {btn ? <Text key="gap">{' '.repeat(DONE_GAP)}</Text> : null}
           {btn}
           {withHint && hint !== null ? <Text key="hint" dimColor>{`${' '.repeat(gap)}${hint}`}</Text> : null}
         </Box>
@@ -369,8 +370,9 @@ function handledLines(it: InboxItem): { text: string; tone: string }[] {
 }
 
 // The state a handled item is opened for: its lines, the PO's answer as typed (never parsed), an unsent note.
-// `outcomeRows`: the most rows the outcome line may take (done.md section 3), past that it ends with `…`; null = whole.
-function handledBlock(it: InboxItem, ui: any, error: any, cols: number, outcomeRows: number | null, T: any): { parts: any[]; rows: number; cut: boolean } {
+// `caps`: the most rows the outcome line may take (done.md section 3) and, when it is cut, how many it keeps so the
+// `Details` row fits below it; past the cap it ends with `…`. null = whole.
+function handledBlock(it: InboxItem, ui: any, error: any, cols: number, caps: { whole: number; cut: number } | null, T: any): { parts: any[]; rows: number; cut: boolean } {
   const { Text } = T
   const draft = ui.draft[it.id] ?? ''
   const parts: any[] = []
@@ -383,7 +385,7 @@ function handledBlock(it: InboxItem, ui: any, error: any, cols: number, outcomeR
   const changed = 'This item changed while you were reading it.'
   if (draft !== '') add(<Text key="changed" color="warning" wrap="wrap">{changed}</Text>, changed)
   handledLines(it).forEach((hl, i) => {
-    const text = outcomeRows === null ? hl.text : clipRows(hl.text, cols, outcomeRows)
+    const text = caps === null || rowsFor(hl.text, cols) <= caps.whole ? hl.text : clipRows(hl.text, cols, caps.cut)
     if (text !== hl.text) cut = true
     add(<Text key={`h${i}`} {...toneProps(hl.tone)} wrap="wrap">{text}</Text>, text)
   })
@@ -545,6 +547,12 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
 
   let floor = FLOOR_ANSWER
   let outcomeCut = false
+  const detailsRow = (text: string, key = 'details') => (
+    <Box key={`more-${key}`}>
+      <Box marginRight={1}><Text dimColor>{text}</Text></Box>
+      <Button key={key} label="Details" onPress={() => setDetail($, true)} />
+    </Box>
+  )
   let plan: { expanded: boolean; fitRows: number; budget: number; tall: boolean } | null = null
   const markEnd = <Button key="mark-read-end" label="Mark read" onPress={() => markRead($, id)} />
   if (detail) {
@@ -580,11 +588,12 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
     add(<Button key="send" label={pending ? 'Sending…' : 'Send answer'} onPress={() => submitAnswer($, id)} />, 1, 'send')
     if (opts.length === 0) floor = FLOOR_FREE
   } else if (!isRead) {
-    // the outcome line takes up to 4 rows, fewer when the title already took the window (done.md section 3)
-    const outcomeRows = Math.min(4, Math.max(2, bodyRows - row1Rows - rowsFor(titleShown, cols)))
-    const hb = handledBlock(it, ui, error, cols, outcomeRows, T)
+    // the outcome line takes up to 4 rows, fewer when the title already took the window; a cut one leaves a row for Details
+    const room = bodyRows - row1Rows - rowsFor(titleShown, cols)
+    const hb = handledBlock(it, ui, error, cols, { whole: Math.min(4, Math.max(2, room)), cut: Math.min(4, Math.max(2, room - 1)) }, T)
     outcomeCut = hb.cut
     add(<Box key="state" flexDirection="column">{hb.parts}</Box>, hb.rows)
+    if (hb.cut) add(detailsRow('… full text'), 1)
     if (opts.length > 0) optionBlock(it.answer ? it.answer.option : null, null)
     mgrRow()
   }
@@ -603,15 +612,10 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
     bodyNode = <Box key="body" flexDirection="column">{bd.nodes}</Box>
     add(bodyNode, bd.rows)
   }
-  const detailsRow = (text: string) => (
-    <Box key="more">
-      <Box marginRight={1}><Text dimColor>{text}</Text></Box>
-      <Button key="details" label="Details" onPress={() => setDetail($, true)} />
-    </Box>
-  )
-  if (!detail && bd.cut) add(detailsRow(`… ${bd.hiddenRows} more ${bd.hiddenRows === 1 ? 'row' : 'rows'}`), 1)
-  else if (!detail && titleCut) add(detailsRow('… full title'), 1)
-  else if (!detail && outcomeCut) add(detailsRow('… full text'), 1)
+  // the Details button below a cut outcome already sits above; a second one at the end gets its own key
+  const endKey = outcomeCut ? 'details-end' : 'details'
+  if (!detail && bd.cut) add(detailsRow(`… ${bd.hiddenRows} more ${bd.hiddenRows === 1 ? 'row' : 'rows'}`, endKey), 1)
+  else if (!detail && titleCut) add(detailsRow('… full title', endKey), 1)
   if (isRead) add(markEnd, 1)
   if (detail) add(<Button key="back-end" label={backLabel} onPress={() => setDetail($, false)} />, 1)
 
