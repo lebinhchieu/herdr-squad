@@ -2,12 +2,12 @@
 
 ## Behaviour
 
-Real-pane captures: `claude --plugin-dir <this worktree>` in a pty (24 or 40 terminal rows, 80, 60 or 47 columns), the screen read through a pyte terminal model, with the plugin's own `bin/squad-inbox` seeding a scratch inbox from the fixtures `guideE1`, `guideR1`, `diagramWide`, `chips` + `relations` (`hooks/po-inbox/fixtures/visual.ts`). Built on commit `e485f05` (code); the review fixes are in it. Each item was opened with its number key, then paged with PageDown and `Details` (Tab to the button, Enter). Pages that repeat are shown once. Body rows the host gives: 6 at 24 rows, 11 at 40. Only the pane box is shown; theme: dark.
+Real-pane captures: `claude --plugin-dir <this worktree>` in a pty (24 or 40 terminal rows, 80, 60 or 47 columns), the screen read through a pyte terminal model, with the plugin's own `bin/squad-inbox` seeding a scratch inbox from the fixtures `guideE1`, `guideR1`, `diagramWide`, `chips` + `relations` (`hooks/po-inbox/fixtures/visual.ts`). Built on commit `e485f05` (code); the review fixes are in it. Each item was opened with its number key, then paged with PageDown and `Details` (Tab to the button, Enter). Pages that repeat are shown once. Body rows the host gives: 6 at 24 rows, 11 at 40. Only the pane box is shown; theme: dark. The widths 80, 60 and 47 are terminal columns; the pane draws its body 4 columns narrower (76, 56, 43).
 
 What the captures show (design sections 3 to 5 and 9):
 - **Callouts** are filled chips (`◆ decision`, `⚠ warning`, `› info`) then the sentence; the text wraps under column 0 (47 columns: 2 rows).
 - **Badges** are filled chips in table cells; the columns widen by the chip (the `ok` chip is 6 cells, `fail` 8).
-- **Tables** keep their aligned columns from 40 columns (the E1 options table is 59 cells wide, so it aligns at 80 and 60 and stacks as `column: value` at 47).
+- **Tables** keep their aligned columns from 40 columns (the E1 options table is 59 cells wide, so it aligns only when the body is 59 or more columns wide: at 80 terminal columns; at 60 and 47 it stacks as `column: value`).
 - **Diagram** has no `│` gutter, is never wrapped, and when wider than the pane every wide line ends in `›` and a footer names both widths.
 - **Links** are `label <url>`, no escape sequence.
 
@@ -1029,7 +1029,7 @@ Colours the host resolved for each theme key, read from the pyte screen (fg of t
 
 ### Dark theme, 47 columns
 
-The pane gives the body 41 columns here, so the 50-cell relations diagram is cut: lines end in `›`, the tags cut by the width are plain text, the legend lists only the tag that is whole (`[ok]`), and the footer names both widths.
+The body is 43 columns here and the diagram width 41, so the 50-cell relations diagram is cut: lines end in `›`, the tags cut by the width are plain text, the legend lists only the tag that is whole (`[ok]`), and the footer names both widths.
 
 ![dark 47 columns, first page](img/colour-dark-47-p0.png)
 
