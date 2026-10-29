@@ -22,7 +22,7 @@ async function open($: any, on: any, items: any[], cols = 80, bodyRows = 20) {
   return ui
 }
 
-// Another mount of the same booted pane: a new snapshot, a size; the Done list is opened if the list shows.
+// Another mount of the same booted pane: a new snapshot, a new terminal width; the Done list is opened if the list shows.
 async function again($: any, w: any, items: any[], cols: number, bodyRows: number) {
   w.current = snap(items)
   await $.session.start(START)
