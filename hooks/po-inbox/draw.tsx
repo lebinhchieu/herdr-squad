@@ -1,7 +1,8 @@
 // Drawing of the item screen's structured parts (IV-03): body blocks, inline spans, tables, option blocks.
-// Pure functions of props, no `$`. Colour is a theme key from TONE or weight only (V-15, V-18). Every function that
+// Pure functions of props, no `$`. Colour is a theme key (TONE, ACCENT, QUIET) or weight only (V-15, V-18, body-styles.md 9.5). Every function that
 // draws rows also says how many rows it drew, by the same `rowsFor` the screen uses for its cut (T9 v3).
-import { ACCENT, CHIPS, chipProps, chipText, cellWidth, diagramRuns, LEGEND_WORD, legendTags, rowsFor, tableLayout, TONE, wrapRows } from './core'
+import { ACCENT, CHIPS, chipProps, chipText, cellWidth, diagramRuns, LEGEND_WORD, tagsOfRuns, rowsFor, tableLayout, TONE, wrapRows } from './core'
+import type { DiagramRun } from './core'
 import type { Block, Span } from './markup'
 
 type T = { Box: any; Text: any; Button: any }
@@ -144,7 +145,8 @@ function drawTable(b: Extract<Block, { type: 'table' }>, cols: number, T: T, key
 
 // A diagram (body-styles.md 3): a fence labelled `diagram`, or any fence with a box-drawing character.
 const BOX = /[\u2500-\u257f]/
-export const isDiagram = (b: Extract<Block, { type: 'code' }>): boolean => /^diagram(\s|$)/.test(b.lang) || b.lines.some((l) => BOX.test(l))
+const DIAGRAM_LANG = /^diagram(\s|$)/
+export const isDiagram = (b: Extract<Block, { type: 'code' }>): boolean => DIAGRAM_LANG.test(b.lang) || b.lines.some((l) => BOX.test(l))
 
 // The first `n` cells of `s`, a wide char that does not fit dropped whole.
 function cutCells(s: string, n: number): string {
@@ -159,6 +161,25 @@ function cutCells(s: string, n: number): string {
   return out
 }
 
+// The runs of one line cut to `n` cells. A run cut in the middle keeps its visible part: a connector stays a connector,
+// a tag becomes plain text (a cut tag is not a tag).
+function cutRuns(runs: DiagramRun[], n: number): DiagramRun[] {
+  const out: DiagramRun[] = []
+  let used = 0
+  for (const r of runs) {
+    const w = cellWidth(r.text)
+    if (used + w <= n) {
+      out.push(r)
+      used += w
+      continue
+    }
+    const part = cutCells(r.text, n - used)
+    if (part !== '') out.push({ kind: r.kind === 'tag' ? 'name' : r.kind, text: part })
+    break
+  }
+  return out
+}
+
 // Aligned, never wrapped. Lines wider than `W = cols - 2` are cut to `W - 1` cells and end in `›`, with a footer row. Colour is
 // decided on the drawn text: connectors `permission`, state tags filled chips in place, names plain. Every part is one row.
 function drawDiagram(b: Extract<Block, { type: 'code' }>, cols: number, T: T, key: string): Drawn {
@@ -167,12 +188,13 @@ function drawDiagram(b: Extract<Block, { type: 'code' }>, cols: number, T: T, ke
   const W = Math.max(1, cols - 2)
   const lines = b.lines.map((l) => l.split('\t').join('    ').trimEnd())
   const widest = Math.max(...lines.map(cellWidth))
-  const shown = lines.map((l) => (cellWidth(l) > W ? `${cutCells(l, W - 1)}›` : l))
+  // Tags are read on the typed line; a line wider than W is cut to W - 1 cells plus `›`, so a cut tag is plain and a whole one keeps its chip.
+  const shown: DiagramRun[][] = lines.map((l) => (cellWidth(l) > W ? [...cutRuns(diagramRuns(l), W - 1), { kind: 'name' as const, text: '›' }] : diagramRuns(l)))
   const out: any[] = []
-  const caption = (/^diagram(\s|$)/.test(b.lang) ? b.lang.slice(7) : b.lang).trim()
-  if (caption !== '') wrapRows(caption, W, 2).forEach((r, i) => out.push(<Text key={`cap${i}`} italic dimColor>{`  ${r}`}</Text>))
-  shown.forEach((l, i) => {
-    const runs = diagramRuns(l).map((r, j) =>
+  const caption = (DIAGRAM_LANG.test(b.lang) ? b.lang.slice('diagram'.length) : b.lang).trim()
+  if (caption !== '') wrapRows(caption, W, Infinity).forEach((r, i) => out.push(<Text key={`cap${i}`} italic dimColor>{`  ${r}`}</Text>))
+  shown.forEach((line, i) => {
+    const runs = line.map((r, j) =>
       r.kind === 'conn' ? (
         <Text key={`d${i}-${j}`} color={ACCENT}>{r.text}</Text>
       ) : r.kind === 'tag' ? (
@@ -183,7 +205,7 @@ function drawDiagram(b: Extract<Block, { type: 'code' }>, cols: number, T: T, ke
     )
     out.push(<Text key={`d${i}`}>{'  '}{runs}</Text>)
   })
-  const tags = legendTags(shown)
+  const tags = tagsOfRuns(shown)
   if (tags.length > 0) {
     const entry = (t: string) => cellWidth(`[${t}]`) + 1 + cellWidth(LEGEND_WORD[t as 'ok'])
     let row: string[] = []

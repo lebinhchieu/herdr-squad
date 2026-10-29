@@ -261,6 +261,10 @@ describe('diagramRuns (body-styles.md 9.4)', () => {
     expect(kinds(' ├─ BRD-03')).toEqual(['name: ', 'conn:├─', 'name: BRD-03'])
     expect(kinds('a ▲ b ► c ▼ d ◄ e → f')).toEqual(['name:a ', 'conn:▲', 'name: b ', 'conn:►', 'name: c ', 'conn:▼', 'name: d ', 'conn:◄', 'name: e ', 'conn:→', 'name: f'])
   })
+  test('only one > follows a connector run, only one < precedes it', () => {
+    expect(kinds('a -->> b')).toEqual(['name:a ', 'conn:-->', 'name:> b'])
+    expect(kinds('a <<-- b')).toEqual(['name:a <', 'conn:<--', 'name: b'])
+  })
   test('a > or < away from a connector is a name', () => {
     expect(kinds('a > b < c')).toEqual(['name:a > b < c'])
     expect(kinds('a=b')).toEqual(['name:a=b'])

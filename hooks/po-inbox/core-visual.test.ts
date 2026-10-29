@@ -541,6 +541,13 @@ describe('body styles', () => {
       expect(styleOf(tree, '[o›')).toEqual({})
       expect(lines(tree).join('\n')).not.toContain('legend')
     })
+    test('a whole tag at the cut keeps its chip; a long caption wraps whole, no words lost', () => {
+      const tree = draw(`\`\`\`diagram\n${'x'.repeat(72)} [ok] more\n\`\`\``, 80).nodes
+      expect(styleOf(tree, '[ok]')).toEqual(chipProps('good'))
+      const cap = 'a caption that is long enough to need three rows in a docked pane, with every single word kept'
+      const rows = rowsOf(`\`\`\`diagram ${cap}\na ──> b\n\`\`\``, 47)
+      expect(rows.slice(0, -1).map((r) => r.trim()).join(' ')).toBe(cap)
+    })
     test('a diagram is one block of the fold: whole, or the first rows then …', () => {
       const body = parseBody(`${DIAGRAM}\nafter`)
       const whole = drawBody(body, 80, T, { expanded: false, fitRows: 6, budget: 6 })
@@ -572,7 +579,7 @@ describe('body styles', () => {
         for (const c of out.color) expect(['success', 'error', 'warning', 'permission', 'inactive'], `${name} ${c}`).toContain(c)
       }
     })
-    test('success, error and warning sit only on chips; permission only on chips and connectors', () => {
+    test('success, error, warning and inactive sit only on chips; a chip is never dim', () => {
       const check = (v: unknown, path: string) => {
         if (Array.isArray(v)) return v.forEach((x) => check(x, path))
         if (v === null || typeof v !== 'object') return

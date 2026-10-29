@@ -307,8 +307,9 @@ export type ChipWord = keyof typeof CHIPS
 export const chipText = (word: ChipWord): string => `\u00a0${CHIPS[word].glyph}\u00a0${word}\u00a0`
 
 export type DiagramRun = { kind: 'name' | 'conn' | 'tag'; text: string }
-export type DiagramTag = 'ok' | 'warn' | 'fail' | 'skip'
-export const DIAGRAM_TAGS: DiagramTag[] = ['ok', 'warn', 'fail', 'skip']
+// The four state words: badges in prose, tags in a diagram, in the legend's order.
+export const DIAGRAM_TAGS = ['ok', 'warn', 'fail', 'skip'] as const
+export type DiagramTag = (typeof DIAGRAM_TAGS)[number]
 export const LEGEND_WORD: Record<DiagramTag, string> = { ok: 'done', warn: 'at risk', fail: 'failed', skip: 'skipped' }
 
 const isConnectorCode = (c: number): boolean =>
@@ -345,8 +346,10 @@ export function diagramRuns(line: string): DiagramRun[] {
       i = j - 1
     }
   }
-  for (let i = 1; i < n; i++) if (chars[i] === '>' && conn[i - 1]) conn[i] = true
-  for (let i = n - 2; i >= 0; i--) if (chars[i] === '<' && conn[i + 1]) conn[i] = true
+  // one `>` right after a connector run and one `<` right before one (not a chain of them)
+  const base = conn.slice()
+  for (let i = 1; i < n; i++) if (chars[i] === '>' && base[i - 1]) conn[i] = true
+  for (let i = n - 2; i >= 0; i--) if (chars[i] === '<' && base[i + 1]) conn[i] = true
   const runs: DiagramRun[] = []
   const add = (kind: DiagramRun['kind'], text: string) => {
     const last = runs[runs.length - 1]
@@ -369,11 +372,12 @@ export function diagramRuns(line: string): DiagramRun[] {
 }
 
 // The tags present in these diagram lines, in the order ok, warn, fail, skip (the legend's order).
-export function legendTags(lines: string[]): DiagramTag[] {
+export function tagsOfRuns(lines: DiagramRun[][]): DiagramTag[] {
   const seen = new Set<string>()
-  for (const l of lines) for (const r of diagramRuns(l)) if (r.kind === 'tag') seen.add(r.text.slice(1, -1))
+  for (const l of lines) for (const r of l) if (r.kind === 'tag') seen.add(r.text.slice(1, -1))
   return DIAGRAM_TAGS.filter((t) => seen.has(t))
 }
+export const legendTags = (lines: string[]): DiagramTag[] => tagsOfRuns(lines.map(diagramRuns))
 
 // V-11 / T7: the leading `(x)` run names the option; anything that could name a second option marks none.
 export function recommendedKey(rec: string | null, options: { key: string }[] | null): string | null {

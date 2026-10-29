@@ -2,10 +2,11 @@
 // Total and linear: every line is looked at a bounded number of times, an unmatched opener is searched for once,
 // and a line that matches nothing is a plain paragraph. Each element drops only its own syntax characters.
 
-import { oneLine, sanitize } from './core'
+import { DIAGRAM_TAGS, oneLine, sanitize } from './core'
+import type { DiagramTag } from './core'
 
 // A link is `[label](url)` or a bare url (`text` ''); a badge is `[ok]`, `[fail]`, `[warn]` or `[skip]` (`text` is the word).
-export type BadgeWord = 'ok' | 'fail' | 'warn' | 'skip'
+export type BadgeWord = DiagramTag
 export type CalloutTone = 'decision' | 'warning' | 'info'
 export type Span =
   | { kind: 'text' | 'bold' | 'code'; text: string }
@@ -25,7 +26,7 @@ export type Block =
 
 const BR = /<br\s*\/?>/gi
 
-const BADGES: BadgeWord[] = ['ok', 'fail', 'warn', 'skip']
+const BADGES: readonly string[] = DIAGRAM_TAGS
 const CALLOUTS: CalloutTone[] = ['decision', 'warning', 'info']
 const isHttp = (u: string) => u.startsWith('http://') || u.startsWith('https://')
 
@@ -108,7 +109,7 @@ export function parseInline(line: string): Span[] {
           i = paren + 1
           continue
         }
-      } else if (clean && (BADGES as string[]).includes(line.slice(i + 1, close))) {
+      } else if (clean && BADGES.includes(line.slice(i + 1, close))) {
         flush()
         out.push({ kind: 'badge', text: line.slice(i + 1, close) as BadgeWord })
         i = close + 1
