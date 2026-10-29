@@ -287,6 +287,94 @@ export function parseAdd(command: string): { title: string | null } | null {
 export const TONE = { good: 'success', bad: 'error', warn: 'warning' } as const
 export type Tone = 'good' | 'bad' | 'warn' | 'dim' | 'none'
 
+// Body styles (body-styles.md section 9): a fill is `inverse` + a theme colour; connectors are plain `permission` text.
+export const ACCENT = 'permission'
+export const QUIET = 'inactive'
+export type ChipTone = 'good' | 'bad' | 'warn' | 'accent' | 'quiet'
+const CHIP_COLOR: Record<ChipTone, string> = { good: TONE.good, bad: TONE.bad, warn: TONE.warn, accent: ACCENT, quiet: QUIET }
+
+// The exact Ink props of a filled chip (9.1). Never `backgroundColor`, never `dimColor`.
+export const chipProps = (tone: ChipTone): { inverse: true; bold: true; color: string } => ({ inverse: true, bold: true, color: CHIP_COLOR[tone] })
+
+// Badge and callout words: tone and glyph. The glyph and the word both carry the meaning; colour is the second signal.
+export const CHIPS = {
+  ok: { tone: 'good', glyph: '✓' }, fail: { tone: 'bad', glyph: '✗' }, warn: { tone: 'warn', glyph: '⚠' }, skip: { tone: 'quiet', glyph: '–' },
+  decision: { tone: 'accent', glyph: '◆' }, warning: { tone: 'warn', glyph: '⚠' }, info: { tone: 'quiet', glyph: '›' },
+} as const satisfies Record<string, { tone: ChipTone; glyph: string }>
+export type ChipWord = keyof typeof CHIPS
+
+// U+00A0 around glyph and word: `wrap-ansi` breaks on a plain space only, so a chip never splits across two rows.
+export const chipText = (word: ChipWord): string => `\u00a0${CHIPS[word].glyph}\u00a0${word}\u00a0`
+
+export type DiagramRun = { kind: 'name' | 'conn' | 'tag'; text: string }
+export type DiagramTag = 'ok' | 'warn' | 'fail' | 'skip'
+export const DIAGRAM_TAGS: DiagramTag[] = ['ok', 'warn', 'fail', 'skip']
+export const LEGEND_WORD: Record<DiagramTag, string> = { ok: 'done', warn: 'at risk', fail: 'failed', skip: 'skipped' }
+
+const isConnectorCode = (c: number): boolean =>
+  (c >= 0x2500 && c <= 0x257f) || (c >= 0x2190 && c <= 0x21ff) || c === 0x25b2 || c === 0x25ba || c === 0x25bc || c === 0x25c4
+
+// The tag a `[word]` at `at` spells, when it stands alone (a space or the line edge on both sides); else null.
+function tagAt(chars: string[], at: number): DiagramTag | null {
+  if (chars[at] !== '[' || (at > 0 && chars[at - 1] !== ' ')) return null
+  for (const t of DIAGRAM_TAGS) {
+    const end = at + t.length + 2
+    if (end > chars.length || chars[end - 1] !== ']') continue
+    let same = true
+    for (let k = 0; k < t.length && same; k++) same = chars[at + 1 + k] === t[k]
+    if (same && (end === chars.length || chars[end] === ' ')) return t
+  }
+  return null
+}
+
+// A diagram line as runs (9.4): connectors, state tags, and everything else as names. One pass over the code points; the
+// run texts joined give the line back, so a colour never changes a character or its width. A lone `-`, `|`, `+`, `v`, `^`
+// stay names because they also occur inside words (`BRD-01`).
+export function diagramRuns(line: string): DiagramRun[] {
+  const chars = Array.from(line)
+  const n = chars.length
+  const conn: boolean[] = new Array(n).fill(false)
+  for (let i = 0; i < n; i++) {
+    const c = chars[i]
+    if (isConnectorCode(c.codePointAt(0) as number)) conn[i] = true
+    else if (c === '-' || c === '=') {
+      let j = i
+      while (j < n && (chars[j] === '-' || chars[j] === '=')) j++
+      if (j - i >= 2) for (let k = i; k < j; k++) conn[k] = true
+      else if (c === '-' && chars[i + 1] === '>') conn[i] = true
+      i = j - 1
+    }
+  }
+  for (let i = 1; i < n; i++) if (chars[i] === '>' && conn[i - 1]) conn[i] = true
+  for (let i = n - 2; i >= 0; i--) if (chars[i] === '<' && conn[i + 1]) conn[i] = true
+  const runs: DiagramRun[] = []
+  const add = (kind: DiagramRun['kind'], text: string) => {
+    const last = runs[runs.length - 1]
+    if (last !== undefined && last.kind === kind && kind !== 'tag') last.text += text
+    else runs.push({ kind, text })
+  }
+  for (let i = 0; i < n; ) {
+    if (!conn[i]) {
+      const tag = tagAt(chars, i)
+      if (tag !== null) {
+        add('tag', `[${tag}]`)
+        i += tag.length + 2
+        continue
+      }
+    }
+    add(conn[i] ? 'conn' : 'name', chars[i])
+    i++
+  }
+  return runs
+}
+
+// The tags present in these diagram lines, in the order ok, warn, fail, skip (the legend's order).
+export function legendTags(lines: string[]): DiagramTag[] {
+  const seen = new Set<string>()
+  for (const l of lines) for (const r of diagramRuns(l)) if (r.kind === 'tag') seen.add(r.text.slice(1, -1))
+  return DIAGRAM_TAGS.filter((t) => seen.has(t))
+}
+
 // V-11 / T7: the leading `(x)` run names the option; anything that could name a second option marks none.
 export function recommendedKey(rec: string | null, options: { key: string }[] | null): string | null {
   if (rec === null || options === null) return null
@@ -369,7 +457,7 @@ export type TableLayout =
   | { kind: 'aligned'; widths: number[] }
   | { kind: 'stacked'; rows: { column: string; value: string }[][] }
 
-// Aligned at 60+ columns when header and rows fit as `cell  cell` (widest cell per column,
+// Aligned at 40+ columns when header and rows fit as `cell  cell` (widest cell per column,
 // two spaces between columns); otherwise each row stacks as `column: value`.
 export function tableLayout(table: Table, cols: number): TableLayout {
   const n = Math.max(table.header.length, ...table.rows.map((r) => r.length))
@@ -379,7 +467,7 @@ export function tableLayout(table: Table, cols: number): TableLayout {
     widths.push(Math.max(cellWidth(cell(table.header, i)), ...table.rows.map((r) => cellWidth(cell(r, i)))))
   }
   const total = widths.reduce((a, b) => a + b, 0) + 2 * Math.max(0, n - 1)
-  if (cols >= 60 && total <= cols) return { kind: 'aligned', widths }
+  if (cols >= 40 && total <= cols) return { kind: 'aligned', widths }
   return {
     kind: 'stacked',
     rows: table.rows.map((r) => Array.from({ length: n }, (_, i) => ({ column: cell(table.header, i), value: cell(r, i) }))),

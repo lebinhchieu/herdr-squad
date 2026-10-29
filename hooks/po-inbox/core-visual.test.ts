@@ -167,11 +167,11 @@ describe('rowsFor', () => {
 })
 
 describe('tableLayout', () => {
-  // Formula under test: aligned total = sum(widest cell per column) + 2 * (columns - 1); aligned when cols >= 60 and total <= cols.
+  // Formula under test: aligned total = sum(widest cell per column) + 2 * (columns - 1); aligned when cols >= 40 and total <= cols.
   const words = (v: unknown) => JSON.stringify(v).match(/[\p{L}\p{N}]+/gu) ?? []
   const T = { header: ['name', 'state'], rows: [['alpha', 'ok'], ['beta', 'blocked']] }
-  for (const cols of [80, 60]) test(`aligned at ${cols}`, () => expect(tableLayout(T, cols).kind).toBe('aligned'))
-  for (const cols of [59, 40, 30]) test(`stacked at ${cols}`, () => expect(tableLayout(T, cols).kind).toBe('stacked'))
+  for (const cols of [80, 60, 47, 40]) test(`aligned at ${cols}`, () => expect(tableLayout(T, cols).kind).toBe('aligned'))
+  for (const cols of [39, 30]) test(`stacked at ${cols}`, () => expect(tableLayout(T, cols).kind).toBe('stacked'))
   test('aligned widths are the widest cell per column', () => {
     expect(tableLayout(T, 80)).toEqual({ kind: 'aligned', widths: [5, 7] })
   })
@@ -180,6 +180,8 @@ describe('tableLayout', () => {
     const over = { header: ['a', 'b'], rows: [['x'.repeat(30), 'y'.repeat(29)]] }
     expect(tableLayout(fit, 60).kind).toBe('aligned')
     expect(tableLayout(over, 60).kind).toBe('stacked')
+    expect(tableLayout({ header: ['a', 'b'], rows: [['x'.repeat(19), 'y'.repeat(19)]] }, 40).kind).toBe('aligned') // 19 + 2 + 19 = 40
+    expect(tableLayout({ header: ['a', 'b'], rows: [['x'.repeat(20), 'y'.repeat(19)]] }, 40).kind).toBe('stacked')
   })
   test('CJK and emoji cells use cell widths', () => {
     const wide = { header: ['名前', '状態'], rows: [['漢字漢字', '😀😀']] }
@@ -187,10 +189,11 @@ describe('tableLayout', () => {
     const tight = { header: ['a', 'b'], rows: [['漢'.repeat(15), '字'.repeat(15)]] } // 30 + 2 + 30 = 62
     expect(tableLayout(tight, 60).kind).toBe('stacked')
     expect(tableLayout(tight, 62).kind).toBe('aligned')
-    for (const cols of [59, 40, 30]) expect(tableLayout(wide, cols).kind).toBe('stacked')
+    for (const cols of [39, 30]) expect(tableLayout(wide, cols).kind).toBe('stacked')
+    expect(tableLayout(wide, 40).kind).toBe('aligned')
   })
   test('stacked keeps every cell once, in order', () => {
-    const l = tableLayout(T, 40)
+    const l = tableLayout(T, 39)
     if (l.kind !== 'stacked') throw new Error('expected stacked')
     expect(l.rows[0]).toEqual([{ column: 'name', value: 'alpha' }, { column: 'state', value: 'ok' }])
     expect(words(l.rows.map((r) => r.map((c) => c.value)))).toEqual(['alpha', 'ok', 'beta', 'blocked'])

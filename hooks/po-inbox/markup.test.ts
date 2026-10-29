@@ -128,6 +128,8 @@ function oracle(source: string): string[] {
       fence = t[0]
     } else if (/^\s*\[rec\](\s|$)/.test(raw)) {
       line = raw.replace('[rec]', ' ')
+    } else if (/^\s*\[(decision|warning|info)\](\s|$)/.test(raw)) {
+      line = raw.replace(/\[(decision|warning|info)\]/, ' ') // the callout tag is drawn chrome, like `rec`
     } else {
       line = raw.replace(/^(\s*)\d{1,9}\.(\s+\S)/, '$1 $2')
     }
@@ -155,7 +157,7 @@ describe('never drop a word', () => {
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
       return seed % n
     }
-    const pieces = ['#', '##', '-', '*', '1.', '**', '`', '```', '~~~', '|', '|---|', '[rec]', '<br>', ' ', '\t', ' '.repeat(20), '\r\n', '\n', '\n', 'alpha', 'beta', '日本語', '状態', '🚀', 'x']
+    const pieces = ['#', '##', '-', '*', '1.', '**', '`', '```', '~~~', '|', '|---|', '[rec]', '[ok]', '[a](https://x.y/z)', 'http://a.b/c', '[', ']', '(', ')', '<br>', ' ', '\t', ' '.repeat(20), '\r\n', '\n', '\n', 'alpha', 'beta', '日本語', '状態', '🚀', 'x']
     for (let k = 0; k < 200; k++) {
       let text = ''
       const n = 1 + rnd(30)
@@ -294,6 +296,19 @@ describe('linear', () => {
     'bullets nested to depth 2,500': Array.from({ length: 500 }, (_, i) => ' '.repeat(i * 10) + '- x').join('\n'),
     '10,000 <br>': '<br>'.repeat(10000),
     '2,000 headings and bullets': '# h\n- b\n'.repeat(1000),
+    '5,000 [': '['.repeat(5000),
+    '5,000 [] pairs': '[]'.repeat(5000),
+    '5,000 [a]( openers': '[a](https://x.io '.repeat(625),
+    '2,500 [a]( with no close': '[a]('.repeat(2500),
+    '5,000 nested [a [b [c': '[a '.repeat(5000),
+    '10,000 chars of links on one line': '[a](https://x.io/p) '.repeat(500),
+    '2,500 bare urls': 'https://a.b/c '.repeat(700),
+    '5,000 http words': 'http '.repeat(2000),
+    '10,000 chars of http://': 'http://'.repeat(1400),
+    '5,000 [ok] badges': '[ok] '.repeat(2000),
+    '5,000 [warning] openers': '[warning] '.repeat(1000),
+    '[ then a far ) and spaces': `[a](https://x.io ${'b '.repeat(2000)})`,
+    'a url label full of [': `[${'[a'.repeat(2500)}](https://x.io)`,
   }
   for (const [name, text] of Object.entries(killers)) {
     test(`${name}: under 200 ms, words kept`, () => {
@@ -432,5 +447,125 @@ describe('P6 title cut at 80 characters', () => {
   test('a short title that only starts the first line is left alone', () => {
     expect(itemTitle('Deploy note for you\nx', 'Deploy')).toBe('Deploy')
     expect(lines('Deploy note for you\nx', 'Deploy')).toBe('Deploy note for you\nx')
+  })
+})
+
+// --- body styles (body-styles.md sections 4, 5, 9) -----------------------------------------------------------
+const t = (text: string) => ({ kind: 'text' as const, text })
+
+describe('callout lines', () => {
+  test('the three tags, exact, become a callout with the text after the tag', () => {
+    for (const tone of ['decision', 'warning', 'info'] as const) {
+      expect(first(`[${tone}] Merge it first.`)).toEqual({ type: 'callout', tone, spans: [t('Merge it first.')] })
+    }
+  })
+  test('a bare tag is a callout with no text; the tag ends at the line end', () => {
+    expect(first('[warning]')).toEqual({ type: 'callout', tone: 'warning', spans: [] })
+    expect(first('[info]   ')).toEqual({ type: 'callout', tone: 'info', spans: [] })
+  })
+  test('leading spaces are kept as indent, as [rec] does', () => {
+    expect(first('   [info] x')).toEqual({ type: 'callout', tone: 'info', spans: [t('x')], indent: 3 })
+  })
+  test('bold, code and badges work inside the text', () => {
+    expect(spansOf(first('[info] a **b** `c` [ok]')).map((s) => s.kind)).toEqual(['text', 'bold', 'text', 'code', 'text', 'badge'])
+  })
+  test('near misses stay plain paragraphs, their text unchanged', () => {
+    for (const line of ['[note] x', '[Warning] x', '[WARNING] x', '[warning]x', '[ warning] x', 'see [info] x']) {
+      const b = first(line)
+      expect(b.type).toBe('para')
+      expect(plainOf([b]).replace(/\s+/g, ' ')).toBe(line.replace(/\s+/g, ' '))
+    }
+  })
+  test('the tag is read only at the start of a line: not in a bullet, a number or a table cell, not in a fence', () => {
+    expect(types('- [warning] x')).toEqual(['bullet'])
+    expect(types('1. [warning] x')).toEqual(['number'])
+    expect(types('| a |\n|---|\n| [warning] x |')).toEqual(['table'])
+    expect(types('```\n[warning] x\n```')).toEqual(['code'])
+    expect(spansOf(first('- [warning] x')).every((s) => s.kind === 'text')).toBe(true)
+  })
+  test('plainOf gives the sentence only; the tag is chrome', () => {
+    expect(plainOf(parseBody('[decision] Merge it first.'))).toBe('Merge it first.')
+    expect(plainOf(parseBody('[warning]'))).toBe('')
+  })
+})
+
+describe('links', () => {
+  test('[label](url)', () => {
+    expect(parseInline('see [PR 42](https://github.com/a/b/pull/42) now')).toEqual([
+      t('see '), { kind: 'link', text: 'PR 42', url: 'https://github.com/a/b/pull/42' }, t(' now'),
+    ])
+  })
+  test('a bare http or https run; one trailing . , ; ) is not part of it', () => {
+    expect(parseInline('go https://x.io/a.')).toEqual([t('go '), { kind: 'link', text: '', url: 'https://x.io/a' }, t('.')])
+    expect(parseInline('(http://x.io/a)')).toEqual([t('('), { kind: 'link', text: '', url: 'http://x.io/a' }, t(')')])
+    expect(parseInline('https://x.io/a, b')).toEqual([{ kind: 'link', text: '', url: 'https://x.io/a' }, t(', b')])
+    expect(parseInline('https://x.io/a;')).toEqual([{ kind: 'link', text: '', url: 'https://x.io/a' }, t(';')])
+    expect(parseInline('https://x.io/a..')).toEqual([{ kind: 'link', text: '', url: 'https://x.io/a.' }, t('.')])
+  })
+  test('an empty label becomes a bare link', () => {
+    expect(parseInline('[](https://x.io)')).toEqual([{ kind: 'link', text: '', url: 'https://x.io' }])
+  })
+  test('only http and https: other schemes stay text, word for word', () => {
+    for (const u of ['javascript:alert(1)', 'file:///etc/passwd', 'ssh://h/x', 'data:text/html,x', 'ftp://h/x', 'HTTPS://x.io']) {
+      const line = `[a](${u})`
+      expect(parseInline(line).some((s) => s.kind === 'link')).toBe(false)
+      expect(plainOf(parseBody(line))).toBe(line)
+    }
+  })
+  test('near misses stay text: unclosed, empty url, space in the url, no :// or nothing after it, a bracket in the label', () => {
+    // `[a](https://x.io` still holds a bare url, so what must not form is a link with a label
+    for (const line of ['[a](https://x.io', '[a]( )', '[a]()', '[a](https://x.io/a b)', '[a](http://)', '[a](https:/x.io)', '[a]', '[a](']) {
+      expect(parseInline(line).some((s) => s.kind === 'link' && s.text !== '')).toBe(false)
+      expect(words(plainOf(parseBody(line)))).toEqual(words(line))
+    }
+    expect(parseInline('[a [b](https://y.io)')).toEqual([t('[a '), { kind: 'link', text: 'b', url: 'https://y.io' }])
+  })
+  test('httpd and xhttp://a.b are not links', () => {
+    expect(parseInline('httpd and xhttp://a.b')).toEqual([t('httpd and xhttp://a.b')])
+  })
+  test('plainOf gives label and url, or the url; a table cell keeps the link span', () => {
+    expect(plainOf(parseBody('[PR 42](https://x.io/1)'))).toBe('PR 42 https://x.io/1')
+    expect(words(plainOf(parseBody('go https://x.io/1.')))).toEqual(['go', 'https', 'x', 'io', '1'])
+    const tb = first('| a |\n|---|\n| [p](https://x.io) |') as Extract<Block, { type: 'table' }>
+    expect(tb.rows[0][0]).toEqual([{ kind: 'link', text: 'p', url: 'https://x.io' }])
+  })
+  test('no escape sequence reaches a link: sanitised bodies hold none', () => {
+    const out = JSON.stringify(bodyBlocks(VISUAL.osc, 'zzz'))
+    expect(out).not.toContain('\\u001b')
+  })
+})
+
+describe('badges', () => {
+  test('the four words, exact and lowercase', () => {
+    for (const w of ['ok', 'fail', 'warn', 'skip'] as const) expect(parseInline(`a [${w}] b`)).toEqual([t('a '), { kind: 'badge', text: w }, t(' b')])
+  })
+  test('near misses stay text', () => {
+    for (const line of ['[OK]', '[Ok]', '[done]', '[warning]', '[o k]', '[ok', 'ok]', '[ok](x)', '[ok]( )']) {
+      expect(parseInline(line).some((s) => s.kind === 'badge')).toBe(false)
+      expect(plainOf(parseBody(line.startsWith('[warning]') ? `x ${line}` : line))).toContain(line.replace('[ok](x)', '[ok](x)'))
+    }
+  })
+  test('[ok](https://x.io) is a link whose label is ok', () => {
+    expect(parseInline('[ok](https://x.io)')).toEqual([{ kind: 'link', text: 'ok', url: 'https://x.io' }])
+  })
+  test('plainOf gives the word; a table cell keeps the badge span', () => {
+    expect(plainOf(parseBody('suite [ok] done'))).toBe('suite  ok  done')
+    const tb = first('| a |\n|---|\n| [fail] |') as Extract<Block, { type: 'table' }>
+    expect(tb.rows[0][0]).toEqual([{ kind: 'badge', text: 'fail' }])
+  })
+})
+
+describe('the example bodies of the design (section 6)', () => {
+  test('E1 and R1 parse with the expected blocks and keep every word', () => {
+    expect(types(VISUAL.guideE1)).toEqual(['callout', 'blank', 'table', 'blank', 'code', 'blank', 'callout', 'blank', 'para', 'blank', 'para'])
+    expect(types(VISUAL.guideR1)).toEqual(['callout', 'blank', 'table', 'blank', 'callout', 'blank', 'bullet', 'bullet', 'bullet', 'blank', 'para', 'blank', 'para'])
+    for (const name of ['guideE1', 'guideR1', 'tags', 'links', 'badges', 'relations', 'chips', 'diagramWide']) {
+      expect(words(plainOf(parseBody(VISUAL[name])))).toEqual(oracle(VISUAL[name]))
+    }
+  })
+  test('R1 has six badges in its table and one after the suite command; E1 has one link', () => {
+    const kinds = (name: string) => parseBody(VISUAL[name]).flatMap((b) => ('spans' in b ? b.spans : b.type === 'table' ? b.rows.flat(2) : [])).map((s) => s.kind)
+    expect(kinds('guideR1').filter((k) => k === 'badge')).toHaveLength(7)
+    expect(kinds('guideE1').filter((k) => k === 'link')).toHaveLength(1)
   })
 })

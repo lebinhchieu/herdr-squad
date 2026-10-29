@@ -712,10 +712,13 @@ test('M5: read item: Mark read on row 1, chips without padding, headings, second
   expect(text).not.toContain('more rows')
   expect(text).toContain('↓ more below')
   expect(text).toContain('line e\n[Mark read]')
-  const narrow = await open($, on, [R1], 'R1', 40, 40)
+  const narrow = await open($, on, [R1], 'R1', 39, 40)
   tree = await narrow.ui.drawn()
   expect(textOf(tree)).toContain('Task: IV-01')
   expect(styleOf(tree, 'Task')).toEqual({ bold: true })
+  // from 40 columns a table keeps its columns (a docked pane is about 47)
+  const docked = await open($, on, [R1], 'R1', 40, 40)
+  expect(textOf(await docked.ui.drawn())).toContain('Task   State')
 })
 
 test('handled with options: the pick is `●`, the recommended mark stays, the answer is plain (V-14a, V-26)', async ($, on) => {

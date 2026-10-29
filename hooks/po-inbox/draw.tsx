@@ -1,7 +1,7 @@
 // Drawing of the item screen's structured parts (IV-03): body blocks, inline spans, tables, option blocks.
 // Pure functions of props, no `$`. Colour is a theme key from TONE or weight only (V-15, V-18). Every function that
 // draws rows also says how many rows it drew, by the same `rowsFor` the screen uses for its cut (T9 v3).
-import { cellWidth, rowsFor, tableLayout, TONE, wrapRows } from './core'
+import { ACCENT, CHIPS, chipProps, chipText, cellWidth, diagramRuns, LEGEND_WORD, legendTags, rowsFor, tableLayout, TONE, wrapRows } from './core'
 import type { Block, Span } from './markup'
 
 type T = { Box: any; Text: any; Button: any }
@@ -49,24 +49,33 @@ export function wrapCells(text: string, width: number): string[] {
 export const toneProps = (t: string): Record<string, unknown> =>
   t === 'good' ? { color: TONE.good } : t === 'bad' ? { color: TONE.bad } : t === 'warn' ? { color: TONE.warn } : t === 'dim' ? { dimColor: true } : {}
 
-// Words of a span list, a space at an emphasis boundary (the words of plainOf).
-const spansText = (spans: Span[]): string =>
-  spans.reduce((acc, s, i) => acc + (i > 0 && (s.kind !== 'text' || spans[i - 1].kind !== 'text') ? ' ' : '') + s.text, '')
-
-// What a span list draws as plain text: a code chip is its text, no padding (the plain spaces of the sentence stay).
-const drawnText = (spans: Span[]): string => spans.map((s) => s.text).join('')
+// What a span list draws as plain text: a code chip is its text, no padding (the plain spaces of the sentence stay);
+// a link is `label <url>` (a bare url is itself); a badge is its filled chip, glyph and padding counted.
+const spanDrawn = (s: Span): string =>
+  s.kind === 'link' ? (s.text === '' ? s.url : `${s.text} <${s.url}>`) : s.kind === 'badge' ? chipText(s.text) : s.text
+const drawnText = (spans: Span[]): string => spans.map(spanDrawn).join('')
 
 export function drawSpans(spans: Span[], T: T, base = ''): any[] {
   const { Text } = T
-  return spans.map((s, i) =>
-    s.kind === 'bold' ? (
-      <Text key={`${base}s${i}`} bold>{s.text}</Text>
-    ) : s.kind === 'code' ? (
-      <Text key={`${base}s${i}`} inverse>{s.text}</Text>
-    ) : (
-      s.text
-    ),
-  )
+  return spans.map((s, i) => {
+    const key = `${base}s${i}`
+    if (s.kind === 'bold') return <Text key={key} bold>{s.text}</Text>
+    if (s.kind === 'code') return <Text key={key} inverse>{s.text}</Text>
+    if (s.kind === 'badge') return <Text key={key} {...chipProps(CHIPS[s.text].tone)}>{chipText(s.text)}</Text>
+    if (s.kind === 'link') {
+      // The url is always shown: a pane cannot open it, and no escape sequence leaves the pane.
+      return s.text === '' ? (
+        <Text key={key} underline>{s.url}</Text>
+      ) : (
+        <Text key={key}>
+          <Text underline>{s.text}</Text>
+          {' '}
+          <Text dimColor>{`<${s.url}>`}</Text>
+        </Text>
+      )
+    }
+    return s.text
+  })
 }
 
 const GLYPHS = ['•', '◦', '▪']
@@ -87,39 +96,125 @@ function hanging(key: string, prefix: any, prefixWidth: number, content: any, T:
 
 function drawTable(b: Extract<Block, { type: 'table' }>, cols: number, T: T, key: string): Drawn {
   const { Box, Text } = T
-  const header = b.header.map(spansText)
-  const rows = b.rows.map((r) => r.map(spansText))
+  const header = b.header.map(drawnText)
+  const rows = b.rows.map((r) => r.map(drawnText))
   const lay = tableLayout({ header, rows }, cols)
   const out: any[] = []
   let n = 0
   if (lay.kind === 'aligned') {
-    const pad = (s: string, w: number) => s + ' '.repeat(Math.max(0, w - cellWidth(s)))
-    const row = (cells: string[]) => lay.widths.map((w, i) => pad(cells[i] ?? '', w)).join('  ').trimEnd()
-    out.push(<Text key="h" bold wrap="wrap">{row(header)}</Text>)
+    // One Text per row, one child per cell, so a badge cell keeps its colour; the last non-empty cell has no padding.
+    const row = (k: string, cells: Span[][], props: Record<string, unknown>) => {
+      let last = lay.widths.length - 1
+      while (last > 0 && drawnText(cells[last] ?? []) === '') last--
+      const parts: any[] = []
+      for (let i = 0; i <= last; i++) {
+        const sp = cells[i] ?? []
+        parts.push(...drawSpans(sp, T, `${k}c${i}`))
+        if (i < last) parts.push(' '.repeat(Math.max(0, lay.widths[i] - cellWidth(drawnText(sp))) + 2))
+      }
+      return <Text key={k} wrap="wrap" {...props}>{parts}</Text>
+    }
+    out.push(row('h', b.header, { bold: true }))
     out.push(<Text key="r" wrap="wrap">{lay.widths.map((w) => '─'.repeat(w)).join('  ')}</Text>)
-    rows.forEach((r, i) => out.push(<Text key={`t${i}`} wrap="wrap">{row(r)}</Text>))
+    b.rows.forEach((r, i) => out.push(row(`t${i}`, r, {})))
     n = 2 + rows.length
   } else {
-    lay.rows.forEach((rec, i) => {
+    const width = Math.max(header.length, ...rows.map((r) => r.length))
+    b.rows.forEach((r, i) => {
       if (i > 0) {
         out.push(<Text key={`g${i}`}>{' '}</Text>)
         n += 1
       }
-      rec.forEach((c, j) => {
+      for (let j = 0; j < width; j++) {
+        const column = header[j] ?? ''
+        const value = rows[i][j] ?? ''
         out.push(
           <Text key={`c${i}-${j}`} wrap="wrap">
-            <Text bold>{c.column}</Text>
-            {c.value === '' ? ':' : `: ${c.value}`}
+            <Text bold>{column}</Text>
+            {value === '' ? ':' : ': '}
+            {drawSpans(r[j] ?? [], T, `c${i}-${j}`)}
           </Text>,
         )
-        n += rowsFor(c.value === '' ? `${c.column}:` : `${c.column}: ${c.value}`, cols)
-      })
+        n += rowsFor(value === '' ? `${column}:` : `${column}: ${value}`, cols)
+      }
     })
   }
   return { node: <Box key={key} flexDirection="column">{out}</Box>, rows: n, parts: out }
 }
 
+// A diagram (body-styles.md 3): a fence labelled `diagram`, or any fence with a box-drawing character.
+const BOX = /[\u2500-\u257f]/
+export const isDiagram = (b: Extract<Block, { type: 'code' }>): boolean => /^diagram(\s|$)/.test(b.lang) || b.lines.some((l) => BOX.test(l))
+
+// The first `n` cells of `s`, a wide char that does not fit dropped whole.
+function cutCells(s: string, n: number): string {
+  let out = ''
+  let w = 0
+  for (const ch of s) {
+    const cw = cellWidth(ch)
+    if (w + cw > n) break
+    out += ch
+    w += cw
+  }
+  return out
+}
+
+// Aligned, never wrapped. Lines wider than `W = cols - 2` are cut to `W - 1` cells and end in `›`, with a footer row. Colour is
+// decided on the drawn text: connectors `permission`, state tags filled chips in place, names plain. Every part is one row.
+function drawDiagram(b: Extract<Block, { type: 'code' }>, cols: number, T: T, key: string): Drawn {
+  const { Box, Text } = T
+  if (b.lines.length === 0) return { node: <Box key={key} flexDirection="column" />, rows: 0, parts: [] }
+  const W = Math.max(1, cols - 2)
+  const lines = b.lines.map((l) => l.split('\t').join('    ').trimEnd())
+  const widest = Math.max(...lines.map(cellWidth))
+  const shown = lines.map((l) => (cellWidth(l) > W ? `${cutCells(l, W - 1)}›` : l))
+  const out: any[] = []
+  const caption = (/^diagram(\s|$)/.test(b.lang) ? b.lang.slice(7) : b.lang).trim()
+  if (caption !== '') wrapRows(caption, W, 2).forEach((r, i) => out.push(<Text key={`cap${i}`} italic dimColor>{`  ${r}`}</Text>))
+  shown.forEach((l, i) => {
+    const runs = diagramRuns(l).map((r, j) =>
+      r.kind === 'conn' ? (
+        <Text key={`d${i}-${j}`} color={ACCENT}>{r.text}</Text>
+      ) : r.kind === 'tag' ? (
+        <Text key={`d${i}-${j}`} {...chipProps(CHIPS[r.text.slice(1, -1) as 'ok'].tone)}>{r.text}</Text>
+      ) : (
+        r.text
+      ),
+    )
+    out.push(<Text key={`d${i}`}>{'  '}{runs}</Text>)
+  })
+  const tags = legendTags(shown)
+  if (tags.length > 0) {
+    const entry = (t: string) => cellWidth(`[${t}]`) + 1 + cellWidth(LEGEND_WORD[t as 'ok'])
+    let row: string[] = []
+    let used = 8 // two spaces and `legend`
+    const rows: string[][] = []
+    for (const t of tags) {
+      if (row.length > 0 && used + 2 + entry(t) > cols) {
+        rows.push(row)
+        row = []
+        used = 2
+      }
+      row.push(t)
+      used += 2 + entry(t)
+    }
+    rows.push(row)
+    rows.forEach((r, i) => {
+      const kids: any[] = i === 0 ? [<Text key="lg" dimColor>legend</Text>] : []
+      r.forEach((t) => {
+        kids.push('  ')
+        kids.push(<Text key={`lt${t}`} {...chipProps(CHIPS[t as 'ok'].tone)}>{`[${t}]`}</Text>)
+        kids.push(<Text key={`lw${t}`} dimColor>{` ${LEGEND_WORD[t as 'ok']}`}</Text>)
+      })
+      out.push(<Text key={`lg${i}`}>{'  '}{kids}</Text>)
+    })
+  }
+  if (widest > W) wrapCells(`› ${widest} columns wide, the pane shows ${W}`, W).forEach((r, i) => out.push(<Text key={`ft${i}`} dimColor>{`  ${r}`}</Text>))
+  return { node: <Box key={key} flexDirection="column">{out}</Box>, rows: out.length, parts: out }
+}
+
 function drawCode(b: Extract<Block, { type: 'code' }>, cols: number, T: T, key: string): Drawn {
+  if (isDiagram(b)) return drawDiagram(b, cols, T, key)
   const { Box, Text } = T
   const out: any[] = []
   if (b.lang !== '') out.push(<Text key="l" italic wrap="wrap">{b.lang}</Text>)
@@ -157,6 +252,22 @@ export function drawBlock(b: Block, cols: number, T: T, key: string): Drawn {
         rows: rowsFor(`${recPad(b, NBSP)}✓ recommended${rest === '' ? '' : ' '}${rest}`, cols),
       }
     }
+    case 'callout': {
+      // The label is a filled chip (9.2); the text wraps under column 0. A decision's sentence is bold.
+      const rest = drawnText(b.spans)
+      const words = drawSpans(b.spans, T, key)
+      return {
+        node: (
+          <Text key={key} wrap="wrap">
+            {recPad(b)}
+            <Text {...chipProps(CHIPS[b.tone].tone)}>{chipText(b.tone)}</Text>
+            {rest === '' ? null : ' '}
+            {b.tone === 'decision' ? <Text bold>{words}</Text> : words}
+          </Text>
+        ),
+        rows: rowsFor(`${recPad(b, NBSP)}${chipText(b.tone)}${rest === '' ? '' : ' '}${rest}`, cols),
+      }
+    }
     case 'bullet':
     case 'number': {
       const indent = ' '.repeat(indentFor(b.depth, cols))
@@ -190,9 +301,9 @@ const recPad = (b: { indent?: number }, ch = ' ') => ch.repeat(Math.min(b.indent
 function plainText(b: Block): string {
   if (b.type === 'blank') return ''
   if (b.type === 'code') return [...(b.lang === '' ? [] : [b.lang]), ...b.lines].join('\n')
-  if (b.type === 'table') return [b.header, ...b.rows].map((r) => r.map(spansText).join('  ')).join('\n')
+  if (b.type === 'table') return [b.header, ...b.rows].map((r) => r.map(drawnText).join('  ')).join('\n')
   const t = drawnText(b.spans)
-  return b.type === 'bullet' ? `• ${t}` : b.type === 'number' ? `${b.n}. ${t}` : b.type === 'rec' ? `${recPad(b, NBSP)}✓ recommended ${t}` : t
+  return b.type === 'bullet' ? `• ${t}` : b.type === 'number' ? `${b.n}. ${t}` : b.type === 'rec' ? `${recPad(b, NBSP)}✓ recommended ${t}` : b.type === 'callout' ? `${recPad(b, NBSP)}${chipText(b.tone)}${t === '' ? '' : ' '}${t}` : t
 }
 
 // Runs of blank lines draw one blank row; none at either end of what is drawn.

@@ -4,7 +4,13 @@
 
 import { oneLine, sanitize } from './core'
 
-export type Span = { kind: 'text' | 'bold' | 'code'; text: string }
+// A link is `[label](url)` or a bare url (`text` ''); a badge is `[ok]`, `[fail]`, `[warn]` or `[skip]` (`text` is the word).
+export type BadgeWord = 'ok' | 'fail' | 'warn' | 'skip'
+export type CalloutTone = 'decision' | 'warning' | 'info'
+export type Span =
+  | { kind: 'text' | 'bold' | 'code'; text: string }
+  | { kind: 'link'; text: string; url: string }
+  | { kind: 'badge'; text: BadgeWord }
 
 export type Block =
   | { type: 'heading'; level: 1 | 2 | 3; spans: Span[] }
@@ -13,12 +19,34 @@ export type Block =
   | { type: 'code'; lang: string; lines: string[] }
   | { type: 'table'; header: Span[][]; rows: Span[][][] }
   | { type: 'rec'; spans: Span[]; indent?: number }
+  | { type: 'callout'; tone: CalloutTone; spans: Span[]; indent?: number }
   | { type: 'para'; spans: Span[] }
   | { type: 'blank' }
 
 const BR = /<br\s*\/?>/gi
 
-// `**x**` and `x` spans of one line. Anything unmatched stays text.
+const BADGES: BadgeWord[] = ['ok', 'fail', 'warn', 'skip']
+const CALLOUTS: CalloutTone[] = ['decision', 'warning', 'info']
+const isHttp = (u: string) => u.startsWith('http://') || u.startsWith('https://')
+
+// Next index of `ch` at or after `from`, cached: a search is repeated only once `from` has passed the last hit, so the
+// searches of one line cover disjoint stretches and the whole line is read a bounded number of times. `from` must never
+// go down between two calls of one finder, so each use below has its own.
+function finder(line: string, ch: string) {
+  let at = -2 // -2: not searched yet, -1: none left in the line
+  return (from: number): number => {
+    if (at !== -1 && at < from) at = line.indexOf(ch, from)
+    return at
+  }
+}
+
+const least = (a: number, b: number, c: number, d: number): number => {
+  let m = -1
+  for (const x of [a, b, c, d]) if (x !== -1 && (m === -1 || x < m)) m = x
+  return m
+}
+
+// `**x**`, `x`, `[label](url)`, a bare url and `[ok]` spans of one line. Anything unmatched stays text.
 export function parseInline(line: string): Span[] {
   const out: Span[] = []
   let text = ''
@@ -27,22 +55,26 @@ export function parseInline(line: string): Span[] {
     text = ''
   }
   let i = 0
-  let nextBold = -2 // -2: not searched yet, -1: none left in the line
-  let nextCode = -2
+  const findBold = finder(line, '**')
+  const findCode = finder(line, '`')
+  const findOpen = finder(line, '[')
+  const findNextOpen = finder(line, '[')
+  const findClose = finder(line, ']')
+  const findParen = finder(line, ')')
+  const findLinkSpace = finder(line, ' ')
+  const findUrlSpace = finder(line, ' ')
+  const findHttp = finder(line, 'http')
   while (i < line.length) {
-    if (nextBold !== -1 && nextBold < i) nextBold = line.indexOf('**', i)
-    if (nextCode !== -1 && nextCode < i) nextCode = line.indexOf('`', i)
-    const hit = nextBold === -1 ? nextCode : nextCode === -1 ? nextBold : Math.min(nextBold, nextCode)
+    const nextBold = findBold(i)
+    const nextCode = findCode(i)
+    const nextOpen = findOpen(i)
+    const hit = least(nextBold, nextCode, nextOpen, findHttp(i))
     if (hit === -1) break
     text += line.slice(i, hit)
     i = hit
     if (hit === nextCode) {
       const end = line.indexOf('`', i + 1)
-      if (end === -1) {
-        nextCode = -1
-        text += '`'
-        i += 1
-      } else if (end === i + 1) {
+      if (end === -1 || end === i + 1) {
         text += '`'
         i += 1
       } else {
@@ -50,20 +82,53 @@ export function parseInline(line: string): Span[] {
         out.push({ kind: 'code', text: line.slice(i + 1, end) })
         i = end + 1
       }
-    } else {
+    } else if (hit === nextBold) {
       const end = line.indexOf('**', i + 2)
       const body = end === -1 ? '' : line.slice(i + 2, end)
-      if (end === -1) {
-        nextBold = -1
-        text += '**'
-        i += 2
-      } else if (body === '' || body.trim() !== body) {
+      if (end === -1 || body === '' || body.trim() !== body) {
         text += '**'
         i += 2
       } else {
         flush()
         out.push({ kind: 'bold', text: body })
         i = end + 2
+      }
+    } else if (hit === nextOpen) {
+      // `[label](url)`: the label holds no bracket; the url starts http(s):// and holds no space. `[ok]` is a badge.
+      const close = findClose(i + 1)
+      const another = close === -1 ? -1 : findNextOpen(i + 1)
+      const clean = close !== -1 && (another === -1 || another > close)
+      if (clean && line[close + 1] === '(') {
+        const paren = findParen(close + 2)
+        const space = findLinkSpace(close + 2)
+        const url = paren === -1 ? '' : line.slice(close + 2, paren)
+        if (paren !== -1 && (space === -1 || space > paren) && isHttp(url) && url.indexOf('://') + 3 < url.length) {
+          flush()
+          out.push({ kind: 'link', text: line.slice(i + 1, close), url })
+          i = paren + 1
+          continue
+        }
+      } else if (clean && (BADGES as string[]).includes(line.slice(i + 1, close))) {
+        flush()
+        out.push({ kind: 'badge', text: line.slice(i + 1, close) as BadgeWord })
+        i = close + 1
+        continue
+      }
+      text += '['
+      i += 1
+    } else {
+      // a bare url: `http://` or `https://`, at least one more character, up to the next space; one `.,;)` at its end is text
+      const head = line.startsWith('https://', i) ? 8 : line.startsWith('http://', i) ? 7 : 0
+      const space = findUrlSpace(i)
+      let end = space === -1 ? line.length : space
+      if (end - 1 > i + head && '.,;)'.includes(line[end - 1])) end -= 1
+      if (head === 0 || end <= i + head || (i > 0 && /[\p{L}\p{N}]/u.test(line[i - 1]))) {
+        text += 'http'
+        i += 4
+      } else {
+        flush()
+        out.push({ kind: 'link', text: '', url: line.slice(i, end) })
+        i = end
       }
     }
   }
@@ -165,9 +230,13 @@ export function parseBody(text: string): Block[] {
         continue
       }
     }
+    const callout = CALLOUTS.find((t) => trimmed.startsWith(`[${t}]`) && (trimmed.length === t.length + 2 || isSpace(trimmed[t.length + 2])))
     if (trimmed.startsWith('[rec]') && (trimmed.length === 5 || isSpace(trimmed[5]))) {
       const indent = line.length - line.trimStart().length
       blocks.push({ type: 'rec', spans: parseInline(trimmed.slice(5).trim()), ...(indent > 0 ? { indent } : {}) })
+    } else if (callout !== undefined) {
+      const indent = line.length - line.trimStart().length
+      blocks.push({ type: 'callout', tone: callout, spans: parseInline(trimmed.slice(callout.length + 2).trim()), ...(indent > 0 ? { indent } : {}) })
     } else {
       blocks.push(headingLine(line) ?? listLine(line) ?? { type: 'para', spans: parseInline(line.trimEnd()) })
     }
@@ -176,9 +245,12 @@ export function parseBody(text: string): Block[] {
   return blocks
 }
 
+// The words of one span: a link is its label and its url, a badge its word.
+const spanWords = (s: Span): string => (s.kind === 'link' ? (s.text === '' ? s.url : `${s.text} ${s.url}`) : s.text)
+
 // A space at an emphasis boundary, so `a**b**c` reads as three words, as its source does.
-const spansText = (spans: Span[]) =>
-  spans.reduce((acc, s, i) => acc + (i > 0 && (s.kind !== 'text' || spans[i - 1].kind !== 'text') ? ' ' : '') + s.text, '')
+export const spansText = (spans: Span[]) =>
+  spans.reduce((acc, s, i) => acc + (i > 0 && (s.kind !== 'text' || spans[i - 1].kind !== 'text') ? ' ' : '') + spanWords(s), '')
 
 // The text of the blocks without their syntax characters, one line per block; the words are the body's words.
 export function plainOf(blocks: Block[]): string {
