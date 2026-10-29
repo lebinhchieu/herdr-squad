@@ -271,13 +271,13 @@ test('2.10 an old atom without `more` draws, expands and navigates without a cra
 
 // --- keys (V-30) -------------------------------------------------------------------------------
 
-test('keys: the list screen map is 1-9 over shown rows and d; the band has i; none repeats', async ($, on) => {
+test('keys: the list screen map is d on the heading row, then 1-9 over shown rows; the band has i; none repeats', async ($, on) => {
   const waiting = many(2, wt)
   const items = [...many(8, ans), ...many(3, rd), ...waiting, item({ id: 'E90', state: 'done', done: { kind: 'read', ts: '2026-10-15T10:00:00', reason: null } })]
   await boot($, on, snap(items))
   const ui = await $.ui.mount(pane('terminal', 80))
   const hot = (await buttons(ui)).map((b: any) => b.props.hotkey).filter(Boolean)
-  expect(hot).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', 'd'])
+  expect(hot).toEqual(['d', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
   expect(new Set(hot).size).toBe(hot.length)
   expect(hot).not.toContain('i')
   expect(hot).not.toContain('b')

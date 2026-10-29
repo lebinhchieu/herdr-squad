@@ -211,7 +211,7 @@ test('list-order: blocks work, blocks nothing, waiting; hotkeys 1..9 and d (B-06
     expect(text).toContain('Inbox · 2 to answer · 1 to read · 1 waiting'.replace('2 to answer', '2 to answer'))
     const rows = await ui.findAll({ type: 'Button' })
     const hot = rows.map((r: any) => r.props?.hotkey).filter(Boolean)
-    expect(hot).toEqual(['1', '2', '3', '4', 'd'])
+    expect(hot).toEqual(['d', '1', '2', '3', '4'])
     expect((await ui.find({ key: 'done' }))?.text).toContain('Done (1)')
     await ui.unmount()
   }

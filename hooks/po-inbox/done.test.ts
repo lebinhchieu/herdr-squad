@@ -15,9 +15,9 @@ const buttons = async (ui: any) => (await ui.findAll({ type: 'Button' })) as any
 const moreOf = async (ui: any) => (await buttons(ui)).filter((b) => /\+\d+ more/.test(b.text))
 const rowIds = async (ui: any) => (await buttons(ui)).map((b) => /\b(E\d+)\b/.exec(b.text)?.[1]).filter(Boolean)
 
-async function open($: any, on: any, items: any[], cols = 80) {
+async function open($: any, on: any, items: any[], cols = 80, bodyRows = 20) {
   await boot($, on, snap(items))
-  const ui = await $.ui.mount(pane('terminal', cols))
+  const ui = await $.ui.mount(pane('terminal', cols, bodyRows))
   await ui.press({ key: 'done' })
   return ui
 }
@@ -39,12 +39,12 @@ FIXTURE_DONE.forEach((it, n) => {
   })
 })
 
-test('answered in chat is green and ids, stamps are dim', async ($, on) => {
+test('answered in chat is green and ids, ages are dim', async ($, on) => {
   const ui = await open($, on, [dn(1, 'answered', { answer: { ...ANS, source: 'chat' } })])
   const tree = await ui.drawn()
   expect(styleOf(tree, 'answered in chat')).toEqual({ color: 'success' })
   expect(styleOf(tree, 'E1')).toEqual({ dimColor: true })
-  expect(styleOf(tree, '2026-10-14')).toEqual({ dimColor: true })
+  expect(styleOf(tree, '1d')).toEqual({ dimColor: true })
 })
 
 test('heading carries the total, dim; newest first, equal stamps keep their order', async ($, on) => {
@@ -88,26 +88,39 @@ test('+N more opens in place, is dim with no hotkey; digits stay on the first ni
 })
 
 const LONG = 'the PO answered it in chat before anybody read the question so this reason keeps going and going'
+const SHORT_ROWS = 6 // a 24-row terminal
 for (const cols of [80, 59, 40, 30]) {
-  test(`a long withdrawn reason is wrapped whole, never dropped, at ${cols} columns`, async ($, on) => {
+  test(`tall tier: a long withdrawn reason is one clipped sub-row, dim, within ${cols} columns`, async ($, on) => {
     const ui = await open($, on, [dn(1, 'withdrawn', {}, LONG)], cols)
     const ls = lines(await ui.drawn())
     const sub = ls.filter((l) => l.startsWith('    '))
-    expect(sub.length).toBeGreaterThan(0)
-    expect(sub.join(' ')).toContain('withdrawn:')
-    expect(sub.map((l) => l.trim()).join(' ').replace(/\s+/g, ' ')).toContain(LONG)
-    for (const l of sub) expect(cellWidth(l)).toBeLessThanOrEqual(cols)
+    expect(sub).toHaveLength(1)
+    expect(sub[0].trim().startsWith('withdrawn: ')).toBe(true)
+    expect(sub[0].endsWith('…')).toBe(true)
+    expect(cellWidth(sub[0])).toBeLessThanOrEqual(cols)
     expect(styleOf(await ui.drawn(), 'withdrawn:')).toEqual({ dimColor: true })
+  })
+  test(`short tier: no sub-row at all (the reason is on the done item) at ${cols} columns`, async ($, on) => {
+    const ui = await open($, on, [dn(1, 'withdrawn', {}, LONG), dn(2, 'answered'), dn(3)], cols, SHORT_ROWS)
+    expect(lines(await ui.drawn()).filter((l) => l.startsWith('    '))).toEqual([])
+    expect(await dump(ui)).not.toContain('withdrawn:')
   })
 }
 
-test('a 300-character CJK reason wraps; the word withdrawn stays', async ($, on) => {
+test('tall tier: only a withdrawn item with a reason gets a sub-row', async ($, on) => {
+  const ui = await open($, on, [dn(1, 'withdrawn', {}, 'asked twice'), dn(2, 'withdrawn'), dn(3, 'answered'), dn(4)])
+  expect(lines(await ui.drawn()).filter((l) => l.startsWith('    '))).toEqual(['    withdrawn: asked twice'])
+})
+
+test('a 300-character CJK reason is clipped to one sub-row; the word withdrawn stays', async ($, on) => {
   const cjk = '理由'.repeat(150)
   const ui = await open($, on, [dn(1, 'withdrawn', {}, cjk)], 40)
   const text = await dump(ui)
   expect(text).toContain('withdrawn')
-  expect(text.split('\n').filter((l) => l.startsWith('    ')).every((l) => cellWidth(l) <= 40)).toBe(true)
-  expect(text.replace(/\s/g, '')).toContain(cjk)
+  const sub = text.split('\n').filter((l) => l.startsWith('    '))
+  expect(sub).toHaveLength(1)
+  expect(cellWidth(sub[0])).toBeLessThanOrEqual(40)
+  expect(sub[0].endsWith('…')).toBe(true)
 })
 
 test('ESC, OSC and U+202E in title and reason draw none', async ($, on) => {
@@ -119,7 +132,7 @@ test('ESC, OSC and U+202E in title and reason draw none', async ($, on) => {
   expect(textOf(await ui.drawn())).not.toMatch(/[\u001b‮]/)
 })
 
-// Row 1 is `n: ` (3 cells the engine draws), the Button text, then the title clipped with `…`.
+// Row 1 is `n: ` (3 cells the engine draws), the Button text, then the title clipped with `…` and the age at the right end.
 // The design's floor of 10 title cells can push a row past `cols` only when id + outcome word are long;
 // with `E1  read` it still fits at 30, so every width is asserted.
 const TITLES: [string, string][] = [
@@ -132,8 +145,9 @@ for (const cols of [80, 59, 40, 30]) {
     test(`title clipping: ${name} title ends with … and row 1 fits ${cols} columns`, async ($, on) => {
       const ui = await open($, on, [dn(1, 'read', { title })], cols)
       const btn = (await buttons(ui)).find((b: any) => b.key === 'd-E1')
-      expect(btn.text.endsWith('…')).toBe(true)
+      expect(btn.text).toContain('…')
       expect(3 + cellWidth(btn.text)).toBeLessThanOrEqual(cols)
+      expect(btn.text.endsWith('1d')).toBe(true)
     })
   }
 }
