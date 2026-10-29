@@ -280,6 +280,26 @@ test('done item: an outcome of more than 4 rows ends with … and a Details row;
   }
 })
 
+test('done item, 24 rows: a 4-row outcome stays whole; a longer one keeps 3 rows and a Details row', async ($, on) => {
+  const w = await boot($, on, snap([]))
+  const whole = 'word '.repeat(48).trim() // OUT (43) + 239 cells = 282 cells = 4 rows at 80 columns
+  let ui = await openItem($, w, dn(1, 'withdrawn', {}, whole), 80, SHORT_ROWS)
+  let ls = lines(await ui.drawn())
+  let at = ls.findIndex((l) => l.startsWith('Withdrawn by the Manager'))
+  expect(ls.slice(at, at + 4).join(' ').replace(/\s+/g, ' ')).toContain(whole)
+  expect(ls.some((l) => l.endsWith('…'))).toBe(false)
+  expect(ls.join('\n')).not.toContain('full text')
+  await ui.unmount()
+  ui = await openItem($, w, dn(1, 'withdrawn', {}, whole + ' ' + whole), 80, SHORT_ROWS)
+  ls = lines(await ui.drawn())
+  at = ls.findIndex((l) => l.startsWith('Withdrawn by the Manager'))
+  // the helper joins a wrapped text into one line: the kept text is 3 rows of 80 cells at most, then …
+  expect(ls[at].endsWith('…')).toBe(true)
+  expect(ls[at].length).toBeLessThanOrEqual(3 * 80)
+  expect(ls[at + 1]).toContain('full text')
+  await ui.unmount()
+})
+
 test('done item: a short outcome is never clipped and offers no `full text` row; answered kinds keep their tone', async ($, on) => {
   const w = await boot($, on, snap([]))
   const ui = await openItem($, w, dn(1, 'answered', { answer: { ...ANS, source: 'chat' } }), 40, SHORT_ROWS)

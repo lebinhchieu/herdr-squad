@@ -30,8 +30,29 @@ Written by dev-2 before building. Code stays in `ui.tsx`; no new constants in `c
 - **Heading row** is a `Box` row: counts text, `[ Done (N) (d) ]`, dim hint. Layouts tried in the drop order of list.md section 7: (A) long words + button + hint, (B) long words + button, (C) short words + button, (D) short words, button on its own row. Long words only from 60 columns (the existing rule). The hint is only in A. No done items: no button, same order.
 - **`↓ N more`**: while building I count rows. N = items whose first row lies below `bodyRows`, plus the hidden count of a `+N more` fold that lies below. No such item: no hint. Design example says "3" for 2 remaining items; the AC says items, so N is items.
 - **Done list.** Row 1 = Back + heading (`Done · newest first (N)`); narrow: count dropped, then heading under Back. Tall tier: sub-row only for a withdrawn item with a reason, clipped to one row (`withdrawn: reason…`), dim. Short tier: no sub-rows. Short age on the right in both tiers.
-- **Done item.** The outcome line is already right after the title (ticket 01). New: in the Decide page the line is cut at `min(4, max(2, bodyRows - row1 - titleRows))` rows with `…`, and a `… full reason [Details]` row follows; the Details page now also draws the handled block (it was missing for handled items), so Details shows the whole text.
+- **Done item.** The outcome line is already right after the title (ticket 01). New: in the Decide page the line is cut at `min(4, max(2, bodyRows - row1 - titleRows))` rows with `…`, and a `… full text [Details]` row follows; the Details page now also draws the handled block (it was missing for handled items), so Details shows the whole text.
 - **Tests.** `list.test.ts`, `done.test.ts` updated (hotkey order now `d` first, done sub-rows, clipping); new tests for the short tier, hint, narrow heading, done list and outcome. `ui.test.ts`/`item.test.ts` only if they break.
 
 ## Verification (no QA)
 Before HANDIN: (1) run the `mattpocock-skills:code-review` skill on your branch since its base and fix every finding it confirms; (2) write `## Review` in this file: findings, what you fixed, what you left and why; (3) run only the test files you touched plus the `grep -rl` hits (CLAUDE.md); do NOT run the full suite (PO: full suite only once, at the end, by QA whitebox on the final integrated sha); (4) save real-pane evidence per the AC in `evidence.md` and check it with `squad-evidence check`. HANDIN names the branch, sha, evidence sha and the `## Review` path. The Manager confirms; no QA runs.
+
+## Review
+
+Skill `mattpocock-skills:code-review`, since 4a818d6, effort high. Standards: no hard violation (CONTEXT.md terms, ADR 0007, CLAUDE.md test rules respected). Spec: AC 2-5 and 7 found implemented and tested.
+
+**Fixed**
+- Test gap (spec a3): `done.test.ts` now has "a 4-row outcome stays whole; a longer one keeps 3 rows and a Details row" (no `…`/`full text` at 4 rows; at more, the line ends `…`, at most 3 rows, `full text` row follows).
+- Design note said `… full reason [Details]`; the code and evidence say `full text`. The note now says `full text`.
+
+**Left, and why**
+- AC6 "never cut by the 6-row window" (spec a2): a cut outcome keeps 3 rows (2 after a 2-row title) so the Details row fits in the 6-row window. A 4-row outcome with a 1-row title stays whole. This is the design note's own rule (cap `min(4, max(2, room))`); Details shows the whole text.
+- `itemScreen` touched (spec b1): the ticket's own design notes ask for the handled block on the Details page and the Details row. Accepted, not scope creep.
+- The 4-row cap also applies to `answered-waiting` (spec b2): same `handledBlock`; its outcome lines are short, so no visible effect. Left.
+- ADR 0007 edited (spec b3): one sizing line, as the design needs.
+- No hint at docked width (spec c1): follows the drop order of list.md section 7 (the hint is dropped first). Accepted deviation; the hint shows from the width where it fits.
+- Hint at a visible `+N more` fold (spec c2): a visible fold shows its own count; the hint counts items below the window only. Left.
+- Withdrawn outcome colour (spec c3): `dimColor` is the existing `outcomeTone`; unchanged by 02.
+- Smells (standards, all judgement calls): the default body-rows expression appears 3 times; the title/age row layout appears in `listScreen` and `doneScreen`; bare gap literals; `headingRow` takes 7 parameters. Left: they match the file's current style, and a refactor now would widen the diff of a ticket other tickets (03) also edit in `ui.tsx`. Note for a later cleanup.
+- Pre-existing: the "Details" page line ends `..` when a withdrawal reason ends with a full stop (`handledLines`). Left.
+- Accepted deviations: the hint counts items (the design example said 3 for 2); the Done gap on the list heading is 2 spaces so the docked 47-column heading fits one row.
+- No glossary term added by 02.
