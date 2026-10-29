@@ -35,3 +35,23 @@ Written before building (dev 3). Section numbers are `ui-design/body-styles.md`.
 
 ## Verification (no QA)
 Before HANDIN: (1) run the `mattpocock-skills:code-review` skill on your branch since its base and fix every finding it confirms; (2) write `## Review` in this file: findings, what you fixed, what you left and why; (3) run only the test files you touched plus the `grep -rl` hits (CLAUDE.md); do NOT run the full suite (PO: full suite only once, at the end, by QA whitebox on the final integrated sha); (4) save real-pane evidence per the AC in `evidence.md` and check it with `squad-evidence check`. HANDIN names the branch, sha, evidence sha and the `## Review` path. The Manager confirms; no QA runs.
+
+## Review
+Skill `mattpocock-skills:code-review`, since base `4a818d6`, two sub-agents (Standards, Spec). No hard violation on either axis. Findings and what I did:
+
+| # | Axis | Finding | Action |
+|---|---|---|---|
+| 1 | Standards | `draw.tsx` header said colour is `TONE` or weight only | Fixed: comment names `ACCENT`, `QUIET` and 9.5 |
+| 2 | Standards | `/^diagram(\s\|$)/` twice, magic `slice(7)` | Fixed: one `DIAGRAM_LANG` |
+| 3 | Standards | `BadgeWord` and `DiagramTag` were two lists of one vocabulary | Fixed: `DIAGRAM_TAGS` in `core.ts`; `markup.ts` reuses it |
+| 4 | Standards | A test named "permission only on chips and connectors" did not assert that | Fixed: renamed to what it checks |
+| 5 | Standards | Legend row packing sits inline in `drawDiagram`; `lay.rows` of `tableLayout` unused by `drawTable`; `findOpen`/`findNextOpen` and the two space finders duplicate a call | Left: each is small, tested through the drawn output, and the finders must be separate (a finder only moves forward; the comment says so) |
+| 6 | Spec | A caption longer than 2 rows ended in `…` (words lost) | Fixed: caption wraps whole; test added |
+| 7 | Spec | A whole tag ending exactly at the cut lost its chip (`[ok]›`) | Fixed: tags are read on the typed line, then the runs are cut; a cut tag is plain, a whole one keeps its chip; test added |
+| 8 | Spec | `-->>` coloured both `>` | Fixed: one `>` after a connector run, one `<` before it; test added |
+| 9 | Spec | Legend can use several rows when it does not fit (spec says one row) | Left: at 47 columns the four entries need 66 cells; one row would drop words. Each part is one row, so the row count stays exact |
+| 10 | Spec | `drawTable` draws one `Text` per row with per-cell spans, not one `Text` per cell | Left: same text, same colours, same widths; tests read the drawn cells |
+| 11 | Spec | Not asked for: a bare url after a letter stays text (`xhttp://a.b`); a link label may not hold `[`; `parseInline` now uses cached finders; a non-`diagram` fence with a box character shows its language word as caption | Left: each keeps the parser total and linear, or keeps a word on screen; all are in the design notes and tests |
+| 12 | Spec | Ticket AC2 still says `◆ decision:` with a colon | Left: section 9 wins (filled chip, no colon); the AC text is stale, the Manager may edit it |
+
+Tests: `claude plugin test .` (the mod suite only, 585 pass, 0 fail) plus `tests/test_promotion_0_6_0.py` and `tests/test_old_language_inventory.py` (the `grep -rl` hits). Full suite not run (PO rule).
