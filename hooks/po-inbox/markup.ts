@@ -200,6 +200,7 @@ const TITLE_MAX = 80
 // T2's pipeline: sanitize, <br> to a line break, drop the first line when it is the title the screen already shows, parse.
 // P6: a title of TITLE_MAX characters whose full text starts the body is the cut form of that first line; the line is the title.
 function split(body: string, title: string): { title: string; lines: string[] } {
+  const rawLen = Array.from(oneLine(sanitize(title))).length
   const t = oneLine(sanitize(title)).trim()
   const lines = sanitize(body).replace(BR, '\n').split('\n')
   const first = lines[0].trim()
@@ -207,7 +208,9 @@ function split(body: string, title: string): { title: string; lines: string[] } 
     lines.shift()
     return { title: t, lines }
   }
-  if (Array.from(t).length >= TITLE_MAX && first.startsWith(t)) {
+  // A cut that ends in a space is 79 trimmed characters, so the test uses the length before the trim; a long title that is
+  // a strict prefix of the first line is the cut form as well.
+  if (t !== '' && first.length > t.length && first.startsWith(t) && (rawLen >= TITLE_MAX || Array.from(t).length >= TITLE_MAX - 10)) {
     lines.shift()
     return { title: oneLine(first), lines }
   }

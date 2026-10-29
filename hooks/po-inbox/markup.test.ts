@@ -406,3 +406,26 @@ describe('title rule P6: an 80-character stored title is the cut of the first bo
     expect(itemTitle(`\n${full}\nrest`, cut)).toBe(cut)
   })
 })
+
+describe('P6 title cut at 80 characters', () => {
+  const q = 'Shall we ship the new inbox pane to every manager before Friday at noon, or wait for QA first?'
+  const lines = (b: string, t: string) => plainOf(bodyBlocks(b, t))
+  test('a cut mid-word: the full first line is the title and leaves the body', () => {
+    const t = q.slice(0, 80)
+    expect(itemTitle(`${q}\nMore detail.`, t)).toBe(q)
+    expect(lines(`${q}\nMore detail.`, t)).toBe('More detail.')
+  })
+  test('a cut that ends in a space (79 chars once trimmed) still matches', () => {
+    const sp = 'Shall we ship the new inbox pane to every manager before Friday at noon, or '
+    const full = `${sp}${'x'.repeat(1)} wait for QA first, please answer today`
+    const t = `${sp}x `.padEnd(80, ' ').slice(0, 80)
+    expect(t.length).toBe(80)
+    expect(t.endsWith(' ')).toBe(true)
+    expect(itemTitle(`${full}\nMore detail.`, t)).toBe(full)
+    expect(lines(`${full}\nMore detail.`, t)).toBe('More detail.')
+  })
+  test('a short title that only starts the first line is left alone', () => {
+    expect(itemTitle('Deploy note for you\nx', 'Deploy')).toBe('Deploy')
+    expect(lines('Deploy note for you\nx', 'Deploy')).toBe('Deploy note for you\nx')
+  })
+})

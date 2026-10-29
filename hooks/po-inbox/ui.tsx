@@ -336,6 +336,13 @@ function topLayout(btnWidth: number, make: (blocks: string, age: string) => Piec
       if (w(p) <= avail) return { pieces: p, hint: false, extra: false, avail }
     }
   }
+  // "blocks nothing" says nothing the header needs: last, it goes whole so the header stays on row 1 (design: `R1 · read · 3m`)
+  if (canClip && blocksFull === 'nothing') {
+    for (const a of age === '' ? [''] : [age, '']) {
+      const p = make('', a)
+      if (w(p) <= avail) return { pieces: p, hint: false, extra: false, avail }
+    }
+  }
   return { pieces: full, hint: false, extra: true, avail }
 }
 
@@ -390,7 +397,7 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
     const ps: Piece[] = [{ text: line(it.id), props: { dimColor: true } }]
     const kind = line(it.kind)
     if (detail || kind !== 'answer') ps.push(DOT, { text: kind, props: toneProps(kindTone(it)) })
-    ps.push(DOT, { text: `blocks ${b}`, props: toneProps(bt) })
+    if (b !== '') ps.push(DOT, { text: `blocks ${b}`, props: toneProps(bt) })
     if (detail) ps.push(DOT, { text: `created ${createdText(it, snap.now, cols)}`, props: { dimColor: true } })
     else if (a !== '') ps.push(DOT, { text: a, props: { dimColor: true } })
     return ps
@@ -495,7 +502,7 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
       <Button key="details" label="Details" onPress={() => setDetail($, true)} />
     </Box>
   )
-  if (!detail && bd.cut) add(detailsRow(`… ${bd.hiddenRows} more rows`), 1)
+  if (!detail && bd.cut) add(detailsRow(`… ${bd.hiddenRows} more ${bd.hiddenRows === 1 ? 'row' : 'rows'}`), 1)
   else if (!detail && titleCut) add(detailsRow('… full title'), 1)
   if (isRead) add(markEnd, 1)
   if (detail) add(<Button key="back-end" label={backLabel} onPress={() => setDetail($, false)} />, 1)
@@ -510,7 +517,7 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
     if (at > bodyRows) {
       if (x.tag === 'note') noteBelow = true
       if (x.tag === 'send') sendBelow = true
-      if (x.tag === 'ctx') ctxBelow = true
+      if (x.tag === 'ctx' && !detail) ctxBelow = true
     }
   }
   const total = at

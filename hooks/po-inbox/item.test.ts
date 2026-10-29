@@ -598,7 +598,7 @@ test('M1: E1 at 80 columns, 6 rows: header, options with one `✓ rec`, nothing 
   expect(text.split('✓ rec').length - 1).toBe(1)
   expect(rowsOf(tree).find((l) => l.includes('✓ rec'))).toContain('(c) Both')
   for (const gone of ['●', 'Options', 'recommends', 'recommended:', 'Your answer', '<br>']) expect(text, gone).not.toContain(gone)
-  expect(text).toMatch(/Context\n.*\n… \d+ more rows\n\[Details\]/)
+  expect(text).toMatch(/Context\n.*\n… \d+ more rows?\n\[Details\]/)
   expect(styleOf(tree, '↓ send')).toEqual({ dimColor: true })
   expect(styleOf(tree, 'E1')).toEqual({ dimColor: true })
   expect(styleOf(tree, 'blocks spawning the pod (BA, Tech Lead)')).toEqual({ color: 'error' })
