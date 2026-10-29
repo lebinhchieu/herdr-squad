@@ -271,13 +271,13 @@ test('2.10 an old atom without `more` draws, expands and navigates without a cra
 
 // --- keys (V-30) -------------------------------------------------------------------------------
 
-test('keys: the list screen map is 1-9 over shown rows and d; the band has i; none repeats', async ($, on) => {
+test('keys: the list screen map is d on the heading row, then 1-9 over shown rows; the band has i; none repeats', async ($, on) => {
   const waiting = many(2, wt)
   const items = [...many(8, ans), ...many(3, rd), ...waiting, item({ id: 'E90', state: 'done', done: { kind: 'read', ts: '2026-10-15T10:00:00', reason: null } })]
   await boot($, on, snap(items))
   const ui = await $.ui.mount(pane('terminal', 80))
   const hot = (await buttons(ui)).map((b: any) => b.props.hotkey).filter(Boolean)
-  expect(hot).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', 'd'])
+  expect(hot).toEqual(['d', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
   expect(new Set(hot).size).toBe(hot.length)
   expect(hot).not.toContain('i')
   expect(hot).not.toContain('b')
@@ -343,16 +343,203 @@ test('row text: age shows only when the whole line fits one row, short form unde
   expect(await at(40)).toEqual(['    blocks IV-03 (Developer 1) · 10h', '    blocks the spawning of the pod (BA,', '    Tech Lead)'])
 })
 
-test('row text: the heading and group titles wrap (never clipped) and use the short words under 60 columns', async ($, on) => {
+test('row text: the heading and group titles wrap (never clipped); the short words come only when the long ones do not fit', async ($, on) => {
   await boot($, on, snap([ans(1), rd(1), wt(1)]))
   const long = await $.ui.mount(pane('terminal', 60))
   expect(await dump(long)).toContain('Inbox · 1 to answer · 1 to read · 1 waiting')
   await long.unmount()
-  const short = await $.ui.mount(pane('terminal', 59))
+  const roomy = await $.ui.mount(pane('terminal', 44))
+  expect(await dump(roomy)).toContain('Inbox · 1 to answer · 1 to read · 1 waiting')
+  await roomy.unmount()
+  const short = await $.ui.mount(pane('terminal', 42))
   expect(await dump(short)).toContain('Inbox · 1 answer · 1 read · 1 waiting')
   const tree = await short.drawn()
   expect(JSON.stringify(tree)).not.toContain('"wrap":"truncate"')
 })
+
+// --- ticket 02: one row per item, the heading row, the hint (list.md) -----------------------------
+
+const SHORT = 6 // bodyRows of a 24-row terminal
+const TALL = 11 // bodyRows of a 40-row terminal
+
+// The seeded list of the design: 2 blocking answers, 1 answer that blocks nothing, 2 reads.
+const seeded = () => [
+  ans(1, { id: 'E1', title: 'Which branch merges first: BRD-01 for BRD-02..06?', blocks: 'BRD-02..06', created: '2026-10-15T04:00:00' }),
+  ans(2, { id: 'E2', title: 'Usage limits: account 2 is at 94% 7d', blocks: 'All remaining work', created: '2026-10-15T04:00:00' }),
+  ans(5, { id: 'E5', title: 'What name should the new mode have in the CLI and in the docs?', blocks: 'nothing', created: '2026-10-15T04:00:00' }),
+  rd(1, { id: 'R1', title: 'Iteration 1 passed: all 3 tasks', created: '2026-10-15T11:57:00' }),
+  rd(2, { id: 'R2', title: 'Long plan with many sections to read', created: '2026-10-15T11:57:00' }),
+]
+const done3 = [1, 2, 3].map((i) => item({ id: `D${i}`, state: 'done', done: { kind: 'read', ts: '2026-10-15T10:00:00', reason: null } }))
+
+// Row 1 as the engine draws it: texts joined, a Button as `[ label ]`.
+function top(tree: any): { text: string; rows: number } {
+  const root = Array.isArray(tree) ? tree[0] : tree
+  const first = root.children[0]
+  const side = (n: any): string =>
+    Array.isArray(n) ? n.map(side).join('') : n && n.type === 'Button' ? `[ ${n.props?.label ?? textOf(n)} ]` : n && n.type === 'Box' ? (n.children ?? []).map(side).join('') : textOf(n)
+  if (first.props?.flexDirection === 'column') return { text: first.children.map(side).join('\n'), rows: first.children.length }
+  return { text: side(first.children), rows: 1 }
+}
+
+// `left`, then `hint` ending on the last of `cols` cells (at least 2 spaces between).
+const withHint = (left: string, hint: string, cols: number): string => `${left}${' '.repeat(Math.max(2, cols - cellWidth(left) - cellWidth(hint)))}${hint}`
+const subRows = (ls: string[]): string[] => ls.filter((l) => l.startsWith('    ') && !l.trim().startsWith('↓'))
+
+const rowButtons = async (ui: any) => ((await buttons(ui)) as any[]).filter((b) => /^(   )?[ER]\d+ /.test(b.text))
+
+test('short tier: one row per item, the short age at the right end of the row, the sub-row gone', async ($, on) => {
+  await boot($, on, snap(seeded()))
+  for (const cols of [80, 60, 47]) {
+    const ui = await $.ui.mount(pane('terminal', cols, SHORT))
+    const rows = await rowButtons(ui)
+    expect(rows.map((b: any) => /^(E\d+|R\d+)/.exec(b.text)?.[0])).toEqual(['E1', 'E2', 'E5', 'R1', 'R2'])
+    for (const b of rows) {
+      expect(3 + cellWidth(b.text)).toBe(cols) // `n: ` + text: the age ends on the last cell
+      expect(b.text).toMatch(/ (8h|3m)$/)
+    }
+    expect(rows[0].text).toMatch(/^E1 {2}answer {2}Which branch merges first/)
+    expect(subRows(lines(await ui.drawn()))).toEqual([])
+    expect(await dump(ui)).not.toContain('blocks BRD-02..06')
+    expect(styleOf(await ui.drawn(), '8h')).toEqual({ dimColor: true })
+    await ui.unmount()
+  }
+})
+
+test('short tier at 24 rows: heading, 2 group headings and 3 items fit the 6 body rows (was 2 items)', async ($, on) => {
+  await boot($, on, snap([...seeded(), ...done3]))
+  const ui = await $.ui.mount(pane('terminal', 80, SHORT))
+  const ls = lines(await ui.drawn())
+  // rows 1-6: heading, Blocks work, E1, E2, Blocks nothing, E5; each item is one row, the others lie below
+  const at = (s: string) => ls.findIndex((l) => l.includes(s))
+  expect([at('Blocks work'), at('E1'), at('E2'), at('Blocks nothing'), at('E5'), at('R1')].every((x, i, a) => x > -1 && (i === 0 || x > a[i - 1]))).toBe(true)
+  expect(top(await ui.drawn()).text).toBe(withHint('Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', '↓ 2 more', 80))
+})
+
+test('tall tier: the item rows keep their two rows and no age at the right end; only the heading row changes', async ($, on) => {
+  await boot($, on, snap([...seeded(), ...done3]))
+  const ui = await $.ui.mount(pane('terminal', 80, TALL))
+  const rows = await rowButtons(ui)
+  for (const b of rows) expect(b.text).not.toMatch(/ (8h|3m)$/)
+  const ls = lines(await ui.drawn())
+  expect(ls.filter((l) => l.startsWith('    blocks '))).toHaveLength(5)
+  expect(ls).toContain('    blocks BRD-02..06 · created 8h ago')
+  expect(top(await ui.drawn()).text).toBe(withHint('Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', '↓ 1 more', 80))
+})
+
+test('the Done button is on the heading row only, with its hotkey; the bottom one is gone', async ($, on) => {
+  await boot($, on, snap([...seeded(), ...done3]))
+  for (const rows of [SHORT, TALL]) {
+    const ui = await $.ui.mount(pane('terminal', 80, rows))
+    const dones = (await buttons(ui)).filter((b: any) => b.key === 'done')
+    expect(dones).toHaveLength(1)
+    expect(dones[0].props.hotkey).toBe('d')
+    expect(top(await ui.drawn()).text).toContain('[ Done (3) (d) ]')
+    const all = lines(await ui.drawn())
+    expect(all[all.length - 1]).not.toContain('Done (')
+    await ui.unmount()
+  }
+})
+
+test('heading hint: `↓ N more` counts the items below the first viewport and is dim', async ($, on) => {
+  await boot($, on, snap([...seeded(), ...done3]))
+  const short = await $.ui.mount(pane('terminal', 80, SHORT))
+  expect(top(await short.drawn()).text).toMatch(/\[ Done \(3\) \(d\) \] +↓ 2 more$/)
+  expect(cellWidth(top(await short.drawn()).text)).toBe(80)
+  expect(styleOf(await short.drawn(), '↓ 2 more')).toEqual({ dimColor: true })
+  await short.unmount()
+  const tall = await $.ui.mount(pane('terminal', 80, TALL))
+  expect(top(await tall.drawn()).text).toMatch(/↓ 1 more$/) // R2 starts on row 12
+  await tall.unmount()
+  const roomy = await $.ui.mount(pane('terminal', 80, 30))
+  expect(top(await roomy.drawn()).text).not.toContain('↓')
+})
+
+test('heading hint: a `+N more` fold below counts its hidden items; none shown when only a sub-row lies below', async ($, on) => {
+  const w = await boot($, on, snap(many(12, ans)))
+  const ui = await $.ui.mount(pane('terminal', 80, SHORT))
+  // rows: heading, group heading, E1..E4 fill 6; E5..E7 start below (3) and `+5 more` (5)
+  expect(top(await ui.drawn()).text).toBe(withHint('Inbox · 12 to answer', '↓ 8 more', 80))
+  await ui.unmount()
+  w.current = snap([ans(1), ans(2)])
+  await $.session.start(START)
+  const two = await $.ui.mount(pane('terminal', 80, 5)) // heading, group, E1 (2 rows) = 4; E2 starts on row 5 and is seen
+  expect(top(await two.drawn()).text).not.toContain('↓')
+})
+
+test('heading row, drop order: hint, then the long words, then the Done button on its own row (80, 60, 59, 56, 47, 40 columns)', async ($, on) => {
+  await boot($, on, snap(seeded().concat(done3)))
+  const want: Record<number, { text: string; rows: number }> = {
+    80: { text: withHint('Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', '↓ 2 more', 80), rows: 1 },
+    60: { text: withHint('Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', '↓ 2 more', 60), rows: 1 },
+    59: { text: withHint('Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', '↓ 2 more', 59), rows: 1 },
+    // a 60-column terminal: the body is 56. The long counts and the button fit, the hint does not: the hint goes, the counts stay long
+    56: { text: 'Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', rows: 1 },
+    47: { text: 'Inbox · 3 answer · 2 read  [ Done (3) (d) ]', rows: 1 },
+    40: { text: 'Inbox · 3 answer · 2 read\n[ Done (3) (d) ]', rows: 2 },
+  }
+  for (const cols of [80, 60, 59, 56, 47, 40]) {
+    const ui = await $.ui.mount(pane('terminal', cols, SHORT))
+    const got = top(await ui.drawn())
+    expect({ cols, ...got }).toEqual({ cols, ...want[cols] })
+    for (const l of got.text.split('\n')) expect(cellWidth(l)).toBeLessThanOrEqual(cols)
+    await ui.unmount()
+  }
+})
+
+test('heading row: three counts at 47 columns put the Done button under the heading; without done items there is no button', async ($, on) => {
+  const w = await boot($, on, snap([ans(1), rd(1), wt(1), ...done3]))
+  const ui = await $.ui.mount(pane('terminal', 47, TALL))
+  expect(top(await ui.drawn())).toEqual({ text: 'Inbox · 1 answer · 1 read · 1 waiting\n[ Done (3) (d) ]', rows: 2 })
+  await ui.unmount()
+  w.current = snap([ans(1), rd(1)])
+  await $.session.start(START)
+  const none = await $.ui.mount(pane('terminal', 47, TALL))
+  expect(top(await none.drawn())).toEqual({ text: 'Inbox · 1 to answer · 1 to read', rows: 1 })
+  expect((await buttons(none)).filter((b: any) => b.key === 'done')).toEqual([])
+})
+
+test('empty list with done items: the heading row still carries the Done button; the empty text stays', async ($, on) => {
+  await boot($, on, snap(done3))
+  const ui = await $.ui.mount(pane('terminal', 80, SHORT))
+  expect(top(await ui.drawn()).text).toBe('Inbox  [ Done (3) (d) ]')
+  expect(await dump(ui)).toContain('Nothing waits on you.')
+})
+
+test('short tier: the waiting group keeps its sub-row and carries no age on the row', async ($, on) => {
+  await boot($, on, snap([wt(1)]))
+  const ui = await $.ui.mount(pane('terminal', 80, SHORT))
+  const [b] = await rowButtons(ui)
+  expect(b.text).toMatch(/E51 {2}answered {2}Waiting 1$/)
+  expect(lines(await ui.drawn())).toContain('    (your answer sent 2026-10-15 10:42)')
+})
+
+test('short tier: a missing age leaves the title the whole width; 10+ rows keep three spaces and no digit', async ($, on) => {
+  await boot($, on, snap([ans(1, { created: 'garbage', title: 'T'.repeat(200) }), ...many(11, (i) => ans(i + 1))]))
+  const ui = await $.ui.mount(pane('terminal', 60, SHORT))
+  const [first] = await rowButtons(ui)
+  expect(3 + cellWidth(first.text)).toBe(60)
+  expect(first.text.endsWith('…')).toBe(true)
+  await ui.press((await moreOf(ui))[0])
+  const tenth = (await rowButtons(ui))[9]
+  expect(tenth.props.hotkey).toBeUndefined()
+  expect(tenth.text.startsWith('   ')).toBe(true)
+})
+
+for (const [name, title] of [['ascii', 'T'.repeat(300)], ['cjk', '日本語のとても長い質問のタイトルです'.repeat(6)], ['emoji', '🚀 launch '.repeat(30)]] as const) {
+  test(`short tier ${name}: no row is wider than the pane at 80, 60, 47, 40 and 30 columns; the age stays`, async ($, on) => {
+    await boot($, on, snap([ans(1, { title, created: '2026-10-15T04:00:00' }), rd(1, { title, created: '2026-10-15T11:57:00' })]))
+    for (const cols of [80, 60, 47, 40, 30]) {
+      const ui = await $.ui.mount(pane('terminal', cols, SHORT))
+      for (const b of await rowButtons(ui)) {
+        expect({ cols, w: 3 + cellWidth(b.text) <= cols }).toEqual({ cols, w: true })
+        expect(b.text).toMatch(/(8h|3m)$/)
+        expect(b.text).toContain('…')
+      }
+      await ui.unmount()
+    }
+  })
+}
 
 // --- the sanitiser (V-27) ----------------------------------------------------------------------
 

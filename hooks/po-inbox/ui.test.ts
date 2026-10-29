@@ -211,7 +211,7 @@ test('list-order: blocks work, blocks nothing, waiting; hotkeys 1..9 and d (B-06
     expect(text).toContain('Inbox · 2 to answer · 1 to read · 1 waiting'.replace('2 to answer', '2 to answer'))
     const rows = await ui.findAll({ type: 'Button' })
     const hot = rows.map((r: any) => r.props?.hotkey).filter(Boolean)
-    expect(hot).toEqual(['1', '2', '3', '4', 'd'])
+    expect(hot).toEqual(['d', '1', '2', '3', '4'])
     expect((await ui.find({ key: 'done' }))?.text).toContain('Done (1)')
     await ui.unmount()
   }
@@ -249,9 +249,9 @@ test('list-50 and list-long-title: nothing dropped (folded, 7 rows + +43 more), 
   }
   const ui = await $.ui.mount(pane('terminal', 80))
   await ui.press({ key: 'E100' })
-  // IV-03: the item screen caps the title at 3 rows; Show all draws it whole.
+  // Ticket 01: the item screen caps the title at 2 rows; Details draws it whole.
   expect(await dump(ui)).not.toContain('T'.repeat(300))
-  await ui.press({ key: 'show-all' })
+  await ui.press({ key: 'details' })
   expect(await dump(ui)).toContain('T'.repeat(300))
 })
 
@@ -283,12 +283,12 @@ test('item-answer-options: options, recommendation as text only, nothing picked,
   for (const surface of SURFACES) {
     const ui = await openItem($, surface, 'E3')
     const text = await dump(ui)
-    // IV-03: an option is a hanging block, its key and its text are separate rows of the tree.
-    expect(text).toContain('(a) \nMerge PI-03 first')
-    expect(text).toContain('Manager recommends: b: less rework')
+    // Ticket 01: an option is a pickable row `○ (a) text`.
+    expect(text).toContain('[○ (a) Merge PI-03 first]')
+    expect(text).toContain('✓ Manager recommends: b: less rework')
     expect(text).not.toContain('Picked:')
     expect(text).not.toContain('your pick')
-    expect((await ui.find({ key: 'pick' }))?.props?.value).toBeUndefined()
+    expect(text).not.toContain('●')
     expect((await ui.find({ key: 'back' }))?.props?.hotkey).toBeUndefined()
     expect(await ui.find({ key: 'note' })).toBeDefined()
     await ui.unmount()
@@ -312,7 +312,7 @@ test('item-answer-free and item-answer-unparsed', async ($, on) => {
   }
 })
 
-test('item-long-body: the read-item floor of 12 lines then Show all gives the whole body (B-36)', async ($, on) => {
+test('item-long-body: the read-item floor of 12 lines then Details gives the whole body (B-36)', async ($, on) => {
   const body = Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join('\n')
   await boot($, on, snap([item({ id: 'R9', kind: 'read', body })]))
   // IV-03: the cut follows the pane's rows (T9 v3), floor 12 for a read item; at 7 rows it is the floor.
@@ -320,11 +320,11 @@ test('item-long-body: the read-item floor of 12 lines then Show all gives the wh
   let text = await dump(ui)
   expect(text).toContain('line 12')
   expect(text).not.toContain('line 13')
-  expect(text).toContain('… 28 more lines')
-  await ui.press({ key: 'show-all' })
+  expect(text).toContain('… 28 more rows')
+  await ui.press({ key: 'details' })
   text = await dump(ui)
   expect(text).toContain('line 40')
-  expect(await ui.find({ key: 'show-all' })).toBeUndefined()
+  expect(await ui.find({ key: 'details' })).toBeUndefined()
 })
 
 test('answer flow: pick b, note, submit: the CLI runs once with argv and stdin, then delivery (AC3)', async ($, on) => {
@@ -338,8 +338,8 @@ test('answer flow: pick b, note, submit: the CLI runs once with argv and stdin, 
     if (argv[0] === 'delivered') return { exitCode: 0, stdout: '', stderr: '' }
   })
   const ui = await openItem($, 'terminal', 'E3')
-  await ui.select({ key: 'pick', value: 'b' })
-  expect(await dump(ui)).toContain('▸ (b) \nMerge PI-01 first ← your pick')
+  await ui.press({ key: 'opt-b' })
+  expect(await dump(ui)).toContain('[● (b) Merge PI-01 first]')
   await ui.input({ key: 'note', text: 'because', kind: 'change' })
   await Promise.all([ui.press({ key: 'send' }), ui.press({ key: 'send' })])
   expect(answered).toBe(true)
@@ -387,7 +387,7 @@ test('item-error-exit3: the CLI message verbatim, the draft kept, the item shows
     }
   })
   const ui = await openItem($, 'terminal', 'E3')
-  await ui.select({ key: 'pick', value: 'a' })
+  await ui.press({ key: 'opt-a' })
   await ui.input({ key: 'note', text: 'my words', kind: 'change' })
   await ui.press({ key: 'send' })
   const text = await dump(ui)
@@ -787,7 +787,7 @@ test('a refused answer (exit 3) keeps the typed text in the field; an accepted o
     if (argv[0] === 'answer') return { exitCode: code, stdout: '', stderr: code === 3 ? 'E3 was answered by chat\n' : '' }
   })
   const ui = await openItem($, 'terminal', 'E3')
-  await ui.select({ key: 'pick', value: 'a' })
+  await ui.press({ key: 'opt-a' })
   await ui.input({ key: 'note', text: 'my words', kind: 'submit' })
   expect(verbs(w, 'answer').length).toBe(1)
   expect(await dump(ui)).toMatch(/<[^>\n]*my words>/)
