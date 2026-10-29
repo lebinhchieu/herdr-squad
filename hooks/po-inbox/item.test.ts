@@ -978,7 +978,7 @@ const GUIDE_E1 = item({
 })
 const GUIDE_R1 = item({ id: 'G2', kind: 'read', title: 'Iteration 1 passed: all 3 tasks', body: VISUAL.guideR1, blocks: '', created: '2026-10-15T11:23:00' })
 
-test('body styles: E1 and R1 on Details draw their forms, chips and all words, at every size', async ($, on) => {
+test('body styles: E1 and R1 on Details draw their forms, chips and all words, at every pane width', async ($, on) => {
   for (const it of [GUIDE_E1, GUIDE_R1]) {
     for (const [cols, rows] of [[80, ROWS_24], [80, ROWS_40], [60, ROWS_24], [47, ROWS_24], [47, ROWS_40], [40, ROWS_40]]) {
       const { ui } = await open($, on, [it], it.id, cols, rows)
