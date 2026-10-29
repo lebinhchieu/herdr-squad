@@ -146,13 +146,12 @@ const buttonWidth = (label: string): number => cellWidth(label) + BUTTON_PAD
 const HEAD_GAP = 3
 const DONE_GAP = 2 // list heading: counts text, then the Done button
 
-// Row 1 of the list (list.md sections 2 and 7). Drop order when it does not fit: the `↓ N more` hint, the long words,
+// Row 1 of the list (list.md sections 2 and 7). Drop order when it does not fit: the `↓ N more` hint, the short words,
 // then the Done button moves to its own row. The hint `h` is drawn only on the first layout, which holds it.
 function headingRow(snap: InboxSnapshot, cols: number, empty: boolean, doneLabel: string | null, hint: string | null, onDone: () => void, T: any) {
   const { Box, Text, Button } = T
   const btn = doneLabel === null ? null : <Button key="done" hotkey="d" label={doneLabel} onPress={onDone} />
   const bw = doneLabel === null ? 0 : DONE_GAP + buttonWidth(doneLabel)
-  const longOk = cols >= BODY_COLUMNS_FULL
   const long = empty ? [] : headingParts(snap, false)
   const short = empty ? [] : headingParts(snap, true)
   const hw = hint === null ? 0 : 2 + cellWidth(hint)
@@ -172,13 +171,12 @@ function headingRow(snap: InboxSnapshot, cols: number, empty: boolean, doneLabel
       ),
     }
   }
-  if (longOk && hint !== null && headingWidth(long) + bw + hw <= cols) return layout(long, true)
-  if (longOk && headingWidth(long) + bw <= cols) return layout(long, false)
-  // under 60 columns the long words are not offered, so the hint may sit beside the short ones
-  if (!longOk && hint !== null && headingWidth(short) + bw + hw <= cols) return layout(short, true)
+  if (hint !== null && headingWidth(long) + bw + hw <= cols) return layout(long, true)
+  if (headingWidth(long) + bw <= cols) return layout(long, false)
+  // the hint went first; the short words come next and carry no hint
   if (headingWidth(short) + bw <= cols) return layout(short, false)
   // the button on its own row; the heading wraps as it always did
-  const parts = longOk ? long : short
+  const parts = short
   return {
     rows: rowsFor(`Inbox${parts.map((p) => ` · ${p.text}`).join('')}`, cols) + (btn ? 1 : 0),
     node: (
@@ -372,7 +370,9 @@ function handledLines(it: InboxItem): { text: string; tone: string }[] {
 // The state a handled item is opened for: its lines, the PO's answer as typed (never parsed), an unsent note.
 // `caps`: the most rows the outcome line may take (done.md section 3) and, when it is cut, how many it keeps so the
 // `Details` row fits below it; past the cap it ends with `…`. null = whole.
-function handledBlock(it: InboxItem, ui: any, error: any, cols: number, caps: { whole: number; cut: number } | null, T: any): { parts: any[]; rows: number; cut: boolean } {
+// `parts` is the outcome (and the PO's answer); `changed` and `unsent` are the refused-send leftovers: the page draws the
+// outcome and its Details row first, then these, so a long outcome never pushes the Details row out of the first viewport.
+function handledBlock(it: InboxItem, ui: any, error: any, cols: number, caps: { whole: number; cut: number } | null, T: any): { parts: any[]; rows: number; cut: boolean; changed: any[]; unsent: any[]; extraRows: number } {
   const { Text } = T
   const draft = ui.draft[it.id] ?? ''
   const parts: any[] = []
@@ -382,8 +382,14 @@ function handledBlock(it: InboxItem, ui: any, error: any, cols: number, caps: { 
     parts.push(node)
     rows += rowsFor(text, cols)
   }
-  const changed = 'This item changed while you were reading it.'
-  if (draft !== '') add(<Text key="changed" color="warning" wrap="wrap">{changed}</Text>, changed)
+  const changed: any[] = []
+  const unsent: any[] = []
+  let extraRows = 0
+  const changedText = 'This item changed while you were reading it.'
+  if (draft !== '') {
+    changed.push(<Text key="changed" color="warning" wrap="wrap">{changedText}</Text>)
+    extraRows += rowsFor(changedText, cols)
+  }
   handledLines(it).forEach((hl, i) => {
     const text = caps === null || rowsFor(hl.text, cols) <= caps.whole ? hl.text : clipRows(hl.text, cols, caps.cut)
     if (text !== hl.text) cut = true
@@ -404,11 +410,11 @@ function handledBlock(it: InboxItem, ui: any, error: any, cols: number, caps: { 
       .forEach((l: string, i: number) => add(<Text key={`a${i}`} wrap="wrap">{l === '' ? ' ' : l}</Text>, l === '' ? ' ' : l))
   }
   if (draft !== '') {
-    add(<Text key="unsent" dimColor>Your unsent note (not sent):</Text>, 'Your unsent note (not sent):')
     const d = sanitize(draft)
-    add(<Text key="draft" wrap="wrap">{d}</Text>, d)
+    unsent.push(<Text key="unsent" dimColor>Your unsent note (not sent):</Text>, <Text key="draft" wrap="wrap">{d}</Text>)
+    extraRows += rowsFor('Your unsent note (not sent):', cols) + rowsFor(d, cols)
   }
-  return { parts, rows, cut }
+  return { parts, rows, cut, changed, unsent, extraRows }
 }
 
 // Switches between Decide and Details, then puts the focus ring on Back (the first row): the host keeps the scroll it
@@ -559,7 +565,7 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
     if (!isForm && !isRead) {
       // the reading page holds the whole outcome and the PO's answer (Decide may have cut the outcome line)
       const hb = handledBlock(it, ui, error, cols, null, T)
-      add(<Box key="state" flexDirection="column">{hb.parts}</Box>, hb.rows)
+      add(<Box key="state" flexDirection="column">{[...hb.changed, ...hb.parts, ...hb.unsent]}</Box>, hb.rows + hb.extraRows)
     }
     if (isForm) {
       if (rec !== null) {
@@ -588,12 +594,14 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
     add(<Button key="send" label={pending ? 'Sending…' : 'Send answer'} onPress={() => submitAnswer($, id)} />, 1, 'send')
     if (opts.length === 0) floor = FLOOR_FREE
   } else if (!isRead) {
-    // the outcome line takes up to 4 rows, fewer when the title already took the window; a cut one leaves a row for Details
-    const room = bodyRows - row1Rows - rowsFor(titleShown, cols)
-    const hb = handledBlock(it, ui, error, cols, { whole: Math.min(4, Math.max(2, room)), cut: Math.min(4, Math.max(2, room - 1)) }, T)
+    // the outcome line takes up to 4 rows, fewer when the notice and the title already took the window; a cut one leaves
+    // a row for Details. The changed line and the unsent note come after the Details row: they are not part of `room`.
+    const room = bodyRows - row1Rows - (notice ? notice.rows : 0) - rowsFor(titleShown, cols)
+    const hb = handledBlock(it, ui, error, cols, { whole: Math.min(4, Math.max(2, room)), cut: Math.min(4, Math.max(1, room - 1)) }, T)
     outcomeCut = hb.cut
     add(<Box key="state" flexDirection="column">{hb.parts}</Box>, hb.rows)
     if (hb.cut) add(detailsRow('… full text'), 1)
+    if (hb.extraRows > 0) add(<Box key="aside" flexDirection="column">{[...hb.changed, ...hb.unsent]}</Box>, hb.extraRows)
     if (opts.length > 0) optionBlock(it.answer ? it.answer.option : null, null)
     mgrRow()
   }

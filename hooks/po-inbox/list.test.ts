@@ -343,12 +343,15 @@ test('row text: age shows only when the whole line fits one row, short form unde
   expect(await at(40)).toEqual(['    blocks IV-03 (Developer 1) · 10h', '    blocks the spawning of the pod (BA,', '    Tech Lead)'])
 })
 
-test('row text: the heading and group titles wrap (never clipped) and use the short words under 60 columns', async ($, on) => {
+test('row text: the heading and group titles wrap (never clipped); the short words come only when the long ones do not fit', async ($, on) => {
   await boot($, on, snap([ans(1), rd(1), wt(1)]))
   const long = await $.ui.mount(pane('terminal', 60))
   expect(await dump(long)).toContain('Inbox · 1 to answer · 1 to read · 1 waiting')
   await long.unmount()
-  const short = await $.ui.mount(pane('terminal', 59))
+  const roomy = await $.ui.mount(pane('terminal', 44))
+  expect(await dump(roomy)).toContain('Inbox · 1 to answer · 1 to read · 1 waiting')
+  await roomy.unmount()
+  const short = await $.ui.mount(pane('terminal', 42))
   expect(await dump(short)).toContain('Inbox · 1 answer · 1 read · 1 waiting')
   const tree = await short.drawn()
   expect(JSON.stringify(tree)).not.toContain('"wrap":"truncate"')
@@ -464,16 +467,18 @@ test('heading hint: a `+N more` fold below counts its hidden items; none shown w
   expect(top(await two.drawn()).text).not.toContain('↓')
 })
 
-test('heading row, drop order: hint, then the long words, then the Done button on its own row (80, 60, 59, 47, 40 columns)', async ($, on) => {
+test('heading row, drop order: hint, then the long words, then the Done button on its own row (80, 60, 59, 56, 47, 40 columns)', async ($, on) => {
   await boot($, on, snap(seeded().concat(done3)))
   const want: Record<number, { text: string; rows: number }> = {
     80: { text: withHint('Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', '↓ 2 more', 80), rows: 1 },
     60: { text: withHint('Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', '↓ 2 more', 60), rows: 1 },
-    59: { text: withHint('Inbox · 3 answer · 2 read  [ Done (3) (d) ]', '↓ 2 more', 59), rows: 1 },
+    59: { text: withHint('Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', '↓ 2 more', 59), rows: 1 },
+    // a 60-column terminal: the body is 56. The long counts and the button fit, the hint does not: the hint goes, the counts stay long
+    56: { text: 'Inbox · 3 to answer · 2 to read  [ Done (3) (d) ]', rows: 1 },
     47: { text: 'Inbox · 3 answer · 2 read  [ Done (3) (d) ]', rows: 1 },
     40: { text: 'Inbox · 3 answer · 2 read\n[ Done (3) (d) ]', rows: 2 },
   }
-  for (const cols of [80, 60, 59, 47, 40]) {
+  for (const cols of [80, 60, 59, 56, 47, 40]) {
     const ui = await $.ui.mount(pane('terminal', cols, SHORT))
     const got = top(await ui.drawn())
     expect({ cols, ...got }).toEqual({ cols, ...want[cols] })
@@ -490,7 +495,7 @@ test('heading row: three counts at 47 columns put the Done button under the head
   w.current = snap([ans(1), rd(1)])
   await $.session.start(START)
   const none = await $.ui.mount(pane('terminal', 47, TALL))
-  expect(top(await none.drawn())).toEqual({ text: 'Inbox · 1 answer · 1 read', rows: 1 })
+  expect(top(await none.drawn())).toEqual({ text: 'Inbox · 1 to answer · 1 to read', rows: 1 })
   expect((await buttons(none)).filter((b: any) => b.key === 'done')).toEqual([])
 })
 

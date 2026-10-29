@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { cellWidth } from './core'
 import { FIXTURES } from './fixtures'
-import { START, boot, dump, item, lines, pane, snap, styleOf, textOf } from './testkit'
+import { START, boot, dump, item, lines, pane, rowsOfTree, snap, styleOf, textOf } from './testkit'
 
 const ANS = { text: '(b) go', option: 'b', note: null, ts: '2026-10-15T10:42:00', source: 'pane', delivered_ts: null }
 const stampOf = (i: number) => `2026-10-14T${String(i % 24).padStart(2, '0')}:${String(10 + (i % 40)).padStart(2, '0')}:00`
@@ -308,3 +308,51 @@ test('done item: a short outcome is never clipped and offers no `full text` row;
   expect(t).not.toContain('full text')
   expect(styleOf(await ui.drawn(), 'Answered in chat')).toEqual({ color: 'success' })
 })
+
+// W-F1: a refused send leaves the notice, the "changed" line and the unsent note around the outcome; the outcome and
+// its `full text` row must still lie in the first viewport (the first `bodyRows` rows).
+async function refusedSend($: any, on: any, words: number, cols: number, bodyRows: number) {
+  const reason = Array.from({ length: words }, (_, i) => `w${i}`).join(' ')
+  const q = item({ id: 'E1', title: 'Which branch merges first?', options: [{ key: 'a', text: 'one' }, { key: 'b', text: 'two' }], created: '2026-10-13T09:10:00' })
+  let w: any
+  const gone = { ...q, state: 'done', done: { kind: 'withdrawn', ts: '2026-10-15T11:00:00', reason } }
+  const cli = (argv: string[]) => {
+    if (argv[0] !== 'answer') return undefined
+    w.current = snap([gone])
+    return { exitCode: 3, stdout: '', stderr: 'E1 was withdrawn by the Manager\n' }
+  }
+  w = await boot($, on, snap([q]), cli)
+  const ui = await $.ui.mount(pane('terminal', cols, bodyRows))
+  await ui.press({ key: 'E1' })
+  await ui.press({ key: 'opt-a' })
+  await ui.input({ key: 'note', text: 'my words', kind: 'change' })
+  await ui.press({ key: 'send' })
+  return ui
+}
+
+// The first row (1-based) each top-level child of the page ends on, with the child's text.
+function rowEnds(tree: any, cols: number): { end: number; text: string }[] {
+  const root = Array.isArray(tree) ? tree[0] : tree
+  let at = 0
+  return (root.children as any[]).map((c) => ({ end: (at += rowsOfTree(c, cols)), text: lines(c).join(' ') }))
+}
+
+for (const [words, bodyRows] of [[60, 6], [30, 6], [60, 11]] as const) {
+  test(`done item after a refused send, ${words}-word reason at 80x${bodyRows}: the outcome and its Details row stay in the first viewport`, async ($, on) => {
+    const ui = await refusedSend($, on, words, 80, bodyRows)
+    const tree = await ui.drawn()
+    const all = lines(tree).join('\n')
+    expect(all).toContain('This item changed while you were reading it.')
+    expect(all).toContain('Your unsent note (not sent):')
+    const rows = rowEnds(tree, 80)
+    const outcome = rows.find((r) => r.text.includes('Withdrawn by the Manager'))
+    expect(outcome).toBeDefined()
+    const details = rows.find((r) => r.text.includes('full text'))
+    // 30 words fit the 4 rows allowed only without the notice: either way the outcome is not cut by the window
+    expect(outcome!.end).toBeLessThanOrEqual(bodyRows)
+    if (details) {
+      expect(details.end).toBeLessThanOrEqual(bodyRows)
+      expect(await ui.find({ key: 'details' })).toBeDefined()
+    } else expect(outcome!.text).not.toContain('…')
+  })
+}
