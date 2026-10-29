@@ -337,7 +337,7 @@ function rowEnds(tree: any, cols: number): { end: number; text: string }[] {
   return (root.children as any[]).map((c) => ({ end: (at += rowsOfTree(c, cols)), text: lines(c).join(' ') }))
 }
 
-for (const [words, bodyRows] of [[60, 6], [30, 6], [60, 11]] as const) {
+for (const [words, bodyRows, mustCut] of [[60, 6, true], [30, 6, false], [60, 11, false]] as const) {
   test(`done item after a refused send, ${words}-word reason at 80x${bodyRows}: the outcome and its Details row stay in the first viewport`, async ($, on) => {
     const ui = await refusedSend($, on, words, 80, bodyRows)
     const tree = await ui.drawn()
@@ -348,7 +348,8 @@ for (const [words, bodyRows] of [[60, 6], [30, 6], [60, 11]] as const) {
     const outcome = rows.find((r) => r.text.includes('Withdrawn by the Manager'))
     expect(outcome).toBeDefined()
     const details = rows.find((r) => r.text.includes('full text'))
-    // 30 words fit the 4 rows allowed only without the notice: either way the outcome is not cut by the window
+    // a reason that fits whole has no `full text` row; a cut one must keep it in the first viewport
+    if (mustCut) expect(details).toBeDefined()
     expect(outcome!.end).toBeLessThanOrEqual(bodyRows)
     if (details) {
       expect(details.end).toBeLessThanOrEqual(bodyRows)

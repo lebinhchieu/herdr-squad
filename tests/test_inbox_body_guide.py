@@ -31,6 +31,15 @@ class TestInboxBodyGuide(unittest.TestCase):
     def test_example_2_is_the_guide_r1_fixture(self):
         self.assertEqual(example("## Example 2"), fixture("guideR1"))
 
+    def test_every_rule_has_a_why_line(self):
+        rules = GUIDE[GUIDE.index("## Rules"):GUIDE.index("## Example 1")].strip().split("\n")[1:]
+        rules = [line for line in rules if line.strip()]
+        tops = [i for i, line in enumerate(rules) if line.startswith("- ")]
+        self.assertGreaterEqual(len(tops), 9)
+        for i in tops:
+            nxt = rules[i + 1] if i + 1 < len(rules) else ""
+            self.assertTrue(nxt.startswith("  - Why: "), "rule without a Why line: %s" % rules[i])
+
 
 if __name__ == "__main__":
     unittest.main()
