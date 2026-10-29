@@ -424,12 +424,33 @@ export function clipCells(s: string, cols: number): string {
   return `${out}…`
 }
 
-// One row naming the recommendation: "recommends (c)" when a key is marked, else the rec's first line, clipped.
-export function recPointer(rec: string | null, options: { key: string }[] | null, cols: number): string {
-  if (rec === null || rec === '') return ''
-  const key = recommendedKey(rec, options)
-  if (key !== null) return clipCells(`recommends (${key})`, cols)
-  return clipCells(rec.split('\n')[0], cols)
+// Rows of at most `width` cells, a word longer than a row is cut across rows; past `maxRows` the last row ends with `…`.
+export function wrapRows(text: string, width: number, maxRows: number): string[] {
+  const rows: string[] = []
+  let cur = ''
+  for (const word of text.split(' ')) {
+    const pieces: string[] = []
+    let piece = ''
+    for (const ch of word) {
+      if (piece !== '' && cellWidth(piece + ch) > width) {
+        pieces.push(piece)
+        piece = ''
+      }
+      piece += ch
+    }
+    pieces.push(piece)
+    for (const p of pieces) {
+      if (cur === '') cur = p
+      else if (cellWidth(cur) + 1 + cellWidth(p) <= width) cur += ` ${p}`
+      else {
+        rows.push(cur)
+        cur = p
+      }
+    }
+  }
+  rows.push(cur)
+  if (rows.length <= maxRows) return rows
+  return [...rows.slice(0, maxRows - 1), clipCells(`${rows.slice(maxRows - 1).join(' ')}…`, width)]
 }
 
 // V-15, one function per row family so a screen never invents a colour.

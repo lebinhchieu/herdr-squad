@@ -1,7 +1,7 @@
 // Drawing of the item screen's structured parts (IV-03): body blocks, inline spans, tables, option blocks.
 // Pure functions of props, no `$`. Colour is a theme key from TONE or weight only (V-15, V-18). Every function that
 // draws rows also says how many rows it drew, by the same `rowsFor` the screen uses for its cut (T9 v3).
-import { cellWidth, clipCells, rowsFor, tableLayout, TONE } from './core'
+import { cellWidth, rowsFor, tableLayout, TONE, wrapRows } from './core'
 import type { Block, Span } from './markup'
 
 type T = { Box: any; Text: any; Button: any }
@@ -285,7 +285,7 @@ export function optionRows(
     const pw = cellWidth(mark)
     const tag = !tall && isRec
     const width = Math.max(1, cols - pw - (tag ? cellWidth(REC_TAG) + 1 : 0))
-    const lines = wrapCells2(o.text, width, tall ? 2 : 1)
+    const lines = wrapRows(o.text, width, tall ? 2 : 1)
     const indent = ' '.repeat(pw)
     const text = lines.map((l, i) => (i === 0 ? l : `${indent}${l}`)).join('\n')
     const tagNode = tag ? <Text key="tag" color={TONE.good}>{`${' '.repeat(Math.max(1, width - cellWidth(lines[0]) + 1))}${REC_TAG}`}</Text> : null
@@ -316,31 +316,3 @@ export function optionRows(
   }
   return { nodes: [<Box key="opts" flexDirection="column">{nodes}</Box>], rows }
 }
-
-// Wraps by words to `width` cells, at most `maxRows` rows; the last row ends with `…` when text is cut.
-function wrapCells2(text: string, width: number, maxRows: number): string[] {
-  if (maxRows <= 1) return [clipLine(text, width)]
-  const rows: string[] = []
-  let rest = text
-  while (rows.length < maxRows - 1 && cellWidth(rest) > width) {
-    let cut = ''
-    let used = 0
-    let lastSpace = -1
-    const chars = Array.from(rest)
-    let n = 0
-    for (; n < chars.length; n++) {
-      const w = cellWidth(chars[n])
-      if (used + w > width) break
-      used += w
-      cut += chars[n]
-      if (chars[n] === ' ') lastSpace = n
-    }
-    const at = lastSpace > 0 ? lastSpace : n
-    rows.push(chars.slice(0, at).join('').trimEnd())
-    rest = chars.slice(at).join('').trimStart()
-  }
-  rows.push(clipLine(rest, width))
-  return rows
-}
-
-const clipLine = (t: string, width: number): string => clipCells(t, width)

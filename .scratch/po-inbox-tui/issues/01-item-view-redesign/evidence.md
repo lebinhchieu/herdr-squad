@@ -426,3 +426,27 @@ Real-pane captures: `claude --plugin-dir <this worktree>` in a pty read through 
 - T15 grep: `grep -rl 'show-all\|Show all\|more lines\|full title\|your pick' tests/ hooks/po-inbox/` (the strings this ticket removed from the pane): hits only inside `hooks/po-inbox/` (the files edited here, and `fixtures/visual.ts` text). No test under `tests/` names a pane string. Every hit file was run (the whole plugin test run).
 - Glossary: no new term; "Details page" and "Decide page" are screen names in the design only.
 - Old test to new test: V-01 -> T2; 3.1c -> notice-above-title; 3.1d -> `3.1e`/body fold tests at bodyRows 14 and 10 are covered by `body fold: E1 at 6 rows` and `state rows`; M1/M3/M4/M5 rewritten under the same names; QAB F3 (`… full header`) -> `long blocks: Decide clips the header, Details draws it whole`; Show all tests -> Details tests; Select label cut -> `state rows: very long option`.
+
+### R6 read item with no body (title only)
+
+**24 rows x 80**
+
+```
+╭────────────────────────────────────────────────────────────────────────────✕─╮
+│ [ ← Back (b) ] [ Mark read (m) ]  R6 · read · blocks nothing · 51m           │
+│ Heads-up: nightly job finished                                               │
+│ [ Mark read ]                                                                │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+**40 rows x 80**
+
+```
+╭────────────────────────────────────────────────────────────────────────────✕─╮
+│ [ ← Back (b) ] [ Mark read (m) ]  R6 · read · blocks nothing · 51m           │
+│ Heads-up: nightly job finished                                               │
+│ [ Mark read ]                                                                │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+Title only: the title row and one Mark read button, no empty body area at either height.

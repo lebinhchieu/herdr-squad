@@ -7,7 +7,7 @@ import { goTo, markRead, openPane, patchUi, pickOption, readView, setDraft, subm
 import type { Tone } from './core'
 import {
   ageOf, bandCounts, blocksTone, bodyBudget, capGroup, cellWidth, clipCells, DEFAULT_BODY_ROWS, doneItems, fit, kindTone, listGroups, oneLine, outcomeTone, parseAdd,
-  heightTier, recommendedKey, rowsFor, sanitize, stamp,
+  heightTier, recommendedKey, rowsFor, sanitize, stamp, wrapRows,
 } from './core'
 import { clipRows, drawBody, optionRows, toneProps } from './draw'
 import type { Opt } from './draw'
@@ -132,35 +132,6 @@ function heading(snap: InboxSnapshot, compact: boolean, T: any) {
   if (c.read_open) add('r', `${c.read_open} ${compact ? 'read' : 'to read'}`)
   if (c.waiting) add('w', `${c.waiting} waiting`, 'warn')
   return <Text bold wrap="wrap">{'Inbox'}{parts}</Text>
-}
-
-// Rows of at most `width` cells, a word longer than a row is cut across rows; past `maxRows` the last row ends with `…`.
-function wrapRows(text: string, width: number, maxRows: number): string[] {
-  const rows: string[] = []
-  let cur = ''
-  for (const word of text.split(' ')) {
-    const pieces: string[] = []
-    let piece = ''
-    for (const ch of word) {
-      if (piece !== '' && cellWidth(piece + ch) > width) {
-        pieces.push(piece)
-        piece = ''
-      }
-      piece += ch
-    }
-    pieces.push(piece)
-    for (const p of pieces) {
-      if (cur === '') cur = p
-      else if (cellWidth(cur) + 1 + cellWidth(p) <= width) cur += ` ${p}`
-      else {
-        rows.push(cur)
-        cur = p
-      }
-    }
-  }
-  rows.push(cur)
-  if (rows.length <= maxRows) return rows
-  return [...rows.slice(0, maxRows - 1), clipCells(`${rows.slice(maxRows - 1).join(' ')}…`, width)]
 }
 
 const INDENT = '    '

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import {
-  TONE, blocksTone, bodyBudget, capGroup, cellWidth, kindTone, outcomeTone, recommendedKey, recPointer, clipCells, rowsFor, sanitize, tableLayout,
+  TONE, blocksTone, bodyBudget, capGroup, cellWidth, kindTone, outcomeTone, recommendedKey, clipCells, rowsFor, sanitize, tableLayout,
 } from './core'
 import { clipRows, drawBody } from './draw'
 import { parseBody } from './markup'
@@ -246,7 +246,7 @@ describe('bodyBudget', () => {
   })
 })
 
-describe('clipCells / recPointer', () => {
+describe('clipCells', () => {
   const SAMPLES = ['a'.repeat(300), '漢字'.repeat(150), '😀'.repeat(150), '漢a😀'.repeat(80)]
   for (const cols of [30, 40]) {
     for (const s of SAMPLES) {
@@ -254,9 +254,6 @@ describe('clipCells / recPointer', () => {
         const c = clipCells(s, cols)
         expect(cellWidth(c)).toBeLessThanOrEqual(cols)
         expect(c.endsWith('…')).toBe(true)
-      })
-      test(`recPointer ${cols} cols unmarked of ${s.slice(0, 4)}…`, () => {
-        expect(cellWidth(recPointer(s, ABC, cols))).toBeLessThanOrEqual(cols)
       })
     }
   }
@@ -270,22 +267,6 @@ describe('clipCells / recPointer', () => {
     expect(clipCells('abc', 0)).toBe('')
     expect(clipCells('abc', -3)).toBe('')
   })
-  test('marked rec points at its key', () => expect(recPointer('(c), built (a) first: why', ABC, 40)).toBe('recommends (c)'))
-  test('marked pointer is clipped at a narrow width', () => expect(cellWidth(recPointer('(c) yes', ABC, 8))).toBeLessThanOrEqual(8))
-  test('unmarked rec is its first line', () => {
-    expect(recPointer("Reply 'all recs'\nsecond line", ABC, 40)).toBe("Reply 'all recs'")
-    expect(recPointer('(z) yes', ABC, 40)).toBe('(z) yes')
-  })
-  test('null and empty rec give an empty row', () => {
-    expect(recPointer(null, ABC, 40)).toBe('')
-    expect(recPointer('', ABC, 40)).toBe('')
-  })
-  // Callers pass already-sanitised text (core.sanitize); the helpers do not strip, so this pins that contract.
-  test('control characters are the caller\'s job: sanitize first, then the pointer holds none', () => {
-    const p = recPointer(sanitize('\u001b]0;x\u0007Reply \u202eall'), ABC, 40)
-    expect(/[\u0000-\u001f\u202e]/.test(p)).toBe(false)
-  })
-  test('a [rec] line stays literal', () => expect(recPointer('[rec] go', ABC, 40)).toBe('[rec] go'))
 })
 
 describe('tones (V-15)', () => {
