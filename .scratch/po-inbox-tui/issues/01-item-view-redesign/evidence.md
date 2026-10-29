@@ -450,3 +450,11 @@ Real-pane captures: `claude --plugin-dir <this worktree>` in a pty read through 
 ```
 
 Title only: the title row and one Mark read button, no empty body area at either height.
+
+## Return 3: Manager rulings (FINAL 01) and fixes
+
+- **F1 (P6):** an answer item is stored as `cut-title<br>full question<br>…`. Real fixture: `squad-inbox add --kind answer --title <first 80 chars> --body-file F` (F line 1 is the full question). Before: title cut at 80, the full question repeated under Context. After: title is the full question, body starts at the next line. Real pane 24x80 (E6): title `Shall we ship … before Friday at noon, or` / `wait for QA first?`, no repeat. A title cut that ends in a space is handled (length judged before the trim). Tests: markup.test.ts `P6 title cut at 80 characters`.
+- **F2:** a read item that blocks nothing drops `blocks nothing` last (after clipping and the age), so the header stays on row 1 at 60 and 47 columns. At 80 columns the header copy is unchanged on purpose. Real pane 24x60, read item R7: `R7 · read · 1h` on row 1.
+- **F3:** `… 1 more row` is singular. The mid-word cut at the row edge is allowed. The lost line break in the short-tier fold of a long first block: not changed. I did not find a bug in the fold; the first block over the budget is clipped as one text.
+- **F4:** the Details hint is `↓ more below` at every width (the `↓ context` hint is only for Decide).
+- **F5 (Manager ruling, FINAL):** AC2 holds at 80 and 60 columns. At 47 columns a 2-row title may push Note (24 rows) or Note and Send (40 rows) below the first viewport. The order is kept and Tab reaches them. The title is not shortened further. Real pane 24x47 (E6): title 2 rows, Note on the last row.

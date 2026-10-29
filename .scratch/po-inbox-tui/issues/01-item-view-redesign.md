@@ -53,3 +53,8 @@ T12. **Contract unchanged.** `actions.ts` diff is only the rename `expanded` -> 
 T13. **Real samples** (REV-4). The Developer's captures include the idle/constant cases: handled item, item with no body, and a read item; plus E1 and R2 at 24 and 40 rows and 80/60/47 columns. QA whitebox repeats one live run read-only.
 T14. **ADR 0007.** Only the two lines named in item.md section 12 change; the rest of the file is byte-identical. If a glossary term is added (for example Details page), name it in `evidence.md` so `promote.md` can carry it.
 T15. **Receipt of the grep rule.** `evidence.md` lists the `grep -rl` command, its hits, and that every hit was run and green. Full suite is mine, on the final sha.
+
+## Advisor (LC-25, 3rd return)
+- Question: QA blackbox returned F1 (P6 title rule not firing); my fix looked sound. Did I test the real shape?
+- Advice: an answer item is stored as `title<br>body`, so the body's first line equals the cut title and the full question is line 2. Test with `squad-inbox add --kind answer` in a temp home. Drop my invented `TITLE_MAX-10` rule. Check F2 and F4 at 47 columns. Add tests.
+- Done: `split()` now also takes line 2 as the title when it extends the cut title (cut judged by the length before trim); `TITLE_MAX-10` removed; real-pane capture with an `add --kind answer` item; tests added.

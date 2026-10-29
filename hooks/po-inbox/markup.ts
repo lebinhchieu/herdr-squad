@@ -200,20 +200,19 @@ const TITLE_MAX = 80
 // T2's pipeline: sanitize, <br> to a line break, drop the first line when it is the title the screen already shows, parse.
 // P6: a title of TITLE_MAX characters whose full text starts the body is the cut form of that first line; the line is the title.
 function split(body: string, title: string): { title: string; lines: string[] } {
-  const rawLen = Array.from(oneLine(sanitize(title))).length
+  const rawLen = Array.from(sanitize(title)).length
   const t = oneLine(sanitize(title)).trim()
   const lines = sanitize(body).replace(BR, '\n').split('\n')
-  const first = lines[0].trim()
-  if (first === t) {
+  // A cut that ends in a space is 79 trimmed characters, so the test uses the length before the trim.
+  const isCut = rawLen >= TITLE_MAX
+  const longer = (line: string) => line.trim().length > t.length && line.trim().startsWith(t)
+  if (lines[0].trim() === t) {
     lines.shift()
+    // an answer item stores `title<br>body` and its body starts with the full question: that line is the title
+    if (isCut && lines.length > 0 && longer(lines[0])) return { title: oneLine(lines.shift() as string).trim(), lines }
     return { title: t, lines }
   }
-  // A cut that ends in a space is 79 trimmed characters, so the test uses the length before the trim; a long title that is
-  // a strict prefix of the first line is the cut form as well.
-  if (t !== '' && first.length > t.length && first.startsWith(t) && (rawLen >= TITLE_MAX || Array.from(t).length >= TITLE_MAX - 10)) {
-    lines.shift()
-    return { title: oneLine(first), lines }
-  }
+  if (isCut && t !== '' && longer(lines[0])) return { title: oneLine(lines.shift() as string).trim(), lines }
   return { title: t, lines }
 }
 

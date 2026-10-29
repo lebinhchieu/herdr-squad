@@ -424,6 +424,11 @@ describe('P6 title cut at 80 characters', () => {
     expect(itemTitle(`${full}\nMore detail.`, t)).toBe(full)
     expect(lines(`${full}\nMore detail.`, t)).toBe('More detail.')
   })
+  test('an answer item: the body is `cut<br>full question<br>…`; the question becomes the title', () => {
+    const t = q.slice(0, 80)
+    expect(itemTitle(`${t}<br>${q}<br>More detail.`, t)).toBe(q)
+    expect(lines(`${t}<br>${q}<br>More detail.`, t)).toBe('More detail.')
+  })
   test('a short title that only starts the first line is left alone', () => {
     expect(itemTitle('Deploy note for you\nx', 'Deploy')).toBe('Deploy')
     expect(lines('Deploy note for you\nx', 'Deploy')).toBe('Deploy note for you\nx')

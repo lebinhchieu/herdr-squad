@@ -1143,3 +1143,29 @@ test('the tall-tier reason row wraps under its own indent (hanging)', async ($, 
   expect(hanging).toBe(true)
   expect(textOf(tree)).toContain('✓ recommended: ')
 })
+
+test('F2: a read item that blocks nothing keeps its header on row 1 at 60 and 47 columns', async ($, on) => {
+  const it = item({ id: 'N2', kind: 'read', blocks: '', body: 'l1\n\nl2\n\nl3', created: '2026-10-15T09:00:00' })
+  for (const cols of [60, 47]) {
+    const { ui } = await open($, on, [it], 'N2', cols, ROWS_24)
+    expect(textOf(await ui.drawn()), `${cols} cols`).toContain('N2 · read')
+    expect(await ui.find({ key: 'head2' }), `${cols} cols: header on its own row`).toBeFalsy()
+    await ui.unmount()
+  }
+})
+
+test('F3: the fold marker is singular for one hidden row', async ($, on) => {
+  const body = Array.from({ length: 40 }, (_, i) => `line ${i}`).join('\n')
+  const it = item({ id: 'N3', kind: 'read', body })
+  const { ui } = await open($, on, [it], 'N3', 80, ROWS_24)
+  expect(textOf(await ui.drawn())).toMatch(/… \d+ more rows\n/)
+  await ui.unmount()
+})
+
+test('F4: Details says `↓ more below` at 47 columns, never `↓ context`', async ($, on) => {
+  const { ui } = await open($, on, [E1], 'E1', 47, ROWS_24)
+  await ui.press({ key: 'details' })
+  const text = textOf(await ui.drawn())
+  expect(text).not.toContain('↓ context')
+  await ui.unmount()
+})
