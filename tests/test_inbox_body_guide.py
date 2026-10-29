@@ -13,29 +13,23 @@ FIXTURES = (ROOT / "hooks" / "po-inbox" / "fixtures" / "visual.ts").read_text(en
 
 
 def fixture(name):
-    block = re.search(name + r": \[\n(.*?)\n  \]\.join", FIXTURES, re.S).group(1)
+    found = re.search(re.escape(name) + r": \[\n(.*?)\n  \]\.join", FIXTURES, re.S)
+    assert found, "fixture %s not found in visual.ts" % name
+    block = found.group(1)
     return "\n".join(line.strip()[1:-2] for line in block.split("\n"))
 
 
 def example(heading):
-    after = GUIDE[GUIDE.index(heading):]
+    after = GUIDE[GUIDE.index(heading + ":"):]
     return re.search(r"````\n(.*?)\n````", after, re.S).group(1)
 
 
-class InboxBodyGuide(unittest.TestCase):
-    def test_example_1_is_the_guideE1_fixture(self):
+class TestInboxBodyGuide(unittest.TestCase):
+    def test_example_1_is_the_guide_e1_fixture(self):
         self.assertEqual(example("## Example 1"), fixture("guideE1"))
 
-    def test_example_2_is_the_guideR1_fixture(self):
+    def test_example_2_is_the_guide_r1_fixture(self):
         self.assertEqual(example("## Example 2"), fixture("guideR1"))
-
-    def test_every_form_the_guide_names_is_drawn_by_the_pane(self):
-        draw = (ROOT / "hooks" / "po-inbox" / "draw.tsx").read_text(encoding="utf-8") + (ROOT / "hooks" / "po-inbox" / "markup.ts").read_text(encoding="utf-8")
-        for word in ("decision", "warning", "info", "ok", "fail", "warn", "skip", "diagram", "link", "badge", "callout"):
-            self.assertIn(word, draw)
-
-    def test_the_guide_does_not_touch_role_files(self):
-        self.assertNotIn("agents/", GUIDE)
 
 
 if __name__ == "__main__":

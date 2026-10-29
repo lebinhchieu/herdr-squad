@@ -2,7 +2,7 @@
 
 For Managers. The PO reads your inbox item in a small terminal pane. At 24 terminal rows the pane shows 6 body rows. The title, the options and the answer box use most of them. So the body is read on the Details page.
 
-The PO looks at the shape first. Use forms the pane draws: a highlighted verdict, a table, a diagram, a short list. Use prose only for one reason line.
+The PO looks at the shape first. A *verdict* is your one-sentence answer or ask. A *callout* is a highlighted line. A *fence* is the line of three backticks that opens and closes a block. A *connector* is a line or arrow in a diagram. Use forms the pane draws: a highlighted verdict, a table, a diagram, a short list. Use prose only for one reason line.
 
 Every form named here is drawn by the pane today. Do not use a form that is not on this page.
 
@@ -10,11 +10,11 @@ Every form named here is drawn by the pane today. Do not use a form that is not 
 
 1. **Verdict line.** One `[decision]` line. Say what you need from the PO in one sentence. If you recommend an option, name it and give the one fact that decides it.
    - Why: this is the first line the PO reads, and it is the one that stands out.
-2. **Options table**, when two or more options differ on facts. Columns like `| Option | Cost | Risk |`. At most 3 columns. Each cell under 14 characters. One row per option. Also put the options in `--options`; the table compares them.
+2. **Options table**, when two or more options differ on facts. Columns like `| Option | Cost | Risk |`. At most 3 columns. Keep each cell short: 24 characters at most. One row per option. Also put the options in `--options`; the table compares them.
    - Why: a table lets the PO compare options in one look.
 3. **A diagram or a list** for structure: order, flow, who depends on whom.
    - Diagram: start the fence with `diagram`, then a short caption. The caption says what an arrow means, for example `A ──> B: B waits for A`. Use 44 columns at most and 6 lines at most. Use only ASCII and box-drawing characters (`- | + > v ^ ─ │ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼`). No emoji, no CJK.
-   - You may add a state tag after a node name: `[ok]`, `[fail]`, `[warn]` or `[skip]`, with one space before it. The pane draws the tag in colour and adds a legend row. The pane also colours the connectors. Do not try to colour anything yourself.
+   - You may add a state tag after a node name: `[ok]`, `[fail]`, `[warn]` or `[skip]`, with a space before and after it (a tag followed by a comma is plain text). The pane draws the tag in colour and adds a legend row. The pane also colours the connectors. Do not try to colour anything yourself.
    - List: one fact per bullet.
    - Why: a diagram keeps its shape and the pane never wraps it. A wide drawing is cut and marked.
 4. **One prose line** for the reason, such as `Why: ...`. Not a paragraph.
@@ -26,7 +26,7 @@ Every form named here is drawn by the pane today. Do not use a form that is not 
 
 1. `[info]` or `[decision]` verdict line: what happened, and what the PO should do.
 2. A table of results. Use the badges `[ok]`, `[fail]`, `[warn]`, `[skip]` in the cells.
-3. A list of what needs attention. Mark the one thing that matters most with `[warning]`.
+3. A `[warning]` line for the one thing that matters most, then a list of what needs attention. Put `[warning]` on its own line: inside a list item it is plain text.
 4. One prose line.
 5. URL links last, if any.
 
@@ -36,10 +36,11 @@ Every form named here is drawn by the pane today. Do not use a form that is not 
 |---|---|---|
 | Callout | `[decision]`, `[warning]` or `[info]` at the start of a line | a filled label, then your sentence |
 | Badge | `[ok]`, `[fail]`, `[warn]` or `[skip]` inside a line or a table cell | a filled, coloured chip |
-| Table | `| a | b |` rows with a `|---|---|` line | aligned columns |
+| Table | rows like `\| a \| b \|`, then a `\|---\|---\|` line | aligned columns |
 | Diagram | a fence that starts with `diagram` | no wrapping, blue connectors, tag colours, legend row |
 | Link | `[label](https://...)` | the label and the address |
-| Also | headings, `-` lists, `1.` lists, `**bold**`, `` `code` ``, `[rec]` | as in markdown |
+| Recommendation | `[rec]` at the start of a line | a green recommendation line |
+| Also | headings, `-` lists, `1.` lists, `**bold**`, `` `code` `` | as in markdown |
 
 Anything the pane does not know stays as plain text. No word is ever lost.
 
@@ -48,17 +49,17 @@ Anything the pane does not know stays as plain text. No word is ever lost.
 - Do not repeat the title in the body. The first line is the verdict.
   - Why: the title is already on screen, and rows are few.
 - Write a tag exactly: lowercase, at the start of the line (`[decision]`, `[warning]`, `[info]`, `[rec]`).
-  - Why: `[Warning]` or an indented-by-mistake tag is plain text.
+  - Why: `[Warning]` with a capital letter is shown as plain text.
 - Use badges inside a line or a table cell.
 - At most one `[decision]` and one `[warning]` per body.
-  - Why: three highlights means none stands out.
-- Never put the only copy of a fact in a diagram or a colour. The words must carry it.
+  - Why: if everything is highlighted, nothing is.
+- Say every fact in words. Do not leave a fact only in a diagram or a colour.
   - Why: some terminals show no colour.
 - Use a heading only when the body is longer than 15 lines.
   - Why: a heading costs a row, and rows are few.
 - Put local paths and commands in `` `code` ``. Do not align text with spaces outside a table or a diagram.
 - Colour comes only from the tags. Use `[ok]` and `[fail]` for facts, not for decoration. Use at most 4 tag kinds in one diagram.
-- No HTML except `<br>`. No images. No italic (it is drawn plain).
+- No HTML except `<br>`, which the pane turns into a line break. No images. Do not use `*italic*`: the stars show as plain text.
 
 ## Example 1: an answer item
 
@@ -134,4 +135,4 @@ The pane draws a callout, a table with badges, a second callout, three bullets, 
 
 ## Kept in step with the pane
 
-Both example bodies are the fixtures `guideE1` and `guideR1` in `hooks/po-inbox/fixtures/visual.ts`. The test `hooks/po-inbox/guide.test.ts` reads this file, checks that both examples are the same as the fixtures, and parses them with the real parser. If a form stops parsing as this guide says, the test fails.
+Both example bodies are the fixtures `guideE1` and `guideR1` in `hooks/po-inbox/fixtures/visual.ts`. Two tests guard them. `tests/test_inbox_body_guide.py` checks that the examples here are the same text as the fixtures. `hooks/po-inbox/markup.test.ts` parses the fixtures with the real parser and checks the block types. If a form stops parsing as this guide says, a test fails.
