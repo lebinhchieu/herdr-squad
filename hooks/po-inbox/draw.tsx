@@ -300,13 +300,18 @@ export function optionRows(
     if (tall && isRec) {
       const reason = `✓ recommended: ${rec}`
       nodes.push(
-        <Text key={`r${o.key}`} wrap="wrap">
-          {indent}
-          <Text color={TONE.good} bold>✓ recommended: </Text>
-          {rec}
-        </Text>,
+        hanging(
+          `r${o.key}`,
+          <Text key="p">{''}</Text>,
+          pw,
+          <Text key="t" wrap="wrap">
+            <Text color={TONE.good} bold>✓ recommended: </Text>
+            {rec}
+          </Text>,
+          T,
+        ),
       )
-      rows += rowsFor(`${indent}${reason}`, cols)
+      rows += rowsFor(reason, Math.max(1, cols - pw))
     }
   }
   return { nodes: [<Box key="opts" flexDirection="column">{nodes}</Box>], rows }

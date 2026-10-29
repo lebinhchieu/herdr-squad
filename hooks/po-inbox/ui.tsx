@@ -7,7 +7,7 @@ import { goTo, markRead, openPane, patchUi, pickOption, readView, setDraft, subm
 import type { Tone } from './core'
 import {
   ageOf, bandCounts, blocksTone, bodyBudget, capGroup, cellWidth, clipCells, DEFAULT_BODY_ROWS, doneItems, fit, kindTone, listGroups, oneLine, outcomeTone, parseAdd,
-  heightTier, recommendedKey, recPointer, rowsFor, sanitize, stamp,
+  heightTier, recommendedKey, rowsFor, sanitize, stamp,
 } from './core'
 import { clipRows, drawBody, optionRows, toneProps } from './draw'
 import type { Opt } from './draw'
@@ -263,7 +263,7 @@ const FLOOR_READ = 12
 const TITLE_ROWS = 2
 
 type Sized = { node: any; rows: number }
-type Seg = Sized & { tag?: 'note' | 'send' | 'ctx' }
+type Row = Sized & { tag?: 'note' | 'send' | 'ctx' }
 type Piece = { text: string; props: Record<string, unknown> }
 
 function itemNotice(ui: any, cols: number, T: any): Sized | null {
@@ -281,25 +281,6 @@ function createdText(it: InboxItem, now: string, cols: number): string {
   if (age === 'now') return 'now'
   if (!age.endsWith('d')) return `${age} ago`
   return cols >= BODY_COLUMNS_FULL ? `${when(it.created, it.created_precision).slice(0, 10)} (${age} ago)` : `${age} ago`
-}
-
-function pointer(rec: string | null, opts: Opt[], key: string | null, cols: number, T: any): Sized | null {
-  const { Text } = T
-  if (rec === null) return null
-  if (key !== null) {
-    const text = `✓ ${recPointer(rec, opts, cols - 2)}`
-    return { node: <Text key="pointer" color="success" wrap="wrap">{text}</Text>, rows: 1 }
-  }
-  const rest = recPointer(rec, opts, cols - 14)
-  return {
-    node: (
-      <Text key="pointer" wrap="wrap">
-        <Text color="success">✓ recommends: </Text>
-        {rest}
-      </Text>
-    ),
-    rows: 1,
-  }
 }
 
 function handledLines(it: InboxItem): { text: string; tone: string }[] {
@@ -359,6 +340,17 @@ function handledBlock(it: InboxItem, ui: any, error: any, cols: number, T: any):
   return { parts, rows }
 }
 
+// Switches between Decide and Details, then puts the focus ring on Back (the first row): the host keeps the scroll it
+// needed to show the focused button, so without this the new page opens scrolled to where the old button was.
+async function setDetail($: any, detail: boolean): Promise<void> {
+  await patchUi($, { detail })
+  try {
+    await $.ui.focus({ requestId: 'inbox', key: 'back' })
+  } catch {
+    // the host may refuse (the pane lost the keys); the page is still right
+  }
+}
+
 // Row 1 of the item: the buttons, then the header and the hint. Drop order when it does not fit (item.md section 13):
 // the hint, the `blocks` text (clipped), the age, then the header moves to its own row.
 function topLayout(btnWidth: number, make: (blocks: string, age: string) => Piece[], blocksFull: string, age: string, hint: string | null, cols: number, canClip = true) {
@@ -413,7 +405,7 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
       key="back"
       label={backLabel}
       {...(isForm && !detail ? {} : { hotkey: 'b' })}
-      onPress={() => (detail ? patchUi($, { detail: false }) : goTo($, back, null))}
+      onPress={() => (detail ? setDetail($, false) : goTo($, back, null))}
     />
   )
   const buttons = [backBtn, ...(isRead ? [markReadBtn] : [])]
@@ -436,8 +428,8 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   const extra = topLayout(btnWidth, make, blocksFull, headAge, null, cols, !detail).extra
   const row1Rows = 1 + (extra ? rowsFor(make(blocksFull, headAge).map((x) => x.text).join(''), cols) : 0)
 
-  const segs: Seg[] = []
-  const add = (node: any, rows: number, tag?: Seg['tag']) => segs.push({ node, rows, ...(tag ? { tag } : {}) })
+  const segs: Row[] = []
+  const add = (node: any, rows: number, tag?: Row['tag']) => segs.push({ node, rows, ...(tag ? { tag } : {}) })
   if (notice) add(notice.node, notice.rows)
 
   // title
@@ -480,8 +472,16 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   const markEnd = <Button key="mark-read-end" label="Mark read" onPress={() => markRead($, id)} />
   if (detail) {
     if (isForm) {
-      const ptr = pointer(rec, opts, recKey, cols, T)
-      if (ptr) add(ptr.node, ptr.rows)
+      if (rec !== null) {
+        const text = `✓ recommends: ${rec}`
+        add(
+          <Text key="rec" wrap="wrap">
+            <Text color="success">✓ recommends: </Text>
+            {rec}
+          </Text>,
+          rowsFor(text, cols),
+        )
+      }
       add(<Text key="gap">{' '}</Text>, 1)
     }
   } else if (isForm) {
@@ -521,13 +521,13 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   const detailsRow = (text: string) => (
     <Box key="more">
       <Box marginRight={1}><Text dimColor>{text}</Text></Box>
-      <Button key="details" label="Details" onPress={() => patchUi($, { detail: true })} />
+      <Button key="details" label="Details" onPress={() => setDetail($, true)} />
     </Box>
   )
   if (!detail && bd.cut) add(detailsRow(`… ${bd.hiddenRows} more rows`), 1)
   else if (!detail && titleCut) add(detailsRow('… full title'), 1)
   if (isRead) add(markEnd, 1)
-  if (detail) add(<Button key="back-end" label={backLabel} hotkey="b" onPress={() => patchUi($, { detail: false })} />, 1)
+  if (detail) add(<Button key="back-end" label={backLabel} onPress={() => setDetail($, false)} />, 1)
 
   // the hint: what lies outside the first viewport
   let at = row1Rows
@@ -550,7 +550,7 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   const gap = showHint && hintText ? Math.max(2, lay.avail - headW - cellWidth(hintText) - 1) : 0
 
   return (
-    <Box flexDirection="column">
+    <Box key={detail ? 'page-detail' : 'page-decide'} flexDirection="column">
       <Box key="top">
         {buttons.flatMap((b, i) => (i === 0 ? [b] : [<Text key={`sp${i}`}>{' '}</Text>, b]))}
         {lay.extra ? null : (

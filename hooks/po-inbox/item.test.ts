@@ -575,7 +575,7 @@ test('T3: the hint at scroll 0 names what lies outside the first viewport', asyn
   const cases: [string, any, number, string | null][] = [
     ['note and send below', E1, 5, '↓ note, send'],
     ['send below', E1, ROWS_24, '↓ send'],
-    ['context below', E1, ROWS_40, '↓ context'],
+    ['context below', item({ id: 'H4', title: 't', body: 'x\n\ny', options: H_OPTS }), 7, '↓ context'],
     ['more below (read item)', R1, ROWS_24, '↓ more below'],
     ['nothing below', item({ id: 'H2', title: 't', body: 'x', options: H_OPTS }), 40, null],
     ['free text, context below', free, 4, '↓ context'],
@@ -744,9 +744,6 @@ test('header: Decide shows the short age; Details shows `created …` (5h ago / 
   for (const [cols, want] of [[80, 'created 2026-10-12 (3d ago)'], [60, 'created 2026-10-12 (3d ago)'], [59, 'created 3d ago']] as const) {
     const { ui } = await open($, on, [old], 'E5', cols, ROWS_24)
     expect(textOf(await ui.drawn())).toContain('E5 · blocks PI-04 · 3d')
-    await ui.press({ key: 'details' }).catch(() => undefined)
-    const d = old.body === 'Body line' ? await ui.find({ key: 'details' }) : undefined
-    void d
     await ui.unmount()
     void want
   }
@@ -993,7 +990,7 @@ test('T7: the fold count is the rows left, blank heading rows included in the ta
   expect(bodyRows.filter((l) => l === ' ').length).toBeGreaterThanOrEqual(6) // a blank row above each heading
   expect(Number(fold.match(/\d+/)![0])).toBe(bodyRows.length - shown.length)
   const short = await open($, on, [tallItem], 'H3', 80, ROWS_24)
-  await short.ui.press({ key: 'details' }).catch(() => undefined)
+  await short.ui.press({ key: 'details' })
   const sr = rowsOf(await short.ui.drawn())
   expect(sr.filter((l) => l === ' ').length).toBeLessThan(bodyRows.filter((l) => l === ' ').length) // none in the short tier
 })
@@ -1031,16 +1028,16 @@ test('state rows: sending ignores presses; 1 option; 6+ options reach Note and S
 })
 
 test('state rows: sending: the Send button reads `Sending…` and an option press is ignored', async ($, on) => {
-  let release: () => void = () => undefined
-  const gate = new Promise<void>((r) => (release = r))
-  void gate
   const slow = item({ id: 'S9', options: H_OPTS })
+  let release: (r: any) => void = () => undefined
   const { ui, w } = await open($, on, [slow], 'S9', 80, ROWS_24, (argv) => (argv[0] === 'answer' ? { exitCode: 0, stdout: '', stderr: '' } : undefined))
+  void release
   await ui.press({ key: 'opt-b' })
-  await ui.press({ key: 'send' })
-  void w
-  release()
-  expect(textOf(await ui.drawn())).not.toContain('[○ (b)')
+  const sending = ui.press({ key: 'send' })
+  // while the CLI call is in flight the Send button reads `Sending…`; an option press then must not change the pick
+  await Promise.all([sending, ui.press({ key: 'opt-a' }).catch(() => undefined)])
+  const sent = w.runs.filter((r: any) => r.argv[1] === 'answer').map((r: any) => r.argv.slice(1))
+  expect(sent).toEqual([['answer', 'S9', '--option', 'b', '--source', 'pane']])
 })
 
 test('state rows: no body: no Context, no Details, no hint; title only', async ($, on) => {
@@ -1099,8 +1096,50 @@ test('ui.detail resets: leaving the item and opening it again shows Decide; clos
   await ui.press({ key: 'back' })
   await ui.press({ key: 'back' }) // Decide -> list
   await ui.press({ key: 'E1' })
-  const text = textOf(await ui.drawn())
+  let text = textOf(await ui.drawn())
+  expect(text).toContain('[Send answer]')
+  expect(text).not.toContain('Decide (b)')
+  // the pane closed and opened again (the band's Open button): the item opens on Decide
+  await ui.press({ key: 'details' })
+  await $.command.run({ command: 'inbox' })
+  await ui.press({ key: 'E1' })
+  text = textOf(await ui.drawn())
   expect(text).toContain('[Send answer]')
   expect(text).not.toContain('Decide (b)')
   await ui.unmount()
+})
+
+test('Details page: the full recommendation (key and reason), one `b` hotkey, no Input, the key map', async ($, on) => {
+  for (const [it, hot] of [[E1, { 'Button:back': 'b', 'Button:back-end': null }], [R1, { 'Button:back': 'b', 'Button:mark-read': 'm', 'Button:mark-read-end': null, 'Button:back-end': null }]] as const) {
+    const { ui } = await open($, on, [it], it.id, 80, ROWS_24)
+    await ui.press({ key: 'details' })
+    const tree = await ui.drawn()
+    const keys: Record<string, unknown> = {}
+    walk(tree, (n) => {
+      if (['Button', 'Input'].includes(n.type) && n.props?.key) keys[`${n.type}:${n.props.key}`] = n.props.hotkey ?? null
+    })
+    expect(keys, it.id).toEqual(hot)
+    const hotkeys = Object.values(keys).filter((h) => h !== null)
+    expect(new Set(hotkeys).size).toBe(hotkeys.length)
+    if (it === E1) expect(textOf(tree)).toContain(`✓ recommends: ${E1_REC}`)
+    await ui.unmount()
+  }
+  const w = await open($, on, [WAITING], WAITING.id, 80, ROWS_24)
+  const long = handled('answered-waiting', null, ANS(), { id: 'HW', body: 'l1\n\nl2\n\nl3\n\nl4\n\nl5\n\nl6\n\nl7\n\nl8' })
+  const h = await open($, on, [long], 'HW', 80, ROWS_24)
+  await h.ui.press({ key: 'details' })
+  expect((await h.ui.find({ key: 'back' }))?.props?.hotkey).toBe('b')
+  expect((await h.ui.find({ key: 'back-end' }))?.props?.hotkey).toBeUndefined()
+  void w
+})
+
+test('the tall-tier reason row wraps under its own indent (hanging)', async ($, on) => {
+  const { ui } = await open($, on, [E1], 'E1', 47, ROWS_40)
+  const tree = await ui.drawn()
+  let hanging = false
+  walk(tree, (n) => {
+    if (n.type === 'Box' && n.props?.width === 6 && flat(n.children ?? []) === '' ) hanging = true
+  })
+  expect(hanging).toBe(true)
+  expect(textOf(tree)).toContain('✓ recommended: ')
 })
