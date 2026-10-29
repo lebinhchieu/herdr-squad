@@ -51,6 +51,7 @@ Anything the pane does not know stays as plain text. No word is ever lost.
 - Write a tag exactly: lowercase, at the start of the line (`[decision]`, `[warning]`, `[info]`, `[rec]`).
   - Why: `[Warning]` with a capital letter is shown as plain text.
 - Use badges inside a line or a table cell.
+  - Why: a badge marks one fact next to the words it describes.
 - At most one `[decision]` and one `[warning]` per body.
   - Why: if everything is highlighted, nothing is.
 - Say every fact in words. Do not leave a fact only in a diagram or a colour.
@@ -58,8 +59,11 @@ Anything the pane does not know stays as plain text. No word is ever lost.
 - Use a heading only when the body is longer than 15 lines.
   - Why: a heading costs a row, and rows are few.
 - Put local paths and commands in `` `code` ``. Do not align text with spaces outside a table or a diagram.
+  - Why: code keeps its exact characters, and text lined up with spaces breaks when a line wraps.
 - Colour comes only from the tags. Use `[ok]` and `[fail]` for facts, not for decoration. Use at most 4 tag kinds in one diagram.
+  - Why: the pane takes the colours from the PO's theme, so they stay readable. A tag used for looks tells the PO something false.
 - No HTML except `<br>`, which the pane turns into a line break. No images. Do not use `*italic*`: the stars show as plain text.
+  - Why: the pane shows what it does not know as plain text, so the PO would see the raw tags and stars.
 
 ## Example 1: an answer item
 

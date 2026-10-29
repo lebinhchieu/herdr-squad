@@ -1,7 +1,8 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { answerItem, cliArgv, markRead } from './actions'
+import { answerItem, cliArgv, goTo, markRead, pickOption, submitAnswer } from './actions'
 import { FIXTURES } from './fixtures'
+import { item, snap } from './testkit'
 
 const START = { cwd: '/w', surface: null, isInteractive: true } as const
 const HOME = '/h/scope'
@@ -484,4 +485,51 @@ test('argv: answer, delivered and read run through python3 with the flags unchan
     [PY, s, 'read', 'R3'],
   ])
   expect(cliArgv('/p', 'x')).toEqual([PY, s, 'x'])
+})
+
+// --- B-F1: a list shown again from an item opens at the top ------------------------------------------------
+// The host keeps the scroll of the old page and scrolls only as far as a focused button needs. So the list asks for the
+// focus on its first button (the Done button, else its first item); the Done list asks for Back.
+
+function focusWorld(on: any, items: any[], cli: (argv: string[]) => Reply | undefined = () => undefined) {
+  const w = world(on, MANAGER, (argv) => cli(argv) ?? ok(''))
+  const d = fakeDollar(w, (argv) => cli(argv) ?? ok(''))
+  const asked: string[] = []
+  d.ui.focus = async (a: { requestId: string; key: string }) => void asked.push(`${a.requestId}:${a.key}`)
+  return { d, asked, seed: () => d.state.set({ key: 'inbox' }, snap(items)) }
+}
+const dn = (i: number) => item({ id: `D${i}`, state: 'done', done: { kind: 'read', ts: '2026-10-15T10:00:00', reason: null } })
+
+test('list scroll: going to the list asks for the focus on the Done button; the Done list asks for Back; an item asks for nothing', async (_$, on) => {
+  const f = focusWorld(on, [item({ id: 'E1' }), item({ id: 'R1', kind: 'read' }), dn(1)])
+  await f.seed()
+  await goTo(f.d, 'list', null)
+  await goTo(f.d, 'done', null)
+  await goTo(f.d, 'item', 'E1')
+  await goTo(f.d, 'doneItem', 'D1')
+  expect(f.asked).toEqual(['inbox:done', 'inbox:back'])
+})
+
+test('list scroll: without done items the first item of the first group gets the focus', async (_$, on) => {
+  const f = focusWorld(on, [item({ id: 'R1', kind: 'read', blocks: 'nothing' }), item({ id: 'E2', blocks: 'nothing' }), item({ id: 'E1', blocks: 'BRD-02' })])
+  await f.seed()
+  await goTo(f.d, 'list', null)
+  expect(f.asked).toEqual(['inbox:E1']) // "Blocks work" comes before "Blocks nothing"
+})
+
+test('list scroll: after Mark read and after a sent answer the list asks for the top focus; a refused one does not', async (_$, on) => {
+  let refuse = false
+  const f = focusWorld(on, [item({ id: 'E1', options: [{ key: 'a', text: 'one' }] }), item({ id: 'R1', kind: 'read' }), dn(1)], (argv) =>
+    refuse && (argv[0] === 'read' || argv[0] === 'answer') ? { exitCode: argv[0] === 'read' ? 2 : 3, stdout: '', stderr: 'refused\n' } : undefined)
+  await f.seed()
+  refuse = true
+  await markRead(f.d, 'R1')
+  await pickOption(f.d, 'E1', 'a')
+  await submitAnswer(f.d, 'E1')
+  expect(f.asked).toEqual([])
+  refuse = false
+  await markRead(f.d, 'R1')
+  expect(f.asked).toEqual(['inbox:done'])
+  await submitAnswer(f.d, 'E1')
+  expect(f.asked).toEqual(['inbox:done', 'inbox:done'])
 })

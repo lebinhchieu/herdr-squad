@@ -3,7 +3,7 @@
 import { atom, read, update } from 'claude-code'
 
 import type { InboxItem, InboxSnapshot, InboxUi } from '../../types'
-import { describePrompt, newOpenIds, parseSnapshot, sanitize, toastText, waitingItems } from './core'
+import { describePrompt, listGroups, newOpenIds, parseSnapshot, sanitize, toastText, waitingItems } from './core'
 
 export const inboxAtom = atom({ plugin: 'squad', key: 'inbox' } as const, null)
 export const errorAtom = atom({ plugin: 'squad', key: 'inboxError' } as const, null)
@@ -246,6 +246,26 @@ export async function patchUi($: any, patch: Partial<InboxUi>): Promise<void> {
 
 export async function goTo($: any, screen: InboxUi['screen'], id: string | null): Promise<void> {
   await update($, uiAtom, (ui) => ({ ...ui, screen, id, detail: false, notice: null, more: [] }))
+  if (screen === 'list' || screen === 'done') await focusTop($, screen)
+}
+
+// The host keeps the scroll the old page had (it only scrolls as far as the focused button needs), so a list opened
+// from a scrolled item would start scrolled down and hide its heading row. Focus the first button of the page: the
+// Done button of the list (else its first item), the Back button of the Done list.
+export async function focusTop($: any, screen: 'list' | 'done'): Promise<void> {
+  let key = 'back'
+  if (screen === 'list') {
+    const snap = await read($, inboxAtom)
+    const g = snap ? listGroups(snap) : null
+    const first = g ? [...g.blocks, ...g.nothing, ...g.waiting][0] : undefined
+    key = snap && snap.items.some((it) => it.state === 'done') ? 'done' : first ? first.id : ''
+  }
+  if (key === '') return
+  try {
+    await $.ui.focus({ requestId: 'inbox', key })
+  } catch {
+    // the host may refuse (the pane lost the keys); the page is still right
+  }
 }
 
 export async function pickOption($: any, id: string, value: string): Promise<void> {
@@ -269,12 +289,14 @@ export async function markRead($: any, id: string): Promise<void> {
   await patchUi($, { pending: id })
   let notice: InboxUi['notice']
   let next: Partial<InboxUi> = {}
+  let focus = false
   try {
     const r = await $.process.run(cliArgv($.plugin.root, 'read', id), { timeoutMs: CLI_TIMEOUT_MS })
     await refresh($)
     if (r.exitCode === 0) {
       notice = { tone: 'ok', text: `${id} marked read.` }
       next = { screen: 'list', id: null }
+      focus = true
     } else {
       notice = { tone: 'error', text: failure(r) }
     }
@@ -283,6 +305,7 @@ export async function markRead($: any, id: string): Promise<void> {
   }
   run.busy = false
   await patchUi($, { ...next, pending: null, notice })
+  if (focus) await focusTop($, 'list')
 }
 
 // B-12/B-13/B-32: send what the pane holds for `id`. The CLI runs once; a press while it runs does nothing.
@@ -314,6 +337,7 @@ export async function submitAnswer($: any, id: string, typedNow?: string): Promi
       draft: without(u.draft, id),
       notice: { tone: 'ok', text: res.message ?? `${id} answered. Sending to the Manager.` },
     }))
+    await focusTop($, 'list')
     return
   }
   const text = res.exit === 3 ? res.message : `Could not reach the inbox: ${res.message.split('\n')[0].slice(0, 200)}`
