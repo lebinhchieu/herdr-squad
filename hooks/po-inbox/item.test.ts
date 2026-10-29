@@ -1154,18 +1154,25 @@ test('F2: a read item that blocks nothing keeps its header on row 1 at 60 and 47
   }
 })
 
-test('F3: the fold marker is singular for one hidden row', async ($, on) => {
-  const body = Array.from({ length: 40 }, (_, i) => `line ${i}`).join('\n')
-  const it = item({ id: 'N3', kind: 'read', body })
-  const { ui } = await open($, on, [it], 'N3', 80, ROWS_24)
-  expect(textOf(await ui.drawn())).toMatch(/… \d+ more rows\n/)
-  await ui.unmount()
+test('F3: the fold marker is singular for one hidden row, plural for more', async ($, on) => {
+  const six = Array.from({ length: 6 }, (_, i) => `line ${i}`).join('\n\n')
+  const marker = async (body: string) => {
+    const { ui } = await open($, on, [item({ id: 'N3', kind: 'read', body })], 'N3', 80, ROWS_24)
+    const text = textOf(await ui.drawn())
+    await ui.unmount()
+    return text
+  }
+  const one = await marker(`${six}\n- x\n- y`)
+  expect(one).toContain('… 1 more row\n')
+  expect(one).not.toContain('1 more rows')
+  expect(await marker(`${six}\n\n- x`)).toMatch(/… [2-9] more rows\n/)
 })
 
 test('F4: Details says `↓ more below` at 47 columns, never `↓ context`', async ($, on) => {
   const { ui } = await open($, on, [E1], 'E1', 47, ROWS_24)
   await ui.press({ key: 'details' })
   const text = textOf(await ui.drawn())
+  expect(text).toContain('↓ more below')
   expect(text).not.toContain('↓ context')
   await ui.unmount()
 })
