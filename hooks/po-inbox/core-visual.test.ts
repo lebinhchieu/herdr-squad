@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import {
-  TONE, blocksTone, bodyBudget, capGroup, cellWidth, kindTone, outcomeTone, recommendedKey, clipCells, rowsFor, sanitize, tableLayout,
+  TONE, blocksTone, bodyBudget, capGroup, cellWidth, kindTone, outcomeTone, recommendedKey, clipCells, rowsFor, tableLayout,
 } from './core'
 import { clipRows, drawBody } from './draw'
 import { parseBody } from './markup'
