@@ -187,13 +187,13 @@ function drawDiagram(b: Extract<Block, { type: 'code' }>, cols: number, T: T, ke
   if (tags.length > 0) {
     const entry = (t: string) => cellWidth(`[${t}]`) + 1 + cellWidth(LEGEND_WORD[t as 'ok'])
     let row: string[] = []
-    let used = 8 // two spaces and `legend`
+    let used = 8 // two spaces and `legend`; each entry adds its separator (two spaces) and its width
     const rows: string[][] = []
     for (const t of tags) {
       if (row.length > 0 && used + 2 + entry(t) > cols) {
         rows.push(row)
         row = []
-        used = 2
+        used = 0
       }
       row.push(t)
       used += 2 + entry(t)
@@ -201,8 +201,8 @@ function drawDiagram(b: Extract<Block, { type: 'code' }>, cols: number, T: T, ke
     rows.push(row)
     rows.forEach((r, i) => {
       const kids: any[] = i === 0 ? [<Text key="lg" dimColor>legend</Text>] : []
-      r.forEach((t) => {
-        kids.push('  ')
+      r.forEach((t, j) => {
+        if (i === 0 || j > 0) kids.push('  ')
         kids.push(<Text key={`lt${t}`} {...chipProps(CHIPS[t as 'ok'].tone)}>{`[${t}]`}</Text>)
         kids.push(<Text key={`lw${t}`} dimColor>{` ${LEGEND_WORD[t as 'ok']}`}</Text>)
       })

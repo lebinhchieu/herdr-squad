@@ -6,6 +6,9 @@ import {
 import { clipRows, drawBody } from './draw'
 import { parseBody } from './markup'
 import { FIXTURES } from './fixtures'
+import { VISUAL } from './fixtures/visual'
+import { chipProps, chipText } from './core'
+import { lines, styleOf } from './testkit'
 
 const ABC = [{ key: 'a' }, { key: 'b' }, { key: 'c' }]
 
@@ -356,5 +359,240 @@ describe('chips and headings (item.md section 5)', () => {
     const d = drawBody(body, 80, T, { expanded: false, fitRows: 0, budget: 2, tall: true })
     expect(d.cut).toBe(true)
     expect(d.rows + d.hiddenRows).toBe(drawBody(body, 80, T, { expanded: true, fitRows: 0, budget: 0, tall: true }).rows)
+  })
+})
+
+// --- body styles (body-styles.md sections 3 to 5 and 9) ----------------------------------------------------------
+describe('body styles', () => {
+  const T = { Box: 'Box', Text: 'Text', Button: 'Button' }
+  const all = { expanded: true, fitRows: 0, budget: 0 }
+  const draw = (src: string, cols = 80) => drawBody(parseBody(src), cols, T, all)
+  const rowsOf = (src: string, cols = 80) => lines(draw(src, cols).nodes)
+  const DIAGRAM = '```diagram merge order if (a)\nBRD-01 ──merge──> spec ──┬─ BRD-02\n (QA ok)                 ├─ BRD-03\n                         └─ BRD-04..06\n```'
+
+  describe('callouts', () => {
+    test('the label is a filled chip with the exact props of each tone', () => {
+      const tree = draw('[decision] Merge it.\n[warning] Careful.\n[info] FYI.').nodes
+      expect(styleOf(tree, '◆')).toEqual(chipProps('accent'))
+      expect(styleOf(tree, '⚠')).toEqual(chipProps('warn'))
+      expect(styleOf(tree, '›')).toEqual(chipProps('quiet'))
+      expect(styleOf(tree, '◆')).toEqual({ inverse: true, bold: true, color: 'permission' })
+    })
+    test('rows read: chip, one space, the sentence (decision bold, the others normal)', () => {
+      expect(rowsOf('[decision] Merge it.\n[warning] Careful.\n[info] FYI.')).toEqual([
+        `${chipText('decision')} Merge it.`, `${chipText('warning')} Careful.`, `${chipText('info')} FYI.`,
+      ])
+      const tree = draw('[decision] Merge it.\n[warning] Careful.').nodes
+      expect(styleOf(tree, 'Merge it.')).toEqual({ bold: true })
+      expect(styleOf(tree, 'Careful.')).toEqual({})
+    })
+    test('a bare tag draws the chip only; an unknown tag draws plain text', () => {
+      expect(rowsOf('[warning]')).toEqual([chipText('warning')])
+      expect(rowsOf('[note] x')).toEqual(['[note] x'])
+      expect(rowsOf('[warning]x')).toEqual(['[warning]x'])
+    })
+    test('rows are counted with the chip: 1 row at 80, 2 at 47, an indent can add one', () => {
+      const w = '[warning] Option (b) needs a squad-spawn change outside this scope.'
+      expect(draw(w, 80).rows).toBe(1)
+      expect(draw(w, 47).rows).toBe(2)
+      expect(draw('[info] x', 80).rows).toBe(1)
+      expect(draw('[warning] x', 12).rows).toBe(rowsFor(`${chipText('warning')} x`, 12))
+      for (const cols of [80, 47, 30, 12]) for (const src of ['[decision] a b c d e f g h i j k l m n', '[warning]', '  [info] hello there']) {
+        expect(draw(src, cols).rows).toBe(rowsFor(lines(draw(src, cols).nodes).join('\n'), cols))
+      }
+    })
+    test('a callout taller than the budget is the clipped first block, chip and all', () => {
+      const d = drawBody(parseBody('[warning] aaaa bbbb cccc dddd eeee ffff'), 20, T, { expanded: false, fitRows: 0, budget: 1 })
+      expect(d.nodes[0].children[0].startsWith(chipText('warning'))).toBe(true)
+      expect(d.nodes[0].children[0].endsWith('…')).toBe(true)
+    })
+  })
+
+  describe('badges', () => {
+    test('a badge is a filled chip in prose, with the exact props of its tone', () => {
+      const tree = draw('Suite [ok], lint [fail], docs [warn], e2e [skip].').nodes
+      expect(lines(tree)).toEqual([`Suite ${chipText('ok')}, lint ${chipText('fail')}, docs ${chipText('warn')}, e2e ${chipText('skip')}.`])
+      expect(styleOf(tree, '✓')).toEqual(chipProps('good'))
+      expect(styleOf(tree, '✗')).toEqual(chipProps('bad'))
+      expect(styleOf(tree, '⚠')).toEqual(chipProps('warn'))
+      expect(styleOf(tree, '–')).toEqual(chipProps('quiet'))
+    })
+    test('in an aligned table cell the badge keeps its colour and the column counts the chip', () => {
+      const src = '| Task | State |\n|---|---|\n| one | [ok] |\n| two | [fail] |'
+      for (const cols of [80, 47, 40]) {
+        const tree = draw(src, cols).nodes
+        // column widths 4 and 8 (the fail chip is 8 cells); a cell is padded to its column, two spaces between columns
+        expect(lines(tree)).toEqual(['Task  State', `${'─'.repeat(4)}  ${'─'.repeat(8)}`, `one   ${chipText('ok')}`, `two   ${chipText('fail')}`])
+        expect(styleOf(tree, '✓')).toEqual(chipProps('good'))
+        expect(styleOf(tree, '✗')).toEqual(chipProps('bad'))
+        expect(draw(src, cols).rows).toBe(4)
+      }
+    })
+    test('stacked (under 40 columns) draws the value spans, so the chip keeps its colour', () => {
+      const tree = draw('| Task | State |\n|---|---|\n| one | [ok] |', 39).nodes
+      expect(lines(tree)).toEqual(['Task: one', `State: ${chipText('ok')}`])
+      expect(styleOf(tree, '✓')).toEqual(chipProps('good'))
+      expect(styleOf(tree, 'State')).toEqual({ bold: true })
+    })
+    test('a header cell with a badge is bold and still a chip', () => {
+      const tree = draw('| [ok] | b |\n|---|---|\n| 1 | 2 |').nodes
+      expect(styleOf(tree, '✓')).toEqual(chipProps('good'))
+    })
+  })
+
+  describe('links', () => {
+    test('label then <url>; the label underlined, the url dim; a bare url underlined', () => {
+      const tree = draw('See [PR 42](https://x.io/pull/42) and https://y.io/a.').nodes
+      expect(lines(tree)).toEqual(['See PR 42 <https://x.io/pull/42> and https://y.io/a.'])
+      expect(styleOf(tree, 'PR 42')).toEqual({ underline: true })
+      expect(styleOf(tree, '<https://x.io/pull/42>')).toEqual({ dimColor: true })
+      expect(styleOf(tree, 'https://y.io/a')).toEqual({ underline: true })
+      expect(JSON.stringify(tree)).not.toContain('\u001b')
+    })
+    test('rows count the drawn text; a link in a table cell is drawn label <url>', () => {
+      const src = 'go [p](https://x.io/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) now'
+      expect(draw(src, 30).rows).toBe(rowsFor('go p <https://x.io/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa> now', 30))
+      expect(rowsOf('| a |\n|---|\n| [p](https://x.io) |', 80)).toEqual(['a', '─'.repeat(1 + 0), 'p <https://x.io>'].map((x, i) => (i === 1 ? '─'.repeat('p <https://x.io>'.length) : x)))
+    })
+    test('a url over 200 characters is still drawn, whole', () => {
+      const url = `https://x.io/${'a'.repeat(300)}`
+      expect(rowsOf(`[p](${url})`, 80)).toEqual([`p <${url}>`])
+    })
+  })
+
+  describe('diagram block', () => {
+    test('no gutter, no wrap: the lines as typed, two spaces in, the caption first', () => {
+      expect(rowsOf(DIAGRAM, 80)).toEqual([
+        '  merge order if (a)',
+        '  BRD-01 ──merge──> spec ──┬─ BRD-02',
+        '   (QA ok)                 ├─ BRD-03',
+        '                           └─ BRD-04..06',
+      ])
+      expect(draw(DIAGRAM, 80).rows).toBe(4)
+      expect(rowsOf(DIAGRAM, 80).join('')).not.toContain('│')
+    })
+    test('no caption, no extra row; an unlabelled fence with a box character is a diagram; a plain fence keeps its gutter', () => {
+      expect(rowsOf('```diagram\na ──> b\n```')).toEqual(['  a ──> b'])
+      expect(rowsOf('```\na ──> b\n```')).toEqual(['  a ──> b'])
+      expect(rowsOf('```ts\nconst a = 1\n```')).toEqual(['ts', '  │ const a = 1'])
+      expect(rowsOf('```diagramx\nplain\n```')).toEqual(['diagramx', '  │ plain'])
+    })
+    test('a fence labelled with another word shows that word as the caption when it holds a box drawing', () => {
+      expect(rowsOf('```text\na ──> b\n```')).toEqual(['  text', '  a ──> b'])
+    })
+    test('an empty diagram draws nothing; blank lines stay; tabs are four spaces; trailing spaces go', () => {
+      expect(draw('```diagram x\n```').rows).toBe(0)
+      expect(rowsOf('```diagram\na ──>   \n\n\tb\n```')).toEqual(['  a ──>', ' ', '      b'].map((x) => (x === ' ' ? '  ' : x)))
+    })
+    test('a line of exactly the width fits; one over is cut to width - 1 with › and a footer', () => {
+      const W = 78
+      const fits = rowsOf(`\`\`\`diagram\n${'x'.repeat(W)}\n\`\`\``, 80)
+      expect(fits).toEqual([`  ${'x'.repeat(W)}`])
+      const over = rowsOf(`\`\`\`diagram\n${'x'.repeat(W + 1)}\nshort\n\`\`\``, 80)
+      expect(over).toEqual([`  ${'x'.repeat(W - 1)}›`, '  short', `  › ${W + 1} columns wide, the pane shows ${W}`])
+    })
+    test('too wide at 47 columns: every drawn row fits, cut lines end in ›, the footer names both widths', () => {
+      const src = VISUAL.diagramWide
+      const widest = Math.max(...src.split('\n').slice(1, -1).map((l) => cellWidth(l.trimEnd())))
+      expect(widest).toBeGreaterThan(45)
+      const rows = rowsOf(src, 47)
+      for (const r of rows) expect(cellWidth(r)).toBeLessThanOrEqual(47)
+      // a line wider than 45 is cut; a line that fits is left whole
+      const typed = src.split('\n').slice(1, 4).map((l) => l.trimEnd())
+      typed.forEach((l, i) => expect(rows[i + 1].endsWith('›'), l).toBe(cellWidth(l) > 45))
+      expect(typed.some((l) => cellWidth(l) <= 45)).toBe(true)
+      expect(typed.some((l) => cellWidth(l) > 45)).toBe(true)
+      expect(rows[rows.length - 1]).toBe(`  › ${widest} columns wide, the pane shows 45`)
+      expect(draw(src, 47).rows).toBe(rows.length)
+      // the columns do not move: the cut lines are prefixes of the typed lines
+      expect(rows[2].slice(0, 20)).toBe(`  ${src.split('\n')[2].slice(0, 18)}`)
+    })
+    test('connectors are { color: permission }, names plain, a tag a filled chip typed width, no fill on a line', () => {
+      const tree = draw(VISUAL.relations).nodes
+      expect(styleOf(tree, '──┬──>')).toEqual({ color: 'permission' })
+      expect(styleOf(tree, 'BRD-01')).toEqual({})
+      expect(styleOf(tree, '[ok]')).toEqual(chipProps('good'))
+      expect(styleOf(tree, '[warn]')).toEqual(chipProps('warn'))
+      expect(styleOf(tree, '[skip]')).toEqual(chipProps('quiet'))
+      expect(rowsOf(VISUAL.relations)[1]).toBe('  BRD-01 [ok] ──> spec [ok] ──┬──> BRD-02 [ok]')
+      expect(styleOf(tree, 'dependency map')).toEqual({ italic: true, dimColor: true })
+    })
+    test('the legend row exists only with a tag, in the order ok, warn, fail, skip', () => {
+      const rows = rowsOf(VISUAL.relations)
+      expect(rows).toHaveLength(5)
+      expect(rows[4]).toBe('  legend  [ok] done  [warn] at risk  [skip] skipped')
+      expect(draw(VISUAL.relations).rows).toBe(5)
+      expect(rowsOf(DIAGRAM).join('\n')).not.toContain('legend')
+      expect(rowsOf('```diagram\na [fail] b [ok]\n```').at(-1)).toBe('  legend  [ok] done  [fail] failed')
+      const tree = draw(VISUAL.relations).nodes
+      expect(styleOf(tree, 'legend')).toEqual({ dimColor: true })
+      expect(styleOf(tree, 'at risk')).toEqual({ dimColor: true })
+    })
+    test('the legend wraps into whole rows at 47 columns, every entry whole, rows counted', () => {
+      const d = draw('```diagram\na [ok] b [warn] c [fail] d [skip]\n```', 47)
+      const rows = lines(d.nodes)
+      expect(rows[0]).toBe('  a [ok] b [warn] c [fail] d [skip]')
+      for (const r of rows) expect(cellWidth(r)).toBeLessThanOrEqual(47)
+      expect(rows.slice(1).join('|')).toBe('  legend  [ok] done  [warn] at risk|  [fail] failed  [skip] skipped')
+      expect(d.rows).toBe(rows.length)
+    })
+    test('colours are decided on the cut text: a tag cut by the width is plain', () => {
+      const tree = draw(`\`\`\`diagram\n${'x'.repeat(74)} [ok] more\n\`\`\``, 80).nodes
+      expect(styleOf(tree, '[o›')).toEqual({})
+      expect(lines(tree).join('\n')).not.toContain('legend')
+    })
+    test('a diagram is one block of the fold: whole, or the first rows then …', () => {
+      const body = parseBody(`${DIAGRAM}\nafter`)
+      const whole = drawBody(body, 80, T, { expanded: false, fitRows: 6, budget: 6 })
+      expect(whole.cut).toBe(false)
+      const folded = drawBody(body, 80, T, { expanded: false, fitRows: 2, budget: 2 })
+      expect(folded.nodes).toHaveLength(1)
+      expect(lines(folded.nodes)).toEqual(['  merge order if (a)', '…'])
+    })
+  })
+
+  describe('colour rules (9.5)', () => {
+    const seen = (v: unknown, out: Record<string, Set<string>> = { color: new Set(), props: new Set() }) => {
+      if (Array.isArray(v)) v.forEach((x) => seen(x, out))
+      else if (v !== null && typeof v === 'object') {
+        const o = v as { props?: Record<string, unknown>; children?: unknown }
+        for (const [k, val] of Object.entries(o.props ?? {})) {
+          out.props.add(k)
+          if (k === 'color') out.color.add(String(val))
+        }
+        seen(o.children, out)
+      }
+      return out
+    }
+    test('over every fixture: theme keys only, never a background, a fill is always inverse + color', () => {
+      for (const [name, src] of Object.entries(VISUAL)) {
+        const out = seen(draw(src, 80).nodes)
+        expect(out.props.has('backgroundColor'), name).toBe(false)
+        expect(out.props.has('borderColor'), name).toBe(false)
+        for (const c of out.color) expect(['success', 'error', 'warning', 'permission', 'inactive'], `${name} ${c}`).toContain(c)
+      }
+    })
+    test('success, error and warning sit only on chips; permission only on chips and connectors', () => {
+      const check = (v: unknown, path: string) => {
+        if (Array.isArray(v)) return v.forEach((x) => check(x, path))
+        if (v === null || typeof v !== 'object') return
+        const o = v as { props?: Record<string, unknown>; children?: unknown }
+        const c = o.props?.color
+        if (c === 'success' || c === 'error' || c === 'warning') expect(o.props?.inverse, `${path} ${c}`).toBe(true)
+        if (c === 'inactive') expect(o.props?.inverse, `${path} ${c}`).toBe(true)
+        if (c !== undefined && o.props?.inverse) expect(o.props?.dimColor, path).toBeUndefined()
+        check(o.children, path)
+      }
+      for (const name of ['guideE1', 'guideR1', 'chips', 'badges', 'relations', 'tags']) check(draw(VISUAL[name], 80).nodes, name)
+    })
+    test('every example body draws at 80, 60, 47 and 30 columns without a throw, rows = the drawn rows', () => {
+      for (const name of ['guideE1', 'guideR1', 'chips', 'badges', 'relations', 'tags', 'links', 'diagramWide']) {
+        for (const cols of [80, 60, 47, 30]) {
+          const d = draw(VISUAL[name], cols)
+          expect(d.rows, `${name} ${cols}`).toBeGreaterThan(0)
+          expect(JSON.stringify(d.nodes)).not.toContain('\u001b')
+        }
+      }
+    })
   })
 })

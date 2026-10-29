@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { ageOf, describePrompt, fit, heightTier, newOpenIds, oneLine, parseAdd, parseSnapshot, sanitize, stamp } from './core'
+import { ACCENT, QUIET, ageOf, chipProps, chipText, describePrompt, diagramRuns, fit, heightTier, legendTags, newOpenIds, oneLine, parseAdd, parseSnapshot, sanitize, stamp } from './core'
 import { FIXTURES } from './fixtures'
 
 const mixed = () => JSON.parse(FIXTURES['contract-mixed'])
@@ -220,5 +220,80 @@ describe('heightTier (item.md section 2)', () => {
   test('short up to 8 body rows, tall from 9', () => {
     expect([0, 6, 8].map(heightTier)).toEqual(['short', 'short', 'short'])
     expect([9, 11, 33].map(heightTier)).toEqual(['tall', 'tall', 'tall'])
+  })
+})
+
+describe('chips (body-styles.md 9.1)', () => {
+  test('the props of every tone: inverse + bold + a theme key, never a background', () => {
+    expect(chipProps('good')).toEqual({ inverse: true, bold: true, color: 'success' })
+    expect(chipProps('bad')).toEqual({ inverse: true, bold: true, color: 'error' })
+    expect(chipProps('warn')).toEqual({ inverse: true, bold: true, color: 'warning' })
+    expect(chipProps('accent')).toEqual({ inverse: true, bold: true, color: 'permission' })
+    expect(chipProps('quiet')).toEqual({ inverse: true, bold: true, color: 'inactive' })
+    expect([ACCENT, QUIET]).toEqual(['permission', 'inactive'])
+  })
+  test('chip text: no-break spaces around the glyph and the word', () => {
+    expect(chipText('ok')).toBe('\u00a0✓\u00a0ok\u00a0')
+    expect(chipText('fail')).toBe('\u00a0✗\u00a0fail\u00a0')
+    expect(chipText('warn')).toBe('\u00a0⚠\u00a0warn\u00a0')
+    expect(chipText('skip')).toBe('\u00a0–\u00a0skip\u00a0')
+    expect(chipText('decision')).toBe('\u00a0◆\u00a0decision\u00a0')
+    expect(chipText('warning')).toBe('\u00a0⚠\u00a0warning\u00a0')
+    expect(chipText('info')).toBe('\u00a0›\u00a0info\u00a0')
+    expect(chipText('ok')).not.toContain(' ')
+  })
+})
+
+describe('diagramRuns (body-styles.md 9.4)', () => {
+  const kinds = (line: string) => diagramRuns(line).map((r) => `${r.kind}:${r.text}`)
+  test('BRD-01 stays a name: a lone - is part of a word', () => {
+    expect(kinds('BRD-01 | a+b v ^')).toEqual(['name:BRD-01 | a+b v ^'])
+  })
+  test('--> and ==> and -> and <-- are connectors', () => {
+    expect(kinds('A --> B')).toEqual(['name:A ', 'conn:-->', 'name: B'])
+    expect(kinds('A ==> B')).toEqual(['name:A ', 'conn:==>', 'name: B'])
+    expect(kinds('A -> B')).toEqual(['name:A ', 'conn:->', 'name: B'])
+    expect(kinds('A <-- B')).toEqual(['name:A ', 'conn:<--', 'name: B'])
+    expect(kinds('A <-> B')).toEqual(['name:A ', 'conn:<->', 'name: B'])
+  })
+  test('box drawing and arrows: ──┬──> is one connector run', () => {
+    expect(kinds('spec ──┬──> BRD-02')).toEqual(['name:spec ', 'conn:──┬──>', 'name: BRD-02'])
+    expect(kinds(' ├─ BRD-03')).toEqual(['name: ', 'conn:├─', 'name: BRD-03'])
+    expect(kinds('a ▲ b ► c ▼ d ◄ e → f')).toEqual(['name:a ', 'conn:▲', 'name: b ', 'conn:►', 'name: c ', 'conn:▼', 'name: d ', 'conn:◄', 'name: e ', 'conn:→', 'name: f'])
+  })
+  test('a > or < away from a connector is a name', () => {
+    expect(kinds('a > b < c')).toEqual(['name:a > b < c'])
+    expect(kinds('a=b')).toEqual(['name:a=b'])
+  })
+  test('a tag standing alone is a tag; stuck to a word, a connector or a bracket it is a name', () => {
+    expect(kinds('BRD-01 [ok] ──> x')).toEqual(['name:BRD-01 ', 'tag:[ok]', 'name: ', 'conn:──>', 'name: x'])
+    expect(kinds('[warn]')).toEqual(['tag:[warn]'])
+    for (const t of ['[ok]x', 'a[ok]', '[ok]──', '[[ok]]', '[OK]', '[ok', '[okay]', '[ok]›']) expect(kinds(t).some((k) => k.startsWith('tag:')), t).toBe(false)
+  })
+  test('the four tags', () => {
+    expect(kinds('[ok] [fail] [warn] [skip]').filter((k) => k.startsWith('tag:'))).toEqual(['tag:[ok]', 'tag:[fail]', 'tag:[warn]', 'tag:[skip]'])
+  })
+  test('widths sum to the input: the run texts joined give the line back', () => {
+    for (const line of ['', 'abc', 'BRD-01 [ok] ──merge──> spec ──┬─ BRD-02', '  ├──> 日本語 [skip] ->x', '<<<>>> -- == [', '🚀 ──> 🚀']) {
+      expect(diagramRuns(line).map((r) => r.text).join('')).toBe(line)
+    }
+  })
+  test('10,000 characters of hostile input stay linear', () => {
+    for (const unit of ['[', '[ok] ', '-', '--> ', '<', '>', '──┬', '[ok]']) {
+      const line = unit.repeat(Math.ceil(10000 / unit.length))
+      const t0 = Date.now()
+      const runs = diagramRuns(line)
+      expect(Date.now() - t0).toBeLessThan(200)
+      expect(runs.map((r) => r.text).join('')).toBe(line)
+    }
+    const small = (() => { const t0 = Date.now(); diagramRuns('[ok] ──> '.repeat(10000)); return Date.now() - t0 })()
+    const big = (() => { const t0 = Date.now(); diagramRuns('[ok] ──> '.repeat(40000)); return Date.now() - t0 })()
+    expect(big).toBeLessThan(12 * small + 20)
+  })
+  test('legendTags: present tags, in the order ok, warn, fail, skip; none gives none', () => {
+    expect(legendTags(['a [skip]', 'b [ok]', '[fail] c'])).toEqual(['ok', 'fail', 'skip'])
+    expect(legendTags(['a [warn] [warn]'])).toEqual(['warn'])
+    expect(legendTags(['BRD-01 ──> x', '[ok]x'])).toEqual([])
+    expect(legendTags([])).toEqual([])
   })
 })

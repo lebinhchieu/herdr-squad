@@ -425,7 +425,8 @@ test('V-18: no meaning colour on structure (heading, code, bold, table, bullet);
   walk(tree, (n) => {
     for (const k of ['color', 'backgroundColor', 'borderColor']) if (n.props?.[k] !== undefined) colours.add(String(n.props[k]))
   })
-  for (const c of colours) expect(['success', 'error', 'warning']).toContain(c)
+  // body-styles.md 9.5 rule 5: `permission` (diagram connectors, [decision] chip) and `inactive` ([info], [skip] chips) carry no good/bad meaning
+  for (const c of colours) expect(['success', 'error', 'warning', 'permission', 'inactive']).toContain(c)
 })
 
 test('3.6: no Text that draws body, code, table, option or recommendation text truncates', async ($, on) => {
