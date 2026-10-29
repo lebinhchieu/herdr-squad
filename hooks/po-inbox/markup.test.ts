@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { E1_OPTIONS, E1_REC, E1_TITLE, VISUAL } from './fixtures/visual'
-import { type Block, bodyBlocks, parseBody, parseInline, plainOf } from './markup'
+import { type Block, bodyBlocks, itemTitle, parseBody, parseInline, plainOf } from './markup'
 
 const types = (text: string) => parseBody(text).map((b) => b.type)
 const first = (text: string): Block => parseBody(text)[0]
@@ -377,5 +377,32 @@ describe('fence close and number width', () => {
     expect(b.length).toBe(1)
     expect(b[0].type).toBe('para')
     expect(plainOf(b)).toBe('1234567890. x')
+  })
+})
+
+describe('title rule P6: an 80-character stored title is the cut of the first body line', () => {
+  const full = 'Which branch merges first for BRD-02 through BRD-06 after BRD-01 passes both QAs and the PO review today?'
+  const cut = full.slice(0, 80)
+  test('the first body line becomes the title and leaves the body', () => {
+    expect(cut.length).toBe(80)
+    expect(itemTitle(`${full}\nrest`, cut)).toBe(full)
+    expect(plainOf(bodyBlocks(`${full}\nrest`, cut))).toBe('rest')
+  })
+  test('a shorter title equal to the first line keeps the old behaviour', () => {
+    expect(itemTitle('My title\nrest', 'My title')).toBe('My title')
+    expect(plainOf(bodyBlocks('My title\nrest', 'My title'))).toBe('rest')
+  })
+  test('an 80-char title whose body line does not start with it is untouched', () => {
+    expect(itemTitle(`other ${full}\nrest`, cut)).toBe(cut)
+    expect(plainOf(bodyBlocks(`other ${full}\nrest`, cut)).startsWith('other')).toBe(true)
+  })
+  test('a body that is only that line gives no body', () => {
+    expect(itemTitle(full, cut)).toBe(full)
+    expect(bodyBlocks(full, cut)).toEqual([])
+  })
+  test('a CRLF body works; a leading blank line does not match', () => {
+    expect(itemTitle(`${full}\r\nrest`, cut)).toBe(full)
+    expect(plainOf(bodyBlocks(`${full}\r\nrest`, cut))).toBe('rest')
+    expect(itemTitle(`\n${full}\nrest`, cut)).toBe(cut)
   })
 })

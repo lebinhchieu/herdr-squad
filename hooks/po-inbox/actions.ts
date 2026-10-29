@@ -7,7 +7,7 @@ import { describePrompt, newOpenIds, parseSnapshot, sanitize, toastText, waiting
 
 export const inboxAtom = atom({ plugin: 'squad', key: 'inbox' } as const, null)
 export const errorAtom = atom({ plugin: 'squad', key: 'inboxError' } as const, null)
-const FRESH_UI: InboxUi = { isOpen: false, screen: 'list', id: null, expanded: false, picked: {}, draft: {}, pending: null, notice: null, rev: 0, more: [] }
+const FRESH_UI: InboxUi = { isOpen: false, screen: 'list', id: null, detail: false, picked: {}, draft: {}, pending: null, notice: null, rev: 0, more: [] }
 export const uiAtom = atom({ plugin: 'squad', key: 'ui' } as const, FRESH_UI)
 
 const POLL_MS = 2000
@@ -226,7 +226,7 @@ export function stop(): void {
 }
 
 export async function openPane($: any): Promise<void> {
-  await update($, uiAtom, (ui) => ({ ...ui, isOpen: true, screen: 'list', id: null, expanded: false, notice: null }))
+  await update($, uiAtom, (ui) => ({ ...ui, isOpen: true, screen: 'list', id: null, detail: false, notice: null }))
   // Opening an open pane would only retitle it and leave the keys in the prompt: close it first so focus is asked afresh.
   await $.ui.close({ id: 'inbox' })
   await $.ui.open({ id: 'inbox', title: 'Inbox', focus: true, rows: 18 })
@@ -245,7 +245,7 @@ export async function patchUi($: any, patch: Partial<InboxUi>): Promise<void> {
 }
 
 export async function goTo($: any, screen: InboxUi['screen'], id: string | null): Promise<void> {
-  await update($, uiAtom, (ui) => ({ ...ui, screen, id, expanded: false, notice: null, more: [] }))
+  await update($, uiAtom, (ui) => ({ ...ui, screen, id, detail: false, notice: null, more: [] }))
 }
 
 export async function pickOption($: any, id: string, value: string): Promise<void> {

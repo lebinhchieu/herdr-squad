@@ -397,6 +397,10 @@ export function capGroup<T>(items: T[], expanded: boolean): { shown: T[]; hidden
 export const DEFAULT_BODY_ROWS = 20
 export const DEFAULT_BODY_FLOOR = 3
 
+// Height tier of the pane (item.md section 2): `short` up to 8 body rows (a 24-row terminal gives 6), `tall` from 9.
+export type HeightTier = 'short' | 'tall'
+export const heightTier = (bodyRows: number): HeightTier => (bodyRows >= 9 ? 'tall' : 'short')
+
 // T9 v3: rows the body may use, never below `floor` (the Designer's number, default 3). A missing or NaN
 // row count falls back to DEFAULT_BODY_ROWS.
 export function bodyBudget(bodyRows: number | undefined, chromeRows: number, floor: number = DEFAULT_BODY_FLOOR): number {

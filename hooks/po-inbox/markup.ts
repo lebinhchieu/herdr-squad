@@ -194,10 +194,31 @@ export function plainOf(blocks: Block[]): string {
   return out.join('\n')
 }
 
+// The stored title is cut at 80 characters (no ellipsis) by `squad-inbox add`.
+const TITLE_MAX = 80
+
 // T2's pipeline: sanitize, <br> to a line break, drop the first line when it is the title the screen already shows, parse.
+// P6: a title of TITLE_MAX characters whose full text starts the body is the cut form of that first line; the line is the title.
+function split(body: string, title: string): { title: string; lines: string[] } {
+  const t = oneLine(sanitize(title)).trim()
+  const lines = sanitize(body).replace(BR, '\n').split('\n')
+  const first = lines[0].trim()
+  if (first === t) {
+    lines.shift()
+    return { title: t, lines }
+  }
+  if (Array.from(t).length >= TITLE_MAX && first.startsWith(t)) {
+    lines.shift()
+    return { title: oneLine(first), lines }
+  }
+  return { title: t, lines }
+}
+
+// The title the pane shows: the stored title, or the first body line when the stored one is its 80-character cut.
+export const itemTitle = (body: string, title: string): string => split(body, title).title
+
 // A body that is only its title gives no blocks.
 export function bodyBlocks(body: string, title: string): Block[] {
-  const lines = sanitize(body).replace(BR, '\n').split('\n')
-  if (lines[0].trim() === oneLine(sanitize(title)).trim()) lines.shift()
+  const { lines } = split(body, title)
   return lines.length === 0 ? [] : parseBody(lines.join('\n'))
 }

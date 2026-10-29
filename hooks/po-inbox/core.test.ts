@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { ageOf, describePrompt, fit, newOpenIds, oneLine, parseAdd, parseSnapshot, sanitize, stamp } from './core'
+import { ageOf, describePrompt, fit, heightTier, newOpenIds, oneLine, parseAdd, parseSnapshot, sanitize, stamp } from './core'
 import { FIXTURES } from './fixtures'
 
 const mixed = () => JSON.parse(FIXTURES['contract-mixed'])
@@ -214,4 +214,11 @@ test('parseAdd: only <<\'WORD\' or <<"WORD" closed by an exact line collapses (T
   for (const c of no) expect(parseAdd(c)).toBeNull()
   expect(parseAdd('squad-inbox add --title x <<"E_1"\nb\nE_1')).toEqual({ title: 'x' })
   expect(parseAdd("squad-inbox add --title x <<'E'\nb\nE\n")).toEqual({ title: 'x' })
+})
+
+describe('heightTier (item.md section 2)', () => {
+  test('short up to 8 body rows, tall from 9', () => {
+    expect([0, 6, 8].map(heightTier)).toEqual(['short', 'short', 'short'])
+    expect([9, 11, 33].map(heightTier)).toEqual(['tall', 'tall', 'tall'])
+  })
 })

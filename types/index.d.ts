@@ -50,7 +50,8 @@ export type InboxUi = {
   isOpen: boolean;
   screen: 'list' | 'item' | 'done' | 'doneItem';
   id: string | null;
-  expanded: boolean;
+  /** The item's Details page is open (reading page for the whole body). */
+  detail: boolean;
   picked: Record<string, string>;
   draft: Record<string, string>;
   pending: string | null;

@@ -1,5 +1,5 @@
 // The band above the prompt, the inbox pane and the collapsed `squad-inbox add` tool row (PI-04).
-// Everything drawn is plain Text/Button/Select/Input/Box; every string goes through the sanitiser.
+// Everything drawn is plain Text/Button/Input/Box; every string goes through the sanitiser.
 import type { On } from 'claude-code'
 
 import type { InboxItem, InboxSnapshot } from '../../types'
@@ -7,11 +7,11 @@ import { goTo, markRead, openPane, patchUi, pickOption, readView, setDraft, subm
 import type { Tone } from './core'
 import {
   ageOf, bandCounts, blocksTone, bodyBudget, capGroup, cellWidth, clipCells, DEFAULT_BODY_ROWS, doneItems, fit, kindTone, listGroups, oneLine, outcomeTone, parseAdd,
-  recommendedKey, recPointer, rowsFor, sanitize, stamp,
+  heightTier, recommendedKey, recPointer, rowsFor, sanitize, stamp,
 } from './core'
-import { clipRows, drawBody, drawOptions, toneProps } from './draw'
+import { clipRows, drawBody, optionRows, toneProps } from './draw'
 import type { Opt } from './draw'
-import { bodyBlocks } from './markup'
+import { bodyBlocks, itemTitle } from './markup'
 
 const BODY_COLUMNS_FULL = 60
 
@@ -253,16 +253,18 @@ function listScreen($: any, e: any, ui: any, snap: InboxSnapshot, error: any, T:
   )
 }
 
-// --- the item screen (IV-03) ------------------------------------------------------------------
-// One column in V-03 order. The top block (back, header, title, rec pointer) is first; the body is cut by rows
-// (T9 v3) so the options and controls follow it; Show all draws everything. Rows are estimated with `rowsFor`.
+// --- the item screen (IV-03, redesign 01) -----------------------------------------------------
+// Decision first (item.md): Back + header + hint on row 1, title, options, Note, Send, then Context folded with a
+// Details button. The Details page (`ui.detail`) is the reading page. Rows are estimated with `rowsFor`.
 
 const FLOOR_ANSWER = 3
+const FLOOR_FREE = 4
 const FLOOR_READ = 12
-const TITLE_ROWS = 3
-const HEADER_ROWS = 2
+const TITLE_ROWS = 2
 
 type Sized = { node: any; rows: number }
+type Seg = Sized & { tag?: 'note' | 'send' | 'ctx' }
+type Piece = { text: string; props: Record<string, unknown> }
 
 function itemNotice(ui: any, cols: number, T: any): Sized | null {
   const { Text } = T
@@ -279,33 +281,6 @@ function createdText(it: InboxItem, now: string, cols: number): string {
   if (age === 'now') return 'now'
   if (!age.endsWith('d')) return `${age} ago`
   return cols >= BODY_COLUMNS_FULL ? `${when(it.created, it.created_precision).slice(0, 10)} (${age} ago)` : `${age} ago`
-}
-
-function header(it: InboxItem, snap: InboxSnapshot, cols: number, expanded: boolean, T: any): Sized & { cut: boolean } {
-  const { Text } = T
-  const id = line(it.id)
-  const kind = line(it.kind)
-  const created = createdText(it, snap.now, cols)
-  const blocksFull = line(it.blocks) || 'nothing'
-  const plain = (b: string) => `${id} · ${kind} · blocks ${b} · created ${created}`
-  let blocks = blocksFull
-  if (!expanded && rowsFor(plain(blocks), cols) > HEADER_ROWS) {
-    let room = Math.max(1, HEADER_ROWS * cols - cellWidth(plain('')) - 2)
-    blocks = clipCells(blocksFull, room)
-    while (room > 1 && rowsFor(plain(blocks), cols) > HEADER_ROWS) blocks = clipCells(blocksFull, --room)
-  }
-  const bt = it.state === 'done' ? 'dim' : blocksTone(it.blocks)
-  const node = (
-    <Text key="header" wrap="wrap">
-      <Text dimColor>{id}</Text>
-      <Text dimColor>{' · '}</Text>
-      <Text {...toneProps(kindTone(it))}>{kind}</Text>
-      <Text dimColor>{' · '}</Text>
-      <Text {...toneProps(bt)}>{`blocks ${blocks}`}</Text>
-      <Text dimColor>{` · created ${created}`}</Text>
-    </Text>
-  )
-  return { node, rows: rowsFor(plain(blocks), cols), cut: blocks !== blocksFull }
 }
 
 function pointer(rec: string | null, opts: Opt[], key: string | null, cols: number, T: any): Sized | null {
@@ -349,68 +324,6 @@ function handledLines(it: InboxItem): { text: string; tone: string }[] {
   return out
 }
 
-// What is left of an open answer item after the body: options, the notice, the answer fields and Send.
-function answerForm($: any, it: any, ui: any, cols: number, opts: Opt[], rec: string | null, recKey: string | null, notice: Sized | null, T: any): { parts: any[]; rows: number } {
-  const { Box, Text, Button, Select, Input } = T
-  const id = it.id
-  const pending = ui.pending === id
-  const picked = ui.picked[id] ?? null
-  const parts: any[] = []
-  let rows = 0
-  const add = (node: any, n: number) => {
-    parts.push(node)
-    rows += n
-  }
-  const field = (key: string, label: string) => (
-    <Input
-      key={ui.rev ? `${key}-${ui.rev}` : key}
-      label={label}
-      value={ui.draft[id] ?? ''}
-      submitLabel="send"
-      onInput={(v: string) => setDraft($, id, v)}
-      onSubmit={(v: string) => {
-        submitAnswer($, id, v)
-      }}
-    />
-  )
-  if (opts.length > 0) {
-    add(<Text key="olabel" bold>Options</Text>, 1)
-    const blocks = drawOptions(opts, rec, recKey, picked, cols, T)
-    add(<Box key="opts" flexDirection="column">{blocks.nodes}</Box>, blocks.rows)
-  } else if (it.options_raw) {
-    add(<Text key="rawlabel" bold>Options, as the Manager wrote them</Text>, 1)
-    const raw = sanitize(it.options_raw)
-    add(<Text key="raw" wrap="wrap">{raw}</Text>, rowsFor(raw, cols))
-  }
-  if (rec !== null && recKey === null) {
-    add(
-      <Text key="mgr" wrap="wrap">
-        <Text color="success" bold>Manager recommends: </Text>
-        {rec}
-      </Text>,
-      rowsFor(`Manager recommends: ${rec}`, cols),
-    )
-  }
-  if (notice) add(notice.node, notice.rows)
-  if (opts.length > 0) {
-    add(
-      <Select
-        key="pick"
-        label="Your answer"
-        options={opts.map((o) => ({ value: o.key, label: clipCells(`(${o.key}) ${o.text}`, Math.max(8, cols - 18)) }))}
-        {...(picked ? { value: picked } : {})}
-        onSelect={(v: string) => pickOption($, id, v)}
-      />,
-      1,
-    )
-    add(field('note', 'Note (optional)'), 1)
-  } else {
-    add(field('reply', 'Your reply'), 1)
-  }
-  add(<Button key="send" label={pending ? 'Sending…' : 'Send answer'} onPress={() => submitAnswer($, id)} />, 1)
-  return { parts, rows }
-}
-
 // The state a handled item is opened for: its lines, the PO's answer as typed (never parsed), an unsent note.
 function handledBlock(it: InboxItem, ui: any, error: any, cols: number, T: any): { parts: any[]; rows: number } {
   const { Text } = T
@@ -446,88 +359,211 @@ function handledBlock(it: InboxItem, ui: any, error: any, cols: number, T: any):
   return { parts, rows }
 }
 
+// Row 1 of the item: the buttons, then the header and the hint. Drop order when it does not fit (item.md section 13):
+// the hint, the `blocks` text (clipped), the age, then the header moves to its own row.
+function topLayout(btnWidth: number, make: (blocks: string, age: string) => Piece[], blocksFull: string, age: string, hint: string | null, cols: number, canClip = true) {
+  const avail = Math.max(0, cols - btnWidth - 2)
+  const w = (p: Piece[]) => cellWidth(p.map((x) => x.text).join(''))
+  const full = make(blocksFull, age)
+  if (hint && w(full) + 2 + cellWidth(hint) <= avail) return { pieces: full, hint: true, extra: false, avail }
+  if (w(full) <= avail) return { pieces: full, hint: false, extra: false, avail }
+  for (const a of !canClip ? [] : age === '' ? [''] : [age, '']) {
+    for (let k = cellWidth(blocksFull) - 1; k >= 8; k--) {
+      const p = make(clipCells(blocksFull, k), a)
+      if (w(p) <= avail) return { pieces: p, hint: false, extra: false, avail }
+    }
+  }
+  return { pieces: full, hint: false, extra: true, avail }
+}
+
+const DOT: Piece = { text: ' · ', props: { dimColor: true } }
+
+function pieceNodes(ps: Piece[], Text: any): any[] {
+  return ps.map((p, i) => (
+    <Text key={`hp${i}`} {...p.props}>{p.text}</Text>
+  ))
+}
+
 function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem, error: any, T: any) {
-  const { Box, Text, Button } = T
+  const { Box, Text, Button, Input } = T
   const cols = e.props.bodyColumns
   const bodyRows = typeof e.props.scroll?.bodyRows === 'number' ? e.props.scroll.bodyRows : DEFAULT_BODY_ROWS
+  const tall = heightTier(bodyRows) === 'tall'
   const fromDone = ui.screen === 'doneItem'
   const back = fromDone ? 'done' : 'list'
   const open = it.state === 'open'
   const isForm = open && it.kind === 'answer'
-  const hot = isForm ? {} : { hotkey: 'b' }
-  const expanded = !!ui.expanded
+  const isRead = open && it.kind === 'read'
+  const detail = !!ui.detail
+  const id = it.id
+  const pending = ui.pending === id
   const rec = it.recommendation && line(it.recommendation) !== '' ? line(it.recommendation) : null
   const opts: Opt[] = (it.options ?? []).map((o: any) => ({ key: line(o.key), text: line(o.text) }))
   const recKey = recommendedKey(rec, opts)
   const notice = itemNotice(ui, cols, T)
+  const titleFull = itemTitle(it.body, it.title)
+  const blocks = bodyBlocks(it.body, it.title)
+  const hasBody = blocks.some((b) => b.type !== 'blank')
 
-  // the top block
-  const hd = header(it, snap, cols, expanded, T)
-  const titleFull = line(it.title)
-  const ptr = isForm ? pointer(rec, opts, recKey, cols, T) : null
-  // the top block (back, header, title, pointer) must fit the first viewport
-  const fitCap = Math.max(1, Math.min(TITLE_ROWS, bodyRows - 1 - hd.rows - (ptr ? ptr.rows : 0)))
-  const titleCap = notice && !isForm ? Math.min(2, fitCap) : fitCap
-  const title = expanded ? titleFull : clipRows(titleFull, cols, titleCap)
-  const topRows = 1 + (notice && !isForm ? notice.rows : 0) + hd.rows + rowsFor(title, cols) + (ptr ? ptr.rows : 0)
-  const topCut = title !== titleFull || hd.cut
+  // row 1: buttons
+  const markReadBtn = <Button key="mark-read" label="Mark read (m)" hotkey="m" onPress={() => markRead($, id)} />
+  const backLabel = detail ? (isForm ? '← Decide (b)' : '← Back (b)') : isForm ? '← Back' : '← Back (b)'
+  const backBtn = (
+    <Button
+      key="back"
+      label={backLabel}
+      {...(isForm && !detail ? {} : { hotkey: 'b' })}
+      onPress={() => (detail ? patchUi($, { detail: false }) : goTo($, back, null))}
+    />
+  )
+  const buttons = [backBtn, ...(isRead ? [markReadBtn] : [])]
+  const btnWidth = buttons.reduce((n, _b, i) => n + (i === 0 ? cellWidth(backLabel) : cellWidth('Mark read (m)')) + 4, 0) + (buttons.length - 1)
 
-  // the state lines of a handled item, and what follows the body
-  let after: any[] = []
-  let afterRows = 0
-  let state: any[] = []
-  let stateRows = 0
-  if (isForm) {
-    const f = answerForm($, it, ui, cols, opts, rec, recKey, notice, T)
-    after = f.parts
-    afterRows = f.rows
-  } else if (open) {
-    after = [<Button key="mark-read" hotkey="m" label="Mark read (m)" onPress={() => markRead($, it.id)} />]
-    afterRows = 1
-  } else {
-    const hb = handledBlock(it, ui, error, cols, T)
-    state = hb.parts
-    stateRows = hb.rows
-    if (opts.length > 0) {
-      const blocks = drawOptions(opts, rec, recKey, it.answer ? it.answer.option : null, cols, T)
-      after = [<Text key="olabel" bold>Options</Text>, <Box key="opts" flexDirection="column">{blocks.nodes}</Box>]
-      afterRows = 1 + blocks.rows
-      if (rec !== null && recKey === null) {
-        after.push(<Text key="mgr" wrap="wrap"><Text color="success" bold>Manager recommends: </Text>{rec}</Text>)
-        afterRows += rowsFor(`Manager recommends: ${rec}`, cols)
-      }
-    }
+  // row 1: header pieces
+  const age = ageOf(it.created, snap.now)
+  const blocksFull = line(it.blocks) || 'nothing'
+  const bt = it.state === 'done' ? 'dim' : blocksTone(it.blocks)
+  const make = (b: string, a: string): Piece[] => {
+    const ps: Piece[] = [{ text: line(it.id), props: { dimColor: true } }]
+    const kind = line(it.kind)
+    if (detail || kind !== 'answer') ps.push(DOT, { text: kind, props: toneProps(kindTone(it)) })
+    ps.push(DOT, { text: `blocks ${b}`, props: toneProps(bt) })
+    if (detail) ps.push(DOT, { text: `created ${createdText(it, snap.now, cols)}`, props: { dimColor: true } })
+    else if (a !== '') ps.push(DOT, { text: a, props: { dimColor: true } })
+    return ps
   }
+  const headAge = detail ? '' : age
+  const extra = topLayout(btnWidth, make, blocksFull, headAge, null, cols, !detail).extra
+  const row1Rows = 1 + (extra ? rowsFor(make(blocksFull, headAge).map((x) => x.text).join(''), cols) : 0)
 
-  const floor = it.kind === 'read' && open ? FLOOR_READ : FLOOR_ANSWER
-  const chrome = topRows + stateRows + afterRows
-  const bd = drawBody(bodyBlocks(it.body, it.title), cols, T, { expanded, fitRows: bodyRows - chrome, budget: bodyBudget(bodyRows, chrome + 1, floor) })
-  const showAll = (text: string, k = 'show-all') => (
-    <Box key={`more-${k}`}>
+  const segs: Seg[] = []
+  const add = (node: any, rows: number, tag?: Seg['tag']) => segs.push({ node, rows, ...(tag ? { tag } : {}) })
+  if (notice) add(notice.node, notice.rows)
+
+  // title
+  const titleShown = detail ? titleFull : clipRows(titleFull, cols, TITLE_ROWS)
+  const titleCut = titleShown !== titleFull
+  add(<Text key="title" bold wrap="wrap">{titleShown}</Text>, rowsFor(titleShown, cols))
+
+  const optionBlock = (picked: string | null, pick: ((k: string) => void) | null) => {
+    const d = optionRows(opts, rec, recKey, picked, cols, tall, pick, T)
+    add(<Box key="opts" flexDirection="column">{d.nodes}</Box>, d.rows)
+  }
+  const mgrRow = () => {
+    if (rec === null || recKey !== null) return
+    const prefix = '✓ Manager recommends: '
+    const full = `${prefix}${rec}`
+    const text = tall ? full : clipRows(full, cols, 1)
+    add(
+      <Text key="mgr" wrap="wrap">
+        <Text color="success" bold>{text.startsWith(prefix) ? prefix : ''}</Text>
+        {text.startsWith(prefix) ? text.slice(prefix.length) : text}
+      </Text>,
+      rowsFor(text, cols),
+    )
+  }
+  const field = (key: string, label: string) => (
+    <Input
+      key={ui.rev ? `${key}-${ui.rev}` : key}
+      label={label}
+      value={ui.draft[id] ?? ''}
+      submitLabel="send"
+      onInput={(v: string) => setDraft($, id, v)}
+      onSubmit={(v: string) => {
+        submitAnswer($, id, v)
+      }}
+    />
+  )
+
+  let floor = FLOOR_ANSWER
+  let plan: { expanded: boolean; fitRows: number; budget: number; tall: boolean } | null = null
+  const markEnd = <Button key="mark-read-end" label="Mark read" onPress={() => markRead($, id)} />
+  if (detail) {
+    if (isForm) {
+      const ptr = pointer(rec, opts, recKey, cols, T)
+      if (ptr) add(ptr.node, ptr.rows)
+      add(<Text key="gap">{' '}</Text>, 1)
+    }
+  } else if (isForm) {
+    if (opts.length > 0) {
+      optionBlock(ui.picked[id] ?? null, (k) => (pending ? undefined : void pickOption($, id, k)))
+    } else if (it.options_raw) {
+      add(<Text key="rawlabel" bold>Options, as the Manager wrote them</Text>, 1)
+      const raw0 = sanitize(it.options_raw)
+      const raw = tall ? raw0 : clipRows(raw0, cols, 3)
+      add(<Text key="raw" wrap="wrap">{raw}</Text>, rowsFor(raw, cols))
+    }
+    mgrRow()
+    add(field(opts.length > 0 ? 'note' : 'reply', opts.length > 0 ? 'Note (optional)' : 'Your reply'), 1, 'note')
+    add(<Button key="send" label={pending ? 'Sending…' : 'Send answer'} onPress={() => submitAnswer($, id)} />, 1, 'send')
+    if (opts.length === 0) floor = FLOOR_FREE
+  } else if (!isRead) {
+    const hb = handledBlock(it, ui, error, cols, T)
+    add(<Box key="state" flexDirection="column">{hb.parts}</Box>, hb.rows)
+    if (opts.length > 0) optionBlock(it.answer ? it.answer.option : null, null)
+    mgrRow()
+  }
+  const before = () => row1Rows + segs.reduce((n, x) => n + x.rows, 0)
+
+  // the body
+  const ctxLabel = hasBody && !isRead
+  if (ctxLabel) add(<Text key="ctx" bold>Context</Text>, 1, 'ctx')
+  const chrome = before()
+  if (detail) plan = { expanded: true, fitRows: 0, budget: 0, tall }
+  else if (isRead) plan = tall ? { expanded: true, fitRows: 0, budget: 0, tall } : { expanded: false, fitRows: bodyRows - chrome, budget: bodyBudget(bodyRows, chrome + 1, FLOOR_READ), tall }
+  else plan = { expanded: false, fitRows: bodyRows - chrome, budget: bodyBudget(bodyRows, chrome + 1, floor), tall }
+  const bd = drawBody(blocks, cols, T, plan)
+  let bodyNode: any = null
+  if (bd.nodes.length > 0) {
+    bodyNode = <Box key="body" flexDirection="column">{bd.nodes}</Box>
+    add(bodyNode, bd.rows)
+  }
+  const detailsRow = (text: string) => (
+    <Box key="more">
       <Box marginRight={1}><Text dimColor>{text}</Text></Box>
-      <Button key={k} label="Show all" onPress={() => patchUi($, { expanded: true })} />
+      <Button key="details" label="Details" onPress={() => patchUi($, { detail: true })} />
     </Box>
   )
-  const bodyMore = bd.cut ? showAll(`… ${bd.hidden} more lines`) : null
-  const topMore = !expanded && topCut ? showAll(`… full ${title !== titleFull ? (hd.cut ? 'header and title' : 'title') : 'header'}`, bodyMore ? 'show-title' : 'show-all') : null
-  const total = chrome + bd.rows + (bodyMore ? 1 : 0) + (topMore ? 1 : 0)
-  const hint = total > bodyRows ? <Text key="hint" dimColor>{'  ↓ more below'}</Text> : null
+  if (!detail && bd.cut) add(detailsRow(`… ${bd.hiddenRows} more rows`), 1)
+  else if (!detail && titleCut) add(detailsRow('… full title'), 1)
+  if (isRead) add(markEnd, 1)
+  if (detail) add(<Button key="back-end" label={backLabel} hotkey="b" onPress={() => patchUi($, { detail: false })} />, 1)
+
+  // the hint: what lies outside the first viewport
+  let at = row1Rows
+  let noteBelow = false
+  let sendBelow = false
+  let ctxBelow = false
+  for (const x of segs) {
+    at += x.rows
+    if (at > bodyRows) {
+      if (x.tag === 'note') noteBelow = true
+      if (x.tag === 'send') sendBelow = true
+      if (x.tag === 'ctx') ctxBelow = true
+    }
+  }
+  const total = at
+  const hintText = noteBelow && sendBelow ? '↓ note, send' : sendBelow ? '↓ send' : ctxBelow ? '↓ context' : total > bodyRows ? '↓ more below' : null
+  const lay = topLayout(btnWidth, make, blocksFull, headAge, hintText, cols, !detail)
+  const headW = lay.extra ? 0 : cellWidth(lay.pieces.map((x) => x.text).join(''))
+  const showHint = !!hintText && (lay.hint || (lay.extra && cellWidth(hintText) + 2 <= lay.avail + 2))
+  const gap = showHint && hintText ? Math.max(2, lay.avail + 2 - headW - cellWidth(hintText)) : 0
 
   return (
     <Box flexDirection="column">
       <Box key="top">
-        <Button key="back" label={isForm ? '← Back' : '← Back (b)'} {...hot} onPress={() => goTo($, back, null)} />
-        {hint}
+        {buttons.flatMap((b, i) => (i === 0 ? [b] : [<Text key={`sp${i}`}>{' '}</Text>, b]))}
+        {lay.extra ? null : (
+          <Text key="head" wrap="wrap">
+            {'  '}
+            {pieceNodes(lay.pieces, Text)}
+            {showHint && hintText ? <Text dimColor>{`${' '.repeat(gap)}${hintText}`}</Text> : null}
+          </Text>
+        )}
+        {lay.extra && showHint && hintText ? <Text key="hint" dimColor>{`  ${hintText}`}</Text> : null}
       </Box>
-      {notice && !isForm ? notice.node : null}
-      {hd.node}
-      <Text key="title" bold wrap="wrap">{title}</Text>
-      {ptr ? ptr.node : null}
-      {state}
-      {topMore}
-      {bd.nodes.length > 0 ? <Box key="body" flexDirection="column">{bd.nodes}</Box> : null}
-      {bodyMore}
-      {after}
+      {lay.extra ? <Text key="head2" wrap="wrap">{pieceNodes(lay.pieces, Text)}</Text> : null}
+      {segs.map((x) => x.node)}
     </Box>
   )
 }

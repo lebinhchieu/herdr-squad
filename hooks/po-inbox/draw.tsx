@@ -1,7 +1,7 @@
 // Drawing of the item screen's structured parts (IV-03): body blocks, inline spans, tables, option blocks.
 // Pure functions of props, no `$`. Colour is a theme key from TONE or weight only (V-15, V-18). Every function that
 // draws rows also says how many rows it drew, by the same `rowsFor` the screen uses for its cut (T9 v3).
-import { cellWidth, rowsFor, tableLayout, TONE } from './core'
+import { cellWidth, clipCells, rowsFor, tableLayout, TONE } from './core'
 import type { Block, Span } from './markup'
 
 type T = { Box: any; Text: any; Button: any }
@@ -53,8 +53,8 @@ export const toneProps = (t: string): Record<string, unknown> =>
 const spansText = (spans: Span[]): string =>
   spans.reduce((acc, s, i) => acc + (i > 0 && (s.kind !== 'text' || spans[i - 1].kind !== 'text') ? ' ' : '') + s.text, '')
 
-// What a span list draws as plain text: a code chip carries one space of padding each side.
-const drawnText = (spans: Span[]): string => spans.map((s) => (s.kind === 'code' ? ` ${s.text} ` : s.text)).join('')
+// What a span list draws as plain text: a code chip is its text, no padding (the plain spaces of the sentence stay).
+const drawnText = (spans: Span[]): string => spans.map((s) => s.text).join('')
 
 export function drawSpans(spans: Span[], T: T, base = ''): any[] {
   const { Text } = T
@@ -62,7 +62,7 @@ export function drawSpans(spans: Span[], T: T, base = ''): any[] {
     s.kind === 'bold' ? (
       <Text key={`${base}s${i}`} bold>{s.text}</Text>
     ) : s.kind === 'code' ? (
-      <Text key={`${base}s${i}`} inverse>{` ${s.text} `}</Text>
+      <Text key={`${base}s${i}`} inverse>{s.text}</Text>
     ) : (
       s.text
     ),
@@ -203,14 +203,20 @@ function squeeze(blocks: Block[]): Block[] {
   return out
 }
 
-export type BodyPlan = { expanded: boolean; fitRows: number; budget: number }
-export type DrawnBody = { nodes: any[]; rows: number; cut: boolean; hidden: number }
+// `tall`: a blank row above every heading that is not the first block (P8).
+export type BodyPlan = { expanded: boolean; fitRows: number; budget: number; tall?: boolean }
+export type DrawnBody = { nodes: any[]; rows: number; cut: boolean; hidden: number; hiddenRows: number }
 
 // T9 v3: everything when `expanded` or when it fits `fitRows`; else whole blocks while they fit `budget`, the first
 // block clipped when it alone is taller. `hidden` counts source lines not drawn (a clipped block counts as left).
 export function drawBody(all: Block[], cols: number, T: T, plan: BodyPlan): DrawnBody {
-  const blocks = squeeze(all)
-  if (blocks.length === 0) return { nodes: [], rows: 0, cut: false, hidden: 0 }
+  const squeezed = squeeze(all)
+  const blocks: Block[] = []
+  squeezed.forEach((b, i) => {
+    if (plan.tall && b.type === 'heading' && i > 0 && blocks[blocks.length - 1].type !== 'blank') blocks.push({ type: 'blank' })
+    blocks.push(b)
+  })
+  if (blocks.length === 0) return { nodes: [], rows: 0, cut: false, hidden: 0, hiddenRows: 0 }
   const drawn: Drawn[] = []
   let total = 0
   const stopAt = plan.expanded ? Infinity : Math.max(plan.fitRows, plan.budget)
@@ -220,7 +226,7 @@ export function drawBody(all: Block[], cols: number, T: T, plan: BodyPlan): Draw
     drawn.push(d)
     total += d.rows
   }
-  if (i === blocks.length && (plan.expanded || total <= plan.fitRows)) return { nodes: drawn.map((d) => d.node), rows: total, cut: false, hidden: 0 }
+  if (i === blocks.length && (plan.expanded || total <= plan.fitRows)) return { nodes: drawn.map((d) => d.node), rows: total, cut: false, hidden: 0, hiddenRows: 0 }
   const nodes: any[] = []
   let used = 0
   let k = 0
@@ -252,42 +258,84 @@ export function drawBody(all: Block[], cols: number, T: T, plan: BodyPlan): Draw
   let hidden = 0
   for (let j = clipped ? 0 : k; j < blocks.length; j++) hidden += sourceLines(blocks[j])
   if (clipped) hidden -= sourceLines(blocks[0]) - 1 // the clipped block counts as one line left
-  return { nodes, rows: used, cut: hidden > 0, hidden }
+  let allRows = 0
+  blocks.forEach((b, j) => {
+    allRows += drawn[j] ? drawn[j].rows : drawBlock(b, cols, T, `x${j}`).rows
+  })
+  return { nodes, rows: used, cut: hidden > 0, hidden, hiddenRows: Math.max(hidden > 0 ? 1 : 0, allRows - used) }
 }
 
 export type Opt = { key: string; text: string }
 
-// Option blocks, no borders: `▸ (a) text` on the pick, a hanging indent, the marked option's full recommendation
-// under its text (V-12). Returns the blocks and the rows they take. Texts arrive sanitised.
-export function drawOptions(options: Opt[], rec: string | null, recKey: string | null, picked: string | null, cols: number, T: T): { nodes: any[]; rows: number } {
-  const { Text } = T
+const REC_TAG = '✓ rec'
+
+// Option rows (item.md section 3). `pick` makes each a pickable `<Button plain>` (`○`/`●`); without it they are text rows
+// (a handled item). Short tier: one row, the recommended option ends in `✓ rec`. Tall tier: up to 2 rows, and the full
+// recommendation under the marked option. Returns the nodes and the rows they take. Texts arrive sanitised.
+export function optionRows(
+  options: Opt[], rec: string | null, recKey: string | null, picked: string | null, cols: number, tall: boolean,
+  pick: ((key: string) => void) | null, T: T,
+): { nodes: any[]; rows: number } {
+  const { Box, Text, Button } = T
   const nodes: any[] = []
   let rows = 0
   for (const o of options) {
-    const isPick = picked === o.key
+    const mark = `${picked === o.key ? '●' : '○'} (${o.key}) `
     const isRec = recKey === o.key && rec !== null
-    const keyText = `(${o.key})`
-    const pw = 2 + cellWidth(keyText) + 1
-    const width = Math.max(1, cols - pw)
-    const text = `${o.text}${isPick ? ' ← your pick' : ''}`
-    nodes.push(
-      hanging(
-        `o${o.key}`,
-        <Text key="k"><Text bold>{isPick ? '▸ ' : '  '}</Text><Text bold>{keyText}</Text>{' '}</Text>,
-        pw,
-        [
-          <Text key="t" wrap="wrap">{o.text}{isPick ? <Text bold>{' ← your pick'}</Text> : null}</Text>,
-          isRec ? (
-            <Text key="r" wrap="wrap">
-              <Text color={TONE.good} bold>✓ recommended: </Text>
-              {rec}
-            </Text>
-          ) : null,
-        ],
-        T,
-      ),
+    const pw = cellWidth(mark)
+    const tag = !tall && isRec
+    const width = Math.max(1, cols - pw - (tag ? cellWidth(REC_TAG) + 1 : 0))
+    const lines = wrapCells2(o.text, width, tall ? 2 : 1)
+    const indent = ' '.repeat(pw)
+    const text = lines.map((l, i) => (i === 0 ? l : `${indent}${l}`)).join('\n')
+    const tagNode = tag ? <Text key="tag" color={TONE.good}>{`${' '.repeat(Math.max(1, width - cellWidth(lines[0]) + 1))}${REC_TAG}`}</Text> : null
+    const children = [<Text key="m" bold={picked === o.key}>{mark}</Text>, <Text key="t">{text}</Text>, tagNode]
+    const row = pick ? (
+      <Button key={`opt-${o.key}`} plain onPress={() => pick(o.key)}>{children}</Button>
+    ) : (
+      <Text key={`opt-${o.key}`}>{children}</Text>
     )
-    rows += rowsFor(text, width) + (isRec ? rowsFor(`✓ recommended: ${rec}`, width) : 0)
+    nodes.push(row)
+    rows += lines.length
+    if (tall && isRec) {
+      const reason = `✓ recommended: ${rec}`
+      nodes.push(
+        <Text key={`r${o.key}`} wrap="wrap">
+          {indent}
+          <Text color={TONE.good} bold>✓ recommended: </Text>
+          {rec}
+        </Text>,
+      )
+      rows += rowsFor(`${indent}${reason}`, cols)
+    }
   }
-  return { nodes, rows }
+  return { nodes: [<Box key="opts" flexDirection="column">{nodes}</Box>], rows }
 }
+
+// Wraps by words to `width` cells, at most `maxRows` rows; the last row ends with `…` when text is cut.
+function wrapCells2(text: string, width: number, maxRows: number): string[] {
+  if (maxRows <= 1) return [clipLine(text, width)]
+  const rows: string[] = []
+  let rest = text
+  while (rows.length < maxRows - 1 && cellWidth(rest) > width) {
+    let cut = ''
+    let used = 0
+    let lastSpace = -1
+    const chars = Array.from(rest)
+    let n = 0
+    for (; n < chars.length; n++) {
+      const w = cellWidth(chars[n])
+      if (used + w > width) break
+      used += w
+      cut += chars[n]
+      if (chars[n] === ' ') lastSpace = n
+    }
+    const at = lastSpace > 0 ? lastSpace : n
+    rows.push(chars.slice(0, at).join('').trimEnd())
+    rest = chars.slice(at).join('').trimStart()
+  }
+  rows.push(clipLine(rest, width))
+  return rows
+}
+
+const clipLine = (t: string, width: number): string => clipCells(t, width)

@@ -350,3 +350,27 @@ describe('[rec] indent (QAB F2): counted and clipped with the indent', () => {
     expect(d.nodes[0].children[0]).toBe('\u00a0\u00a0\u00a0\u00a0✓ recommended a…')
   })
 })
+
+describe('chips and headings (item.md section 5)', () => {
+  const T = { Box: 'Box', Text: 'Text', Button: 'Button' }
+  const plan = { expanded: false, fitRows: 50, budget: 50 }
+  test('a code chip is exactly its text, no padding', () => {
+    const d = drawBody(parseBody('merge `squad/x` into'), 80, T, plan)
+    expect(JSON.stringify(d.nodes)).toContain('"squad/x"')
+    expect(JSON.stringify(d.nodes)).not.toContain('" squad/x "')
+  })
+  test('a blank row above a heading in the tall tier only, never above the first block, counted in rows', () => {
+    const body = parseBody('# One\na\n## Two\nb')
+    const short = drawBody(body, 80, T, plan)
+    const tall = drawBody(body, 80, T, { ...plan, tall: true })
+    expect(short.rows).toBe(4)
+    expect(tall.rows).toBe(5)
+    expect(tall.nodes).toHaveLength(5)
+  })
+  test('hiddenRows counts the rows left, blank heading rows included', () => {
+    const body = parseBody('# One\na\n## Two\nb\n## Three\nc')
+    const d = drawBody(body, 80, T, { expanded: false, fitRows: 0, budget: 2, tall: true })
+    expect(d.cut).toBe(true)
+    expect(d.rows + d.hiddenRows).toBe(drawBody(body, 80, T, { expanded: true, fitRows: 0, budget: 0, tall: true }).rows)
+  })
+})
