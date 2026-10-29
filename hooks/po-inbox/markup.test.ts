@@ -569,3 +569,13 @@ describe('the example bodies of the design (section 6)', () => {
     expect(kinds('guideE1').filter((k) => k === 'link')).toHaveLength(1)
   })
 })
+
+describe('the writing guide (docs/inbox-body-guide.md) names only forms the parser knows', () => {
+  test('the example diagram is a diagram fence; the three callouts, four badges and a link parse', () => {
+    const code = parseBody(VISUAL.guideE1).find((b) => b.type === 'code') as Extract<Block, { type: 'code' }>
+    expect(code.lang).toMatch(/^diagram /)
+    for (const t of ['decision', 'warning', 'info']) expect(first(`[${t}] x`)).toMatchObject({ type: 'callout', tone: t })
+    for (const t of ['ok', 'fail', 'warn', 'skip']) expect(spansOf(first(`a [${t}] b`)).map((s) => s.kind)).toContain('badge')
+    expect(spansOf(first('[a](https://x.io)')).map((s) => s.kind)).toContain('link')
+  })
+})
