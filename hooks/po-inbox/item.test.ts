@@ -970,6 +970,62 @@ test('body fold: a pane tall enough shows the whole body, no Details, no hint', 
   expect(inOrder(text, VISUAL.e1.split('<br>').slice(1).join('\n'))).toBe(true)
 })
 
+// --- body styles (body-styles.md): the Manager's two example bodies, through the real pane -------------------------
+
+const GUIDE_E1 = item({
+  id: 'G1', title: 'Which branch merges first: BRD-01 for BRD-02..06?', body: VISUAL.guideE1,
+  options: H_OPTS, recommendation: '(a), one merge unblocks 5 tickets', created: '2026-10-15T07:00:00',
+})
+const GUIDE_R1 = item({ id: 'G2', kind: 'read', title: 'Iteration 1 passed: all 3 tasks', body: VISUAL.guideR1, blocks: '', created: '2026-10-15T11:23:00' })
+
+test('body styles: E1 and R1 on Details draw their forms, chips and all words, at every size', async ($, on) => {
+  for (const it of [GUIDE_E1, GUIDE_R1]) {
+    for (const [cols, rows] of [[80, ROWS_24], [80, ROWS_40], [60, ROWS_24], [47, ROWS_24], [47, ROWS_40], [40, ROWS_40]]) {
+      const { ui } = await open($, on, [it], it.id, cols, rows)
+      await showAll(ui)
+      const tree = await ui.drawn()
+      const text = textOf(tree)
+      // the word `diagram` after the fence is the label that makes it a diagram: chrome, not drawn
+      const src = VISUAL[it === GUIDE_E1 ? 'guideE1' : 'guideR1'].replace('```diagram', '```')
+      // E1's options table is 59 cells wide: under 60 columns it stacks as `column: value` records, so only the order of the rest holds
+      const seen = new Set(words(text))
+      if (it === GUIDE_E1 && cols < 60) for (const w of words(src)) expect(seen.has(w), `${cols}: ${w}`).toBe(true)
+      else expect(inOrder(text, src), `${it.id} ${cols}x${rows}`).toBe(true)
+      expect(text).toContain(it === GUIDE_E1 ? '\u00a0◆\u00a0decision\u00a0' : '\u00a0›\u00a0info\u00a0')
+      expect(styleOf(tree, it === GUIDE_E1 ? '◆' : '›')).toEqual(it === GUIDE_E1 ? { inverse: true, bold: true, color: 'permission' } : { inverse: true, bold: true, color: 'inactive' })
+      expect(text).toContain('<https://github.com/acme/squad/pull/')
+      expect(text).not.toContain('](')
+      const colours = new Set<string>()
+      walk(tree, (n) => {
+        for (const k of ['color', 'backgroundColor', 'borderColor']) if (n.props?.[k] !== undefined) colours.add(`${k}:${n.props[k]}`)
+      })
+      for (const c of colours) expect(['color:success', 'color:error', 'color:warning', 'color:permission', 'color:inactive'], c).toContain(c)
+      await ui.unmount()
+    }
+  }
+})
+
+test('body styles: a table keeps its columns and its chip colours in a docked pane (47 columns)', async ($, on) => {
+  const { ui } = await open($, on, [GUIDE_R1], 'G2', 47, ROWS_40)
+  await showAll(ui)
+  const tree = await ui.drawn()
+  const r = rowsOf(tree)
+  // the chips are 6 and 8 cells wide, so the columns widen to hold them
+  expect(r).toContain('Task              WB      BB')
+  expect(r).toContain(`03 body styles    ${'\u00a0✓\u00a0ok\u00a0'}  ${'\u00a0⚠\u00a0warn\u00a0'}`)
+  expect(styleOf(tree, '⚠')).toEqual({ inverse: true, bold: true, color: 'warning' })
+  await ui.unmount()
+})
+
+test('body styles: a docked callout wraps to 2 rows; the reference wrap agrees with the count', async ($, on) => {
+  const { ui } = await open($, on, [GUIDE_E1], 'G1', 47, ROWS_40)
+  await showAll(ui)
+  const row = rowsOf(await ui.drawn()).find((l) => l.includes('warning')) as string
+  expect(row.startsWith('\u00a0⚠\u00a0warning\u00a0 Option (b)')).toBe(true)
+  expect(refRows(row, 47)).toBe(2)
+  await ui.unmount()
+})
+
 test('body of 40 lines: Note and Send come before Context; Details holds every line', async ($, on) => {
   const { ui } = await open($, on, [item({ id: 'E3', body: VISUAL.forty, options: H_OPTS })], 'E3', 80, ROWS_24)
   const r = rowsOf(await ui.drawn())
