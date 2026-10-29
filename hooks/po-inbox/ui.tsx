@@ -547,7 +547,7 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   const lay = topLayout(btnWidth, make, blocksFull, headAge, hintText, cols, !detail)
   const headW = lay.extra ? 0 : cellWidth(lay.pieces.map((x) => x.text).join(''))
   const showHint = !!hintText && (lay.hint || (lay.extra && cellWidth(hintText) + 2 <= lay.avail + 2))
-  const gap = showHint && hintText ? Math.max(2, lay.avail + 2 - headW - cellWidth(hintText)) : 0
+  const gap = showHint && hintText ? Math.max(2, lay.avail - headW - cellWidth(hintText) - 1) : 0
 
   return (
     <Box flexDirection="column">
