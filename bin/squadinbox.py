@@ -799,7 +799,19 @@ def decode_utf8(data, what):
         raise Refused("%s is not valid UTF-8" % what)
 
 
+def cmd_guide():
+    """Print the absolute path of docs/inbox-body-guide.md, found from this file's real path (bin/..)."""
+    root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    path = os.path.join(root, "docs", "inbox-body-guide.md")
+    if not os.path.isfile(path):
+        raise Refused("the inbox body guide is missing: %s" % path, 1)
+    print(path)
+    return 0
+
+
 def run(args):
+    if args.cmd == "guide":
+        return cmd_guide()
     check_utf8(args)
     home = home_of(args)
     return {"add": cmd_add, "list": cmd_list, "read": cmd_read, "answer": cmd_answer, "withdraw": cmd_withdraw,
