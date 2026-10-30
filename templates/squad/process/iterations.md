@@ -35,6 +35,7 @@ roles: manager
 topic: iterations
 
 - Anything the PO must read or answer goes in the inbox, never in chat: `squad-inbox add --kind answer|read --title "<title>" [--options "(a) text; (b) text"] [--rec "<recommendation>"] [--blocks "<what it blocks>"]`.
+- Before your first `squad-inbox add` in a session, read the file `squad-inbox guide` prints.
 - The body goes in a quoted heredoc, `squad-inbox add ... <<'EOF' … EOF`; no pipe and no unquoted heredoc (the body would show in chat).
 - One `squad-inbox add` per Bash call, never two. After an add, also after a failed one (fix and retry), your reply is the printed line and nothing else: no body, options or recommendation.
 - A question that blocks nothing takes `--blocks ""` and waits for the check-in.

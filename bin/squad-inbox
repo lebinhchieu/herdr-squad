@@ -7,6 +7,7 @@
   squad-inbox answer E<n> [--option K] [--note N | --text T | stdin] --source pane|chat
   squad-inbox withdraw E<n>|R<n> --reason R
   squad-inbox delivered E<n> --session S
+  squad-inbox guide    (prints the path of docs/inbox-body-guide.md; needs no home)
 
 The home is --home D, else $SCOPE_DIR, else $GOAL_DIR. Exit 0 ok, 2 refused (bad input, wrong role), 3 already handled.
 """
@@ -51,6 +52,7 @@ def main(argv=None):
     d = sub.add_parser("delivered")
     d.add_argument("id")
     d.add_argument("--session", required=True)
+    sub.add_parser("guide")
     args = p.parse_args(argv)
     try:
         return si.run(args)
