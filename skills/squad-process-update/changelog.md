@@ -6,6 +6,7 @@ added:
 none
 
 changed:
+- ITER-4: new bullet: before the first `squad-inbox add` in a session, read the file `squad-inbox guide` prints. why: the Manager card no longer carries the inbox body guide pointer
 - SAFE-11: scratch dirs: `mktemp -d`, one literal path per `rm`, none of `$`, backtick or `..`; an `rm /tmp/tmp.X` with a 2nd path, `$`, backtick or `..` after the prefix hits the settings ask globs and prompts the PO. why: scratch cleanup must not prompt the PO
 
 removed:
