@@ -1,1 +1,0 @@
-{"callers": ["src/client.py", "src/jobs.py"], "timeout_s": 45}

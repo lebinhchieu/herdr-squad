@@ -4,3 +4,4 @@ tests/__pycache__
 .playwright
 .playwright-cli
 __pycache__/
+.claude/squad-backups

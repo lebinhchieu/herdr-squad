@@ -1,1 +1,0 @@
-- final: code f041603 (SUITE-2f, COST-4c added); lint 0; targeted tests OK (TL 2026-10-27)

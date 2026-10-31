@@ -1,7 +1,0 @@
-fixture session-fixture.jsonl: lines=6 ids=4 (synthetic included)
-expected {'messages': 3, 'in': 17, 'cr': 600, 'cw5': 150, 'cw1': 200, 'out': 150, 'sub': 1}
-got      {'messages': 3, 'in': 17, 'cr': 600, 'cw5': 150, 'cw1': 200, 'out': 150, 'sub': 1}
-msg_A: lines=3 max out=90 naive out=140 (3 lines: 10+40+90)
-price check sonnet-5-5 1M of each type = $18.60 (expect $18.60): ok
-unpriced model returns None: ok
-SELFTEST PASS

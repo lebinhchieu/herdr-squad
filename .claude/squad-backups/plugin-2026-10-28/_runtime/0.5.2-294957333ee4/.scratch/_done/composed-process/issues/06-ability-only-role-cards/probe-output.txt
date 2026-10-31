@@ -1,9 +1,0 @@
-manager: A=YES B=NO cost 0.0043676
-ba: A=YES B=NO cost 0.00146002
-team-lead: A=YES B=NO cost 0.0020734200000000003
-tech-lead: A=YES B=NO cost 0.0028003200000000002
-qa-whitebox: A=YES B=NO cost 0.0014486200000000003
-qa-blackbox: A=YES B=NO cost 0.00140842
-designer: A=YES B=NO cost 0.00128362
-dev: A=YES B=NO cost 0.00158832
-token-coach: A=YES B=NO cost 0.0008704200000000001

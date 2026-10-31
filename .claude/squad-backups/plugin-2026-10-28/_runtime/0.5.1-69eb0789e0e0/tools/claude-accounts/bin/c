@@ -1,2 +1,0 @@
-#!/usr/bin/env bash
-. "$HOME/.claude-accounts/lib.sh"; run_claude "$(default_account)" "$@"
