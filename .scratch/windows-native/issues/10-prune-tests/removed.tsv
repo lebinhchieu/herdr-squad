@@ -1,0 +1,63 @@
+test_dev_rules_size::test_msg3_says_never_paste_at_every_size	b-2	12-combo loop of one wording check on MSG-3	test_must_keep_duties_by_rule_id (MSG-3 `NN` alone, 3 combos)
+test_dev_rules_size::test_developer_file_cites_evid5_wherever_it_applies	b-2	up to 512 composes for one cite; same path at every team	test_moved_rules_are_cited_from_the_rule_that_keeps_them (LC-19 cites [EVID-5])
+test_architect_handoff::test_default_model_is_sonnet_high_with_the_advisor	b-3	asserts three constants of a settings file	none needed (no behaviour)
+test_architect_handoff::test_the_architect_proposes_irreversible_choices_and_the_po_decides	b-5	exact rule wording	test_the_architect_carries_its_deliverable_and_start_rules_at_every_size (rule ids reach the role)
+test_architect_handoff::test_nothing_in_the_architects_rules_lets_it_check_code	b-5	one phrase of wording	test_card_is_an_architect_card_without_model_or_effort (card has "check no built code")
+test_architect_handoff::test_the_team_follows_or_asks_the_architect_and_the_manager_decides_after_two_rounds	b-5	rule-id presence plus exact sentence	test_the_manager_carries_flag_spawn_name_lifetime_gate_and_owner_rules (MSG-20 for manager)
+test_designer_handoff::test_readme_counts_nine_roles_and_names_the_designer	b-3	README sentence	none (doc text)
+test_advisor_rules::test_triggers_and_note	b-5	exact wording of LC-25/LC-26	test_who_shows_acting_roles (LC-25/26 reach their roles)
+test_advisor_rules::test_step_up_replaced	b-4	asserts absence of an old COST-11 phrase	none (removed behaviour)
+test_advisor_rules::test_lint_passes	b-1	same `squad-process lint` run as processlint	test_process_citations (lint on the repo)
+test_instructions::test_manager_and_dev_know_the_label_rule	b-5	exact rule words (--title, squad-label)	test_every_command_an_instruction_tells_agents_to_run_exists
+test_instructions::test_project_instructions_row_names_the_team_file	b-3	one doc row contains a file name	none (doc text)
+test_instructions::test_init_ignores_the_message_logs_when_everything_is_committed	b-3	one skill-text token	none (doc text)
+test_instructions::test_the_architect_starts_by_reading_its_scope_folder	b-1	same asserts as test_every_scope_role_starts_by_reading_its_scope_folder for one more role	test_every_scope_role_starts_by_reading_its_scope_folder; test_architect_handoff
+test_instructions::test_review_finding_4_text_is_gone	b-4	asserts three old phrases are absent	test_no_file_refers_to_something_that_was_removed
+test_instructions::test_no_role_file_still_says_dev_evidence	b-4	absence of one old word	test_no_file_refers_to_something_that_was_removed
+test_instructions::test_no_role_is_described_as_living_beyond_its_scope	b-4	absence of old phrases	test_no_file_refers_to_something_that_was_removed
+test_instructions::test_no_role_still_writes_its_notes_to_a_squad_level_roles_folder	b-4	absence of an old path	test_no_file_refers_to_something_that_was_removed ($SQUAD_DIR/roles is in STALE)
+test_instructions::test_the_manager_names_each_inbox_command_and_flag	b-5	token list of manager inbox wording	test_manager_inbox_read tests; test_every_squad_inbox_word_is_a_cli_command
+test_instructions::test_the_add_bullet_says_the_body_comes_from_a_quoted_heredoc	b-5	one exact sentence	test_manager_inbox_read::test_existing_rules_of_the_bullet_stay
+test_instructions::test_the_inbox_bullets_carry_the_three_live_wording_rules	b-1	same sentences are asserted in test_manager_inbox_read	test_manager_inbox_read::test_existing_rules_of_the_bullet_stay
+test_instructions::test_an_inbox_answer_is_never_a_merge_push_or_deploy_request	b-1	same sentences as test_manager_inbox_read	test_manager_inbox_read::test_carries_only_existing_sentences_stay
+test_instructions::test_qas_write_findings_to_scope_evidence_and_embed_screenshots	b-5	two exact tokens	none (wording)
+test_instructions::test_manager_and_team_lead_link_each_tickets_evidence_md	b-3	one token in a composed file	none (wording)
+test_instructions::test_dev_copies_reports_to_evidence_and_sends_a_diff_check_after_a_pass	b-5	exact rule wording	test_dev_rules_size::test_must_keep_duties_by_rule_id (REV-14a)
+test_manager_inbox_read::test_a_note_is_never_a_hand_written_row	b-5	exact sentence	test_a_note_with_nothing_to_decide_goes_through_kind_read
+test_manager_inbox_read::test_the_hand_written_row_licence_is_gone	b-4	absence of an old phrase	none (removed behaviour)
+test_manager_inbox_read::test_checkin_lists_each_step_the_po_must_take	b-5	exact sentence	test_checkin_is_one_inbox_item
+test_manager_inbox_read::test_checkin_is_not_a_chat_report	b-5	counts the word report in a rule	test_checkin_is_one_inbox_item
+test_manager_inbox_read::test_carries_only_allows_the_merge_words_in_the_checkin	b-5	one phrase	test_carries_only_existing_sentences_stay
+test_manager_inbox_read::test_a_chat_reply_never_lists_steps_for_the_po	b-5	one phrase	test_checkin_is_one_inbox_item
+test_manager_inbox_read::test_inbox_and_answer_bullets_keep_their_wording_rules	b-1	same asserts as test_existing_rules_of_the_bullet_stay	test_existing_rules_of_the_bullet_stay
+test_manager_m_l::test_s_keeps_the_pod_health_checks	b-5	token list of rule wording	test_s_keeps_developer_spawning_and_routing (rule ids)
+test_manager_m_l::test_m_l_manager_does_not_spawn_or_poll_developers	b-5	exact sentences	test_s_keeps_developer_spawning_and_routing (SPAWN-5a absent at L)
+test_manager_m_l::test_m_l_watch_the_team_lead_only	b-5	exact sentences	test_s_keeps_developer_spawning_and_routing
+test_manager_m_l::test_team_lead_briefing_carries_size_and_cap_share	b-5	exact sentences	none (wording; duty table in test_team_duties, held R1)
+test_manager_m_l::test_disputes_split_and_final_stay	b-5	exact sentences	none (wording)
+test_manager_m_l::test_stacked_base_named_by_manager_used_by_team_lead	b-5	one exact sentence	none (wording)
+test_manager_m_l::test_merging_reads_sha_from_files_and_checkin_gets_three_returns_line	b-5	exact sentences plus an absence	none (wording)
+test_hooks_json::test_existing_hooks_kept	b-3	asserts two command strings of hooks.json	none (config constants)
+test_hooks_json::test_usage_hook_still_exempts_the_manager	b-5	greps one line of bin source	none (source text)
+test_hooks_json::test_notify_on_stop	b-1	same wiring check as test_notify_on_notification	test_notify_on_notification
+test_model_effort_settings::test_every_role_has_the_opus_advisor	b-3	asserts one constant per settings file	test_every_settings_file_has_both_keys_with_allowed_values
+test_model_effort_settings::test_nothing_from_the_base_permissions_was_removed_or_changed	b-4	compares with commit c1be501 (old base); skips when the commit is absent	none (history check)
+test_po_inbox_contract::test_the_mod_parses_every_fixture_and_the_extra_key_case	b-5	greps three strings in the mod's .ts tests	the mod tests themselves run in test_po_inbox_mod::test_plugin_test_passes
+test_pod_contact_routes::test_team_lead_routes_in_l	b-5	exact rule wording at L	test_routes_follow_the_plan_owner_of_the_team (rule ids by team)
+test_pod_contact_routes::test_s_paths_go_to_the_manager	b-5	exact wording at S	test_routes_follow_the_plan_owner_of_the_team
+test_pod_contact_routes::test_m_paths_go_to_the_qas_and_done_to_the_manager	b-5	exact wording at M	test_routes_follow_the_plan_owner_of_the_team
+test_pod_contact_routes::test_qa_blackbox_not_copying_team_lead_and_dev_blocked_route	b-5	exact wording and absences	test_routes_follow_the_plan_owner_of_the_team
+test_pod_rules_process::test_s_keeps_the_confirm_gate_for_all_spawns	b-5	one phrase	none (wording)
+test_pod_rules_process::test_no_relay_rule	b-5	one phrase	none (wording)
+test_pod_rules_process::test_final_rule_covers_the_team_lead	b-5	one phrase	none (wording)
+test_pod_rules_process::test_cap_clause_has_goal_share	b-5	one phrase	none (wording)
+test_pod_rules_process::test_down_and_handover_clauses	b-5	two phrases	none (wording)
+test_pod_rules_process::test_team_lead_dispute_wording	b-5	phrases and absences	none (wording)
+test_pod_rules_process::test_pod_contact_and_team_lead_to_manager	b-5	phrases	none (wording)
+test_pod_rules_process::test_summary_file_row	b-5	phrase plus acts() rows that test_m_roles... style tests also show	test_m_roles_include_team_lead_and_l_is_as_m
+test_process_citations::test_rules_do_cite_ids	b-3	counts at least 10 citations	test_lint_resolves_every_pointer
+test_process_citations::test_agents_skills_bin_cite_no_process_md_heading	b-4	absence of the old `process.md ->` arrow in cards	none (removed layout)
+test_process_writing::test_every_exception_has_a_reason	b-3	loops over an empty list	none
+test_process_writing::test_level_bullet_is_first_in_manager_and_rule	b-5	compares a constant in the test file with itself	none
+test_process_writing::test_no_byte_budget_anywhere	b-4	absence of a removed parameter	none (removed behaviour)
+test_process_writing::test_manager_card_holds_the_writing_stance	b-5	three phrases in a card	none (wording)
