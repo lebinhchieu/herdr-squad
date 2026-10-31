@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import winlaunch
+
 SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-start"
 FAKE_HERDR = """#!/usr/bin/env bash
 echo "$@" >> "$HERDR_LOG"
@@ -18,9 +20,7 @@ exit 0
 
 def run_child(cmd, env, timeout=30):
     """Run a child with UTF-8 bytes for argv and env: the parent may itself run under an ASCII locale."""
-    enc = lambda x: str(x).encode("utf-8", "surrogateescape")
-    return subprocess.run([enc(c) for c in cmd], env={enc(k): enc(v) for k, v in env.items()},
-                          encoding="utf-8", capture_output=True, timeout=timeout)
+    return winlaunch.run_child(cmd, env, encoding="utf-8", capture_output=True, timeout=timeout)
 
 
 class StartTest(unittest.TestCase):
@@ -459,7 +459,7 @@ class LauncherTest(unittest.TestCase):
         (self.root / "fakebin" / "bash").unlink()
         for args, made in ((("Task two", "--name", "two", "--touches", "b"), "two"), (("--resume", "one"), None)):
             with self.subTest(args=args):
-                r = run_child([shutil.which("python3"), str(SCRIPT), *args], env=self.env)
+                r = run_child([winlaunch.python(), str(SCRIPT), *args], env=self.env)
                 self.assertNotEqual(r.returncode, 0)
                 lines = [l for l in r.stderr.splitlines() if not l.startswith("process update")]
                 self.assertEqual(len(lines), 1, r.stderr)
@@ -473,7 +473,7 @@ class LauncherTest(unittest.TestCase):
     def test_dry_run_needs_no_bash(self):
         self.env["PATH"] = str(self.root / "fakebin")
         (self.root / "fakebin" / "bash").unlink()
-        r = run_child([shutil.which("python3"), str(SCRIPT), "x", "--name", "one", "--dry-run"],
+        r = run_child([winlaunch.python(), str(SCRIPT), "x", "--name", "one", "--dry-run"],
                            env=self.env)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("would run: ", r.stdout)

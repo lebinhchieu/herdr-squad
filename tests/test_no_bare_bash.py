@@ -30,8 +30,7 @@ def bare_bash_calls(source):
 # tests/: any argv-shaped list/tuple that starts with "bash"/"sh" (it is often built first and run later). Four or more
 # plain strings is an inventory of tool names, not an argv. TESTS_TO_CONVERT is the shrinking list of files ticket
 # 03b still has to move to winlaunch; a file on it that has gone clean must be removed (the ratchet below).
-TESTS_TO_CONVERT = {"ca_stubs.py", "test_ca_autoswitch.py", "test_ca_install.py", "test_ca_launchers.py",
-                    "test_utf8_helpers.py"}
+TESTS_TO_CONVERT = {"ca_stubs.py", "test_ca_autoswitch.py", "test_ca_install.py", "test_ca_launchers.py"}
 
 
 def bare_bash_argvs(source):

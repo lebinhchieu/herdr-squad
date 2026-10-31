@@ -11,6 +11,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import winlaunch
+
 BIN = Path(__file__).resolve().parent.parent / "bin"
 WIN = {"PYTHONUTF8": "0", "LC_ALL": "C", "PYTHONIOENCODING": "cp1252"}
 ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "dev", "designer", "token-coach")
@@ -30,9 +32,7 @@ exit 0
 
 def run(cmd, env, stdin=None, timeout=30):
     """Child with UTF-8 bytes for argv/env; stdout/stderr come back as bytes."""
-    enc = lambda x: str(x).encode("utf-8", "surrogateescape")
-    return subprocess.run([enc(c) for c in cmd], env={enc(k): enc(v) for k, v in env.items()}, input=stdin,
-                          capture_output=True, timeout=timeout)
+    return winlaunch.run_child(cmd, env, input=stdin, capture_output=True, timeout=timeout)
 
 
 def load(name):
@@ -182,7 +182,7 @@ class JqTest(Base):
         self.env["PATH"] = self.no_jq_path()
         for name in ("squad-respawn", "squad-retire"):
             with self.subTest(name=name):
-                r = run(["bash", BIN / name, "dev-1"], self.env)
+                r = run([winlaunch.bash(), BIN / name, "dev-1"], self.env)
                 self.assertNotEqual(r.returncode, 0)
                 self.assertEqual(len(r.stderr.decode().splitlines()), 1, r.stderr)
                 self.assertIn(b"jq", r.stderr)
@@ -190,7 +190,7 @@ class JqTest(Base):
 
     def test_log_message_logs_nothing_says_one_line_and_exits_0(self):
         self.env.update(PATH=self.no_jq_path(), SQUAD_NAME="dev-1")
-        r = run(["bash", BIN / "squad-log-message"], self.env, stdin=b'{"tool_name":"SendMessage"}')
+        r = run([winlaunch.bash(), BIN / "squad-log-message"], self.env, stdin=b'{"tool_name":"SendMessage"}')
         self.assertEqual(r.returncode, 0)
         self.assertEqual(len(r.stderr.decode().splitlines()), 1, r.stderr)
         self.assertIn(b"jq", r.stderr)

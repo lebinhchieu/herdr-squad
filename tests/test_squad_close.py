@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+import winlaunch
 
 BIN = Path(__file__).resolve().parent.parent / "bin"
 FAKE_HERDR = """#!/usr/bin/env bash
@@ -60,7 +61,7 @@ class CloseTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def close(self, *args):
-        return subprocess.run([str(BIN / "squad-close"), "t", *args], env=self.env, cwd=self.root,
+        return winlaunch.run_script(BIN / "squad-close", ["t", *args], env=self.env, cwd=self.root,
                               text=True, encoding="utf-8", capture_output=True, timeout=30)
 
     def test_composed_squad_without_process_md_closes(self):
@@ -166,7 +167,7 @@ class CloseTest(unittest.TestCase):
 
     def test_unknown_squad_fails(self):
         self.env.pop("SQUAD_DIR")
-        r = subprocess.run([str(BIN / "squad-close"), "ghost"], env=self.env, cwd=self.root, text=True, encoding="utf-8", capture_output=True, timeout=10)
+        r = winlaunch.run_script(BIN / "squad-close", ["ghost"], env=self.env, cwd=self.root, text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertNotEqual(r.returncode, 0)
 
 
@@ -215,7 +216,7 @@ class ScopedCloseTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def close(self, *args):
-        return subprocess.run([str(BIN / "squad-close"), "t", *args], env=self.env, cwd=self.root,
+        return winlaunch.run_script(BIN / "squad-close", ["t", *args], env=self.env, cwd=self.root,
                               text=True, encoding="utf-8", capture_output=True, timeout=30)
 
     def closed_tabs(self):
@@ -353,7 +354,7 @@ class ScopedCloseTest(unittest.TestCase):
         wt = self.root / ".worktrees" / "dev-board-1"
         git("worktree", "add", "-q", str(wt), "-b", "squad/dev-board-1", cwd=self.root)
         self.env["SQUAD_DIR"] = str(squad)
-        r = subprocess.run([str(BIN / "squad-close"), "old", "--scope", "board"], env=self.env, cwd=self.root,
+        r = winlaunch.run_script(BIN / "squad-close", ["old", "--scope", "board"], env=self.env, cwd=self.root,
                            text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("squad/dev-board-1: merged into main, worktree removed", r.stdout)
@@ -406,7 +407,7 @@ class WorktreeFinderTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def close(self, *args):
-        return subprocess.run([str(BIN / "squad-close"), "t", *args], env=self.env, cwd=self.root,
+        return winlaunch.run_script(BIN / "squad-close", ["t", *args], env=self.env, cwd=self.root,
                               text=True, encoding="utf-8", capture_output=True, timeout=30)
 
     def test_removes_merged_clean_worktrees_in_any_folder_and_lists_untracked(self):
@@ -459,7 +460,7 @@ class InboxGuardTest(unittest.TestCase):
 
     def inbox(self, folder, *args, body=""):
         env = {**self.env, "SQUAD_ROLE": "manager", "SQUAD_INBOX_NOW": "2026-10-15T10:00:00Z"}
-        return subprocess.run([str(BIN / "squad-inbox"), "--home", str(self.squad / folder), *args], env=env,
+        return winlaunch.run_script(BIN / "squad-inbox", ["--home", str(self.squad / folder), *args], env=env,
                               text=True, encoding="utf-8", capture_output=True, timeout=30, input=body)
 
     def assertNothingDone(self, folder):
@@ -555,7 +556,7 @@ class InboxGuardTest(unittest.TestCase):
         for n in ("squad-close", "squad-retire"):
             (lone / n).write_text((BIN / n).read_text(encoding="utf-8"))
             (lone / n).chmod(0o755)
-        r = subprocess.run([str(lone / "squad-close"), "t", "--scope", "sc1"], env=self.env, cwd=self.root,
+        r = winlaunch.run_script(lone / "squad-close", ["t", "--scope", "sc1"], env=self.env, cwd=self.root,
                            text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("warning", r.stderr)
@@ -569,7 +570,7 @@ class InboxGuardTest(unittest.TestCase):
             (lone / n).chmod(0o755)
         (lone / "squad-inbox").write_text("#!/bin/sh\necho not json\n", encoding="utf-8")
         (lone / "squad-inbox").chmod(0o755)
-        r = subprocess.run([str(lone / "squad-close"), "t", "--scope", "sc1"], env=self.env, cwd=self.root,
+        r = winlaunch.run_script(lone / "squad-close", ["t", "--scope", "sc1"], env=self.env, cwd=self.root,
                            text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("did not answer with JSON", r.stderr)
@@ -602,7 +603,7 @@ class ReportHookTest(unittest.TestCase):
         return lone
 
     def run_close(self, lone, *args):
-        return subprocess.run([str(lone / "squad-close"), "t", *args], env=self.env, cwd=self.root,
+        return winlaunch.run_script(lone / "squad-close", ["t", *args], env=self.env, cwd=self.root,
                               text=True, encoding="utf-8", capture_output=True, timeout=30)
 
     def test_scope_close_builds_the_report_first_with_the_deadline(self):
@@ -817,7 +818,7 @@ class RuntimePruneCloseTest(ScopedCloseTest):
 
     def test_a_kept_manager_can_still_be_retired_afterwards(self):
         self.assertEqual(self.close("--scope", "sc1").returncode, 0)
-        r = subprocess.run([str(BIN / "squad-retire"), "t-mgr-sc1", "--no-notes"], env=self.env, cwd=self.root,
+        r = winlaunch.run_script(BIN / "squad-retire", ["t-mgr-sc1", "--no-notes"], env=self.env, cwd=self.root,
                            text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("pane close p-t-mgr-sc1", self.closed_tabs()[-1])
@@ -866,7 +867,7 @@ class RuntimePruneCloseTest(ScopedCloseTest):
         script = self.rt / Z / "bin" / "squad-close"
 
         def run(*a):
-            return subprocess.run([str(script), "t", *a], env=self.env, cwd=self.root, text=True,
+            return winlaunch.run_script(script, ["t", *a], env=self.env, cwd=self.root, text=True,
                                   encoding="utf-8", capture_output=True, timeout=30)
         r = run("--scope", "sc1")
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -882,7 +883,7 @@ class RuntimePruneCloseTest(ScopedCloseTest):
         bad = self.root / "badbin"
         shutil.copytree(BIN, bad)
         (bad / "squad-process").write_text("import sys\nprint(\"boom\", file=sys.stderr)\nsys.exit(7)\n", encoding="utf-8")
-        r = subprocess.run([str(bad / "squad-close"), "t", "--scope", "sc1"], env=self.env, cwd=self.root, text=True,
+        r = winlaunch.run_script(bad / "squad-close", ["t", "--scope", "sc1"], env=self.env, cwd=self.root, text=True,
                            encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("warning: runtime cleanup failed (exit 7)", r.stderr)
