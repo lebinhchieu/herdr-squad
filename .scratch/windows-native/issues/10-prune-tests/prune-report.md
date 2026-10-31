@@ -257,5 +257,5 @@ Held (R1, Team Lead decision): `squadrules`, `squadcompose`, `sizes`, `team_duti
 - Behaviour tests of real scripts, read and kept: `test_squad_close`, `test_squadinbox_answer`, `test_squadupgrade`, `test_squad_manager_guard`, `test_squad_notify`, `test_squad_path_guard`, `test_team_lead_perms`, `test_squad_retire`, `test_squad_usage`, `test_old_language_inventory`.
 
 ### Not touched in phase 2, why
-- Waiting for the Team Lead's message that 06 is final: `test_squad_log_message`, `test_squad_usage_hook`.
+- 06 final (41a1977) merged. Pruned after it: `test_squad_log_message` (-4), `test_squad_usage_hook` (-1), 5 tests in all (rows in removed.tsv). `test_log_append_stress`: RECORDS 200 to 50 (Tech Lead), 8 writers and the 9000-byte record kept, no test removed.
 - Held (R1): `test_squadrules`, `test_squadcompose`, `test_sizes`, `test_team_duties`, `test_small_files_equivalence`.

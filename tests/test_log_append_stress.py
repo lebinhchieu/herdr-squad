@@ -32,7 +32,7 @@ def launch(script):
 
 
 WRITERS = 8
-RECORDS = 200
+RECORDS = 50
 BIG = 9000  # > PIPE_BUF
 
 

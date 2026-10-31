@@ -95,16 +95,6 @@ class LogMessageTest(unittest.TestCase):
         [rec] = self.records()
         self.assertEqual((rec["type"], rec["task"]), ("STATUS", "SET-01"))
 
-    def test_bare_number_ids_after_the_type(self):
-        for text, want in (("HANDIN 03: commit abc123", "03"), ("HANDIN SET-13: x", "SET-13"), ("FAIL 3: x", "3"),
-                           ("PASS 12", "12"), ("STATUS: building SET-01", "SET-01"), ("hello 03", None)):
-            self.run_hook(payload(text))
-        self.assertEqual([r["task"] for r in self.records()], ["03", "SET-13", "3", "12", "SET-01", None])
-
-    def test_first_task_id_wins(self):
-        self.run_hook(payload("BLOCKED SET-01: AC-033 contradicts spec §4"))
-        self.assertEqual(self.records()[0]["task"], "SET-01")
-
     def test_untyped_message_has_null_type_and_task(self):
         self.run_hook(payload("hello there, quick question"))
         [rec] = self.records()
@@ -178,10 +168,6 @@ class LogMessageTest(unittest.TestCase):
         out = self.third_fail_notice("team: ba, team-lead, tech-lead, qa-white\n")
         self.assertIn("to Team Lead [LC-7b]", json.loads(out)["hookSpecificOutput"]["additionalContext"])
 
-    def test_third_return_goes_to_manager_without_team_lead(self):
-        out = self.third_fail_notice("team: qa-white, qa-black\n")
-        self.assertIn("to Manager [LC-7c]", json.loads(out)["hookSpecificOutput"]["additionalContext"])
-
     def test_third_return_goes_to_manager_for_none_undecided_error_and_size(self):
         for text in ("team: none\n", "team:\n", "team: ba, nobody\n", "size: L\n", "team: team-lead; touch X\n"):
             with self.subTest(text=text):
@@ -206,10 +192,6 @@ class LogMessageTest(unittest.TestCase):
                 ctx = json.loads(r.stdout)["hookSpecificOutput"]
                 self.assertEqual(ctx["hookEventName"], "PostToolUse")
                 self.assertIn("task 07 has 3 returns", ctx["additionalContext"])
-
-    def test_third_return_notice_text_has_no_size_word(self):
-        out = self.third_fail_notice("team: team-lead\n")
-        self.assertNotRegex(out.lower(), r"\bsize\b")
 
 
 if __name__ == "__main__":

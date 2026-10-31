@@ -152,3 +152,8 @@ test_squadreport_ui::test_mock_values	b-5	exact CSS values	none (styling)
 test_squadreport_ui::test_no_dark_background	b-4	absence of a dark colour in CSS	none (styling)
 test_squadreport_ui::test_dev_label_short_with_title	b-5	exact JS source strings	none (wording)
 test_squadreport_ui::test_tasks_table_width_budget	b-5	exact CSS values	none (styling)
+test_squad_log_message::test_bare_number_ids_after_the_type	b-1	same id parse as test_typed_message_is_logged_with_type_task_and_sender	test_typed_message_is_logged_with_type_task_and_sender
+test_squad_log_message::test_first_task_id_wins	b-1	variant of the same id parse	test_status_with_colon_finds_task_later_in_text
+test_squad_log_message::test_third_return_notice_text_has_no_size_word	b-4	absence of one word in notice text	test_the_notice_is_stdout_json_on_the_third_failing_sha_only
+test_squad_log_message::test_third_return_goes_to_manager_without_team_lead	b-1	same routing as the none/undecided/error case	test_third_return_goes_to_manager_for_none_undecided_error_and_size
+test_squad_usage_hook::test_tech_lead_text_is_unchanged	b-5	exact message wording	test_fixture_over_120k_gives_fresh_message_and_event
