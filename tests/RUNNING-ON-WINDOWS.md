@@ -6,6 +6,8 @@ Needs Git for Windows (its `bash.exe`) and Python 3 on PATH.
 
 One file (always works): `cd tests && python -m unittest -q <test_file_stem>`
 
+For per-file `python -m unittest` runs set `PYTHONDONTWRITEBYTECODE=1`, else `bin/__pycache__` fails `test_squadinbox.test_no_pyc` (`run_suite.py` sets it for you).
+
 Whole suite, one subprocess per file, in parallel, same as Linux (the browser lock is a file in the temp folder, taken with `msvcrt`):
 
 ```

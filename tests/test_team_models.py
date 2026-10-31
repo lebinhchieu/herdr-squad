@@ -75,7 +75,7 @@ class PrecedenceTest(Base):
         self.settings("dev", {"model": "haiku", "effortLevel": "low"})
         self.scope_md("model dev: opus xhigh")
         self.roster_row("dev-1")
-        (self.scope / "roles" / "dev-1.overrides").write_text("model=sonnet[1m]\neffort=max\n", encoding="utf-8")
+        (self.scope / "roles" / "dev-1.overrides").write_bytes(b"model=sonnet[1m]\neffort=max\n")  # LF on Windows too: respawn reads the value up to the newline
         r = self.run_([RESPAWN, "dev-1", "--dry-run"], SCOPE_DIR=str(self.scope), SQUAD_SCOPE="s")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertRegex(r.stdout, r"--model sonnet\[1m\] --effort max ")
