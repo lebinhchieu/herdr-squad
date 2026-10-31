@@ -82,3 +82,16 @@ test_suite_rules_process::test_failure_returns_the_task	b-5	two phrases	none (wo
 test_suite_rules_process::test_integration_and_light_lines_do_not_make_dev_or_qa_run_it	b-5	phrases and absences	none (wording)
 test_suite_rules_process::test_integration_task_runs_targeted_tests	b-5	phrases and absences	none (wording)
 test_task_id_rule::test_rosters_say_ticket_nn	b-3	one phrase in a template	none (doc text)
+test_team_lead_role::test_old_spawn_route_is_gone	b-4	asserts two old phrases are absent	none (removed behaviour)
+test_team_lead_role::test_cap_share_rule	b-5	four exact phrases	none (wording)
+test_team_lead_role::test_no_relay_and_no_routine_manager_message	b-5	exact phrases	none (wording)
+test_team_lead_role::test_final_rule_and_summary	b-5	exact phrases	none (wording)
+test_team_lead_role::test_respawn_reads	b-5	word list in NOTE-3	none (wording)
+test_team_lead_role::test_keeps_model_and_notes_block	b-3	asserts settings constants and two headings	test_model_effort_settings::test_every_settings_file_has_both_keys_with_allowed_values
+test_team_lead_role::test_party_to_dispute_does_not_settle_it	b-5	one exact sentence	none (wording)
+test_team_lead_role::test_summary_names_passed_sha_and_checkers	b-5	one exact sentence	none (wording)
+test_team_lead_role::test_every_rule_of_the_five_files_reaches_the_same_roles_in_the_7_shapes	b-2/b-4	110-rule golden x 7 shapes x 9 roles, a one-off proof against old base 6389642 (size keys); every edit to rule targeting breaks it	test_tech_lead_without_team_lead_respawns_per_cost_4c; duty table test_team_duties (held R1). Risk R1 noted
+test_team_cli::test_no_from_size	b-4	asserts a removed flag and its absence in source	test_size_only_home_exits_2_with_the_team_line_pointer_and_read_home_raises
+test_team_cli::test_old_line_without_size_is_old_format_too	b-1	same old-format path as test_old_format_error_is_one_shared_function	test_old_format_error_is_one_shared_function
+test_team_cli::test_undecided_team_has_only_the_manager	b-1	same --has path as test_has_exit_codes_use_role_names and test_prints_comma_list_none_and_undecided	test_has_exit_codes_use_role_names
+test_team_cli::test_every_old_line_is_named	b-1	same four old lines are asserted by the shared-function test	test_old_format_error_is_one_shared_function
