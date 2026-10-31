@@ -5,23 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import winlaunch
-
-BIN = Path(__file__).resolve().parent.parent / "bin"
-# $PANES holds "<pane> <tab> <agent>" lines. `tab close` kills every pane in the tab (as herdr does, and
-# closing a workspace's last tab closes the workspace); `pane close` kills one pane.
-FAKE_HERDR = """#!/usr/bin/env bash
-echo "$@" >> "$HERDR_LOG"
-case "$1 $2" in
-  "agent get")
-    row=$(awk -v n="$3" '$3 == n' "$PANES")
-    [[ -n $row ]] || { echo '{"error":{"code":"agent_not_found"}}'; exit 1; }
-    read -r pane tab _ <<<"$row"
-    echo "{\\"result\\":{\\"agent\\":{\\"pane_id\\":\\"$pane\\",\\"tab_id\\":\\"$tab\\"}}}" ;;
-  "tab close") awk -v t="$3" '$2 != t' "$PANES" > "$PANES.new"; mv "$PANES.new" "$PANES" ;;
-  "pane close") awk -v p="$3" '$1 != p' "$PANES" > "$PANES.new"; mv "$PANES.new" "$PANES" ;;
-esac
-exit 0
-"""
+from squadtest import BIN, clean_env, fake_herdr
 
 
 class RetireTest(unittest.TestCase):
@@ -30,12 +14,10 @@ class RetireTest(unittest.TestCase):
         root = Path(self.tmp.name)
         fake = root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (fake / "herdr").chmod(0o755)
+        fake_herdr(fake)
         self.panes = root / "panes"
         self.log = root / "herdr.log"
-        self.env = {**os.environ, "HERDR_ENV": "1", "HERDR_LOG": str(self.log), "PANES": str(self.panes),
-                    "PATH": f"{fake}:{os.environ['PATH']}"}
+        self.env = clean_env(HERDR_ENV="1", HERDR_LOG=str(self.log), PANES=str(self.panes), PATH=f"{fake}:{os.environ['PATH']}")
 
     def tearDown(self):
         self.tmp.cleanup()

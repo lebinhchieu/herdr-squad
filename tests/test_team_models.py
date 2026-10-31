@@ -7,18 +7,10 @@ import tempfile
 import unittest
 from pathlib import Path
 import winlaunch
+from squadtest import BIN, ROOT, clean_env, fake_herdr
 
-ROOT = Path(__file__).resolve().parent.parent
-SPAWN = ROOT / "bin" / "squad-spawn"
-START = ROOT / "bin" / "squad-start"
-RESPAWN = ROOT / "bin" / "squad-respawn"
+SPAWN, START, RESPAWN = BIN / "squad-spawn", BIN / "squad-start", BIN / "squad-respawn"
 TEMPLATE = ROOT / "templates" / "scope" / "scope.md"
-FAKE_HERDR = """#!/usr/bin/env bash
-echo "$@" >> "$HERDR_LOG"
-if [[ "$1 $2" == "agent get" ]]; then echo '{"error":{"code":"agent_not_found"}}'; exit 1; fi
-[[ $1 == tab ]] && echo '{"result":{"root_pane":{"pane_id":"p1"},"tab":{"tab_id":"t1"}}}'
-exit 0
-"""
 
 
 class Base(unittest.TestCase):
@@ -33,10 +25,9 @@ class Base(unittest.TestCase):
         (self.scope / "roster.md").write_text("| Agent | Role | Scope | Owns | Status |\n|---|---|---|---|---|\n", encoding="utf-8")
         fake = self.root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (fake / "herdr").chmod(0o755)
+        fake_herdr(fake)
         self.log = self.root / "herdr.log"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env = clean_env()
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log), PATH=f"{fake}:{os.environ['PATH']}")
 
     def tearDown(self):

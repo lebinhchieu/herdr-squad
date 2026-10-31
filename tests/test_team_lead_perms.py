@@ -6,9 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 import winlaunch
+from squadtest import BIN, ROOT, clean_env, fake_herdr
 
-ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "bin"
 SETTINGS = ROOT / "templates" / "squad" / "settings" / "team-lead.json"
 TL_ALLOW = {
     "SendMessage", "ListAgents", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)",
@@ -17,15 +16,6 @@ TL_ALLOW = {
     "Bash(herdr agent read:*)",
     "Bash(rm /tmp/tmp.*)", "Bash(rm -r /tmp/tmp.*)", "Bash(rm -rf /tmp/tmp.*)", "Bash(rmdir /tmp/tmp.*)",
 }
-FAKE_HERDR = """#!/usr/bin/env bash
-echo "$@" >> "$HERDR_LOG"
-case "$1 $2" in
-  "agent get") row=$(awk -v n="$3" '$3 == n' "$PANES"); [[ -n $row ]] || exit 1
-    read -r pane tab _ <<<"$row"; echo "{\\"result\\":{\\"agent\\":{\\"pane_id\\":\\"$pane\\"}}}" ;;
-  "pane close") awk -v p="$3" '$1 != p' "$PANES" > "$PANES.new"; mv "$PANES.new" "$PANES" ;;
-esac
-exit 0
-"""
 ROSTER = """| Agent | Role | Scope | Owns | Status | Session |
 | --- | --- | --- | --- | --- | --- |
 | mgr | manager | s | x | live | a |
@@ -56,11 +46,10 @@ class GateTest(unittest.TestCase):
         (self.scope / "roster.md").write_text(ROSTER)
         fake = root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR)
-        (fake / "herdr").chmod(0o755)
+        fake_herdr(fake)
         self.panes = root / "panes"
         self.panes.write_text("p1 t1 mgr\np2 t2 dev-1\np3 t3 tl\np4 t4 ghost\n")
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env = clean_env()
         self.env.update(HERDR_ENV="1", HERDR_LOG=str(root / "herdr.log"), PANES=str(self.panes),
                         SQUAD_DIR=str(self.squad), SCOPE_DIR=str(self.scope), PATH=f"{fake}:{os.environ['PATH']}")
 
