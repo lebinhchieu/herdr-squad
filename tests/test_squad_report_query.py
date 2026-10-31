@@ -161,12 +161,6 @@ class Skills(unittest.TestCase):
     def read(self, name):
         return (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
 
-    def test_frontmatter_name_is_folder(self):
-        for name in ("squad-report", "squad-report-analyze"):
-            m = re.match(r"---\nname: (.+)\ndescription: .+\n(disable-model-invocation: true\n)?---\n", self.read(name))
-            self.assertIsNotNone(m, name)
-            self.assertEqual(m.group(1), name)
-        self.assertIn("disable-model-invocation: true", self.read("squad-report"))
 
     def test_referenced_commands_exist(self):
         sub = {"status", "query", "rollup"}
@@ -178,10 +172,6 @@ class Skills(unittest.TestCase):
             for w in re.findall(r"query <scope> (\w+)", text):
                 self.assertIn(w, q.WHAT)
 
-    def test_analyze_has_no_write_step(self):
-        text = self.read("squad-report-analyze")
-        for bad in (r"\bWrite\b", r"\bEdit\b", r"process\.md", r"\bwrite[s]? (a|the) file"):
-            self.assertIsNone(re.search(bad, text), bad)
 
 
 if __name__ == "__main__":

@@ -95,3 +95,7 @@ test_team_cli::test_no_from_size	b-4	asserts a removed flag and its absence in s
 test_team_cli::test_old_line_without_size_is_old_format_too	b-1	same old-format path as test_old_format_error_is_one_shared_function	test_old_format_error_is_one_shared_function
 test_team_cli::test_undecided_team_has_only_the_manager	b-1	same --has path as test_has_exit_codes_use_role_names and test_prints_comma_list_none_and_undecided	test_has_exit_codes_use_role_names
 test_team_cli::test_every_old_line_is_named	b-1	same four old lines are asserted by the shared-function test	test_old_format_error_is_one_shared_function
+test_squad_report_cli::test_no_claude_process_is_spawned	b-4	absence test, needs a stub shell script	test_output_summary_and_data_json (build runs with no claude)
+test_squad_report_cli::test_no_network	b-4	absence test (socket patch)	none needed (no behaviour)
+test_squad_report_query::test_frontmatter_name_is_folder	b-5	wording/format of a skill file	test_referenced_commands_exist
+test_squad_report_query::test_analyze_has_no_write_step	b-4	absence test on skill text	none needed (no behaviour)
