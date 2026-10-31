@@ -14,6 +14,7 @@ FIX = Path(__file__).resolve().parent / "fixtures" / "rules" / "compose"
 sys.path.insert(0, str(BIN))
 import squadcompose as sc  # noqa: E402
 import squadrules as sr  # noqa: E402
+from rulesview import shape_team  # noqa: E402
 
 NOW = "2026-10-22T10:00:00Z"
 RUNNING = sc.running_version()
@@ -44,7 +45,7 @@ class Base(unittest.TestCase):
         if team is not None:
             lines.append(f"team: {team or 'none'}")
         elif size:  # shorthand: the converter's mapping of the old shape, written as a `team:` line
-            team = sr.legacy_team(size, "yes", design, "no")
+            team = shape_team(size, "yes", design, "no")
             lines.append(f"team: {', '.join(team) or 'none'}")
         lines += ["qa: full"]
         if pin:

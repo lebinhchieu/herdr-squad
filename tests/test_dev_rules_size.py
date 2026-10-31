@@ -10,7 +10,7 @@ from itertools import product
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
-from rulesview import ROOT, ROLES, run, who
+from rulesview import ROOT, ROLES, run, shape_team, who
 
 LIMIT = 5120
 NOW = "2026-10-22T10:00:00Z"
@@ -24,7 +24,7 @@ def compose(role, size, design="no", goal="no", architecture="no", name="role-ca
     import squadcompose
     import squadrules
     pin = (squadcompose.running_version(), "0123456789abcdef0123456789abcdef01234567")
-    team = squadrules.legacy_team(size, "yes", design, architecture)  # the converter's mapping of the old shape
+    team = shape_team(size, "yes", design, architecture)  # the converter's mapping of the old shape
     return compose_team(role, team, goal=goal, name=name, agent=agent)
 
 

@@ -243,38 +243,6 @@ def team_facts(team):
     return facts
 
 
-def _first_token(value):
-    toks = (value or "").split()
-    return toks[0] if toks else ""
-
-
-def legacy_team(size, qa_b="yes", design="no", architecture="no"):
-    """Old `size:`, `qa-b:`, `design:`, `architecture:` values (raw text, commentary allowed) -> team tokens.
-
-    For the converter and the branch-internal scaffold only (D1/D3). Uses the FIRST token of each value, so
-    `size: M (confirmed ...)` is M and `size: confirmed M` is not (read_home's `\\b[SML]\\b` finds it anywhere). A blank
-    or unreadable size gives None (undecided, a blank `team:`). A bad qa-b/design/architecture token is a ValueError."""
-    sz = _first_token(size).rstrip(",;:.")
-    if sz not in ("S", "M", "L"):
-        return None
-    flags = {}
-    for name, value in (("qa-b", qa_b), ("design", design), ("architecture", architecture)):
-        tok = _first_token(value).lower() or ("yes" if name == "qa-b" else "no")
-        if tok not in ("yes", "no"):
-            raise ValueError(f"{name} must be yes | no, got {value!r}")
-        flags[name] = tok
-    team = set()
-    if sz in ("M", "L"):
-        team |= {"qa-white"} | ({"qa-black"} if flags["qa-b"] == "yes" else set())
-    if sz == "L":
-        team |= {"ba", "team-lead", "tech-lead"}
-    if flags["design"] == "yes":
-        team.add("designer")
-    if flags["architecture"] == "yes":
-        team.add("architect")
-    return [t for t in TEAM_KEYS if t in team]
-
-
 # ---- parsing -------------------------------------------------------------------------------------
 
 def _blocks(text, relpath, heading_ok, problems):

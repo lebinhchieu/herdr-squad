@@ -7,8 +7,8 @@ the set a role sees at a shape. Rewritten rules (WHO-1b, WHO-2b ...) are covered
 import re
 import unittest
 
-from rulesview import composed
-from squadrules import ROLE_KEY, legacy_team
+from rulesview import composed, shape_team
+from squadrules import ROLE_KEY
 
 SHAPES = {"M": dict(size="M"), "Lgoal": dict(size="L", goal="yes")}
 SHAPE_ARGS = {"M": ("M",), "Lgoal": ("L",)}
@@ -39,7 +39,7 @@ class SevenShapeEquivalence(unittest.TestCase):
     def test_same_rules_per_shape_and_role_as_base(self):
         for key, want in GOLDEN.items():
             shape, role = key.split("/")
-            if role not in ("manager", "dev") and ROLE_KEY.get(role, role) not in legacy_team(*SHAPE_ARGS[shape]):
+            if role not in ("manager", "dev") and ROLE_KEY.get(role, role) not in shape_team(*SHAPE_ARGS[shape]):
                 continue  # an absent role composes nothing meaningful
             with self.subTest(key):
                 text = composed(role, **SHAPES[shape])
@@ -77,7 +77,7 @@ class ChangedRulesEquivalence(unittest.TestCase):
     def test_changed_rules_same_per_shape_and_role_except_the_two_known(self):
         for key, want in CHANGED.items():
             shape, role = key.split("/")
-            if role not in ("manager", "dev") and ROLE_KEY.get(role, role) not in legacy_team(*SHAPE_ARGS[shape]):
+            if role not in ("manager", "dev") and ROLE_KEY.get(role, role) not in shape_team(*SHAPE_ARGS[shape]):
                 continue
             with self.subTest(key):
                 text = composed(role, **SHAPES[shape])

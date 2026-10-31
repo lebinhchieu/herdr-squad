@@ -21,20 +21,31 @@ def run(*args):
     return subprocess.run([sys.executable, "-B", CLI, *args], capture_output=True, encoding="utf-8", env=_env())
 
 
+def shape_team(size, qa_b="yes", design="no", architecture="no"):
+    """Team tokens of an old test shape S/M/L (test shorthand; bin/ has no size). Order = squadrules.TEAM_KEYS."""
+    import squadrules as sr
+    team = {"S": set(), "M": {"qa-white"}, "L": {"ba", "team-lead", "tech-lead", "qa-white"}}[size]
+    if size != "S" and qa_b == "yes":
+        team = team | {"qa-black"}
+    if design == "yes": team = team | {"designer"}
+    if architecture == "yes": team = team | {"architect"}
+    return [t for t in sr.TEAM_KEYS if t in team]
+
+
 @functools.lru_cache(maxsize=None)
 def composed(role, size="M", design="no", goal="no", qa="full", *, architecture="no", team=None):
     """Composed rules for `role` in a scope with these facts, whitespace folded to single spaces.
 
     `team` (tokens, a tuple or a comma string; "" or () = `none`) writes a `team:` line and ignores size, design and
     architecture. Without it the team is the converter's mapping of `size`, design and architecture
-    (`squadrules.legacy_team`): a shorthand for the old S/M/L test shapes; the home always holds a `team:` line."""
+    (`shape_team`): a shorthand for the old S/M/L test shapes; the home always holds a `team:` line."""
     import squadcompose as sc
     import squadrules as sr
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "scopes" / "s"
         home.mkdir(parents=True)
         if team is None:
-            team = sr.legacy_team(size, "yes", design, architecture)
+            team = shape_team(size, "yes", design, architecture)
         toks = [t.strip() for t in team.split(",")] if isinstance(team, str) else list(team)
         toks = [t for t in toks if t]
         text = f"team: {', '.join(toks) or 'none'}\nqa: {qa}\ngoal: {goal}\n"
@@ -64,7 +75,7 @@ def who(rule_id):
 
 def _size_shapes(rule_id):
     """Shorthand for the old test shapes: key `S`/`M`/`L` -> (acting, aware) of the rule in the team the converter maps
-    that size to (`squadrules.legacy_team`). Test convenience only; the engine has no size."""
+    that size to (`shape_team`). Test convenience only; the engine has no size."""
     import squadcompose as sc
     import squadrules as sr
     try:
@@ -73,7 +84,7 @@ def _size_shapes(rule_id):
         return {}
     out = {}
     for size in "SML":
-        facts = sr.team_facts(sr.legacy_team(size, "yes", "no", "no"))
+        facts = sr.team_facts(shape_team(size, "yes", "no", "no"))
         facts.pop("design"); facts.pop("architecture")  # the old size lines left every other fact missing (true)
         ok = sr.matches(e.when, facts)
         out[size] = (tuple(e.roles) if ok else (), tuple(e.aware) if ok else ())

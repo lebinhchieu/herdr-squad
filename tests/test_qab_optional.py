@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bin"))
 import squadcompose as sc  # noqa: E402
 import squadrules as sr  # noqa: E402
-from rulesview import who  # noqa: E402
+from rulesview import shape_team, who  # noqa: E402
 
 GOLDEN = Path(__file__).resolve().parent / "fixtures" / "qab" / "golden.json"
 NOW = "2026-10-22T10:00:00Z"
@@ -29,7 +29,7 @@ def compose(role, size="M", qab=None, design="no", qa="full", root=ROOT):
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "scopes" / "fx"
         home.mkdir(parents=True)
-        team = sr.legacy_team(size, qab or "yes", design)  # the converter's mapping: today's shapes as teams
+        team = shape_team(size, qab or "yes", design)  # the converter's mapping: today's shapes as teams
         lines = ["goal:", f"team: {', '.join(team) or 'none'}", f"qa: {qa}"]
         (home / "scope.md").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
         env = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD_")}

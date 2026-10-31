@@ -19,7 +19,7 @@ ALLOW = {
     "bin/squadinbox.py": (1, "false positive: os.stat st_size"),
     "bin/squadreport.py": (3, "report display of legacy rows"),
     "bin/squadreport_rollup.py": (3, "report display of legacy rows"),
-    "bin/squadrules.py": (10, "OLD_WHEN_KEYS, legacy_team, lint messages"),
+    "bin/squadrules.py": (4, "OLD_WHEN_KEYS, lint messages"),
     "bin/squadruntime.py": (1, CONVERTER),
     "bin/squadteam.py": (2, CONVERTER),
     "bin/squadupgrade.py": (4, "overlay report: old-when translation table (AC 21)"),
