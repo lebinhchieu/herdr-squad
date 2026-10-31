@@ -35,6 +35,7 @@ def rule(sel):
     return m.group(1) if m else ""
 
 
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser DOM test skipped")
 class OverviewDom(unittest.TestCase):
     def test_kpis_digest_blocks_no_banner(self):
         d = fxs.base()
