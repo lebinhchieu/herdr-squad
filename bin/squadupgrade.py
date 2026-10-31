@@ -191,7 +191,7 @@ def _new_pin(a):
 
 
 def find_old_root(a, squad_dir, pin):
-    """--old-root, else the squad's pinned runtime folder when it exists, else None."""
+    """--old-root, else the squad's pinned runtime folder when it exists, else the installed cache of that pin."""
     if a.old_root:
         return a.old_root
     if not pin:
@@ -199,6 +199,9 @@ def find_old_root(a, squad_dir, pin):
                            "pass --old-root <old plugin folder>", code=1)
     path = rt.runtime_path(squad_dir, pin[0], pin[1])
     if not os.path.isdir(sr.process_dir(path)):
+        cache = rt._installed_cache(pin[0], pin[1])
+        if cache and os.path.isdir(sr.process_dir(cache)):
+            return cache
         raise UpgradeError(f"the pinned runtime is missing: {path} (build it with "
                            f"`squad-process runtime --squad-dir {squad_dir} --home <home>`, or pass --old-root)", code=1)
     return path

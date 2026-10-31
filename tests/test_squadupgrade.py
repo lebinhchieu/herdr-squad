@@ -20,8 +20,9 @@ CASES = json.loads((FIX / "cases.json").read_text())
 NEW_PIN = "0.5.0 bbbbbbb2"
 
 
-def run(*args, cwd=None):
+def run(*args, cwd=None, extra_env=None):
     env = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD_")}
+    env.update(extra_env or {})
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     return subprocess.run([sys.executable, str(BIN / "squad-process"), *args], capture_output=True,
                           encoding="utf-8", env=env, cwd=cwd)
@@ -47,6 +48,60 @@ class Base(unittest.TestCase):
 
     def ops(self, sq):
         return sr.parse_overlay((sq / "process.local.md").read_text(), "process.local.md", [])
+
+
+class InstalledCache(Base):
+    """No flags: old root and new pin come from installed_plugins.json (a marketplace install has no .git)."""
+
+    def setUp(self):
+        super().setUp()
+        tmp = Path(self._tmp.name)
+        self.old, self.new = tmp / "cache" / "0.4.0", tmp / "cache" / "0.5.0"
+        for dest, src, ver in ((self.old, "old", "0.4.0"), (self.new, "new", "0.5.0")):
+            shutil.copytree(FIX / "add-free" / src, dest)
+            (dest / ".claude-plugin").mkdir()
+            (dest / ".claude-plugin" / "plugin.json").write_text(json.dumps({"version": ver}), encoding="utf-8")
+        self.listing = tmp / "installed_plugins.json"
+        self.write(self.old, self.new)
+
+    def write(self, old, new):
+        entries = [{"scope": "user", "installPath": str(p), "version": v, "gitCommitSha": s}
+                   for p, v, s in ((old, "0.4.0", "aaaaaaa1"), (new, "0.5.0", "bbbbbbb2"))]
+        self.listing.write_text(json.dumps({"version": 2, "plugins": {"squad@market": entries}}), encoding="utf-8")
+
+    def go(self, mode, sq, *extra):
+        return run("upgrade", mode, "--squad-dir", str(sq), "--plugin-root", str(self.new), "--today", "2026-10-22", *extra,
+                   extra_env={"SQUAD_INSTALLED_PLUGINS": str(self.listing)})
+
+    def test_check_and_apply_need_no_flags(self):
+        sq = self.squad("add-free")
+        want = (FIX / "add-free" / "expect" / "check.txt").read_text()
+        r = self.go("--check", sq)
+        self.assertEqual((r.returncode, r.stdout), (0, want), r.stderr)
+        r = self.go("--apply", sq, "--yes")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual((sq / "plugin.pin").read_text(encoding="utf-8").strip(), NEW_PIN)
+
+    def test_old_root_flag_overrides_the_cache(self):
+        sq = self.squad("add-free")
+        self.write(self.old.parent / "gone", self.new)  # the cache entry for the old pin is now unusable
+        self.assertEqual(self.go("--check", sq).returncode, 1)
+        r = self.go("--check", sq, "--old-root", str(FIX / "add-free" / "old"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_without_a_matching_cache_the_runtime_error_stays(self):
+        sq = self.squad("add-free")
+        self.write(self.old.parent / "gone", self.new)
+        r = self.go("--check", sq)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("the pinned runtime is missing", r.stdout + r.stderr)
+
+    def test_no_installed_entry_for_the_new_plugin_names_new_pin(self):
+        sq = self.squad("add-free")
+        self.write(self.old, self.old.parent / "gone")
+        r = self.go("--check", sq)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("--new-pin", r.stdout + r.stderr)
 
 
 class CaseTable(Base):

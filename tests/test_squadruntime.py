@@ -292,6 +292,93 @@ class MaterialiseTest(Base):
         self.assertTrue(rt.running_pin(str(clone))[2])
 
 
+class RunningPinCacheTest(Base):
+    """running_pin outside a git repo: version and sha from the installed_plugins.json entry for this folder.
+    Entry shape as in ~/.claude/plugins/installed_plugins.json: scope, installPath, version, gitCommitSha."""
+
+    def setUp(self):
+        super().setUp()
+        self.norepo = self.root / "cache" / "squad" / self.version
+        shutil.copytree(self.plugin, self.norepo, ignore=shutil.ignore_patterns(".git"))
+        self.listing = self.root / "installed_plugins.json"
+        self.addCleanup(os.environ.pop, "SQUAD_INSTALLED_PLUGINS", None)
+        os.environ["SQUAD_INSTALLED_PLUGINS"] = str(self.listing)
+
+    def write(self, path, sha=None, key="squad@market"):
+        entry = {key: [{"scope": "user", "installPath": str(path), "version": self.version,
+                        "gitCommitSha": sha or self.sha}]}
+        self.listing.write_text(json.dumps({"version": 2, "plugins": entry}), encoding="utf-8")
+
+    def test_non_git_root_takes_version_and_sha_from_its_installed_entry(self):
+        self.write(self.norepo)
+        self.assertEqual(rt.running_pin(str(self.norepo)), (self.version, self.sha, False))
+
+    def test_the_entry_of_another_folder_does_not_match(self):
+        self.write(self.root / "elsewhere")
+        with self.assertRaises(rt.RuntimeError_) as c:
+            rt.running_pin(str(self.norepo))
+        self.assertEqual(c.exception.code, 1)
+        self.assertIn("--new-pin", str(c.exception))
+
+    def test_no_listing_or_a_non_squad_entry_keeps_the_error_naming_new_pin(self):
+        with self.assertRaises(rt.RuntimeError_) as c:  # the listing file does not exist
+            rt.running_pin(str(self.norepo))
+        self.assertIn("--new-pin", str(c.exception))
+        self.write(self.norepo, key="other@market")
+        with self.assertRaises(rt.RuntimeError_) as c:
+            rt.running_pin(str(self.norepo))
+        self.assertIn("--new-pin", str(c.exception))
+
+    def test_an_entry_without_a_valid_sha_does_not_match(self):
+        self.write(self.norepo, sha="not-a-sha")
+        with self.assertRaises(rt.RuntimeError_) as c:
+            rt.running_pin(str(self.norepo))
+        self.assertIn("--new-pin", str(c.exception))
+
+    def test_a_git_root_still_uses_head_even_when_a_listing_names_another_sha(self):
+        clone = self.root / "clone"
+        shutil.copytree(self.plugin, clone)
+        self.write(clone, sha="1" * 40)
+        self.assertEqual(rt.running_pin(str(clone)), (self.version, self.sha, False))
+
+    def test_path_forms_compare_equal_through_the_normaliser(self):
+        d = str(self.norepo)
+        self.assertEqual(rt._norm_path(d), rt._norm_path(d + os.sep))
+        self.assertEqual(rt._norm_path(d), rt._norm_path(os.path.join(d, "bin", "..")))
+        if os.name == "nt":  # backslash, forward slash and drive-letter case are one folder
+            self.assertEqual(rt._norm_path(d.replace("\\", "/")), rt._norm_path(d.swapcase()))
+
+
+class ExtractDrainTest(Base):
+    """`git archive` pads its tar with zeros after the end marker. tarfile stops reading at the marker; _extract must
+    read the rest, or git dies of SIGPIPE (exit 141) and the build is judged failed. A fake git writes a small tar
+    and then 1 MiB of padding (more than any pipe buffer) and exits 141 when the pipe breaks; no timing involved."""
+
+    FAKE_GIT = """import io, sys, tarfile
+buf = io.BytesIO()
+with tarfile.open(fileobj=buf, mode="w") as tf:
+    data = b"hello"
+    ti = tarfile.TarInfo("a.txt")
+    ti.size = len(data)
+    tf.addfile(ti, io.BytesIO(data))
+try:
+    sys.stdout.buffer.write(buf.getvalue() + bytes(1 << 20))
+    sys.stdout.buffer.flush()
+except (BrokenPipeError, OSError):
+    sys.exit(141)
+"""
+
+    def test_padding_after_the_tar_end_is_drained(self):
+        script = self.root / "fakegit.py"
+        script.write_text(self.FAKE_GIT, encoding="utf-8")
+        real = subprocess.Popen
+        with mock.patch.object(rt.subprocess, "Popen", lambda cmd, **kw: real([sys.executable, str(script)], **kw)):
+            dest = self.root / "out"
+            dest.mkdir()
+            self.assertTrue(rt._extract("unused", "0" * 40, str(dest)))
+        self.assertEqual((dest / "a.txt").read_bytes(), b"hello")
+
+
 class SpawnComposedTest(Base):
     def setUp(self):
         super().setUp()
