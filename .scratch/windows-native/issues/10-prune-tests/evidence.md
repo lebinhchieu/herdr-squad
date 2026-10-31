@@ -4,11 +4,11 @@
 
 Tests only. No product code changed by this ticket's prune commits. Code sha: `5ad5cb5`.
 
-Phase 1 cut 101 tests from 22 files. Phase 2 cut 58 more: 53 from 18 files, then 5 after "06 final" (`test_squad_log_message` -4, `test_squad_usage_hook` -1). `test_log_append_stress` has `RECORDS` 200 to 50 (8 writers and the 9000-byte record kept, no test removed). Every cut has a row in `removed.tsv`: rule, reason, and the test that still covers it. Full list and the kept and held files: `prune-report.md` (copy in `$SCOPE_DIR/evidence/10/`).
+Phase 1 cut 100 tests from 22 files. Phase 2 cut 58 more: 53 from 18 files, then 5 after "06 final" (`test_squad_log_message` -4, `test_squad_usage_hook` -1). `test_log_append_stress` has `RECORDS` 200 to 50 (8 writers and the 9000-byte record kept, no test removed). Every cut has a row in `removed.tsv`: rule, reason, and the test that still covers it. Full list and the kept and held files: `prune-report.md` (copy in `$SCOPE_DIR/evidence/10/`).
 
 | AC | Result |
 |---|---|
-| 1 Counts | 159 `def test_` lines removed in `tests/`; `removed.tsv` has 159 rows. |
+| 1 Counts | 158 `def test_` lines removed in `tests/`; `removed.tsv` has 158 rows. After QA FAIL: the PI-08 test in `test_instructions` was restored (it pins M2, M3). |
 | 2 No new skips | `git log --grep='^10: prune' --no-merges -p -- tests`: 0 added skip lines (40 prune commits, one per file). |
 | 3 Section (c) files | Not edited; listed under "Kept on purpose" in the report. |
 | 4 Sample rows | Each row names a surviving test; see `removed.tsv`. |

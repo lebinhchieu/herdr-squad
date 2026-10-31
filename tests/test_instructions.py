@@ -76,6 +76,11 @@ class InstructionsTest(unittest.TestCase):
 class ManagerInboxTest(unittest.TestCase):
     text = composed("manager", "M")
 
+    def test_the_inbox_bullets_carry_the_three_live_wording_rules(self):  # PI-08 AC4
+        self.assertIn("One `squad-inbox add` per Bash call, never two.", self.text)  # M1
+        self.assertIn("your reply is the printed line and nothing else: no body, options or recommendation", self.text)  # M2
+        self.assertIn("Run `squad-inbox list` first; never answer from memory of what is open.", self.text)  # M3
+
     def test_every_squad_inbox_word_is_a_cli_command(self):
         words = set(re.findall(r"squad-inbox ([a-z]+)", self.text))
         self.assertTrue(words)

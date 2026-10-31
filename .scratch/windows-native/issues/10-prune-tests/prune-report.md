@@ -1,6 +1,6 @@
 # Ticket 10: prune tests, phase 1 report
 
-**Result:** 101 tests removed from 22 files, each logged with rule, reason and the test that still covers it (`removed.tsv`). Behaviour tests were kept. Native Windows, python 3.14.
+**Result:** 100 tests removed from 22 files, each logged with rule, reason and the test that still covers it (`removed.tsv`). Behaviour tests were kept. Native Windows, python 3.14.
 
 **Time:** `qab_optional` 85s to about 16s (memoised, 0 removed). `dev_rules_size` was 32s before.
 
@@ -15,7 +15,7 @@
 | test_squadreport_rollup | 295 | 295 | 4.0s | 18 |
 | test_squadreport_tasks | 261 | 261 | 0.5s | 14 |
 | test_squadreport_rollup_ui | 254 | 254 | 0.3s | 11 |
-| test_instructions | 240 | 141 | 1.3s | 30 |
+| test_instructions | 240 | 145 | 1.3s | 30 |
 | test_team_lead_role | 229 | 70 | 0.8s | 13 |
 | test_squad_report_query | 188 | 178 | 6.4s | 16 |
 | test_processlint | 183 | 183 | 0.8s | 31 |
@@ -71,7 +71,6 @@ Style of cut: wording-only rule tests (b-5) and absence tests (b-4), and loops t
 - test_instructions::test_no_role_still_writes_its_notes_to_a_squad_level_roles_folder | b-4 | absence of an old path | test_no_file_refers_to_something_that_was_removed ($SQUAD_DIR/roles is in STALE)
 - test_instructions::test_the_manager_names_each_inbox_command_and_flag | b-5 | token list of manager inbox wording | test_manager_inbox_read tests; test_every_squad_inbox_word_is_a_cli_command
 - test_instructions::test_the_add_bullet_says_the_body_comes_from_a_quoted_heredoc | b-5 | one exact sentence | test_manager_inbox_read::test_existing_rules_of_the_bullet_stay
-- test_instructions::test_the_inbox_bullets_carry_the_three_live_wording_rules | b-1 | same sentences are asserted in test_manager_inbox_read | test_manager_inbox_read::test_existing_rules_of_the_bullet_stay
 - test_instructions::test_an_inbox_answer_is_never_a_merge_push_or_deploy_request | b-1 | same sentences as test_manager_inbox_read | test_manager_inbox_read::test_carries_only_existing_sentences_stay
 - test_instructions::test_qas_write_findings_to_scope_evidence_and_embed_screenshots | b-5 | two exact tokens | none (wording)
 - test_instructions::test_manager_and_team_lead_link_each_tickets_evidence_md | b-3 | one token in a composed file | none (wording)
@@ -82,7 +81,7 @@ Style of cut: wording-only rule tests (b-5) and absence tests (b-4), and loops t
 - test_manager_inbox_read::test_checkin_is_not_a_chat_report | b-5 | counts the word report in a rule | test_checkin_is_one_inbox_item
 - test_manager_inbox_read::test_carries_only_allows_the_merge_words_in_the_checkin | b-5 | one phrase | test_carries_only_existing_sentences_stay
 - test_manager_inbox_read::test_a_chat_reply_never_lists_steps_for_the_po | b-5 | one phrase | test_checkin_is_one_inbox_item
-- test_manager_inbox_read::test_inbox_and_answer_bullets_keep_their_wording_rules | b-1 | same asserts as test_existing_rules_of_the_bullet_stay | test_existing_rules_of_the_bullet_stay
+- test_manager_inbox_read::test_inbox_and_answer_bullets_keep_their_wording_rules | b-1 | M1, M2, M3 asserted by the PI-08 test in test_instructions | test_instructions::test_the_inbox_bullets_carry_the_three_live_wording_rules (restored, asserts M1, M2, M3)
 - test_manager_m_l::test_s_keeps_the_pod_health_checks | b-5 | token list of rule wording | test_s_keeps_developer_spawning_and_routing (rule ids)
 - test_manager_m_l::test_m_l_manager_does_not_spawn_or_poll_developers | b-5 | exact sentences | test_s_keeps_developer_spawning_and_routing (SPAWN-5a absent at L)
 - test_manager_m_l::test_m_l_watch_the_team_lead_only | b-5 | exact sentences | test_s_keeps_developer_spawning_and_routing
