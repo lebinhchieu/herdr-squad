@@ -193,6 +193,19 @@ class LogMessageTest(unittest.TestCase):
                 self.assertEqual(ctx["hookEventName"], "PostToolUse")
                 self.assertIn("task 07 has 3 returns", ctx["additionalContext"])
 
+    def test_a_stale_lock_dir_does_not_wedge_the_append(self):  # ticket 06: no flock, lock left by a killed writer
+        lock = Path(str(self.log) + ".lock")
+        lock.mkdir()
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
+        env.update(SQUAD_NAME="dev-1", SQUAD_DIR=str(self.squad))
+        env = winlaunch.no_flock_env(env, self.tmp.name)
+        for n in (1, 2):
+            r = winlaunch.run_script(SCRIPT, input=json.dumps(payload(msg_id=f"m{n}")), text=True, encoding="utf-8",
+                                     env=env, capture_output=True, timeout=120)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(len(self.records()), n)
+            self.assertFalse(lock.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

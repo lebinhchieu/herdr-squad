@@ -4,7 +4,7 @@
 
 Tests only. No product code changed by this ticket's prune commits. Code sha: `9e814b1`.
 
-Phase 1 cut 100 tests from 22 files. Phase 2 cut 58 more: 53 from 18 files, then 5 after "06 final" (`test_squad_log_message` -4, `test_squad_usage_hook` -1). `test_log_append_stress` has `RECORDS` 200 to 50 (8 writers and the 9000-byte record kept, no test removed). Every cut has a row in `removed.tsv`: rule, reason, and the test that still covers it. Full list and the kept and held files: `prune-report.md` (copy in `$SCOPE_DIR/evidence/10/`).
+Phase 1 cut 100 tests from 22 files. Phase 2 cut 58 more: 53 from 18 files, then 5 after "06 final" (`test_squad_log_message` -4, `test_squad_usage_hook` -1). `tests/test_log_append_stress.py` was removed by PO order; its 2 stale-lock tests now live in `test_squad_log_message` and `test_squad_usage_hook`. Every cut has a row in `removed.tsv`: rule, reason, and the test that still covers it. Full list and the kept and held files: `prune-report.md` (copy in `$SCOPE_DIR/evidence/10/`).
 
 | AC | Result |
 |---|---|
@@ -16,6 +16,6 @@ Phase 1 cut 100 tests from 22 files. Phase 2 cut 58 more: 53 from 18 files, then
 | 6 Evidence check | `squad-evidence check ... --base 5ad5cb5`, see the HANDIN. |
 | 7 Full suite | Not run by the Dev (suite owner runs it). |
 
-Linux (WSL Debian, per file, `tools/lx.py`): every touched file passes except failures that were there before and are not caused by the prune (`after-phase2-linux.txt`): `test_run_suite` 3 failures, `test_ca_install::test_gitignore_names_the_state_files` 1,  `test_squadreport_ui` had one error in the batch run (`test_banner_bold_wraps`, not in baseline) and passed 27/27 on re-run, so it is a timing flake. Last run of `test_squad_log_message` (19 tests), `test_squad_usage_hook` (9) and `test_log_append_stress` (4): OK.
+Linux (WSL Debian, per file, `tools/lx.py`): every touched file passes except failures that were there before and are not caused by the prune (`after-phase2-linux.txt`): `test_run_suite` 3 failures, `test_ca_install::test_gitignore_names_the_state_files` 1,  `test_squadreport_ui` had one error in the batch run (`test_banner_bold_wraps`, not in baseline) and passed 27/27 on re-run, so it is a timing flake. Last run of `test_squad_log_message` (20 tests) and `test_squad_usage_hook` (10): OK on Linux.
 
 Held (R1), untouched: `test_squadrules`, `test_squadcompose`, `test_sizes`, `test_team_duties`, `test_small_files_equivalence`.

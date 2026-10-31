@@ -107,6 +107,23 @@ class HookTest(unittest.TestCase):
         r = winlaunch.run_script(SCRIPT, input="not json", text=True, encoding="utf-8", env=env, capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0)
 
+    def test_a_stale_lock_dir_does_not_wedge_the_event_append(self):  # ticket 06: no flock, lock left by a killed writer
+        lock = Path(str(self.events) + ".lock")
+        lock.mkdir()
+        self.transcript("sid-1", 130_000)
+        self.transcript("sid-2", 130_000)
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
+        env.update(CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "cfg"), SQUAD_NAME="dev-1", SQUAD_DIR=str(self.squad),
+                   SQUAD_ROLE="dev")
+        env = winlaunch.no_flock_env(env, self.tmp.name)
+        for n in (1, 2):
+            data = {"hook_event_name": "Stop", "session_id": f"sid-{n}"}
+            r = winlaunch.run_script(SCRIPT, input=json.dumps(data), text=True, encoding="utf-8", env=env,
+                                     capture_output=True, timeout=120)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertEqual(len(self.events.read_text(encoding="utf-8").splitlines()), n)
+            self.assertFalse(lock.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

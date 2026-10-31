@@ -42,7 +42,7 @@ if command -v flock >/dev/null; then
   { flock 9 2>/dev/null; printf '%s\n' "$record" >&9; } 9>>"$log" || exit 0
 else
   # No flock (Git for Windows): a plain >> append of a record over 4 KiB is torn by concurrent writers
-  # (tests/test_log_append_stress.py), so serialise with an atomic mkdir lock. A lock left by a killed
+  # (seen with 8 parallel writers, ADR 0011 D3b), so serialise with an atomic mkdir lock. A lock left by a killed
   # writer is removed after ~5 s and we go on without owning it: the hook never wedges and never fails.
   held=
   n=0

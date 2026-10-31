@@ -77,3 +77,17 @@ def run_script(path, args=(), env=None, **kw):
 
 def popen_script(path, args=(), env=None, **kw):
     return subprocess.Popen(command(path, *args), env=env_for(env), **kw)
+
+
+def no_flock_env(env, tmp):
+    """env whose PATH has no flock, so the hooks take their mkdir-lock branch (Windows has none; Linux gets a symlink farm)."""
+    if not shutil.which("flock", path=env.get("PATH")):
+        return env
+    farm = Path(tmp) / "noflock-bin"
+    farm.mkdir(exist_ok=True)
+    for tool in ("bash", "jq", "date", "dirname", "readlink", "cat", "basename", "python3", "sleep", "mkdir",
+                 "rmdir", "env", "uname", "sed", "grep", "tr", "head", "sort", "wc", "id"):
+        found = shutil.which(tool)
+        if found and not (farm / tool).exists():
+            (farm / tool).symlink_to(found)
+    return {**env, "PATH": str(farm)}

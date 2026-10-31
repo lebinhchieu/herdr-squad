@@ -6,6 +6,7 @@ Where `flock` is missing (Git Bash on Windows), `bin/squad-log-message` and `bin
 
 Proof: plain `>>` tore records over about 4 KiB on Windows. With the lock, 8 writers x 200 lines (one writer pads 9000 bytes) per hook keep every line intact.
 
+- (Stress and stale-lock tests were run once at this ticket; `tests/test_log_append_stress.py` was removed later by the PO's order in ticket 10.)
 - LogMessageStress: passed (1598 intact after the parallel pass, 2 launches lost to Git Bash fork failures, re-run serially).
 - UsageHookStress: passed on the final run (1598 intact, 2 lost, within the 10% cap).
 - StaleLock tests (2): passed.

@@ -256,5 +256,5 @@ Held (R1, Team Lead decision): `squadrules`, `squadcompose`, `sizes`, `team_duti
 - Behaviour tests of real scripts, read and kept: `test_squad_close`, `test_squadinbox_answer`, `test_squadupgrade`, `test_squad_manager_guard`, `test_squad_notify`, `test_squad_path_guard`, `test_team_lead_perms`, `test_squad_retire`, `test_squad_usage`, `test_old_language_inventory`.
 
 ### Not touched in phase 2, why
-- 06 final (41a1977) merged. Pruned after it: `test_squad_log_message` (-4), `test_squad_usage_hook` (-1), 5 tests in all (rows in removed.tsv). `test_log_append_stress`: RECORDS 200 to 50 (Tech Lead), 8 writers and the 9000-byte record kept, no test removed.
+- 06 final (41a1977) merged. Pruned after it: `test_squad_log_message` (-4), `test_squad_usage_hook` (-1), 5 tests in all (rows in removed.tsv). `tests/test_log_append_stress.py` removed by PO order (with its references: ADR 0011 D3b wording, code comments in `bin/squad-log-message` and `bin/squad-usage-hook`, 06 evidence note). Its 2 stale-lock tests moved into `test_squad_log_message` and `test_squad_usage_hook` (one each, `winlaunch.no_flock_env`). The stress tests (LogMessageStress, UsageHookStress) are gone.
 - Held (R1): `test_squadrules`, `test_squadcompose`, `test_sizes`, `test_team_duties`, `test_small_files_equivalence`.
