@@ -467,7 +467,7 @@ case "$(cat "$HOME/mode.$2" 2>/dev/null || echo done)" in
       kill "$p"
       # wait for a state that stays: the old claude is gone (or a zombie); the failure names the state
       for _ in $(seq 100); do st=$(cat "/proc/$p/stat" 2>/dev/null) || break; case "${st##*) }" in Z*) break ;; esac; sleep 0.05; done
-      [ -d "/proc/$p" ] && case "$(cat "/proc/$p/stat" 2>/dev/null)" in *") Z"*) ;; *) echo "$(date -Is) $2 stub FAILED: old claude $p still alive" >> "$HOME/.claude-accounts/cswitch.log" ;; esac
+      st=$(cat "/proc/$p/stat" 2>/dev/null); case "$st" in ""|*") Z"*) ;; *) echo "$(date -Is) $2 stub FAILED: old claude $p still alive" >> "$HOME/.claude-accounts/cswitch.log" ;; esac
       n=$(wc -w < "$CA_STUB/pids")
       cfg="$HOME/.claude-$1"; [ "$1" = 1 ] && cfg=""
       ( export $env HERDR_PANE_ID="$2" HERDR_ENV=1 CLAUDE_STUB_MODE=sleep; [ -n "$cfg" ] && export CLAUDE_CONFIG_DIR="$cfg"
@@ -671,7 +671,7 @@ class WakeTest(Base):
         self.tick()
         self.assertEqual(self.switch_calls(), ["3 p1"])
         self.assertEqual(self.prompts(), [])
-        self.assertNotRegex(self.log(), r"p9")  # a word: the random tmp dir name can contain "p9"
+        self.assertNotRegex(self.log(), r"\bp9\b")  # a word: the random tmp dir name can contain "p9"
 
     def test_wake_off_moves_everything_and_samples_and_sends_nothing(self):
         self.e.env["CSWITCH_WAKE"] = "off"
