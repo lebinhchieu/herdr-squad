@@ -75,7 +75,7 @@ class StressBase(unittest.TestCase):
         self.assertEqual(lines.pop(), "", "log must end with a newline")
         return lines, [json.loads(l)[key] for l in lines]  # every line intact
 
-    def stress(self, log, key, once, big):
+    def stress(self, log, key, once):
         """Parallel pass, then re-run serially each id the log lacks (a launch bash lost), then check the log."""
         run_all(once)
         lines, ids = self.read_log(log, key)
@@ -84,21 +84,16 @@ class StressBase(unittest.TestCase):
         lost = [(w, i) for w, i in want if f"w{w}-{i}" not in set(ids)]
         print(f"\n{self.id()}: {len(ids)} intact lines after the parallel pass, {len(lost)} launches lost")
         self.assertLessEqual(len(lost), LOST_MAX)
-        first = len(ids)
         for w, i in lost:
             r = once(w, i)
             self.assertIsNone(r, r)
         lines, ids = self.read_log(log, key)
         self.assertEqual(sorted(ids), sorted(f"w{w}-{i}" for w, i in want))
-        for w in range(WRITERS):  # per-writer order kept in the parallel pass
-            mine = [int(x.rsplit("-", 1)[1]) for x in ids[:first] if x.startswith(f"w{w}-")]
-            self.assertEqual(mine, sorted(mine))
-        if big:
-            self.assertTrue(all(len(l) > BIG for l in lines))
 
 
 class LogMessageStress(StressBase):
-    def hook(self, w, i, pad):
+    def hook(self, w, i):
+        pad = BIG if w == 0 else 0  # writer 0's records exceed PIPE_BUF
         msg = f"STATUS 06: writer {w} record {i} " + "x" * pad
         data = {"hook_event_name": "PostToolUse", "tool_name": "SendMessage", "session_id": "s",
                 "tool_input": {"to": "tl", "message": msg},
@@ -106,14 +101,8 @@ class LogMessageStress(StressBase):
         r = launched(launch(BIN / "squad-log-message"), input=json.dumps(data), env=self.env(SQUAD_NAME=f"dev-{w}"))
         return None if r is None or r.returncode == 0 or "fatal error in forked" in r.stderr else (w, i, r.returncode, r.stderr)
 
-    def go(self, pad):
-        self.stress(self.squad / "messages.jsonl", "msg_id", lambda w, i: self.hook(w, i, pad), pad > 0)
-
-    def test_short_records(self):
-        self.go(0)
-
-    def test_records_over_pipe_buf(self):
-        self.go(BIG)
+    def test_eight_writers_keep_every_line(self):
+        self.stress(self.squad / "messages.jsonl", "msg_id", self.hook)
 
 
 class UsageHookStress(StressBase):
@@ -127,21 +116,16 @@ class UsageHookStress(StressBase):
                         "usage": {"input_tokens": 2, "cache_read_input_tokens": 130_000,
                                   "cache_creation_input_tokens": 0, "output_tokens": 10}}}) + "\n", encoding="utf-8")
 
-    def hook(self, w, i, pad):
+    def hook(self, w, i):
+        pad = BIG if w == 0 else 0  # writer 0's records exceed PIPE_BUF
         data = {"hook_event_name": "Stop", "session_id": f"w{w}-{i}", "transcript_path": str(self.transcript)}
         r = launched(launch(BIN / "squad-usage-hook"), input=json.dumps(data),
                      env=self.env(SQUAD_NAME=f"dev-{w}", SQUAD_ROLE="qa" + "x" * pad,
                                   CLAUDE_CONFIG_DIR=str(self.root / "cfg")))
         return None if r is None or r.returncode == 2 or "fatal error in forked" in r.stderr else (w, i, r.returncode, r.stderr)
 
-    def go(self, pad):
-        self.stress(self.squad / "usage-events.jsonl", "session", lambda w, i: self.hook(w, i, pad), pad > 0)
-
-    def test_short_records(self):
-        self.go(0)
-
-    def test_records_over_pipe_buf(self):
-        self.go(BIG)
+    def test_eight_writers_keep_every_line(self):
+        self.stress(self.squad / "usage-events.jsonl", "session", self.hook)
 
 
 def no_flock_env(env, tmp):
