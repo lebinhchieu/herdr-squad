@@ -166,7 +166,8 @@ def _installed_cache(version, sha, plugin_json_paths=None):
     """The installed cache folder of a `squad@*` plugin whose gitCommitSha matches the pin and whose
     plugin.json version equals it; else None."""
     for path, have in _installed_entries(plugin_json_paths):
-        if have and (have.startswith(sha) or sha.startswith(have)) and os.path.isdir(path)                 and _plugin_version(path) == version:
+        if (have and (have.startswith(sha) or sha.startswith(have)) and os.path.isdir(path)
+                and _plugin_version(path) == version):
             return path
     return None
 
@@ -201,7 +202,7 @@ def _extract(plugin_root, sha, dest):
     except tarfile.TarError:
         ok = False
     finally:
-        proc.stdout.read()  # drain tar's end padding: closing early makes git die of SIGPIPE (exit 141)
+        proc.stdout.read()  # tarfile stops at the end marker; closing with padding unread kills git (SIGPIPE, 141)
         proc.stdout.close()
         err = proc.stderr.read()
         proc.stderr.close()

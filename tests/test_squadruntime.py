@@ -349,6 +349,36 @@ class RunningPinCacheTest(Base):
             self.assertEqual(rt._norm_path(d.replace("\\", "/")), rt._norm_path(d.swapcase()))
 
 
+class ExtractDrainTest(Base):
+    """`git archive` pads its tar with zeros after the end marker. tarfile stops reading at the marker; _extract must
+    read the rest, or git dies of SIGPIPE (exit 141) and the build is judged failed. A fake git writes a small tar
+    and then 1 MiB of padding (more than any pipe buffer) and exits 141 when the pipe breaks; no timing involved."""
+
+    FAKE_GIT = """import io, sys, tarfile
+buf = io.BytesIO()
+with tarfile.open(fileobj=buf, mode="w") as tf:
+    data = b"hello"
+    ti = tarfile.TarInfo("a.txt")
+    ti.size = len(data)
+    tf.addfile(ti, io.BytesIO(data))
+try:
+    sys.stdout.buffer.write(buf.getvalue() + bytes(1 << 20))
+    sys.stdout.buffer.flush()
+except (BrokenPipeError, OSError):
+    sys.exit(141)
+"""
+
+    def test_padding_after_the_tar_end_is_drained(self):
+        script = self.root / "fakegit.py"
+        script.write_text(self.FAKE_GIT, encoding="utf-8")
+        real = subprocess.Popen
+        with mock.patch.object(rt.subprocess, "Popen", lambda cmd, **kw: real([sys.executable, str(script)], **kw)):
+            dest = self.root / "out"
+            dest.mkdir()
+            self.assertTrue(rt._extract("unused", "0" * 40, str(dest)))
+        self.assertEqual((dest / "a.txt").read_bytes(), b"hello")
+
+
 class SpawnComposedTest(Base):
     def setUp(self):
         super().setUp()
