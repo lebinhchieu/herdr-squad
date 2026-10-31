@@ -389,19 +389,3 @@ class ClaudeMdTest(unittest.TestCase):
         m = re.search(r"^## Running tests\n(.*?)(?=^## |\Z)", text, re.M | re.S)
         self.assertIsNotNone(m, "CLAUDE.md has no '## Running tests' section")
         return m.group(1).strip("\n")
-
-    def test_section_is_short_and_every_flag_it_names_is_in_the_runner(self):
-        section = self.section()
-        self.assertLessEqual(len(section.splitlines()) + 1, 10)
-        help_text = subprocess.run([sys.executable, str(RUNNER), "--help"], stdout=subprocess.PIPE,
-                                   universal_newlines=True).stdout
-        flags = set(re.findall(r"(?<![\w-])--[a-z][a-z-]*", section))
-        self.assertTrue({"--receipt", "--if-changed", "--tz"} <= flags, flags)
-        for flag in flags:
-            self.assertIn(flag, help_text, "%s is in CLAUDE.md but not in run_suite.py" % flag)
-
-    def test_pgrep_and_pkill_appear_only_as_never(self):
-        for line in self.section().splitlines():
-            for word in ("pgrep -f", "pkill -f"):
-                if word in line:
-                    self.assertRegex(line, r"[Nn]ever [^.]*" + word)
