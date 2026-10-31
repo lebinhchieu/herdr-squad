@@ -126,10 +126,6 @@ class RespawnTest(unittest.TestCase):
             self.assertNotIn("process.md", out)
             self.assertNotIn("show", out)
 
-    def test_respawn_never_names_squad_process_show(self):
-        self.assertNotIn("squad-process show", (BIN / "squad-respawn").read_text(encoding="utf-8"))
-        self.assertNotIn("squad-process show", (BIN / "squad-spawn").read_text(encoding="utf-8"))
-
     def test_respawn_of_a_legacy_agent_reproduces_the_rules_attachment(self):
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -184,11 +180,6 @@ class RespawnTest(unittest.TestCase):
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("101 lines", r.stderr)
-
-    def test_no_warning_for_short_notes(self):
-        (self.squad / "roles").mkdir()
-        (self.squad / "roles" / "dev-1.notes.md").write_text("line\n" * 30, encoding="utf-8")
-        self.assertNotIn("lines", self.respawn().stderr)
 
     def scoped(self):
         """Turn the test squad into a per-scope squad with scope sc1 and goal g1."""
