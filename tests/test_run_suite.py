@@ -105,6 +105,21 @@ class RunSuiteTest(unittest.TestCase):
         self.assertEqual(lines[-1], "OK")
         self.assertFalse((out / "suite-tz.txt").exists())
 
+    def test_a_redirected_stdout_in_a_legacy_codepage_still_gets_the_summary_and_the_receipt(self):
+        self.stub("test_bytes.py", "import sys, unittest\nclass T(unittest.TestCase):\n    def test_a(self):\n"
+                  "        sys.stdout.buffer.write(b'\\xff bad byte'); sys.stdout.flush(); self.fail('x')\n")
+        out, log = self.dir / "receipt", self.dir / "stdout.txt"
+        env = {k: v for k, v in os.environ.items() if k not in ("PYTHONUTF8", "SQUAD_REQUIRE_CLAUDE")}
+        env.update(PYTHONIOENCODING="cp1252", SQUAD_SUITE_LOCK=str(self.dir / "lock"))
+        with open(log, "wb") as f:
+            done = subprocess.run([sys.executable, str(RUNNER), "--tests-dir", str(self.dir), "--receipt", str(out)],
+                                  stdout=f, stderr=subprocess.STDOUT, env=env)
+        text = log.read_text(encoding="utf-8")
+        self.assertEqual(done.returncode, 1, text)  # the stub fails on purpose
+        self.assertNotIn("UnicodeEncodeError", text)
+        self.assertIn("\ufffd", text)
+        self.assertIn("\ufffd", (out / "suite-default.txt").read_text(encoding="utf-8"))
+
     def test_tz_run_requires_claude_for_the_mod_test_and_a_plain_run_does_not(self):  # PI-07 AC7
         self.stub("test_env.py", "import os, unittest\nclass T(unittest.TestCase):\n"
                   "    def test_a(self): self.assertEqual(os.environ.get('SQUAD_REQUIRE_CLAUDE'), '1')\n")
@@ -242,10 +257,9 @@ class LockScopeTest(unittest.TestCase):
             self.assertRegex(o, r"Ran 2 tests in \d+\.\d+s\n\nOK\n$")
 
     def test_a_runner_whose_lock_is_held_finishes_its_pool_first_and_says_it_waits(self):
-        import fcntl
         d = self.runner_dir("c", secs=0.2)
         with open(self.lock, "a") as held:
-            fcntl.flock(held, fcntl.LOCK_EX)
+            run_suite.lock_file(held, wait=True)
             p = self.start(d)
             pool_stamps = self.root / "c-pool.stamps"
             for _ in range(100):
@@ -325,9 +339,8 @@ class IfChangedTest(unittest.TestCase):
         self.check(False, False)
 
     def test_the_flock_is_never_taken_when_the_browser_phase_is_skipped(self):
-        import fcntl
         with open(self.lock, "a") as held:
-            fcntl.flock(held, fcntl.LOCK_EX)
+            run_suite.lock_file(held, wait=True)
             self.check(False, False)  # would hang on the held lock if the runner asked for it
 
     def test_browser_phase_runs_for_a_browser_test_run_suite_and_an_uncommitted_change_not_for_a_bin_file(self):

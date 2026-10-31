@@ -1,0 +1,13 @@
+# Evidence: 03 Windows launch helper for the tests
+
+## Behaviour
+
+03a, Windows 11, Git Bash, Python 3.14 (Linux not run here; Tech Lead's Debian run covers it).
+
+- `cd tests && python -m unittest -q test_winlaunch test_no_bare_bash`: 14 tests OK, also with SystemRoot empty as on Linux; nt tests pass system_root explicitly (nt: shebang bash/sh -> Git bash by absolute path, never System32; python -> sys.executable; POSIX argv/env identity; real script run).
+- `test_squad_spawn.SpawnRuntimePathEnvTest` (now through `winlaunch.run_script`, hand-rolled Git bash lookup removed): 3 OK.
+- `test_run_suite`: 23/24 OK; the 1 failure runs `test_squad_usage`, an unconverted script launch (WinError 193, ticket 03b). run_suite imports on Windows; lock via msvcrt, temp-folder path on nt; Linux keeps fcntl and /tmp/squad-suite.lock.
+- Guard: `test_no_bare_bash` now scans `tests/` for argv lists starting with bare "bash"/"sh"; `TESTS_TO_CONVERT` (5 files) is a ratchet 03b empties; planted-line tests prove it fails.
+- `bin/squad-process lint` exit 0.
+
+- Return 1 (QA-w FAIL, run_suite.py print on a cp1252 pipe): `run_suite.main()` now calls `squadio.utf8_stdio()`. New test `test_a_redirected_stdout_in_a_legacy_codepage_still_gets_the_summary_and_the_receipt` (stdout to a file, PYTHONIOENCODING=cp1252, U+FFFD in the summary): passes; with the call commented out it fails with UnicodeEncodeError. `Expected: 0 failures` in RUNNING-ON-WINDOWS.md now says whole-suite zero holds after 03b/03c.
