@@ -258,7 +258,7 @@ class AutoswitchTest(Base):
     def test_cache_younger_than_900s_is_used(self):
         self.pane("dev-1", "p1", "w1", "1")
         self.usage_file(2, 20, 10)
-        for age in (600, 899):
+        for age in (600, 880):  # 880, not 899: the run itself takes seconds on a slow disk
             self.usage_file(1, 95, 80, age=age)
             self.auto("--dry-run")
             self.assertEqual(self.log().count("would set w1 default to c2"), 1 if age == 600 else 2, age)
@@ -465,11 +465,16 @@ case "$(cat "$HOME/mode.$2" 2>/dev/null || echo done)" in
       tr "\\0" "\\n" <"/proc/$p/environ" 2>/dev/null | grep -qx "HERDR_PANE_ID=$2" || continue
       env=$(tr "\\0" "\\n" <"/proc/$p/environ" 2>/dev/null | grep -E "^(SQUAD_NAME|HERDR_WORKSPACE_ID|SCOPE_DIR)=")
       kill "$p"
-      sleep 0.2
+      # wait for a state that stays: the old claude is gone (or a zombie); the failure names the state
+      for _ in $(seq 100); do st=$(cat "/proc/$p/stat" 2>/dev/null) || break; case "${st##*) }" in Z*) break ;; esac; sleep 0.05; done
+      [ -d "/proc/$p" ] && case "$(cat "/proc/$p/stat" 2>/dev/null)" in *") Z"*) ;; *) echo "$(date -Is) $2 stub FAILED: old claude $p still alive" >> "$HOME/.claude-accounts/cswitch.log" ;; esac
+      n=$(wc -w < "$CA_STUB/pids")
       cfg="$HOME/.claude-$1"; [ "$1" = 1 ] && cfg=""
       ( export $env HERDR_PANE_ID="$2" HERDR_ENV=1 CLAUDE_STUB_MODE=sleep; [ -n "$cfg" ] && export CLAUDE_CONFIG_DIR="$cfg"
         nohup "$CA_STUB/bin/claude" >/dev/null 2>&1 </dev/null & )
-      sleep 0.3
+      # wait for a state that stays: the new claude registered its pid
+      for _ in $(seq 100); do [ "$(wc -w < "$CA_STUB/pids")" -gt "$n" ] && break; sleep 0.05; done
+      [ "$(wc -w < "$CA_STUB/pids")" -gt "$n" ] || echo "$(date -Is) $2 stub FAILED: new claude never registered (pids: $(wc -w < "$CA_STUB/pids"), expected over $n)" >> "$HOME/.claude-accounts/cswitch.log"
       break
     done
     echo "$(date -Is) $2 stub done" >> "$HOME/.claude-accounts/cswitch.log" ;;
@@ -666,7 +671,7 @@ class WakeTest(Base):
         self.tick()
         self.assertEqual(self.switch_calls(), ["3 p1"])
         self.assertEqual(self.prompts(), [])
-        self.assertNotIn("p9", self.log())
+        self.assertNotRegex(self.log(), r"p9")  # a word: the random tmp dir name can contain "p9"
 
     def test_wake_off_moves_everything_and_samples_and_sends_nothing(self):
         self.e.env["CSWITCH_WAKE"] = "off"
