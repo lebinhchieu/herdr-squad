@@ -1,7 +1,6 @@
 """Ticket 14: `qa-b: no` composes the QA-blackbox-free rules; no `qa-b` line composes as `qa-b: yes`.
 The golden is the merged tree (integration 27); 14's byte-identity to 4901cab was proven at 99796ce."""
 import functools
-import hashlib
 import json
 import os
 import re
@@ -13,7 +12,6 @@ from pathlib import Path
 
 from squadtest import ROOT
 sys.path.insert(0, str(ROOT / "bin"))
-import squadcompose as sc  # noqa: E402
 import squadrules as sr  # noqa: E402
 from rulesview import shape_team, who  # noqa: E402
 

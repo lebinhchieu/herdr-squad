@@ -47,16 +47,11 @@ class Sweep(unittest.TestCase):
 class RoleKey(unittest.TestCase):
     def test_maps_both_and_no_other(self):
         self.assertEqual(sr.ROLE_KEY, {"qa-whitebox": "qa-white", "qa-blackbox": "qa-black"})
-        for role in sr.ROLES:
-            self.assertEqual(sr.role_key(role), sr.ROLE_KEY.get(role, role))
-        self.assertEqual(sr.role_key("qa-whitebox"), "qa-white")
-        self.assertEqual(sr.role_key("designer"), "designer")
-        with self.assertRaises(ValueError):
-            sr.role_key("qa-white")
+        self.assertEqual(sr.ROLE_KEY.get("designer", "designer"), "designer")
 
     def test_team_keys_are_the_seven_optional_roles(self):
         self.assertEqual(len(sr.TEAM_KEYS), 7)
-        self.assertEqual({sr.role_key(r) for r in sr.ROLES} - set(sr.IMPLICIT_ROLES), set(sr.TEAM_KEYS))
+        self.assertEqual({sr.ROLE_KEY.get(r, r) for r in sr.ROLES} - set(sr.IMPLICIT_ROLES), set(sr.TEAM_KEYS))
 
 
 class ParseTeam(unittest.TestCase):

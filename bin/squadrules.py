@@ -187,13 +187,6 @@ def missing_fact_keys(when, facts):
 
 # ---- team ----------------------------------------------------------------------------------------
 
-def role_key(role):
-    """Team token of a role name (`qa-whitebox` -> `qa-white`); ValueError for a name that is not a role."""
-    if role not in ROLES:
-        raise ValueError(f"unknown role {role!r}")
-    return ROLE_KEY.get(role, role)
-
-
 def parse_team(value, where="scope.md"):
     """Value of a `team:` line -> list of tokens (None when blank = undecided; [] for `none`). ValueError names `where`.
 

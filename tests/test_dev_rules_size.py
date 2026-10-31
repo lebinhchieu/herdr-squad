@@ -1,8 +1,6 @@
 """Ticket 22: the composed Developer rules fit 5 KiB at every size x design x goal, keep every duty, and
 anything left out stays one `squad-process rule <ID>` away."""
-import json
 import re
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -24,7 +22,6 @@ COMBOS = [("S", "no", "no"), ("M", "yes", "no"), ("L", "yes", "yes")]  # one per
 def compose(role, size, design="no", goal="no", architecture="no", name="role-cards-upgrade", agent="plugin-dev-role-cards-upgrade-12"):
     """The raw composed bytes for a pinned fixture home with live-length names; no --plugin-root, time injected."""
     import squadcompose
-    import squadrules
     pin = (squadcompose.running_version(), "0123456789abcdef0123456789abcdef01234567")
     team = shape_team(size, "yes", design, architecture)  # the converter's mapping of the old shape
     return compose_team(role, team, goal=goal, name=name, agent=agent)
