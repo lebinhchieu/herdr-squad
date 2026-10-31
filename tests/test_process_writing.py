@@ -1,9 +1,8 @@
 """The process.md template obeys its own Writing rule on every suite run (bin/processlint.py, design §9)."""
 import sys
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from squadtest import ROOT
 sys.path.insert(0, str(ROOT / "bin"))
 import processlint  # noqa: E402
 

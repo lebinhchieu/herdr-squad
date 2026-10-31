@@ -5,9 +5,8 @@ A hooks test cannot read files, so this test keeps the guide and the fixtures th
 """
 import re
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from squadtest import ROOT
 GUIDE = (ROOT / "docs" / "inbox-body-guide.md").read_text(encoding="utf-8")
 FIXTURES = (ROOT / "hooks" / "po-inbox" / "fixtures" / "visual.ts").read_text(encoding="utf-8")
 

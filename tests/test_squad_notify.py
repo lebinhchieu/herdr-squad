@@ -1,6 +1,4 @@
 """squad-notify: decision table, skip, title, failure and OSC delivery (no real herdr or WezTerm)."""
-import importlib.machinery
-import importlib.util
 import json
 import os
 import stat
@@ -12,11 +10,10 @@ import unittest
 from pathlib import Path
 
 sys.dont_write_bytecode = True  # the extensionless script would leave bin/__pycache__/*.pyc
-SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-notify"
-_loader = importlib.machinery.SourceFileLoader("squad_notify", str(SCRIPT))
-_spec = importlib.util.spec_from_loader("squad_notify", _loader)
-sn = importlib.util.module_from_spec(_spec)
-_loader.exec_module(sn)
+from squadtest import BIN, load_cli  # noqa: E402
+
+SCRIPT = BIN / "squad-notify"
+sn = load_cli("squad-notify")
 
 IN = {"HERDR_ENV": "1"}
 SQUAD = {"HERDR_ENV": "1", "SQUAD_NAME": "x"}

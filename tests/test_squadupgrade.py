@@ -8,9 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from squadtest import BIN, ROOT
 FIX = Path(__file__).resolve().parent / "fixtures" / "upgrade"
-BIN = ROOT / "bin"
 sys.path.insert(0, str(BIN))
 import squadrules as sr  # noqa: E402
 import squadruntime as rt  # noqa: E402

@@ -9,7 +9,9 @@ import unittest
 from itertools import product
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+from squadtest import BIN
+
+sys.path.insert(0, str(BIN))
 from rulesview import ROOT, ROLES, run, shape_team, who
 
 LIMIT = 5120

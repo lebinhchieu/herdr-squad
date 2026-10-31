@@ -7,15 +7,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-BIN = Path(__file__).resolve().parent.parent / "bin"
-sys.path.insert(0, str(BIN))
-import importlib.machinery
-import importlib.util
+from squadtest import BIN, load_cli
 
-_loader = importlib.machinery.SourceFileLoader("squad_path_guard", str(BIN / "squad-path-guard"))
-_spec = importlib.util.spec_from_loader("squad_path_guard", _loader)
-guard = importlib.util.module_from_spec(_spec)
-_loader.exec_module(guard)
+sys.path.insert(0, str(BIN))
+guard = load_cli("squad-path-guard")
 
 ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "designer", "token-coach")
 

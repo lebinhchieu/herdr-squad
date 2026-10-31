@@ -4,7 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+from squadtest import BIN
+
+sys.path.insert(0, str(BIN))
 import squadlabel as sl  # noqa: E402
 
 

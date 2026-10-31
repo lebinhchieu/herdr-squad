@@ -8,7 +8,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import winlaunch
 
-SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-usage"
+from squadtest import BIN
+
+SCRIPT = BIN / "squad-usage"
 T0 = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
 NOW = datetime.now(timezone.utc)
 

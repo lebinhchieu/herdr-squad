@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from squadtest import ROOT
 sys.path.insert(0, str(ROOT / "bin"))
 import squadcompose as sc  # noqa: E402
 import squadrules as sr  # noqa: E402

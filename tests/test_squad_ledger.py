@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 import winlaunch
 
-BIN = Path(__file__).resolve().parent.parent / "bin"
+from squadtest import BIN
 LEDGER = BIN / "squad-ledger"
 HOOK = BIN / "squad-log-message"
 

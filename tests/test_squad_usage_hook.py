@@ -8,7 +8,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 import winlaunch
 
-SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-usage-hook"
+from squadtest import BIN
+
+SCRIPT = BIN / "squad-usage-hook"
 NOW = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 

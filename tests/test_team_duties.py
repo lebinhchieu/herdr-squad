@@ -2,9 +2,8 @@
 import itertools
 import sys
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from squadtest import ROOT
 sys.path.insert(0, str(ROOT / "bin"))
 import squadrules as sr  # noqa: E402
 

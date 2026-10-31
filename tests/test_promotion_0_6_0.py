@@ -4,9 +4,8 @@ import json
 import re
 import subprocess
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from squadtest import ROOT
 SIZE = r"(?i)\bsize\b(?!-\d)"  # `-iw` would also match the surviving SIZE-n rule IDs
 VERSION = "0.6.0"
 def grep(pattern, *paths, perl=True):

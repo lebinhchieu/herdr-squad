@@ -1,6 +1,4 @@
 """squad-manager-guard: one context notice for the Manager on `squad-spawn` / `squad-inbox add` (COST-8)."""
-import importlib.machinery
-import importlib.util
 import json
 import os
 import shutil
@@ -12,13 +10,10 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import winlaunch
+from squadtest import BIN, load_cli
 
-BIN = Path(__file__).resolve().parent.parent / "bin"
 sys.path.insert(0, str(BIN))
-_loader = importlib.machinery.SourceFileLoader("squad_manager_guard", str(BIN / "squad-manager-guard"))
-_spec = importlib.util.spec_from_loader("squad_manager_guard", _loader)
-guard = importlib.util.module_from_spec(_spec)
-_loader.exec_module(guard)
+guard = load_cli("squad-manager-guard")
 
 NOW = datetime.now(timezone.utc)
 ROLES = ("dev", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "designer", "token-coach")

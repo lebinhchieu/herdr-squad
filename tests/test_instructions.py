@@ -1,11 +1,10 @@
 """Instruction files (roles, process, skills, templates) must describe the per-scope layout and nothing that was removed."""
 import re
 import unittest
-from pathlib import Path
 
 from rulesview import composed
 
-ROOT = Path(__file__).resolve().parent.parent
+from squadtest import ROOT
 RULES = "\n".join(f.read_text() for f in sorted((ROOT / "templates/squad/process").glob("*.md")))  # the rule folder
 AGENTS = sorted((ROOT / "agents").glob("*.md"))
 INSTRUCTIONS = AGENTS + [ROOT / "templates/squad/project.md"] \

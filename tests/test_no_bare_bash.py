@@ -4,9 +4,8 @@ On Windows a bare `bash` is C:\Windows\System32\bash.exe (the WSL launcher) or t
 squadio.need_bash() / squadio.pick_bash() instead."""
 import ast
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from squadtest import ROOT
 DIRS = ("bin", "hooks", "tools")
 CALLS = {"run", "Popen", "call", "check_call", "check_output"}
 BARE = {"bash", "sh"}

@@ -7,7 +7,9 @@ import unittest
 from pathlib import Path
 import winlaunch
 
-SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-log-message"
+from squadtest import BIN
+
+SCRIPT = BIN / "squad-log-message"
 
 
 def payload(message="HANDIN SET-01: branch squad/dev-1, commit abc123", to="qa-w-settings",

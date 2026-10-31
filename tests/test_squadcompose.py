@@ -8,8 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "bin"
+from squadtest import BIN, ROOT
 FIX = Path(__file__).resolve().parent / "fixtures" / "rules" / "compose"
 sys.path.insert(0, str(BIN))
 import squadcompose as sc  # noqa: E402

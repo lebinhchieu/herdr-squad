@@ -1,6 +1,4 @@
 """squadrules: parser, hash, when, lint (ticket 02). Each lint class has a mutation of the clean fixture that triggers only it."""
-import importlib.machinery
-import importlib.util
 import os
 import shutil
 import subprocess
@@ -9,8 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "bin"
+from squadtest import BIN, ROOT, load_cli
+
 FIX = Path(__file__).resolve().parent / "fixtures" / "rules"
 sys.path.insert(0, str(BIN))
 import squadrules as sr  # noqa: E402
@@ -341,11 +339,7 @@ class CliTest(unittest.TestCase):
 class DelegationTest(unittest.TestCase):
     """compose <role> goes to the composer; compose --out F is a usage error (the v6 merge is gone)."""
     def load(self):
-        loader = importlib.machinery.SourceFileLoader("squad_process_cli", str(BIN / "squad-process"))
-        spec = importlib.util.spec_from_loader("squad_process_cli", loader)
-        mod = importlib.util.module_from_spec(spec)
-        loader.exec_module(mod)
-        return mod
+        return load_cli("squad-process")
 
     def test_routing(self):
         mod = self.load()

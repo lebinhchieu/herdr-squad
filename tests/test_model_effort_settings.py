@@ -2,9 +2,8 @@
 import json
 import re
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from squadtest import ROOT
 BASE = "c1be501"  # permissions are compared with this commit
 ROLES = ["architect", "ba", "designer", "dev", "manager", "qa-blackbox", "qa-whitebox", "team-lead", "tech-lead", "token-coach"]
 EFFORTS = {"low", "medium", "high", "xhigh", "max"}

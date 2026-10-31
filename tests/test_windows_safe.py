@@ -5,9 +5,8 @@ import ast
 import subprocess
 import sys
 import unittest
-from pathlib import Path
 
-BIN = Path(__file__).resolve().parent.parent / "bin"
+from squadtest import BIN
 SUBPROCESS_CALLS = {"run", "Popen", "check_output", "check_call", "call"}
 WRITE_CHARS = set("wax+")
 
