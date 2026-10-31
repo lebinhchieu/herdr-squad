@@ -20,6 +20,9 @@ import threading
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+import squadio  # noqa: E402
+
 try:
     import fcntl
 except ImportError:  # Windows: the lock is msvcrt.locking on the first byte
@@ -212,6 +215,7 @@ def execute(tests_dir, only, jobs, browser_streams, retries, env_extra=None, ski
 
 
 def main(argv=None):
+    squadio.utf8_stdio()  # a redirected stdout on Windows is cp1252; the summary holds U+FFFD from undecodable test output
     here = Path(__file__).resolve().parent
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--tests-dir", default=str(here))
