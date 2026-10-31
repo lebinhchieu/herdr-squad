@@ -32,7 +32,7 @@ import winlaunch
 r = winlaunch.run_script(SCRIPT, ["arg"], env=env, capture_output=True, text=True)   # one runner; utf8=True gives POSIX UTF-8 bytes argv/env; winlaunch.command is its argv
 ```
 
-On Linux it runs `[path, *args]` with env untouched (bytes stay bytes). On Windows it reads the shebang: `bash`/`sh` become Git's bash by absolute path (`squadio.pick_bash`), `python`/`python3` become `sys.executable`; paths become forward-slash `str`. `test_no_bare_bash` fails on a bare `"bash"`/`"sh"` argv in `bin/`, `hooks/`, `tools/` and `tests/`; `TESTS_TO_CONVERT` in that file lists the test files not yet converted (ticket 03b empties it).
+On Linux it runs `[path, *args]` with env untouched (bytes stay bytes). On Windows it reads the shebang (a binary, a bare name or a file without `#!` is passed through unchanged, so a bare `bash` is not caught here): `bash`/`sh` become Git's bash by absolute path (`squadio.pick_bash`), `python`/`python3` become `sys.executable`; paths become forward-slash `str`. `test_no_bare_bash` fails on a bare `"bash"`/`"sh"` argv in `bin/`, `hooks/`, `tools/` and `tests/`; `TESTS_TO_CONVERT` in that file lists the test files not yet converted (ticket 03b empties it).
 
 Expected: 0 failures for these files. For the whole suite 0 failures holds only after tickets 03b and 03c; until then the files that still fail are the ones that launch `bin/` scripts directly (`WinError 193`) or hit the causes below. Tests that cannot work on Windows are skipped with a reason (`python -m unittest -v` prints it). A failure outside the causes below is not a skip: report it, it may be a product bug.
 
