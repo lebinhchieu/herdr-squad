@@ -61,3 +61,24 @@ test_process_writing::test_every_exception_has_a_reason	b-3	loops over an empty 
 test_process_writing::test_level_bullet_is_first_in_manager_and_rule	b-5	compares a constant in the test file with itself	none
 test_process_writing::test_no_byte_budget_anywhere	b-4	absence of a removed parameter	none (removed behaviour)
 test_process_writing::test_manager_card_holds_the_writing_stance	b-5	three phrases in a card	none (wording)
+test_promotion_0_6_0::test_qa_b_in_rules_is_only_the_reviewer_file_name	b-5	exact per-file hit counts of a word in rules	test_rules_have_no_size_word_outside_the_tombstones
+test_promotion_0_6_0::test_docs_agents_and_skills_have_none	b-4	absence of an old word in docs	test_rules_have_no_size_word_outside_the_tombstones
+test_promotion_0_6_0::test_bin_and_hooks_hits_are_allow_listed	b-5	exact per-file counts of a word in bin and hooks; breaks on any edit	none (ratchet on a removed word)
+test_promotion_0_6_0::test_context_has_team_duty_owner_checker_and_no_size_entry	b-3	glossary terms exist	none (doc text)
+test_promotion_0_6_0::test_adr_0018_states_where_it_overrides_0016_and_0017	b-3	ADR text	none (doc text)
+test_retro_rules::test_coach_reads_backlogs_promotes_repeats_and_cites_both	b-5	exact rule wording	test_who_shows_the_coach_on_the_backlog_rules_and_the_manager_on_the_follow_ups
+test_retro_rules::test_manager_spawns_the_coach_with_a_prompt_and_never_polls	b-5	exact rule wording	test_who_shows_the_coach_on_the_backlog_rules_and_the_manager_on_the_follow_ups
+test_retro_rules::test_coach_writes_overlay_operations_and_plugin_proposals	b-5	exact rule wording	same
+test_retro_rules::test_manager_turns_plugin_items_into_drafts_in_tasks_or_a_tracker	b-5	exact rule wording	same
+test_retro_rules::test_developer_rules_are_untouched_and_the_card_has_one_stance_line	b-4	absence plus a count of one phrase in a card	same
+test_retro_rules::test_lint_passes	b-1	same lint run	test_process_citations::test_lint_resolves_every_pointer
+test_suite_rules_process::test_claude_md_names_the_size_owner	b-5	exact CLAUDE.md sentence	none (doc text)
+test_suite_rules_process::test_claude_md_points_at_process	b-5	CLAUDE.md tokens	none (doc text)
+test_suite_rules_process::test_cards_no_longer_hold_suite_text	b-4	absence of an old phrase in cards	none (removed text)
+test_suite_rules_process::test_no_overlap	b-5	one phrase in four composed files	test_the_size_owner_runs_it_and_others_never
+test_suite_rules_process::test_timing	b-5	two phrases	test_the_size_owner_runs_it_and_others_never
+test_suite_rules_process::test_receipt_first_line	b-5	one phrase twice	none (wording)
+test_suite_rules_process::test_failure_returns_the_task	b-5	two phrases	none (wording)
+test_suite_rules_process::test_integration_and_light_lines_do_not_make_dev_or_qa_run_it	b-5	phrases and absences	none (wording)
+test_suite_rules_process::test_integration_task_runs_targeted_tests	b-5	phrases and absences	none (wording)
+test_task_id_rule::test_rosters_say_ticket_nn	b-3	one phrase in a template	none (doc text)
