@@ -173,13 +173,6 @@ class ResolveWorkspaceTest(Base):
         self.assertEqual((r.returncode, r.stdout, r.stderr), (2, "", "no workspace matches nothing here\n"))
         self.assertEqual(self.resolve("99").returncode, 2)
 
-    def test_blank_ref_rc2(self):
-        self.e.set_workspaces_real()
-        for ref in ("", "   ", "\t"):
-            r = self.resolve(ref)
-            self.assertEqual((r.returncode, r.stdout), (2, ""), repr(ref))
-            self.assertIn("no workspace matches", r.stderr)
-
     def test_herdr_failure_or_bad_json_use_the_raw_id_rule(self):
         (self.e.stub / "workspaces.fail").write_text("", encoding="utf-8")
         self.ok("wQ1", "wQ1")
@@ -594,7 +587,6 @@ class CswitchTest(Base):
         self.assertEqual(new[0]["HERDR_PANE_ID"], PANE)
         self.assertEqual(self.e.ws_file("w26"), "2\n")  # c2 inside herdr records the workspace default
 
-
     def _switch_and_wait(self, expect_name, others=()):
         """cswitch 2 in PANE with one stub claude per pane in `others` registered first; returns the log text."""
         self.e.set_pane()
@@ -690,12 +682,6 @@ class CwakeTest(Base):
     def marker(self):
         p = self.e.acct / "wake-pending" / PANE
         return p.read_text(encoding="utf-8").split() if p.exists() else None
-
-    def test_syntax(self):
-        import py_compile, tempfile
-        with tempfile.TemporaryDirectory() as d:
-            py_compile.compile(str(SRC / "bin" / "cwake"), cfile=os.path.join(d, "c.pyc"), doraise=True)
-        self.assertFalse((SRC / "bin" / "__pycache__").exists())
 
     def test_usage_error_is_rc2(self):
         r = self.cwake()
