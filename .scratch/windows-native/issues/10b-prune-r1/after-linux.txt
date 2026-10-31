@@ -1,0 +1,9 @@
+squadrules | 7.4s | ran 43 | OK
+squadcompose | 10.7s | ran 42 | OK
+sizes | 7.5s | ran 8 | OK
+team_duties | 0.3s | ran 20 | OK
+small_files_equivalence | 1.1s | ran 2 | OK
+processlint | 0.5s | ran 31 | OK
+process_citations | 1.0s | ran 2 | OK
+instructions | 1.6s | ran 16 | OK
+pod_rules_process | 1.5s | ran 2 | OK
