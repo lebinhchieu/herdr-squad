@@ -91,6 +91,11 @@ def _size_shapes(rule_id):
     return out
 
 
+def rule_ids(text):
+    """The rule IDs a composed file lists on its `rules:` line."""
+    return text.split(" rules: ", 1)[1].split(" ## ", 1)[0].split()
+
+
 def acts(rule_id, key):
     """Acting roles of a rule at a `<key> = <value>` line."""
     return who(rule_id)[key][0]
