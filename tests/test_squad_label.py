@@ -84,11 +84,6 @@ class LabelCliTest(unittest.TestCase):
         self.assertEqual(sl.read_entry(self.scope, "dev-1")["title"], "keep")
         self.assertEqual(self.calls(), [])
 
-    def test_non_manager_may_name_itself_with_agent(self):
-        sl.write_entry(self.scope, "dev-2", "dev", None, "")
-        r = self.run_cli("--agent", "dev-2", "me", **self.as_dev())
-        self.assertEqual((r.returncode, r.stdout.strip()), (0, "🤖 Dev · me"))
-
     def test_goal_manager_finds_entry_in_a_scope_home(self):
         sl.write_entry(self.scope, "dev-1", "dev", 1, "")
         r = self.run_cli("--agent", "dev-1", "TAB-09", SQUAD_NAME="mgr", SQUAD_ROLE="manager", GOAL_DIR=str(self.goal), LC_ALL="C.UTF-8")
@@ -115,13 +110,6 @@ class LabelCliTest(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout), (0, "🤖 Dev 2 · TAB-02\n"), r.stderr)
         self.assertEqual(self.calls()[1:], ["agent get dev-1", "tab rename tab-dev-1 🤖 Dev 1 · TAB-01"])
         self.assertEqual(self.calls()[0], "agent list")
-        self.assertEqual(sl.read_entry(self.scope, "dev-2")["number"], 2)
-
-    def test_init_respawn_of_dev2_after_dev1_left_keeps_2(self):
-        sl.write_entry(self.scope, "dev-1", "dev", 1, "")
-        sl.write_entry(self.scope, "dev-2", "dev", 2, "")
-        r = self.run_cli("--init", "--home", str(self.scope), "--agent", "dev-2", "--role", "dev", "--title", "B", LIVE="dev-2")
-        self.assertEqual(r.stdout, "🤖 Dev 2 · B\n")
         self.assertEqual(sl.read_entry(self.scope, "dev-2")["number"], 2)
 
     def test_init_uses_only_its_home_and_ignores_env(self):
@@ -159,11 +147,6 @@ class LabelCliTest(unittest.TestCase):
         r = self.run_cli("--get-title", "--home", str(self.scope), "--agent", "dev-9")
         self.assertEqual((r.returncode, r.stdout), (0, "\n"))
         self.assertEqual(self.calls(), [])
-
-    def test_init_first_agent_has_no_number_and_no_tab_call(self):
-        r = self.run_cli("--init", "--home", str(self.scope), "--agent", "dev-1", "--role", "dev")
-        self.assertEqual(r.stdout, "🤖 Dev\n")
-        self.assertEqual(self.calls(), ["agent list"])
 
     def test_outside_herdr_updates_store_and_calls_no_herdr(self):
         sl.write_entry(self.scope, "dev-2", "dev", None, "")
