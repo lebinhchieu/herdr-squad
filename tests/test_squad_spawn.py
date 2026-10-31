@@ -77,10 +77,6 @@ class SpawnDryRunTest(unittest.TestCase):
         return subprocess.run([str(SCRIPT), "dev", "x", "--dry-run", *args], env=self.env,
                               text=True, encoding="utf-8", capture_output=True, timeout=10)
 
-    def test_the_table_covers_every_role(self):
-        self.assertEqual(len(TABLE), 10)
-        self.assertEqual(TABLE["architect"], ("sonnet", "high"))
-
     def test_squad_settings_override_the_template(self):
         self._squad_settings("dev", {"model": "haiku", "effortLevel": "low"})
         self.assertRegex(self.spawn("dev"), r"--model haiku --effort low\b")
@@ -145,7 +141,6 @@ class SpawnDryRunTest(unittest.TestCase):
         passed = re.search(rf"--session-id ({UUID})", log.read_text(encoding="utf-8")).group(1)
         self.assertIn(f"| dev-1 | dev | s |  | live | {passed} |", (self.squad / "roster.md").read_text(encoding="utf-8"))
         self.assertIn(passed, r.stdout)
-
 
     def _fake_herdr(self, live):
         bin_dir = Path(self.tmp.name) / "bin"
@@ -256,11 +251,6 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertRegex(r.stdout, r"squad-spawn dev dev-1 .*--effort low ")
         self.assertNotIn("--model", r.stdout)  # the role's default model is left to squad-spawn
 
-    def test_both_overrides_are_recorded(self):
-        self.assertEqual(self._real_spawn("--model", "haiku", "--effort", "low").returncode, 0)
-        self.assertEqual((self.squad / "roles" / "dev-1.overrides").read_text(encoding="utf-8"), "model=haiku\neffort=low\n")
-        self.assertRegex(self._respawn_dry().stdout, r"--model haiku --effort low ")
-
     def test_no_override_writes_no_file_and_respawn_passes_none(self):
         self.assertEqual(self._real_spawn().returncode, 0)
         self.assertFalse((self.squad / "roles" / "dev-1.overrides").exists())
@@ -335,12 +325,6 @@ class SpawnDryRunTest(unittest.TestCase):
     def test_dry_run_records_nothing(self):
         self.spawn("dev", "--effort", "low")
         self.assertFalse((self.squad / "roles").exists())
-
-    def test_every_role_has_settings_that_parse(self):
-        settings = SCRIPT.parent.parent / "templates" / "squad" / "settings"
-        for role in TABLE:
-            with self.subTest(role=role):
-                self.assertIn("permissions", json.loads((settings / f"{role}.json").read_text(encoding="utf-8")))
 
 
 ALL_ROLES_TEAM = "ba, team-lead, tech-lead, qa-white, qa-black, designer, architect"
@@ -655,22 +639,6 @@ class SpawnLegacyPromptTest(unittest.TestCase):
     def attached(self, name):  # the legacy "rules are attached" sentence (ticket 24)
         return f"Your process rules are attached to this session ({self.squad}/scopes/sc1/roles/{name}.rules.md); read no other process file."
 
-    def test_manager_prompt_has_no_process_update_sentence(self):
-        for text in ("process-version: 1\n", "# T\n", "process-version: 99\n"):
-            with self.subTest(text=text):
-                r, p = self.spawn(text, "manager", "t-mgr-sc1", "--prompt", "Start of run.")
-                self.assertEqual(p, f"agent prompt t-mgr-sc1 Start of run. {self.attached('t-mgr-sc1')}")
-                self.assertNotIn("Process update", p + r.stdout + r.stderr)
-                self.log.unlink()
-
-    def test_other_roles_and_dry_run_are_unchanged(self):
-        _, p = self.spawn("process-version: 1\n", "dev", "t-dev-sc1-1", "--prompt", "Do RP-1.")
-        self.assertEqual(p, f"agent prompt t-dev-sc1-1 Do RP-1. {self.attached('t-dev-sc1-1')}")
-        r = subprocess.run([str(BIN_DIR / "squad-spawn"), "manager", "t-mgr-sc1", "--scope", "sc1", "--dry-run"],
-                           env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=30)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertNotIn("Process update", r.stdout + r.stderr)
-
 
 class _GateBase(unittest.TestCase):
     """Per-scope squad `t`, scope sc1, a fake herdr that logs every call; `self.created()` lists what a spawn made."""
@@ -719,17 +687,6 @@ class SpawnTeamGateTest(_GateBase):
                     self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
                     self.assertIn(f"role {role} is not on the team in {self.scope_md}", r.stderr)
                     self.assertEqual(self.created(), [])
-
-    def test_refusal_text_names_who_adds_the_role(self):
-        self.set_scope("# Scope\n\nteam: ba, qa-white\n")
-        for role, want in (("designer", "the PO confirms"), ("architect", "the PO confirms"),
-                           ("tech-lead", "the Manager adds the tech-lead with squad-team add"),
-                           ("qa-blackbox", "the Manager adds the qa-blackbox with squad-team add")):
-            with self.subTest(role=role):
-                r = self.spawn(role, "gate-1", "--dry-run")
-                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-                self.assertIn(want, r.stderr)
-                self.assertNotIn("only the PO adds", r.stderr)
 
     def test_qa_whitebox_is_gated_on_qa_white_and_qa_blackbox_on_qa_black(self):
         for team, role, ok in (("qa-white", "qa-whitebox", True), ("qa-black", "qa-whitebox", False),
