@@ -1,6 +1,6 @@
 # 05: `squad-notify` on Windows
 
-Status: needs-info
+Status: done
 Type: task
 Blocked by: none
 Source: findings.md W4
@@ -18,3 +18,4 @@ Source: findings.md W4
 - [ ] Linux behaviour unchanged; `test_squad_notify` still passes there.
 
 ## Comments
+- 14-final: done; merged at eac3d93 (squad-notify reads %APPDATA%\herdr on Windows). PO to look at the toast once after merge.
