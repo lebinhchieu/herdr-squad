@@ -50,3 +50,4 @@ Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root.
 - Commit every fix before a run; never kill and restart one.
 - Browser tests: never poll for a transient state (a stub stream that ends and reconnects shows `live` for milliseconds). Latch it with an init script, or wait for a state that stays; a wait's failure message names the page state.
 - A stress or flake check runs whole test files or classes, never only the named tests.
+- `--tz` sets `SQUAD_REQUIRE_CLAUDE=1`, so `test_po_inbox_mod` errors where `claude` is not on PATH (WSL, CI). Put `claude` on PATH for that run; the same error on main is not a regression.
