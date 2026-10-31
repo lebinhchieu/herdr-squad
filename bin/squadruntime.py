@@ -102,11 +102,16 @@ def is_repo_root(root):
 
 
 def running_pin(plugin_root=DEFAULT_ROOT):
-    """(version, sha, dirty): the running plugin's version and `git rev-parse HEAD`; raises when it is no repo."""
+    """(version, sha, dirty): the running plugin's version and `git rev-parse HEAD`. Outside a repo (a marketplace
+    install) the sha is the installed_plugins.json entry for this folder, dirty False; raises when neither."""
     version = sc.running_version(plugin_root)
     if not is_repo_root(plugin_root):
-        raise RuntimeError_(1, f"cannot pin the running plugin ({plugin_root} is not a git checkout); write "
-                               f"{{squad dir}}/plugin.pin as `<version> <sha>`")
+        sha = _installed_sha(plugin_root)
+        if sha:
+            return version, sha, False
+        raise RuntimeError_(1, f"cannot pin the running plugin ({plugin_root} is not a git checkout and no installed "
+                               f"squad@* entry in installed_plugins.json has this folder); pass --new-pin "
+                               f"`<version> <sha>` or write {{squad dir}}/plugin.pin as `<version> <sha>`")
     sha = _git(plugin_root, "rev-parse", "HEAD")
     if not sha or not SHA_RE.match(sha):
         raise RuntimeError_(1, f"cannot read HEAD of {plugin_root}")
@@ -136,9 +141,9 @@ def _restore_hint(version, sha, target, plugin_root):
             f"plugin.pin / scope.md")
 
 
-def _installed_cache(version, sha, plugin_json_paths=None):
-    """The installed cache folder of a `squad@*` plugin whose gitCommitSha matches the pin and whose
-    plugin.json version equals it; else None. Fixture override: env SQUAD_INSTALLED_PLUGINS (a file path)."""
+def _installed_entries(plugin_json_paths=None):
+    """Yield (installPath, gitCommitSha) of every `squad@*` entry of installed_plugins.json. Fixture override:
+    env SQUAD_INSTALLED_PLUGINS (a file path)."""
     env = os.environ.get("SQUAD_INSTALLED_PLUGINS")
     paths = [env] if env else (plugin_json_paths or sorted(
         glob.glob(os.path.join(os.path.expanduser("~"), ".claude*", "plugins", "installed_plugins.json"))))
@@ -153,13 +158,29 @@ def _installed_cache(version, sha, plugin_json_paths=None):
             if not key.startswith("squad@") or not isinstance(entries, list):
                 continue
             for e in entries:
-                if not isinstance(e, dict):
-                    continue
-                have = str(e.get("gitCommitSha") or "")
-                path = e.get("installPath")
-                if have and path and (have.startswith(sha) or sha.startswith(have)) and os.path.isdir(path) \
-                        and _plugin_version(path) == version:
-                    return path
+                if isinstance(e, dict) and e.get("installPath"):
+                    yield str(e["installPath"]), str(e.get("gitCommitSha") or "")
+
+
+def _installed_cache(version, sha, plugin_json_paths=None):
+    """The installed cache folder of a `squad@*` plugin whose gitCommitSha matches the pin and whose
+    plugin.json version equals it; else None."""
+    for path, have in _installed_entries(plugin_json_paths):
+        if have and (have.startswith(sha) or sha.startswith(have)) and os.path.isdir(path)                 and _plugin_version(path) == version:
+            return path
+    return None
+
+
+def _norm_path(path):
+    return os.path.normcase(os.path.realpath(path))
+
+
+def _installed_sha(plugin_root):
+    """The gitCommitSha of the installed entry whose installPath is `plugin_root`; else None."""
+    want = _norm_path(plugin_root)
+    for path, have in _installed_entries():
+        if SHA_RE.match(have) and _norm_path(path) == want:
+            return have
     return None
 
 
@@ -180,6 +201,7 @@ def _extract(plugin_root, sha, dest):
     except tarfile.TarError:
         ok = False
     finally:
+        proc.stdout.read()  # drain tar's end padding: closing early makes git die of SIGPIPE (exit 141)
         proc.stdout.close()
         err = proc.stderr.read()
         proc.stderr.close()

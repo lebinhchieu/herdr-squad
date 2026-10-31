@@ -1,5 +1,6 @@
 """squad-process scaffold: a new composed squad; temp folders only."""
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,8 +18,9 @@ import squadsettings as ss  # noqa: E402
 PIN = "0.7.0 abcdef123456"
 
 
-def run(*args, cwd=None):
+def run(*args, cwd=None, extra_env=None):
     env = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD_")}
+    env.update(extra_env or {})
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     return subprocess.run([sys.executable, str(BIN / "squad-process"), *args], capture_output=True,
                           encoding="utf-8", env=env, cwd=cwd)
@@ -33,6 +35,25 @@ class Base(unittest.TestCase):
 
 class Scaffold(Base):
     """AC 4: a new squad has no process.md and lints."""
+
+    def test_scaffold_from_a_non_git_plugin_root_pins_from_installed_plugins(self):
+        plugin = self.root / "cache" / "squad" / "9.9.9"
+        shutil.copytree(ROOT, plugin, ignore=shutil.ignore_patterns(".git", ".worktrees", ".scratch", ".claude", "tests",
+                                                                   "__pycache__"))
+        version = json.loads((plugin / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
+        listing = self.root / "installed_plugins.json"
+        sha = "c" * 40
+        entry = {"squad@market": [{"scope": "user", "installPath": str(plugin), "version": version, "gitCommitSha": sha}]}
+        listing.write_text(json.dumps({"version": 2, "plugins": entry}), encoding="utf-8")
+        env = {"SQUAD_INSTALLED_PLUGINS": str(listing)}
+        sq = self.root / ".claude" / "squads" / "new"
+        r = run("scaffold", "--squad-dir", str(sq), "--plugin-root", str(plugin), extra_env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((sq / "plugin.pin").read_text(encoding="utf-8").strip(), f"{version} {sha}")
+        listing.write_text(json.dumps({"version": 2, "plugins": {}}), encoding="utf-8")
+        r = run("scaffold", "--squad-dir", str(self.root / "other"), "--plugin-root", str(plugin), extra_env=env)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--new-pin", r.stderr + r.stdout)
 
     def test_scaffold_creates_the_composed_layout_and_lints(self):
         sq = self.root / ".claude" / "squads" / "new"
