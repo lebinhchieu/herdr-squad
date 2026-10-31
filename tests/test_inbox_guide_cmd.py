@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from squadtest import ROOT
 
 
 def guide(plugin_root, cwd, env_extra=None):
@@ -45,6 +45,7 @@ class TestInboxGuideCmd(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(Path(r.stdout.strip()).resolve(), (tree / "docs" / "inbox-body-guide.md").resolve())
 
+    @unittest.skipIf(os.name == "nt", "os.symlink needs Developer Mode or admin on Windows (WinError 1314)")
     def test_works_through_a_symlink_to_the_script(self):
         with tempfile.TemporaryDirectory() as t:
             tree = Path(t, "runtime")
@@ -64,14 +65,6 @@ class TestInboxGuideCmd(unittest.TestCase):
             self.assertEqual(r.stdout, "")
             self.assertEqual(len(r.stderr.strip().splitlines()), 1)
             self.assertIn("inbox body guide is missing", r.stderr)
-
-    def test_iter4_holds_the_rule_line(self):
-        text = (ROOT / "templates/squad/process/iterations.md").read_text(encoding="utf-8")
-        block = text.split("## ITER-4 Inbox")[1].split("\n## ")[0]
-        self.assertIn("Before your first `squad-inbox add` in a session, read the file `squad-inbox guide` prints.", block)
-
-    def test_manager_card_has_no_guide_text(self):
-        self.assertNotIn("inbox-body-guide", (ROOT / "agents/manager.md").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

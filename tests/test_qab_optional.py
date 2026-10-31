@@ -1,6 +1,6 @@
 """Ticket 14: `qa-b: no` composes the QA-blackbox-free rules; no `qa-b` line composes as `qa-b: yes`.
 The golden is the merged tree (integration 27); 14's byte-identity to 4901cab was proven at 99796ce."""
-import hashlib
+import functools
 import json
 import os
 import re
@@ -10,11 +10,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from squadtest import ROOT
 sys.path.insert(0, str(ROOT / "bin"))
-import squadcompose as sc  # noqa: E402
 import squadrules as sr  # noqa: E402
-from rulesview import who  # noqa: E402
+from rulesview import shape_team, who  # noqa: E402
 
 GOLDEN = Path(__file__).resolve().parent / "fixtures" / "qab" / "golden.json"
 NOW = "2026-10-22T10:00:00Z"
@@ -23,11 +22,12 @@ NEW_IDS = ("REV-19", "REV-20", "REV-21", "EVID-6", "EVID-7", "SIZE-19", "SIZE-20
 ROLE_LIST = sr.ROLES
 
 
+@functools.lru_cache(maxsize=None)  # the same (role, size, qab) is composed by several tests; compose is a pure read
 def compose(role, size="M", qab=None, design="no", qa="full", root=ROOT):
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "scopes" / "fx"
         home.mkdir(parents=True)
-        team = sr.legacy_team(size, qab or "yes", design)  # the converter's mapping: today's shapes as teams
+        team = shape_team(size, qab or "yes", design)  # the converter's mapping: today's shapes as teams
         lines = ["goal:", f"team: {', '.join(team) or 'none'}", f"qa: {qa}"]
         (home / "scope.md").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
         env = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD_")}

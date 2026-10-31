@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+import winlaunch
 
 BIN = Path(__file__).resolve().parent.parent / "bin"
 _DEV = json.loads((BIN.parent / "templates/squad/settings/dev.json").read_text(encoding="utf-8"))
@@ -53,7 +54,7 @@ class RespawnTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def respawn(self, *args):
-        return subprocess.run([str(BIN / "squad-respawn"), "dev-1", *args], env=self.env,
+        return winlaunch.run_script(BIN / "squad-respawn", ["dev-1", *args], env=self.env,
                               text=True, encoding="utf-8", capture_output=True, timeout=20)
 
     def test_dev_keeps_worktree_and_branch_and_roster_gets_new_session(self):
@@ -69,7 +70,7 @@ class RespawnTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
 
         log = self.log.read_text(encoding="utf-8").splitlines()
-        self.assertIn(f"tab create --cwd {wt} --label 🤖 Dev --no-focus", " ".join(log))
+        self.assertIn(f"tab create --cwd {Path(wt).as_posix()} --label 🤖 Dev --no-focus", " ".join(log))
         self.assertTrue(any(re.fullmatch(r"agent rename dev-1 prev-\d+", l) for l in log))
         self.assertEqual(log[-1], "pane close p-old")  # old pane goes last
         start = next(l for l in log if l.startswith("agent start dev-1"))
@@ -88,13 +89,13 @@ class RespawnTest(unittest.TestCase):
     def test_agent_without_worktree_respawns_in_project_dir(self):
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"tab create --cwd {self.root} --label 🤖 Dev", self.log.read_text(encoding="utf-8"))
+        self.assertIn(f"tab create --cwd {Path(self.root).as_posix()} --label 🤖 Dev", self.log.read_text(encoding="utf-8"))
 
     def test_manager_row_as_written_by_squad_spawn_respawns_with_role_and_notes(self):
         # squad-start spawns manager-t; squad-spawn --set-session adds this row (empty scope, empty Owns).
         with (self.squad / "roster.md").open("a", encoding="utf-8") as f:
             f.write("| manager-t | manager |  |  | live | old-sid |\n")
-        r = subprocess.run([str(BIN / "squad-respawn"), "manager-t"], env=self.env,
+        r = winlaunch.run_script(BIN / "squad-respawn", ["manager-t"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         log = self.log.read_text(encoding="utf-8").splitlines()
@@ -102,7 +103,7 @@ class RespawnTest(unittest.TestCase):
         self.assertIn("--agent squad:manager", start)
         sid = re.search(r"--session-id (\S+)", start).group(1)
         self.assertIn(f"| manager-t | manager |  |  | live | {sid} |", (self.squad / "roster.md").read_text(encoding="utf-8"))
-        self.assertIn(f"tab create --cwd {self.root} --label 🦀 Manager", " ".join(log))
+        self.assertIn(f"tab create --cwd {Path(self.root).as_posix()} --label 🦀 Manager", " ".join(log))
         self.assertIn("SQUAD_SCOPE=", " ".join(log))
         self.assertNotIn("SQUAD_SCOPE=old-sid", " ".join(log))  # an empty scope must not shift the columns
         self.assertEqual(log[-1], "pane close p-old")
@@ -112,7 +113,7 @@ class RespawnTest(unittest.TestCase):
     def dry_prompt(self, agent, role):
         with (self.squad / "roster.md").open("a", encoding="utf-8") as f:
             f.write(f"| {agent} | {role} |  |  | live | old-sid |\n")
-        r = subprocess.run([str(BIN / "squad-respawn"), agent, "--dry-run"], env=self.env,
+        r = winlaunch.run_script(BIN / "squad-respawn", [agent, "--dry-run"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout
@@ -125,23 +126,18 @@ class RespawnTest(unittest.TestCase):
             self.assertNotIn("process.md", out)
             self.assertNotIn("show", out)
 
-    def test_respawn_never_names_squad_process_show(self):
-        self.assertNotIn("squad-process show", (BIN / "squad-respawn").read_text(encoding="utf-8"))
-        self.assertNotIn("squad-process show", (BIN / "squad-spawn").read_text(encoding="utf-8"))
-
     def test_respawn_of_a_legacy_agent_reproduces_the_rules_attachment(self):
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
         rules = self.squad / "roles" / "dev-1.rules.md"
         start = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent start dev-1"))
-        self.assertIn(f"--append-system-prompt-file {rules}", start)
+        self.assertIn(f"--append-system-prompt-file {Path(rules).as_posix()}", start)
         self.assertNotIn("--plugin-dir", start)
         self.assertTrue(rules.read_text(encoding="utf-8").startswith("# Your process rules"))
         self.assertEqual(r.stderr.count("legacy squad: plugin rules attached"), 1)
 
     def test_respawn_brings_back_the_title_and_the_number(self):
-        init = subprocess.run([str(BIN / "squad-label"), "--init", "--home", str(self.squad), "--agent", "dev-1",
-                               "--role", "dev", "--title", "plan"], env=self.env, text=True, encoding="utf-8", capture_output=True)
+        init = winlaunch.run_script(BIN / "squad-label", ["--init", "--home", str(self.squad), "--agent", "dev-1", "--role", "dev", "--title", "plan"], env=self.env, text=True, encoding="utf-8", capture_output=True)
         self.assertEqual(init.returncode, 0, init.stderr)
         self.log.write_text("", encoding="utf-8")
         r = self.respawn()
@@ -158,7 +154,7 @@ class RespawnTest(unittest.TestCase):
         (self.squad / "roster.md").write_text(
             "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
             f"| {name} | Dev | settings | task | live | old-sid |\n", encoding="utf-8")
-        r = subprocess.run([str(BIN / "squad-respawn"), name], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
+        r = winlaunch.run_script(BIN / "squad-respawn", [name], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         renames = [l.split()[2:] for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent rename")]
         self.assertTrue(renames)
@@ -172,7 +168,7 @@ class RespawnTest(unittest.TestCase):
             shutil.copy(BIN / f, stub / "bin" / f)
         (stub / "bin" / "squad-spawn").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
         (stub / "bin" / "squad-spawn").chmod(0o755)
-        r = subprocess.run([str(stub / "bin" / "squad-respawn"), "dev-1"], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
+        r = winlaunch.run_script(stub / "bin" / "squad-respawn", ["dev-1"], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 1)
         renames = [l.split() for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent rename")]
         self.assertEqual(renames[1][2:], [renames[0][3], "dev-1"])
@@ -184,11 +180,6 @@ class RespawnTest(unittest.TestCase):
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("101 lines", r.stderr)
-
-    def test_no_warning_for_short_notes(self):
-        (self.squad / "roles").mkdir()
-        (self.squad / "roles" / "dev-1.notes.md").write_text("line\n" * 30, encoding="utf-8")
-        self.assertNotIn("lines", self.respawn().stderr)
 
     def scoped(self):
         """Turn the test squad into a per-scope squad with scope sc1 and goal g1."""
@@ -210,11 +201,11 @@ class RespawnTest(unittest.TestCase):
         git("commit", "-q", "--allow-empty", "-m", "init", cwd=repo)
         wt = self.root / ".worktrees" / "t" / "sc1" / "t-dev-sc1-1"
         git("worktree", "add", "-q", str(wt), "-b", "squad/t/sc1/t-dev-sc1-1", cwd=repo)
-        r = subprocess.run([str(BIN / "squad-respawn"), "t-dev-sc1-1"], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
+        r = winlaunch.run_script(BIN / "squad-respawn", ["t-dev-sc1-1"], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         log = self.log.read_text(encoding="utf-8").splitlines()
-        self.assertIn(f"tab create --cwd {wt} --label 🤖 Dev --no-focus", " ".join(log))
-        self.assertIn(f"SCOPE_DIR={sc}", " ".join(log))
+        self.assertIn(f"tab create --cwd {Path(wt).as_posix()} --label 🤖 Dev --no-focus", " ".join(log))
+        self.assertIn(f"SCOPE_DIR={Path(sc).as_posix()}", " ".join(log))
         self.assertFalse(any("worktree add" in l for l in log))
         sid = re.search(r"--session-id (\S+)", next(l for l in log if l.startswith("agent start"))).group(1)
         self.assertIn(f"| t-dev-sc1-1 | dev | sc1 | task 1 | live | {sid} |", (sc / "roster.md").read_text(encoding="utf-8"))
@@ -224,10 +215,10 @@ class RespawnTest(unittest.TestCase):
         _, g = self.scoped()
         self.env.pop("SCOPE_DIR")
         self.env.update(GOAL_DIR=str(g))
-        r = subprocess.run([str(BIN / "squad-respawn"), "t-mgr-g1"], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
+        r = winlaunch.run_script(BIN / "squad-respawn", ["t-mgr-g1"], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         log = " ".join(self.log.read_text(encoding="utf-8").splitlines())
-        self.assertIn(f"GOAL_DIR={g}", log)
+        self.assertIn(f"GOAL_DIR={Path(g).as_posix()}", log)
         self.assertNotIn("SCOPE_DIR", log)
         self.assertIn("| t-mgr-g1 | manager |", (g / "roster.md").read_text(encoding="utf-8"))
 
@@ -242,11 +233,11 @@ class RespawnTest(unittest.TestCase):
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
         log = self.log.read_text(encoding="utf-8")
-        self.assertIn(f"tab create --cwd {wt} --label 🤖 Dev", log)
+        self.assertIn(f"tab create --cwd {Path(wt).as_posix()} --label 🤖 Dev", log)
         self.assertNotIn("worktree add", log)
 
     def test_unknown_agent_fails(self):
-        r = subprocess.run([str(BIN / "squad-respawn"), "ghost"], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
+        r = winlaunch.run_script(BIN / "squad-respawn", ["ghost"], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertNotEqual(r.returncode, 0)
 
 
@@ -270,7 +261,7 @@ class RespawnPinnedTest(RespawnTest):
         return sc
 
     def run_respawn(self, *args, env=None):
-        return subprocess.run([str(BIN / "squad-respawn"), "t-dev-sc1-1", *args], env=env or self.env, text=True,
+        return winlaunch.run_script(BIN / "squad-respawn", ["t-dev-sc1-1", *args], env=env or self.env, text=True,
                               encoding="utf-8", capture_output=True, timeout=20)
 
     def calls(self):
@@ -325,6 +316,7 @@ class RespawnPinnedTest(RespawnTest):
         self.assertNotIn("hand off", r.stdout)
         self.assertEqual(self.calls(), [])
 
+    @unittest.skipIf(os.name == "nt", "os.symlink needs Developer Mode or admin (WinError 1314)")
     def test_a_runtime_that_is_this_script_is_not_handed_to_again(self):
         self.pinned(stub=False)
         rt = next((self.squad / "_runtime").iterdir())

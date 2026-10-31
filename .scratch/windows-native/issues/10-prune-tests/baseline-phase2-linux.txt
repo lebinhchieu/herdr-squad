@@ -1,0 +1,25 @@
+squad_spawn | 51.8s | ran 87 | OK (skipped=1)
+squad_close | 30.0s | ran 79 | OK
+ca_launchers | 37.6s | ran 80 | OK (skipped=1)
+squadruntime | 19.1s | ran 62 | OK
+ca_autoswitch | 58.3s | ran 52 | OK
+squad_start | 37.9s | ran 45 | OK
+squadinbox_answer | 22.0s | ran 32 | OK
+squad_evidence | 7.0s | ran 48 | OK
+run_suite | 10.6s | ran 25 | FAILED (failures=3)
+    FAIL: test_receipt_first_line_has_the_sha_shape_and_the_tail_is_the_qa_tail (test_run_suite.RunSuiteTest.test_receipt_first_line_has_the_sha_shape_and_the_tail_is_the_qa_tail)
+    FAIL: test_tz_run_takes_only_the_time_files_and_the_also_file_under_new_york_time (test_run_suite.RunSuiteTest.test_tz_run_takes_only_the_time_files_and_the_also_file_under_new_york_time)
+    FAIL: test_tz_run_with_no_time_files_and_no_also_skips_the_time_pass_and_says_so (test_run_suite.RunSuiteTest.test_tz_run_with_no_time_files_and_no_also_skips_the_time_pass_and_says_so)
+squadreport_ui | 12.2s | ran 41 | OK
+squad_respawn | 9.8s | ran 23 | OK
+squadsettings | 10.9s | ran 25 | OK
+ca_install | 6.2s | ran 23 | FAILED (failures=1)
+    FAIL: test_gitignore_names_the_state_files (test_ca_install.InstallTest.test_gitignore_names_the_state_files)
+squad_usage | 3.5s | ran 20 | OK
+squad_label | 3.0s | ran 17 | OK
+squadlabel | 0.3s | ran 19 | OK
+squadscaffold | 3.8s | ran 6 | OK
+templates | 0.4s | ran 10 | OK
+inbox_guide_cmd | 1.4s | ran 6 | OK
+team_models | 7.4s | ran 20 | OK
+squad_ledger | 10.5s | ran 18 | OK (skipped=1)

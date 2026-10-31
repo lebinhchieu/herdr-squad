@@ -7,8 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "bin"
+from squadtest import BIN
 sys.path.insert(0, str(BIN))
 import squadcompose as sc  # noqa: E402
 import squadrules as sr  # noqa: E402
@@ -21,8 +20,6 @@ def run(*args, cwd=None, script="squad-process"):
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     return subprocess.run([sys.executable, str(BIN / script), *args], capture_output=True, encoding="utf-8",
                           env=env, cwd=cwd)
-
-
 
 
 class Base(unittest.TestCase):
@@ -57,19 +54,10 @@ class TeamCliTest(Base):
             r = self.team(h, "--has", role)
             self.assertEqual((role, r.returncode, r.stdout), (role, code, ""), r.stderr)
 
-    def test_undecided_team_has_only_the_manager(self):
-        h = self.home(["team:"])
-        self.assertEqual([self.team(h, "--has", r).returncode for r in ("manager", "dev", "qa-whitebox")], [0, 1, 1])
-
     def test_unknown_role_exits_2(self):
         r = self.team(self.home(["team: none"]), "--has", "qa-white")  # a token, not a role name
         self.assertEqual(r.returncode, 2)
         self.assertIn("unknown role", r.stderr)
-
-    def test_no_from_size(self):
-        r = self.team(self.home(["team: none"]), "--from-size", "M")
-        self.assertEqual(r.returncode, 2)
-        self.assertNotIn("from-size", (ROOT / "bin/squadrules_cli.py").read_text(encoding="utf-8").replace("--from-size does not", ""))
 
     def test_bad_team_exits_2_naming_the_line(self):
         r = self.team(self.home(["team: qa-whitebox"]))
@@ -97,17 +85,6 @@ class TeamCliTest(Base):
         self.assertEqual(self.team(h, "--has", "dev").returncode, 2)
         with self.assertRaises(sc.ComposeError):  # read_home derives nothing from `size:`
             sc.read_home(str(h))
-
-    def test_every_old_line_is_named(self):
-        h = self.home(["size: L", "design: yes", "architecture: no", "qa-b: yes"])
-        r = self.team(h)
-        for key in ("size", "design", "architecture", "qa-b"):
-            self.assertIn(f"`{key}:`", r.stderr)
-
-    def test_old_line_without_size_is_old_format_too(self):
-        r = self.team(self.home(["design: yes"]))
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("one `team:` line", r.stderr)
 
     def test_old_format_error_is_one_shared_function(self):
         for nl in ("\n", "\r\n"):

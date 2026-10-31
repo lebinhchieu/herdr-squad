@@ -7,15 +7,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-BIN = Path(__file__).resolve().parent.parent / "bin"
-sys.path.insert(0, str(BIN))
-import importlib.machinery
-import importlib.util
+from squadtest import BIN, load_cli
 
-_loader = importlib.machinery.SourceFileLoader("squad_path_guard", str(BIN / "squad-path-guard"))
-_spec = importlib.util.spec_from_loader("squad_path_guard", _loader)
-guard = importlib.util.module_from_spec(_spec)
-_loader.exec_module(guard)
+sys.path.insert(0, str(BIN))
+guard = load_cli("squad-path-guard")
 
 ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "designer", "token-coach")
 
@@ -167,7 +162,7 @@ class CliTest(unittest.TestCase):
             env["SQUAD_ROLE"] = role
             if with_dir:
                 env["SQUAD_DIR"] = str(root / ".claude" / "squads" / "t")
-            data = stdin.replace("ROOT", str(root)) if isinstance(stdin, str) else json.dumps(stdin).replace("ROOT", str(root))
+            data = stdin.replace("ROOT", str(root)) if isinstance(stdin, str) else json.dumps(stdin).replace("ROOT", json.dumps(str(root))[1:-1])
             return subprocess.run([sys.executable, str(BIN / "squad-path-guard")], input=data, env=env,
                                   text=True, encoding="utf-8", capture_output=True, timeout=20)
 

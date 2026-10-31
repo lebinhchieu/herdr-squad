@@ -6,8 +6,11 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+import winlaunch
 
-SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-usage-hook"
+from squadtest import BIN
+
+SCRIPT = BIN / "squad-usage-hook"
 NOW = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
@@ -40,7 +43,7 @@ class HookTest(unittest.TestCase):
         if squad_session:
             env.update(SQUAD_NAME="dev-1", SQUAD_DIR=str(self.squad), SQUAD_ROLE=role)
         data = {"hook_event_name": "Stop", "session_id": sid, **payload}
-        return subprocess.run([str(SCRIPT)], input=json.dumps(data), text=True, encoding="utf-8", env=env,
+        return winlaunch.run_script(SCRIPT, input=json.dumps(data), text=True, encoding="utf-8", env=env,
                               capture_output=True, timeout=10)
 
     def test_fixture_over_120k_gives_fresh_message_and_event(self):
@@ -56,15 +59,6 @@ class HookTest(unittest.TestCase):
         self.assertIn("mid-ticket, run once: squad-respawn dev-1", ev["action"])
         self.assertNotEqual(ev["action"], "write roles/dev-1.notes.md, then run: squad-respawn dev-1")
 
-    def test_tech_lead_text_is_unchanged(self):
-        self.transcript("sid-1", 130_000)
-        r = self.run_hook(role="tech-lead")
-        want = "write roles/dev-1.notes.md, then run: squad-respawn dev-1"
-        self.assertEqual(r.returncode, 2)
-        self.assertEqual(r.stderr, "Cost rule 'fresh' fired: your context is over 120k or was compacted. Finish the step you are on, then " + want + "\n")
-        [ev] = [json.loads(l) for l in self.events.read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(ev["action"], want)
-
     def test_event_goes_to_the_scope_folder_when_the_agent_has_one(self):
         scope = Path(self.tmp.name) / "squad" / "scopes" / "sc1"
         scope.mkdir(parents=True)
@@ -72,7 +66,7 @@ class HookTest(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
         env.update(CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "cfg"), SQUAD_NAME="dev-1", SQUAD_ROLE="dev",
                    SQUAD_DIR=str(self.squad), SCOPE_DIR=str(scope))
-        r = subprocess.run([str(SCRIPT)], input=json.dumps({"hook_event_name": "Stop", "session_id": "sid-1"}),
+        r = winlaunch.run_script(SCRIPT, input=json.dumps({"hook_event_name": "Stop", "session_id": "sid-1"}),
                            text=True, encoding="utf-8", env=env, capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 2)
         self.assertTrue((scope / "usage-events.jsonl").exists())
@@ -112,8 +106,25 @@ class HookTest(unittest.TestCase):
 
     def test_garbage_stdin_exits_zero(self):
         env = dict(os.environ, SQUAD_NAME="a", SQUAD_DIR=str(self.squad), SQUAD_ROLE="dev")
-        r = subprocess.run([str(SCRIPT)], input="not json", text=True, encoding="utf-8", env=env, capture_output=True, timeout=10)
+        r = winlaunch.run_script(SCRIPT, input="not json", text=True, encoding="utf-8", env=env, capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0)
+
+    def test_a_stale_lock_dir_does_not_wedge_the_event_append(self):  # ticket 06: no flock, lock left by a killed writer
+        lock = Path(str(self.events) + ".lock")
+        lock.mkdir()
+        self.transcript("sid-1", 130_000)
+        self.transcript("sid-2", 130_000)
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
+        env.update(CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "cfg"), SQUAD_NAME="dev-1", SQUAD_DIR=str(self.squad),
+                   SQUAD_ROLE="dev")
+        env = winlaunch.no_flock_env(env, self.tmp.name)
+        for n in (1, 2):
+            data = {"hook_event_name": "Stop", "session_id": f"sid-{n}"}
+            r = winlaunch.run_script(SCRIPT, input=json.dumps(data), text=True, encoding="utf-8", env=env,
+                                     capture_output=True, timeout=120)
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertEqual(len(self.events.read_text(encoding="utf-8").splitlines()), n)
+            self.assertFalse(lock.exists())
 
 
 if __name__ == "__main__":

@@ -1,0 +1,36 @@
+advisor_rules | 2.2s | ran 6 | OK
+architect_handoff | 3.4s | ran 15 | OK
+designer_handoff | 1.0s | ran 3 | OK
+dev_rules_size | 32.3s | ran 11 | OK
+hooks_json | 0.3s | ran 7 | OK
+inbox_body_guide | 0.2s | ran 3 | OK
+instructions | 1.3s | ran 30 | OK
+manager_inbox_read | 0.4s | ran 13 | OK
+manager_m_l | 0.6s | ran 10 | OK
+model_effort_settings | 1.7s | ran 4 | OK (skipped=1)
+po_inbox_contract | 1.0s | ran 5 | OK (skipped=1)
+po_inbox_mod | 58.8s | ran 2 | FAILED (failures=1)
+pod_contact_routes | 1.1s | ran 7 | OK
+pod_rules_process | 2.0s | ran 10 | OK
+process_citations | 1.0s | ran 4 | OK
+process_writing | 0.2s | ran 5 | OK
+processlint | 0.8s | ran 31 | OK
+promotion_0_6_0 | 0.9s | ran 8 | OK
+qab_optional | 85.4s | ran 11 | OK
+retro_rules | 1.2s | ran 7 | OK
+squad_report_cli | 6.4s | ran 21 | FAILED (failures=1)
+squad_report_query | 6.4s | ran 16 | OK
+squad_team | 8.5s | ran 26 | OK
+squadinbox | 20.2s | ran 55 | OK (skipped=3)
+squadreport_collect | 1.4s | ran 45 | OK (skipped=2)
+squadreport_digest | 0.1s | ran 10 | OK
+squadreport_embed | 0.1s | ran 4 | OK
+squadreport_html | 0.3s | ran 9 | OK
+squadreport_rollup | 4.0s | ran 18 | OK
+squadreport_rollup_ui | 0.3s | ran 11 | OK (skipped=11)
+squadreport_tasks | 0.5s | ran 14 | OK
+squadtranscript | 0.2s | ran 3 | OK
+suite_rules_process | 1.8s | ran 13 | OK
+task_id_rule | 0.4s | ran 2 | OK
+team_cli | 5.4s | ran 12 | OK
+team_lead_role | 0.8s | ran 13 | OK

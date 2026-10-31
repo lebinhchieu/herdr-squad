@@ -69,7 +69,22 @@ third_return() {
 }
 
 # Records can exceed PIPE_BUF, so lock instead of relying on atomic O_APPEND writes.
-{ flock 9 2>/dev/null; printf '%s\n' "$record" >&9; third_return; } 9>>"$log" || true
+if command -v flock >/dev/null; then
+  { flock 9 2>/dev/null; printf '%s\n' "$record" >&9; third_return; } 9>>"$log" || true
+else
+  # No flock (Git for Windows): a plain >> append of a record over 4 KiB is torn by concurrent writers
+  # (see ADR 0011 D3b), so serialise with an atomic mkdir lock. A lock left by a killed
+  # writer is removed after ~5 s and we go on without owning it: the hook never wedges and never fails.
+  held=
+  n=0
+  until mkdir "$log.lock" 2>/dev/null; do
+    (( ++n > 250 )) && { rmdir "$log.lock" 2>/dev/null; break; }
+    sleep 0.02
+  done
+  (( n <= 250 )) && held=1
+  { printf '%s\n' "$record" >&9; third_return; } 9>>"$log" || true
+  [[ -z $held ]] || rmdir "$log.lock" 2>/dev/null
+fi
 
 if [[ -n $notice ]]; then
   jq -nc --arg c "$notice" '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $c}}' 2>/dev/null || true

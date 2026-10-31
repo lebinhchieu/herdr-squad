@@ -1,6 +1,4 @@
 """squad-notify: decision table, skip, title, failure and OSC delivery (no real herdr or WezTerm)."""
-import importlib.machinery
-import importlib.util
 import json
 import os
 import stat
@@ -12,11 +10,10 @@ import unittest
 from pathlib import Path
 
 sys.dont_write_bytecode = True  # the extensionless script would leave bin/__pycache__/*.pyc
-SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-notify"
-_loader = importlib.machinery.SourceFileLoader("squad_notify", str(SCRIPT))
-_spec = importlib.util.spec_from_loader("squad_notify", _loader)
-sn = importlib.util.module_from_spec(_spec)
-_loader.exec_module(sn)
+from squadtest import BIN, load_cli  # noqa: E402
+
+SCRIPT = BIN / "squad-notify"
+sn = load_cli("squad-notify")
 
 IN = {"HERDR_ENV": "1"}
 SQUAD = {"HERDR_ENV": "1", "SQUAD_NAME": "x"}
@@ -81,6 +78,7 @@ class RealPayloadTest(unittest.TestCase):
             self.assertIsNone(self.body("subagent-stop.json", env))
 
 
+@unittest.skipIf(os.name == "nt", "ADR 0011: squad-notify delivers to a Unix pty (os.openpty, /proc fd symlinks); Windows has no ptys")
 class DeliveryTest(unittest.TestCase):
     def test_osc_exact_and_stripped(self):
         self.assertEqual(sn.osc("a · b", "Done"), "\x1b]777;notify;a · b;Done\x1b\\".encode())
@@ -128,6 +126,7 @@ class DeliveryTest(unittest.TestCase):
             self.assertFalse(sn.delivery_off(str(Path(d) / "missing.toml")))
 
 
+@unittest.skipIf(os.name == "nt", "ADR 0011: squad-notify delivers to a Unix pty (os.openpty); Windows has no ptys")
 class RunTest(unittest.TestCase):
     """Whole hook as a subprocess with a fake herdr, a pty as client tty is impossible there (real /proc),
     so run() is called in-process with a fake proc root and a pty pair."""

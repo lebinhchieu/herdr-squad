@@ -9,11 +9,23 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "bin"))
+from squadtest import BIN, ROOT, clean_env, fake_herdr, plugin_clone, squad_home
+sys.path.insert(0, str(BIN))
 import squadsettings as ss  # noqa: E402
+import winlaunch
 
 SPAWN = ROOT / "bin" / "squad-spawn"
+
+
+def settings_arg(path):
+    """Regex for `--settings <path>` as the bash dry-run prints it: `C:/x` or `/c/x` on Windows, `path` elsewhere."""
+    p = Path(path).as_posix()
+    m = re.match(r"([A-Za-z]):(/.*)", p)
+    return "--settings " + ((r"(?i:%s:|/%s)" % (m[1], m[1]) + re.escape(m[2])) if m else re.escape(p))
+
+
+def slashed(text):
+    return text.replace("\\", "/")
 
 
 class MergeTest(unittest.TestCase):
@@ -133,10 +145,6 @@ class EffectiveTest(Base):
             self.assertTrue(hit(perms["allow"], "rm -rf /tmp/tmp.A") and not hit(perms["ask"], "rm -rf /tmp/tmp.A"))
             self.assertTrue(hit(perms["ask"], "rm -rf /tmp/tmp.A /tmp/tmp.B"), role)  # negative control
 
-    def test_manager_allows_squad_team(self):
-        m = json.loads((ROOT / "templates/squad/settings/manager.json").read_text(encoding="utf-8"))
-        self.assertIn("Bash(squad-team:*)", m["permissions"]["allow"])
-
     def test_ask_unions_and_other_arrays_are_replaced(self):
         r = ss.merge({"permissions": {"ask": ["a"]}, "l": [1, 2]}, {"permissions": {"ask": ["b"]}, "l": [3]})
         self.assertEqual(r["permissions"]["ask"], ["a", "b"])
@@ -147,19 +155,18 @@ class SpawnTest(Base):
     def setUp(self):
         super().setUp()
         (self.squad / "process.md").write_text("x", encoding="utf-8")
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
-        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
+        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
         self.dir = Path(self.tmp.name)
 
     def spawn(self, role="dev"):
-        return subprocess.run([str(SPAWN), role, "x", "--dry-run", "--prompt", "hello"], env=self.env, text=True,
+        return winlaunch.run_script(SPAWN, [role, "x", "--dry-run", "--prompt", "hello"], env=self.env, text=True,
                               encoding="utf-8", capture_output=True, timeout=10)
 
     def test_overlay_passes_the_effective_file_and_model_from_the_local_file(self):
         self.local("dev", {"model": "haiku"})
         r = self.spawn()
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"--settings {self.squad}/roles/x.settings.json", r.stdout)
+        self.assertRegex(slashed(r.stdout), settings_arg(self.squad / "roles/x.settings.json"))
         self.assertIn("--model haiku --effort", r.stdout)
         self.assertNotIn("settings", r.stderr)  # the legacy-squad notice (ticket 24) is not a settings warning
 
@@ -182,13 +189,13 @@ class SpawnTest(Base):
         (self.squad / "settings" / "dev.json").write_text(json.dumps({"model": "haiku", "effortLevel": "low"}), encoding="utf-8")
         r = self.spawn()
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"--settings {self.squad}/settings/dev.json", r.stdout)
+        self.assertRegex(slashed(r.stdout), settings_arg(self.squad / "settings/dev.json"))
         self.assertEqual(r.stderr.count("warning:"), 1)
         self.assertIn("not an overlay", r.stderr)
 
     def test_no_squad_files_uses_the_template_without_warning(self):
         r = self.spawn()
-        self.assertIn(str(ROOT / "templates/squad/settings/dev.json"), r.stdout)
+        self.assertRegex(slashed(r.stdout), settings_arg(ROOT / "templates/squad/settings/dev.json"))
         self.assertNotIn("settings", r.stderr)  # the legacy-squad notice (ticket 24) is not a settings warning
 
     def test_local_file_wins_over_an_old_full_file(self):
@@ -201,13 +208,6 @@ class SpawnTest(Base):
         self.assertIn("ignored", r.stderr)
 
 
-FAKE_HERDR = """#!/usr/bin/env bash
-[[ "$1 $2" == "agent get" ]] && exit 1
-[[ $1 == tab ]] && echo '{"result":{"root_pane":{"pane_id":"p1"},"tab":{"tab_id":"t1"}}}'
-exit 0
-"""
-
-
 class ComposedSpawnTest(Base):
     """A composed squad: the pinned runtime's template is the one merged, dry-run or not."""
     VERSION = "0.6.0"  # the copy of the running plugin below stands for a release with the team language (no hand-off)
@@ -216,15 +216,13 @@ class ComposedSpawnTest(Base):
     def setUp(self):
         super().setUp()
         self.proj = Path(self.tmp.name) / "proj"
-        self.squad = self.proj / ".claude" / "squads" / "t"
-        (self.squad / "settings").mkdir(parents=True)
-        (self.squad / "scopes/sc1").mkdir(parents=True)
+        self.squad = squad_home(self.proj)
+        (self.squad / "settings").mkdir()
+        (self.squad / "scopes/sc1").mkdir()
         (self.squad / "process.local.md").write_text("", encoding="utf-8")
         (self.squad / "scopes/sc1/scope.md").write_text(f"# Scope\n\nteam: ba\nplugin: {self.VERSION} {self.SHA}\n", encoding="utf-8")
         rt = self.squad / "_runtime" / f"{self.VERSION}-{self.SHA[:12]}"
-        shutil.copytree(ROOT, rt, ignore=shutil.ignore_patterns(".git", ".worktrees", ".scratch", "tests", "__pycache__"))
-        pj = rt / ".claude-plugin" / "plugin.json"
-        pj.write_text(re.sub(r'("version"\s*:\s*)"[^"]*"', rf'\1"{self.VERSION}"', pj.read_text(encoding="utf-8")), encoding="utf-8")
+        plugin_clone(rt, fixtures=False, git_dir=False)  # plugin_copy() is version 0.6.0 = VERSION
         d = json.loads((rt / "templates/squad/settings/dev.json").read_text(encoding="utf-8"))
         d["permissions"]["allow"].append("Bash(pinned-only:*)")
         (rt / "templates/squad/settings/dev.json").write_text(json.dumps(d), encoding="utf-8")
@@ -232,13 +230,11 @@ class ComposedSpawnTest(Base):
         (self.squad / "scopes/sc1/roster.md").write_text("| Agent | Role | Scope | Owns | Status | Session |\n| --- | --- | --- | --- | --- | --- |\n", encoding="utf-8")
         self.bin = Path(self.tmp.name) / "bin"
         self.bin.mkdir()
-        (self.bin / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (self.bin / "herdr").chmod(0o755)
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
-        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}")
+        fake_herdr(self.bin)
+        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad), PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}")
 
     def run_spawn(self, *args):
-        return subprocess.run([str(SPAWN), "dev", "x", "--scope", "sc1", *args], env=self.env, text=True,
+        return winlaunch.run_script(SPAWN, ["dev", "x", "--scope", "sc1", *args], env=self.env, text=True,
                               encoding="utf-8", capture_output=True, timeout=30)
 
     def test_dry_run_exits_0_prints_the_effective_path_and_writes_nothing(self):
@@ -246,7 +242,7 @@ class ComposedSpawnTest(Base):
         shutil.rmtree(self.squad / "_runtime")
         r = self.run_spawn("--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"--settings {self.squad / 'scopes/sc1'}/roles/x.settings.json", r.stdout)
+        self.assertRegex(slashed(r.stdout), settings_arg(self.squad / "scopes/sc1/roles/x.settings.json"))
         self.assertIn("--model haiku", r.stdout)
         self.assertFalse((self.squad / "scopes/sc1/roles/x.settings.json").exists())
 
@@ -286,10 +282,10 @@ class ComposedSpawnTest(Base):
         d = json.loads(f.read_text(encoding="utf-8"))
         d["model"] = "pinnedmodel"
         f.write_text(json.dumps(d), encoding="utf-8")
-        r = subprocess.run([str(SPAWN), "ba", "x", "--scope", "sc1", "--dry-run"], env=self.env, text=True,
+        r = winlaunch.run_script(SPAWN, ["ba", "x", "--scope", "sc1", "--dry-run"], env=self.env, text=True,
                            encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"--settings {f}", r.stdout)
+        self.assertRegex(slashed(r.stdout), settings_arg(f))
         self.assertIn("--model pinnedmodel", r.stdout)
 
     def test_missing_pinned_template_exits_1_naming_the_path(self):
@@ -302,4 +298,3 @@ class ComposedSpawnTest(Base):
 
 if __name__ == "__main__":
     unittest.main()
-

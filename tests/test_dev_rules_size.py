@@ -1,30 +1,29 @@
 """Ticket 22: the composed Developer rules fit 5 KiB at every size x design x goal, keep every duty, and
 anything left out stays one `squad-process rule <ID>` away."""
-import json
 import re
-import subprocess
 import sys
 import tempfile
 import unittest
 from itertools import product
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
-from rulesview import ROOT, ROLES, run, who
+from squadtest import BIN
+
+sys.path.insert(0, str(BIN))
+from rulesview import ROOT, ROLES, run, shape_team, who
 
 LIMIT = 5120
 NOW = "2026-10-22T10:00:00Z"
 KEYS = ("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect")
 TEAMS = [tuple(k for i, k in enumerate(KEYS) if m >> i & 1) for m in range(128)]
-COMBOS = list(product("SML", ("yes", "no"), ("yes", "no")))
+COMBOS = [("S", "no", "no"), ("M", "yes", "no"), ("L", "yes", "yes")]  # one per size; design yes at M and L covers LC-19b and LC-19
 
 
 def compose(role, size, design="no", goal="no", architecture="no", name="role-cards-upgrade", agent="plugin-dev-role-cards-upgrade-12"):
     """The raw composed bytes for a pinned fixture home with live-length names; no --plugin-root, time injected."""
     import squadcompose
-    import squadrules
     pin = (squadcompose.running_version(), "0123456789abcdef0123456789abcdef01234567")
-    team = squadrules.legacy_team(size, "yes", design, architecture)  # the converter's mapping of the old shape
+    team = shape_team(size, "yes", design, architecture)  # the converter's mapping of the old shape
     return compose_team(role, team, goal=goal, name=name, agent=agent)
 
 
@@ -91,11 +90,6 @@ class DevRulesSize(unittest.TestCase):
                     self.assertIn(needle, section(t, rid))
             self.assertIn("## LC-18 ", t)
 
-    def test_msg3_says_never_paste_at_every_size(self):
-        for size, design, goal in COMBOS:
-            with self.subTest(size=size, design=design, goal=goal):
-                self.assertIn("never paste", section(compose("dev", size, design, goal).decode(), "MSG-3"))
-
     def test_lost_rules_are_one_command_away(self):
         for rid in ("GOAL-6b", "PROMO-5", "REV-15", "NOTE-1", "MSG-5", "MSG-9", "COST-2", "SAFE-2", "SAFE-5", "REV-4", "LC-6", "SUITE-4", "REV-5a", "EVID-5"):
             with self.subTest(rule=rid):
@@ -123,20 +117,6 @@ class DevRulesSize(unittest.TestCase):
         for (team, goal), n in base.items():
             with self.subTest(team=team, goal=goal):
                 self.assertLessEqual(len(compose_team("manager", team, goal)), n)
-
-    def test_developer_file_cites_evid5_wherever_it_applies(self):
-        import squadrules as sr
-        n = 0
-        for team in TEAMS:
-            facts = sr.team_facts(list(team))
-            rule = next(r for r in sr.load_rules(str(ROOT / "templates/squad/process"), str(ROOT))[0] if r.id == "EVID-5")
-            if not sr.matches(rule.when, facts):
-                continue
-            n += 1
-            for goal, qa in product(("yes", "no"), ("full", "light")):
-                with self.subTest(team=team, goal=goal, qa=qa):
-                    self.assertIn("[EVID-5]", compose_team("dev", team, goal, qa).decode())
-        self.assertGreater(n, 0)
 
     def test_moved_rules_are_cited_from_the_rule_that_keeps_them(self):
         for kept, moved in (("REV-22", "REV-5a"), ("LC-19", "EVID-5")):

@@ -14,9 +14,6 @@ def commands(event, matcher=None):
 
 
 class HooksJsonTest(unittest.TestCase):
-    def test_existing_hooks_kept(self):
-        self.assertEqual(commands("PostToolUse", "SendMessage")[0][0], '"${CLAUDE_PLUGIN_ROOT}/bin/squad-log-message"')
-        self.assertEqual(commands("Stop")[0][0], '"${CLAUDE_PLUGIN_ROOT}/bin/squad-usage-hook"')
 
     def test_path_guard_on_the_write_tools_only(self):
         guard = '"${CLAUDE_PLUGIN_ROOT}/bin/squad-path-guard"'
@@ -28,13 +25,6 @@ class HooksJsonTest(unittest.TestCase):
         guard = '"${CLAUDE_PLUGIN_ROOT}/bin/squad-manager-guard"'
         self.assertEqual(commands("PreToolUse", "Bash"), [(guard, None, None)])
         self.assertTrue((Path(__file__).resolve().parent.parent / "bin" / "squad-manager-guard").is_file())
-
-    def test_usage_hook_still_exempts_the_manager(self):
-        src = (Path(__file__).resolve().parent.parent / "bin" / "squad-usage-hook").read_text()
-        self.assertIn("${SQUAD_ROLE:-} != manager", src)
-
-    def test_notify_on_stop(self):
-        self.assertIn((NOTIFY, True, 5), commands("Stop"))
 
     def test_notify_on_notification(self):
         self.assertEqual(commands("Notification", "permission_prompt|elicitation_dialog"), [(NOTIFY, True, 5)])

@@ -19,9 +19,7 @@ Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
 """
 import argparse
 import json
-import ntpath
 import os
-import posixpath
 import re
 import shutil
 import subprocess
@@ -31,6 +29,7 @@ from pathlib import Path
 PLUGIN = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PLUGIN / "bin"))
 import squadio  # noqa: E402
+from squadio import need_bash, pick_bash  # noqa: E402,F401  (pick_bash: the tests call it on this module)
 import squadruntime  # noqa: E402
 STOP = {"the", "a", "an", "of", "to", "for", "and", "in", "on", "with", "from"}
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -40,34 +39,6 @@ MAX_AGENT = 32  # herdr's limit on an agent name
 def die(msg, code=1):
     print(msg, file=sys.stderr)
     sys.exit(code)
-
-
-def pick_bash(which, exists, nt, system_root):
-    """The bash that runs squad-spawn, or None. On Windows the System32 and WindowsApps hits are the WSL launcher
-    and the Store stub, the wrong bash; fall back to the Git for Windows bash found from git.exe."""
-    path = ntpath if nt else posixpath
-    found = which("bash")
-    if found:
-        low = found.replace("/", "\\").lower()
-        sys32 = path.join(system_root, "System32").replace("/", "\\").lower() + "\\" if system_root else None
-        if not nt or not (("\\windowsapps\\" in low) or (sys32 and low.startswith(sys32))):
-            return found
-    git = which("git")
-    if nt and git:
-        root = git
-        for _ in range(3):
-            root = path.dirname(root)
-            candidate = path.join(root, "bin", "bash.exe")
-            if exists(candidate):
-                return candidate
-    return None
-
-
-def need_bash():
-    bash = pick_bash(shutil.which, os.path.exists, os.name == "nt", os.environ.get("SystemRoot", ""))
-    if not bash:
-        die("bash not found: squad-start runs squad-spawn through bash; install Git for Windows or add its bin folder to PATH")
-    return bash
 
 
 def squad_dir(name):

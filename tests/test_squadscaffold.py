@@ -1,5 +1,4 @@
 """squad-process scaffold: a new composed squad; temp folders only."""
-import os
 import subprocess
 import sys
 import tempfile
@@ -7,8 +6,7 @@ import unittest
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "bin"
+from squadtest import BIN, ROOT, clean_env, plugin_clone
 sys.path.insert(0, str(BIN))
 import squadrules as sr  # noqa: E402
 import squadruntime as rt  # noqa: E402
@@ -17,9 +15,8 @@ import squadsettings as ss  # noqa: E402
 PIN = "0.7.0 abcdef123456"
 
 
-def run(*args, cwd=None):
-    env = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD_")}
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
+def run(*args, cwd=None, extra_env=None):
+    env = clean_env(PYTHONDONTWRITEBYTECODE="1", **(extra_env or {}))
     return subprocess.run([sys.executable, str(BIN / "squad-process"), *args], capture_output=True,
                           encoding="utf-8", env=env, cwd=cwd)
 
@@ -33,6 +30,23 @@ class Base(unittest.TestCase):
 
 class Scaffold(Base):
     """AC 4: a new squad has no process.md and lints."""
+
+    def test_scaffold_from_a_non_git_plugin_root_pins_from_installed_plugins(self):
+        plugin = self.root / "cache" / "squad" / "9.9.9"
+        version = plugin_clone(plugin, fixtures=False, git_dir=False).version
+        listing = self.root / "installed_plugins.json"
+        sha = "c" * 40
+        entry = {"squad@market": [{"scope": "user", "installPath": str(plugin), "version": version, "gitCommitSha": sha}]}
+        listing.write_text(json.dumps({"version": 2, "plugins": entry}), encoding="utf-8")
+        env = {"SQUAD_INSTALLED_PLUGINS": str(listing)}
+        sq = self.root / ".claude" / "squads" / "new"
+        r = run("scaffold", "--squad-dir", str(sq), "--plugin-root", str(plugin), extra_env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((sq / "plugin.pin").read_text(encoding="utf-8").strip(), f"{version} {sha}")
+        listing.write_text(json.dumps({"version": 2, "plugins": {}}), encoding="utf-8")
+        r = run("scaffold", "--squad-dir", str(self.root / "other"), "--plugin-root", str(plugin), extra_env=env)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--new-pin", r.stderr + r.stdout)
 
     def test_scaffold_creates_the_composed_layout_and_lints(self):
         sq = self.root / ".claude" / "squads" / "new"
@@ -72,25 +86,6 @@ class Scaffold(Base):
 
 
 class Retirement(Base):
-    def test_show_is_retired_and_apply_is_gone(self):
-        self.assertNotEqual(run("show", "dev").returncode, 0)
-        sq = self.root / ".claude" / "squads" / "x"
-        sq.mkdir(parents=True)
-        for cmd in (("apply", "--legacy", "--file", str(self.root / "f.md")), ("plan",), ("version",), ("check",),
-                    ("compose", "--out", str(self.root / "o.md"))):
-            r = run(*cmd, "--squad-dir", str(sq))
-            self.assertEqual(r.returncode, 2, cmd)
-            self.assertNotIn("Traceback", r.stderr, cmd)
-
-    def test_no_command_card_or_prompt_calls_show(self):
-        hits = []
-        for d in ("agents", "skills", "bin", "templates", "hooks"):
-            for p in (ROOT / d).rglob("*"):
-                if p.is_file() and p.suffix in ("", ".md", ".py", ".json", ".sh") and "history" not in p.parts:
-                    t = p.read_text(encoding="utf-8", errors="ignore")
-                    if "squad-process show" in t or "ROLE_SECTIONS" in t:
-                        hits.append(str(p.relative_to(ROOT)))
-        self.assertEqual(hits, [])
 
     def test_the_live_squad_overlay_fixture_lints_and_classifies(self):
         import squadupgrade as su

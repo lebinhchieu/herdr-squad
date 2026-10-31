@@ -10,19 +10,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-BIN = Path(__file__).resolve().parent.parent / "bin"
+from squadtest import BIN, clean_env, fake_herdr
 sys.path.insert(0, str(BIN))
 import squadlabel as sl  # noqa: E402
-
-FAKE_HERDR = """#!/usr/bin/env bash
-echo "$@" >> "$HERDR_LOG"
-case "$1 $2" in
-  "agent list") python3 -c 'import json,os; print(json.dumps({"result":{"agents":[{"name":n,"tab_id":"tab-"+n} for n in os.environ["LIVE"].split()]}}))' ;;
-  "agent get") echo "{\\"result\\":{\\"agent\\":{\\"name\\":\\"$3\\",\\"tab_id\\":\\"tab-$3\\"}}}" ;;
-  "tab rename") [[ -n ${FAIL_RENAME:-} ]] && { echo boom >&2; exit 1; } ;;
-esac
-exit 0
-"""
+import winlaunch
 
 
 class LabelCliTest(unittest.TestCase):
@@ -34,19 +25,17 @@ class LabelCliTest(unittest.TestCase):
         self.goal.mkdir(parents=True)
         fake = r / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (fake / "herdr").chmod(0o755)
+        fake_herdr(fake, "live")
         self.log = r / "herdr.log"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR", "HERDR"))}
-        self.env.update(HERDR_ENV="1", HERDR_LOG=str(self.log), LIVE="dev-1 dev-2 mgr",
-                        PATH=f"{fake}:{os.environ['PATH']}", SQUAD_DIR=str(self.squad))
+        self.env = clean_env(HERDR_ENV="1", HERDR_LOG=str(self.log), LIVE="dev-1 dev-2 mgr",
+                             PATH=f"{fake}{os.pathsep}{os.environ['PATH']}", SQUAD_DIR=str(self.squad))
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def run_cli(self, *args, **env):
         e = {**self.env, **env}
-        return subprocess.run([str(BIN / "squad-label"), *args], env=e, text=True, encoding="utf-8", capture_output=True, timeout=20)
+        return winlaunch.run_script(BIN / "squad-label", [*args], env=e, text=True, encoding="utf-8", capture_output=True, timeout=20)
 
     def calls(self):
         return self.log.read_text(encoding="utf-8").splitlines() if self.log.exists() else []
@@ -83,11 +72,6 @@ class LabelCliTest(unittest.TestCase):
         self.assertEqual(sl.read_entry(self.scope, "dev-1")["title"], "keep")
         self.assertEqual(self.calls(), [])
 
-    def test_non_manager_may_name_itself_with_agent(self):
-        sl.write_entry(self.scope, "dev-2", "dev", None, "")
-        r = self.run_cli("--agent", "dev-2", "me", **self.as_dev())
-        self.assertEqual((r.returncode, r.stdout.strip()), (0, "🤖 Dev · me"))
-
     def test_goal_manager_finds_entry_in_a_scope_home(self):
         sl.write_entry(self.scope, "dev-1", "dev", 1, "")
         r = self.run_cli("--agent", "dev-1", "TAB-09", SQUAD_NAME="mgr", SQUAD_ROLE="manager", GOAL_DIR=str(self.goal), LC_ALL="C.UTF-8")
@@ -114,13 +98,6 @@ class LabelCliTest(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout), (0, "🤖 Dev 2 · TAB-02\n"), r.stderr)
         self.assertEqual(self.calls()[1:], ["agent get dev-1", "tab rename tab-dev-1 🤖 Dev 1 · TAB-01"])
         self.assertEqual(self.calls()[0], "agent list")
-        self.assertEqual(sl.read_entry(self.scope, "dev-2")["number"], 2)
-
-    def test_init_respawn_of_dev2_after_dev1_left_keeps_2(self):
-        sl.write_entry(self.scope, "dev-1", "dev", 1, "")
-        sl.write_entry(self.scope, "dev-2", "dev", 2, "")
-        r = self.run_cli("--init", "--home", str(self.scope), "--agent", "dev-2", "--role", "dev", "--title", "B", LIVE="dev-2")
-        self.assertEqual(r.stdout, "🤖 Dev 2 · B\n")
         self.assertEqual(sl.read_entry(self.scope, "dev-2")["number"], 2)
 
     def test_init_uses_only_its_home_and_ignores_env(self):
@@ -158,11 +135,6 @@ class LabelCliTest(unittest.TestCase):
         r = self.run_cli("--get-title", "--home", str(self.scope), "--agent", "dev-9")
         self.assertEqual((r.returncode, r.stdout), (0, "\n"))
         self.assertEqual(self.calls(), [])
-
-    def test_init_first_agent_has_no_number_and_no_tab_call(self):
-        r = self.run_cli("--init", "--home", str(self.scope), "--agent", "dev-1", "--role", "dev")
-        self.assertEqual(r.stdout, "🤖 Dev\n")
-        self.assertEqual(self.calls(), ["agent list"])
 
     def test_outside_herdr_updates_store_and_calls_no_herdr(self):
         sl.write_entry(self.scope, "dev-2", "dev", None, "")

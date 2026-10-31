@@ -1,0 +1,9 @@
+squadrules: Ran 43 tests in 1.765s  OK 
+squadcompose: Ran 42 tests in 4.604s  OK 
+sizes: Ran 8 tests in 2.720s  OK 
+team_duties: Ran 20 tests in 0.003s  OK 
+small_files_equivalence: Ran 2 tests in 0.173s  OK 
+processlint: Ran 31 tests in 0.292s  OK 
+process_citations: Ran 2 tests in 0.364s  OK 
+instructions: Ran 16 tests in 0.213s  OK 
+pod_rules_process: Ran 2 tests in 0.521s  OK 

@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+import winlaunch
 
 ROOT = Path(__file__).resolve().parent.parent
 BIN = ROOT / "bin"
@@ -68,7 +69,7 @@ class GateTest(unittest.TestCase):
 
     def run_bin(self, role, *argv, prog="squad-spawn", **env):
         e = {**self.env, **({"SQUAD_ROLE": role} if role else {}), **env}
-        return subprocess.run([str(BIN / prog), *argv], env=e, text=True, capture_output=True, timeout=20)
+        return winlaunch.run_script(BIN / prog, [*argv], env=e, text=True, capture_output=True, timeout=20)
 
     def spawn(self, role, target, *args):
         return self.run_bin(role, target, "x", "--scope", "s", "--dry-run", *args)

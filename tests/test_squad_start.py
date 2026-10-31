@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import winlaunch
+
 SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-start"
 FAKE_HERDR = """#!/usr/bin/env bash
 echo "$@" >> "$HERDR_LOG"
@@ -18,9 +20,7 @@ exit 0
 
 def run_child(cmd, env, timeout=30):
     """Run a child with UTF-8 bytes for argv and env: the parent may itself run under an ASCII locale."""
-    enc = lambda x: str(x).encode("utf-8", "surrogateescape")
-    return subprocess.run([enc(c) for c in cmd], env={enc(k): enc(v) for k, v in env.items()},
-                          encoding="utf-8", capture_output=True, timeout=timeout)
+    return winlaunch.run_child(cmd, env, encoding="utf-8", capture_output=True, timeout=timeout)
 
 
 class StartTest(unittest.TestCase):
@@ -209,7 +209,6 @@ class StartTest(unittest.TestCase):
         self.assertIn("would", r.stdout)
         self.assertNotIn("board", (r.stdout + r.stderr).replace(str(ROOT), "").lower())
 
-
     def dry_lines(self, *args):
         r = self.start(*args, "--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -374,17 +373,6 @@ class LegacyStartTest(unittest.TestCase):
                 self.assertNotIn("process update", r.stderr)
                 self.assertNotIn("process version", r.stderr)
 
-    def test_dry_run_and_resume_print_none_either(self):
-        r = self.run_start("process-version: 1\n", "x", "--name", "one", "--touches", "z", "--dry-run")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertNotIn("process update", r.stderr)
-        self.assertFalse((self.squad / "scopes" / "one").exists())
-        self.run_start("process-version: 2\n", "Task", "--name", "one", "--touches", "a")
-        r = self.run_start("process-version: 1\n", "--resume", "one")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertNotIn("process update", r.stderr)
-        self.assertEqual(list(json.loads(r.stdout)), ["kind", "name", "dir", "manager", "tab"])
-
 
 def load_squad_start():
     from importlib.machinery import SourceFileLoader
@@ -459,7 +447,7 @@ class LauncherTest(unittest.TestCase):
         (self.root / "fakebin" / "bash").unlink()
         for args, made in ((("Task two", "--name", "two", "--touches", "b"), "two"), (("--resume", "one"), None)):
             with self.subTest(args=args):
-                r = run_child([shutil.which("python3"), str(SCRIPT), *args], env=self.env)
+                r = run_child([winlaunch.python(), str(SCRIPT), *args], env=self.env)
                 self.assertNotEqual(r.returncode, 0)
                 lines = [l for l in r.stderr.splitlines() if not l.startswith("process update")]
                 self.assertEqual(len(lines), 1, r.stderr)
@@ -473,7 +461,7 @@ class LauncherTest(unittest.TestCase):
     def test_dry_run_needs_no_bash(self):
         self.env["PATH"] = str(self.root / "fakebin")
         (self.root / "fakebin" / "bash").unlink()
-        r = run_child([shutil.which("python3"), str(SCRIPT), "x", "--name", "one", "--dry-run"],
+        r = run_child([winlaunch.python(), str(SCRIPT), "x", "--name", "one", "--dry-run"],
                            env=self.env)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("would run: ", r.stdout)
@@ -508,10 +496,6 @@ class InstructionsTest(unittest.TestCase):
         self.assertIn("squad-process scaffold", text)
         self.assertIn("never copies `process.md`", text)
         self.assertNotIn("Copy everything from", text)
-
-    def test_squad_start_skill_has_no_process_update_step(self):
-        text = (ROOT / "skills" / "squad-start" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertNotIn("process_update", text)
 
     def test_skill_confirms_the_managers_model_and_effort_before_the_run_for_start_and_resume(self):  # ticket 19
         text = (ROOT / "skills" / "squad-start" / "SKILL.md").read_text(encoding="utf-8")

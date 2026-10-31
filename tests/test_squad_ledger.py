@@ -6,8 +6,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+import winlaunch
 
-BIN = Path(__file__).resolve().parent.parent / "bin"
+from squadtest import BIN
 LEDGER = BIN / "squad-ledger"
 HOOK = BIN / "squad-log-message"
 
@@ -98,18 +99,6 @@ class LedgerTest(unittest.TestCase):
         self.assertEqual((row["sha"], row["branch"], row["verdicts"], row["blocked"], row["returns"]),
                          (None, None, None, None, 0))
 
-    def test_live_log_read_only(self):
-        live = os.environ.get("SCOPE_DIR")
-        if not live or not (Path(live) / "messages.jsonl").is_file():
-            self.skipTest("no live scope log")
-        before = (Path(live) / "messages.jsonl").stat().st_mtime_ns
-        r = subprocess.run([sys.executable, str(LEDGER), "--home", live, "--json"], capture_output=True,
-                           text=True, encoding="utf-8", timeout=10)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        for row in json.loads(r.stdout):
-            self.assertEqual(len(row), 9)
-        self.assertEqual((Path(live) / "messages.jsonl").stat().st_mtime_ns, before)
-
     def test_evidence_handin_keeps_passed_sha_and_verdicts(self):
         self.write(FIXTURE + [rec("HANDIN", "dev", "tech", "HANDIN 03: evidence sha ccccccc")])
         row = [r for r in json.loads(self.ledger("--json").stdout) if r["task"] == "03"][0]
@@ -136,7 +125,7 @@ class NoticeTest(unittest.TestCase):
         env.update(SQUAD_NAME=frm, SQUAD_DIR=str(self.squad))
         p = {"tool_name": "SendMessage", "tool_input": {"to": to, "message": text},
              "tool_response": {"success": True, "msg_id": "m"}}
-        r = subprocess.run([str(HOOK)], input=json.dumps(p), text=True, encoding="utf-8", env=env,
+        r = winlaunch.run_script(HOOK, input=json.dumps(p), text=True, encoding="utf-8", env=env,
                            capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0, r.stderr)
         return json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"] if r.stdout.strip() else None
@@ -217,6 +206,7 @@ class NoticeTest(unittest.TestCase):
             out = list(ex.map(lambda f: self.send("FAIL 05: x", f), ["qaw", "qab"]))
         self.assertEqual(len([o for o in out if o]), 1)
 
+    @unittest.skipIf(os.name == "nt", "os.symlink needs Developer Mode or admin (WinError 1314)")
     def test_forced_failures_exit_0_without_notice(self):
         env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
         env.update(SQUAD_NAME="qaw", SQUAD_DIR=str(self.squad))
@@ -230,10 +220,10 @@ class NoticeTest(unittest.TestCase):
             if src:
                 (bindir / cmd).symlink_to(src)
         for raw, e in ((p, dict(env, PATH=str(bindir))), ("not json", env)):
-            r = subprocess.run([str(HOOK)], input=raw, text=True, env=e, capture_output=True, timeout=10)
+            r = winlaunch.run_script(HOOK, input=raw, text=True, env=e, capture_output=True, timeout=10)
             self.assertEqual((r.returncode, r.stdout), (0, ""))
         (self.squad / "messages.jsonl").mkdir()  # log path is a directory: cannot append or read
-        r = subprocess.run([str(HOOK)], input=p, text=True, env=env, capture_output=True, timeout=10)
+        r = winlaunch.run_script(HOOK, input=p, text=True, env=env, capture_output=True, timeout=10)
         self.assertEqual((r.returncode, r.stdout), (0, ""))
 
     def test_fail_without_task_gives_no_notice(self):

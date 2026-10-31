@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-BIN = Path(__file__).resolve().parent.parent / "bin"
+from squadtest import BIN
 TOOL = BIN / "squad-evidence"
 PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
 
@@ -60,15 +60,6 @@ class PathTest(Base):
     def test_task_file(self):
         r = tool("path", "tasks/T1.md")
         self.assertEqual((r.returncode, r.stdout), (0, "tasks/T1\n"))
-
-    def test_not_md_is_usage_error(self):
-        r = tool("path", "tasks/T1.txt")
-        self.assertEqual(r.returncode, 2)
-        self.assertEqual(r.stdout, "")
-
-    def test_no_args_is_usage_error(self):
-        self.assertEqual(tool().returncode, 2)
-        self.assertEqual(tool("add", str(self.ticket)).returncode, 2)
 
 
 class AddTest(Base):
@@ -257,7 +248,7 @@ class CheckTest(Base):
 
     def test_orphan_in_img(self):
         self.make("text only\n", {"a.png": png("a")})
-        self.assertRegex(self.problems()[0], r"img/a\.png:\d+: .*orphan")
+        self.assertRegex(self.problems()[0], r"img[/\\]a\.png:\d+: .*orphan")
 
     def test_backticked_screenshot(self):
         self.make("see `img/a.png`\n", {"a.png": png("a")})

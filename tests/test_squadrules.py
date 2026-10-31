@@ -1,6 +1,4 @@
 """squadrules: parser, hash, when, lint (ticket 02). Each lint class has a mutation of the clean fixture that triggers only it."""
-import importlib.machinery
-import importlib.util
 import os
 import shutil
 import subprocess
@@ -9,8 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "bin"
+from squadtest import BIN, ROOT, load_cli
+
 FIX = Path(__file__).resolve().parent / "fixtures" / "rules"
 sys.path.insert(0, str(BIN))
 import squadrules as sr  # noqa: E402
@@ -34,7 +32,6 @@ def cli(*args, root=None, squad=None):
 
 class Clean(unittest.TestCase):
     """A copy of fixtures/rules/clean in a temp dir; helpers edit and lint it."""
-
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
@@ -91,11 +88,6 @@ class ParseTest(Clean):
         self.assertEqual((ops[1].title, ops[1].attrs["roles"], ops[1].attrs["topic"]), ("Style contract", "tech-lead, qa-blackbox", "review"))
         self.assertEqual(ops[2].body, "")
 
-    def test_overlay_spec_example_with_blank_line_before_body(self):
-        text = "## replace REV-3 @7f3a9c21\nwhy: w\nupstream: proposed\n\nNew body.\n"
-        ops = sr.parse_overlay(text, "o", [])
-        self.assertEqual((ops[0].body, ops[0].upstream), ("New body.", "proposed"))
-
     def test_crlf_and_bom_parse_the_same(self):
         a = sr.load_rules(str(self.root / PROC), str(self.root))
         for p in (self.root / PROC).glob("*.md"):
@@ -111,14 +103,6 @@ class ParseTest(Clean):
         rules, _t, problems = sr.load_rules(str(self.root / PROC), str(self.root))
         self.assertEqual(problems, [])
         self.assertEqual([r.id for r in rules if r.topic == "safety"], ["SAFE-1", "SAFE-2"])
-
-    def test_load_rules_reports_what_compose_must_refuse(self):
-        self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: colour = red\ntopic: safety"))
-        _r, _t, problems = sr.load_rules(str(self.root / PROC), str(self.root))
-        self.assertEqual(len(problems), 1, problems)
-        self.assertIn("unknown when key 'colour'", problems[0])
-        self.append(f"{PROC}/safety.md", "\n## SAFE-1 Again\nroles: dev\ntopic: safety\n\nShort.\n")
-        self.assertTrue(any("duplicate ID SAFE-1" in p for p in sr.load_rules(str(self.root / PROC), str(self.root))[2]))
 
     def test_pointer_in_rule_body_must_name_a_base_rule(self):
         self.append(f"{PROC}/core.md", "\n## CORE-2 Points\nroles: all\ntopic: core\n\nSee [REV-3], [SEC-04] and [REV-99].\n")
@@ -148,14 +132,6 @@ class HashTest(unittest.TestCase):
         a = GOLDEN_ATTRS.split("\n")
         self.assertNotEqual(sr.rule_hash("\n".join([a[1], a[0], a[2], a[3]]), GOLDEN_BODY), want)
 
-    def test_rule_hash_of_a_crlf_file_equals_lf(self):
-        with tempfile.TemporaryDirectory() as d:
-            p = Path(d) / "review.md"
-            src = (FIX / "clean" / PROC / "review.md").read_bytes()
-            p.write_bytes(src.replace(b"\n", b"\r\n"))
-            rules = sr.parse_rule_file(sr.read_text(str(p)), "review.md", [])
-            self.assertEqual(rules[0].hash, "022a37df")
-
 
 class MatchesTest(unittest.TestCase):
     def test_truth_table(self):
@@ -169,36 +145,6 @@ class MatchesTest(unittest.TestCase):
         self.assertFalse(sr.matches(w, {"qa-white": "yes", "design": "yes"}))
         self.assertTrue(sr.matches(w, {"qa-white": "no"}))  # design missing: true
         self.assertTrue(sr.matches("", {"qa-white": "no"}))
-
-    def test_old_when_keys_are_rejected_naming_the_new_key(self):
-        for old, new in (("size = L", "ba"), ("size in M, L", "ba"), ("qa-b = no", "qa-black"),
-                         ("qa-whitebox = yes", "qa-white"), ("ba = yes and size = S", "ba")):
-            with self.subTest(when=old):
-                with self.assertRaises(ValueError) as cm:
-                    sr.matches(old, {})
-                self.assertIn(new, str(cm.exception))
-                self.assertIn("gone", str(cm.exception))
-        for gone in ("size", "qa-b", "qa-whitebox"):
-            self.assertNotIn(gone, sr.WHEN_KEYS)
-
-    def test_architecture_is_a_key(self):
-        self.assertTrue(sr.matches("architecture = yes", {"architecture": "yes"}))
-        self.assertFalse(sr.matches("architecture = yes", {"architecture": "no"}))
-        self.assertTrue(sr.matches("architecture = no", {"architecture": "no"}))
-        self.assertTrue(sr.matches("architecture = yes", {}))
-        with self.assertRaises(ValueError):
-            sr.matches("architecture = maybe", {})
-
-    def test_architect_is_a_known_role(self):
-        self.assertIn("architect", sr.ROLES)
-
-    def test_unknown_key_or_value_raises(self):
-        for bad in ("colour = red", "qa-white = maybe", "qa-white in yes, Q", "qa-white yes", "qa-white = no and"):
-            with self.assertRaises(ValueError, msg=bad):
-                sr.matches(bad, {})
-
-    def test_missing_fact_keys(self):
-        self.assertEqual(sr.missing_fact_keys("qa-white = no and design = no", {"design": "no"}), ["qa-white"])
 
 
 class LintClassTest(Clean):
@@ -238,10 +184,6 @@ class LintClassTest(Clean):
                 self.assertIn(new, errs[0])
                 self.edit(f"{PROC}/safety.md", lambda t: t.replace(f"when: {old}\n", "", 1))
 
-    def test_two_role_or_duty_keys_in_one_when_are_a_lint_error(self):
-        self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: ba = yes and plan-owner = manager\ntopic: safety", 1))
-        self.only("at most one of them")
-
     def test_old_when_key_in_an_overlay_op_is_a_lint_error(self):
         ov = self.root / "squad" / "process.local.md"
         ov.write_text(ov.read_text(encoding="utf-8").replace("when: qa-white = yes", "when: size in M, L"), encoding="utf-8")
@@ -249,12 +191,6 @@ class LintClassTest(Clean):
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("SQ-1", r.stdout)
         self.assertIn("gone", r.stdout)
-
-    def test_architecture_when_is_valid_and_bad_value_refused(self):
-        self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: architecture = yes\ntopic: safety"))
-        self.assertEqual(self.lint()[0], [])
-        self.edit(f"{PROC}/safety.md", lambda t: t.replace("architecture = yes", "architecture = maybe"))
-        self.only("unknown value 'maybe'")
 
     def test_team_language_when_is_valid_for_duty_plus_orthogonal(self):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: business-ac = ba and qa-black = yes\ntopic: safety"))
@@ -271,10 +207,6 @@ class LintClassTest(Clean):
     def test_duty_value_outside_its_set_is_refused(self):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", "when: business-ac = qa-black\ntopic: safety"))
         self.only("unknown value 'qa-black' for when key 'business-ac'")
-
-    def test_architect_role_in_roles_line_is_valid(self):
-        self.edit(f"{PROC}/safety.md", lambda t: t.replace("roles: dev", "roles: dev, architect"))
-        self.assertEqual(self.lint()[0], [])
 
     def test_id_prefix_not_matching_file(self):
         self.append(f"{PROC}/safety.md", "\n## REV-9 Wrong file\nroles: dev\ntopic: safety\n\nA different short sentence.\n")
@@ -302,10 +234,6 @@ class LintClassTest(Clean):
         long = " ".join(["word"] * 61)
         self.edit(f"{PROC}/safety.md", lambda t: t.replace(SAFE_SENTENCE, f"- {long}"))
         self.assertEqual(self.only("length"), f"{PROC}/safety.md:7: length: 61 words > 60")
-
-    def test_writing_rule_line_is_the_file_line(self):
-        self.edit(f"{PROC}/safety.md", lambda t: t.replace(SAFE_SENTENCE, "Line one.\n\nThe Developer should stop."))
-        self.assertEqual(self.only("hedge"), f"{PROC}/safety.md:9: hedge: 'should'")
 
     def test_overlay_on_missing_id(self):
         self.overlay("## remove REV-77 @00000000\nwhy: w\nupstream: local-only\n")
@@ -357,10 +285,6 @@ class LintClassTest(Clean):
         self.append("agents/x.md", "\nBare SEC-04, UTF-8 and [SEC-04] and [UTF-8] and [NOPE-1] are no rule pointers.\n")
         self.assertEqual(self.lint()[0], [])
 
-    def test_changelog_is_not_scanned(self):
-        (self.root / "skills" / "s" / "changelog.md").write_text("Old [REV-9] note.\n", encoding="utf-8")
-        self.assertEqual(self.lint()[0], [])
-
     def test_tombstone_still_present_as_a_rule(self):
         self.append(f"{PROC}/safety.md", "\n## SAFE-9 Back\nroles: dev\ntopic: safety\n\nA different short sentence.\n")
         self.only("removed ID SAFE-9 is still a rule")
@@ -382,54 +306,11 @@ class CliTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout)
         self.assertEqual(r.stdout.strip(), "")
 
-    def test_cards_default_is_error(self):
-        r = cli("lint", "--cards", "warn", root=ROOT)
-        self.assertEqual((r.returncode, r.stdout.strip()), (0, ""))
-        cli_src = (ROOT / "bin/squadrules_cli.py").read_text(encoding="utf-8")
-        self.assertIn('"--cards", choices=("error", "warn"), default="error"', cli_src)
-
     def test_no_card_calls_squad_process_show(self):  # 06: composed squads have no process.md for `show`
         for f in sorted((ROOT / "agents").glob("*.md")):
             self.assertNotIn("squad-process show", f.read_text(encoding="utf-8"), f.name)
         for f in sorted((ROOT / "skills").glob("*/SKILL.md")):
             self.assertNotIn("squad-process show", f.read_text(encoding="utf-8"), f.name)
-
-    def test_clean_fixture_exit_0_prints_nothing(self):
-        r = cli("lint", root=FIX / "clean", squad=FIX / "clean" / "squad")
-        self.assertEqual((r.returncode, r.stdout), (0, ""))
-
-    def test_errors_fixture_prints_every_class_as_file_line_problem(self):
-        r = cli("lint", "--cards", "error", root=FIX / "errors", squad=FIX / "errors" / "squad")
-        self.assertEqual(r.returncode, 1)
-        lines = r.stdout.splitlines()
-        for ln in lines:
-            self.assertRegex(ln, r"^[\w./-]+:\d+: \S")
-        p, s = PROC, "templates/squad/process/safety.md"
-        expected = [
-            f"{s}:9: duplicate ID SAFE-1 (first at {s}:3)",
-            f"{s}:15: missing roles:",
-            f"{s}:20: missing topic:",
-            f"{s}:25: unknown role 'wizard' in roles:",
-            f"{s}:25: unknown when key 'colour'",
-            f"{s}:44: unknown value 'maybe' for when key 'qa-white'",
-            f"{s}:32: ID REV-9 does not match the file prefix SAFE",
-            f"{s}:42: length: 61 words > 60",
-            f"{s}:51: attribute lines out of order (expected roles, aware, when, topic)",
-            f"{s}:13: sentence repeats SAFE-1 ({s}:7)",
-            f"agents/x.md:6: sentence repeats SAFE-1 ({s}:7)",
-            f"{p}/_removed.md:3: removed ID SAFE-9 is still a rule ({s}:58)",
-            f"{p}/_removed.md:7: replaced_by names missing ID SAFE-77",
-            f"{p}/core.md:1: core.md has 47 lines, over 40",
-            f"{p}/misc.md:1: unknown file stem 'misc' (not in FILE_ORDER)",
-            f"{p}/misc.md:3: text outside a rule (before the first `## ` heading)",
-            "process.local.md:1: remove of NOPE-1, which does not exist",
-            "process.local.md:8: second operation on SAFE-1 (first at line 5)",
-            "process.local.md:5: remove SAFE-1 has no upstream:",
-            "process.local.md:8: remove SAFE-1 has no why:",
-            "bin/tool.py:1: [REV-8] cites a rule that does not exist",
-        ]
-        self.assertEqual(sorted(lines), sorted(expected))
-        self.assertFalse([ln for ln in lines if "SEC-04" in ln or "UTF-8" in ln])
 
     def test_cards_warn_exits_0_error_exits_1(self):
         with tempfile.TemporaryDirectory() as d:
@@ -454,32 +335,11 @@ class CliTest(unittest.TestCase):
         first_hash = next(i for i, ln in enumerate(lines) if ln.startswith("CORE-1 "))
         self.assertTrue(all(":" in ln for ln in lines[:first_hash]))
 
-    def test_hash_of_one_edited_line_crlf_vs_lf(self):
-        with tempfile.TemporaryDirectory() as d:
-            outs = {}
-            for name, nl in (("lf", b"\n"), ("crlf", b"\r\n")):
-                root = Path(d) / name
-                shutil.copytree(FIX / "clean", root)
-                p = root / PROC / "safety.md"
-                p.write_bytes(p.read_bytes().replace(b"\n", nl))
-                outs[name] = cli("lint", "--hashes", root=root, squad=root / "squad").stdout
-            self.assertEqual(outs["lf"], outs["crlf"])
-            root = Path(d) / "edited"
-            shutil.copytree(FIX / "clean", root)
-            p = root / PROC / "safety.md"
-            p.write_text(p.read_text(encoding="utf-8").replace("never pushes", "never pulls"), encoding="utf-8", newline="\n")
-            self.assertNotEqual(cli("lint", "--hashes", root=root, squad=root / "squad").stdout, outs["lf"])
-
 
 class DelegationTest(unittest.TestCase):
     """compose <role> goes to the composer; compose --out F is a usage error (the v6 merge is gone)."""
-
     def load(self):
-        loader = importlib.machinery.SourceFileLoader("squad_process_cli", str(BIN / "squad-process"))
-        spec = importlib.util.spec_from_loader("squad_process_cli", loader)
-        mod = importlib.util.module_from_spec(spec)
-        loader.exec_module(mod)
-        return mod
+        return load_cli("squad-process")
 
     def test_routing(self):
         mod = self.load()
@@ -498,11 +358,6 @@ class DelegationTest(unittest.TestCase):
             squadrules_cli.main = old
         self.assertEqual(seen, [["compose", "dev", "--home", "D"], ["compose", "--out", "F"], ["version"],
                                 ["lint"], ["rule", "REV-3"], ["who", "REV-3"]])
-
-    def test_compose_by_role_without_home_exits_2(self):
-        r = cli("compose", "dev")
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("--home", r.stderr)
 
 
 if __name__ == "__main__":

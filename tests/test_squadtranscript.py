@@ -5,7 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+from squadtest import BIN
+
+sys.path.insert(0, str(BIN))
 import squadtranscript as st  # noqa: E402
 
 KEYS = {"ts", "kind", "side", "origin", "msg_id", "model", "usage", "cmds", "cost_state"}

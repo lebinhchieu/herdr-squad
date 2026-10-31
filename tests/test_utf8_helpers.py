@@ -8,10 +8,13 @@ import os
 import shutil
 import subprocess
 import tempfile
+import sys
 import unittest
 from pathlib import Path
 
 BIN = Path(__file__).resolve().parent.parent / "bin"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import winlaunch  # noqa: E402
 WIN = {"PYTHONUTF8": "0", "LC_ALL": "C", "PYTHONIOENCODING": "cp1252"}
 ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "dev", "designer", "token-coach")
 # The tab label has the byte 0x90 (U+1F980 is f0 9f a6 80; "🦀 Manager" is the label QA blackbox measured).
@@ -30,9 +33,7 @@ exit 0
 
 def run(cmd, env, stdin=None, timeout=30):
     """Child with UTF-8 bytes for argv/env; stdout/stderr come back as bytes."""
-    enc = lambda x: str(x).encode("utf-8", "surrogateescape")
-    return subprocess.run([enc(c) for c in cmd], env={enc(k): enc(v) for k, v in env.items()}, input=stdin,
-                          capture_output=True, timeout=timeout)
+    return winlaunch.run_child(cmd, env, input=stdin, capture_output=True, timeout=timeout)
 
 
 def load(name):
@@ -64,7 +65,7 @@ class Base(unittest.TestCase):
         self.home.mkdir()
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR", "HERDR"))}
         self.env.update(WIN, HERDR_ENV="1", PYTHONDONTWRITEBYTECODE="1", HERDR_LOG=str(self.log), HOME=str(self.home), SQUAD_DIR=str(self.squad),
-                        SCOPE_DIR=str(self.scope), PATH=f"{fake}:{os.environ['PATH']}")
+                        SCOPE_DIR=str(self.scope), PATH=f"{fake}{os.pathsep}{os.environ['PATH']}")
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -149,6 +150,7 @@ class UsageTest(Base):
 
 
 class NotifyTest(Base):
+    @unittest.skipIf(os.name == "nt", "squad-notify launches the fake herdr (extensionless bash script, WinError 193); ADR 0011 pty / ticket 12")
     def test_a_missing_proc_prints_nothing_and_raises_nothing(self):
         sn = load("squad-notify")
         cfg = self.root / "config.toml"
@@ -178,19 +180,21 @@ class JqTest(Base):
         (d / "herdr").symlink_to(self.root / "fakebin" / "herdr")
         return str(d)
 
+    @unittest.skipIf(os.name == "nt", "os.symlink needs Developer Mode or admin (WinError 1314)")
     def test_respawn_and_retire_stop_with_one_line_naming_jq_before_herdr(self):
         self.env["PATH"] = self.no_jq_path()
         for name in ("squad-respawn", "squad-retire"):
             with self.subTest(name=name):
-                r = run(["bash", BIN / name, "dev-1"], self.env)
+                r = run([winlaunch.bash(), BIN / name, "dev-1"], self.env)
                 self.assertNotEqual(r.returncode, 0)
                 self.assertEqual(len(r.stderr.decode().splitlines()), 1, r.stderr)
                 self.assertIn(b"jq", r.stderr)
                 self.assertFalse(self.log.exists())
 
+    @unittest.skipIf(os.name == "nt", "os.symlink needs Developer Mode or admin (WinError 1314)")
     def test_log_message_logs_nothing_says_one_line_and_exits_0(self):
         self.env.update(PATH=self.no_jq_path(), SQUAD_NAME="dev-1")
-        r = run(["bash", BIN / "squad-log-message"], self.env, stdin=b'{"tool_name":"SendMessage"}')
+        r = run([winlaunch.bash(), BIN / "squad-log-message"], self.env, stdin=b'{"tool_name":"SendMessage"}')
         self.assertEqual(r.returncode, 0)
         self.assertEqual(len(r.stderr.decode().splitlines()), 1, r.stderr)
         self.assertIn(b"jq", r.stderr)

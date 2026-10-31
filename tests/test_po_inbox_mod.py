@@ -7,9 +7,8 @@ import re
 import shutil
 import subprocess
 import unittest
-from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
+from squadtest import ROOT as REPO
 MOD_DIR = REPO / "hooks" / "po-inbox"
 CLAUDE = shutil.which("claude")
 AGENT_ENV = ("SQUAD_DIR", "SCOPE_DIR", "GOAL_DIR", "SQUAD_NAME", "SQUAD_ROLE", "SQUAD_SCOPE")

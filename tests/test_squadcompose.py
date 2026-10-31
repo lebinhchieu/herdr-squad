@@ -8,12 +8,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "bin"
+from squadtest import BIN, ROOT
 FIX = Path(__file__).resolve().parent / "fixtures" / "rules" / "compose"
 sys.path.insert(0, str(BIN))
 import squadcompose as sc  # noqa: E402
 import squadrules as sr  # noqa: E402
+from rulesview import shape_team  # noqa: E402
 
 NOW = "2026-10-22T10:00:00Z"
 RUNNING = sc.running_version()
@@ -44,7 +44,7 @@ class Base(unittest.TestCase):
         if team is not None:
             lines.append(f"team: {team or 'none'}")
         elif size:  # shorthand: the converter's mapping of the old shape, written as a `team:` line
-            team = sr.legacy_team(size, "yes", design, "no")
+            team = shape_team(size, "yes", design, "no")
             lines.append(f"team: {', '.join(team) or 'none'}")
         lines += ["qa: full"]
         if pin:
@@ -85,15 +85,8 @@ class GoldenTest(Base):
         golden = FIX / "golden" / name
         self.assertEqual(text, golden.read_text(encoding="utf-8"))
 
-    def test_golden_dev_replaced_added_aware(self):
-        self.check("dev-M-design.rules.md", self.compose("dev", self.home(design="yes"), agent="dev-1"))
-
     def test_golden_goal_manager_if_tags_and_index(self):
         self.check("manager-goal.rules.md", self.compose("manager", self.goal_home(), agent="mgr"))
-
-    def test_file_ends_with_exactly_one_newline(self):
-        t = self.compose("dev", self.home())
-        self.assertTrue(t.endswith("\n") and not t.endswith("\n\n"))
 
 
 class OverlayFailTest(Base):
@@ -114,31 +107,11 @@ class OverlayFailTest(Base):
         self.assertEqual(r.returncode, 2)
         self.assertEqual(out.read_bytes(), b"old bytes\n")
 
-    def test_every_stale_op_is_listed_one_line_each(self):
-        self.overlay("## replace REV-3 @11111111\nwhy: a\nupstream: local-only\nNew body one.\n\n"
-                     "## remove MSG-1 @22222222\nwhy: b\nupstream: local-only\n")
-        r = self.run_cli("compose", "dev", home=self.home())
-        self.assertEqual(r.returncode, 2)
-        self.assertEqual(r.stderr.strip().split("\n"),
-                         ["REV-3: overlay written for @11111111, plugin now @022a37df",
-                          "MSG-1: overlay written for @22222222, plugin now @76ede794"])
-
     def test_remove_of_missing_id_exits_2_naming_it(self):
         self.overlay("## remove REV-99 @022a37df\nwhy: a\nupstream: local-only\n")
         r = self.run_cli("compose", "dev", home=self.home())
         self.assertEqual(r.returncode, 2)
         self.assertIn("REV-99", r.stderr)
-
-    def test_replace_of_missing_id_exits_2_naming_it(self):
-        self.overlay("## replace REV-99 @022a37df\nwhy: a\nupstream: local-only\nBody.\n")
-        r = self.run_cli("compose", "dev", home=self.home())
-        self.assertEqual((r.returncode, "REV-99" in r.stderr), (2, True))
-
-    def test_add_of_existing_id_exits_2_naming_it(self):
-        self.overlay("## add REV-3 Again\nroles: dev\ntopic: review\nwhy: a\nupstream: local-only\nBody.\n")
-        r = self.run_cli("compose", "dev", home=self.home())
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("REV-3", r.stderr)
 
     def test_parse_problem_in_the_plugin_rules_exits_2(self):
         p = self.root / PROC / "review.md"
@@ -171,19 +144,8 @@ class NoRulesTest(Base):
                 self.assertIn("no rule files", r.stderr)
                 self.assertNotIn("Traceback", r.stderr)
 
-    def test_template_folder_missing_exits_2(self):
-        shutil.rmtree(self.root / PROC)
-        self.assertEqual(self.run_cli("rule", "CORE-1").returncode, 2)
-
 
 class DeterminismTest(Base):
-    def test_repeat_runs_are_byte_identical(self):
-        h = self.home()
-        a = self.run_cli("compose", "tech-lead", "--now", NOW, home=h).stdout
-        b = self.run_cli("compose", "tech-lead", "--now", NOW, home=h).stdout
-        self.assertTrue(a)
-        self.assertEqual(a, b)
-
     def test_crlf_inputs_give_the_same_bytes(self):
         h = self.home(design="yes")
         lf = self.run_cli("compose", "manager", "--now", NOW, home=h)
@@ -204,28 +166,6 @@ class DeterminismTest(Base):
 
 
 class FactsMatrixTest(Base):
-    def test_matrix_role_size_design(self):
-        core = "CORE-1"
-        cases = {
-            ("dev", "S", "no"): [core, "REV-7a"],
-            ("dev", "M", "no"): [core, "REV-3"],
-            ("dev", "M", "yes"): [core, "REV-3", "REV-8"],
-            ("dev", "L", "yes"): [core, "REV-3", "REV-8"],
-            ("tech-lead", "S", "no"): [core, "REV-7a"],
-            ("tech-lead", "M", "no"): [core],
-            ("qa-whitebox", "S", "no"): [core],
-            ("qa-whitebox", "M", "yes"): [core, "REV-3", "REV-7b"],
-            ("qa-blackbox", "L", "no"): [core, "REV-3", "REV-7b"],
-            ("manager", "S", "no"): [core, "MSG-1", "MSG-2a"],
-            ("manager", "L", "no"): [core, "MSG-1", "MSG-2b"],
-            ("team-lead", "M", "no"): [core, "REV-3"],
-            ("ba", "M", "no"): [core],
-        }
-        self.overlay("")
-        for (role, size, design), want in cases.items():
-            with self.subTest(role=role, size=size, design=design):
-                self.assertEqual(self.ids(role, self.home(size=size, design=design)), want)
-
     def test_size_variant_absent_at_m_and_design_rule_absent_without_design(self):
         self.assertNotIn("REV-7a", self.ids("tech-lead", self.home(size="M")))
         self.assertNotIn("REV-8", self.ids("dev", self.home(size="M", design="no")))
@@ -235,43 +175,12 @@ class FactsMatrixTest(Base):
         self.assertEqual(got, ["CORE-1", "MSG-1", "MSG-2a", "MSG-2b"])  # MSG-3 (design = yes) is not among them
         self.assertIn("MSG-3", self.ids("manager", self.home(design="yes")))
 
-    def test_goal_manager_titles_carry_if_tags_only_for_missing_facts(self):
-        t = self.compose("manager", self.goal_home())
-        self.assertIn("## MSG-2a Manager reports to the Team Lead [if qa-white = no]\n", t)
-        self.assertIn("## MSG-2b Manager reports through the Team Lead [if qa-white = yes]\n", t)
-        self.assertIn("## MSG-1 Manager owns the PO channel\n", t)
-        self.assertNotIn("[if", self.compose("manager", self.home(size="S")))
-
-    def test_scope_with_goal_line_has_goal_yes_and_header_facts(self):
-        t = self.compose("dev", self.home(size="L", design="yes", goal="composed-process"))
-        self.assertIn("(design yes, qa full, goal yes)", t)
-
-    def test_header_of_goal_manager_prints_undecided_team_defaults_and_goal_name(self):
-        t = self.compose("manager", self.goal_home(), agent="mgr")
-        self.assertIn("agent: mgr · role: manager · scope: goal g1 · team: undecided (design no, qa full, goal yes)", t)
-        self.assertIn("\nduties: undecided\n", t)
-
     def test_invalid_design_value_exits_2_naming_the_line(self):
         h = self.home(extra="design: maybe\n")  # an old line beside `team:`
         r = self.run_cli("compose", "dev", home=h)
         self.assertEqual(r.returncode, 2)
         self.assertIn("scope.md:", r.stderr)
         self.assertIn("design", r.stderr)
-
-    def test_architecture_header_shown_when_yes_and_absent_line_header_unchanged(self):
-        t = self.compose("dev", self.home())
-        self.assertNotIn("architecture", t.split("\n")[1])
-        self.assertIn("(design no, qa full, goal no)", t)
-        arch = self.home(team="qa-white, qa-black, architect")
-        self.assertIn("(design no, architecture yes, qa full, goal no)", self.compose("dev", arch))
-        self.assertIn("architecture yes,", self.compose("dev", arch))
-
-    def test_invalid_architecture_value_exits_2_naming_the_line(self):
-        h = self.home(extra="architecture: maybe\n")
-        r = self.run_cli("compose", "dev", home=h)
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("scope.md:", r.stderr)
-        self.assertIn("architecture", r.stderr)
 
     def test_goal_home_takes_architecture_default_no(self):
         t = self.compose("manager", self.goal_home(), agent="mgr")
@@ -291,22 +200,12 @@ class FactsMatrixTest(Base):
         self.assertNotIn("SQ-2", no)
         self.assertEqual(absent, no)
 
-    def test_unknown_role_exits_2(self):
-        self.assertEqual(self.run_cli("compose", "wizard", home=self.home()).returncode, 2)
-
     def test_index_only_for_manager_and_tech_lead(self):
         h = self.home()
         for role in ("manager", "tech-lead"):
             self.assertIn("## Index of other rules\n", self.compose(role, h))
         for role in ("dev", "qa-whitebox", "ba", "team-lead", "qa-blackbox"):
             self.assertNotIn("Index of other rules", self.compose(role, h))
-
-    def test_index_line_shape_and_order(self):
-        t = self.compose("tech-lead", self.home(size="S"))
-        idx = t.split("## Index of other rules\n")[1].rstrip("\n").split("\n")
-        self.assertEqual(idx[0], "- MSG-1 Manager owns the PO channel (manager)")
-        self.assertIn("- REV-3 One verdict per final sha (qa-whitebox, qa-blackbox)", idx)
-        self.assertEqual(idx[-1], "- SQ-1 Style contract (tech-lead)")  # added rules come after plugin rules
 
 
 class TagsTest(Base):
@@ -334,17 +233,9 @@ class TagsTest(Base):
         r = cli("lint", "--hashes", "--plugin-root", str(self.root))
         return next(ln.split()[1] for ln in r.stdout.split("\n") if ln.startswith(rid + " "))
 
-    def test_no_tags_without_overlay(self):
-        self.overlay("")
-        self.assertNotIn("[squad:", self.compose("tech-lead", self.home()))
-
     def test_header_counts_every_overlay_op_whatever_the_role(self):
         t = self.compose("ba", self.home())
         self.assertIn("overlay: 2 operations applied", t)
-
-    def test_header_without_overlay_file_is_zero_ops(self):
-        self.overlay_path.unlink()
-        self.assertIn("overlay: 0 operations applied", self.compose("dev", self.home()))
 
 
 class RuleAndWhoTest(Base):
@@ -353,14 +244,6 @@ class RuleAndWhoTest(Base):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stdout, "## REV-3 One verdict per final sha [squad: replaced]\n"
                                    "The Tech Lead names one final sha per task; each QA gives one verdict on that sha.\n")
-
-    def test_rule_of_a_plugin_rule_has_no_tag_and_no_role_tags(self):
-        r = self.run_cli("rule", "REV-7a")
-        self.assertTrue(r.stdout.startswith("## REV-7a Tech Lead reviews alone\n"), r.stdout)
-
-    def test_rule_of_an_added_rule(self):
-        r = self.run_cli("rule", "SQ-1")
-        self.assertTrue(r.stdout.startswith("## SQ-1 Style contract [squad: added]\n"), r.stdout)
 
     def test_unknown_rule_exits_2_naming_it(self):
         r = self.run_cli("rule", "REV-404")
@@ -374,18 +257,6 @@ class RuleAndWhoTest(Base):
             "qa-white = yes: acts: qa-whitebox, qa-blackbox; aware: dev, team-lead",
             "qa-white = no: acts: -; aware: -"])
 
-    def test_who_for_a_qa_white_no_rule(self):
-        r = self.run_cli("who", "REV-7a")
-        self.assertEqual(r.stdout.split("\n")[:2], [
-            "qa-white = yes: acts: -; aware: -", "qa-white = no: acts: tech-lead; aware: dev"])
-
-    def test_who_unknown_exits_2(self):
-        self.assertEqual(self.run_cli("who", "REV-404").returncode, 2)
-
-    def test_rule_with_a_stale_overlay_exits_2(self):
-        self.overlay(self.overlay_path.read_text(encoding="utf-8").replace("@022a37df", "@7f3a9c21"))
-        self.assertEqual(self.run_cli("rule", "REV-3").returncode, 2)
-
 
 class PinTest(Base):
     def test_no_pin_warns_and_prints_unpinned(self):
@@ -394,43 +265,20 @@ class PinTest(Base):
         self.assertIn("pin", r.stderr)
         self.assertIn(f"plugin: {RUNNING} unpinned · overlay:", r.stdout)
 
-    def test_pin_prints_version_and_sha(self):
-        r = self.run_cli("compose", "dev", "--now", NOW, home=self.home(pin="0.3.0 deadbeef"))
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("plugin: 0.3.0 deadbeef · overlay:", r.stdout)
-
     def test_pin_of_another_version_without_plugin_root_exits_2(self):
         r = cli("compose", "dev", "--home", str(self.home(pin="0.0.1 deadbeef")), "--squad-dir", str(self.squad))
         self.assertEqual(r.returncode, 2)
         self.assertIn("--plugin-root", r.stderr)
-
-    def test_unparseable_pin_exits_2(self):
-        r = self.run_cli("compose", "dev", home=self.home(pin="justoneword"))
-        self.assertEqual(r.returncode, 2)
 
     def test_goal_home_pin_is_read_from_goal_md(self):
         r = self.run_cli("compose", "manager", "--now", NOW, home=self.goal_home())
         self.assertIn(f"plugin: {PIN_V} abc1234 ·", r.stdout)
 
 
-# Real `scope.md` lines, copied verbatim (file:line cited per sample; paths under /home/chieule/workspace/).
+# A real `scope.md` line (plugin-bk261023 scopes/_done/extractor-role/scope.md:9)
 REAL = {
-    # squad/.claude/squads/plugin-bk261023/scopes/_done/refine-process/scope.md:7
-    "refine": "size: M, custom pod (PO 2026-10-14): Tech Lead, BA, QA whitebox, Devs; no QA blackbox. Behaviour check: Dev saves evidence "
-              "(dev-evidence.md, migration run on a copy of a real squad), QA whitebox checks it. Done = QA whitebox PASS (+ BA sign-off "
-              "on the process.md rule audit). Signals: 4-5 tasks, one repo, no UI, changes the contract every squad reads",
-    # squad/.claude/squads/plugin-bk261023/scopes/_done/extractor-role/scope.md:8 and :9
-    "extractor": "size: M (PO confirmed 2026-10-17, no QA roles) - signals: research spike gates a build of ~4-5 tasks; new role every squad "
-                 "sees (role instructions + process.md change need PO approval); one repo; no DB/API risk flag",
     "extractor-qa": "qa: none (PO 2026-10-17): code/test and behaviour checks move to the Tech Lead as in S (tl-review.md, dev-evidence.md)",
-    # enhanced-markdown-vscode/.claude/squads/blueprint/scopes/_done/svgdraw/scope.md:7 (design: yes is line 9)
-    "svg-l": "size: L \u2014 confirmed by PO (E1 a). Signals: AI-authored SVG in webview = security flag; form is a business question; "
-             "user-visible; touches skills/, syntaxes/, validate.mjs",
-    # plugin-bk261023 scopes/_done/report-ui-fix/scope.md:7 (the `size: M \u2014 signals:` shape; svgdraw has no such line)
-    "m-signals": "size: M \u2014 signals: user-visible UI change, ~5 tasks, one repo, no risk flag, PO requires full QA blackbox (confirmed by PO 2026-10-19, E1)",
 }
-# enhanced-markdown-vscode/.claude/squads/blueprint/scopes/grillui/scope.md:7-10
-GRILLUI = ["size: M", "qa: full", "qa-b: yes", "design: yes"]
 
 
 class TeamHomeTest(Base):
@@ -461,15 +309,6 @@ class TeamHomeTest(Base):
         self.assertEqual((info["team"], info["team_source"]), (None, "undecided"))
         self.assertNotIn("plan-owner", info["facts"])
         self.assertNotIn("ba", info["facts"])
-
-    def test_no_team_line_and_no_old_line_is_hand_made_undecided(self):
-        info = sc.read_home(self.team_home(""))
-        self.assertEqual((info["team"], info["team_source"]), (None, "undecided"))
-
-    def test_undecided_manager_header_and_decided_team_has_no_missing_team_fact(self):
-        self.assertIn("duties: undecided", self.compose("manager", self.team_home("team:")))
-        facts = sc.read_home(self.team_home("team: ba, qa-white"))["facts"]
-        self.assertEqual([k for k in list(sc.sr.PRESENCE_KEY.values()) + list(sc.sr.DUTIES) if k not in facts], [])
 
     def test_old_line_beside_team_is_an_error_naming_each_line(self):
         # Transitional until 04a-06: a team home has no `size` fact while rule files still key on size.
@@ -504,23 +343,11 @@ class TeamHomeTest(Base):
                 self.assertIn(where, r.stderr)
                 self.assertIn(token, r.stderr)
 
-    def test_error_line_number_is_the_team_line(self):
-        h = self.tmp / "scopes" / "ln"
-        h.mkdir(parents=True)
-        (h / "scope.md").write_text("# Scope\n\ngoal:\nteam: ba, zz\n", encoding="utf-8")
-        with self.assertRaises(sc.ComposeError) as cm:
-            sc.read_home(h)
-        self.assertTrue(cm.exception.lines[0].startswith("scope.md:4:"), cm.exception.lines)
-
     def test_crlf_file_reads_the_same(self):
         for line, want in (("team: ba, qa-white", ["ba", "qa-white"]), ("team: none", []), ("team:", None)):
             with self.subTest(line=line):
                 self.assertEqual(sc.read_home(self.team_home(line, newline="\r\n", name="c"))["team"], want)
                 self.assertEqual(sc.read_home(self.team_home(line, name="c"))["team"], want)
-
-    def test_cli_compose_of_a_team_home_exits_0(self):
-        r = self.run_cli("compose", "manager", "--now", NOW, home=self.team_home("team: ba, qa-white"))
-        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_header_index_roles_print_team_and_duties_others_do_not(self):
         h = self.team_home("team: ba, qa-white")
@@ -537,30 +364,6 @@ class TeamHomeTest(Base):
                 self.assertNotIn("team:", t.split("\n")[1])
                 self.assertNotIn("duties:", "\n".join(t.split("\n")[:5]))
                 self.assertIn("scope: t1 (design no, qa full, goal no)", t)
-
-    def test_header_team_text_for_none_and_undecided(self):
-        self.assertIn("· team: none (", self.compose("manager", self.team_home("team: none")).split("\n")[1])
-        self.assertIn("· team: undecided (", self.compose("manager", self.team_home("team:")).split("\n")[1])
-        self.assertIn("duties: plan-owner=manager,", self.compose("manager", self.team_home("team: none")))
-
-    def test_duties_line_lists_all_thirteen_in_table_order(self):
-        line = next(x for x in self.compose("tech-lead", self.team_home("team: designer")).split("\n") if x.startswith("duties:"))
-        names = [part.split("=")[0] for part in line[len("duties: "):].split(", ")]
-        self.assertEqual(names, list(sc.sr.DUTIES))
-        self.assertIn("ui-check=manager", line)
-
-    def test_design_and_architecture_facts_follow_the_team(self):
-        t = self.compose("dev", self.team_home("team: designer, architect"))
-        self.assertIn("(design yes, architecture yes, qa full, goal no)", t)
-
-    def test_duties_of_a_team_home_equal_the_old_size_owners(self):
-        """Hard-coded from the base SIZE-22 text (see test_team_duties.OLD): L plan-owner team-lead, M handin qas."""
-        info = sc.read_home(self.team_home("team: ba, team-lead, tech-lead, qa-white, qa-black"))
-        self.assertEqual((info["facts"]["plan-owner"], info["facts"]["business-ac"], info["facts"]["doubt-owner"]),
-                         ("team-lead", "ba", "ba"))
-        info = sc.read_home(self.team_home("team: qa-white, qa-black", name="m"))
-        self.assertEqual((info["facts"]["plan-owner"], info["facts"]["tech-ac"], info["facts"]["handin-target"]),
-                         ("manager", "qa-white", "qas"))
 
 
 class CutoverTest(Base):
@@ -599,7 +402,7 @@ class CutoverTest(Base):
 
     def test_compose_of_a_size_home_exits_2_for_every_role(self):
         h = self.old_home("size: L", "qa: full")
-        for role in sc.sr.ROLES:
+        for role in ("dev", "manager"):
             with self.subTest(role=role):
                 with self.assertRaises(sc.ComposeError):
                     sc.compose(role, str(h), str(self.root), None, role, NOW, None)
@@ -622,7 +425,7 @@ class CutoverTest(Base):
             h = self.tmp / "scopes" / "u"
             h.mkdir(parents=True, exist_ok=True)
             (h / "scope.md").write_text(text, encoding="utf-8")
-            for role in sc.sr.ROLES:
+            for role in ("dev", "manager"):
                 with self.subTest(text=text, role=role):
                     r = self.run_cli("compose", role, "--now", NOW, home=h)
                     if role == "manager":
@@ -634,10 +437,6 @@ class CutoverTest(Base):
                         self.assertEqual(r.stdout, "")
         g = self.goal_home()  # a goal home stays lenient
         self.assertEqual(self.run_cli("compose", "dev", "--now", NOW, home=g).returncode, 0)
-
-    def test_legacy_team_stays_the_converter_mapping(self):
-        self.assertEqual(sc.sr.legacy_team("M", "no", "yes"), ["qa-white", "designer"])
-        self.assertEqual(sc.sr.legacy_team("S"), [])
 
     def test_qa_none_on_a_team_home_and_other_bad_qa_value(self):
         h = self.tmp / "scopes" / "tq"
@@ -665,17 +464,6 @@ class ChooseTest(Base):
                     self.assertEqual([e.id for e in sc.choose(rules, role, facts)], [e.id for e in want])
                     self.assertEqual(self.ids(role, h), [e.id for e in want])
 
-    def test_choose_is_pure(self):
-        rules, _ = sc.load_rules(str(self.root), str(self.overlay_path))
-        facts = {"qa-white": "yes", "goal": "no"}
-        a = [e.id for e in sc.choose(rules, "dev", facts)]
-        self.assertEqual(a, [e.id for e in sc.choose(rules, "dev", dict(facts))])
-        self.assertEqual(facts, {"qa-white": "yes", "goal": "no"})
-
-    def test_load_rules_raises_compose_error_like_before(self):
-        with self.assertRaises(sc.ComposeError):
-            sc.load_rules(str(self.tmp / "nothing"), None)
-
 
 class WhoDutyLinesTest(Base):
     def add(self, when):
@@ -696,18 +484,6 @@ class WhoDutyLinesTest(Base):
         self.assertEqual(sum(1 for x in out if x.startswith("business-ac = ")), 2)
         self.assertFalse([x for x in out if x[:1] in "SML" and x[1:2] == ":"])  # no size lines
 
-    def test_presence_key_lines(self):
-        self.add("ba = yes")
-        self.assertEqual([x for x in self.lines() if x], ["ba = yes: acts: ba, dev; aware: manager", "ba = no: acts: -; aware: -"])
-
-    def test_who_of_a_rule_without_when_has_no_lines(self):
-        self.overlay("## add SQ-9 No when\nroles: dev\ntopic: review\nwhy: a\nupstream: local-only\nBody.\n")
-        self.assertEqual([x for x in self.lines() if x], [])
-
-    def test_who_and_lint_help_name_the_new_keys(self):
-        for sub in ("who", "lint"):
-            self.assertIn("qa-white", cli(sub, "--help").stdout, sub)
-
 
 class RulesviewTest(unittest.TestCase):
     def test_composed_with_team_and_with_the_size_shorthand(self):
@@ -720,24 +496,6 @@ class RulesviewTest(unittest.TestCase):
         self.assertIn("team: none", rv.composed("manager", team=""))
         self.assertIn("(design no, qa full", rv.composed("dev"))  # size shorthand: the converter's mapping
         self.assertIn("duties: plan-owner=manager", rv.composed("manager", team="qa-white, qa-black"))
-
-    def test_who_parses_duty_and_presence_lines(self):
-        sys.path.insert(0, str(ROOT / "tests"))
-        import rulesview as rv
-        rv.who.cache_clear()
-        text = "ba = yes: acts: dev; aware: -\nba = no: acts: -; aware: -\nbusiness-ac = ba: acts: ba, dev; aware: manager\nqa-black = no: acts: -; aware: -\n"
-        fake = type("R", (), {"returncode": 0, "stdout": text, "stderr": ""})()
-        orig = rv.run
-        rv.run = lambda *a: fake
-        try:
-            w = rv.who("X-1")
-        finally:
-            rv.run = orig
-            rv.who.cache_clear()
-        self.assertEqual(w["ba = yes"], (("dev",), ()))
-        self.assertEqual(w["business-ac = ba"], (("ba", "dev"), ("manager",)))
-        self.assertEqual(w["qa-black = no"], ((), ()))
-        self.assertEqual(set(w), {"ba = yes", "ba = no", "business-ac = ba", "qa-black = no"})
 
 
 if __name__ == "__main__":

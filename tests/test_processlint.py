@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-BIN = Path(__file__).resolve().parent.parent / "bin"
+from squadtest import BIN
 sys.path.insert(0, str(BIN))
 import processlint as pl  # noqa: E402
 

@@ -1,9 +1,10 @@
 import io
-import os
 import sys
 import unittest
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "bin"))
+from squadtest import BIN
+
+sys.path.insert(0, str(BIN))
 import squadio  # noqa: E402
 
 TEXT = "→ 🦀 é"

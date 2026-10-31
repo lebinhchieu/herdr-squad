@@ -1,3 +1,0 @@
-# Escalations
-
-Nothing here yet.

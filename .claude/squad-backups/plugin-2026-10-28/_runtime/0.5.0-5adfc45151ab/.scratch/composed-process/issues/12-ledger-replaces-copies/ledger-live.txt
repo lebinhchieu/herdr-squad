@@ -1,3 +1,0 @@
-task     sha      branch                                      verdicts                       returns  blocked  ask rounds
-FILE-11  6032595  squad/plugin/process-fixes/plugin-dev-pf-1  plugin-qaw-process-fixes FAIL  1        0        1
-SIZE-19  5af0a26  squad/plugin/process-fixes/plugin-dev-pf-4  -                              0        0        0

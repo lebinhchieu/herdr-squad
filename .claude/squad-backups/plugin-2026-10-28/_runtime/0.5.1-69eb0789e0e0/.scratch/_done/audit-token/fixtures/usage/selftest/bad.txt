@@ -1,1 +1,0 @@
-{"top_role":"mgr","top_role_cost_usd":6.43,"total_cost_usd":17.00}

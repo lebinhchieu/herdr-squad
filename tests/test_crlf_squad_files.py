@@ -9,6 +9,7 @@ from pathlib import Path
 
 from rulesview import composed
 from test_squad_close import FAKE_HERDR, git
+import winlaunch
 
 ROOT = Path(__file__).resolve().parent.parent
 BIN = ROOT / "bin"
@@ -95,7 +96,7 @@ class CrlfReadersTest(unittest.TestCase):
             env = dict(self.base_env, SQUAD_DIR=str(squad), SCOPE_DIR=str(scope))
             if role:
                 env["SQUAD_ROLE"] = role
-            r = subprocess.run([str(BIN / argv[0]), *argv[1:]], env=env, cwd=repo, text=True, encoding="utf-8",
+            r = winlaunch.run_script(BIN / argv[0], [*argv[1:]], env=env, cwd=repo, text=True, encoding="utf-8",
                                capture_output=True, timeout=30)
             norm = lambda s: UUID.sub("<uuid>", s.replace(str(repo), "<repo>"))  # squad-spawn mints a session id per run
             out[variant] = (norm(r.stdout), norm(r.stderr), r.returncode)

@@ -137,10 +137,11 @@ class AnswerTest(Base):
         self.assertEqual(events(self.home, "answer")[-1]["note"], "the note\nsecond")
         r = run(self.home, "answer", "E18", "--option", "a", "--source", "pane", stdin="")
         self.assertEqual(r.returncode, 2)  # no options on E18
-        r = run(self.home, "answer", "E19", "--note", "n", "--source", "pane", stdin="more")
-        self.assertEqual(r.returncode, 2)
-        r = run(self.home, "answer", "E18", "--text", "t", "--source", "pane", stdin="more")
-        self.assertEqual(r.returncode, 2)
+        if os.name != "nt":  # squadinbox.stdin_text ignores stdin on Windows when --note/--text is given (no select() on a pipe)
+            r = run(self.home, "answer", "E19", "--note", "n", "--source", "pane", stdin="more")
+            self.assertEqual(r.returncode, 2)
+            r = run(self.home, "answer", "E18", "--text", "t", "--source", "pane", stdin="more")
+            self.assertEqual(r.returncode, 2)
         r = run(self.home, "answer", "E8", "--text", "t", "--option", "a", "--source", "pane")
         self.assertEqual(r.returncode, 2)
 

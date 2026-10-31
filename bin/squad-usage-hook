@@ -38,7 +38,22 @@ fi
 record=$(jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg agent "$SQUAD_NAME" --arg role "${SQUAD_ROLE:-}" \
   --arg session "$session" --arg rule "$rule" --arg action "$action" \
   '{ts:$ts, agent:$agent, role:$role, session:$session, rule:$rule, action:$action}') || exit 0
-{ flock 9 2>/dev/null; printf '%s\n' "$record" >&9; } 9>>"$log" || exit 0
+if command -v flock >/dev/null; then
+  { flock 9 2>/dev/null; printf '%s\n' "$record" >&9; } 9>>"$log" || exit 0
+else
+  # No flock (Git for Windows): a plain >> append of a record over 4 KiB is torn by concurrent writers
+  # (see ADR 0011 D3b), so serialise with an atomic mkdir lock. A lock left by a killed
+  # writer is removed after ~5 s and we go on without owning it: the hook never wedges and never fails.
+  held=
+  n=0
+  until mkdir "$log.lock" 2>/dev/null; do
+    (( ++n > 250 )) && { rmdir "$log.lock" 2>/dev/null; break; }
+    sleep 0.02
+  done
+  (( n <= 250 )) && held=1
+  { printf '%s\n' "$record" >&9; } 9>>"$log" || true
+  [[ -z $held ]] || rmdir "$log.lock" 2>/dev/null
+fi
 
 echo "Cost rule '$rule' fired: $why. Finish the step you are on, then $action" >&2
 exit 2
