@@ -33,6 +33,9 @@ TZ_FILES = ()  # no file needs a fixed time zone now; --also adds one for a run
 AGENT_ENV = ("SQUAD_DIR", "SCOPE_DIR", "GOAL_DIR", "SQUAD_NAME", "SQUAD_ROLE", "SQUAD_SCOPE")  # an agent's own squad folders; tests must never see them
 TZ_WATCH = ()
 BROWSER_WATCH = ("tests/run_suite.py",)  # a browser test file itself is found by discover
+CA_PREFIX = "test_ca_"  # the claude-accounts test files
+CA_WATCH = ("tools/claude-accounts/", "tests/ca_stubs.py", "tests/ca_win_cases.ps1", "tests/fixtures/ca/",
+            "tests/winlaunch.py", "tests/run_suite.py")  # what the ca files load; ca_stubs imports winlaunch
 TZ_ENV = {"TZ": "America/New_York", "LC_ALL": "C"}
 RAN_RE = re.compile(r"^Ran (\d+) tests? in ", re.M)
 
@@ -202,10 +205,13 @@ def git_head_line(repo):
     return "sha %s clean=%s" % (git("rev-parse", "HEAD"), "no" if dirty else "yes")
 
 
-def execute(tests_dir, only, jobs, browser_streams, retries, env_extra=None, skip_browser=False):
+def execute(tests_dir, only, jobs, browser_streams, retries, env_extra=None, skip_browser=False, skip_ca=False):
     pool, serial = discover(tests_dir)
     if skip_browser:
         serial = []
+    if skip_ca:
+        pool = [f for f in pool if not f.stem.startswith(CA_PREFIX)]
+        serial = [f for f in serial if not f.stem.startswith(CA_PREFIX)]
     if only is not None:
         pool = [f for f in pool if f.stem in only]
         serial = [f for f in serial if f.stem in only]
@@ -237,7 +243,7 @@ def main(argv=None):
     only = set(TZ_FILES) | {Path(a).stem for a in args.also}
     repo = Path(args.repo)
     tests_dir_name = Path(args.tests_dir).resolve().name
-    skip_browser = skip_tz = False
+    skip_browser = skip_tz = skip_ca = False
     notes = ""
     if args.if_changed:
         changed = changed_files(repo, args.if_changed)
@@ -247,12 +253,16 @@ def main(argv=None):
             browser_tests = {"%s/%s.py" % (tests_dir_name, f.stem) for f in discover(args.tests_dir)[1]}
             skip_browser = not touches(changed, browser_tests, BROWSER_WATCH)
             skip_tz = not touches(changed, {"%s/%s.py" % (tests_dir_name, n) for n in only}, TZ_WATCH)
+            ca_tests = {"%s/%s.py" % (tests_dir_name, f.stem) for f in Path(args.tests_dir).glob(CA_PREFIX + "*.py")}
+            skip_ca = bool(ca_tests) and not touches(changed, ca_tests, CA_WATCH)
     # The full --tz run must not skip the claude-dependent mod test: without `claude` it fails.
     text, ok = execute(args.tests_dir, None, args.jobs, args.browser_streams, args.retries,
-                       {"SQUAD_REQUIRE_CLAUDE": "1"} if args.tz else None, skip_browser=skip_browser)
+                       {"SQUAD_REQUIRE_CLAUDE": "1"} if args.tz else None, skip_browser=skip_browser, skip_ca=skip_ca)
     text += notes
     if skip_browser:
         text += "skipped browser files: no browser test or watched source changed since %s\n" % args.if_changed
+    if skip_ca:
+        text += "skipped claude-accounts files (test_ca_*): no ca test or watched source changed since %s\n" % args.if_changed
     print(text, end="")
     outputs = {"suite-default.txt": text}
     if skip_tz:
