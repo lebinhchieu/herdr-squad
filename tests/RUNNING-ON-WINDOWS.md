@@ -1,11 +1,36 @@
 # Running the tests on Windows
 
-`tests/run_suite.py` imports `fcntl`, which Windows does not have, so it cannot run there. Run the `squad-inbox` test files with `unittest` instead:
+Needs Git for Windows (its `bash.exe`) and Python 3 on PATH.
+
+## Commands
+
+One file (always works): `cd tests && python -m unittest -q <test_file_stem>`
+
+Whole suite, one subprocess per file, in parallel, same as Linux (the browser lock is a file in the temp folder, taken with `msvcrt`):
+
+```
+python tests/run_suite.py --receipt <dir> --if-changed <task base>
+```
+
+Without the runner: `cd tests && python -m unittest discover -p "test_*.py"`.
+
+The `squad-inbox` files, as a short check:
 
 ```
 cd tests
 python -m unittest test_squadinbox test_squadinbox_win test_po_inbox_contract test_po_inbox_mod test_squadinbox_answer
 ```
+
+## Launching scripts from a test
+
+Never `subprocess.run([".../bin/squad-spawn", ...])` or `["bash", script]` in a test. Windows cannot exec an extensionless script, and a bare `bash` is `C:\Windows\System32\bash.exe` (the WSL launcher). Use `tests/winlaunch.py`:
+
+```
+import winlaunch
+r = winlaunch.run_script(SCRIPT, ["arg"], env=env, capture_output=True, text=True)   # also winlaunch.popen_script, winlaunch.command
+```
+
+On Linux it runs `[path, *args]` with env untouched (bytes stay bytes). On Windows it reads the shebang: `bash`/`sh` become Git's bash by absolute path (`squadio.pick_bash`), `python`/`python3` become `sys.executable`; paths become forward-slash `str`. `test_no_bare_bash` fails on a bare `"bash"`/`"sh"` argv in `bin/`, `hooks/`, `tools/` and `tests/`; `TESTS_TO_CONVERT` in that file lists the test files not yet converted (ticket 03b empties it).
 
 Expected: 0 failures. Tests that cannot work on Windows are skipped with a reason (`python -m unittest -v` prints it). A failure outside the causes below is not a skip: report it, it may be a product bug.
 

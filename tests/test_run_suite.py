@@ -242,10 +242,9 @@ class LockScopeTest(unittest.TestCase):
             self.assertRegex(o, r"Ran 2 tests in \d+\.\d+s\n\nOK\n$")
 
     def test_a_runner_whose_lock_is_held_finishes_its_pool_first_and_says_it_waits(self):
-        import fcntl
         d = self.runner_dir("c", secs=0.2)
         with open(self.lock, "a") as held:
-            fcntl.flock(held, fcntl.LOCK_EX)
+            run_suite.lock_file(held, wait=True)
             p = self.start(d)
             pool_stamps = self.root / "c-pool.stamps"
             for _ in range(100):
@@ -325,9 +324,8 @@ class IfChangedTest(unittest.TestCase):
         self.check(False, False)
 
     def test_the_flock_is_never_taken_when_the_browser_phase_is_skipped(self):
-        import fcntl
         with open(self.lock, "a") as held:
-            fcntl.flock(held, fcntl.LOCK_EX)
+            run_suite.lock_file(held, wait=True)
             self.check(False, False)  # would hang on the held lock if the runner asked for it
 
     def test_browser_phase_runs_for_a_browser_test_run_suite_and_an_uncommitted_change_not_for_a_bin_file(self):

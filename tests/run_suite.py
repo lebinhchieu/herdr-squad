@@ -4,23 +4,28 @@
 Files that drive a browser (source mentions playwright or chrom) run one after another in a few
 streams (--browser-streams) beside the pool: their timing thresholds only hold without many
 Chromes at once, so these are never in the pool.
-The browser files (and their retries) hold /tmp/squad-suite.lock, so two runners never drive Chromium at once; the pool of other files never waits for it.
+The browser files (and their retries) hold the suite lock (/tmp/squad-suite.lock; the temp folder on Windows), so two runners never drive Chromium at once; the pool of other files never waits for it.
 
     python3 tests/run_suite.py [--jobs N] [--receipt DIR [--tz | --if-changed BASE] [--also test_x]...]
 """
 import argparse
 import concurrent.futures
 import contextlib
-import fcntl
 import os
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
 
-LOCK = os.environ.get("SQUAD_SUITE_LOCK", "/tmp/squad-suite.lock")  # the override is for test_run_suite only
+try:
+    import fcntl
+except ImportError:  # Windows: the lock is msvcrt.locking on the first byte
+    fcntl = None
+
+LOCK = os.environ.get("SQUAD_SUITE_LOCK", "/tmp/squad-suite.lock" if fcntl else os.path.join(tempfile.gettempdir(), "squad-suite.lock"))  # the override is for test_run_suite only
 TZ_FILES = ()  # no file needs a fixed time zone now; --also adds one for a run
 AGENT_ENV = ("SQUAD_DIR", "SCOPE_DIR", "GOAL_DIR", "SQUAD_NAME", "SQUAD_ROLE", "SQUAD_SCOPE")  # an agent's own squad folders; tests must never see them
 TZ_WATCH = ()
@@ -66,19 +71,45 @@ def split_streams(serial, count):
     return streams
 
 
+def lock_file(lockfile, wait):
+    """Take the exclusive lock on an open file; with wait False return False instead of waiting."""
+    if fcntl:
+        try:
+            fcntl.flock(lockfile, fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
+        except OSError:
+            return False
+        return True
+    import msvcrt
+    while True:
+        lockfile.seek(0)
+        try:
+            msvcrt.locking(lockfile.fileno(), msvcrt.LK_LOCK if wait else msvcrt.LK_NBLCK, 1)  # LK_LOCK gives up after ~10 s
+            return True
+        except OSError:
+            if not wait:
+                return False
+
+
+def unlock_file(lockfile):
+    if fcntl:
+        fcntl.flock(lockfile, fcntl.LOCK_UN)
+    else:
+        import msvcrt
+        lockfile.seek(0)
+        msvcrt.locking(lockfile.fileno(), msvcrt.LK_UNLCK, 1)
+
+
 @contextlib.contextmanager
 def browser_lock():
-    """Hold the suite flock: only one runner at a time may drive Chromium, or the timing thresholds flake."""
+    """Hold the suite lock: only one runner at a time may drive Chromium, or the timing thresholds flake."""
     with open(LOCK, "a") as lockfile:
-        try:
-            fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
+        if not lock_file(lockfile, wait=False):
             print("waiting for the suite lock", flush=True)
-            fcntl.flock(lockfile, fcntl.LOCK_EX)
+            lock_file(lockfile, wait=True)
         try:
             yield
         finally:
-            fcntl.flock(lockfile, fcntl.LOCK_UN)
+            unlock_file(lockfile)
 
 
 def run_all(pool, serial, jobs, env_extra=None, browser_streams=1, retries=0):

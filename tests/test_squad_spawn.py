@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import winlaunch
+
 SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-spawn"
 BIN_DIR = SCRIPT.parent
 SETTINGS = SCRIPT.parent.parent / "templates" / "squad" / "settings"
@@ -1009,12 +1011,8 @@ class SpawnRuntimePathEnvTest(unittest.TestCase):
     def spawn(self, runtime):
         self.env["STUB_RUNTIME"] = runtime
         script = self.plugin / "bin" / "squad-spawn"
-        argv = [str(script)]
-        if os.name == "nt":  # no exec of a shebang script on Windows; Git's bash (not System32's); replaced by winlaunch (ticket 03)
-            bash = next(c for c in (d / "bin" / "bash.exe" for d in Path(shutil.which("git")).parents[:3]) if c.exists())
-            argv = [str(bash), script.as_posix()]
-        r = subprocess.run([*argv, "dev", "pa-1", "--scope", "sc1", "--prompt", "go"],
-                           env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=30)
+        r = winlaunch.run_script(script, ["dev", "pa-1", "--scope", "sc1", "--prompt", "go"],
+                                 env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         path_args = [a for a in self.argv.read_text(encoding="utf-8").splitlines() if a.startswith("PATH=")]
         self.assertEqual(len(path_args), 1, path_args)
