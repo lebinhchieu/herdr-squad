@@ -10,7 +10,7 @@ from argparse import Namespace
 from pathlib import Path
 from unittest import mock
 
-from test_squadinbox import Base, CAN_SYMLINK, CLI, HAVE_PTY, ROOT, pty, env, listing, by_id, rows_of, run, digest
+from test_squadinbox import Base, CAN_SYMLINK, CLI, HAVE_PTY, ROOT, pty, env, listing, by_id, rows_of, run, run_proc, digest
 
 sys.path.insert(0, str(ROOT / "bin"))
 import squadinbox  # noqa: E402
@@ -137,10 +137,10 @@ class AnswerTest(Base):
         self.assertEqual(events(self.home, "answer")[-1]["note"], "the note\nsecond")
         r = run(self.home, "answer", "E18", "--option", "a", "--source", "pane", stdin="")
         self.assertEqual(r.returncode, 2)  # no options on E18
-        if os.name != "nt":  # squadinbox.stdin_text ignores stdin on Windows when --note/--text is given (no select() on a pipe)
-            r = run(self.home, "answer", "E19", "--note", "n", "--source", "pane", stdin="more")
+        if os.name != "nt":  # real process: stdin_text select()s on the real fd. It ignores stdin on Windows when --note/--text is given (no select() on a pipe)
+            r = run_proc(self.home, "answer", "E19", "--note", "n", "--source", "pane", stdin="more")
             self.assertEqual(r.returncode, 2)
-            r = run(self.home, "answer", "E18", "--text", "t", "--source", "pane", stdin="more")
+            r = run_proc(self.home, "answer", "E18", "--text", "t", "--source", "pane", stdin="more")
             self.assertEqual(r.returncode, 2)
         r = run(self.home, "answer", "E8", "--text", "t", "--option", "a", "--source", "pane")
         self.assertEqual(r.returncode, 2)
@@ -408,7 +408,7 @@ class RaceTest(Base):
 
         def go(i):
             gate.wait()
-            out[i] = run(home, *cmds[i])
+            out[i] = run_proc(home, *cmds[i])
         ts = [threading.Thread(target=go, args=(i,)) for i in range(len(cmds))]
         [t.start() for t in ts]
         [t.join() for t in ts]

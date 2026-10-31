@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import inproc
+
 ROOT = Path(__file__).resolve().parent.parent
 CLI = str(ROOT / "bin" / "squad-inbox")
 FIX = ROOT / "tests" / "fixtures" / "inbox"
@@ -45,7 +47,13 @@ def env(role="manager", **extra):
 
 
 def run(home, *args, stdin="", role="manager", **extra):
-    # Bytes in, bytes out: a text-mode pipe would turn each \n into \r\n on Windows and a CRLF in `stdin` into \r\r\n.
+    """squad-inbox in this process (tests/inproc.py); the tests that need a real process call subprocess themselves."""
+    return inproc.run("squad-inbox", ["--home", str(home)] + list(args), env=env(role, **extra), stdin=stdin)
+
+
+def run_proc(home, *args, stdin="", role="manager", **extra):
+    """The same call in a real process: for a race, an entry-point check, or anything that needs its own os.environ."""
+    # Bytes in, bytes out: a text-mode pipe would turn each LF into CRLF on Windows and a CRLF in `stdin` into CR CR LF.
     r = subprocess.run([sys.executable, "-B", CLI, "--home", str(home)] + [a.encode("utf-8") if isinstance(a, str) else a for a in args], input=stdin.encode("utf-8"),
                        capture_output=True, env=env(role, **extra))
     return subprocess.CompletedProcess(r.args, r.returncode, r.stdout.decode("utf-8"), r.stderr.decode("utf-8"))
@@ -670,7 +678,8 @@ class Python39Test(unittest.TestCase):
 
 class NoBytecodeTest(Base):
     def test_no_pyc(self):  # AC15
-        run(self.home, "list")
+        r = subprocess.run([sys.executable, "-B", CLI, "--home", str(self.home), "list"], capture_output=True, env=env())  # a real process
+        self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(list((ROOT / "bin").rglob("*.pyc")), [])
         self.assertEqual(list((ROOT / "bin").rglob("__pycache__")), [])
 

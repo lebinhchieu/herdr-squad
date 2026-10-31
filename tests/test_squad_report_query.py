@@ -13,6 +13,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ROOT / "bin"))
+import inproc  # noqa: E402
 import squadreport_build as bd  # noqa: E402
 import squadreport_query as q  # noqa: E402
 from report_fixtures import Fixture, tasks_scope  # noqa: E402
@@ -34,11 +35,14 @@ class Base(unittest.TestCase):
         self.out.mkdir()
         bd.write_data(self.data, self.out)
 
-    def cli(self, *args, squad=True):
+    def cli(self, *args, squad=True, real=False):
         env = {k: v for k, v in os.environ.items() if k not in AGENT_ENV}
         if squad:
             env["SQUAD_DIR"] = str(self.fx.squad)
         env["PYTHONDONTWRITEBYTECODE"] = "1"
+        if not real:
+            r = inproc.run("squad-report", ["query"] + list(args), env=env)
+            return r.returncode, r.stdout, r.stderr
         r = subprocess.run([sys.executable, "-B", CLI, "query"] + list(args), capture_output=True, env=env, timeout=60)
         return r.returncode, r.stdout.decode(), r.stderr.decode()
 
@@ -99,7 +103,7 @@ class Query(Base):
 
     def test_refusals_exit_2_one_line(self):
         for args in (("sc", "bogus"), ("nope", "digest"), ("sc", "task"), ("sc", "task", "--task", "ZZ")):
-            rc, out, err = self.cli(*args)
+            rc, out, err = self.cli(*args, real=True)  # the real process: entry point and exit code
             self.assertEqual(rc, 2, args)
             self.assertEqual(len(err.strip().splitlines()), 1, args)
         shutil.rmtree(self.out)
