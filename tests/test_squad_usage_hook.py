@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+import winlaunch
 
 SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-usage-hook"
 NOW = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -40,7 +41,7 @@ class HookTest(unittest.TestCase):
         if squad_session:
             env.update(SQUAD_NAME="dev-1", SQUAD_DIR=str(self.squad), SQUAD_ROLE=role)
         data = {"hook_event_name": "Stop", "session_id": sid, **payload}
-        return subprocess.run([str(SCRIPT)], input=json.dumps(data), text=True, encoding="utf-8", env=env,
+        return winlaunch.run_script(SCRIPT, input=json.dumps(data), text=True, encoding="utf-8", env=env,
                               capture_output=True, timeout=10)
 
     def test_fixture_over_120k_gives_fresh_message_and_event(self):
@@ -72,7 +73,7 @@ class HookTest(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
         env.update(CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "cfg"), SQUAD_NAME="dev-1", SQUAD_ROLE="dev",
                    SQUAD_DIR=str(self.squad), SCOPE_DIR=str(scope))
-        r = subprocess.run([str(SCRIPT)], input=json.dumps({"hook_event_name": "Stop", "session_id": "sid-1"}),
+        r = winlaunch.run_script(SCRIPT, input=json.dumps({"hook_event_name": "Stop", "session_id": "sid-1"}),
                            text=True, encoding="utf-8", env=env, capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 2)
         self.assertTrue((scope / "usage-events.jsonl").exists())
@@ -112,7 +113,7 @@ class HookTest(unittest.TestCase):
 
     def test_garbage_stdin_exits_zero(self):
         env = dict(os.environ, SQUAD_NAME="a", SQUAD_DIR=str(self.squad), SQUAD_ROLE="dev")
-        r = subprocess.run([str(SCRIPT)], input="not json", text=True, encoding="utf-8", env=env, capture_output=True, timeout=10)
+        r = winlaunch.run_script(SCRIPT, input="not json", text=True, encoding="utf-8", env=env, capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0)
 
 

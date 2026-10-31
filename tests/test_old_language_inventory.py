@@ -7,6 +7,7 @@ import unittest
 from collections import Counter
 
 from rulesview import ROOT
+import winlaunch
 
 PATTERN = r"size:|'size'|\"size\"|qa-b\b"
 CONVERTER = "converter input or old-format rejection (names the old key to point at the converter)"
@@ -51,7 +52,7 @@ class OldLanguageInventory(unittest.TestCase):
                 with open(f, encoding="utf-8") as fh:
                     for n, line in enumerate(fh, 1):
                         self.assertIsNone(re.search(r"\bsize\b", line, re.I), f"{f}:{n}: {line.strip()}")
-        who = subprocess.run([os.path.join(ROOT, "bin", "squad-process"), "who", "--help"], capture_output=True,
+        who = winlaunch.run_script(os.path.join(ROOT, "bin", "squad-process"), ["who", "--help"], capture_output=True,
                              text=True, check=False)
         self.assertIsNone(re.search(r"\bsize\b", who.stdout + who.stderr, re.I))
 

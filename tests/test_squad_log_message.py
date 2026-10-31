@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+import winlaunch
 
 SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-log-message"
 
@@ -34,7 +35,7 @@ class LogMessageTest(unittest.TestCase):
         if squad_name is not None:
             env.update(SQUAD_NAME=squad_name, SQUAD_DIR=str(self.squad))
         stdin = raw if raw is not None else json.dumps(data)
-        return subprocess.run([str(SCRIPT)], input=stdin, text=True, encoding="utf-8", env=env,
+        return winlaunch.run_script(SCRIPT, input=stdin, text=True, encoding="utf-8", env=env,
                               capture_output=True, timeout=10)
 
     def records(self):
@@ -45,7 +46,7 @@ class LogMessageTest(unittest.TestCase):
     def run_hook_in(self, home_env, data=None):
         env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
         env.update(SQUAD_NAME="dev-1", SQUAD_DIR=str(self.squad), **home_env)
-        return subprocess.run([str(SCRIPT)], input=json.dumps(data or payload()), text=True, encoding="utf-8", env=env,
+        return winlaunch.run_script(SCRIPT, input=json.dumps(data or payload()), text=True, encoding="utf-8", env=env,
                               capture_output=True, timeout=10)
 
     def test_scope_agent_logs_into_its_scope_folder_with_that_scopes_iteration(self):

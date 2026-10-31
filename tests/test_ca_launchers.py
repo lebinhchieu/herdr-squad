@@ -10,7 +10,7 @@ import time
 import unittest
 from pathlib import Path
 
-from ca_stubs import FIX, PANE, SRC, Env, live, requires_linux
+from ca_stubs import FIX, PANE, SRC, Env, bash_argv, live, requires_linux
 
 HERDR = {"HERDR_ENV": "1", "HERDR_WORKSPACE_ID": "w26"}
 
@@ -60,7 +60,7 @@ class HarnessTest(Base):
         scripts = bash_scripts()
         self.assertGreaterEqual(len(scripts), 8)
         for s in scripts:
-            r = subprocess.run(["bash", "-n", str(s)], capture_output=True, text=True, encoding="utf-8")
+            r = subprocess.run(bash_argv("-n", str(s)), capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(r.returncode, 0, f"{s}: {r.stderr}")
 
     @unittest.skipUnless(shutil.which("shellcheck"), "shellcheck is not installed")
@@ -254,8 +254,8 @@ class SetWorkspaceDefaultTest(Base):
     def test_parallel_writers_all_land(self):
         ids = [f"w{i}" for i in range(1, 9)]
         self.e.set_workspaces(*[(i, n, f"l{n}") for n, i in enumerate(ids, 1)])
-        procs = [self.e.popen(["bash", "-c", '. "$HOME/.claude-accounts/lib.sh"; set_workspace_default "$1" "$2"',
-                               "bash", str(n % 3 + 1), i]) for n, i in enumerate(ids)]
+        procs = [self.e.popen(bash_argv("-c", '. "$HOME/.claude-accounts/lib.sh"; set_workspace_default "$1" "$2"',
+                                          "bash", str(n % 3 + 1), i)) for n, i in enumerate(ids)]
         for p in procs:
             self.assertEqual(p.wait(timeout=30), 0)
         wd = self.e.acct / "workspace-default"
@@ -439,7 +439,7 @@ class BashrcLineTest(Base):
             'echo "cfg=${CLAUDE_CONFIG_DIR-<unset>}"; command -v c c1 c2 c3 cdefault cswitch')
 
     def run_line(self):
-        r = subprocess.run(["bash", "-c", self.LINE], env=dict(self.e.env, CLAUDE_CONFIG_DIR="/stale"),
+        r = subprocess.run(bash_argv("-c", self.LINE), env=dict(self.e.env, CLAUDE_CONFIG_DIR="/stale"),
                            capture_output=True, text=True, encoding="utf-8", timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout.splitlines()

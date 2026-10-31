@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import winlaunch
 
 SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-usage"
 T0 = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
@@ -31,11 +32,11 @@ class UsageHomeTest(unittest.TestCase):
             (scope / "roster.md").write_text(head + "| dev-1 | dev | sc1 | x | live | s-scope |\n", encoding="utf-8")
             env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
             env.update(SQUAD_DIR=str(squad), SCOPE_DIR=str(scope))
-            r = subprocess.run([str(SCRIPT), "--get", "dev-1"], env=env, text=True, encoding="utf-8", capture_output=True, timeout=10)
+            r = winlaunch.run_script(SCRIPT, ["--get", "dev-1"], env=env, text=True, encoding="utf-8", capture_output=True, timeout=10)
             self.assertEqual(r.stdout.split("\t")[2].strip(), "s-scope", r.stderr)
             env.pop("SCOPE_DIR")
             env["GOAL_DIR"] = str(scope)
-            r = subprocess.run([str(SCRIPT), "--get", "dev-1"], env=env, text=True, encoding="utf-8", capture_output=True, timeout=10)
+            r = winlaunch.run_script(SCRIPT, ["--get", "dev-1"], env=env, text=True, encoding="utf-8", capture_output=True, timeout=10)
             self.assertEqual(r.stdout.split("\t")[2].strip(), "s-scope", r.stderr)
 
 
@@ -58,7 +59,7 @@ class UsageBase(unittest.TestCase):
         (self.proj / f"{sid}.jsonl").write_text("".join(json.dumps(l) + "\n" for l in lines), encoding="utf-8")
 
     def run_cli(self, *args):
-        return subprocess.run([str(SCRIPT), *args], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=10)
+        return winlaunch.run_script(SCRIPT, [*args], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=10)
 
 
 class UsageTest(UsageBase):

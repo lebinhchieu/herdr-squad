@@ -22,6 +22,7 @@ BIN = ROOT / "bin"
 FIX = Path(__file__).resolve().parent / "fixtures" / "rules" / "compose"
 sys.path.insert(0, str(BIN))
 import squadruntime as rt  # noqa: E402
+import winlaunch
 
 GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
 FAKE_HERDR = """#!/usr/bin/env bash
@@ -110,7 +111,7 @@ class Base(unittest.TestCase):
         return self.log.read_text(encoding="utf-8") if self.log.exists() else ""
 
     def run_bin(self, name, *args, plugin=None):
-        return subprocess.run([str((plugin or self.plugin) / "bin" / name), *args], env=self.env, text=True,
+        return winlaunch.run_script((plugin or self.plugin) / "bin" / name, [*args], env=self.env, text=True,
                               encoding="utf-8", capture_output=True, timeout=60)
 
     def spawn(self, role="dev", name="t-dev-sc1", *args, scope="sc1"):
@@ -362,7 +363,7 @@ class SpawnComposedTest(Base):
         self.scope()
         env = {k: v for k, v in self.env.items() if k != "SQUAD_DIR"}
         project = self.root
-        r = subprocess.run([str(self.plugin / "bin" / "squad-spawn"), "dev", "t-dev-sc1", "--scope", "sc1", "--dry-run"],
+        r = winlaunch.run_script(self.plugin / "bin" / "squad-spawn", ["dev", "t-dev-sc1", "--scope", "sc1", "--dry-run"],
                            env=env, cwd=project, text=True, encoding="utf-8", capture_output=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
 
@@ -476,9 +477,8 @@ class RespawnComposedTest(Base):
                                      "| t-mgr-g1 | Manager | | x | live | old |\n", encoding="utf-8")
         env = {k: v for k, v in self.env.items() if k != "SCOPE_DIR"}
         env.update(GOAL_DIR=str(g), LIVE="t-mgr-g1")
-        subprocess.run([str(self.plugin / "bin" / "squad-usage"), "--squad-dir", str(g), "--set-session", "t-mgr-g1",
-                        "00000000-0000-0000-0000-000000000002", "--role", "manager", "--scope", ""], env=env, check=True)
-        r = subprocess.run([str(self.plugin / "bin" / "squad-respawn"), "t-mgr-g1"], env=env, text=True,
+        winlaunch.run_script(self.plugin / "bin" / "squad-usage", ["--squad-dir", str(g), "--set-session", "t-mgr-g1", "00000000-0000-0000-0000-000000000002", "--role", "manager", "--scope", ""], env=env, check=True)
+        r = winlaunch.run_script(self.plugin / "bin" / "squad-respawn", ["t-mgr-g1"], env=env, text=True,
                            encoding="utf-8", capture_output=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         text = (g / "roles" / "t-mgr-g1.rules.md").read_text(encoding="utf-8")
