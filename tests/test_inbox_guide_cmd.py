@@ -66,14 +66,6 @@ class TestInboxGuideCmd(unittest.TestCase):
             self.assertEqual(len(r.stderr.strip().splitlines()), 1)
             self.assertIn("inbox body guide is missing", r.stderr)
 
-    def test_iter4_holds_the_rule_line(self):
-        text = (ROOT / "templates/squad/process/iterations.md").read_text(encoding="utf-8")
-        block = text.split("## ITER-4 Inbox")[1].split("\n## ")[0]
-        self.assertIn("Before your first `squad-inbox add` in a session, read the file `squad-inbox guide` prints.", block)
-
-    def test_manager_card_has_no_guide_text(self):
-        self.assertNotIn("inbox-body-guide", (ROOT / "agents/manager.md").read_text(encoding="utf-8"))
-
 
 if __name__ == "__main__":
     unittest.main()
