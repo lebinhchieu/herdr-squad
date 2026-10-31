@@ -9,8 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "bin"))
+from squadtest import BIN, ROOT, clean_env, fake_herdr, plugin_clone, squad_home
+sys.path.insert(0, str(BIN))
 import squadsettings as ss  # noqa: E402
 import winlaunch
 
@@ -155,8 +155,7 @@ class SpawnTest(Base):
     def setUp(self):
         super().setUp()
         (self.squad / "process.md").write_text("x", encoding="utf-8")
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
-        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
+        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
         self.dir = Path(self.tmp.name)
 
     def spawn(self, role="dev"):
@@ -209,13 +208,6 @@ class SpawnTest(Base):
         self.assertIn("ignored", r.stderr)
 
 
-FAKE_HERDR = """#!/usr/bin/env bash
-[[ "$1 $2" == "agent get" ]] && exit 1
-[[ $1 == tab ]] && echo '{"result":{"root_pane":{"pane_id":"p1"},"tab":{"tab_id":"t1"}}}'
-exit 0
-"""
-
-
 class ComposedSpawnTest(Base):
     """A composed squad: the pinned runtime's template is the one merged, dry-run or not."""
     VERSION = "0.6.0"  # the copy of the running plugin below stands for a release with the team language (no hand-off)
@@ -224,15 +216,13 @@ class ComposedSpawnTest(Base):
     def setUp(self):
         super().setUp()
         self.proj = Path(self.tmp.name) / "proj"
-        self.squad = self.proj / ".claude" / "squads" / "t"
-        (self.squad / "settings").mkdir(parents=True)
-        (self.squad / "scopes/sc1").mkdir(parents=True)
+        self.squad = squad_home(self.proj)
+        (self.squad / "settings").mkdir()
+        (self.squad / "scopes/sc1").mkdir()
         (self.squad / "process.local.md").write_text("", encoding="utf-8")
         (self.squad / "scopes/sc1/scope.md").write_text(f"# Scope\n\nteam: ba\nplugin: {self.VERSION} {self.SHA}\n", encoding="utf-8")
         rt = self.squad / "_runtime" / f"{self.VERSION}-{self.SHA[:12]}"
-        shutil.copytree(ROOT, rt, ignore=shutil.ignore_patterns(".git", ".worktrees", ".scratch", "tests", "__pycache__"))
-        pj = rt / ".claude-plugin" / "plugin.json"
-        pj.write_text(re.sub(r'("version"\s*:\s*)"[^"]*"', rf'\1"{self.VERSION}"', pj.read_text(encoding="utf-8")), encoding="utf-8")
+        plugin_clone(rt, fixtures=False, git_dir=False)  # plugin_copy() is version 0.6.0 = VERSION
         d = json.loads((rt / "templates/squad/settings/dev.json").read_text(encoding="utf-8"))
         d["permissions"]["allow"].append("Bash(pinned-only:*)")
         (rt / "templates/squad/settings/dev.json").write_text(json.dumps(d), encoding="utf-8")
@@ -240,10 +230,8 @@ class ComposedSpawnTest(Base):
         (self.squad / "scopes/sc1/roster.md").write_text("| Agent | Role | Scope | Owns | Status | Session |\n| --- | --- | --- | --- | --- | --- |\n", encoding="utf-8")
         self.bin = Path(self.tmp.name) / "bin"
         self.bin.mkdir()
-        (self.bin / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (self.bin / "herdr").chmod(0o755)
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
-        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}")
+        fake_herdr(self.bin)
+        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad), PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}")
 
     def run_spawn(self, *args):
         return winlaunch.run_script(SPAWN, ["dev", "x", "--scope", "sc1", *args], env=self.env, text=True,

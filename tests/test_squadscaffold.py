@@ -1,6 +1,5 @@
 """squad-process scaffold: a new composed squad; temp folders only."""
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -8,8 +7,7 @@ import unittest
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "bin"
+from squadtest import BIN, ROOT, clean_env, plugin_clone
 sys.path.insert(0, str(BIN))
 import squadrules as sr  # noqa: E402
 import squadruntime as rt  # noqa: E402
@@ -19,9 +17,7 @@ PIN = "0.7.0 abcdef123456"
 
 
 def run(*args, cwd=None, extra_env=None):
-    env = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD_")}
-    env.update(extra_env or {})
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env = clean_env(PYTHONDONTWRITEBYTECODE="1", **(extra_env or {}))
     return subprocess.run([sys.executable, str(BIN / "squad-process"), *args], capture_output=True,
                           encoding="utf-8", env=env, cwd=cwd)
 
@@ -38,9 +34,7 @@ class Scaffold(Base):
 
     def test_scaffold_from_a_non_git_plugin_root_pins_from_installed_plugins(self):
         plugin = self.root / "cache" / "squad" / "9.9.9"
-        shutil.copytree(ROOT, plugin, ignore=shutil.ignore_patterns(".git", ".worktrees", ".scratch", ".claude", "tests",
-                                                                   "__pycache__"))
-        version = json.loads((plugin / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
+        version = plugin_clone(plugin, fixtures=False, git_dir=False).version
         listing = self.root / "installed_plugins.json"
         sha = "c" * 40
         entry = {"squad@market": [{"scope": "user", "installPath": str(plugin), "version": version, "gitCommitSha": sha}]}

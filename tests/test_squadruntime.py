@@ -3,8 +3,6 @@
 The plugin under test is a throwaway git copy of this plugin with the 04 fixture rule files (tests/fixtures/rules/compose)
 in templates/squad/process/: this branch has no converted rule files yet.
 """
-import importlib.machinery
-import importlib.util
 import json
 import os
 import re
@@ -17,79 +15,28 @@ import unittest
 from unittest import mock
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "bin"
-FIX = Path(__file__).resolve().parent / "fixtures" / "rules" / "compose"
+from squadtest import BIN, clean_env, fake_herdr, git, load_cli, plugin_clone, plugin_copy, squad_home
 sys.path.insert(0, str(BIN))
 import squadruntime as rt  # noqa: E402
 import winlaunch
 
-GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
-FAKE_HERDR = """#!/usr/bin/env bash
-echo "$@" >> "$HERDR_LOG"
-case "$1 $2" in
-  "agent get")
-    grep -q "^agent rename $3 " "$HERDR_LOG" && { echo '{"error":{"code":"agent_not_found"}}'; exit 1; }
-    [[ " ${LIVE:-} " == *" $3 "* ]] && { echo '{"result":{"agent":{"pane_id":"p-old"}}}'; exit 0; }
-    echo '{"error":{"code":"agent_not_found"}}'; exit 1 ;;
-  "tab create") echo '{"result":{"root_pane":{"pane_id":"p-new"},"tab":{"tab_id":"t-new"}}}' ;;
-esac
-exit 0
-"""
-
-
-def git(*args, cwd):
-    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
-                          env={**os.environ, **GIT_ENV}).stdout.strip()
-
-
-def make_plugin(dest):
-    """Copy of this plugin plus the fixture rule files, committed in a fresh repo -> (path, version, sha)."""
-    dest = Path(dest)
-    shutil.copytree(ROOT, dest, ignore=shutil.ignore_patterns(".git", ".worktrees", ".scratch", "tests", "__pycache__"))
-    # The copy stands for a release that has the team language (0.6.0): a pin below it is handed to its own engine.
-    pj = dest / ".claude-plugin" / "plugin.json"
-    pj.write_text(re.sub(r'("version"\s*:\s*)"[^"]*"', r'\1"0.6.0"', pj.read_text(encoding="utf-8")), encoding="utf-8")
-    pdir = dest / "templates" / "squad" / "process"
-    pdir.mkdir(parents=True, exist_ok=True)
-    for f in (FIX / "templates" / "squad" / "process").glob("*.md"):
-        shutil.copy(f, pdir / f.name)
-    # the real _removed.md tombstones name REV-14a / REV-19b; the fixture review.md replaces the real one, so the copy gets stubs
-    with (pdir / "review.md").open("a", encoding="utf-8", newline="\n") as fh:
-        fh.write("\n## REV-14a Diff check\nroles: dev\ntopic: review\n\nA later commit goes to the same checkers.\n"
-                 "\n## REV-19b Hand in to QA whitebox alone\nroles: dev\nwhen: qa-white = yes and qa-black = no\ntopic: review\n\n"
-                 "The Developer hands in to QA whitebox alone.\n")
-    git("init", "-q", cwd=dest)
-    git("add", "-A", cwd=dest)
-    git("commit", "-q", "-m", "fixture plugin", cwd=dest)
-    version = json.loads((dest / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
-    return dest, version, git("rev-parse", "HEAD", cwd=dest)
 
 
 class Base(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls._ptmp = tempfile.TemporaryDirectory()
-        cls.plugin, cls.version, cls.sha = make_plugin(Path(cls._ptmp.name) / "plugin")
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._ptmp.cleanup()
+        cls.plugin, cls.version, cls.sha = plugin_copy()  # one per process, read-only: plugin_clone() for a test that changes it
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
-        self.squad = self.root / ".claude" / "squads" / "t"
-        (self.squad / "scopes").mkdir(parents=True)
-        (self.squad / "goals").mkdir()
+        self.squad = squad_home(self.root)
         fake = self.root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (fake / "herdr").chmod(0o755)
+        fake_herdr(fake)
         self.log = self.root / "herdr.log"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
-        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log), PATH=f"{fake}:{os.environ['PATH']}")
+        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log), PATH=f"{fake}:{os.environ['PATH']}")
 
     def composed(self):
         (self.squad / "process.local.md").write_text("", encoding="utf-8")
@@ -257,7 +204,7 @@ class MaterialiseTest(Base):
 
     def test_no_repo_uses_the_installed_cache_only_when_its_sha_matches(self):
         norepo = self.root / "norepo"
-        shutil.copytree(self.plugin, norepo, ignore=shutil.ignore_patterns(".git"))
+        plugin_clone(norepo, git_dir=False)
         listing = self.root / "installed_plugins.json"
         entry = {"squad@market": [{"scope": "user", "installPath": str(norepo), "version": self.version,
                                    "gitCommitSha": self.sha}]}
@@ -287,7 +234,7 @@ class MaterialiseTest(Base):
 
     def test_running_pin_reports_a_dirty_tree(self):
         clone = self.root / "clone"
-        shutil.copytree(self.plugin, clone)
+        plugin_clone(clone)
         self.assertEqual(rt.running_pin(str(clone))[1:], (self.sha, False))
         (clone / "extra.txt").write_text("x", encoding="utf-8")
         self.assertTrue(rt.running_pin(str(clone))[2])
@@ -300,7 +247,7 @@ class RunningPinCacheTest(Base):
     def setUp(self):
         super().setUp()
         self.norepo = self.root / "cache" / "squad" / self.version
-        shutil.copytree(self.plugin, self.norepo, ignore=shutil.ignore_patterns(".git"))
+        plugin_clone(self.norepo, git_dir=False)
         self.listing = self.root / "installed_plugins.json"
         self.addCleanup(os.environ.pop, "SQUAD_INSTALLED_PLUGINS", None)
         os.environ["SQUAD_INSTALLED_PLUGINS"] = str(self.listing)
@@ -338,7 +285,7 @@ class RunningPinCacheTest(Base):
 
     def test_a_git_root_still_uses_head_even_when_a_listing_names_another_sha(self):
         clone = self.root / "clone"
-        shutil.copytree(self.plugin, clone)
+        plugin_clone(clone)
         self.write(clone, sha="1" * 40)
         self.assertEqual(rt.running_pin(str(clone)), (self.version, self.sha, False))
 
@@ -599,7 +546,7 @@ class StartComposedTest(Base):
 
     def test_plugin_pin_file_beats_the_running_plugin(self):
         clone = self.root / "clone"
-        shutil.copytree(self.plugin, clone)
+        plugin_clone(clone)
         (clone / "later.txt").write_text("x", encoding="utf-8")
         git("add", "-A", cwd=clone)
         git("commit", "-q", "-m", "later", cwd=clone)
@@ -636,7 +583,7 @@ class StartComposedTest(Base):
 
     def test_a_goal_gets_a_pin_line_and_a_dirty_tree_warns(self):
         clone = self.root / "dirty"
-        shutil.copytree(self.plugin, clone)
+        plugin_clone(clone)
         (clone / "extra.txt").write_text("x", encoding="utf-8")
         r = self.run_bin("squad-start", "goal: big thing", "--name", "g1", plugin=clone)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -680,10 +627,7 @@ class RuntimeIsNotAScopeTest(Base):
         rt.materialise(str(self.squad), self.version, self.sha, str(self.plugin))
         self.assertTrue((self.runtime_dir() / "templates" / "scope" / "scope.md").is_file())
         # squad-label: lookup homes
-        loader = importlib.machinery.SourceFileLoader("squad_label_mod", str(BIN / "squad-label"))
-        spec = importlib.util.spec_from_loader("squad_label_mod", loader)
-        mod = importlib.util.module_from_spec(spec)
-        loader.exec_module(mod)
+        mod = load_cli("squad-label")
         old = os.environ.get("SQUAD_DIR")
         os.environ["SQUAD_DIR"] = str(self.squad)
         try:
@@ -699,10 +643,7 @@ class RuntimeIsNotAScopeTest(Base):
             build.resolve(self.squad, "_runtime")
         self.assertEqual(build.resolve(self.squad, "sc1")[0], "scope")
         # squad-start's overlap scan
-        starter = importlib.machinery.SourceFileLoader("squad_start_mod", str(BIN / "squad-start"))
-        sspec = importlib.util.spec_from_loader("squad_start_mod", starter)
-        smod = importlib.util.module_from_spec(sspec)
-        starter.exec_module(smod)
+        smod = load_cli("squad-start")
         self.assertEqual([n for n, _ in smod.open_scope_touches(self.squad)], ["sc1"])
 
     def test_no_script_walks_the_squad_folder_recursively(self):
@@ -904,7 +845,7 @@ class PruneTest(unittest.TestCase):
         r = subprocess.run([*base, "--home", str(self.squad / "scopes/s2"), "--all"], capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(r.returncode, 2)
         # a removed runtime comes back at the next spawn
-        plugin, version, sha = make_plugin(Path(self.tmp.name) / "plugin")
+        plugin, version, sha = plugin_copy()
         (self.squad / "scopes/s2/scope.md").write_text(f"plugin: {version} {sha}\n", encoding="utf-8")
         name = f"{version}-{sha[:12]}"
         run = [sys.executable, str(BIN / "squad-process"), "runtime", "--squad-dir", str(self.squad), "--home",

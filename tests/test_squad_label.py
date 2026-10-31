@@ -10,20 +10,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-BIN = Path(__file__).resolve().parent.parent / "bin"
+from squadtest import BIN, clean_env, fake_herdr
 sys.path.insert(0, str(BIN))
 import squadlabel as sl  # noqa: E402
 import winlaunch
-
-FAKE_HERDR = """#!/usr/bin/env bash
-echo "$@" >> "$HERDR_LOG"
-case "$1 $2" in
-  "agent list") python3 -c 'import json,os; print(json.dumps({"result":{"agents":[{"name":n,"tab_id":"tab-"+n} for n in os.environ["LIVE"].split()]}}))' ;;
-  "agent get") echo "{\\"result\\":{\\"agent\\":{\\"name\\":\\"$3\\",\\"tab_id\\":\\"tab-$3\\"}}}" ;;
-  "tab rename") [[ -n ${FAIL_RENAME:-} ]] && { echo boom >&2; exit 1; } ;;
-esac
-exit 0
-"""
 
 
 class LabelCliTest(unittest.TestCase):
@@ -35,12 +25,10 @@ class LabelCliTest(unittest.TestCase):
         self.goal.mkdir(parents=True)
         fake = r / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (fake / "herdr").chmod(0o755)
+        fake_herdr(fake, "live")
         self.log = r / "herdr.log"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR", "HERDR"))}
-        self.env.update(HERDR_ENV="1", HERDR_LOG=str(self.log), LIVE="dev-1 dev-2 mgr",
-                        PATH=f"{fake}{os.pathsep}{os.environ['PATH']}", SQUAD_DIR=str(self.squad))
+        self.env = clean_env(HERDR_ENV="1", HERDR_LOG=str(self.log), LIVE="dev-1 dev-2 mgr",
+                             PATH=f"{fake}{os.pathsep}{os.environ['PATH']}", SQUAD_DIR=str(self.squad))
 
     def tearDown(self):
         self.tmp.cleanup()
