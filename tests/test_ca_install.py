@@ -16,6 +16,7 @@ FILES = ["lib.sh", "usage-popup.sh", "record-usage.sh", "HANDOFF.md"] + [f"bin/{
 LEFTOVERS = ["lib.sh.bak-t6", "HANDOFF.md.new", "bin/cswitch.orig", "bin/c1.bak-fix-autoswitch"]
 
 
+@unittest.skipIf(os.name == "nt", "install.sh links with ln -s and prints MSYS /tmp paths; ADR 0011: the claude-accounts launchers are not a Windows target (windows/claude-accounts.ps1 is)")
 class InstallTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

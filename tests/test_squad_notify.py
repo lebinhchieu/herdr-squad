@@ -81,6 +81,7 @@ class RealPayloadTest(unittest.TestCase):
             self.assertIsNone(self.body("subagent-stop.json", env))
 
 
+@unittest.skipIf(os.name == "nt", "ADR 0011: squad-notify delivers to a Unix pty (os.openpty, /proc fd symlinks); Windows has no ptys")
 class DeliveryTest(unittest.TestCase):
     def test_osc_exact_and_stripped(self):
         self.assertEqual(sn.osc("a · b", "Done"), "\x1b]777;notify;a · b;Done\x1b\\".encode())
@@ -128,6 +129,7 @@ class DeliveryTest(unittest.TestCase):
             self.assertFalse(sn.delivery_off(str(Path(d) / "missing.toml")))
 
 
+@unittest.skipIf(os.name == "nt", "ADR 0011: squad-notify delivers to a Unix pty (os.openpty); Windows has no ptys")
 class RunTest(unittest.TestCase):
     """Whole hook as a subprocess with a fake herdr, a pty as client tty is impossible there (real /proc),
     so run() is called in-process with a fake proc root and a pty pair."""

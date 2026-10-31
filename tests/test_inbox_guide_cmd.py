@@ -45,6 +45,7 @@ class TestInboxGuideCmd(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(Path(r.stdout.strip()).resolve(), (tree / "docs" / "inbox-body-guide.md").resolve())
 
+    @unittest.skipIf(os.name == "nt", "os.symlink needs Developer Mode or admin on Windows (WinError 1314)")
     def test_works_through_a_symlink_to_the_script(self):
         with tempfile.TemporaryDirectory() as t:
             tree = Path(t, "runtime")

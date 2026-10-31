@@ -9,7 +9,7 @@ ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox"
 
 
 def files(d):
-    return {str(p.relative_to(d)) for p in d.rglob("*") if p.is_file()}
+    return {p.relative_to(d).as_posix() for p in d.rglob("*") if p.is_file()}
 
 
 class TemplateLayersTest(unittest.TestCase):

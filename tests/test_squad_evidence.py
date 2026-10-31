@@ -257,7 +257,7 @@ class CheckTest(Base):
 
     def test_orphan_in_img(self):
         self.make("text only\n", {"a.png": png("a")})
-        self.assertRegex(self.problems()[0], r"img/a\.png:\d+: .*orphan")
+        self.assertRegex(self.problems()[0], r"img[/\\]a\.png:\d+: .*orphan")
 
     def test_backticked_screenshot(self):
         self.make("see `img/a.png`\n", {"a.png": png("a")})
