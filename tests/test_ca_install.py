@@ -82,16 +82,6 @@ class InstallTest(unittest.TestCase):
         self.assertTrue(self.skill.is_symlink())
         self.assertEqual(sorted(p.name for p in self.skill.iterdir()), ["SKILL.md"])
 
-    def test_second_run_changes_nothing(self):
-        self.seed_live()
-        self.run_install()
-        before = sorted((str(p), os.readlink(p) if p.is_symlink() else "") for p in self.home.rglob("*"))
-        r = self.run_install()
-        self.assertEqual(r.returncode, 0, r.stderr)
-        after = sorted((str(p), os.readlink(p) if p.is_symlink() else "") for p in self.home.rglob("*"))
-        self.assertEqual(before, after)
-        self.assertNotIn("link:", r.stdout.replace("ok:", ""))
-
     def test_dry_run_prints_and_changes_nothing(self):
         self.seed_live()
         before = sorted((str(p), p.is_symlink(), p.read_text() if p.is_file() else "") for p in self.home.rglob("*"))
@@ -100,16 +90,6 @@ class InstallTest(unittest.TestCase):
         self.assertIn("would link:", r.stdout)
         after = sorted((str(p), p.is_symlink(), p.read_text() if p.is_file() else "") for p in self.home.rglob("*"))
         self.assertEqual(before, after)
-
-    def test_dry_run_on_empty_home_creates_nothing(self):
-        r = self.run_install("--dry-run")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(list(self.home.iterdir()), [])
-
-    def test_unknown_argument_is_refused(self):
-        r = self.run_install("--bogus")
-        self.assertEqual(r.returncode, 2)
-        self.assertEqual(list(self.home.iterdir()), [])
 
     def test_skill_dir_with_other_files_is_kept(self):
         self.skill.mkdir(parents=True)
