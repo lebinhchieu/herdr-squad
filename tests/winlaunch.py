@@ -52,12 +52,14 @@ def _text(x, nt):
     return x if isinstance(x, str) else str(x)
 
 
-def command(path, *args, nt=NT, which=shutil.which, exists=os.path.exists, shebang=None):
+def command(path, *args, nt=NT, which=shutil.which, exists=os.path.exists, shebang=None, system_root=None):
     """argv for running script `path` with `args`."""
     if not nt:
         return [path, *args]
     first = _first_line(path) if shebang is None else shebang
-    prefix = _resolve(first, nt, which, exists, os.environ.get("SystemRoot", ""))
+    if system_root is None:
+        system_root = os.environ.get("SystemRoot", "")
+    prefix = _resolve(first, nt, which, exists, system_root)
     return [*prefix, *(_text(a, nt) for a in (path, *args))]
 
 

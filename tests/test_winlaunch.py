@@ -38,7 +38,7 @@ class CommandTest(unittest.TestCase):
         git = "C:/Program Files/Git/cmd/git.exe"
         bash = "C:/Program Files/Git/bin/bash.exe"
         w = lambda n: {"bash": sys32, "git": git}.get(n)
-        argv = winlaunch.command("C:/r/s", nt=True, shebang="#!/bin/bash", which=w,
+        argv = winlaunch.command("C:/r/s", nt=True, shebang="#!/bin/bash", which=w, system_root="C:"+B+"Windows",
                                  exists=lambda p: p.replace(B, "/") == bash)
         self.assertEqual(argv[0].replace(B, "/"), bash)
 
