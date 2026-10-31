@@ -23,7 +23,7 @@ Per `scope.md` Test economy: **one test per AC or real regression risk.** A test
 6. **Slow for what they prove**: sleeps, real browser, many subprocess launches. Keep one smoke per feature; move the rest to a cheaper in-process check, or delete.
 
 ## Never delete (c)
-- Any test that guards a Windows fix of this scope (tickets 01-09): `test_winlaunch, test_no_bare_bash` (guard + ratchet), `test_windows_safe, test_win_utf8_process, test_utf8_helpers, test_squadinbox_win, test_squadio, test_ca_win, test_crlf_squad_files, test_squadinbox_body_crlf, test_log_append_stress`, the pin-fallback tests of 02, the untrack/size test of 04, the pick_bash tests of 07, and every `os.name == "nt"` skip with its cause.
+- Any test that guards a Windows fix of this scope (tickets 01-09): `test_winlaunch, test_no_bare_bash` (guard + ratchet), `test_windows_safe, test_win_utf8_process, test_utf8_helpers, test_squadinbox_win, test_squadio, test_ca_win, test_crlf_squad_files, test_squadinbox_body_crlf`, the pin-fallback tests of 02, the untrack/size test of 04, the pick_bash tests of 07, and every `os.name == "nt"` skip with its cause.
 - Any test that names a bug fix (docstring/comment says "regression", an incident, a ticket id, an ADR): keep unless the code it guards is gone (then item 4, with the proof in the report).
 - Test helpers other files import (`ca_stubs, winlaunch, rulesview, *_fixtures, run_suite`): change only if a deleted test was their last user; then delete the dead helper too.
 

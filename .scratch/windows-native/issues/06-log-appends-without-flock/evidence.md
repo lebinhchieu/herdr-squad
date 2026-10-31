@@ -4,10 +4,8 @@
 
 Where `flock` is missing (Git Bash on Windows), `bin/squad-log-message` and `bin/squad-usage-hook` append under a `mkdir "$log.lock"` spin (about 5 s). A stale lock is removed. If the lock is not won, the append goes ahead unlocked and the exit code stays the same. Where `flock` exists, the old branch runs unchanged.
 
-Proof: plain `>>` tore records over about 4 KiB on Windows. With the lock, 8 writers x 200 lines (one writer pads 9000 bytes) per hook keep every line intact.
+Reason: O_APPEND does not promise one intact write for records over about 4 KiB, so without `flock` the lock serialises the appends (decided by reasoning, no stress claim; ADR 0011 D3b).
 
-- (Stress and stale-lock tests were run once at this ticket; `tests/test_log_append_stress.py` was removed later by the PO's order in ticket 10.)
-- LogMessageStress: passed (1598 intact after the parallel pass, 2 launches lost to Git Bash fork failures, re-run serially).
-- UsageHookStress: passed on the final run (1598 intact, 2 lost, within the 10% cap).
+- The stress test file `test_log_append_stress` was removed by PO order (ticket 10).
 - StaleLock tests (2): passed.
 - test_hooks_json: passed. test_squad_manager_guard: 1 error, `test_stop_hook_still_exempts_the_manager`, WinError 193 (ticket 03 scope, Team Lead said ignore).
