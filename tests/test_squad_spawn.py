@@ -41,7 +41,7 @@ class SpawnDryRunTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def spawn(self, role, *args):
-        r = subprocess.run([str(SCRIPT), role, "x", "--dry-run", *args], env=self.env,
+        r = winlaunch.run_script(SCRIPT, [role, "x", "--dry-run", *args], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout
@@ -54,7 +54,7 @@ class SpawnDryRunTest(unittest.TestCase):
     def test_warns_once_on_stderr_when_a_non_manager_role_has_no_prompt(self):
         for role in ("dev", "token-coach", "qa-whitebox"):
             with self.subTest(role=role):
-                r = subprocess.run([str(SCRIPT), role, "x", "--dry-run"], env=self.env, text=True, capture_output=True, timeout=10)
+                r = winlaunch.run_script(SCRIPT, [role, "x", "--dry-run"], env=self.env, text=True, capture_output=True, timeout=10)
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertEqual(r.stderr.count("without --prompt"), 1, r.stderr)
                 self.assertNotIn("without --prompt", r.stdout)
@@ -62,7 +62,7 @@ class SpawnDryRunTest(unittest.TestCase):
     def test_no_warning_for_a_manager_or_when_prompt_is_given(self):
         for role, args in (("manager", []), ("dev", ["--prompt", "go"]), ("token-coach", ["--prompt", "go"])):
             with self.subTest(role=role, args=args):
-                r = subprocess.run([str(SCRIPT), role, "x", "--dry-run", *args], env=self.env, text=True, capture_output=True, timeout=10)
+                r = winlaunch.run_script(SCRIPT, [role, "x", "--dry-run", *args], env=self.env, text=True, capture_output=True, timeout=10)
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertNotIn("without --prompt", r.stderr)
 
@@ -74,7 +74,7 @@ class SpawnDryRunTest(unittest.TestCase):
         (self.squad / "settings" / f"{role}.json").write_text(json.dumps(data), encoding="utf-8")
 
     def _spawn_any(self, *args):
-        return subprocess.run([str(SCRIPT), "dev", "x", "--dry-run", *args], env=self.env,
+        return winlaunch.run_script(SCRIPT, ["dev", "x", "--dry-run", *args], env=self.env,
                               text=True, encoding="utf-8", capture_output=True, timeout=10)
 
     def test_the_table_covers_every_role(self):
@@ -102,7 +102,7 @@ class SpawnDryRunTest(unittest.TestCase):
         tpl = Path(self.tmp.name) / "plugin"
         shutil.copytree(SCRIPT.parent.parent, tpl, ignore=shutil.ignore_patterns(".git", ".worktrees", ".scratch", "tests"))
         (tpl / "templates/squad/settings/dev.json").write_text('{"model": "sonnet"}', encoding="utf-8")
-        r = subprocess.run([str(tpl / "bin/squad-spawn"), "dev", "x", "--dry-run"], env=self.env,
+        r = winlaunch.run_script(tpl / "bin/squad-spawn", ["dev", "x", "--dry-run"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("warning: no effortLevel for dev in", r.stderr)
@@ -139,7 +139,7 @@ class SpawnDryRunTest(unittest.TestCase):
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(log))
         (self.squad / "roster.md").write_text(
             "| Agent | Role | Scope | Owns | Status |\n|---|---|---|---|---|\n| manager | Manager | all | x | live |\n", encoding="utf-8")
-        r = subprocess.run([str(SCRIPT), "dev", "dev-1", "--scope", "s"], env=self.env,
+        r = winlaunch.run_script(SCRIPT, ["dev", "dev-1", "--scope", "s"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0, r.stderr)
         passed = re.search(rf"--session-id ({UUID})", log.read_text(encoding="utf-8")).group(1)
@@ -159,7 +159,7 @@ class SpawnDryRunTest(unittest.TestCase):
 
     def test_refuses_a_name_that_is_already_live_in_another_squad(self):
         self._fake_herdr(live="bill-ba-invoices")
-        r = subprocess.run([str(SCRIPT), "ba", "bill-ba-invoices"], env=self.env,
+        r = winlaunch.run_script(SCRIPT, ["ba", "bill-ba-invoices"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("already live", r.stderr)
@@ -167,14 +167,14 @@ class SpawnDryRunTest(unittest.TestCase):
 
     def test_spawns_when_the_name_is_free(self):
         self._fake_herdr(live="other-name")
-        r = subprocess.run([str(SCRIPT), "ba", "bill-ba-invoices"], env=self.env,
+        r = winlaunch.run_script(SCRIPT, ["ba", "bill-ba-invoices"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_new_tab_is_created_in_the_callers_workspace(self):
         self._fake_herdr(live="")
         self.env.update(HERDR_WORKSPACE_ID="wK")
-        r = subprocess.run([str(SCRIPT), "ba", "bill-ba-invoices"], env=self.env,
+        r = winlaunch.run_script(SCRIPT, ["ba", "bill-ba-invoices"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0, r.stderr)
         tab_create = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("tab create"))
@@ -182,11 +182,11 @@ class SpawnDryRunTest(unittest.TestCase):
 
     def _real_spawn(self, *args, name="dev-1"):
         self._fake_herdr(live="")
-        return subprocess.run([str(SCRIPT), "dev", name, "--scope", "s", *args], env=self.env,
+        return winlaunch.run_script(SCRIPT, ["dev", name, "--scope", "s", *args], env=self.env,
                               text=True, encoding="utf-8", capture_output=True, timeout=10)
 
     def _respawn_dry(self, name="dev-1"):
-        r = subprocess.run([str(SCRIPT.parent / "squad-respawn"), name, "--dry-run"], env=self.env,
+        r = winlaunch.run_script(SCRIPT.parent / "squad-respawn", [name, "--dry-run"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         return r
 
@@ -221,7 +221,7 @@ class SpawnDryRunTest(unittest.TestCase):
         # Without --prompt nothing is sent in legacy mode; with one, the sentence follows it.
         self.log.write_text("", encoding="utf-8")
         (self.squad / "roster.md").write_text("| Agent | Role | Scope | Owns | Status |\n|---|---|---|---|---|\n", encoding="utf-8")
-        r = subprocess.run([str(SCRIPT), "dev", "dev-2", "--scope", "s", "--prompt", "Task 1."], env=self.env,
+        r = winlaunch.run_script(SCRIPT, ["dev", "dev-2", "--scope", "s", "--prompt", "Task 1."], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         prompt = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent prompt"))
@@ -241,7 +241,7 @@ class SpawnDryRunTest(unittest.TestCase):
         broken = sorted((plugin / "templates" / "squad" / "process").glob("[a-z]*.md"))[0]
         broken.write_text("not a rule file\n\n## no id\n", encoding="utf-8")
         self._fake_herdr(live="")
-        r = subprocess.run([str(plugin / "bin" / "squad-spawn"), "dev", "dev-1", "--scope", "s"], env=self.env,
+        r = winlaunch.run_script(plugin / "bin" / "squad-spawn", ["dev", "dev-1", "--scope", "s"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertFalse((self.squad / "roles" / "dev-1.rules.md").exists())
@@ -307,7 +307,7 @@ class SpawnDryRunTest(unittest.TestCase):
                 r = self._respawn_dry()
                 self.assertEqual(r.returncode, 1)
                 self.assertIn("refusing", r.stderr)
-                r = subprocess.run([str(SCRIPT.parent / "squad-respawn"), "dev-1"], env=self.env,
+                r = winlaunch.run_script(SCRIPT.parent / "squad-respawn", ["dev-1"], env=self.env,
                                    text=True, encoding="utf-8", capture_output=True, timeout=10)
                 self.assertEqual(r.returncode, 1)
                 self.assertNotIn("agent rename", self.log.read_text(encoding="utf-8"))
@@ -317,14 +317,14 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertEqual(self._real_spawn("--effort", "low").returncode, 0)
         herdr = Path(self.tmp.name) / "bin" / "herdr"
         herdr.write_text(FAKE_HERDR.replace("exit 0\n", '[[ "$1 $2" == "agent start" ]] && exit 1\nexit 0\n'), encoding="utf-8")
-        r = subprocess.run([str(SCRIPT), "dev", "dev-1", "--scope", "s", "--effort", "high"], env=self.env,
+        r = winlaunch.run_script(SCRIPT, ["dev", "dev-1", "--scope", "s", "--effort", "high"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertNotEqual(r.returncode, 0)
         self.assertEqual((self.squad / "roles" / "dev-1.overrides").read_text(encoding="utf-8"), "effort=low\n")
 
     def test_a_flat_squad_manager_keeps_its_model_across_a_respawn(self):
         self._fake_herdr(live="")
-        r = subprocess.run([str(SCRIPT), "manager", "m-1", "--model", "sonnet"], env=self.env,
+        r = winlaunch.run_script(SCRIPT, ["manager", "m-1", "--model", "sonnet"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual((self.squad / "roles" / "m-1.overrides").read_text(encoding="utf-8"), "model=sonnet\n")
@@ -372,7 +372,7 @@ class SpawnScopedTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def run_spawn(self, role, name, *args):
-        return subprocess.run([str(SCRIPT), role, name, "--dry-run", *args], env=self.env,
+        return winlaunch.run_script(SCRIPT, [role, name, "--dry-run", *args], env=self.env,
                               text=True, encoding="utf-8", capture_output=True, timeout=10)
 
     def test_lone_scope_agent_gets_scope_dir_and_no_goal_dir(self):
@@ -430,7 +430,7 @@ class SpawnScopedTest(unittest.TestCase):
         (bin_dir / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
         (bin_dir / "herdr").chmod(0o755)
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(self.root / "h.log"))
-        r = subprocess.run([str(SCRIPT), "dev", "t-dev-sc1-2", "--scope", "sc1", "--repo", str(repo), "--base", "passed"],
+        r = winlaunch.run_script(SCRIPT, ["dev", "t-dev-sc1-2", "--scope", "sc1", "--repo", str(repo), "--base", "passed"],
                            env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         wt = self.root / ".worktrees" / "t" / "sc1" / "t-dev-sc1-2"
@@ -480,7 +480,7 @@ class SpawnScopedTest(unittest.TestCase):
         (bin_dir / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
         (bin_dir / "herdr").chmod(0o755)
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(self.root / "h.log"))
-        run = lambda base: subprocess.run([str(SCRIPT), "dev", "t-dev-sc1-2", "--scope", "sc1", "--repo", str(repo), "--base", base],
+        run = lambda base: winlaunch.run_script(SCRIPT, ["dev", "t-dev-sc1-2", "--scope", "sc1", "--repo", str(repo), "--base", base],
                                           env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(run("passed").returncode, 0)
         wt = self.root / ".worktrees" / "t" / "sc1" / "t-dev-sc1-2"
@@ -525,7 +525,7 @@ class SpawnScopedTest(unittest.TestCase):
         (bin_dir / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
         (bin_dir / "herdr").chmod(0o755)
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(self.root / "h.log"))
-        r = subprocess.run([str(SCRIPT), "tech-lead", "t-tech-sc1", "--scope", "sc1"], env=self.env,
+        r = winlaunch.run_script(SCRIPT, ["tech-lead", "t-tech-sc1", "--scope", "sc1"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("| t-tech-sc1 | tech-lead | sc1 |", (self.squad / "scopes" / "sc1" / "roster.md").read_text(encoding="utf-8"))
@@ -565,7 +565,7 @@ class SpawnLabelTest(unittest.TestCase):
 
     def spawn(self, role, name, *args, scope="sc1"):
         where = ("--goal", scope) if role == "manager" and scope.startswith("g") else ("--scope", scope)
-        r = subprocess.run([str(SCRIPT), role, name, *where, *args], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
+        r = winlaunch.run_script(SCRIPT, [role, name, *where, *args], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         return r
 
@@ -586,7 +586,7 @@ class SpawnLabelTest(unittest.TestCase):
         self.env["LIVE"] = "t-tech-sc1"
         calls = self.log.read_text(encoding="utf-8")
         for extra in (["--title", "OTHER"], []):
-            r = subprocess.run([str(SCRIPT), "tech-lead", "t-tech-sc1", "--scope", "sc1", *extra],
+            r = winlaunch.run_script(SCRIPT, ["tech-lead", "t-tech-sc1", "--scope", "sc1", *extra],
                                env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
             self.assertNotEqual(r.returncode, 0)
             self.assertIn("already live", r.stderr)
@@ -627,14 +627,14 @@ class SpawnLabelTest(unittest.TestCase):
         os.symlink(BIN_DIR.parent / "templates", stub / "templates")
         (stub / "bin" / "squad-label").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
         (stub / "bin" / "squad-label").chmod(0o755)
-        r = subprocess.run([str(stub / "bin" / "squad-spawn"), "ba", "t-ba-sc1", "--scope", "sc1"], env=self.env,
+        r = winlaunch.run_script(stub / "bin" / "squad-spawn", ["ba", "t-ba-sc1", "--scope", "sc1"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("warning", r.stderr)
         self.assertIn("--label t-ba-sc1 --no-focus", self.calls("tab create")[0])
 
     def test_dry_run_prints_the_label_and_writes_no_store_file(self):
-        r = subprocess.run([str(SCRIPT), "dev", "t-dev-sc1-1", "--scope", "sc1", "--title", "x", "--dry-run"],
+        r = winlaunch.run_script(SCRIPT, ["dev", "t-dev-sc1-1", "--scope", "sc1", "--title", "x", "--dry-run"],
                            env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("--label 🤖 Dev · x --no-focus", r.stdout)
@@ -647,7 +647,7 @@ class SpawnLegacyPromptTest(unittest.TestCase):
 
     def spawn(self, squad_text, role="manager", name="t-mgr-sc1", *args):
         (self.squad / "process.md").write_text(squad_text, encoding="utf-8")
-        r = subprocess.run([str(BIN_DIR / "squad-spawn"), role, name, "--scope", "sc1", *args], env=self.env,
+        r = winlaunch.run_script(BIN_DIR / "squad-spawn", [role, name, "--scope", "sc1", *args], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         return r, (self.calls("agent prompt") or [""])[0]
@@ -666,7 +666,7 @@ class SpawnLegacyPromptTest(unittest.TestCase):
     def test_other_roles_and_dry_run_are_unchanged(self):
         _, p = self.spawn("process-version: 1\n", "dev", "t-dev-sc1-1", "--prompt", "Do RP-1.")
         self.assertEqual(p, f"agent prompt t-dev-sc1-1 Do RP-1. {self.attached('t-dev-sc1-1')}")
-        r = subprocess.run([str(BIN_DIR / "squad-spawn"), "manager", "t-mgr-sc1", "--scope", "sc1", "--dry-run"],
+        r = winlaunch.run_script(BIN_DIR / "squad-spawn", ["manager", "t-mgr-sc1", "--scope", "sc1", "--dry-run"],
                            env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("Process update", r.stdout + r.stderr)
@@ -695,7 +695,7 @@ class _GateBase(unittest.TestCase):
         self.scope_md.write_text(text, encoding="utf-8", newline="")
 
     def spawn(self, role="dev", name="gate-1", *args, script=SCRIPT, env=None):
-        return subprocess.run([str(script), role, name, "--scope", "sc1", "--prompt", "go", *args], env=env or self.env,
+        return winlaunch.run_script(script, [role, name, "--scope", "sc1", "--prompt", "go", *args], env=env or self.env,
                               text=True, encoding="utf-8", capture_output=True, timeout=30)
 
     def created(self):
@@ -774,7 +774,7 @@ class SpawnTeamGateTest(_GateBase):
     def test_the_size_only_home_is_refused_by_the_team_cli_and_by_the_spawn(self):
         """C2: the D1 scaffold is not reachable through `squad-process team` nor `squad-spawn`."""
         self.set_scope("# Scope\n\nsize: L\n")
-        t = subprocess.run([str(BIN_DIR / "squad-process"), "team", "--home", str(self.scope)], text=True,
+        t = winlaunch.run_script(BIN_DIR / "squad-process", ["team", "--home", str(self.scope)], text=True,
                            encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(t.returncode, 2)
         self.assertIn("one `team:` line", t.stderr)
@@ -813,7 +813,7 @@ class SpawnTeamGateTest(_GateBase):
             self.assertIn(f"--agent {agent}", r.stdout)
 
     def test_a_goal_manager_has_no_team_gate(self):
-        r = subprocess.run([str(SCRIPT), "manager", "gate-m", "--goal", "g1", "--dry-run"], env=self.env,
+        r = winlaunch.run_script(SCRIPT, ["manager", "gate-m", "--goal", "g1", "--dry-run"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
 
@@ -958,8 +958,7 @@ class PinnedBaseEngineTest(_GateBase):
         self.set_scope(f"# Scope\n\ngoal:\ntouches:\nsize: L\nqa-b: yes\nplugin: 0.5.2 {BASE_SHA}\n")
         before = self.scope_md.read_bytes()
         now = "2026-10-27T00:00:00Z"
-        golden = subprocess.run([str(rt / "bin" / "squad-process"), "compose", "dev", "--home", str(self.scope), "--agent", "gate-1",
-                                 "--squad-dir", str(self.squad), "--plugin-root", str(rt), "--now", now],
+        golden = winlaunch.run_script(rt / "bin" / "squad-process", ["compose", "dev", "--home", str(self.scope), "--agent", "gate-1", "--squad-dir", str(self.squad), "--plugin-root", str(rt), "--now", now],
                                 text=True, encoding="utf-8", capture_output=True, timeout=60)
         self.assertEqual(golden.returncode, 0, golden.stderr)
         r = self.spawn("dev", "gate-1", env=dict(self.env, SQUAD_COMPOSE_NOW=now))

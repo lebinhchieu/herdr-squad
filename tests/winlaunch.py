@@ -77,3 +77,39 @@ def run_script(path, args=(), env=None, **kw):
 
 def popen_script(path, args=(), env=None, **kw):
     return subprocess.Popen(command(path, *args), env=env_for(env), **kw)
+
+
+def bash(nt=NT, which=shutil.which, exists=os.path.exists, system_root=None):
+    """The bash for `[bash, script]`: the literal "bash" on POSIX (argv unchanged), Git's bash on nt."""
+    if not nt:
+        return "bash"
+    return _resolve("#!/bin/bash", nt, which, exists, os.environ.get("SystemRoot", "") if system_root is None else system_root)[0]
+
+
+def python(nt=NT):
+    """The python3 for `[python, script]`: PATH's python3 on POSIX (as the tests did), this interpreter on nt."""
+    return sys.executable if nt else shutil.which("python3")
+
+
+def child_argv(cmd, nt=NT, **kw):
+    """Whole argv. POSIX: every word as UTF-8 bytes (the parent may run under an ASCII locale). nt: str words; a first
+    word that is a shebang script becomes its interpreter + script (see command()), anything else is used as is."""
+    if not nt:
+        return [str(c).encode("utf-8", "surrogateescape") for c in cmd]
+    first = cmd[0]
+    try:
+        with open(first, "rb") as f:
+            script = f.read(2) == b"#!"
+    except OSError:  # not a file (a bare command name) or unreadable
+        script = False
+    if script:
+        return command(first, *cmd[1:], nt=nt, **kw)
+    return [_text(c, nt) for c in cmd]
+
+
+def run_child(cmd, env, nt=NT, **kw):
+    """subprocess.run for tests that need UTF-8 bytes argv/env on POSIX; same call, str words, on nt."""
+    if not nt:
+        enc = lambda x: str(x).encode("utf-8", "surrogateescape")
+        return subprocess.run(child_argv(cmd, nt), env={enc(k): enc(v) for k, v in env.items()}, **kw)
+    return subprocess.run(child_argv(cmd, nt), env=env_for(env, nt), **kw)
