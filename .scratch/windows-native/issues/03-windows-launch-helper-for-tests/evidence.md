@@ -65,3 +65,15 @@ Result per file (pass / skip / ticket). Every skip is `os.name == "nt"` with a c
 - test_no_bare_bash, test_processlint, test_squad_notify, test_squadinbox: OK. `python bin/squad-process lint` exit 0.
 - Housekeeping: ticket 09-ca-win... renamed to 11; ticket 10 (pycache) deleted; one line added to RUNNING-ON-WINDOWS.md.
 - Failing on Windows without a skip, all with a ticket: test_squad_ledger (06), test_squad_label x6 + test_utf8_helpers x1 (12), test_ca_win x4 (11).
+
+## Integration (sha 4b74d89): remaining Windows failures have tickets
+
+`cd tests && python -m unittest test_squad_start test_utf8_helpers test_no_bare_bash test_winlaunch test_crlf_squad_files`: 80 tests, errors 0, WinError 193 0, TypeError 0, failures 18, skipped 3 (nt symlink skips). test_squad_start takes about 4 min on Windows.
+- 1 failure (`test_label_reads_a_herdr_reply_with_emoji...`, `Dev` vs `Dev 2`): ticket 12.
+- 17 failures in test_squad_start (14) and test_crlf_squad_files (3): ticket 13 (A path form, B crlf/lf path text, C `env bash` not found, D fake herdr never called = ticket 12 class; ticket 12 now names test_squad_start).
+- One more failure QA-b saw once (`test_spawn_dry_run_and_stubbed_run_for_every_role`, token-coach) did not reproduce in 3 runs; listed in ticket 13, group E.
+
+## Advisor (LC-25, third FAIL on 03)
+- Question: how to close QA-b's AC "every remaining failure has a ticket" with a doc-only fix.
+- Advice: check QA-b's failure list against the tickets by name, give group C a real cause (read the stderr in the log), put the ticket references in the 03 evidence, and hand in as a diff check to QA-w.
+- Done: found the cause of group C (`/usr/bin/env: 'bash'` not found), added the token-coach case as group E, wrote ticket 13, named test_squad_start in ticket 12, updated this file.
