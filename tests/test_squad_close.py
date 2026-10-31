@@ -6,22 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import winlaunch
-
-BIN = Path(__file__).resolve().parent.parent / "bin"
-FAKE_HERDR = """#!/usr/bin/env bash
-echo "$@" >> "$HERDR_LOG"
-case "$1 $2" in
-  "agent get") [[ " ${DEAD:-} " == *" $3 "* ]] && { echo '{"error":{"code":"agent_not_found"}}'; exit 1; }
-               echo "{\\"result\\":{\\"agent\\":{\\"pane_id\\":\\"p-$3\\"}}}" ;;
-esac
-exit 0
-"""
-GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
-
-
-def git(*args, cwd):
-    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8",
-                          env={**os.environ, **GIT_ENV}).stdout
+from squadtest import BIN, clean_env, fake_herdr, git
 
 
 class CloseTest(unittest.TestCase):
@@ -50,10 +35,9 @@ class CloseTest(unittest.TestCase):
             self.wts[n] = wt
         fake = self.root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (fake / "herdr").chmod(0o755)
+        fake_herdr(fake, "live")
         self.log = self.root / "herdr.log"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env = clean_env()
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log),
                         DEAD="t-dev-x-2", PATH=f"{fake}:{os.environ['PATH']}")
 
@@ -206,10 +190,9 @@ class ScopedCloseTest(unittest.TestCase):
             self.wts[agent] = wt
         fake = self.root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (fake / "herdr").chmod(0o755)
+        fake_herdr(fake, "live")
         self.log = self.root / "herdr.log"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env = clean_env()
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log), PATH=f"{fake}:{os.environ['PATH']}")
 
     def tearDown(self):
@@ -397,9 +380,8 @@ class WorktreeFinderTest(unittest.TestCase):
             f.write("| dev-b | dev | x | t | live | s2 |\n| dev-c | dev | y | t | live | s3 |\n| dev-d | dev | y | t | live | s4 |\n")
         fake = self.root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (fake / "herdr").chmod(0o755)
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        fake_herdr(fake, "live")
+        self.env = clean_env()
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.root / "h.log"),
                         PATH=f"{fake}:{os.environ['PATH']}")
 
@@ -760,9 +742,9 @@ class RuntimePruneCloseTest(ScopedCloseTest):
             (self.rt / n / "bin").mkdir(parents=True)
             (self.rt / n / "bin" / "f").write_text("x" * 1048576, encoding="utf-8")
         # the fake herdr records whether runtime X still exists when a pane is closed
-        fake = self.root / "fakebin" / "herdr"
-        fake.write_text(FAKE_HERDR.replace('echo "$@" >> "$HERDR_LOG"',
-                        'echo "$@ rt=$([ -d "$RT_X" ] && echo yes || echo no)" >> "$HERDR_LOG"'), encoding="utf-8")
+        fake = fake_herdr(self.root / "fakebin", "live")
+        fake.write_text(fake.read_text(encoding="utf-8").replace('echo "$@" >> "$HERDR_LOG"',
+                        'echo "$@ rt=$([ -d "$RT_X" ] && echo yes || echo no)" >> "$HERDR_LOG"'), encoding="utf-8", newline="\n")
         self.env["RT_X"] = str(self.rt / X)
 
     def test_scope_close_removes_its_runtime_and_the_orphan_and_keeps_the_held_one(self):

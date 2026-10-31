@@ -8,11 +8,8 @@ import unittest
 from pathlib import Path
 
 from rulesview import composed
-from test_squad_close import FAKE_HERDR, git
 import winlaunch
-
-ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "bin"
+from squadtest import BIN, ROOT, clean_env, fake_herdr, git
 # The exact call the two instructions name; the test below runs it, so the text cannot drift from what works.
 CALL = 'open(path, "w", encoding="utf-8", newline="\\n")'
 ROSTER = ("| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
@@ -58,7 +55,7 @@ class InstructionWordingTest(unittest.TestCase):
 
 
 class CrlfReadersTest(unittest.TestCase):
-    """Scaffolding reused: FAKE_HERDR and git() from test_squad_close.py; the scoped-squad layout of
+    """Scaffolding reused: fake_herdr and git() from squadtest; the scoped-squad layout of
     test_squad_usage.py (scopes/<s>/roster.md, SQUAD_DIR/SCOPE_DIR env); the herdr stub style of test_squad_retire.py.
     squad-respawn is not run (it needs a live herdr session and a Claude launch); squad-label reads neither file."""
 
@@ -67,9 +64,8 @@ class CrlfReadersTest(unittest.TestCase):
         root = Path(self.tmp.name)
         fake = root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8", newline="\n")
-        (fake / "herdr").chmod(0o755)
-        self.base_env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        fake_herdr(fake, "live")
+        self.base_env = clean_env()
         self.base_env.update(HERDR_ENV="1", HERDR_LOG=str(root / "herdr.log"), PATH=f"{fake}:{os.environ['PATH']}")
         self.runs = {}
         for variant in ("lf", "crlf"):
