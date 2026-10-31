@@ -196,7 +196,8 @@ if [[ $smode == composed ]]; then
   fi
   plugin_dir=$runtime
   rules_args=(--append-system-prompt-file "$rules")
-  runtime_env=(--env "PATH=$runtime/bin:$PATH")
+  rt_posix=$(cygpath -u "$runtime" 2>/dev/null || printf '%s' "$runtime")  # herdr is a native exe: a C:\ + POSIX-list PATH is unusable
+  runtime_env=(--env "PATH=$rt_posix/bin:$PATH")
   [[ -z $prompt ]] || prompt="$prompt Your process rules are attached to this session ($rules); read no other process file."
 elif [[ $smode == legacy ]]; then
   # Legacy squad: the cards are ability-only, so attach the running plugin's rules (no overlay, no pin, no runtime).
