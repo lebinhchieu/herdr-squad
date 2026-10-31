@@ -33,7 +33,7 @@ exit 0
 
 def run(cmd, env, stdin=None, timeout=30):
     """Child with UTF-8 bytes for argv/env; stdout/stderr come back as bytes."""
-    return winlaunch.run_child(cmd, env, input=stdin, capture_output=True, timeout=timeout)
+    return winlaunch.run_script(cmd[0], cmd[1:], env, utf8=True, input=stdin, capture_output=True, timeout=timeout)
 
 
 def load(name):

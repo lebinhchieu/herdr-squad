@@ -15,7 +15,7 @@ SCRIPT = BIN / "squad-start"
 
 def run_child(cmd, env, timeout=30):
     """Run a child with UTF-8 bytes for argv and env: the parent may itself run under an ASCII locale."""
-    return winlaunch.run_child(cmd, env, encoding="utf-8", capture_output=True, timeout=timeout)
+    return winlaunch.run_script(cmd[0], cmd[1:], env, utf8=True, encoding="utf-8", capture_output=True, timeout=timeout)
 
 
 class StartTest(unittest.TestCase):

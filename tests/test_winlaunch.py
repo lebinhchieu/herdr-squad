@@ -17,8 +17,12 @@ def which(found=BASH):
 class CommandTest(unittest.TestCase):
     def test_posix_argv_and_env_are_untouched(self):
         self.assertEqual(winlaunch.command("/x/bin/squad-spawn", "a", b"b", nt=False), ["/x/bin/squad-spawn", "a", b"b"])
+        self.assertEqual(winlaunch.command(POSIX_BASH, "/x/s", "é", nt=False, utf8=True), [b"bash", b"/x/s", "é".encode("utf-8")])
+        self.assertEqual(winlaunch.bash(nt=False), POSIX_BASH)
+        self.assertEqual(winlaunch.python(nt=False), __import__("shutil").which("python3"))
         env = {b"K": b"v", "S": "t"}
         self.assertIs(winlaunch.env_for(env, nt=False), env)
+        self.assertEqual(winlaunch.env_for({"K": "é"}, nt=False, utf8=True), {b"K": "é".encode("utf-8")})
         self.assertIsNone(winlaunch.env_for(None, nt=False))
 
     def test_bash_shebangs_use_the_picked_bash_on_nt(self):
@@ -58,27 +62,11 @@ class CommandTest(unittest.TestCase):
 
 
 class ChildTest(unittest.TestCase):
-    def test_posix_child_argv_is_utf8_bytes_and_bash_python_are_the_old_names(self):
-        self.assertEqual(winlaunch.child_argv([POSIX_BASH, "/x/s", "é"], nt=False), [b"bash", b"/x/s", "é".encode("utf-8")])
-        self.assertEqual(winlaunch.bash(nt=False), "bash")
-        self.assertEqual(winlaunch.python(nt=False), __import__("shutil").which("python3"))
-
-    def test_nt_child_argv_is_str_and_a_binary_first_word_is_kept(self):
+    def test_nt_binary_first_word_is_kept_and_bash_python_are_picked(self):
         exe = Path(sys.executable)
-        self.assertEqual(winlaunch.child_argv([exe, Path("C:/r/s"), b"a"], nt=True), [exe.as_posix(), "C:/r/s", "a"])
+        self.assertEqual(winlaunch.command(exe, Path("C:/r/s"), b"a", nt=True), [exe.as_posix(), "C:/r/s", "a"])
         self.assertEqual(winlaunch.python(nt=True), sys.executable)
-
-    def test_nt_bash_is_the_picked_one(self):
         self.assertEqual(winlaunch.bash(nt=True, which=which(), system_root="C:"+B+"Windows"), BASH)
-
-    def test_run_child_runs_and_encodes_env(self):
-        import tempfile
-        with tempfile.TemporaryDirectory() as d:
-            s = Path(d) / "tool"
-            s.write_bytes(b'#!/usr/bin/env bash\nprintf "%s|%s" "$1" "$FOO"\n')
-            s.chmod(0o755)
-            r = winlaunch.run_child([s, "é"], dict(os.environ, FOO="bär"), capture_output=True)
-            self.assertEqual(r.stdout.decode("utf-8"), "é|bär")
 
 
 class RunScriptTest(unittest.TestCase):
@@ -90,6 +78,8 @@ class RunScriptTest(unittest.TestCase):
             s.chmod(0o755)
             r = winlaunch.run_script(s, ["a b"], env=dict(os.environ, FOO="bar"), capture_output=True)
             self.assertEqual((r.returncode, r.stdout), (0, b"a b|bar"))
+            r = winlaunch.run_script(s, ["é"], env=dict(os.environ, FOO="bär"), utf8=True, capture_output=True)
+            self.assertEqual(r.stdout.decode("utf-8"), "é|bär")
 
 
 if __name__ == "__main__":

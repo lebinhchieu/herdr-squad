@@ -29,7 +29,7 @@ Never `subprocess.run([".../bin/squad-spawn", ...])` or `["bash", script]` in a 
 
 ```
 import winlaunch
-r = winlaunch.run_script(SCRIPT, ["arg"], env=env, capture_output=True, text=True)   # also winlaunch.popen_script, winlaunch.command
+r = winlaunch.run_script(SCRIPT, ["arg"], env=env, capture_output=True, text=True)   # one runner; utf8=True gives POSIX UTF-8 bytes argv/env; winlaunch.command is its argv
 ```
 
 On Linux it runs `[path, *args]` with env untouched (bytes stay bytes). On Windows it reads the shebang: `bash`/`sh` become Git's bash by absolute path (`squadio.pick_bash`), `python`/`python3` become `sys.executable`; paths become forward-slash `str`. `test_no_bare_bash` fails on a bare `"bash"`/`"sh"` argv in `bin/`, `hooks/`, `tools/` and `tests/`; `TESTS_TO_CONVERT` in that file lists the test files not yet converted (ticket 03b empties it).
