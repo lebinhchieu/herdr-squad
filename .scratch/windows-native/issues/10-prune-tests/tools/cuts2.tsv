@@ -1,0 +1,53 @@
+squad_label|test_init_respawn_of_dev2_after_dev1_left_keeps_2|b-1|same respawn-keeps-number path as the unit test|test_squadlabel::test_respawn_keeps_its_number_when_the_peer_has_left
+squad_label|test_non_manager_may_name_itself_with_agent|b-1|--agent naming itself is the self-relabel path|test_self_relabel_renames_its_tab_and_prints_label
+squad_label|test_init_first_agent_has_no_number_and_no_tab_call|b-1|first agent path asserted by the dry-run and init tests|test_init_dry_run_prints_the_label_and_writes_and_renames_nothing
+squadlabel|test_architect_has_its_own_label|b-1|architect is in ROLE_NAMES; the every-role loop builds its label|test_every_role_with_and_without_number_and_title
+squadlabel|test_spec_example|b-1|one more role through the same cut and name code|test_cut_at_32_code_points; test_every_role_with_and_without_number_and_title
+squadlabel|test_respawn_keeps_its_number|b-1|same path as the respawn test with a peer gone|test_respawn_keeps_its_number_when_the_peer_has_left
+squadlabel|test_homes_are_separate|b-3|two homes are two folders|none (no behaviour)
+squad_ledger|test_live_log_read_only|b-3|reads the live scope log, skips when absent, so it depends on the environment|test_every_row_has_every_key_null_when_empty
+squad_spawn|test_the_table_covers_every_role|b-3|asserts a count and one constant of the test's own table|test_role_defaults_match_the_table
+squad_spawn|test_every_role_has_settings_that_parse|b-1|same settings files are parsed by the templates and settings tests|test_templates::test_every_role_has_settings_that_parse_and_the_manager_may_run_the_squad_commands; test_model_effort_settings
+squad_spawn|test_both_overrides_are_recorded|b-1|two keys through the same write and replay path as one|test_an_effort_override_is_recorded_and_replayed_by_respawn
+squad_spawn|test_manager_prompt_has_no_process_update_sentence|b-4|asserts a removed sentence is absent|none (removed behaviour)
+squad_spawn|test_other_roles_and_dry_run_are_unchanged|b-4|asserts the same removed sentence is absent|none (removed behaviour)
+squad_spawn|test_refusal_text_names_who_adds_the_role|b-5|exact refusal wording|test_a_role_not_on_the_team_exits_1_naming_the_role_and_scope_md_and_creates_nothing
+ca_launchers|test_syntax|b-3|py_compile of cwake; every cwake test imports and runs it|test_usage_error_is_rc2
+ca_launchers|test_blank_ref_rc2|b-1|blank is a no-match like any other ref|test_no_hit_idshaped_is_a_raw_id_otherwise_rc2
+ca_autoswitch|test_syntax_checks_leave_no_pycache|b-3|py_compile check; every test runs the script|test_refuses_outside_herdr
+ca_autoswitch|test_no_args_writes_nothing|b-3|no-argument no-op of the status line|test_idle_status_line_writes_nothing_and_keeps_the_old_cache
+squad_start|test_squad_start_skill_has_no_process_update_step|b-4|asserts a removed step is absent from skill text|none (removed behaviour)
+squad_start|test_dry_run_and_resume_print_none_either|b-4|asserts a removed message is absent|test_no_process_version_message_and_exact_json_keys
+squad_evidence|test_no_args_is_usage_error|b-3|argparse usage exit|test_missing_ticket_or_review_is_usage_error
+squad_evidence|test_not_md_is_usage_error|b-3|argparse usage exit|test_missing_ticket_or_review_is_usage_error
+squadsettings|test_manager_allows_squad_team|b-3|one allow-list entry of a settings file|test_templates::test_every_role_has_settings_that_parse_and_the_manager_may_run_the_squad_commands
+ca_install|test_second_run_changes_nothing|b-1|second run is asserted with mtimes and no temp left|test_second_run_keeps_every_link_mtime_and_leaves_no_temp
+ca_install|test_dry_run_on_empty_home_creates_nothing|b-1|dry run changes nothing is asserted on a live home|test_dry_run_prints_and_changes_nothing
+ca_install|test_unknown_argument_is_refused|b-3|argparse refusal|none (no behaviour)
+templates|test_standing_squad_has_no_per_scope_files|b-3|file-exists layout check|test_squadscaffold::test_scaffold_creates_the_composed_layout_and_lints
+templates|test_scope_template_holds_the_per_scope_files|b-3|file-exists layout check|test_squadscaffold::test_scaffold_creates_the_composed_layout_and_lints
+templates|test_goal_template_holds_the_shared_folder_and_the_goal_files|b-3|file-exists layout check|test_squad_start::test_goal_prefix_creates_a_goal_folder_and_a_goal_manager
+inbox_guide_cmd|test_iter4_holds_the_rule_line|b-5|one rule line in a template|none (wording)
+inbox_guide_cmd|test_manager_card_has_no_guide_text|b-4|absence in a card|none (removed text)
+squadscaffold|test_show_is_retired_and_apply_is_gone|b-4|asserts removed commands are gone|none (removed behaviour)
+squadscaffold|test_no_command_card_or_prompt_calls_show|b-4|absence of a retired call in text|none (removed behaviour)
+run_suite|test_pgrep_and_pkill_appear_only_as_never|b-5|doc text grep|none (wording)
+run_suite|test_section_is_short_and_every_flag_it_names_is_in_the_runner|b-5|doc section length and flag names|none (wording)
+team_models|test_size_rule_points_at_it|b-4|rule text about the removed size|none (removed behaviour)
+squadruntime|test_no_recursive_glob_in_the_code|b-1|source scan of the same rule|test_no_script_walks_the_squad_folder_recursively
+squad_respawn|test_respawn_never_names_squad_process_show|b-4|absence of a retired command in the prompt|test_legacy_prompt_names_the_notes_and_neither_process_md_nor_show
+squad_respawn|test_no_warning_for_short_notes|b-3|negative of the over-100-lines warning|test_warns_when_notes_are_over_100_lines
+squadreport_ui|test_centred_column|b-5|exact CSS values|none (styling)
+squadreport_ui|test_pill_nav_sticky|b-5|exact CSS values|none (styling)
+squadreport_ui|test_chip_colours_as_mock|b-5|exact CSS colours|none (styling)
+squadreport_ui|test_chips_in_table_cells_keep_a_gap|b-5|exact CSS value|none (styling)
+squadreport_ui|test_narrow_padding|b-5|exact media-query string|none (styling)
+squadreport_ui|test_grids|b-5|exact CSS grid strings|none (styling)
+squadreport_ui|test_matrix_row_label_one_background_each|b-5|counts CSS declarations|none (styling)
+squadreport_ui|test_section_h2_16px|b-5|exact CSS string|none (styling)
+squadreport_ui|test_digest_card_rules_merged|b-5|counts a CSS selector|none (styling)
+squadreport_ui|test_escalation_singular_in_js|b-5|exact JS source string|none (wording)
+squadreport_ui|test_mock_values|b-5|exact CSS values|none (styling)
+squadreport_ui|test_no_dark_background|b-4|absence of a dark colour in CSS|none (styling)
+squadreport_ui|test_dev_label_short_with_title|b-5|exact JS source strings|none (wording)
+squadreport_ui|test_tasks_table_width_budget|b-5|exact CSS values|none (styling)
