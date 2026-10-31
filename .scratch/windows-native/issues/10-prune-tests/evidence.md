@@ -2,7 +2,7 @@
 
 ## Behaviour
 
-Tests only. No product code changed by this ticket's prune commits. Code sha: `4ef4275`.
+Tests only. No product code changed by this ticket's prune commits. Code sha: `53b47ef`.
 
 Phase 1 cut 100 tests from 22 files. Phase 2 cut 58 more: 53 from 18 files, then 5 after "06 final" (`test_squad_log_message` -4, `test_squad_usage_hook` -1). `tests/test_log_append_stress.py` was removed by PO order; its 2 stale-lock tests now live in `test_squad_log_message` and `test_squad_usage_hook`. Every cut has a row in `removed.tsv`: rule, reason, and the test that still covers it. Full list and the kept and held files: `prune-report.md` (copy in `$SCOPE_DIR/evidence/10/`).
 
