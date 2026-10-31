@@ -10,6 +10,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 BIN = ROOT / "bin"
 sys.path.insert(0, str(BIN))
+import inproc  # noqa: E402
 import squadteam as st  # noqa: E402
 
 RULE = "## {id} {title}\nroles: {roles}\n{when}topic: teams\n\n{body}\n"
@@ -22,10 +23,13 @@ RULES = [  # (id, roles, when, body)
 DESIGN_RULE = ("TEAM-6", "manager", "design = yes", "Manager: the Designer is on the team.")
 
 
-def run(*args, env=None):
+def run(*args, env=None, real=False):
+    """squad-team in this process; `real=True` starts the script as a process (the entry point and its exit code)."""
     e = {k: v for k, v in os.environ.items() if not k.startswith("SQUAD_") and k != "SCOPE_DIR"}
     e.update(env or {})
     e["PYTHONDONTWRITEBYTECODE"] = "1"
+    if not real:
+        return inproc.run("squad-team", args, env=e)
     return subprocess.run([sys.executable, str(BIN / "squad-team"), *args], capture_output=True, encoding="utf-8", env=e)
 
 
@@ -111,7 +115,7 @@ class RefusalTest(Base):
 
     def test_bad_usage(self):
         self.assertEqual(run("frob", "ba").returncode, 2)
-        self.assertEqual(run().returncode, 2)
+        self.assertEqual(run(real=True).returncode, 2)
 
     def test_hostile_team_value_in_scope_runs_nothing(self):
         for i, bad in enumerate(("qa-white; touch X", "$(touch X)", "`touch X`")):

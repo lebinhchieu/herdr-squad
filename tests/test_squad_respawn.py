@@ -8,26 +8,10 @@ import tempfile
 import unittest
 from pathlib import Path
 import winlaunch
+from squadtest import BIN, clean_env, fake_herdr, git
 
-BIN = Path(__file__).resolve().parent.parent / "bin"
 _DEV = json.loads((BIN.parent / "templates/squad/settings/dev.json").read_text(encoding="utf-8"))
 DEV = (_DEV["model"], _DEV["effortLevel"])
-FAKE_HERDR = """#!/usr/bin/env bash
-echo "$@" >> "$HERDR_LOG"
-case "$1 $2" in
-  "agent get")
-    if grep -q "^agent rename $3 " "$HERDR_LOG"; then echo '{"error":{"code":"agent_not_found"}}'; exit 1; fi
-    echo '{"result":{"agent":{"pane_id":"p-old"}}}' ;;
-  "tab create") echo '{"result":{"root_pane":{"pane_id":"p-new"},"tab":{"tab_id":"t-new"}}}' ;;
-esac
-exit 0
-"""
-
-
-def git(*args, cwd):
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True,
-                   env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                        "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
 
 
 class RespawnTest(unittest.TestCase):
@@ -43,10 +27,9 @@ class RespawnTest(unittest.TestCase):
             "| manager | Manager | all | x | live | |\n| dev-1 | Dev | settings | task 1 | live | old-sid |\n", encoding="utf-8")
         fake = self.root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (fake / "herdr").chmod(0o755)
+        fake_herdr(fake, "live")
         self.log = self.root / "herdr.log"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env = clean_env()
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log),
                         PATH=f"{fake}:{os.environ['PATH']}")
 
@@ -72,7 +55,7 @@ class RespawnTest(unittest.TestCase):
         log = self.log.read_text(encoding="utf-8").splitlines()
         self.assertIn(f"tab create --cwd {Path(wt).as_posix()} --label 🤖 Dev --no-focus", " ".join(log))
         self.assertTrue(any(re.fullmatch(r"agent rename dev-1 prev-\d+", l) for l in log))
-        self.assertEqual(log[-1], "pane close p-old")  # old pane goes last
+        self.assertEqual(log[-1], "pane close p-dev-1")  # old pane goes last
         start = next(l for l in log if l.startswith("agent start dev-1"))
         self.assertIn("--agent squad:dev", start)
         self.assertIn(f"--model {DEV[0]} --effort {DEV[1]}", start)  # from settings/dev.json
@@ -106,7 +89,7 @@ class RespawnTest(unittest.TestCase):
         self.assertIn(f"tab create --cwd {Path(self.root).as_posix()} --label 🦀 Manager", " ".join(log))
         self.assertIn("SQUAD_SCOPE=", " ".join(log))
         self.assertNotIn("SQUAD_SCOPE=old-sid", " ".join(log))  # an empty scope must not shift the columns
-        self.assertEqual(log[-1], "pane close p-old")
+        self.assertEqual(log[-1], "pane close p-manager-t")
         prompt = next(l for l in log if l.startswith("agent prompt"))
         self.assertIn("roles/manager-t.notes.md", prompt)
 

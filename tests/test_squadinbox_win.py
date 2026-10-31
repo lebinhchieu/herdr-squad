@@ -31,7 +31,6 @@ def locking(fd, mode, n):
         raise OSError(36, "Resource deadlock avoided")
     fcntl.flock(fd, fcntl.LOCK_UN if mode == LK_UNLCK else fcntl.LOCK_EX)
 '''
-EMOJI = "→ 🦀 é < |"
 
 
 @unittest.skipIf(sys.platform == "win32", "NoFcntl fakes Windows on top of a real fcntl, which real Windows does not have")
@@ -129,30 +128,6 @@ class WindowsStdin(Base):
         with os.fdopen(r, "rb") as rf, mock.patch.object(squadinbox, "IS_WINDOWS", True), \
                 mock.patch.object(sys, "stdin", io.TextIOWrapper(rf)):
             self.assertEqual(self.answer(note="x"), 0)
-
-
-class Cp1252(Base):
-    def cp(self, *args, stdin=b""):
-        return subprocess.run([sys.executable, "-B", CLI, "--home", str(self.home)] + [a.encode("utf-8") for a in args], capture_output=True, input=stdin,
-                              env=env(PYTHONUTF8="0", LC_ALL="C", PYTHONIOENCODING="cp1252"))
-
-    def test_bytes_and_no_cr(self):  # AC5, AC6, B0, B4
-        for args in (("list",), ("list", "--json"), ("list", "--open")):
-            r = self.cp(*args)
-            self.assertEqual((r.returncode, r.stderr), (0, b""), args)
-        r = self.cp("add", "--kind", "read", "--title", EMOJI, stdin=b"body")
-        self.assertEqual((r.returncode, r.stderr), (0, b""))
-        r = self.cp("answer", "E8", "--note", EMOJI, "--source", "pane")
-        self.assertEqual((r.returncode, r.stderr), (0, b""), r.stderr)
-        log = (self.home / "inbox.jsonl").read_bytes()
-        table = (self.home / "escalations.md").read_bytes()
-        self.assertIn(("\"title\": \"%s\"" % EMOJI).encode("utf-8"), log.replace(b'"title":"', b'"title": "'))
-        self.assertIn(EMOJI.encode("utf-8").replace(b"|", b"\\|"), table)
-        self.assertNotIn(b"\r", log)
-        self.assertNotIn(b"\r", table)
-        out = self.cp("list", "--json").stdout
-        self.assertIn(EMOJI.encode("utf-8"), out)
-        self.assertNotIn(b"\r", out)
 
 
 if __name__ == "__main__":

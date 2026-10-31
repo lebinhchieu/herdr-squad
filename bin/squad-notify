@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadio  # noqa: E402
 
 TIMEOUT = 3
+WINDOWS = os.name == "nt"
 SQUAD_STOP_ROLE = "manager"
 
 
@@ -55,6 +56,12 @@ def find_clients(proc_root="/proc"):
     return ttys
 
 
+def config_path(env):
+    if WINDOWS:
+        return os.path.join(env.get("APPDATA") or os.path.expanduser("~"), "herdr", "config.toml")
+    return os.path.expanduser("~/.config/herdr/config.toml")
+
+
 def clean(text):
     return re.sub(r"[\x00-\x1f\x7f-\x9f;]", "", text)
 
@@ -94,7 +101,7 @@ def run(payload, env, proc_root="/proc"):
     body = decide(event, payload.get("notification_type", ""), env, bool(payload.get("agent_id")))
     if not body:
         return
-    config = env.get("HERDR_CONFIG_PATH") or os.path.expanduser("~/.config/herdr/config.toml")
+    config = env.get("HERDR_CONFIG_PATH") or config_path(env)
     if not delivery_off(config):
         return
     ws = herdr(["workspace", "get", env.get("HERDR_WORKSPACE_ID", "")], env).get("workspace", {})
@@ -102,7 +109,10 @@ def run(payload, env, proc_root="/proc"):
         return
     tab = herdr(["tab", "get", env.get("HERDR_TAB_ID", "")], env).get("tab", {})
     title = f"{ws.get('label', '')} · {tab.get('label', '')}".strip(" ·") or "herdr"
-    if not os.path.isdir(proc_root):  # Windows: no /proc, so no client tty to toast; nothing to say
+    if WINDOWS:  # no ptys: herdr itself shows the toast (`herdr notification show`)
+        herdr(["notification", "show", title, "--body", body, "--sound", "none"], env)
+        return
+    if not os.path.isdir(proc_root):  # no /proc, so no client tty to toast
         return
     ttys = find_clients(proc_root)
     if not ttys:

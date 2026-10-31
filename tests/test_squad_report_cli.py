@@ -11,6 +11,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ROOT / "bin"))
+import inproc  # noqa: E402
 import squadreport_build as bd  # noqa: E402
 import squadreport_digest as dg  # noqa: E402
 from report_fixtures import Fixture, T0, asst, stamp, tasks_scope  # noqa: E402
@@ -29,7 +30,8 @@ DIGEST_KEYS = {"id", "kind", "weight", "text", "value", "unit", "target"}
 WAIT_KEYS = {"handin_at", "verdict_at", "verdict", "wait_s"}
 
 
-def run(fx, *args, extra=None, path=None):
+def run(fx, *args, extra=None, path=None, real=False):
+    """squad-report in this process; `real=True` starts the script as a process (the entry point and its exit code)."""
     env = {k: v for k, v in os.environ.items() if k not in AGENT_ENV}
     env.update(fx.env())
     env["SQUAD_DIR"] = str(fx.squad)
@@ -37,7 +39,10 @@ def run(fx, *args, extra=None, path=None):
     if path:
         env["PATH"] = path + os.pathsep + env["PATH"]
     env.update(extra or {})
-    return subprocess.run([sys.executable, "-B", CLI] + list(args), capture_output=True, env=env, timeout=60)
+    if real:
+        return subprocess.run([sys.executable, "-B", CLI] + list(args), capture_output=True, env=env, timeout=60)
+    r = inproc.run("squad-report", args, env=env)
+    return subprocess.CompletedProcess(r.args, r.returncode, r.stdout.encode("utf-8"), r.stderr.encode("utf-8"))
 
 
 def out(r):
@@ -54,7 +59,7 @@ class Base(unittest.TestCase):
 
 class Cli(Base):
     def test_output_summary_and_data_json(self):
-        r = run(self.fx, "sc", "--no-html")
+        r = run(self.fx, "sc", "--no-html", real=True)  # the one real process: entry point and exit code
         self.assertEqual(r.returncode, 0, r.stderr)
         lines = out(r).splitlines()
         self.assertEqual(len(lines), 6)

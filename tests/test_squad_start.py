@@ -8,19 +8,14 @@ import unittest
 from pathlib import Path
 
 import winlaunch
+from squadtest import BIN, ROOT, clean_env, fake_herdr, load_cli
 
-SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-start"
-FAKE_HERDR = """#!/usr/bin/env bash
-echo "$@" >> "$HERDR_LOG"
-if [[ "$1 $2" == "agent get" ]]; then echo '{"error":{"code":"agent_not_found"}}'; exit 1; fi
-[[ $1 == tab ]] && echo '{"result":{"root_pane":{"pane_id":"p1"},"tab":{"tab_id":"t1"}}}'
-exit 0
-"""
+SCRIPT = BIN / "squad-start"
 
 
 def run_child(cmd, env, timeout=30):
     """Run a child with UTF-8 bytes for argv and env: the parent may itself run under an ASCII locale."""
-    return winlaunch.run_child(cmd, env, encoding="utf-8", capture_output=True, timeout=timeout)
+    return winlaunch.run_script(cmd[0], cmd[1:], env, utf8=True, encoding="utf-8", capture_output=True, timeout=timeout)
 
 
 class StartTest(unittest.TestCase):
@@ -33,10 +28,9 @@ class StartTest(unittest.TestCase):
         (self.squad / "process.md").write_text("x", encoding="utf-8")
         fake = self.root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (fake / "herdr").chmod(0o755)
+        fake_herdr(fake)
         self.log = self.root / "herdr.log"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env = clean_env()
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log), PATH=f"{fake}:{os.environ['PATH']}")
 
     def tearDown(self):
@@ -282,8 +276,9 @@ class WorkspaceRenameTest(unittest.TestCase):
         return [l for l in self.herdr().splitlines() if l.startswith("workspace rename")]
 
     def fake(self, extra):
-        f = Path(self.tmp.name) / "fakebin" / "herdr"
-        f.write_text(FAKE_HERDR.replace("exit 0\n", "") + extra + "\nexit 0\n", encoding="utf-8")
+        f = fake_herdr(Path(self.tmp.name) / "fakebin")
+        head, _ = f.read_text(encoding="utf-8").rsplit("exit 0\n", 1)  # the script's final line
+        f.write_text(head + extra + "\nexit 0\n", encoding="utf-8", newline="\n")
 
     def test_a_lone_scope_names_the_workspace_after_the_scope(self):
         self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a").returncode, 0)
@@ -347,9 +342,6 @@ class WorkspaceRenameTest(unittest.TestCase):
         self.assertEqual(self.renames(), [])
 
 
-ROOT = SCRIPT.parent.parent
-
-
 class LegacyStartTest(unittest.TestCase):
     """A squad with only a process.md starts without any process-version message, and the JSON has no `process_update`."""
 
@@ -375,8 +367,7 @@ class LegacyStartTest(unittest.TestCase):
 
 
 def load_squad_start():
-    from importlib.machinery import SourceFileLoader
-    return SourceFileLoader("squad_start_mod", str(SCRIPT)).load_module()
+    return load_cli("squad-start")
 
 
 class PickBashTest(unittest.TestCase):

@@ -21,6 +21,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+sys.dont_write_bytecode = True  # else this process writes bin/__pycache__/squadio.pyc and test_squadinbox.test_no_pyc fails
 import squadio  # noqa: E402
 
 try:

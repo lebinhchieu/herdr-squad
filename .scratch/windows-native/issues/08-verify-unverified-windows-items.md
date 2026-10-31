@@ -1,6 +1,6 @@
 # 08: Check the unverified Windows items
 
-Status: needs-info
+Status: done
 Type: research
 Blocked by: 01
 Source: findings.md W8 to W11
@@ -17,3 +17,4 @@ Each item below was seen or suspected but not proven. Answer each with evidence,
 - [ ] One line per item in `findings.md`: confirmed (with ticket) or cleared (with evidence).
 
 ## Comments
+- 14-final: done; merged at 2907e1a (evidence in 08-verify-unverified-windows-items/evidence.md).

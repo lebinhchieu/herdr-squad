@@ -9,22 +9,13 @@ import unittest
 from pathlib import Path
 
 import winlaunch
+from squadtest import BIN, ROOT, clean_env, fake_herdr
 
-SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "squad-spawn"
-BIN_DIR = SCRIPT.parent
-SETTINGS = SCRIPT.parent.parent / "templates" / "squad" / "settings"
+SCRIPT = BIN / "squad-spawn"
+SETTINGS = ROOT / "templates" / "squad" / "settings"
 TABLE = {p.stem: (json.loads(p.read_text(encoding="utf-8"))["model"], json.loads(p.read_text(encoding="utf-8"))["effortLevel"])
          for p in sorted(SETTINGS.glob("*.json"))}
 UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-FAKE_HERDR = """#!/usr/bin/env bash
-echo "$@" >> "$HERDR_LOG"
-if [[ "$1 $2" == "agent get" ]]; then
-  [[ " ${LIVE:-} " == *" $3 "* ]] && { echo '{"result":{"agent":{"tab_id":"t0"}}}'; exit 0; }
-  echo '{"error":{"code":"agent_not_found"}}'; exit 1
-fi
-[[ $1 == tab ]] && echo '{"result":{"root_pane":{"pane_id":"p1"},"tab":{"tab_id":"t1"}}}'
-exit 0
-"""
 
 
 class SpawnDryRunTest(unittest.TestCase):
@@ -34,7 +25,7 @@ class SpawnDryRunTest(unittest.TestCase):
         self.squad.mkdir(parents=True)
         (self.squad / "process.md").write_text("x", encoding="utf-8")
         (self.squad / "scope.md").write_text("team: none\n", encoding="utf-8")  # a decided team: a non-Manager compose of an undecided home exits 2
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env = clean_env()
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
 
     def tearDown(self):
@@ -129,8 +120,7 @@ class SpawnDryRunTest(unittest.TestCase):
     def test_spawn_records_the_same_session_id_in_roster(self):
         bin_dir = Path(self.tmp.name) / "bin"
         bin_dir.mkdir()
-        (bin_dir / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (bin_dir / "herdr").chmod(0o755)
+        fake_herdr(bin_dir)
         log = Path(self.tmp.name) / "herdr.log"
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(log))
         (self.squad / "roster.md").write_text(
@@ -145,8 +135,7 @@ class SpawnDryRunTest(unittest.TestCase):
     def _fake_herdr(self, live):
         bin_dir = Path(self.tmp.name) / "bin"
         bin_dir.mkdir(exist_ok=True)
-        (bin_dir / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (bin_dir / "herdr").chmod(0o755)
+        fake_herdr(bin_dir)
         self.log = Path(self.tmp.name) / "herdr.log"
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(self.log), LIVE=live)
         (self.squad / "roster.md").write_text(
@@ -306,7 +295,8 @@ class SpawnDryRunTest(unittest.TestCase):
     def test_a_failed_agent_start_leaves_the_old_overrides_file(self):
         self.assertEqual(self._real_spawn("--effort", "low").returncode, 0)
         herdr = Path(self.tmp.name) / "bin" / "herdr"
-        herdr.write_text(FAKE_HERDR.replace("exit 0\n", '[[ "$1 $2" == "agent start" ]] && exit 1\nexit 0\n'), encoding="utf-8")
+        head, tail = herdr.read_text(encoding="utf-8").rsplit("exit 0\n", 1)  # the script's final line
+        herdr.write_text(head + '[[ "$1 $2" == "agent start" ]] && exit 1\nexit 0\n' + tail, encoding="utf-8", newline="\n")
         r = winlaunch.run_script(SCRIPT, ["dev", "dev-1", "--scope", "s", "--effort", "high"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertNotEqual(r.returncode, 0)
@@ -349,7 +339,7 @@ class SpawnScopedTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         self.squad = scoped_squad(self.root)
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env = clean_env()
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
 
     def tearDown(self):
@@ -411,8 +401,7 @@ class SpawnScopedTest(unittest.TestCase):
         g("checkout", "-q", "main")
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
-        (bin_dir / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (bin_dir / "herdr").chmod(0o755)
+        fake_herdr(bin_dir)
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(self.root / "h.log"))
         r = winlaunch.run_script(SCRIPT, ["dev", "t-dev-sc1-2", "--scope", "sc1", "--repo", str(repo), "--base", "passed"],
                            env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
@@ -461,8 +450,7 @@ class SpawnScopedTest(unittest.TestCase):
         g("checkout", "-q", "main")
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
-        (bin_dir / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (bin_dir / "herdr").chmod(0o755)
+        fake_herdr(bin_dir)
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(self.root / "h.log"))
         run = lambda base: winlaunch.run_script(SCRIPT, ["dev", "t-dev-sc1-2", "--scope", "sc1", "--repo", str(repo), "--base", base],
                                           env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
@@ -506,26 +494,13 @@ class SpawnScopedTest(unittest.TestCase):
     def test_real_spawn_writes_the_roster_row_in_the_scope_folder(self):
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
-        (bin_dir / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (bin_dir / "herdr").chmod(0o755)
+        fake_herdr(bin_dir)
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(self.root / "h.log"))
         r = winlaunch.run_script(SCRIPT, ["tech-lead", "t-tech-sc1", "--scope", "sc1"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("| t-tech-sc1 | tech-lead | sc1 |", (self.squad / "scopes" / "sc1" / "roster.md").read_text(encoding="utf-8"))
         self.assertNotIn("t-tech-sc1", (self.squad / "scopes" / "sc2" / "roster.md").read_text(encoding="utf-8"))
-
-
-LABEL_HERDR = """#!/usr/bin/env bash
-echo "$@" >> "$HERDR_LOG"
-case "$1 $2" in
-  "agent get") [[ " ${LIVE:-} " == *" $3 "* ]] && { echo '{"result":{"agent":{"tab_id":"t-'$3'"}}}'; exit 0; }
-               echo '{"error":{"code":"agent_not_found"}}'; exit 1 ;;
-  "agent list") jq -nc --arg l "${LIVE:-}" '{result:{agents:($l|split(" ")|map(select(.!=""))|map({name:.}))}}' ;;
-  "tab create") echo '{"result":{"root_pane":{"pane_id":"p1"},"tab":{"tab_id":"t-new"}}}' ;;
-esac
-exit 0
-"""
 
 
 class SpawnLabelTest(unittest.TestCase):
@@ -537,10 +512,9 @@ class SpawnLabelTest(unittest.TestCase):
         self.squad = scoped_squad(self.root)
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
-        (bin_dir / "herdr").write_text(LABEL_HERDR, encoding="utf-8")
-        (bin_dir / "herdr").chmod(0o755)
+        fake_herdr(bin_dir)
         self.log = self.root / "herdr.log"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env = clean_env()
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log),
                         PATH=f"{bin_dir}:{os.environ['PATH']}")
 
@@ -592,7 +566,7 @@ class SpawnLabelTest(unittest.TestCase):
         self.env["LIVE"] = "t-dev-sc1-1"
         self.env["LC_ALL"] = "C.UTF-8"  # emoji argv to `herdr tab rename` needs a UTF-8 fs encoding (always so on Windows)
         self.spawn("dev", "t-dev-sc1-2")
-        self.assertIn("tab rename t-t-dev-sc1-1 🤖 Dev 1", self.log.read_text(encoding="utf-8"))
+        self.assertIn("tab rename tab-t-dev-sc1-1 🤖 Dev 1", self.log.read_text(encoding="utf-8"))
         self.assertIn("--label 🤖 Dev 2 --no-focus", self.calls("tab create")[1])
 
     def test_the_label_never_holds_the_squad_or_scope_name(self):
@@ -606,9 +580,9 @@ class SpawnLabelTest(unittest.TestCase):
 
     def test_a_failing_squad_label_still_starts_the_agent_with_the_name_and_a_warning(self):
         stub = self.root / "plugin"
-        shutil.copytree(BIN_DIR, stub / "bin", ignore=shutil.ignore_patterns("__pycache__"))  # copies: squad-spawn finds its plugin via the real path
-        os.symlink(BIN_DIR.parent / "agents", stub / "agents")
-        os.symlink(BIN_DIR.parent / "templates", stub / "templates")
+        shutil.copytree(BIN, stub / "bin", ignore=shutil.ignore_patterns("__pycache__"))  # copies: squad-spawn finds its plugin via the real path
+        os.symlink(ROOT / "agents", stub / "agents")
+        os.symlink(ROOT / "templates", stub / "templates")
         (stub / "bin" / "squad-label").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
         (stub / "bin" / "squad-label").chmod(0o755)
         r = winlaunch.run_script(stub / "bin" / "squad-spawn", ["ba", "t-ba-sc1", "--scope", "sc1"], env=self.env,
@@ -631,7 +605,7 @@ class SpawnLegacyPromptTest(unittest.TestCase):
 
     def spawn(self, squad_text, role="manager", name="t-mgr-sc1", *args):
         (self.squad / "process.md").write_text(squad_text, encoding="utf-8")
-        r = winlaunch.run_script(BIN_DIR / "squad-spawn", [role, name, "--scope", "sc1", *args], env=self.env,
+        r = winlaunch.run_script(BIN / "squad-spawn", [role, name, "--scope", "sc1", *args], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         return r, (self.calls("agent prompt") or [""])[0]
@@ -652,10 +626,9 @@ class _GateBase(unittest.TestCase):
         self.scope_md = self.scope / "scope.md"
         fake = self.root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8")
-        (fake / "herdr").chmod(0o755)
+        fake_herdr(fake)
         self.log = self.root / "herdr.log"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env = clean_env()
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log),
                         PATH=f"{fake}:{os.environ['PATH']}")
 
@@ -731,7 +704,7 @@ class SpawnTeamGateTest(_GateBase):
     def test_the_size_only_home_is_refused_by_the_team_cli_and_by_the_spawn(self):
         """C2: the D1 scaffold is not reachable through `squad-process team` nor `squad-spawn`."""
         self.set_scope("# Scope\n\nsize: L\n")
-        t = winlaunch.run_script(BIN_DIR / "squad-process", ["team", "--home", str(self.scope)], text=True,
+        t = winlaunch.run_script(BIN / "squad-process", ["team", "--home", str(self.scope)], text=True,
                            encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(t.returncode, 2)
         self.assertIn("one `team:` line", t.stderr)
@@ -945,8 +918,8 @@ class SpawnRuntimePathEnvTest(unittest.TestCase):
         self.squad = scoped_squad(self.root)
         (self.squad / "process.local.md").write_text("", encoding="utf-8")  # composed
         self.plugin = self.root / "plugin"  # a copy of bin/ whose squad-process is a stub: the runtime is ours
-        shutil.copytree(BIN_DIR, self.plugin / "bin", ignore=shutil.ignore_patterns("__pycache__"))
-        shutil.copytree(BIN_DIR.parent / "templates", self.plugin / "templates")
+        shutil.copytree(BIN, self.plugin / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(ROOT / "templates", self.plugin / "templates")
         stub = self.plugin / "bin" / "squad-process"
         stub.write_text('#!/usr/bin/env bash\ncase $1 in\n  runtime) printf "%s\\n" "$STUB_RUNTIME" ;;\n'
                         '  compose) while [[ $# -gt 0 ]]; do [[ $1 == --out ]] && : > "$2"; shift; done ;;\n'
@@ -956,7 +929,7 @@ class SpawnRuntimePathEnvTest(unittest.TestCase):
         self.fake.mkdir()
         self.write_exe("herdr", PATH_HERDR)
         self.argv, self.caller = self.root / "argv.txt", self.root / "caller_path.txt"
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env = clean_env()
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_ARGV=str(self.argv),
                         HERDR_CALLER_PATH=str(self.caller), PATH=f"{self.fake}:{os.environ['PATH']}")
 

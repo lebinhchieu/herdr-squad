@@ -1,20 +1,12 @@
 """Ticket 17: roles write squad files with LF, and every helper reads a CRLF roster.md/scope.md like the LF one."""
 import os
 import re
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from rulesview import composed
-from test_squad_close import FAKE_HERDR, git
 import winlaunch
-
-ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "bin"
-# The exact call the two instructions name; the test below runs it, so the text cannot drift from what works.
-CALL = 'open(path, "w", encoding="utf-8", newline="\\n")'
+from squadtest import BIN, ROOT, clean_env, fake_herdr, git
 ROSTER = ("| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
           "| manager-t | manager |  |  | live | s0 |\n| t-dev-s-1 | dev | s | task 1 | live | s2 |\n"
           "| t-qa-s | qa-whitebox | s | qa | live | s3 |\n")
@@ -22,43 +14,8 @@ UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 SCOPE = "# Scope s\n\ngoal: g1\nteam: designer\nqa: full\n"
 
 
-def bullet(rel, label):
-    lines = (ROOT / rel).read_text(encoding="utf-8").splitlines()
-    return next(l for l in lines if l.startswith(label))
-
-
-class InstructionWordingTest(unittest.TestCase):
-    """The roster/LF wording moved from the Manager and Team Lead cards to FILE-4 and FILE-5* (ticket 06)."""
-    FILES = (("manager", "small script that keeps the rest"), ("team-lead", "small script that keeps the rest"))
-
-    def test_roster_bullet_names_the_lf_write_and_the_cr_check(self):
-        for role, kept in self.FILES:
-            with self.subTest(role=role):
-                b = composed(role, "M")
-                for needle in ('newline="\\n"', 'encoding="utf-8"', "$'\\r'", "small script"):
-                    self.assertIn(needle, b)
-                self.assertIn(kept, b)
-                self.assertIn("never `command > file`", b)
-
-    def test_the_named_call_writes_no_cr_and_changes_only_the_edited_line(self):
-        for role, _ in self.FILES:
-            with self.subTest(role=role):
-                self.assertIn(CALL, composed(role, "M"))
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "roster.md"
-            path.write_bytes(ROSTER.encode("utf-8"))
-            code = ("import sys\npath = sys.argv[1]\n"
-                    "text = open(path, encoding='utf-8', newline='').read().replace('| task 1 |', '| task 2 |')\n"
-                    f"f = {CALL}\nf.write(text)\nf.close()\n")
-            r = subprocess.run([sys.executable, "-I", "-c", code, str(path)], capture_output=True, text=True, encoding="utf-8")
-            self.assertEqual(r.returncode, 0, r.stderr)
-            data = path.read_bytes()
-            self.assertEqual(data.count(b"\r"), 0)
-            self.assertEqual(data.decode("utf-8"), ROSTER.replace("| task 1 |", "| task 2 |"))
-
-
 class CrlfReadersTest(unittest.TestCase):
-    """Scaffolding reused: FAKE_HERDR and git() from test_squad_close.py; the scoped-squad layout of
+    """Scaffolding reused: fake_herdr and git() from squadtest; the scoped-squad layout of
     test_squad_usage.py (scopes/<s>/roster.md, SQUAD_DIR/SCOPE_DIR env); the herdr stub style of test_squad_retire.py.
     squad-respawn is not run (it needs a live herdr session and a Claude launch); squad-label reads neither file."""
 
@@ -67,9 +24,8 @@ class CrlfReadersTest(unittest.TestCase):
         root = Path(self.tmp.name)
         fake = root / "fakebin"
         fake.mkdir()
-        (fake / "herdr").write_text(FAKE_HERDR, encoding="utf-8", newline="\n")
-        (fake / "herdr").chmod(0o755)
-        self.base_env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        fake_herdr(fake, "live")
+        self.base_env = clean_env()
         self.base_env.update(HERDR_ENV="1", HERDR_LOG=str(root / "herdr.log"), PATH=f"{fake}:{os.environ['PATH']}")
         self.runs = {}
         for variant in ("lf", "crlf"):

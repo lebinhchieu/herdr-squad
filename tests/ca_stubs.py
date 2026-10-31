@@ -20,13 +20,11 @@ import winlaunch
 
 SRC = Path(__file__).resolve().parent.parent / "tools" / "claude-accounts"
 FIX = Path(__file__).resolve().parent / "fixtures" / "ca"
-BASH = "bash"
 
 
 def bash_argv(*words):
     """argv for running bash itself: the bare name on POSIX, Git for Windows' bash by absolute path on nt."""
-    prefix = winlaunch._resolve("#!/bin/bash", winlaunch.NT, shutil.which, os.path.exists, os.environ.get("SystemRoot", ""))
-    return [*(prefix or [BASH]), *words]
+    return [winlaunch.bash(), *words]
 
 
 PANE = "w26:p7"  # the pane of the real pane-get / agent-list captures

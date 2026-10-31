@@ -1,8 +1,6 @@
 """T2b: the helper CLIs under a simulated Windows locale (PYTHONUTF8=0 LC_ALL=C PYTHONIOENCODING=cp1252).
 
 Bytes are compared, never read back through the same code (design.md, test method)."""
-import importlib.machinery
-import importlib.util
 import json
 import os
 import shutil
@@ -12,9 +10,9 @@ import sys
 import unittest
 from pathlib import Path
 
-BIN = Path(__file__).resolve().parent.parent / "bin"
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import winlaunch  # noqa: E402
+import winlaunch
+from squadtest import BIN, clean_env, load_cli
+from test_squadinbox import Base as InboxBase, CLI as INBOX_CLI, env as inbox_env
 WIN = {"PYTHONUTF8": "0", "LC_ALL": "C", "PYTHONIOENCODING": "cp1252"}
 ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "dev", "designer", "token-coach")
 # The tab label has the byte 0x90 (U+1F980 is f0 9f a6 80; "🦀 Manager" is the label QA blackbox measured).
@@ -33,15 +31,7 @@ exit 0
 
 def run(cmd, env, stdin=None, timeout=30):
     """Child with UTF-8 bytes for argv/env; stdout/stderr come back as bytes."""
-    return winlaunch.run_child(cmd, env, input=stdin, capture_output=True, timeout=timeout)
-
-
-def load(name):
-    loader = importlib.machinery.SourceFileLoader(name.replace("-", "_"), str(BIN / name))
-    spec = importlib.util.spec_from_loader(loader.name, loader)
-    mod = importlib.util.module_from_spec(spec)
-    loader.exec_module(mod)
-    return mod
+    return winlaunch.run_script(cmd[0], cmd[1:], env, utf8=True, input=stdin, capture_output=True, timeout=timeout)
 
 
 class Base(unittest.TestCase):
@@ -63,7 +53,7 @@ class Base(unittest.TestCase):
         self.log = self.root / "herdr.log"
         self.home = self.root / "home"
         self.home.mkdir()
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR", "HERDR"))}
+        self.env = clean_env()
         self.env.update(WIN, HERDR_ENV="1", PYTHONDONTWRITEBYTECODE="1", HERDR_LOG=str(self.log), HOME=str(self.home), SQUAD_DIR=str(self.squad),
                         SCOPE_DIR=str(self.scope), PATH=f"{fake}{os.pathsep}{os.environ['PATH']}")
 
@@ -152,7 +142,7 @@ class UsageTest(Base):
 class NotifyTest(Base):
     @unittest.skipIf(os.name == "nt", "squad-notify launches the fake herdr (extensionless bash script, WinError 193); ADR 0011 pty / ticket 12")
     def test_a_missing_proc_prints_nothing_and_raises_nothing(self):
-        sn = load("squad-notify")
+        sn = load_cli("squad-notify")
         cfg = self.root / "config.toml"
         cfg.write_text('[ui.toast]\ndelivery = "off"\n', encoding="utf-8")
         env = {"HERDR_ENV": "1", "HERDR_CONFIG_PATH": str(cfg), "HERDR_BIN_PATH": str(self.root / "fakebin" / "herdr")}
@@ -201,9 +191,67 @@ class JqTest(Base):
         self.assertFalse((self.scope / "messages.jsonl").exists())
 
 
-class CloseTest(unittest.TestCase):
-    def test_the_inline_python_runs_in_utf8_mode(self):
-        self.assertIn("python3 -X utf8 -c '", (BIN / "squad-close").read_text(encoding="utf-8"))
+class ProcessWinTest(unittest.TestCase):
+    """squad-process, processlint and squadlabel under the simulated Windows locale (moved from test_win_utf8_process)."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.env = clean_env(PYTHONDONTWRITEBYTECODE="1", **WIN)
+
+    def py(self, *cmd):
+        return run([sys.executable, *cmd], self.env)
+
+    def test_composed_rule_and_who_print_lf_utf8(self):
+        for cmd in (("rule", "CORE-1"), ("who", "CORE-1")):
+            r = self.py(BIN / "squad-process", *cmd)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertNotIn(b"\r", r.stdout)
+            self.assertNotIn(b"Traceback", r.stderr)
+            r.stdout.decode("utf-8")
+
+    def test_processlint_exit_0_on_non_ascii(self):
+        f = Path(self.tmp.name) / "p.md"
+        f.write_bytes(("# T\n\n## A\n- Send the file → 🦀 é.\n").encode("utf-8"))
+        r = self.py(BIN / "processlint.py", f)
+        self.assertNotIn(b"Traceback", r.stderr)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_label_round_trip_bytes(self):
+        code = ("import sys; sys.path.insert(0, sys.argv[1]); import squadlabel as sl; "
+                "sl.write_entry(sys.argv[2], 'a', 'manager', None, '\\U0001F980 Manager'); "
+                "e = sl.read_entry(sys.argv[2], 'a'); sys.stdout.buffer.write(e['title'].encode('utf-8'))")
+        r = self.py("-c", code, BIN, self.tmp.name)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout, "🦀 Manager".encode("utf-8"))
+        raw = (Path(self.tmp.name) / "labels" / "a.json").read_bytes()
+        self.assertIn("🦀 Manager".encode("utf-8"), raw)
+        self.assertNotIn(b"\r", raw)
+
+
+class InboxCp1252Test(InboxBase):
+    EMOJI = "→ 🦀 é < |"
+
+    def cp(self, *args, stdin=b""):
+        return subprocess.run([sys.executable, "-B", INBOX_CLI, "--home", str(self.home)] + [a.encode("utf-8") for a in args], capture_output=True, input=stdin,
+                              env=inbox_env(**WIN))
+
+    def test_bytes_and_no_cr(self):  # AC5, AC6, B0, B4
+        for args in (("list",), ("list", "--json"), ("list", "--open")):
+            r = self.cp(*args)
+            self.assertEqual((r.returncode, r.stderr), (0, b""), args)
+        r = self.cp("add", "--kind", "read", "--title", self.EMOJI, stdin=b"body")
+        self.assertEqual((r.returncode, r.stderr), (0, b""))
+        r = self.cp("answer", "E8", "--note", self.EMOJI, "--source", "pane")
+        self.assertEqual((r.returncode, r.stderr), (0, b""), r.stderr)
+        log = (self.home / "inbox.jsonl").read_bytes()
+        table = (self.home / "escalations.md").read_bytes()
+        self.assertIn(("\"title\": \"%s\"" % self.EMOJI).encode("utf-8"), log.replace(b'"title":"', b'"title": "'))
+        self.assertIn(self.EMOJI.encode("utf-8").replace(b"|", b"\\|"), table)
+        self.assertNotIn(b"\r", log)
+        self.assertNotIn(b"\r", table)
+        out = self.cp("list", "--json").stdout
+        self.assertIn(self.EMOJI.encode("utf-8"), out)
+        self.assertNotIn(b"\r", out)
 
 
 if __name__ == "__main__":
