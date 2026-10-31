@@ -22,3 +22,11 @@ Windows `python -m unittest <stem>` (cd tests), launch errors (WinError 193 / by
 - TESTS_TO_CONVERT: only test_utf8_helpers.py left (03b-1's). test_no_bare_bash, test_winlaunch, test_processlint OK.
 - Linux not runnable here; POSIX path of winlaunch is identity ([path,*args], env untouched), no skips added.
 - Linux (Debian, Tech Lead run at 6b476d0): 19 owned files incl. test_ca_* and test_run_suite, same counts as 40d64af, all OK.
+
+## 03c triage (Windows, `cd tests && python -m unittest <stem>`)
+
+- Fixed (test bugs): `test_templates` (`relative_to` -> `as_posix`), `test_squad_evidence` orphan regex accepts `\`, `test_squad_path_guard` (ROOT substituted into JSON unescaped), `test_squadinbox_answer.test_stdin_meaning` (stdin+`--note/--text` refusal asserted only off nt: `squadinbox.stdin_text` skips select() on Windows by design).
+- nt-only skips, cause named: `test_squad_notify` DeliveryTest/RunTest (ADR 0011, os.openpty, /proc fds), `test_ca_install` InstallTest (install.sh uses ln -s and MSYS paths; ADR 0011), `test_inbox_guide_cmd` symlink test (WinError 1314), `test_squadreport_ui.test_empty_kpis` (needs Chrome like its sibling classes; no-op where Chrome exists).
+- Already OK after 03b: `test_old_language_inventory`, `test_po_inbox_mod`, `test_promotion_0_6_0`, `test_windows_safe`.
+- New tickets: 09 (`test_ca_win` POSIX/WSL guard), 10 (`winlaunch` import writes `bin/__pycache__`, breaks `test_squadinbox.test_no_pyc` after other tests; Tech Lead owns winlaunch). `squadinbox` D3 known-not-fixed (ADR 0011).
+- Linux: no skips added where the condition is Linux (all `os.name == "nt"`; the Chrome skip only where Chrome is missing).

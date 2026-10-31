@@ -320,6 +320,7 @@ class ReturnOneFixes(unittest.TestCase):
         self.assertIn("roleOf(name)", JS)
         self.assertIn("name.length > mc ? shortLane(name, mc) : name", JS)
 
+    @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser DOM test skipped")
     def test_empty_kpis(self):
         d = fxs.base()
         d["sources"]["transcripts"] = 0

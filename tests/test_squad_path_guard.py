@@ -167,7 +167,7 @@ class CliTest(unittest.TestCase):
             env["SQUAD_ROLE"] = role
             if with_dir:
                 env["SQUAD_DIR"] = str(root / ".claude" / "squads" / "t")
-            data = stdin.replace("ROOT", str(root)) if isinstance(stdin, str) else json.dumps(stdin).replace("ROOT", str(root))
+            data = stdin.replace("ROOT", str(root)) if isinstance(stdin, str) else json.dumps(stdin).replace("ROOT", json.dumps(str(root))[1:-1])
             return subprocess.run([sys.executable, str(BIN / "squad-path-guard")], input=data, env=env,
                                   text=True, encoding="utf-8", capture_output=True, timeout=20)
 
