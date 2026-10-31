@@ -1,0 +1,104 @@
+test_squadrules::test_overlay_spec_example_with_blank_line_before_body	b-1	same overlay parse as the kept overlay test	test_squadrules::test_two_topic_files_and_overlay
+test_squadrules::test_load_rules_reports_what_compose_must_refuse	b-1	duplicate ID and unknown when key are each linted by a kept lint-class test	test_squadrules::test_duplicate_id; test_unknown_when_key_and_value
+test_squadrules::test_rule_hash_of_a_crlf_file_equals_lf	b-1	CRLF hash equality shown twice more	test_squadrules::test_stable_across_crlf_bom_and_trailing_spaces; test_crlf_and_bom_parse_the_same
+test_squadrules::test_old_when_keys_are_rejected_naming_the_new_key	b-4	old size/qa-b language is refused by lint and by compose	test_squadrules::test_old_when_keys_are_a_lint_error_naming_rule_and_new_key; test_squadcompose::test_read_home_of_a_size_home_raises_and_derives_nothing
+test_squadrules::test_architecture_is_a_key	b-1	same matches() path as the truth table	test_squadrules::test_truth_table
+test_squadrules::test_architect_is_a_known_role	b-3	asserts a constant	test_squadrules::test_unknown_role
+test_squadrules::test_unknown_key_or_value_raises	b-1	same refusal is linted by two kept tests	test_squadrules::test_unknown_when_key_and_value; test_team_duties::test_value_outside_the_key_set_fails
+test_squadrules::test_missing_fact_keys	b-3	one-line helper; its effect (the [if ...] tag) is checked at compose	test_squadcompose::test_golden_goal_manager_if_tags_and_index
+test_squadrules::test_two_role_or_duty_keys_in_one_when_are_a_lint_error	b-1	same lint as the next test	test_squadrules::test_two_duty_keys_in_one_when_name_the_rule
+test_squadrules::test_architecture_when_is_valid_and_bad_value_refused	b-1	valid when + bad value are kept in the unknown-value test	test_squadrules::test_unknown_when_key_and_value
+test_squadrules::test_architect_role_in_roles_line_is_valid	b-3	one role name in the known-role list	test_squadrules::test_unknown_role
+test_squadrules::test_writing_rule_line_is_the_file_line	b-5	exact hedge message text; the hedge check is processlint	test_processlint (hedge); test_squadrules::test_body_over_60_words_per_bullet (file:line shape)
+test_squadrules::test_changelog_is_not_scanned	b-4	asserts something is absent	test_squadrules::test_pointer_to_a_missing_rule
+test_squadrules::test_cards_default_is_error	b-5	greps the argparse default text of the CLI source	test_squadrules::test_template_rule_files_lint_clean
+test_squadrules::test_clean_fixture_exit_0_prints_nothing	b-1	CLI run of what the in-process test lints	test_squadrules::test_clean_fixture_lints_clean
+test_squadrules::test_errors_fixture_prints_every_class_as_file_line_problem	b-2/b-5	golden of 21 exact messages with line numbers; every class has its own test	the LintClassTest tests (one per class)
+test_squadrules::test_hash_of_one_edited_line_crlf_vs_lf	b-1	3 CLI launches for CRLF equality; edit-changes-hash shown elsewhere	test_squadrules::test_stable_across_crlf_bom_and_trailing_spaces; test_changes_with_a_word_or_an_attribute_or_their_order
+test_squadrules::test_compose_by_role_without_home_exits_2	b-3	argparse usage error	test_squadrules::test_routing
+test_squadcompose::test_golden_dev_replaced_added_aware	b-2	second full-file golden; the manager-goal golden covers the same path	test_squadcompose::test_golden_goal_manager_if_tags_and_index (fixture dev-M-design.rules.md deleted)
+test_squadcompose::test_file_ends_with_exactly_one_newline	b-1	the kept golden compares the whole text	test_squadcompose::test_golden_goal_manager_if_tags_and_index
+test_squadcompose::test_every_stale_op_is_listed_one_line_each	b-1	same stale path as the first stale test	test_squadcompose::test_stale_replace_exits_2_names_both_hashes_and_writes_nothing
+test_squadcompose::test_replace_of_missing_id_exits_2_naming_it	b-1	same refusal as remove of a missing ID	test_squadcompose::test_remove_of_missing_id_exits_2_naming_it
+test_squadcompose::test_add_of_existing_id_exits_2_naming_it	b-1	same refusal path	test_squadcompose::test_remove_of_missing_id_exits_2_naming_it; test_squadrules::test_add_with_hash_or_non_sq_id_or_missing_hash
+test_squadcompose::test_template_folder_missing_exits_2	b-1	same exit as the no-rule-files test	test_squadcompose::test_plugin_without_rule_files_exits_2_not_a_traceback
+test_squadcompose::test_repeat_runs_are_byte_identical	b-1	the CRLF test composes twice and compares bytes	test_squadcompose::test_crlf_inputs_give_the_same_bytes
+test_squadcompose::test_matrix_role_size_design	b-2	13 role/size/design cases of fixture IDs; one case shows the selection path	test_squadcompose::test_size_variant_absent_at_m_and_design_rule_absent_without_design; test_goal_manager_gets_both_variants
+test_squadcompose::test_goal_manager_titles_carry_if_tags_only_for_missing_facts	b-5	exact title text	test_squadcompose::test_golden_goal_manager_if_tags_and_index
+test_squadcompose::test_scope_with_goal_line_has_goal_yes_and_header_facts	b-5	exact header text	test_squadcompose::test_golden_goal_manager_if_tags_and_index
+test_squadcompose::test_header_of_goal_manager_prints_undecided_team_defaults_and_goal_name	b-5	exact header text	test_squadcompose::test_golden_goal_manager_if_tags_and_index
+test_squadcompose::test_architecture_header_shown_when_yes_and_absent_line_header_unchanged	b-5	exact header text	test_squadcompose::test_when_architecture_rule_kept_only_when_fact_matches
+test_squadcompose::test_invalid_architecture_value_exits_2_naming_the_line	b-1	same old-line refusal as the design test	test_squadcompose::test_invalid_design_value_exits_2_naming_the_line; test_old_line_beside_team_is_an_error_naming_each_line
+test_squadcompose::test_unknown_role_exits_2	b-3	role-name refusal	test_squadcompose::test_compose_of_a_size_home_exits_2_for_every_role
+test_squadcompose::test_index_line_shape_and_order	b-5	exact index lines; the golden holds the index	test_squadcompose::test_golden_goal_manager_if_tags_and_index; test_index_only_for_manager_and_tech_lead
+test_squadcompose::test_no_tags_without_overlay	b-4	asserts something is absent	test_squadcompose::test_source_tags_exactly_on_overlay_touched_rules
+test_squadcompose::test_header_without_overlay_file_is_zero_ops	b-5	exact header text	test_squadcompose::test_header_counts_every_overlay_op_whatever_the_role
+test_squadcompose::test_rule_of_a_plugin_rule_has_no_tag_and_no_role_tags	b-5	exact heading text	test_squadcompose::test_rule_prints_the_effective_rule_with_its_tag
+test_squadcompose::test_rule_of_an_added_rule	b-5	exact heading text	test_squadcompose::test_rule_prints_the_effective_rule_with_its_tag
+test_squadcompose::test_who_for_a_qa_white_no_rule	b-2	second case of the same who output	test_squadcompose::test_who_lists_acting_and_aware_roles_per_qa_white
+test_squadcompose::test_who_unknown_exits_2	b-1	same refusal as rule of an unknown ID	test_squadcompose::test_unknown_rule_exits_2_naming_it
+test_squadcompose::test_rule_with_a_stale_overlay_exits_2	b-1	same stale-hash refusal	test_squadcompose::test_stale_replace_exits_2_names_both_hashes_and_writes_nothing
+test_squadcompose::test_pin_prints_version_and_sha	b-1	same pin print as the goal-home test	test_squadcompose::test_goal_home_pin_is_read_from_goal_md
+test_squadcompose::test_unparseable_pin_exits_2	b-1	same exit-2 pin refusal	test_squadcompose::test_pin_of_another_version_without_plugin_root_exits_2
+test_squadcompose::test_no_team_line_and_no_old_line_is_hand_made_undecided	b-1	same undecided path as the blank team test	test_squadcompose::test_blank_team_is_undecided_with_no_team_fact
+test_squadcompose::test_undecided_manager_header_and_decided_team_has_no_missing_team_fact	b-1	both halves are kept elsewhere	test_squadcompose::test_blank_team_is_undecided_with_no_team_fact; test_decided_team_fills_every_team_fact_and_no_missing_one
+test_squadcompose::test_error_line_number_is_the_team_line	b-1	scope.md:N shape is asserted by the old-line and bad-team tests	test_squadcompose::test_old_line_beside_team_is_an_error_naming_each_line; test_bad_team_lines_exit_2_naming_line_and_token
+test_squadcompose::test_cli_compose_of_a_team_home_exits_0	b-1	every compose test runs the CLI on a team home	test_squadcompose::test_header_index_roles_print_team_and_duties_others_do_not
+test_squadcompose::test_header_team_text_for_none_and_undecided	b-5	exact header text	test_squadcompose::test_team_none_is_decided_and_empty; test_blank_team_is_undecided_with_no_team_fact
+test_squadcompose::test_duties_line_lists_all_thirteen_in_table_order	b-5	exact order of the duties line	test_team_duties::test_all_128_sets_have_one_present_owner_per_duty; test_squadcompose::test_header_index_roles_print_team_and_duties_others_do_not
+test_squadcompose::test_design_and_architecture_facts_follow_the_team	b-5	exact header text	test_squadcompose::test_when_architecture_rule_kept_only_when_fact_matches
+test_squadcompose::test_duties_of_a_team_home_equal_the_old_size_owners	b-4	old size-model owners	test_team_duties::test_all_128_sets_have_one_present_owner_per_duty
+test_squadcompose::test_legacy_team_stays_the_converter_mapping	b-1	duplicate of the team_duties legacy tests (cut as old size model); legacy_team stays as a fixture builder	test_squadcompose::Base.home() builds every team home through it
+test_squadcompose::test_choose_is_pure	b-3	purity of a small helper	test_squadcompose::test_choose_equals_the_old_compose_filter_and_the_rules_line
+test_squadcompose::test_load_rules_raises_compose_error_like_before	b-1	same error path as the no-rule-files test	test_squadcompose::test_plugin_without_rule_files_exits_2_not_a_traceback
+test_squadcompose::test_presence_key_lines	b-2	second case of the who duty lines	test_squadcompose::test_duty_lines_follow_the_when_keys
+test_squadcompose::test_who_of_a_rule_without_when_has_no_lines	b-4	asserts something is absent	test_squadcompose::test_duty_lines_follow_the_when_keys
+test_squadcompose::test_who_and_lint_help_name_the_new_keys	b-3	argparse help text	none needed
+test_squadcompose::test_who_parses_duty_and_presence_lines	b-3	tests a test helper with a mock; users of rulesview.who fail loudly if it breaks	test_sizes::test_who_lists_exactly_the_acting_roles_per_duty_fact_and_value
+test_sizes::test_manager_variant_of_every_team_lead_duty_at_s_and_m	b-4	S/M/L-era class (PO Added 2026-10-31): size model	test_sizes::test_who_lists_exactly_the_acting_roles_per_duty_fact_and_value
+test_sizes::test_no_rule_of_the_slice_3_files_is_orphaned	b-4	S/M/L-era class (PO Added 2026-10-31): size model (reads who size lines)	test_sizes::test_no_rule_of_the_two_files_acts_on_an_absent_role_for_any_of_the_128_teams
+test_sizes::test_rules_retargeted_in_30_act_on_the_right_roles	b-4	S/M/L-era class (PO Added 2026-10-31): size model (ticket 30 retarget checked by S/M)	test_sizes::test_who_lists_exactly_the_acting_roles_per_duty_fact_and_value
+test_sizes::test_composed_dev_and_qas_name_no_absent_role_at_s_and_m	b-1/b-4	exact-name absent check at S/M; duplicate of the WholeTemplate one, also cut	test_sizes::test_each_role_composes_its_header_duties_line_and_must_own_rule_ids
+test_sizes::test_files_table_owners_follow_the_sizes	b-5	exact phrase "Plan owner"	none needed
+test_sizes::test_msg3_never_paste_in_composed_dev	b-5	exact phrase	test_dev_rules_size::test_must_keep_duties_by_rule_id (MSG-3)
+test_sizes::test_no_rule_of_the_five_files_acts_on_an_absent_role	b-4	S/M/L-era class (PO Added 2026-10-31): size model (slice 2)	test_sizes::test_no_rule_of_the_two_files_acts_on_an_absent_role_for_any_of_the_128_teams
+test_sizes::test_pointers_of_dev_rules_at_s_reach_a_present_role	b-4	S/M/L-era class (PO Added 2026-10-31): size model	test_process_citations; test_sizes::test_every_pointer_to_a_size_rule_in_the_templates_resolves
+test_sizes::test_review_rule_reaches_composed_dev_at_s_only	b-4/b-5	S/M/L-era class (PO Added 2026-10-31): size model, exact needles	test_sizes::test_each_role_composes_its_header_duties_line_and_must_own_rule_ids (dev IDs)
+test_sizes::test_s_dev_gets_the_suite_run_and_receipt_how_to	b-4/b-5	S/M/L-era class (PO Added 2026-10-31): size model, exact needles	test_sizes::test_each_role_composes_its_header_duties_line_and_must_own_rule_ids (SUITE-2a)
+test_sizes::test_manager_confirms_behaviour_and_review_at_s	b-4/b-5	S/M/L-era class (PO Added 2026-10-31): size model, exact phrase	none needed
+test_sizes::test_dev_rules_stay_within_5_kib	b-1	duplicate of the 5 KiB check	test_dev_rules_size
+test_sizes::test_l_business_ac_owner_with_and_without_qa_blackbox	b-4	S/M/L-era class (PO Added 2026-10-31): size model	test_sizes::test_who_lists_exactly_the_acting_roles_per_duty_fact_and_value
+test_sizes::test_m_has_no_ba_team_lead_or_tech_lead_text	b-4/b-5	S/M/L-era class (PO Added 2026-10-31): size model, exact phrase	none needed
+test_sizes::test_allow_list_is_only_what_the_follow_up_list_names	b-3	tests a dict literal	none needed
+test_sizes::test_allowed_orphans_really_are_orphans	b-4	guards an allow-list no check consumes; reads size lines	none needed
+test_sizes::test_dev_and_qas_name_no_absent_role_at_s_and_m	b-4/b-5	S/M/L-era class (PO Added 2026-10-31): size model, exact names	test_sizes::test_each_role_composes_its_header_duties_line_and_must_own_rule_ids
+test_sizes::test_every_duty_has_an_owner_per_size	b-3	asserts keys of a dict literal in the same file (OWNERS), size model	test_sizes::test_every_duty_has_a_rule_per_acting_role_in_sizes_md
+test_sizes::test_the_orphan_check_catches_an_orphan	b-3	mutation of a local regex only; no product line	none needed
+test_sizes::test_every_changed_added_or_removed_rule_id_is_in_the_v7_entry	b-4	v7 changelog wording; git-based, skipped on a clone without the base sha (an existing skip, removed with its test)	test_process_citations; processlint
+test_sizes::test_no_opus_review_subagent_in_the_rule_files	b-4/b-5	absent-phrase check of an old rule wording	none needed
+test_sizes::test_the_owner_rules_changed_after_17_are_listed	b-4/b-5	v7 changelog wording	none needed
+test_sizes::test_done_text_by_the_four_shapes	b-5	exact sentences of the Done rules	test_sizes::test_each_role_composes_its_header_duties_line_and_must_own_rule_ids (manager SIZE/TEAM IDs)
+test_sizes::test_who_checks_behaviour_by_shape	b-5	exact sentences	test_sizes::test_who_lists_exactly_the_acting_roles_per_duty_fact_and_value
+test_sizes::test_architecture_ac_rules_follow_the_tech_ac_owner	b-5	by-shape check; PO Added list cuts it (wording/history)	test_sizes::test_each_role_composes_its_header_duties_line_and_must_own_rule_ids (SIZE-23c, SIZE-23d)
+test_sizes::test_tombstones_of_this_task_carry_why_and_a_live_replacement	b-4	history of one old task (v9)	test_squadrules::test_tombstone_replaced_by_missing; processlint
+test_sizes::test_qa_b_is_gone_from_the_when_of_both_files	b-4	asserts something is absent	test_squadrules::test_old_when_keys_are_a_lint_error_naming_rule_and_new_key
+test_team_duties::test_today_s_m_l	b-4	old size model (PO Added 2026-10-31: S/M/L owners table OLD)	test_team_duties::test_all_128_sets_have_one_present_owner_per_duty
+test_team_duties::test_qa_b_no	b-4	old size model (PO Added 2026-10-31: S/M/L owners table OLD)	test_team_duties::test_all_128_sets_have_one_present_owner_per_duty
+test_team_duties::test_architecture_yes	b-4	old size model (PO Added 2026-10-31: S/M/L owners table OLD)	test_team_duties::test_all_128_sets_have_one_present_owner_per_duty
+test_team_duties::test_design_yes	b-4	old size model (PO Added 2026-10-31: S/M/L owners table OLD)	test_team_duties::test_all_128_sets_have_one_present_owner_per_duty
+test_team_duties::test_built_ui_check_follows_spec_rule_3	b-4	old size model (PO Added 2026-10-31: S/M/L owners table OLD)	test_team_duties::test_all_128_sets_have_one_present_owner_per_duty
+test_team_duties::test_the_six_named_shapes	b-4	old size model (PO Added 2026-10-31: S/M/L owners table OLD)	test_team_duties::test_all_128_sets_have_one_present_owner_per_duty
+test_team_duties::test_real_samples	b-4	legacy_team (size to team converter) has no caller in bin/; kept only as fixture builder. test_commentary_... names ticket 02 in its docstring: cut with its class by the PO Added list	test_squadcompose::test_read_home_of_a_size_home_raises_and_derives_nothing (live refusal)
+test_team_duties::test_blank_size_is_undecided_even_with_flags	b-4	legacy_team (size to team converter) has no caller in bin/; kept only as fixture builder. test_commentary_... names ticket 02 in its docstring: cut with its class by the PO Added list	test_squadcompose::test_read_home_of_a_size_home_raises_and_derives_nothing (live refusal)
+test_team_duties::test_qa_b_no_with_commentary	b-4	legacy_team (size to team converter) has no caller in bin/; kept only as fixture builder. test_commentary_... names ticket 02 in its docstring: cut with its class by the PO Added list	test_squadcompose::test_read_home_of_a_size_home_raises_and_derives_nothing (live refusal)
+test_team_duties::test_commentary_that_contradicts_the_mapping_is_not_applied	b-4	legacy_team (size to team converter) has no caller in bin/; kept only as fixture builder. test_commentary_... names ticket 02 in its docstring: cut with its class by the PO Added list	test_squadcompose::test_read_home_of_a_size_home_raises_and_derives_nothing (live refusal)
+test_team_duties::test_design_yes_with_qa_b_no_is_a_valid_team	b-4	legacy_team (size to team converter) has no caller in bin/; kept only as fixture builder. test_commentary_... names ticket 02 in its docstring: cut with its class by the PO Added list	test_squadcompose::test_read_home_of_a_size_home_raises_and_derives_nothing (live refusal)
+test_team_duties::test_size_s_ignores_qa_b	b-4	legacy_team (size to team converter) has no caller in bin/; kept only as fixture builder. test_commentary_... names ticket 02 in its docstring: cut with its class by the PO Added list	test_squadcompose::test_read_home_of_a_size_home_raises_and_derives_nothing (live refusal)
+test_team_duties::test_first_token_vs_read_home_anywhere	b-4	legacy_team (size to team converter) has no caller in bin/; kept only as fixture builder. test_commentary_... names ticket 02 in its docstring: cut with its class by the PO Added list	test_squadcompose::test_read_home_of_a_size_home_raises_and_derives_nothing (live refusal)
+test_team_duties::test_bad_flag_value_raises	b-4	legacy_team (size to team converter) has no caller in bin/; kept only as fixture builder. test_commentary_... names ticket 02 in its docstring: cut with its class by the PO Added list	test_squadcompose::test_read_home_of_a_size_home_raises_and_derives_nothing (live refusal)
+test_team_duties::test_output_is_in_team_keys_order	b-4	legacy_team (size to team converter) has no caller in bin/; kept only as fixture builder. test_commentary_... names ticket 02 in its docstring: cut with its class by the PO Added list	test_squadcompose::test_read_home_of_a_size_home_raises_and_derives_nothing (live refusal)
+test_team_duties::test_qa_none_line_does_not_reach_legacy_team	b-4	legacy_team (size to team converter) has no caller in bin/; kept only as fixture builder. test_commentary_... names ticket 02 in its docstring: cut with its class by the PO Added list	test_squadcompose::test_read_home_of_a_size_home_raises_and_derives_nothing (live refusal)
+test_team_duties::test_empty_v9_block_exists_with_the_four_headings	b-5	heading wording of a changelog block	processlint
+test_team_duties::test_resolve_is_pure_and_takes_any_iterable	b-3	purity of a small helper	test_team_duties::test_all_128_sets_have_one_present_owner_per_duty
+test_team_duties::test_decided_team_has_no_missing_fact	b-1	same facts are checked at read_home	test_squadcompose::test_decided_team_fills_every_team_fact_and_no_missing_one
+test_small_files_equivalence::golden rows of shapes S, L, Lnoqb, Mdesign, March (both tests)	b-2	per-shape golden matrix: 5 of 7 shapes x 9 roles x 2 tests = 90 golden rows removed; the 2 test methods stay	same tests keep M (default) and Lgoal (every role and a goal, the shape that differs)
