@@ -2,7 +2,7 @@
 
 ## Behaviour
 
-Tests only. No product code changed by this ticket's prune commits. Code sha: `5ad5cb5`.
+Tests only. No product code changed by this ticket's prune commits. Code sha: `9e814b1`.
 
 Phase 1 cut 100 tests from 22 files. Phase 2 cut 58 more: 53 from 18 files, then 5 after "06 final" (`test_squad_log_message` -4, `test_squad_usage_hook` -1). `test_log_append_stress` has `RECORDS` 200 to 50 (8 writers and the 9000-byte record kept, no test removed). Every cut has a row in `removed.tsv`: rule, reason, and the test that still covers it. Full list and the kept and held files: `prune-report.md` (copy in `$SCOPE_DIR/evidence/10/`).
 
