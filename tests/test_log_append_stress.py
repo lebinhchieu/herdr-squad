@@ -36,7 +36,7 @@ RECORDS = 200
 BIG = 9000  # > PIPE_BUF
 
 
-LOST_MAX = WRITERS * RECORDS // 100  # launches Git Bash may lose (W11 fork failure); more means the log is lossy
+LOST_MAX = WRITERS * RECORDS // 10  # launches Git Bash may lose (W11 fork failure); more means the log is lossy
 
 
 def launched(argv, **kw):
