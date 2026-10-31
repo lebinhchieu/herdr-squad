@@ -1,5 +1,4 @@
 """squad-process scaffold: a new composed squad; temp folders only."""
-import os
 import subprocess
 import sys
 import tempfile
