@@ -52,31 +52,46 @@ def _text(x, nt):
     return x if isinstance(x, str) else str(x)
 
 
-def command(path, *args, nt=NT, which=shutil.which, exists=os.path.exists, shebang=None, system_root=None):
-    """argv for running script `path` with `args`."""
+def _utf8(x):
+    return str(x).encode("utf-8", "surrogateescape")
+
+
+def command(path, *args, nt=NT, which=shutil.which, exists=os.path.exists, shebang=None, system_root=None, utf8=False):
+    """argv for running `path` with `args`.
+
+    POSIX: `[path, *args]` untouched, or with utf8=True every word as UTF-8 bytes (the parent may run under an ASCII
+    locale). nt: str words; a file that starts with `#!` becomes its interpreter + file, a binary or bare command name
+    is used as is."""
     if not nt:
-        return [path, *args]
-    first = _first_line(path) if shebang is None else shebang
+        return [_utf8(w) for w in (path, *args)] if utf8 else [path, *args]
+    if shebang is None:
+        try:
+            first = _first_line(path)
+        except OSError:  # a bare command name or an unreadable file
+            first = None
+        if first is None or not first.startswith("#!"):
+            return [_text(w, nt) for w in (path, *args)]
+    else:
+        first = shebang
     if system_root is None:
         system_root = os.environ.get("SystemRoot", "")
     prefix = _resolve(first, nt, which, exists, system_root)
     return [*prefix, *(_text(a, nt) for a in (path, *args))]
 
 
-def env_for(env, nt=NT):
-    """None stays None (inherit). On nt keys and values become str, otherwise the mapping is returned as is."""
-    if env is None or not nt:
+def env_for(env, nt=NT, utf8=False):
+    """None stays None (inherit). nt: keys and values become str. POSIX: the mapping as is, or with utf8=True as bytes."""
+    if env is None:
         return env
-    return {_text(k, nt): _text(v, nt) for k, v in env.items()}
+    if nt:
+        return {_text(k, nt): _text(v, nt) for k, v in env.items()}
+    return {_utf8(k): _utf8(v) for k, v in env.items()} if utf8 else env
 
 
-def run_script(path, args=(), env=None, **kw):
-    """subprocess.run of a bin/ or tools/ script; extra keywords go to subprocess.run."""
-    return subprocess.run(command(path, *args), env=env_for(env), **kw)
-
-
-def popen_script(path, args=(), env=None, **kw):
-    return subprocess.Popen(command(path, *args), env=env_for(env), **kw)
+def run_script(path, args=(), env=None, utf8=False, **kw):
+    """The one runner: subprocess.run of a bin/ or tools/ script (or `[bash, script]` words); extra keywords go to
+    subprocess.run. utf8=True makes POSIX argv and env UTF-8 bytes; on nt both are str either way."""
+    return subprocess.run(command(path, *args, utf8=utf8), env=env_for(env, utf8=utf8), **kw)
 
 
 def bash(nt=NT, which=shutil.which, exists=os.path.exists, system_root=None):
@@ -89,30 +104,6 @@ def bash(nt=NT, which=shutil.which, exists=os.path.exists, system_root=None):
 def python(nt=NT):
     """The python3 for `[python, script]`: PATH's python3 on POSIX (as the tests did), this interpreter on nt."""
     return sys.executable if nt else shutil.which("python3")
-
-
-def child_argv(cmd, nt=NT, **kw):
-    """Whole argv. POSIX: every word as UTF-8 bytes (the parent may run under an ASCII locale). nt: str words; a first
-    word that is a shebang script becomes its interpreter + script (see command()), anything else is used as is."""
-    if not nt:
-        return [str(c).encode("utf-8", "surrogateescape") for c in cmd]
-    first = cmd[0]
-    try:
-        with open(first, "rb") as f:
-            script = f.read(2) == b"#!"
-    except OSError:  # not a file (a bare command name) or unreadable
-        script = False
-    if script:
-        return command(first, *cmd[1:], nt=nt, **kw)
-    return [_text(c, nt) for c in cmd]
-
-
-def run_child(cmd, env, nt=NT, **kw):
-    """subprocess.run for tests that need UTF-8 bytes argv/env on POSIX; same call, str words, on nt."""
-    if not nt:
-        enc = lambda x: str(x).encode("utf-8", "surrogateescape")
-        return subprocess.run(child_argv(cmd, nt), env={enc(k): enc(v) for k, v in env.items()}, **kw)
-    return subprocess.run(child_argv(cmd, nt), env=env_for(env, nt), **kw)
 
 
 def no_flock_env(env, tmp):

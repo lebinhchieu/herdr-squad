@@ -4,9 +4,15 @@ never match; a failure names the file and line."""
 import ast
 import subprocess
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 
+from rulesview import composed
 from squadtest import BIN
+from test_crlf_squad_files import ROSTER
+# The exact call the two instructions name; the test below runs it, so the text cannot drift from what works.
+CALL = 'open(path, "w", encoding="utf-8", newline="\\n")'
 SUBPROCESS_CALLS = {"run", "Popen", "check_output", "check_call", "call"}
 WRITE_CHARS = set("wax+")
 
@@ -203,6 +209,41 @@ class GitAttributes(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         crlf = [l for l in r.stdout.splitlines() if "i/crlf" in l or "w/crlf" in l]
         self.assertEqual(crlf, [])
+
+
+class InstructionWordingTest(unittest.TestCase):
+    """The roster/LF wording moved from the Manager and Team Lead cards to FILE-4 and FILE-5* (ticket 06)."""
+    FILES = (("manager", "small script that keeps the rest"), ("team-lead", "small script that keeps the rest"))
+
+    def test_roster_bullet_names_the_lf_write_and_the_cr_check(self):
+        for role, kept in self.FILES:
+            with self.subTest(role=role):
+                b = composed(role, "M")
+                for needle in ('newline="\\n"', 'encoding="utf-8"', "$'\\r'", "small script"):
+                    self.assertIn(needle, b)
+                self.assertIn(kept, b)
+                self.assertIn("never `command > file`", b)
+
+    def test_the_named_call_writes_no_cr_and_changes_only_the_edited_line(self):
+        for role, _ in self.FILES:
+            with self.subTest(role=role):
+                self.assertIn(CALL, composed(role, "M"))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "roster.md"
+            path.write_bytes(ROSTER.encode("utf-8"))
+            code = ("import sys\npath = sys.argv[1]\n"
+                    "text = open(path, encoding='utf-8', newline='').read().replace('| task 1 |', '| task 2 |')\n"
+                    f"f = {CALL}\nf.write(text)\nf.close()\n")
+            r = subprocess.run([sys.executable, "-I", "-c", code, str(path)], capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            data = path.read_bytes()
+            self.assertEqual(data.count(b"\r"), 0)
+            self.assertEqual(data.decode("utf-8"), ROSTER.replace("| task 1 |", "| task 2 |"))
+
+
+class CloseUsesUtf8Python(unittest.TestCase):
+    def test_the_inline_python_runs_in_utf8_mode(self):
+        self.assertIn("python3 -X utf8 -c '", (BIN / "squad-close").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
