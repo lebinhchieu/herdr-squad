@@ -966,5 +966,82 @@ class PinnedBaseEngineTest(_GateBase):
         self.assertEqual(self.scope_md.read_bytes(), before)
 
 
+PATH_HERDR = r"""#!/usr/bin/env bash
+[[ "$1 $2" == "agent get" ]] && { echo '{"error":{"code":"agent_not_found"}}'; exit 1; }
+[[ "$1 $2" == "tab create" ]] || exit 0
+printf '%s\n' "$@" > "$HERDR_ARGV"
+echo "$PATH" > "$HERDR_CALLER_PATH"
+echo '{"result":{"root_pane":{"pane_id":"p1"},"tab":{"tab_id":"t1"}}}'
+exit 0
+"""
+
+
+class SpawnRuntimePathEnvTest(unittest.TestCase):
+    """The `PATH=` env sent to `herdr tab create`: the pinned runtime's bin dir in POSIX form (herdr is a native exe on
+    Windows; a `C:` + backslash or `C:/` segment in a colon list makes the new shell's PATH unusable)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.squad = scoped_squad(self.root)
+        (self.squad / "process.local.md").write_text("", encoding="utf-8")  # composed
+        self.plugin = self.root / "plugin"  # a copy of bin/ whose squad-process is a stub: the runtime is ours
+        shutil.copytree(BIN_DIR, self.plugin / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(BIN_DIR.parent / "templates", self.plugin / "templates")
+        stub = self.plugin / "bin" / "squad-process"
+        stub.write_text('#!/usr/bin/env bash\ncase $1 in\n  runtime) printf "%s\\n" "$STUB_RUNTIME" ;;\n'
+                        '  compose) while [[ $# -gt 0 ]]; do [[ $1 == --out ]] && : > "$2"; shift; done ;;\n'
+                        '  *) ;;\nesac\nexit 0\n', encoding="utf-8")
+        stub.chmod(0o755)
+        self.fake = self.root / "fakebin"
+        self.fake.mkdir()
+        self.write_exe("herdr", PATH_HERDR)
+        self.argv, self.caller = self.root / "argv.txt", self.root / "caller_path.txt"
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR"))}
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_ARGV=str(self.argv),
+                        HERDR_CALLER_PATH=str(self.caller), PATH=f"{self.fake}:{os.environ['PATH']}")
+
+    def write_exe(self, name, text):
+        (self.fake / name).write_text(text, encoding="utf-8", newline="\n")
+        (self.fake / name).chmod(0o755)
+
+    def spawn(self, runtime):
+        self.env["STUB_RUNTIME"] = runtime
+        script = self.plugin / "bin" / "squad-spawn"
+        argv = [str(script)]
+        if os.name == "nt":  # no exec of a shebang script on Windows; Git's bash (not System32's); replaced by winlaunch (ticket 03)
+            bash = next(c for c in (d / "bin" / "bash.exe" for d in Path(shutil.which("git")).parents[:3]) if c.exists())
+            argv = [str(bash), script.as_posix()]
+        r = subprocess.run([*argv, "dev", "pa-1", "--scope", "sc1", "--prompt", "go"],
+                           env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        path_args = [a for a in self.argv.read_text(encoding="utf-8").splitlines() if a.startswith("PATH=")]
+        self.assertEqual(len(path_args), 1, path_args)
+        return path_args[0], self.caller.read_text(encoding="utf-8").strip()
+
+    CYGPATH = r"""#!/usr/bin/env bash
+[[ $1 == -u ]] && shift
+p=${1//\\//}
+[[ $p =~ ^([A-Za-z]):(.*)$ ]] && p=/${BASH_REMATCH[1],,}${BASH_REMATCH[2]}
+printf '%s\n' "$p"
+"""
+
+    def test_a_windows_form_runtime_reaches_herdr_as_a_posix_path_before_the_callers_path(self):
+        self.write_exe("cygpath", self.CYGPATH)
+        arg, caller = self.spawn(r"C:\Users\me\sq\_runtime\0.6.3-aaaaaaaaaaaa")
+        self.assertEqual(arg, f"PATH=/c/Users/me/sq/_runtime/0.6.3-aaaaaaaaaaaa/bin:{caller}")
+        self.assertNotRegex(arg[len("PATH="):].removesuffix(caller), r"[A-Za-z]:[\\/]")
+
+    def test_a_posix_runtime_is_passed_unchanged(self):
+        arg, caller = self.spawn("/opt/rt/0.6.3-aaaaaaaaaaaa")  # no cygpath on Linux; on Windows cygpath keeps a POSIX path
+        self.assertEqual(arg, f"PATH=/opt/rt/0.6.3-aaaaaaaaaaaa/bin:{caller}")
+
+    def test_a_failing_cygpath_leaves_the_runtime_unchanged(self):
+        self.write_exe("cygpath", "#!/usr/bin/env bash\nexit 1\n")
+        arg, caller = self.spawn("/opt/rt/0.6.3-aaaaaaaaaaaa")
+        self.assertEqual(arg, f"PATH=/opt/rt/0.6.3-aaaaaaaaaaaa/bin:{caller}")
+
+
 if __name__ == "__main__":
     unittest.main()
