@@ -394,13 +394,16 @@ class SpawnComposedTest(Base):
         self.assertEqual(r.returncode, 0, r.stderr)
         rules = self.squad / "scopes" / "sc1" / "roles" / "t-dev-sc1.rules.md"
         start = self.calls("agent start")[0]
-        self.assertIn(f"--append-system-prompt-file {rules}", start)
+        self.assertIn(f"--append-system-prompt-file {Path(rules).as_posix()}", start)
         self.assertEqual(start.count("--plugin-dir"), 1)
         self.assertIn(f"--plugin-dir {self.runtime_dir()}", start)
         self.assertEqual(start.count("--settings"), 1)
         self.assertNotIn("enabledPlugins", start)
         tab = self.calls("tab create")[0]
-        self.assertIn(f"PATH={self.runtime_dir()}/bin:", tab)
+        if os.name == "nt":  # bash hands PATH on in its own /tmp/.. form
+            self.assertRegex(tab, r"PATH=\S*/_runtime/%s/bin:" % re.escape(self.runtime_dir().name))
+        else:
+            self.assertIn(f"PATH={self.runtime_dir()}/bin:", tab)
         self.assertIn(f"SQUAD_PLUGIN_DIR={self.runtime_dir()}", tab)
         text = rules.read_text(encoding="utf-8")
         self.assertTrue(text.startswith("# Your process rules"), text[:60])
@@ -488,11 +491,11 @@ class SpawnComposedTest(Base):
         self.assertEqual(r.returncode, 0, r.stderr)
         start = self.calls("agent start")[0]
         rules = self.squad / "scopes" / "sc1" / "roles" / "t-dev-sc1.rules.md"
-        self.assertIn(f"--append-system-prompt-file {rules}", start)
+        self.assertIn(f"--append-system-prompt-file {Path(rules).as_posix()}", start)
         self.assertNotIn("--plugin-dir", start)
         self.assertNotIn("PATH=", self.calls("tab create")[0])
         self.assertEqual(self.calls("agent prompt")[0], "agent prompt t-dev-sc1 Read process.md then go. "
-                         f"Your process rules are attached to this session ({rules}); read no other process file.")
+                         f"Your process rules are attached to this session ({Path(rules).as_posix()}); read no other process file.")
         self.assertFalse((self.squad / "_runtime").exists())
 
     def test_no_marker_files_at_all_is_not_a_squad(self):
@@ -837,6 +840,7 @@ class PruneTest(unittest.TestCase):
         self.assertIn("would free 2.0 MB", text)
         self.assertTrue(d.exists())
 
+    @unittest.skipIf(os.name == "nt", "os.symlink needs Developer Mode or admin (WinError 1314)")
     def test_symlink_child_is_unlinked_and_its_target_survives(self):
         target = Path(self.tmp.name) / "elsewhere"
         target.mkdir()

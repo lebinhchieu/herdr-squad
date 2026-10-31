@@ -40,7 +40,7 @@ class LabelCliTest(unittest.TestCase):
         self.log = r / "herdr.log"
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD", "SCOPE_DIR", "GOAL_DIR", "HERDR"))}
         self.env.update(HERDR_ENV="1", HERDR_LOG=str(self.log), LIVE="dev-1 dev-2 mgr",
-                        PATH=f"{fake}:{os.environ['PATH']}", SQUAD_DIR=str(self.squad))
+                        PATH=f"{fake}{os.pathsep}{os.environ['PATH']}", SQUAD_DIR=str(self.squad))
 
     def tearDown(self):
         self.tmp.cleanup()

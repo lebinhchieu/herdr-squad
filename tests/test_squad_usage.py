@@ -210,6 +210,7 @@ class UndercountTest(UsageBase):
         self.assertEqual((rows["dev-1"][2], rows["dev-1"][3], rows["dev-1"][4], rows["dev-1"][5]), ("3", "5k", "5k", "4k"))  # ctx from the newest session
         self.assertEqual((rows["dev-2"][2], rows["dev-2"][5]), ("1", "50k"))
 
+    @unittest.skipIf(os.name == "nt", "os.symlink needs Developer Mode or admin (WinError 1314)")
     def test_symlinked_projects_dir_gives_same_numbers(self):
         self.named("s1", "dev-1", [turn(0, "a", out=1000), turn(1, "b", out=1000)])
         self.roster(("dev-1", "s1"))

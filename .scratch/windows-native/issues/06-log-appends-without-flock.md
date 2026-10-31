@@ -15,3 +15,4 @@ Source: findings.md W5
 - [ ] The Linux path still uses `flock`.
 
 ## Comments
+- 03d: Windows `test_squad_ledger` `test_simultaneous_fails_on_third_sha_give_one_notice` fails (0 notices, expected 1) because there is no `flock`; left failing, covered by this ticket.

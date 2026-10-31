@@ -17,6 +17,17 @@ import winlaunch
 SPAWN = ROOT / "bin" / "squad-spawn"
 
 
+def settings_arg(path):
+    """Regex for `--settings <path>` as the bash dry-run prints it: `C:/x` or `/c/x` on Windows, `path` elsewhere."""
+    p = Path(path).as_posix()
+    m = re.match(r"([A-Za-z]):(/.*)", p)
+    return "--settings " + ((r"(?i:%s:|/%s)" % (m[1], m[1]) + re.escape(m[2])) if m else re.escape(p))
+
+
+def slashed(text):
+    return text.replace("\\", "/")
+
+
 class MergeTest(unittest.TestCase):
     def test_scalar_local_wins(self):
         self.assertEqual(ss.merge({"model": "sonnet", "x": 1}, {"model": "opus"}), {"model": "opus", "x": 1})
@@ -160,7 +171,7 @@ class SpawnTest(Base):
         self.local("dev", {"model": "haiku"})
         r = self.spawn()
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"--settings {self.squad}/roles/x.settings.json", r.stdout)
+        self.assertRegex(slashed(r.stdout), settings_arg(self.squad / "roles/x.settings.json"))
         self.assertIn("--model haiku --effort", r.stdout)
         self.assertNotIn("settings", r.stderr)  # the legacy-squad notice (ticket 24) is not a settings warning
 
@@ -183,13 +194,13 @@ class SpawnTest(Base):
         (self.squad / "settings" / "dev.json").write_text(json.dumps({"model": "haiku", "effortLevel": "low"}), encoding="utf-8")
         r = self.spawn()
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"--settings {self.squad}/settings/dev.json", r.stdout)
+        self.assertRegex(slashed(r.stdout), settings_arg(self.squad / "settings/dev.json"))
         self.assertEqual(r.stderr.count("warning:"), 1)
         self.assertIn("not an overlay", r.stderr)
 
     def test_no_squad_files_uses_the_template_without_warning(self):
         r = self.spawn()
-        self.assertIn(str(ROOT / "templates/squad/settings/dev.json"), r.stdout)
+        self.assertRegex(slashed(r.stdout), settings_arg(ROOT / "templates/squad/settings/dev.json"))
         self.assertNotIn("settings", r.stderr)  # the legacy-squad notice (ticket 24) is not a settings warning
 
     def test_local_file_wins_over_an_old_full_file(self):
@@ -247,7 +258,7 @@ class ComposedSpawnTest(Base):
         shutil.rmtree(self.squad / "_runtime")
         r = self.run_spawn("--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"--settings {self.squad / 'scopes/sc1'}/roles/x.settings.json", r.stdout)
+        self.assertRegex(slashed(r.stdout), settings_arg(self.squad / "scopes/sc1/roles/x.settings.json"))
         self.assertIn("--model haiku", r.stdout)
         self.assertFalse((self.squad / "scopes/sc1/roles/x.settings.json").exists())
 
@@ -290,7 +301,7 @@ class ComposedSpawnTest(Base):
         r = winlaunch.run_script(SPAWN, ["ba", "x", "--scope", "sc1", "--dry-run"], env=self.env, text=True,
                            encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"--settings {f}", r.stdout)
+        self.assertRegex(slashed(r.stdout), settings_arg(f))
         self.assertIn("--model pinnedmodel", r.stdout)
 
     def test_missing_pinned_template_exits_1_naming_the_path(self):

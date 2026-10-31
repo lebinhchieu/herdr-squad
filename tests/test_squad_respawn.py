@@ -70,7 +70,7 @@ class RespawnTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
 
         log = self.log.read_text(encoding="utf-8").splitlines()
-        self.assertIn(f"tab create --cwd {wt} --label 🤖 Dev --no-focus", " ".join(log))
+        self.assertIn(f"tab create --cwd {Path(wt).as_posix()} --label 🤖 Dev --no-focus", " ".join(log))
         self.assertTrue(any(re.fullmatch(r"agent rename dev-1 prev-\d+", l) for l in log))
         self.assertEqual(log[-1], "pane close p-old")  # old pane goes last
         start = next(l for l in log if l.startswith("agent start dev-1"))
@@ -89,7 +89,7 @@ class RespawnTest(unittest.TestCase):
     def test_agent_without_worktree_respawns_in_project_dir(self):
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn(f"tab create --cwd {self.root} --label 🤖 Dev", self.log.read_text(encoding="utf-8"))
+        self.assertIn(f"tab create --cwd {Path(self.root).as_posix()} --label 🤖 Dev", self.log.read_text(encoding="utf-8"))
 
     def test_manager_row_as_written_by_squad_spawn_respawns_with_role_and_notes(self):
         # squad-start spawns manager-t; squad-spawn --set-session adds this row (empty scope, empty Owns).
@@ -103,7 +103,7 @@ class RespawnTest(unittest.TestCase):
         self.assertIn("--agent squad:manager", start)
         sid = re.search(r"--session-id (\S+)", start).group(1)
         self.assertIn(f"| manager-t | manager |  |  | live | {sid} |", (self.squad / "roster.md").read_text(encoding="utf-8"))
-        self.assertIn(f"tab create --cwd {self.root} --label 🦀 Manager", " ".join(log))
+        self.assertIn(f"tab create --cwd {Path(self.root).as_posix()} --label 🦀 Manager", " ".join(log))
         self.assertIn("SQUAD_SCOPE=", " ".join(log))
         self.assertNotIn("SQUAD_SCOPE=old-sid", " ".join(log))  # an empty scope must not shift the columns
         self.assertEqual(log[-1], "pane close p-old")
@@ -135,7 +135,7 @@ class RespawnTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         rules = self.squad / "roles" / "dev-1.rules.md"
         start = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent start dev-1"))
-        self.assertIn(f"--append-system-prompt-file {rules}", start)
+        self.assertIn(f"--append-system-prompt-file {Path(rules).as_posix()}", start)
         self.assertNotIn("--plugin-dir", start)
         self.assertTrue(rules.read_text(encoding="utf-8").startswith("# Your process rules"))
         self.assertEqual(r.stderr.count("legacy squad: plugin rules attached"), 1)
@@ -213,8 +213,8 @@ class RespawnTest(unittest.TestCase):
         r = winlaunch.run_script(BIN / "squad-respawn", ["t-dev-sc1-1"], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         log = self.log.read_text(encoding="utf-8").splitlines()
-        self.assertIn(f"tab create --cwd {wt} --label 🤖 Dev --no-focus", " ".join(log))
-        self.assertIn(f"SCOPE_DIR={sc}", " ".join(log))
+        self.assertIn(f"tab create --cwd {Path(wt).as_posix()} --label 🤖 Dev --no-focus", " ".join(log))
+        self.assertIn(f"SCOPE_DIR={Path(sc).as_posix()}", " ".join(log))
         self.assertFalse(any("worktree add" in l for l in log))
         sid = re.search(r"--session-id (\S+)", next(l for l in log if l.startswith("agent start"))).group(1)
         self.assertIn(f"| t-dev-sc1-1 | dev | sc1 | task 1 | live | {sid} |", (sc / "roster.md").read_text(encoding="utf-8"))
@@ -227,7 +227,7 @@ class RespawnTest(unittest.TestCase):
         r = winlaunch.run_script(BIN / "squad-respawn", ["t-mgr-g1"], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         log = " ".join(self.log.read_text(encoding="utf-8").splitlines())
-        self.assertIn(f"GOAL_DIR={g}", log)
+        self.assertIn(f"GOAL_DIR={Path(g).as_posix()}", log)
         self.assertNotIn("SCOPE_DIR", log)
         self.assertIn("| t-mgr-g1 | manager |", (g / "roster.md").read_text(encoding="utf-8"))
 
@@ -242,7 +242,7 @@ class RespawnTest(unittest.TestCase):
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
         log = self.log.read_text(encoding="utf-8")
-        self.assertIn(f"tab create --cwd {wt} --label 🤖 Dev", log)
+        self.assertIn(f"tab create --cwd {Path(wt).as_posix()} --label 🤖 Dev", log)
         self.assertNotIn("worktree add", log)
 
     def test_unknown_agent_fails(self):
@@ -325,6 +325,7 @@ class RespawnPinnedTest(RespawnTest):
         self.assertNotIn("hand off", r.stdout)
         self.assertEqual(self.calls(), [])
 
+    @unittest.skipIf(os.name == "nt", "os.symlink needs Developer Mode or admin (WinError 1314)")
     def test_a_runtime_that_is_this_script_is_not_handed_to_again(self):
         self.pinned(stub=False)
         rt = next((self.squad / "_runtime").iterdir())

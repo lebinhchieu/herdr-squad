@@ -218,6 +218,7 @@ class NoticeTest(unittest.TestCase):
             out = list(ex.map(lambda f: self.send("FAIL 05: x", f), ["qaw", "qab"]))
         self.assertEqual(len([o for o in out if o]), 1)
 
+    @unittest.skipIf(os.name == "nt", "os.symlink needs Developer Mode or admin (WinError 1314)")
     def test_forced_failures_exit_0_without_notice(self):
         env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
         env.update(SQUAD_NAME="qaw", SQUAD_DIR=str(self.squad))
