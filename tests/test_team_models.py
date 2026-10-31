@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+import winlaunch
 
 ROOT = Path(__file__).resolve().parent.parent
 SPAWN = ROOT / "bin" / "squad-spawn"
@@ -53,7 +54,7 @@ class Base(unittest.TestCase):
         (self.squad / "settings" / f"{role}.json").write_text(json.dumps(data), encoding="utf-8")
 
     def run_(self, cmd, **env):
-        return subprocess.run([str(c) for c in cmd], env={**self.env, **env}, text=True, encoding="utf-8", capture_output=True, timeout=20)
+        return winlaunch.run_script(cmd[0], cmd[1:], env={**self.env, **env}, text=True, encoding="utf-8", capture_output=True, timeout=20)
 
     def dry(self, role="dev", *args, **env):
         r = self.run_([SPAWN, role, "x", "--scope", "s", "--dry-run", *args], **env)
@@ -189,7 +190,7 @@ class StartResumeTest(Base):
 
 class RuleTest(unittest.TestCase):
     def rule(self, rid):
-        r = subprocess.run([str(ROOT / "bin" / "squad-process"), "rule", rid], text=True, encoding="utf-8", capture_output=True)
+        r = winlaunch.run_script(ROOT / "bin" / "squad-process", ["rule", rid], text=True, encoding="utf-8", capture_output=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout
 
@@ -205,7 +206,7 @@ class RuleTest(unittest.TestCase):
 
     def test_the_manager_rule_acts_in_every_team(self):
         """START-3b is `roles: manager` with no `when:`: no condition line, so the Manager acts in every team."""
-        r = subprocess.run([str(ROOT / "bin" / "squad-process"), "who", "START-3b"], text=True, encoding="utf-8", capture_output=True)
+        r = winlaunch.run_script(ROOT / "bin" / "squad-process", ["who", "START-3b"], text=True, encoding="utf-8", capture_output=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stdout.strip(), "")
 

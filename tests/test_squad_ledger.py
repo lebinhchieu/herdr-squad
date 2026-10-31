@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+import winlaunch
 
 BIN = Path(__file__).resolve().parent.parent / "bin"
 LEDGER = BIN / "squad-ledger"
@@ -136,7 +137,7 @@ class NoticeTest(unittest.TestCase):
         env.update(SQUAD_NAME=frm, SQUAD_DIR=str(self.squad))
         p = {"tool_name": "SendMessage", "tool_input": {"to": to, "message": text},
              "tool_response": {"success": True, "msg_id": "m"}}
-        r = subprocess.run([str(HOOK)], input=json.dumps(p), text=True, encoding="utf-8", env=env,
+        r = winlaunch.run_script(HOOK, input=json.dumps(p), text=True, encoding="utf-8", env=env,
                            capture_output=True, timeout=10)
         self.assertEqual(r.returncode, 0, r.stderr)
         return json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"] if r.stdout.strip() else None
@@ -230,10 +231,10 @@ class NoticeTest(unittest.TestCase):
             if src:
                 (bindir / cmd).symlink_to(src)
         for raw, e in ((p, dict(env, PATH=str(bindir))), ("not json", env)):
-            r = subprocess.run([str(HOOK)], input=raw, text=True, env=e, capture_output=True, timeout=10)
+            r = winlaunch.run_script(HOOK, input=raw, text=True, env=e, capture_output=True, timeout=10)
             self.assertEqual((r.returncode, r.stdout), (0, ""))
         (self.squad / "messages.jsonl").mkdir()  # log path is a directory: cannot append or read
-        r = subprocess.run([str(HOOK)], input=p, text=True, env=env, capture_output=True, timeout=10)
+        r = winlaunch.run_script(HOOK, input=p, text=True, env=env, capture_output=True, timeout=10)
         self.assertEqual((r.returncode, r.stdout), (0, ""))
 
     def test_fail_without_task_gives_no_notice(self):

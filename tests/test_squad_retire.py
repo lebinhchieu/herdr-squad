@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+import winlaunch
 
 BIN = Path(__file__).resolve().parent.parent / "bin"
 # $PANES holds "<pane> <tab> <agent>" lines. `tab close` kills every pane in the tab (as herdr does, and
@@ -40,7 +41,7 @@ class RetireTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def retire(self, name, *args):
-        return subprocess.run([str(BIN / "squad-retire"), name, "--no-notes", *args], env=self.env,
+        return winlaunch.run_script(BIN / "squad-retire", [name, "--no-notes", *args], env=self.env,
                               text=True, encoding="utf-8", capture_output=True, timeout=20)
 
     def survivors(self):

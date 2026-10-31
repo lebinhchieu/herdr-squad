@@ -11,6 +11,7 @@ import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import winlaunch
 
 BIN = Path(__file__).resolve().parent.parent / "bin"
 sys.path.insert(0, str(BIN))
@@ -243,7 +244,7 @@ class CliTest(GuardBase):
         self.write(turn(5, "a", 144_000))
         stop = BIN / "squad-usage-hook"
         e = {**os.environ, **self.env(), "CLAUDE_CONFIG_DIR": str(Path(self.tmp.name) / "cfg")}
-        r = subprocess.run([str(stop)], input=json.dumps({"session_id": "sid-1", "transcript_path": str(self.transcript_path)}),
+        r = winlaunch.run_script(stop, input=json.dumps({"session_id": "sid-1", "transcript_path": str(self.transcript_path)}),
                            text=True, env=e, capture_output=True, timeout=20)
         self.assertEqual((r.returncode, r.stderr), (0, ""))
 

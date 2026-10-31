@@ -13,6 +13,7 @@ from pathlib import Path
 BIN = Path(__file__).resolve().parent.parent / "bin"
 sys.path.insert(0, str(BIN))
 import squadlabel as sl  # noqa: E402
+import winlaunch
 
 FAKE_HERDR = """#!/usr/bin/env bash
 echo "$@" >> "$HERDR_LOG"
@@ -46,7 +47,7 @@ class LabelCliTest(unittest.TestCase):
 
     def run_cli(self, *args, **env):
         e = {**self.env, **env}
-        return subprocess.run([str(BIN / "squad-label"), *args], env=e, text=True, encoding="utf-8", capture_output=True, timeout=20)
+        return winlaunch.run_script(BIN / "squad-label", [*args], env=e, text=True, encoding="utf-8", capture_output=True, timeout=20)
 
     def calls(self):
         return self.log.read_text(encoding="utf-8").splitlines() if self.log.exists() else []

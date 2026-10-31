@@ -26,7 +26,8 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ca_stubs  # noqa: E402
-from ca_stubs import SRC, Env, requires_linux  # noqa: E402
+import winlaunch  # noqa: E402
+from ca_stubs import SRC, Env, bash_argv, requires_linux  # noqa: E402
 
 REAL = ("10", "1792274400", "79", "1792461600")  # used %, reset epoch, used %, reset epoch
 
@@ -76,7 +77,7 @@ class Base(unittest.TestCase):
 @requires_linux
 class RecordUsageTest(Base):
     def rec(self, *args, **env):
-        return subprocess.run([str(self.H / "record-usage.sh"), *args], env={**self.e.env, **env},
+        return winlaunch.run_script(self.H / "record-usage.sh", [*args], env={**self.e.env, **env},
                               capture_output=True, text=True, encoding="utf-8", timeout=20)
 
     def fields(self, acct="1"):
@@ -120,7 +121,7 @@ class RecordUsageTest(Base):
 @requires_linux
 class PopupTest(Base):
     def popup(self):
-        r = subprocess.run([str(self.H / "usage-popup.sh")], env=self.e.env, input="x", capture_output=True,
+        r = winlaunch.run_script(self.H / "usage-popup.sh", env=self.e.env, input="x", capture_output=True,
                            text=True, encoding="utf-8", timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout
@@ -200,7 +201,7 @@ class AutoswitchTest(Base):
         e = dict(self.e.env, **(env or {}))
         if herdr:
             e["HERDR_ENV"] = "1"
-        return subprocess.run([str(self.H / "bin" / "cautoswitch"), "--once", *args], env=e, capture_output=True,
+        return winlaunch.run_script(self.H / "bin" / "cautoswitch", ["--once", *args], env=e, capture_output=True,
                               text=True, encoding="utf-8", timeout=timeout)
 
     def ws_default(self, ws):
@@ -222,7 +223,7 @@ class AutoswitchTest(Base):
         with tempfile.TemporaryDirectory() as d:
             py_compile.compile(str(SRC / "bin" / "cautoswitch"), cfile=os.path.join(d, "c.pyc"), doraise=True)
         for s in (SRC / "usage-popup.sh", SRC / "record-usage.sh"):
-            r = subprocess.run(["bash", "-n", str(s)], capture_output=True, text=True, encoding="utf-8")
+            r = subprocess.run(bash_argv("-n", str(s)), capture_output=True, text=True, encoding="utf-8")
             self.assertEqual((r.returncode, r.stderr), (0, ""), s.name)
         self.assertFalse((SRC / "bin" / "__pycache__").exists())
 
@@ -244,7 +245,7 @@ class AutoswitchTest(Base):
         d = self.e.tmp / "dd"
         d.mkdir()
         (d / "daemon").write_text("sleep 100\n", encoding="utf-8")
-        daemon = self.e.popen(["bash", "daemon", "run"], cwd=d, env={
+        daemon = self.e.popen(bash_argv("daemon", "run"), cwd=d, env={
             "SQUAD_NAME": "dev-d", "HERDR_PANE_ID": "p2", "HERDR_WORKSPACE_ID": "w1"})
         with open(self.e.stub / "pids", "a", encoding="utf-8") as f:
             f.write(f"{daemon.pid}\n")
@@ -613,7 +614,7 @@ class WakeTest(Base):
     def test_blocked_at_sample_time_marks_and_a_later_idle_wakes(self):
         self.squad("dev-a", "p1", IDLE, status="blocked")
         self.e.set_status("p1", "blocked")
-        r = subprocess.run([str(self.H / "bin" / "cwake"), "--mark", "p1", "--clauses", "13"],
+        r = winlaunch.run_script(self.H / "bin" / "cwake", ["--mark", "p1", "--clauses", "13"],
                            env=dict(self.e.env), capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual([x.strip() for x in self.marker("p1")[1:]], ["dev-a", "blocked"])

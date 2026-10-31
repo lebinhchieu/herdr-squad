@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bin"))
 import squadsettings as ss  # noqa: E402
+import winlaunch
 
 SPAWN = ROOT / "bin" / "squad-spawn"
 
@@ -152,7 +153,7 @@ class SpawnTest(Base):
         self.dir = Path(self.tmp.name)
 
     def spawn(self, role="dev"):
-        return subprocess.run([str(SPAWN), role, "x", "--dry-run", "--prompt", "hello"], env=self.env, text=True,
+        return winlaunch.run_script(SPAWN, [role, "x", "--dry-run", "--prompt", "hello"], env=self.env, text=True,
                               encoding="utf-8", capture_output=True, timeout=10)
 
     def test_overlay_passes_the_effective_file_and_model_from_the_local_file(self):
@@ -238,7 +239,7 @@ class ComposedSpawnTest(Base):
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}")
 
     def run_spawn(self, *args):
-        return subprocess.run([str(SPAWN), "dev", "x", "--scope", "sc1", *args], env=self.env, text=True,
+        return winlaunch.run_script(SPAWN, ["dev", "x", "--scope", "sc1", *args], env=self.env, text=True,
                               encoding="utf-8", capture_output=True, timeout=30)
 
     def test_dry_run_exits_0_prints_the_effective_path_and_writes_nothing(self):
@@ -286,7 +287,7 @@ class ComposedSpawnTest(Base):
         d = json.loads(f.read_text(encoding="utf-8"))
         d["model"] = "pinnedmodel"
         f.write_text(json.dumps(d), encoding="utf-8")
-        r = subprocess.run([str(SPAWN), "ba", "x", "--scope", "sc1", "--dry-run"], env=self.env, text=True,
+        r = winlaunch.run_script(SPAWN, ["ba", "x", "--scope", "sc1", "--dry-run"], env=self.env, text=True,
                            encoding="utf-8", capture_output=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(f"--settings {f}", r.stdout)

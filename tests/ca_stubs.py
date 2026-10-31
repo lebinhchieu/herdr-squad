@@ -16,8 +16,19 @@ import time
 import unittest
 from pathlib import Path
 
+import winlaunch
+
 SRC = Path(__file__).resolve().parent.parent / "tools" / "claude-accounts"
 FIX = Path(__file__).resolve().parent / "fixtures" / "ca"
+BASH = "bash"
+
+
+def bash_argv(*words):
+    """argv for running bash itself: the bare name on POSIX, Git for Windows' bash by absolute path on nt."""
+    prefix = winlaunch._resolve("#!/bin/bash", winlaunch.NT, shutil.which, os.path.exists, os.environ.get("SystemRoot", ""))
+    return [*(prefix or [BASH]), *words]
+
+
 PANE = "w26:p7"  # the pane of the real pane-get / agent-list captures
 
 requires_linux = unittest.skipUnless(
@@ -229,7 +240,7 @@ class Env:
         d.mkdir()
         # a bash builtin wait (no child process that could outlive the kill and hold a pipe)
         (d / "daemon").write_text('mkfifo f; exec 3<>f; read -t 100 -u 3\n', encoding="utf-8")
-        p = self.popen(["bash", "daemon", "run"], env={"HERDR_PANE_ID": pane}, cwd=d)
+        p = self.popen(bash_argv("daemon", "run"), env={"HERDR_PANE_ID": pane}, cwd=d)
         with open(self.stub / "pids", "a", encoding="utf-8") as f:
             f.write(f"{p.pid}\n")
         return p
@@ -270,12 +281,12 @@ class Env:
     # -- running scripts ---------------------------------------------------------------------------------
     def run(self, cmd, *args, env=None, timeout=30):
         """A launcher by name (bin/<cmd>). Returns CompletedProcess (text)."""
-        return subprocess.run([str(self.acct / "bin" / cmd), *args], env=dict(self.env, **(env or {})),
+        return winlaunch.run_script(self.acct / "bin" / cmd, [*args], env=dict(self.env, **(env or {})),
                               capture_output=True, text=True, encoding="utf-8", timeout=timeout)
 
     def sh(self, script, *args, env=None, timeout=30):
         """Source lib.sh and run a bash snippet; args are $1.. of the snippet."""
-        return subprocess.run(["bash", "-c", '. "$HOME/.claude-accounts/lib.sh"; ' + script, "bash", *args],
+        return subprocess.run(bash_argv("-c", '. "$HOME/.claude-accounts/lib.sh"; ' + script, "bash", *args),
                               env=dict(self.env, **(env or {})), capture_output=True, text=True,
                               encoding="utf-8", timeout=timeout)
 

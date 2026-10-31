@@ -27,3 +27,14 @@
 Remaining failures are no launch errors: backslash vs forward-slash paths in expected output, a `mv` Permission denied, `Dev` label, symlink privilege. They are 03c triage input. Zero `WinError 193` in the four files that launch scripts.
 
 Added to `tests/winlaunch.py`: `bash()`, `python()`, `child_argv()`, `run_child()` (POSIX keeps UTF-8 bytes argv/env, as before; nt str). `test_squad_start.run_child` and `test_utf8_helpers.run` delegate to it. 30+12+1 `subprocess.run([str(x), ...])` sites became `winlaunch.run_script(x, [...])`. `TESTS_TO_CONVERT` lost `test_utf8_helpers.py`. test_winlaunch 18 + guard OK; `bin/squad-process lint` 0. Linux not run here.
+
+## 03b2 (tests converted to winlaunch, commit 6b476d0)
+
+Windows `python -m unittest <stem>` (cd tests), launch errors (WinError 193 / bytes env) before -> after; remaining are non-launch (03c):
+- test_squad_log_message E27->0 OK; test_team_lead_perms E26->0 OK; test_squad_usage_hook E10->0 OK; test_squad_retire E3->0 OK; test_squad_manager_guard E1->0 OK; test_old_language_inventory E1->0 OK
+- test_team_models E25->F1 (path format in override check); test_squadruntime E30->F2,E1 (symlink privilege WinError 1314, path format); test_squad_respawn E22->F7,E1 (herdr log shows `/` paths vs `\` expected; symlink priv); test_squad_usage E20->E1 (symlink priv); test_squad_label E17->F6 (PATH stub herdr built with `:`); test_squadsettings E10->F5 (path format); test_squad_ledger E10->F1,E1 (symlink of bash, PATH stub)
+- test_run_suite F1 unchanged (nested test_squad_usage symlink error; no script launches to convert)
+- test_ca_install F17,E1 -> F11,E1 (no launch error left; symlink priv/path); test_ca_autoswitch/launchers: skipped on nt (requires_linux, ADR 0011), bare bash -> ca_stubs.bash_argv
+- TESTS_TO_CONVERT: only test_utf8_helpers.py left (03b-1's). test_no_bare_bash, test_winlaunch, test_processlint OK.
+- Linux not runnable here; POSIX path of winlaunch is identity ([path,*args], env untouched), no skips added.
+- Linux (Debian, Tech Lead run at 6b476d0): 19 owned files incl. test_ca_* and test_run_suite, same counts as 40d64af, all OK.
