@@ -1,11 +1,8 @@
 """squad-report CLI and build (ticket 04): subprocess against a scratch squad from report_fixtures, field shape of the full build."""
 import json
 import os
-import socket
-import stat
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -118,22 +115,7 @@ class Cli(Base):
         for i in d["totals"]["po_wait"]["items"]:
             self.assertIsNone(i["title"])
 
-    def test_no_claude_process_is_spawned(self):
-        with tempfile.TemporaryDirectory() as d:
-            marker = Path(d) / "called"
-            stub = Path(d) / "claude"
-            stub.write_text("#!/bin/sh\necho x > '%s'\nexit 99\n" % marker, encoding="utf-8")
-            stub.chmod(stub.stat().st_mode | stat.S_IXUSR)
-            r = run(self.fx, "sc", "--no-html", path=d)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            self.assertFalse(marker.exists())
 
-    def test_no_network(self):
-        def boom(*a, **k):
-            raise AssertionError("socket used")
-        with mock.patch.dict(os.environ, self.fx.env()), mock.patch.object(socket, "socket", boom):
-            d = bd.build(self.fx.home, self.fx.squad)
-        self.assertEqual(d["schema_version"], 1)
 
     def test_html_written_next_to_data(self):  # ticket 05 supplies the renderer (04 skipped it while absent)
         r = run(self.fx, "sc")

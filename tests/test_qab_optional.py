@@ -1,5 +1,6 @@
 """Ticket 14: `qa-b: no` composes the QA-blackbox-free rules; no `qa-b` line composes as `qa-b: yes`.
 The golden is the merged tree (integration 27); 14's byte-identity to 4901cab was proven at 99796ce."""
+import functools
 import hashlib
 import json
 import os
@@ -23,6 +24,7 @@ NEW_IDS = ("REV-19", "REV-20", "REV-21", "EVID-6", "EVID-7", "SIZE-19", "SIZE-20
 ROLE_LIST = sr.ROLES
 
 
+@functools.lru_cache(maxsize=None)  # the same (role, size, qab) is composed by several tests; compose is a pure read
 def compose(role, size="M", qab=None, design="no", qa="full", root=ROOT):
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "scopes" / "fx"

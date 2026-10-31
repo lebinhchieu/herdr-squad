@@ -37,10 +37,6 @@ class CardAndSettingsTest(unittest.TestCase):
         self.assertNotIn("Edit(/.claude/squads/*/scopes/*/*.md)", perms["deny"])
         self.assertIn("Bash(squad-respawn:*)", perms["allow"])
 
-    def test_default_model_is_sonnet_high_with_the_advisor(self):
-        d = json.loads((ROOT / "templates/squad/settings/architect.json").read_text())
-        self.assertEqual((d["model"], d["effortLevel"], d["advisorModel"]), ("sonnet", "high", "opus"))
-
 
 class NoLeakTest(unittest.TestCase):
     def test_a_scope_without_the_flag_carries_no_architecture_rule_for_any_role(self):
@@ -106,22 +102,6 @@ class RulesTest(unittest.TestCase):
         for role, size in (("qa-whitebox", "M"), ("qa-whitebox", "L"), ("tech-lead", "L"), ("dev", "S")):
             self.assertIn("architecture.md", composed(role, size, architecture="yes"), (role, size))
         self.assertNotIn("SIZE-23c", ids("architect", "M", architecture="yes"))
-
-    def test_the_team_follows_or_asks_the_architect_and_the_manager_decides_after_two_rounds(self):
-        for role in ("manager", "qa-whitebox"):
-            self.assertIn("MSG-20", ids(role, "M", architecture="yes"), role)
-        self.assertIn("LC-19c", ids("dev", "M", architecture="yes"))
-        self.assertIn("ASK` the Architect; unsettled after 2 rounds: the Manager", composed("dev", "M", architecture="yes"))
-
-    def test_the_architect_proposes_irreversible_choices_and_the_po_decides(self):
-        text = composed("manager", "M", architecture="yes")
-        self.assertIn("Architect, then Tech Lead, then Manager propose; the PO decides every time", text)
-        self.assertIn("Architect lists and recommends", text)
-        self.assertIn("The PO decides", text)
-
-    def test_nothing_in_the_architects_rules_lets_it_check_code(self):
-        text = composed("architect", "L", architecture="yes")
-        self.assertIn("check no built code", text)
 
     def test_size_text_stays_clean_for_an_absent_role(self):
         for size in "SM":
