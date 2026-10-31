@@ -73,5 +73,6 @@ A lone scope sees nothing of other scopes. The scopes of a goal share only `goal
 ## Known limits
 
 - **Flat squads.** A squad created before the per-scope layout (a `roster.md` at its top, no `scopes/` folder) keeps working through the same scripts, which fall back to the flat layout and the older worktree paths. `squad-start` refuses one. The fallbacks are marked `legacy flat layout` and can go once such squads finish.
+- **Desktop toasts.** `squad-notify` toasts when an agent waits, if herdr's `[ui.toast] delivery` is `"off"`. On Linux it sends an OSC 777 sequence to the herdr client terminal. On Windows it runs `herdr notification show` and reads the config from `%APPDATA%\herdr\config.toml`.
 - **Cost:** every role is a full session, and every scope pays a fresh start (a Manager, plus a re-read of the project docs). Run `squad-usage` after real use to see what a scope costs.
 - **Several Managers, several tabs.** Each running scope or goal has its own Manager tab that can block on you.

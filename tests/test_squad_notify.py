@@ -209,6 +209,32 @@ class RunTest(unittest.TestCase):
         self.assertEqual(self.fire(), sn.osc("herdr", "Waiting for you"))
 
 
+class WindowsRunTest(unittest.TestCase):
+    """Windows path (05): no pty, the toast is `herdr notification show`; config is read from %APPDATA%."""
+
+    def test_toast_via_herdr_cli_and_appdata_config(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Path(d) / "herdr" / "config.toml"
+            cfg.parent.mkdir()
+            cfg.write_text('[ui.toast]\ndelivery = "off"\n', encoding="utf-8")
+            env = {"HERDR_ENV": "1", "SQUAD_NAME": "x", "SQUAD_ROLE": "manager", "APPDATA": d,
+                   "HERDR_WORKSPACE_ID": "w", "HERDR_TAB_ID": "w:t1"}
+            calls = []
+
+            def fake(args, e):
+                calls.append(args)
+                return {"workspace": {"label": "ws", "focused": False}, "tab": {"label": "tab"}}
+
+            old = sn.WINDOWS, sn.herdr
+            sn.WINDOWS, sn.herdr = True, fake
+            try:
+                self.assertEqual(sn.config_path(env), str(cfg))
+                sn.run({"hook_event_name": "Stop"}, env, str(Path(d) / "nowhere"))
+            finally:
+                sn.WINDOWS, sn.herdr = old
+            self.assertEqual(calls[-1], ["notification", "show", "ws · tab", "--body", "Waiting for you", "--sound", "none"])
+
+
 class CliTest(unittest.TestCase):
     def run_cli(self, stdin, env):
         t = time.time()
