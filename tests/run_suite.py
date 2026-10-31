@@ -35,7 +35,7 @@ TZ_WATCH = ()
 BROWSER_WATCH = ("tests/run_suite.py",)  # a browser test file itself is found by discover
 CA_PREFIX = "test_ca_"  # the claude-accounts test files
 CA_WATCH = ("tools/claude-accounts/", "tests/ca_stubs.py", "tests/ca_win_cases.ps1", "tests/fixtures/ca/",
-            "tests/winlaunch.py", "tests/run_suite.py")  # what the ca files load; ca_stubs imports winlaunch
+            "tests/winlaunch.py", "bin/squadio.py", "tests/run_suite.py")  # what the ca files load; ca_stubs imports winlaunch, which imports squadio
 TZ_ENV = {"TZ": "America/New_York", "LC_ALL": "C"}
 RAN_RE = re.compile(r"^Ran (\d+) tests? in ", re.M)
 
