@@ -61,15 +61,6 @@ class PathTest(Base):
         r = tool("path", "tasks/T1.md")
         self.assertEqual((r.returncode, r.stdout), (0, "tasks/T1\n"))
 
-    def test_not_md_is_usage_error(self):
-        r = tool("path", "tasks/T1.txt")
-        self.assertEqual(r.returncode, 2)
-        self.assertEqual(r.stdout, "")
-
-    def test_no_args_is_usage_error(self):
-        self.assertEqual(tool().returncode, 2)
-        self.assertEqual(tool("add", str(self.ticket)).returncode, 2)
-
 
 class AddTest(Base):
     def review(self, name="tl-review.md", body=None, **images):

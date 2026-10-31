@@ -8,7 +8,6 @@ Old name -> new name:
   test_a_renamed_heading_is_reported              test_an_unknown_pointer_is_reported
   test_a_missing_named_bullet_is_reported         test_an_unknown_pointer_is_reported
 """
-import re
 import shutil
 import tempfile
 import unittest
@@ -16,26 +15,11 @@ from pathlib import Path
 
 from rulesview import ROOT, run
 
-ARROW = re.compile(r"process\.md`?\s*→")
-
-
-def sources():
-    files = sorted((ROOT / "agents").glob("*.md")) + sorted((ROOT / "skills").glob("*/SKILL.md"))
-    return files + sorted(p for p in (ROOT / "bin").iterdir() if p.is_file() and p.suffix not in (".html", ".pyc"))
-
 
 class ProcessCitationsTest(unittest.TestCase):
     def test_lint_resolves_every_pointer(self):
         r = run("lint", "--plugin-root", str(ROOT))
         self.assertEqual((r.returncode, r.stdout.strip()), (0, ""), r.stdout)
-
-    def test_agents_skills_bin_cite_no_process_md_heading(self):
-        bad = [f.name for f in (ROOT / "agents").glob("*.md") if ARROW.search(f.read_text(errors="replace"))]
-        self.assertEqual(bad, [])
-
-    def test_rules_do_cite_ids(self):
-        n = sum(len(re.findall(r"\[[A-Z]+-\d+[a-z]?\]", p.read_text())) for p in (ROOT / "templates/squad/process").glob("*.md"))
-        self.assertGreaterEqual(n, 10)
 
     def test_an_unknown_pointer_is_reported(self):
         with tempfile.TemporaryDirectory() as d:

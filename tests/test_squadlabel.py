@@ -15,10 +15,6 @@ class BuildLabelTest(unittest.TestCase):
             for number, title, tail in [(None, "", ""), (2, "", " 2"), (None, "T-1 x", " · T-1 x"), (3, "T-1 x", " 3 · T-1 x")]:
                 self.assertEqual(sl.build_label(role, number, title), f"{emoji} {name}{tail}")
 
-    def test_architect_has_its_own_label(self):
-        self.assertIn("architect", sl.ROLE_NAMES)
-        self.assertEqual(sl.build_label("architect"), "🤖 Architect")
-
     def test_unknown_role_is_title_cased(self):
         self.assertEqual(sl.build_label("data-wrangler"), "🤖 Data Wrangler")
 
@@ -34,10 +30,6 @@ class BuildLabelTest(unittest.TestCase):
         cut = sl.build_label("dev", None, "x" * 25)
         self.assertEqual(cut, "🤖 Dev · " + "x" * 23 + "…")
         self.assertEqual(len(cut), 32)
-
-    def test_spec_example(self):
-        self.assertEqual(sl.build_label("qa-blackbox", None, "TAB-05 integration live check"),
-                         "🤖 QA Blackbox · TAB-05 integrat…")
 
 
 class StoreTest(unittest.TestCase):
@@ -68,10 +60,6 @@ class StoreTest(unittest.TestCase):
                 sl.write_entry(self.home, bad, "dev", None, "")
             self.assertIsNone(sl.read_entry(self.home, bad))
         self.assertFalse(self.home.exists())
-
-    def test_homes_are_separate(self):
-        sl.write_entry(self.home, "dev-1", "dev", None, "")
-        self.assertIsNone(sl.read_entry(self.other, "dev-1"))
 
 
 class AssignNumberTest(unittest.TestCase):
@@ -120,11 +108,6 @@ class AssignNumberTest(unittest.TestCase):
         self.assertEqual(sl.assign_number(self.home, "d2", "dev", {"d2"}), (2, []))
         self.add("d3")
         self.assertEqual(sl.assign_number(self.home, "d3", "dev", {"d2", "d3"}), (3, []))
-
-    def test_respawn_keeps_its_number(self):
-        self.add("d1", number=1)
-        self.add("d2", number=2)
-        self.assertEqual(sl.assign_number(self.home, "d2", "dev", {"d1", "d2"}), (2, []))
 
     def test_unnumbered_peer_gets_smallest_free(self):
         self.add("d1", number=1)

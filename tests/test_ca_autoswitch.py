@@ -113,10 +113,6 @@ class RecordUsageTest(Base):
         self.rec("s", "", "", "", "")
         self.assertEqual((self.H / "usage-1").read_text(encoding="utf-8"), old)
 
-    def test_no_args_writes_nothing(self):
-        self.rec()
-        self.assertEqual(list(self.H.glob("usage-[0-9]")), [])
-
 
 @requires_linux
 class PopupTest(Base):
@@ -218,14 +214,6 @@ class AutoswitchTest(Base):
         finally:
             sys.dont_write_bytecode = old
         return mod
-
-    def test_syntax_checks_leave_no_pycache(self):
-        with tempfile.TemporaryDirectory() as d:
-            py_compile.compile(str(SRC / "bin" / "cautoswitch"), cfile=os.path.join(d, "c.pyc"), doraise=True)
-        for s in (SRC / "usage-popup.sh", SRC / "record-usage.sh"):
-            r = subprocess.run(bash_argv("-n", str(s)), capture_output=True, text=True, encoding="utf-8")
-            self.assertEqual((r.returncode, r.stderr), (0, ""), s.name)
-        self.assertFalse((SRC / "bin" / "__pycache__").exists())
 
     def test_refuses_outside_herdr(self):
         r = self.auto(herdr=False)

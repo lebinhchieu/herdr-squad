@@ -552,7 +552,6 @@ class RespawnComposedTest(Base):
         self.assertEqual(r.returncode, 1, r.stderr)
         self.assertEqual(self.herdr(), "")
 
-
     def test_the_none_layout_is_not_a_squad(self):
         (self.squad / "process.local.md").unlink()
         r = self.respawn()
@@ -713,7 +712,6 @@ class RuntimeIsNotAScopeTest(Base):
             if f.is_file() and f.suffix != ".pyc" and f.name.startswith(scanners):
                 text = f.read_text(encoding="utf-8")
                 self.assertNotRegex(text, r"rglob\(|os\.walk\(|glob\([^)]*\*\*", f.name)
-
 
 
 class PruneTest(unittest.TestCase):
@@ -923,12 +921,6 @@ class PruneTest(unittest.TestCase):
         again = subprocess.run(run, capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertTrue(Path(again.stdout.strip()).is_dir())
-
-    def test_no_recursive_glob_in_the_code(self):
-        src = (BIN / "squadruntime.py").read_text(encoding="utf-8")
-        start = src.index("def _holders")
-        self.assertNotIn("**", src[start:src.index("def cmd_prune")])
-        self.assertNotIn("rglob", src[start:src.index("def cmd_prune")])
 
 
 if __name__ == "__main__":

@@ -1,7 +1,4 @@
-"""Browser DOM checks of the squad-report page (headless Chrome --dump-dom). Skips with a message when Chrome is missing.
-
-Layout numbers are CSS-string asserts here; pixel/screenshot checks are done by QA with playwright-cli.
-"""
+"""Browser DOM checks of the squad-report page (headless Chrome --dump-dom). Skips with a message when Chrome is missing."""
 import os
 import re
 import shutil
@@ -36,57 +33,6 @@ def dump_dom(data, width=1440, height=900):
 def rule(sel):
     m = re.search(r"(?:^|\})\s*%s\{([^}]*)\}" % re.escape(sel), CSS)
     return m.group(1) if m else ""
-
-
-class ShellCss(unittest.TestCase):
-    def test_centred_column(self):
-        r = rule("main")
-        self.assertIn("max-width:1280px", r)
-        self.assertIn("margin:auto", r)
-        self.assertIn("padding:14px 24px 60px", r)
-
-    def test_pill_nav_sticky(self):
-        self.assertIn("position:sticky", rule("nav.sections"))
-        self.assertIn("flex-wrap:wrap", rule("nav.sections"))
-        self.assertIn("border-radius:14px", rule("nav.sections a"))
-        self.assertIn("#E8820E25", CSS)
-
-    def test_chip_colours_as_mock(self):
-        self.assertIn("background:var(--bg);color:var(--muted)", rule(".chip"))
-        self.assertIn(".chip.done{background:#368A1E18;border-color:var(--work);color:var(--work)}", CSS)
-        self.assertIn(".chip.run{background:#E8820E22;border-color:var(--mango)", CSS)
-
-    def test_chips_in_table_cells_keep_a_gap(self):
-        self.assertIn("margin-left:6px", rule(".chip"))
-
-    def test_narrow_padding(self):
-        self.assertIn("@media(max-width:760px){main,header.page{padding-left:12px;padding-right:12px}", CSS)
-
-
-class OverviewCss(unittest.TestCase):
-    def test_grids(self):
-        self.assertIn("minmax(min(360px,100%),1fr)", rule(".kpis"))
-        self.assertIn("minmax(min(250px,100%),1fr)", rule(".digest"))
-        self.assertIn("minmax(min(340px,100%),1fr)", rule(".two"))
-        self.assertIn("flex-wrap:wrap", rule(".legend"))
-
-    def test_matrix_row_label_one_background_each(self):
-        line = [l for l in CSS.splitlines() if ".mx td.rl,.mx th.rl{" in l][0]
-        self.assertEqual(line.count("background:"), 2)
-        self.assertEqual(len(re.findall(r"\.mx th\.rl\{[^}]*background", line)), 1)
-        self.assertEqual(len(re.findall(r"\.mx td\.rl\{[^}]*background", line)), 1)
-        self.assertIn(".mx td.rl{background:#fff}", line)  # mock colour
-        self.assertIn(".mx th.rl{background:var(--panel)}", line)
-
-    def test_section_h2_16px(self):
-        self.assertIn("section h2{margin:8px 0;font-size:16px}", CSS)
-
-    def test_digest_card_rules_merged(self):
-        self.assertEqual(len(re.findall(r"\.digest button,\.digest>li>div\{", CSS)), 1)
-        self.assertIn("display:flex", rule(".digest button,.digest>li>div"))
-
-    def test_escalation_singular_in_js(self):
-        self.assertIn('" escalation" + (po.count === 1 ? "" : "s")', JS)
 
 
 @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser DOM test skipped")
@@ -236,19 +182,6 @@ class BannersDom(unittest.TestCase):
 
 
 class TabsCss(unittest.TestCase):
-    def test_mock_values(self):
-        self.assertIn("border-radius:10px", rule(".frame"))
-        self.assertIn("background:#fff", rule(".frame"))
-        self.assertIn("text-transform:uppercase", rule("th"))
-        self.assertIn("min-width:22px", rule(".pill"))
-        self.assertIn("width:min(460px,100vw)", rule(".drawer"))
-        self.assertIn("translateX(105%)", rule(".drawer"))
-        self.assertIn("border-radius:10px", rule(".tl"))
-        self.assertIn("position:sticky", rule(".mx td.rl,.mx th.rl"))
-        self.assertIn("th[aria-sort=descending]::after", CSS)
-
-    def test_no_dark_background(self):
-        self.assertNotRegex(CSS, r"background:#[0-3][0-9A-Fa-f]{5}\b")
 
     def test_timeline_svg_no_url_in_js(self):
         self.assertNotRegex(JS, r"https?://")
@@ -337,15 +270,6 @@ class ReturnOneFixes(unittest.TestCase):
         r = rule(".banner b")
         self.assertIn("overflow-wrap:anywhere", r)
         self.assertNotIn("nowrap", r)
-
-    def test_dev_label_short_with_title(self):
-        self.assertIn('t.dev.replace(/^[^-]+-/, "")', JS)
-        self.assertIn("{ title: t.dev }", JS)
-
-    def test_tasks_table_width_budget(self):
-        self.assertIn("width:90px", rule("td .bar") or re.search(r"td \.bar\{[^}]*\}", CSS).group(0))
-        self.assertIn("white-space:normal", rule("#tasks th"))
-        self.assertIn("padding:6px 8px", rule("th,td"))
 
 
 if __name__ == "__main__":

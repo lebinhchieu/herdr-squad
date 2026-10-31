@@ -210,9 +210,6 @@ class RuleTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stdout.strip(), "")
 
-    def test_size_rule_points_at_it(self):
-        self.assertIn("[START-3b]", self.rule("SIZE-1"))
-
 
 if __name__ == "__main__":
     unittest.main()

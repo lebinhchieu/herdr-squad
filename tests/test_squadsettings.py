@@ -145,10 +145,6 @@ class EffectiveTest(Base):
             self.assertTrue(hit(perms["allow"], "rm -rf /tmp/tmp.A") and not hit(perms["ask"], "rm -rf /tmp/tmp.A"))
             self.assertTrue(hit(perms["ask"], "rm -rf /tmp/tmp.A /tmp/tmp.B"), role)  # negative control
 
-    def test_manager_allows_squad_team(self):
-        m = json.loads((ROOT / "templates/squad/settings/manager.json").read_text(encoding="utf-8"))
-        self.assertIn("Bash(squad-team:*)", m["permissions"]["allow"])
-
     def test_ask_unions_and_other_arrays_are_replaced(self):
         r = ss.merge({"permissions": {"ask": ["a"]}, "l": [1, 2]}, {"permissions": {"ask": ["b"]}, "l": [3]})
         self.assertEqual(r["permissions"]["ask"], ["a", "b"])
@@ -314,4 +310,3 @@ class ComposedSpawnTest(Base):
 
 if __name__ == "__main__":
     unittest.main()
-

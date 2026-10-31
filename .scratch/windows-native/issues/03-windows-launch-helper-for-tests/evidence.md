@@ -46,3 +46,22 @@ Windows `python -m unittest <stem>` (cd tests), launch errors (WinError 193 / by
 - Already OK after 03b: `test_old_language_inventory`, `test_po_inbox_mod`, `test_promotion_0_6_0`, `test_windows_safe`.
 - New tickets: 09 (`test_ca_win` POSIX/WSL guard), 10 (`winlaunch` import writes `bin/__pycache__`, breaks `test_squadinbox.test_no_pyc` after other tests; Tech Lead owns winlaunch). `squadinbox` D3 known-not-fixed (ADR 0011).
 - Linux: no skips added where the condition is Linux (all `os.name == "nt"`; the Chrome skip only where Chrome is missing).
+
+## 03d (Windows, `PYTHONDONTWRITEBYTECODE=1 python -m unittest <stem>` in tests/)
+
+Result per file (pass / skip / ticket). Every skip is `os.name == "nt"` with a cause; Linux code paths are unchanged (expected strings use `Path(..).as_posix()`, which equals `str` on POSIX; `pathsep` is `:` there). Linux not runnable here.
+- test_team_models: OK. Fix: the `.overrides` fixture is written as LF bytes (`write_text` made CRLF, respawn refused the value).
+- test_squadruntime: OK, 1 skip (symlink WinError 1314) + 1 existing skip. Fix: path asserts via `as_posix`; PATH check on nt matches bash's own `/tmp/..` form.
+- test_squad_respawn: OK, 1 skip (symlink WinError 1314). Fix: `as_posix` in the herdr-log asserts.
+- test_squad_usage: OK, 1 skip (symlink WinError 1314).
+- test_squadsettings: OK (25). Fix: `settings_arg` helper accepts `C:/x` and `/c/x` forms on nt; exact path elsewhere.
+- test_squad_ledger: 1 skip (symlink of bash, WinError 1314); 1 failure left, ticket 06 (no `flock`, `test_simultaneous_fails_on_third_sha_give_one_notice`).
+- test_run_suite: OK (the nested test_squad_usage now skips).
+- test_ca_install: OK, 23 skipped (ADR 0011, from 03c). Nothing left.
+- test_squad_label: PATH built with `os.pathsep`; 6 failures left, ticket 12 (fake `herdr` is an extensionless bash script `CreateProcess` cannot run).
+- test_utf8_helpers: OK except 1 failure, ticket 12 (`test_label_reads_a_herdr_reply...`); 3 skips (JqTest x2 symlink WinError 1314; NotifyTest herdr stub, ticket 12). Fix: `run()` launches through `winlaunch.run_script` (was `TypeError` on bytes argv, 27 errors), PATH with `os.pathsep`. `TESTS_TO_CONVERT` unchanged. One run of the spawn-simulation test failed once for `team-lead --dry-run` (exit 1) while another ran in parallel; it passed on 2 later runs, not ticketed.
+- test_ca_win: 3 failures + 1 setUpClass error, ticket 11 (was 09).
+- test_po_inbox_mod, test_squad_report_cli: OK on Windows with `PYTHONDONTWRITEBYTECODE=1`; nothing changed.
+- test_no_bare_bash, test_processlint, test_squad_notify, test_squadinbox: OK. `python bin/squad-process lint` exit 0.
+- Housekeeping: ticket 09-ca-win... renamed to 11; ticket 10 (pycache) deleted; one line added to RUNNING-ON-WINDOWS.md.
+- Failing on Windows without a skip, all with a ticket: test_squad_ledger (06), test_squad_label x6 + test_utf8_helpers x1 (12), test_ca_win x4 (11).

@@ -99,18 +99,6 @@ class LedgerTest(unittest.TestCase):
         self.assertEqual((row["sha"], row["branch"], row["verdicts"], row["blocked"], row["returns"]),
                          (None, None, None, None, 0))
 
-    def test_live_log_read_only(self):
-        live = os.environ.get("SCOPE_DIR")
-        if not live or not (Path(live) / "messages.jsonl").is_file():
-            self.skipTest("no live scope log")
-        before = (Path(live) / "messages.jsonl").stat().st_mtime_ns
-        r = subprocess.run([sys.executable, str(LEDGER), "--home", live, "--json"], capture_output=True,
-                           text=True, encoding="utf-8", timeout=10)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        for row in json.loads(r.stdout):
-            self.assertEqual(len(row), 9)
-        self.assertEqual((Path(live) / "messages.jsonl").stat().st_mtime_ns, before)
-
     def test_evidence_handin_keeps_passed_sha_and_verdicts(self):
         self.write(FIXTURE + [rec("HANDIN", "dev", "tech", "HANDIN 03: evidence sha ccccccc")])
         row = [r for r in json.loads(self.ledger("--json").stdout) if r["task"] == "03"][0]

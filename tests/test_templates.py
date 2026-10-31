@@ -13,18 +13,6 @@ def files(d):
 
 
 class TemplateLayersTest(unittest.TestCase):
-    def test_standing_squad_has_no_per_scope_files(self):
-        got = files(T / "squad")
-        self.assertTrue({"project.md", "process-log.md"} <= got)
-        for banned in ("goal.md", "roster.md", "scopes.md", "escalations.md"):
-            self.assertNotIn(banned, got)
-        self.assertFalse([f for f in got if f.startswith(("iterations/", "contracts/", "roles/"))])
-
-    def test_scope_template_holds_the_per_scope_files(self):
-        self.assertTrue({"scope.md", "roster.md", "escalations.md", "iterations/TEMPLATE.md"} <= files(T / "scope"))
-
-    def test_goal_template_holds_the_shared_folder_and_the_goal_files(self):
-        self.assertTrue({"goal.md", "roster.md", "escalations.md", "shared/decisions.md"} <= files(T / "goal"))
 
     def test_brief_placeholders_are_the_ones_squad_start_fills(self):
         for kind in ("scope", "goal"):

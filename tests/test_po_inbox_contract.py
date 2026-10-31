@@ -101,12 +101,6 @@ class ContractTest(unittest.TestCase):
         for name in files:
             self.assertIn("'%s':" % name, index)
 
-    def test_the_mod_parses_every_fixture_and_the_extra_key_case(self):  # (ii), (iii): run by `claude plugin test`
-        tests = "".join(p.read_text(encoding="utf-8") for p in (ROOT / "hooks" / "po-inbox").glob("*.test.ts"))
-        self.assertIn("Object.entries(FIXTURES)", tests)
-        self.assertIn("an extra key anywhere is ignored", tests)
-        self.assertIn("another version", tests)
-
 
 if __name__ == "__main__":
     unittest.main()

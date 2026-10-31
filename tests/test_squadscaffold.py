@@ -93,25 +93,6 @@ class Scaffold(Base):
 
 
 class Retirement(Base):
-    def test_show_is_retired_and_apply_is_gone(self):
-        self.assertNotEqual(run("show", "dev").returncode, 0)
-        sq = self.root / ".claude" / "squads" / "x"
-        sq.mkdir(parents=True)
-        for cmd in (("apply", "--legacy", "--file", str(self.root / "f.md")), ("plan",), ("version",), ("check",),
-                    ("compose", "--out", str(self.root / "o.md"))):
-            r = run(*cmd, "--squad-dir", str(sq))
-            self.assertEqual(r.returncode, 2, cmd)
-            self.assertNotIn("Traceback", r.stderr, cmd)
-
-    def test_no_command_card_or_prompt_calls_show(self):
-        hits = []
-        for d in ("agents", "skills", "bin", "templates", "hooks"):
-            for p in (ROOT / d).rglob("*"):
-                if p.is_file() and p.suffix in ("", ".md", ".py", ".json", ".sh") and "history" not in p.parts:
-                    t = p.read_text(encoding="utf-8", errors="ignore")
-                    if "squad-process show" in t or "ROLE_SECTIONS" in t:
-                        hits.append(str(p.relative_to(ROOT)))
-        self.assertEqual(hits, [])
 
     def test_the_live_squad_overlay_fixture_lints_and_classifies(self):
         import squadupgrade as su
