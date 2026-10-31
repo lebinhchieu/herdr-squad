@@ -2,7 +2,7 @@
 
 ## Behaviour
 
-Tests only; no change in `bin/ templates/ agents/ skills/ docs/`. Code sha: `fe7c3df` (base `e24f306`).
+Tests only; no change in `bin/ templates/ agents/ skills/ docs/`. Code sha: `7f3ea79` (tests in `fe7c3df`; base `e24f306`).
 
 217 tests became 113 in the five files. Each removed test has a row in `removed.tsv` (rule, reason, surviving test). Report, kept-net table and mutation proof: `prune-report.md`.
 
