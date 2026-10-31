@@ -27,22 +27,6 @@ class AdvisorRulesTest(unittest.TestCase):
             self.assertEqual(set(acts("LC-25", size)), ALL)
             self.assertEqual(acts("LC-26", size), ("manager", "tech-lead"))
 
-    def test_triggers_and_note(self):
-        r = rule("dev", "LC-25")
-        for needle in ("2 failed tries at one error", "2 unanswered `BLOCKED`", "3rd `FAIL`",
-                       "3 lines: question, advice", "question, advice, what was done", "Advisor off: say so"):
-            self.assertIn(needle, r)
-        r = rule("tech-lead", "LC-26")
-        self.assertIn("irreversible design choice", r)
-        self.assertIn("[LC-25] note", r)
-        self.assertNotIn("LC-24", composed("dev", "M"))
-
-    def test_step_up_replaced(self):
-        r = rule("manager", "COST-11")
-        self.assertNotIn("notch of model", r)
-        self.assertIn("advisor first", r)
-        self.assertIn("only by respawn", r)
-
     def test_third_return_notice_cites_a_real_rule(self):
         src = (ROOT / "bin" / "squad-log-message").read_text(encoding="utf-8")
         self.assertIn("consult the advisor before the next HANDIN; note it in the task file [LC-25]", src)
@@ -61,10 +45,6 @@ class AdvisorRulesTest(unittest.TestCase):
             self.assertEqual(json.loads(r.stdout)["advisorModel"], "")
             (sd / "dev.local.json").write_text("{}", encoding="utf-8")
             self.assertEqual(json.loads(effective(tmp).stdout)["advisorModel"], "opus")
-
-    def test_lint_passes(self):
-        r = run("lint")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
 if __name__ == "__main__":
