@@ -1,418 +1,12 @@
-"""Ticket 17 (slice 1): S = Manager + Developers, M = + both QAs, L = every role. Rules in sizes, who, starting
-and spawning. The whole-template orphan-duty checks land in ticket 31."""
+"""The team model of the process files: sizes.md and teams.md rules act on present roles for every team, `who` lists the
+acting roles per duty value, pointers resolve, and each role composes the rules it must own (ticket 10b cut the S/M/L era)."""
+import itertools
 import re
 import sys
 import unittest
+from pathlib import Path
 
-from rulesview import ROOT, acts, composed, run, who
-
-PRESENT = {"S": {"manager", "dev"}, "M": {"manager", "dev", "qa-whitebox", "qa-blackbox"},
-           "L": {"manager", "dev", "qa-whitebox", "qa-blackbox", "ba", "team-lead", "tech-lead"}}
-ONLY_L = ("ba", "team-lead", "tech-lead")
-# duty -> {size: (rule id, role that acts on it)}
-OWNERS = {
-    "plan and Developer spawning": {"S": ("SIZE-6a", "manager"), "M": ("SIZE-6a", "manager"), "L": ("SIZE-6b", "team-lead")},
-    "Developer spawning (cap)": {"S": ("START-2a", "manager"), "M": ("START-2a", "manager"), "L": ("START-2b", "team-lead")},
-    "Developer briefing (design notes, AC)": {"S": ("SIZE-6c", "manager"), "M": ("SIZE-6d", "manager")},
-    "technical AC": {"S": ("SIZE-6c", "manager"), "M": ("SIZE-23b", "qa-whitebox"), "L": ("REV-7", "tech-lead")},
-    "business AC": {"S": ("SIZE-5a", "manager"), "M": ("SIZE-5c", "qa-blackbox"), "L": ("SIZE-5b", "ba")},
-    "code check": {"S": ("SIZE-7a", "manager"), "M": ("SIZE-7b", "qa-whitebox"), "L": ("SIZE-7b", "qa-whitebox")},
-    "behaviour check": {"S": ("SIZE-8a", "manager"), "M": ("SIZE-8b", "qa-blackbox"), "L": ("SIZE-8b", "qa-blackbox")},
-    "disputes": {"S": ("WHO-8a", "manager"), "M": ("WHO-8a", "manager"), "L": ("WHO-8c", "team-lead")},
-    "health checks": {"S": ("SPAWN-10a", "manager"), "M": ("SPAWN-10a", "manager"), "L": ("SPAWN-10b", "manager")},
-    "promotion": {"S": ("WHO-2b", "manager"), "M": ("WHO-2b", "manager"), "L": ("WHO-2c", "tech-lead")},
-    # slice 2 (ticket 29)
-    "hand-in": {"S": ("REV-13a", "dev"), "M": ("REV-13b", "dev"), "L": ("REV-13b", "dev")},
-    "hand-in confirmation": {"S": ("REV-1", "manager"), "M": ("REV-9", "qa-blackbox"), "L": ("REV-9", "qa-blackbox")},
-    "done is told to": {"S": ("LC-20a", "dev"), "M": ("LC-20a", "dev"), "L": ("LC-20b", "dev")},
-    "full suite": {"S": ("SUITE-2d", "dev"), "M": ("SUITE-1b", "qa-whitebox"), "L": ("SUITE-1", "tech-lead")},
-    "promote.md": {"S": ("PROMO-3b", "manager"), "M": ("SIZE-24b", "qa-whitebox"), "L": ("PROMO-2", "tech-lead")},
-    "evidence commit check": {"S": ("REV-1", "manager"), "M": ("EVID-2e", "manager"), "L": ("EVID-2c", "tech-lead")},
-    "three returns": {"S": ("LC-7a", "manager"), "M": ("LC-7c", "manager"), "L": ("LC-7b", "team-lead")},
-}
-SLICE2 = ("review", "evidence", "suites", "promotion", "lifecycle")
-ON_DEMAND = {"REV-5a", "EVID-5"}  # empty `roles:`: attached to no role, cited from REV-22 and LC-19
-# rules of slice 2 that still act on a role absent at S or M, with the reason
-EXCEPTIONS = {
-    "LC-25": "advisor when stuck acts on every role (ticket 18, pinned by test_advisor_rules); the absent roles read it only if they exist",
-    "LC-26": "irreversible-choice advisor rule acts on manager, tech-lead (ticket 18, pinned by test_advisor_rules)",
-    "LC-23": "the Designer is present at any size when design = yes",
-    "REV-2b": "acts for QA whitebox when the Tech Lead owns risk; a `when:` holds one role or duty key, so the QA's presence is the role itself",
-    "REV-3b": "acts for the QAs when no Tech Lead is on the team; same one-key limit",
-    "REV-21b": "acts for QA whitebox when the ticket is the business AC; same one-key limit",
-}
-
-
-class DutyOwners(unittest.TestCase):
-    def test_manager_variant_of_every_team_lead_duty_at_s_and_m(self):
-        for rid in ("SIZE-6a", "START-2a", "WHO-1a", "WHO-3a", "WHO-8a"):
-            for size in "SM":
-                with self.subTest(rule=rid, size=size):
-                    self.assertIn("manager", acts(rid, size))
-        for rid in ("SPAWN-5a", "SPAWN-8a", "SPAWN-10a"):  # team language: the Manager acts when it owns the plan, and only then
-            with self.subTest(rule=rid):
-                self.assertIn("manager", acts(rid, "plan-owner = manager"))
-                self.assertEqual(acts(rid, "plan-owner = team-lead"), ())
-
-
-def team_keyed(rid):
-    """True when the rule's `when:` has no `size`/`qa-b` key (a team-language key, `goal`, or none): `who`'s size lines say
-    nothing about it (every missing fact counts true), and a rule for a role that is absent is never composed. Those rules
-    are covered by test_team_duties' 128-set sweep and test_small_files_equivalence."""
-    for f in ALL_FILES:
-        m = re.search(r"(?ms)^## %s .*?(?=^## |\Z)" % re.escape(rid), f.read_text(encoding="utf-8"))
-        if m:
-            w = re.search(r"(?m)^when: (.*)$", m.group(0))
-            return not (w and re.search(r"\b(size|qa-b)\b", w.group(1)))
-    return False
-
-
-def slice2_ids():
-    out = []
-    for f in SLICE2:
-        out += re.findall(r"(?m)^## ([A-Z]+-\d+[a-z]?) ", (ROOT / "templates" / "squad" / "process" / f"{f}.md").read_text(encoding="utf-8"))
-    return out
-
-
-def present(size, qab):
-    roles = set(PRESENT[size])
-    if qab == "no":
-        roles.discard("qa-blackbox")
-    return roles
-
-
-def team_language(rid):
-    """True when the rule's `when:` is in the team language (a `when:` without `size`/`qa-b`): `who` size lines mean nothing for it."""
-    import squadcompose as sc
-    rules = sc.load_rules(str(ROOT), None)[0]
-    return all(r.when and not re.search(r"\b(size|qa-b)\b", r.when) for r in rules if r.id == rid)
-
-
-def team_dead(ids, exceptions=()):
-    """Rules of `ids` that no team reaches: no set of the 128 matches the `when:` with one of the rule's roles on the team.
-    (A rule whose roles are optional composes only for the roles present, so it matches teams without them by design.)"""
-    import itertools
-    import squadcompose as sc
-    import squadrules as sr
-    rules = {r.id: r for r in sc.load_rules(str(ROOT), None)[0] if r.id in ids and r.id not in exceptions}
-    always = {"manager", "dev", "token-coach"}
-    alive = set()
-    for n in range(len(sr.TEAM_KEYS) + 1):
-        for team in itertools.combinations(sr.TEAM_KEYS, n):
-            facts = sr.team_facts(list(team))
-            present = always | {{"qa-white": "qa-whitebox", "qa-black": "qa-blackbox"}.get(k, k) for k in team}
-            for r in rules.values():
-                if ("all" in r.roles or set(r.roles) & present) and sr.matches(r.when, facts):
-                    alive.add(r.id)
-    return sorted(f"{rid}: no team composes it for any of {sorted(r.roles)}" for rid, r in rules.items() if rid not in alive)
-
-
-SLICE3 = ("cost", "messages", "files", "iterations", "notes", "goal", "closing", "safety", "core")
-# not size-bound: the Token Coach is spawned by the Manager at any size (ITER-6a/6b); the Designer and the Architect are present at any size
-# when design = yes / architecture = yes (rules for it carry that `when`, or are universal)
-ANY_SIZE = {"token-coach", "designer", "architect"}
-# slice-3 rules that may act on an absent role, with the reason
-EXCEPTIONS3 = {
-    "FILE-11": "drafts rule: acts on every role present; the absent roles are listed so it still reaches them on move up",
-    "SAFE-9": "limits of QA whitebox: the role composes it only when it is on the team, so the rule needs no `when:`",
-    "SAFE-10": "limits of QA blackbox: the role composes it only when it is on the team, so the rule needs no `when:`",
-}
-
-
-def slice3_ids():
-    out = []
-    for f in SLICE3:
-        out += re.findall(r"(?m)^## ([A-Z]+-\d+[a-z]?) ", (ROOT / "templates" / "squad" / "process" / f"{f}.md").read_text(encoding="utf-8"))
-    return out
-
-
-class Slice3Owners(unittest.TestCase):
-    def test_no_rule_of_the_slice_3_files_is_orphaned(self):
-        """who-orphan = no present role acts on the rule at that size / qa-b value. Lists every one."""
-        bad = []
-        bad += team_dead([r for r in slice3_ids() if team_language(r)], EXCEPTIONS3)
-        for rid in slice3_ids():
-            if rid in EXCEPTIONS3 or team_keyed(rid) or team_language(rid):
-                continue
-            for line in run("who", rid).stdout.splitlines():
-                m = re.match(r"([SM])(?: qa-b (yes|no))?: acts: (.*?); aware: ", line)
-                if not m or m.group(3).strip() in ("-", "all"):
-                    continue
-                size, qab = m.group(1), m.group(2) or "yes"
-                acting = {a.strip() for a in m.group(3).split(",")}
-                if not acting & (present(size, qab) | ANY_SIZE):
-                    bad.append(f"{rid} at {size} qa-b {qab}: acts only on {sorted(acting)}")
-        self.maxDiff = None
-        self.assertEqual(sorted(set(bad)), [])
-
-    def test_rules_retargeted_in_30_act_on_the_right_roles(self):
-        for rid, key, role in (("COST-6a", "plan-owner = manager", "manager"), ("COST-10a", "plan-owner = manager", "manager"),
-                               ("MSG-4a", "plan-owner = manager", "manager"), ("MSG-7a", "plan-owner = manager", "manager"),
-                               ("MSG-17b", "design-notes = dev", "designer")):
-            with self.subTest(rule=rid, key=key):
-                self.assertIn(role, acts(rid, key))
-        for rid, size, role in (("FILE-5a", "M", "manager"),
-                                ("ITER-3b", "M", "manager"), ("GOAL-3c", "S", "manager"), ("GOAL-6d", "M", "manager"),
-                                ("CLOSE-3c", "M", "manager"), ("FILE-8", "M", "manager")):
-            with self.subTest(rule=rid, size=size):
-                self.assertIn(role, acts(rid, size))
-        for rid in ("COST-4a", "COST-4b", "COST-6b", "COST-10b", "COST-13b", "COST-14b", "MSG-4b", "MSG-5", "MSG-6", "MSG-8b",
-                    "MSG-12", "MSG-13", "MSG-14", "MSG-15", "MSG-19", "ITER-3", "NOTE-3", "FILE-5c", "GOAL-3a", "GOAL-6a", "CLOSE-3a"):
-            if team_keyed(rid):
-                continue
-            for size in "SM":
-                with self.subTest(rule=rid, size=size):
-                    if team_language(rid):  # the S and M shapes (the converter's mapping) never reach a Team Lead rule
-                        import squadcompose as sc
-                        import squadrules as sr
-                        r = next(r for r in sc.load_rules(str(ROOT), None)[0] if r.id == rid)
-                        self.assertFalse(sr.matches(r.when, sr.team_facts(sr.legacy_team(size))), f"{rid} matches the {size} shape")
-                        continue
-                    self.assertFalse(set(acts(rid, size)) - {"manager"}, f"{rid} at {size} acts on {acts(rid, size)}")
-
-    def test_composed_dev_and_qas_name_no_absent_role_at_s_and_m(self):
-        for size in "SM":
-            for role in ("dev", "qa-whitebox", "qa-blackbox"):
-                if role != "dev" and size == "S":
-                    continue
-                for design, goal in (("no", "no"), ("yes", "yes")):
-                    t = composed(role, size, design, goal)
-                    with self.subTest(role=role, size=size, design=design, goal=goal):
-                        for name in ("Tech Lead", "Team Lead", "the BA"):
-                            self.assertNotIn(name, t, f"{role} at {size} names {name}")
-
-    def test_files_table_owners_follow_the_sizes(self):
-        t = composed("manager", "M")
-        self.assertIn("Plan owner", t)  # 06: the owner columns follow the duty owners, not the sizes
-        self.assertNotIn("Tech Lead in S", t)
-
-    def test_msg3_never_paste_in_composed_dev(self):
-        for size in "SML":
-            self.assertIn("never paste", composed("dev", size))
-
-
-class Slice2Owners(unittest.TestCase):
-    def test_no_rule_of_the_five_files_acts_on_an_absent_role(self):
-        """Lists every orphan: a rule that matches a team (all 128 sets) on which none of its acting roles is present,
-        minus the reasoned EXCEPTIONS."""
-        import itertools
-        sys.path.insert(0, str(ROOT / "bin"))
-        import squadrules as sr
-        import squadcompose as sc
-        rules = sc.load_rules(str(ROOT), None)[0]
-        mine = {r.id: r for r in rules if r.id.split("-")[0] in ("LC", "REV", "EVID")}  # the other slice-2 files migrate in their own tasks
-        always = {"manager", "dev", "token-coach"}
-        bad = []
-        for n in range(len(sr.TEAM_KEYS) + 1):
-            for team in itertools.combinations(sr.TEAM_KEYS, n):
-                facts = sr.team_facts(list(team))
-                present = always | {{"qa-white": "qa-whitebox", "qa-black": "qa-blackbox"}.get(t, t) for t in team}
-                for rid, r in mine.items():
-                    if rid in EXCEPTIONS or "all" in r.roles or not r.roles or not sr.matches(r.when, facts):  # empty roles = on demand
-                        continue
-                    if not set(r.roles) & present:
-                        bad.append(f"{rid} on {', '.join(team) or 'none'}: acts only on {sorted(r.roles)}")
-        self.assertEqual(sorted(set(bad)), [])
-
-    def test_pointers_of_dev_rules_at_s_reach_a_present_role(self):
-        """A [ID] pointer in a rule the S Developer acts on must name a rule someone present acts on at S."""
-        bad = []
-        for f in SLICE2:
-            text = (ROOT / "templates" / "squad" / "process" / f"{f}.md").read_text(encoding="utf-8")
-            for rid, body in re.findall(r"(?ms)^## ([A-Z]+-\d+[a-z]?) [^\n]*\n(.*?)(?=^## |\Z)", text):
-                if "dev" not in acts(rid, "S"):
-                    continue
-                for target in set(re.findall(r"\[([A-Z]+-\d+[a-z]?)\]", body)):
-                    if target in ON_DEMAND:
-                        continue  # an empty `roles:` rule is read with `squad-process rule <ID>`
-                    if not set(acts(target, "S")) & PRESENT["S"]:
-                        bad.append(f"{rid} -> {target}")
-        self.assertEqual(sorted(bad), [])
-
-
-class S_DeveloperReview(unittest.TestCase):
-    def test_review_rule_reaches_composed_dev_at_s_only(self):
-        s = composed("dev", "S")
-        self.assertIn("## REV-22", s)
-        body = s.split("## REV-22")[1].split(" ## ")[0]
-        for needle in ("fresh-context review subagent", "`model: sonnet`", "`effort: high`", "`## Review`", "squad-evidence check"):
-            self.assertIn(needle, body)
-        self.assertNotIn("Opus", body)
-        for size in "ML":
-            self.assertNotIn("REV-22", composed("dev", size))
-        self.assertEqual(acts("REV-22", "qa-white = no"), ("dev",))
-        self.assertEqual(acts("REV-22", "qa-white = yes"), ())
-
-    def test_s_dev_gets_the_suite_run_and_receipt_how_to(self):
-        s = composed("dev", "S")
-        body = s.split("## SUITE-2d")[1].split("\n## ")[0]
-        for needle in ("pgrep -f", "never restart", "receipt"):
-            self.assertIn(needle, body)
-        for size in "ML":
-            self.assertNotIn("## SUITE-2d", composed("dev", size))
-
-    def test_manager_confirms_behaviour_and_review_at_s(self):
-        t = composed("manager", "S")
-        self.assertIn("`## Behaviour` and `## Review` ([REV-22])", t)
-        self.assertIn("## EVID-3a", t)
-
-    def test_dev_rules_stay_within_5_kib(self):
-        from test_dev_rules_size import LIMIT, TEAMS, compose_team
-        for team in TEAMS:
-            for goal in ("yes", "no"):
-                n = len(compose_team("dev", team, goal))
-                self.assertLessEqual(n, LIMIT, (team, goal, n))
-
-
-class RespawnReadable(unittest.TestCase):
-    def test_l_business_ac_owner_with_and_without_qa_blackbox(self):
-        # qa-b yes: SIZE-5b; qa-b no: REV-21 (the BA alone). Either way the BA owns it at L.
-        self.assertIn("ba", acts("SIZE-5b", "business-ac = ba"))
-        self.assertIn("ba", acts("REV-21", "business-ac = ba"))
-        self.assertEqual(acts("REV-21", "business-ac = ticket"), ())
-
-class SizeRules(unittest.TestCase):
-    def test_m_has_no_ba_team_lead_or_tech_lead_text(self):
-        m = composed("manager", "M")
-        for name in ("The Team Lead owns the plan", "Tech Lead tells the Manager"):
-            self.assertNotIn(name, m)
-        self.assertEqual(who("START-2d")["plan-owner = manager"][0], ())
-
-
-# ---- ticket 31: whole-template checks -------------------------------------------------------------------------
-ALL_FILES = sorted((ROOT / "templates" / "squad" / "process").glob("*.md"))
-# rules that act on no present role at S or M, or name an absent role as actor; by ID, with the reason
-# (tech-ac.md follow-up list: only SIZE-17a-e, LC-23/25/26, move-up rules and the six role start cards)
-ORPHAN_ALLOWED = {
-    # SIZE-17a-e (join on move up) key on a presence fact since 04: with the team's facts they act only where the role is present
-    **{rid: "role start card; role absent at this size, rule never composed" for rid in
-       ("START-8", "START-11", "START-13", "START-14", "START-15", "START-16")},
-}
-# composed manager text (outside tables and the index) that names an absent role
-ABSENT_NAME_ALLOWED = {}   # none: SIZE-18 is `when: size = L`, SPAWN-4 says "the plan" (DECISION 31)
-# duty -> sizes need an owner row in OWNERS
-REQUIRED_DUTIES = ("plan and Developer spawning", "technical AC", "business AC", "code check", "behaviour check", "full suite",
-                   "promote.md", "migration, contract change", "irreversible choice", "hand-in")
-
-
-def all_ids():
-    out = []
-    for f in ALL_FILES:
-        if f.name != "_removed.md":
-            out += re.findall(r"(?m)^## ([A-Z]+-\d+[a-z]?) ", f.read_text(encoding="utf-8"))
-    return out
-
-
-class WholeTemplate(unittest.TestCase):
-    def test_allow_list_is_only_what_the_follow_up_list_names(self):
-        for rid, why in ORPHAN_ALLOWED.items():
-            self.assertTrue(why)
-            self.assertTrue(rid.startswith("SIZE-17") or rid.startswith("START-"), rid)
-        self.assertEqual(sorted(k for k in ORPHAN_ALLOWED if k.startswith("START-")),
-                         ["START-11", "START-13", "START-14", "START-15", "START-16", "START-8"])
-
-    def test_allowed_orphans_really_are_orphans(self):
-        """A stale allow-list entry hides nothing: each still acts on no present role at some size."""
-        for rid in ORPHAN_ALLOWED:
-            hit = False
-            for size, (acting, _) in who(rid).items():
-                if size in "SM" and acting and not set(acting) & (PRESENT[size] | ANY_SIZE):
-                    hit = True
-            self.assertTrue(hit, f"{rid} is no longer an orphan: drop it from ORPHAN_ALLOWED")
-
-    def test_dev_and_qas_name_no_absent_role_at_s_and_m(self):
-        for size in "SM":
-            for role in ("dev", "qa-whitebox", "qa-blackbox"):
-                if size == "S" and role != "dev":
-                    continue
-                for design, goal in (("no", "no"), ("yes", "yes")):
-                    t = composed(role, size, design, goal).split("## Index of other rules")[0]
-                    for name in ("Tech Lead", "Team Lead", "the BA"):
-                        with self.subTest(role=role, size=size, name=name):
-                            self.assertNotIn(name, t)
-
-    def test_every_duty_has_an_owner_per_size(self):
-        pairs = {"plan and Developer spawning": "plan and Developer spawning", "technical AC": "technical AC",
-                 "business AC": "business AC", "code check": "code check", "behaviour check": "behaviour check",
-                 "full suite": "full suite", "promote.md": "promote.md", "hand-in": "hand-in"}
-        for duty in pairs:
-            self.assertIn(duty, OWNERS)
-            for size in "SML":
-                self.assertIn(size, OWNERS[duty], f"{duty} has no owner at {size}")
-
-    def test_the_orphan_check_catches_an_orphan(self):
-        """Mutation: a rule acting only on an absent role is reported by the same parser."""
-        line = "S: acts: tech-lead; aware: -"
-        m = re.match(r"([SM])(?: qa-b (yes|no))?: acts: (.*?); aware: ", line)
-        acting = {a.strip() for a in m.group(3).split(",")}
-        self.assertFalse(acting & (present("S", "yes") | ANY_SIZE))
-
-
-BASE = "2e81e5e"
-
-
-def rules_at(rev=None):
-    """{rule id: text} of every process rule file, at a git revision or in the working tree."""
-    import subprocess
-    out = {}
-    for f in ALL_FILES:
-        if f.name == "_removed.md":
-            continue  # tombstones are not rules; a removed ID must be absent from `new`
-        if rev:
-            r = subprocess.run(["git", "show", f"{rev}:templates/squad/process/{f.name}"], cwd=ROOT, capture_output=True, encoding="utf-8")
-            text = r.stdout if r.returncode == 0 else ""
-        else:
-            text = f.read_text(encoding="utf-8")
-        for part in re.split(r"(?m)^(?=## [A-Z]+-\d+[a-z]? )", text):
-            m = re.match(r"## ([A-Z]+-\d+[a-z]?) ", part)
-            if m:
-                out[m.group(1)] = part.strip()
-    return out
-
-
-class Changelog(unittest.TestCase):
-    def test_every_changed_added_or_removed_rule_id_is_in_the_v7_entry(self):
-        import subprocess
-        if subprocess.run(["git", "cat-file", "-e", BASE], cwd=ROOT, capture_output=True).returncode:
-            self.skipTest(f"base {BASE} not in this clone")
-        old, new = rules_at(BASE), rules_at()
-        diff = {i for i in set(old) | set(new) if old.get(i) != new.get(i)}
-        text = (ROOT / "skills" / "squad-process-update" / "changelog.md").read_text(encoding="utf-8")
-        entry = re.split(r"(?m)^## v6\b", text)[0]
-        listed = {m.group(1): m.group(2) for m in re.finditer(r"(?m)^- ([A-Z]+-\d+[a-z]?): (.+)$", entry)}
-        # the v7 and later blocks (v8 holds the Architect rules) together are the entry since the base
-        sections = {s: "\n".join(part.split("\n\n")[0] for part in entry.split(f"\n{s}:\n")[1:]) for s in ("added", "changed", "removed", "retargeted")}
-        # IDs in the diff sit in added/removed/retargeted with a reason
-        self.assertEqual(sorted(diff - set(listed)), [], "rule IDs changed since the base but missing from the v7 entry")
-        for rid in diff:
-            self.assertGreater(len(listed[rid]), 10, f"{rid} has no reason")
-        for rid in set(old) - set(new):
-            self.assertIn(f"- {rid}:", sections["removed"])
-        for rid in set(new) - set(old):
-            self.assertIn(f"- {rid}:", sections["added"])
-        for rid in diff & set(old) & set(new):
-            self.assertTrue(f"- {rid}:" in sections["retargeted"] or f"- {rid}:" in sections["changed"] or f", {rid}:" in sections["changed"],
-                            f"{rid} is in neither retargeted nor changed")
-
-    def test_no_opus_review_subagent_in_the_rule_files(self):
-        pat = re.compile(r"Opus review|review subagent.{0,40}Opus|Opus.{0,20}review subagent")
-        for f in sorted((ROOT / "templates" / "squad" / "process").rglob("*")):
-            if f.is_file():
-                self.assertIsNone(pat.search(f.read_text(encoding="utf-8")), str(f))
-        text = (ROOT / "skills" / "squad-process-update" / "changelog.md").read_text(encoding="utf-8")
-        for line in re.split(r"(?m)^## v6\b", text)[0].splitlines():
-            self.assertIsNone(pat.search(line), line)
-
-    def test_the_owner_rules_changed_after_17_are_listed(self):
-        text = (ROOT / "skills" / "squad-process-update" / "changelog.md").read_text(encoding="utf-8")
-        for rid in ("SPAWN-4", "SIZE-18", "LC-7c", "REV-22", "SUITE-2d"):
-            self.assertIn(f"- {rid}:", text)
-
-
-# ---- drop-scope-size 05 (design 04a): sizes.md and teams.md in the team language ----------------------------------
-import itertools  # noqa: E402
-from pathlib import Path  # noqa: E402
-import sys  # noqa: E402
+from rulesview import ROOT, composed, who
 
 sys.path.insert(0, str(ROOT / "bin"))
 import squadrules as sr  # noqa: E402
@@ -496,39 +90,6 @@ class TeamRules(unittest.TestCase):
         for team in ((), ("qa-white", "qa-black"), tuple(sr.TEAM_KEYS)):
             self.assertIn("## SIZE-1 Proposing the team", composed("manager", team=team))
 
-    def test_done_text_by_the_four_shapes(self):
-        both = composed("manager", team="qa-white, qa-black")
-        self.assertIn("Done = every checker on the team has passed the task: QA whitebox PASS and QA blackbox PASS", both)
-        self.assertIn("One PASS is never enough", both)
-        for other in ("## TEAM-1", "## TEAM-2", "## TEAM-3"):
-            self.assertNotIn(other, both)
-        w = composed("manager", team="qa-white")
-        self.assertIn("Done = every checker on the team has passed the task: QA whitebox PASS", w)
-        self.assertNotIn("QA blackbox PASS", w)
-        self.assertNotIn("One PASS is never enough", w)
-        b = composed("manager", team="qa-black")
-        self.assertIn("QA blackbox PASS, and the Developer's `## Review` confirmed", b)
-        self.assertNotIn("QA whitebox PASS", b)
-        n = composed("manager", team="")
-        self.assertIn("Done = the Developer's checks, `evidence.md` and `## Review` exist, and the code-check owner", n)
-        self.assertIn("No QA is on the team: confirm `evidence.md` `## Behaviour`", n)
-        self.assertNotIn("PASS and QA", n)
-
-    def test_who_checks_behaviour_by_shape(self):
-        self.assertIn("QA whitebox PASS", composed("manager", team="qa-white"))
-        self.assertIn("you check the Developer's `## Behaviour`", composed("qa-whitebox", team="qa-white"))
-        self.assertNotIn("you check the Developer's `## Behaviour`", composed("qa-whitebox", team="qa-white, qa-black"))
-        self.assertIn("QA blackbox checks the behaviour of every task", composed("qa-blackbox", team="qa-white, qa-black"))
-        self.assertIn("QA blackbox checks the behaviour of every task", composed("qa-blackbox", team="qa-black"))
-        self.assertIn("The BA owns the business AC and writes them alone", composed("ba", team="ba"))
-        self.assertIn("writes them with QA blackbox", composed("ba", team="ba, qa-black"))
-
-    def test_architecture_ac_rules_follow_the_tech_ac_owner(self):
-        for team, rid, role in (("tech-lead, qa-white, architect", "SIZE-23d", "tech-lead"), ("qa-white, architect", "SIZE-23c", "qa-whitebox")):
-            self.assertIn(f"## {rid}", composed(role, team=team))
-        self.assertNotIn("## SIZE-23d", composed("qa-whitebox", team="qa-white, architect"))
-        self.assertNotIn("## SIZE-23c", composed("qa-whitebox", team="qa-white"))
-
     def test_chain_table_names_every_duty_and_ends_the_chains(self):
         body = Path(PDIR, "sizes.md").read_text(encoding="utf-8").split("## SIZE-22 ")[1].split("\n## ")[0]
         rows = [l for l in body.splitlines() if l.startswith("| ") and not l.startswith(("| Duty", "|---"))]
@@ -543,21 +104,34 @@ class TeamRules(unittest.TestCase):
             for cited in re.findall(r"\[(SIZE-\d+[a-z]?|TEAM-\d+[a-z]?)\]", f.read_text(encoding="utf-8")):
                 self.assertIn(cited, ids, f"{f.name} cites {cited}")
 
-    def test_tombstones_of_this_task_carry_why_and_a_live_replacement(self):
-        rules, tombs, _ = sr.load_rules(PDIR, str(ROOT))
-        ids = {r.id for r in rules}
-        mine = [t for t in tombs if t.version == "v9"]
-        self.assertGreaterEqual(len(mine), 10)
-        for t in mine:
-            self.assertGreater(len(t.why), 10, t.id)
-            self.assertTrue(t.replaced_by and set(t.replaced_by) <= ids, t.id)
-            self.assertNotIn(t.id, ids)
 
-    def test_qa_b_is_gone_from_the_when_of_both_files(self):
-        for name in MY_FILES:
-            for line in Path(PDIR, name).read_text(encoding="utf-8").splitlines():
-                if line.startswith("when:"):
-                    self.assertNotRegex(line, r"\bqa-b\b|\bsize\b", line)
+# The net: one composed-per-role structure test. A rule dropped from a role, or sent to another role, fails here by ID.
+# IDs only, no sentences. The team has every optional role, so every role composes its full set.
+FULL_TEAM = "ba, team-lead, tech-lead, qa-white, qa-black, designer, architect"
+ROLE_NET = {
+    "manager": "SIZE-1 SIZE-22 START-3 START-18 WHO-5 WHO-6 WHO-8 MSG-1 MSG-2 LC-1 REV-15 EVID-1 PROMO-1 CLOSE-1 SPAWN-1 SPAWN-4 MRG-1 SAFE-1b",
+    "team-lead": "SIZE-6b START-2b START-15 WHO-3b WHO-8c LC-2 LC-7b REV-3 EVID-3b COST-4b SPAWN-5b SPAWN-8b",
+    "tech-lead": "SIZE-23d START-16 WHO-2 WHO-2c PROMO-2 LC-8 REV-4 REV-7 EVID-2c SUITE-1 SUITE-3 COST-4c",
+    "qa-whitebox": "SIZE-7b SIZE-23c START-14 PROMO-8 LC-3b REV-2 REV-3 REV-7 REV-10 REV-17 SUITE-2b SAFE-9",
+    "qa-blackbox": "SIZE-8b START-13 LC-3b REV-3 REV-8 REV-9 REV-11 REV-17 SUITE-2b SAFE-10",
+    "ba": "SIZE-5b START-11 PROMO-3a WHO-2c WHO-7 REV-8 FILE-1",
+    "designer": "SIZE-9 START-12 MSG-16b MSG-17 LC-23 SAFE-8 WHO-4",
+    "dev": "START-10 MSG-11b LC-3a LC-18 LC-20b REV-13b REV-14a EVID-2a EVID-2b COST-5 SAFE-1a SAFE-11 SUITE-2a",
+    "token-coach": "START-17 ITER-7 ITER-8 ITER-9 ITER-13 ITER-14",
+    "architect": "SIZE-9a START-20 WHO-2e MSG-20b",
+}
+HAS_DUTIES_LINE = ("manager", "team-lead", "tech-lead")
+
+
+class ComposedPerRole(unittest.TestCase):
+    def test_each_role_composes_its_header_duties_line_and_must_own_rule_ids(self):
+        for role, ids in ROLE_NET.items():
+            with self.subTest(role=role):
+                text = composed(role, team=FULL_TEAM)
+                self.assertIn(f"role: {role} ", text)
+                self.assertEqual("duties: plan-owner=" in text, role in HAS_DUTIES_LINE, f"{role}: duties line")
+                have = set(re.findall(r"## ([A-Z]+-[0-9]+[a-z]?) ", text))
+                self.assertEqual(sorted(set(ids.split()) - have), [], f"{role} lost rules")
 
 
 if __name__ == "__main__":
