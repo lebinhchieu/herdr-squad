@@ -1,6 +1,6 @@
 # Ticket 10b: prune the five R1 rules-wording test files
 
-**Result:** 104 rows in `removed.tsv` (103 tests removed, 1 shape-matrix row). 217 tests became 113 (-48%). One test was added: the per-role net test. Code sha `fe7c3df`, base `e24f306`. Tests only.
+**Result:** 104 rows in `removed.tsv` (103 tests removed, 1 shape-matrix row). 217 tests became 115 (-47%). One test was added: the per-role net test. Code sha `fe7c3df`, base `e24f306`. Tests only.
 
 | file | tests before | after | lines before | lines after | verdict |
 |---|---|---|---|---|---|
