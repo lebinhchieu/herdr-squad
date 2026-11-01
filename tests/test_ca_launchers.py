@@ -831,5 +831,36 @@ class CwakeTest(Base):
         self.assertIsNone(self.marker())
 
 
+@unittest.skipUnless(os.name == "nt", "the Windows branch of lib.sh: hardlinks and junctions under Git Bash")
+class WindowsLibTest(unittest.TestCase):
+    """link_shared on Git Bash joins account 2 to account 1 with hardlinks and junctions, in a temp HOME."""
+
+    def test_link_shared_hardlinks_files_junctions_folders_and_repairs_a_split(self):
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix="ca-lib-") as t:
+            home = Path(t)
+            a1, a2 = home / ".claude", home / ".claude-2"
+            (a1 / "skills").mkdir(parents=True)
+            (a1 / "CLAUDE.md").write_text("one\n")
+            (a1 / "settings.json").write_text("{}\n")
+            env = {**os.environ, "HOME": str(home)}
+
+            def run(script):
+                return subprocess.run(bash_argv("-c", '. "$1"; ' + script, "bash", (SRC / "lib.sh").as_posix()), env=env,
+                                      capture_output=True, text=True, timeout=60)
+            r = run("link_shared 2; acct_dir 2")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue(r.stdout.strip().endswith(".claude-2"), r.stdout)
+            self.assertTrue(os.path.samefile(a1 / "CLAUDE.md", a2 / "CLAUDE.md"))
+            self.assertTrue(os.path.samefile(a1 / "skills", a2 / "skills"))
+            # Claude rewrote a shared file by rename: the link is split and the newer copy must win.
+            (a2 / "settings.json").unlink()
+            (a2 / "settings.json").write_text('{"new":1}\n')
+            os.utime(a2 / "settings.json", (time.time() + 60, time.time() + 60))
+            self.assertEqual(run("link_shared 2").returncode, 0)
+            self.assertTrue(os.path.samefile(a1 / "settings.json", a2 / "settings.json"))
+            self.assertEqual((a1 / "settings.json").read_text(), '{"new":1}\n')
+
+
 if __name__ == "__main__":
     unittest.main()

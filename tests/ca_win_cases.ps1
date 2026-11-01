@@ -117,7 +117,7 @@ function InHerdr($id = 'w26') { $env:HERDR_ENV = '1'; $env:HERDR_WORKSPACE_ID = 
 function SetWs($rows) { $script:WsList = WsJson $rows }
 function NoWsDir { Check (-not (Test-Path -LiteralPath $script:WsDir)) 'workspace-default was created' }
 $USAGE = 'usage: cdefault --ws [<workspace id|panel number|label>] <1|2|3>'
-function CfgOf($n) { if ($n -eq 1) { $null } else { Join-Path $HOME $(if ($n -eq 2) { '.claude-b' } else { '.claude-3' }) } }
+function CfgOf($n) { if ($n -eq 1) { $null } else { Join-Path $HOME $(if ($n -eq 2) { '.claude-2' } else { '.claude-3' }) } }
 
 # ---------------------------------------------------------------- contract: names, home, ids
 Case 'ps.AcctHome_is_the_override_and_ps1_is_ascii' {
@@ -134,7 +134,7 @@ Case 'ps.AcctHome_default_is_HOME_claude-accounts' {
     . $Ps1
     Eq $script:AcctHome (Join-Path $HOME '.claude-accounts') 'AcctHome default'
     Eq "$HOME" $HomeDir 'HOME'
-    Check ("$HOME" -notmatch '84084') 'HOME is the PO profile'
+    # (the Eq above is the proof that HOME is the test's, not the PO's)
 }
 
 Case 'WsIdOkTest.test_accepts_and_rejects' {

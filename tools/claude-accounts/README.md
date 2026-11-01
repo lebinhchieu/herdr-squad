@@ -28,6 +28,10 @@ The install never edits `.bashrc`, the herdr config or the statusline. It swaps 
 | `--allow-worktree` | Run from a linked worktree (tests only; the worktree is deleted at squad close) |
 | `--unlink` | Rollback: turn every link made here back into a regular copy; state untouched |
 
+## Windows (Git Bash)
+
+`install.sh` detects Git Bash and **copies** instead of linking (file symlinks need admin there), so rerun `bash tools/claude-accounts/install.sh --force` after a repo change. Accounts are `~/.claude`, `~/.claude-2`, `~/.claude-3`, as on WSL. `lib.sh` joins accounts 2 and 3 to account 1 with hardlinks (files) and junctions (folders), and re-joins a hardlink Claude split. Copy mode also installs `windows/claude-accounts.ps1` (pwsh), `windows/bin/cswitch`, `windows/autoswitch.py` and `windows/usage.py`, and leaves out `bin/cautoswitch` and `bin/cwake`: they read `/proc`, which Git Bash has not. `--copy` forces this mode on Linux (tests).
+
 ## Commands added by autoswitch
 
 | Command | Does |

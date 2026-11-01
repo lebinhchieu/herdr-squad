@@ -22,7 +22,7 @@ description: The user's two Claude accounts and their launchers c1 / c2 / c / cd
 - **"Switch when usage passes N%"** → read the usage first. The status-line input carries `rate_limits.five_hour.used_percentage` and `rate_limits.seven_day.used_percentage`; the last captured copy is `~/.claude/statusline-input-debug.json`. Report the number and switch only if the condition holds.
 - **"Make c2 the default"** → in herdr: `cdefault --ws 2` (running `c2` also does it); `cdefault 2` sets only the global fallback. `c` follows at once; plain `claude` and `herdr agent start --kind claude` follow the global default in new shells, or the workspace default through the new `.bashrc` line.
 - **"Log in c3"** → c3 has no login yet; the user runs `! c3 auth login` (interactive).
-- **Which account am I on?** → `CLAUDE_CONFIG_DIR` unset = account 1; `~/.claude-2` = account 2, `~/.claude-3` = account 3 (WSL; Windows uses `~/.claude-b` for 2, and has no c3).
+- **Which account am I on?** → `CLAUDE_CONFIG_DIR` unset = account 1; `~/.claude-2` = account 2, `~/.claude-3` = account 3 (WSL and Windows alike).
 
 ## Where things live
 
