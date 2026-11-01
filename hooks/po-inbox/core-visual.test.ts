@@ -341,7 +341,7 @@ describe('[rec] indent (QAB F2): counted and clipped with the indent', () => {
 describe('chips and headings (item.md section 5)', () => {
   const T = { Box: 'Box', Text: 'Text', Button: 'Button' }
   const plan = { expanded: false, fitRows: 50, budget: 50 }
-  test('a code chip is exactly its text, no padding', () => {
+  test('a code span is exactly its text, no padding', () => {
     const d = drawBody(parseBody('merge `squad/x` into'), 80, T, plan)
     expect(JSON.stringify(d.nodes)).toContain('"squad/x"')
     expect(JSON.stringify(d.nodes)).not.toContain('" squad/x "')

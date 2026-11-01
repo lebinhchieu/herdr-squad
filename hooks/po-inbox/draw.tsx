@@ -50,7 +50,7 @@ export function wrapCells(text: string, width: number): string[] {
 export const toneProps = (t: string): Record<string, unknown> =>
   t === 'good' ? { color: TONE.good } : t === 'bad' ? { color: TONE.bad } : t === 'warn' ? { color: TONE.warn } : t === 'dim' ? { dimColor: true } : {}
 
-// What a span list draws as plain text: a code chip is its text, no padding (the plain spaces of the sentence stay);
+// What a span list draws as plain text: a code span is its text, no padding (the plain spaces of the sentence stay);
 // a link is `label <url>` (a bare url is itself); a badge is its filled chip, glyph and padding counted.
 const spanDrawn = (s: Span): string =>
   s.kind === 'link' ? (s.text === '' ? s.url : `${s.text} <${s.url}>`) : s.kind === 'badge' ? chipText(s.text) : s.text
