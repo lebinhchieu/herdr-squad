@@ -2,7 +2,7 @@
 # Links ~/.claude-accounts and ~/.claude/skills/claude-accounts to this checkout, per file.
 # ~/.claude-accounts stays a real directory so its state files (default, workspace-default/, usage-*, cswitch.log) stay put.
 # Git Bash on Windows (file symlinks need admin there): it COPIES instead of linking, so rerun it after a repo change.
-# That mode (--copy, automatic on Windows) installs windows/ as well, and leaves out cautoswitch and cwake (they read /proc).
+# That mode (--copy, automatic on Windows) installs the files of windows/ as well.
 # Usage: install.sh [--dry-run] [--force] [--allow-worktree] [--unlink] [--copy]
 #   --dry-run         print the whole plan, change nothing (exit 1 when a real run would refuse)
 #   --force           replace a live file or skill folder whose content differs, after moving it to ~/.claude-accounts/.install-backup/
@@ -34,13 +34,13 @@ if [ -n "$gd" ] && [ "$gd" != "$gc" ]; then
   else echo "error: $SRC is in a git worktree that is deleted when its squad closes; run install.sh from the main checkout" >&2; exit 1; fi
 fi
 
-BINS=(); for f in "$SRC"/bin/*; do b=${f##*/}; [ "$COPY" = 1 ] && case "$b" in cautoswitch|cwake) continue ;; esac; BINS+=("$b"); done
+BINS=(); for f in "$SRC"/bin/*; do BINS+=("${f##*/}"); done
 TOP=(lib.sh usage-popup.sh record-usage.sh HANDOFF.md)
 # copy mode also installs the Windows-only files from windows/ (src_of maps a live name to its repo file)
 [ "$COPY" = 1 ] && TOP+=(claude-accounts.ps1 autoswitch.py usage.py)
 TOOL=("${TOP[@]}"); for b in "${BINS[@]}"; do TOOL+=("bin/$b"); done
 src_of() {
-  if [ "$COPY" = 1 ]; then case "$1" in claude-accounts.ps1|autoswitch.py|usage.py|bin/cswitch) echo "$SRC/windows/$1"; return ;; esac; fi
+  if [ "$COPY" = 1 ]; then case "$1" in claude-accounts.ps1|autoswitch.py|usage.py) echo "$SRC/windows/$1"; return ;; esac; fi
   echo "$SRC/$1"
 }
 

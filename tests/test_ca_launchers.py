@@ -831,6 +831,37 @@ class CwakeTest(Base):
         self.assertIsNone(self.marker())
 
 
+class CaprocTest(unittest.TestCase):
+    """bin/caproc.py, the Windows stand-in for /proc: runs where the platform allows it."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("caproc", SRC / "bin" / "caproc.py")
+        cls.caproc = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.caproc)
+
+    def test_claude_in_takes_the_tui_and_skips_a_daemon_and_other_programs(self):
+        def proc(name, pid, *argv):
+            return {"name": name, "pid": pid, "argv": [name, *argv], "cwd": "C:/w"}
+        info = {"process_info": {"foreground_processes": [
+            proc("pwsh.exe", 1), proc("claude.exe", 2, "daemon", "run"), proc("claude.exe", 3, "--agent", "squad:dev")]}}
+        got = self.caproc.claude_in(info)
+        self.assertEqual((got["pid"], got["argv"]), (3, ["claude.exe", "--agent", "squad:dev"]))
+        self.assertIsNone(self.caproc.claude_in({"process_info": {"foreground_processes": [proc("pwsh.exe", 1)]}}))
+        self.assertIsNone(self.caproc.claude_in(None))
+
+    @unittest.skipUnless(os.name == "nt", "reads a Windows process's PEB")
+    def test_environ_reads_another_process_and_norm_path_unifies_the_two_path_forms(self):
+        import sys
+        p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"],
+                             env={**os.environ, "SQUAD_NAME": "dev-x", "CLAUDE_CONFIG_DIR": "/c/Users/u/.claude-3"})
+        self.addCleanup(p.kill)
+        env = self.caproc.environ(p.pid)
+        self.assertEqual((env.get("SQUAD_NAME"), env.get("PATH") is not None), ("dev-x", True))
+        self.assertEqual(self.caproc.norm_path("/c/Users/u/.claude-3"), self.caproc.norm_path("C:/Users/u/.claude-3"))
+
+
 @unittest.skipUnless(os.name == "nt", "the Windows branch of lib.sh: hardlinks and junctions under Git Bash")
 class WindowsLibTest(unittest.TestCase):
     """link_shared on Git Bash joins account 2 to account 1 with hardlinks and junctions, in a temp HOME."""

@@ -270,15 +270,15 @@ class InstallTest(unittest.TestCase):
             self.assertEqual(sorted((str(p), p.is_symlink(), p.read_text() if p.is_file() else "") for p in self.home.rglob("*")), snap, args)
 
     @requires_linux
-    def test_copy_mode_copies_windows_files_and_leaves_out_the_proc_scripts(self):
+    def test_copy_mode_copies_every_script_and_the_windows_files(self):
         r = self.run_install("--copy")
         self.assertEqual(r.returncode, 0, r.stderr)
         for f in ("lib.sh", "bin/c2", "claude-accounts.ps1", "autoswitch.py", "usage.py"):
             self.assertFalse((self.acct / f).is_symlink(), f)
-        self.assertEqual((self.acct / "bin" / "cswitch").read_bytes(), (CA / "windows" / "bin" / "cswitch").read_bytes())
+        self.assertEqual((self.acct / "bin" / "cswitch").read_bytes(), (CA / "bin" / "cswitch").read_bytes())
         self.assertEqual((self.acct / "claude-accounts.ps1").read_bytes(), (CA / "windows" / "claude-accounts.ps1").read_bytes())
-        for gone in ("cautoswitch", "cwake"):
-            self.assertFalse((self.acct / "bin" / gone).exists(), gone)  # they read /proc
+        for f in ("cautoswitch", "cwake", "caproc.py"):
+            self.assertTrue((self.acct / "bin" / f).is_file() and not (self.acct / "bin" / f).is_symlink(), f)
         self.assertFalse(self.skill.is_symlink())
         self.assertTrue((self.skill / "SKILL.md").is_file())
         again = self.run_install("--copy", "--dry-run")

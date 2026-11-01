@@ -16,6 +16,10 @@ is the idle gate.
 """
 import datetime, glob, json, os, subprocess, sys, tempfile, time
 
+if os.name == "nt":  # Git Bash: no /proc, no pgrep; caproc.py stands in
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import caproc
+
 H = os.path.expanduser("~/.claude-accounts")
 PENDING_DIR = f"{H}/wake-pending"
 TAIL_LINES = 200
@@ -26,7 +30,7 @@ def now():
 
 
 def log(line):
-    with open(f"{H}/cswitch.log", "a") as f:
+    with open(f"{H}/cswitch.log", "a", encoding="utf-8") as f:
         f.write(line + "\n")
 
 
@@ -51,6 +55,8 @@ def agent_get(pane):
 
 def pane_env(pane):
     """Environment of the pane's live claude (not the `claude daemon run` child), else None."""
+    if os.name == "nt":
+        return caproc.pane_env(pane)
     try:
         pids = subprocess.run(["pgrep", "-u", str(os.getuid()), "-x", "claude"],
                               capture_output=True, text=True).stdout.split()
@@ -223,9 +229,14 @@ def sample(pane, clauses, since):
     return name, ",".join(reasons)
 
 
+def marker_file(pane):
+    """wake-pending/<pane>; on Windows w1:p2 is stored as w1_p2 (a file name cannot hold a colon)."""
+    return f"{PENDING_DIR}/{pane.replace(':', '_') if os.name == 'nt' else pane}"
+
+
 def write_marker(pane, name, reason):
     os.makedirs(PENDING_DIR, exist_ok=True)
-    path = f"{PENDING_DIR}/{pane}"
+    path = marker_file(pane)
     epoch, old = int(time.time()), ""
     try:
         parts = open(path).read().strip().split(" ", 2)
@@ -251,7 +262,7 @@ def wake(pane, text, old, new):
     name = (env or {}).get("SQUAD_NAME")
     def done():
         try:
-            os.remove(f"{PENDING_DIR}/{pane}")
+            os.remove(marker_file(pane))
         except OSError:
             pass
     if env is None or not name:
