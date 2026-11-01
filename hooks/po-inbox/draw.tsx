@@ -50,7 +50,7 @@ export function wrapCells(text: string, width: number): string[] {
 export const toneProps = (t: string): Record<string, unknown> =>
   t === 'good' ? { color: TONE.good } : t === 'bad' ? { color: TONE.bad } : t === 'warn' ? { color: TONE.warn } : t === 'dim' ? { dimColor: true } : {}
 
-// What a span list draws as plain text: a code chip is its text, no padding (the plain spaces of the sentence stay);
+// What a span list draws as plain text: a code span is its text, no padding (the plain spaces of the sentence stay);
 // a link is `label <url>` (a bare url is itself); a badge is its filled chip, glyph and padding counted.
 const spanDrawn = (s: Span): string =>
   s.kind === 'link' ? (s.text === '' ? s.url : `${s.text} <${s.url}>`) : s.kind === 'badge' ? chipText(s.text) : s.text
@@ -61,7 +61,7 @@ export function drawSpans(spans: Span[], T: T, base = ''): any[] {
   return spans.map((s, i) => {
     const key = `${base}s${i}`
     if (s.kind === 'bold') return <Text key={key} bold>{s.text}</Text>
-    if (s.kind === 'code') return <Text key={key} inverse>{s.text}</Text>
+    if (s.kind === 'code') return <Text key={key} bold color={ACCENT}>{s.text}</Text>
     if (s.kind === 'badge') return <Text key={key} {...chipProps(CHIPS[s.text].tone)}>{chipText(s.text)}</Text>
     if (s.kind === 'link') {
       // The url is always shown: a pane cannot open it, and no escape sequence leaves the pane.
