@@ -1,7 +1,12 @@
 # Account 1 = ~/.claude (no CLAUDE_CONFIG_DIR, so it keeps ~/.claude.json),
 # accounts 2 and 3 = ~/.claude-2 / ~/.claude-3 (own login + .claude.json; the rest symlinked to ~/.claude).
+# Git Bash on Windows: the shared files are hardlinks and the shared folders junctions
+# (symlinks need admin there); see relink.
 ACCT_HOME="$HOME/.claude-accounts"; A_DIR="$HOME/.claude"
-SHARED="CLAUDE.md settings.json settings.local.json .mcp.json statusline-command.sh skills plugins hooks themes projects agents commands output-styles"
+case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) CA_WIN=1 ;; *) CA_WIN=0 ;; esac
+SHARED_FILES="CLAUDE.md settings.json settings.local.json .mcp.json statusline-command.sh"
+SHARED_DIRS="skills plugins hooks themes projects agents commands output-styles"
+SHARED="$SHARED_FILES $SHARED_DIRS"
 WS_DIR="$ACCT_HOME/workspace-default"
 ws_id_ok() { [[ "$1" =~ ^w[0-9A-Za-z]+$ ]]; } # the id becomes a file name: nothing else gets through
 global_default() { local v; v=$(cat "$ACCT_HOME/default" 2>/dev/null); case "$v" in 1|2|3) echo "$v" ;; *) echo 1 ;; esac; }
@@ -63,9 +68,35 @@ set_workspace_default() {
   done
   return 0
 }
+acct_dir() { # $1 = 1|2|3 -> the account's config dir
+  case "$1" in
+    1) echo "$A_DIR" ;;
+    2|3) echo "$HOME/.claude-$1" ;;
+    *) return 2 ;;
+  esac
+}
+win() { cygpath -w "$1"; }
+# Windows: file symlinks need admin, so the shared files are hardlinks and the shared folders junctions. Claude may
+# rewrite a file via rename, which silently splits a hardlink, so this re-joins it before every launch, keeping
+# whichever copy is newer.
+relink() { # $1 = the account dir (account 2 or 3) to join to account 1's shared files
+  local d="$1" f a b
+  for f in $SHARED_FILES; do
+    a="$A_DIR/$f"; b="$d/$f"
+    [ -e "$a" ] || [ -e "$b" ] || continue
+    [ -e "$a" ] && [ -e "$b" ] && [ "$(ls -i "$a" | cut -d' ' -f1)" = "$(ls -i "$b" | cut -d' ' -f1)" ] && continue
+    if [ -e "$b" ] && { [ ! -e "$a" ] || [ "$b" -nt "$a" ]; }; then cp -p "$b" "$a"; fi
+    rm -f "$b"; ln "$a" "$b"
+  done
+  for f in $SHARED_DIRS; do
+    mkdir -p "$A_DIR/$f"
+    [ -e "$d/$f" ] || cmd //c mklink //J "$(win "$d/$f")" "$(win "$A_DIR/$f")" >/dev/null
+  done
+}
 link_shared() { # $1 = 2|3
-  local f d="$HOME/.claude-$1"
+  local f d; d=$(acct_dir "$1") || return 2
   mkdir -p "$d"
+  if [ "$CA_WIN" = 1 ]; then relink "$d"; return; fi
   for f in $SHARED; do
     [ -L "$d/$f" ] && continue
     [ -e "$A_DIR/$f" ] || continue
@@ -76,7 +107,7 @@ run_claude() { # $1 = 1|2|3, rest = claude args
   local acct="$1"; shift
   case "$acct" in
     1) env -u CLAUDE_CONFIG_DIR claude "$@" ;;
-    2|3) link_shared "$acct"; CLAUDE_CONFIG_DIR="$HOME/.claude-$acct" claude "$@" ;;
+    2|3) link_shared "$acct"; CLAUDE_CONFIG_DIR=$(acct_dir "$acct") claude "$@" ;;
     *) echo "unknown account '$acct' (use 1, 2 or 3)" >&2; return 2 ;;
   esac
 }

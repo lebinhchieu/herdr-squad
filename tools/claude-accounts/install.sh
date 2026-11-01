@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 # Links ~/.claude-accounts and ~/.claude/skills/claude-accounts to this checkout, per file.
 # ~/.claude-accounts stays a real directory so its state files (default, workspace-default/, usage-*, cswitch.log) stay put.
-# Usage: install.sh [--dry-run] [--force] [--allow-worktree] [--unlink]
+# Git Bash on Windows (file symlinks need admin there): it COPIES instead of linking, so rerun it after a repo change.
+# That mode (--copy, automatic on Windows) installs the files of windows/ as well.
+# Usage: install.sh [--dry-run] [--force] [--allow-worktree] [--unlink] [--copy]
 #   --dry-run         print the whole plan, change nothing (exit 1 when a real run would refuse)
 #   --force           replace a live file or skill folder whose content differs, after moving it to ~/.claude-accounts/.install-backup/
 #   --allow-worktree  run from a linked git worktree anyway (tests only: a worktree is deleted when its squad closes)
 #   --unlink          rollback: turn every link made here back into a regular copy of its target
+#   --copy            copy files instead of linking them (the default on Windows)
 set -u
-DRY=0 FORCE=0 WT=0 UNLINK=0
+DRY=0 FORCE=0 WT=0 UNLINK=0 COPY=0
+case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) COPY=1 ;; esac
 for a in "$@"; do
   case "$a" in
-    --dry-run) DRY=1 ;; --force) FORCE=1 ;; --allow-worktree) WT=1 ;; --unlink) UNLINK=1 ;;
-    *) echo "usage: install.sh [--dry-run] [--force] [--allow-worktree] [--unlink]" >&2; exit 2 ;;
+    --dry-run) DRY=1 ;; --force) FORCE=1 ;; --allow-worktree) WT=1 ;; --unlink) UNLINK=1 ;; --copy) COPY=1 ;;
+    *) echo "usage: install.sh [--dry-run] [--force] [--allow-worktree] [--unlink] [--copy]" >&2; exit 2 ;;
   esac
 done
 if [ -z "${HOME:-}" ] || [ ! -d "$HOME" ]; then echo "error: HOME is empty or not a directory" >&2; exit 2; fi
@@ -32,7 +36,13 @@ fi
 
 BINS=(); for f in "$SRC"/bin/*; do BINS+=("${f##*/}"); done
 TOP=(lib.sh usage-popup.sh record-usage.sh HANDOFF.md)
+# copy mode also installs the Windows-only files from windows/ (src_of maps a live name to its repo file)
+[ "$COPY" = 1 ] && TOP+=(claude-accounts.ps1 autoswitch.py usage.py)
 TOOL=("${TOP[@]}"); for b in "${BINS[@]}"; do TOOL+=("bin/$b"); done
+src_of() {
+  if [ "$COPY" = 1 ]; then case "$1" in claude-accounts.ps1|autoswitch.py|usage.py) echo "$SRC/windows/$1"; return ;; esac; fi
+  echo "$SRC/$1"
+}
 
 real_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
 real_dir() { [ -d "$1" ] && [ ! -L "$1" ]; }
@@ -47,7 +57,12 @@ swap() { # atomic: temp link in the same directory, then rename over the target
   under "$2" || return
   [ "$DRY" = 1 ] && return
   rm -f "$tmp"
-  if ln -s "$1" "$tmp" && mv -T "$tmp" "$2"; then :; else rm -f "$tmp"; rc=1; fi
+  if [ "$COPY" = 1 ]; then
+    if [ -d "$1" ]; then  # the skill folder: a real directory holding copies
+      rm -rf "$tmp"
+      if mkdir "$tmp" && cp -rp "$1/." "$tmp" && { [ ! -e "$2" ] || rm -rf "$2"; } && mv -T "$tmp" "$2"; then :; else rm -rf "$tmp"; rc=1; fi
+    elif cp -p "$1" "$tmp" && mv -T "$tmp" "$2"; then :; else rm -f "$tmp"; rc=1; fi
+  elif ln -s "$1" "$tmp" && mv -T "$tmp" "$2"; then :; else rm -f "$tmp"; rc=1; fi
 }
 backup() { # move $1 (path under the live home / skill link) into .install-backup/
   local dest="$BACKUP/${2}"
@@ -58,10 +73,10 @@ backup() { # move $1 (path under the live home / skill link) into .install-backu
 }
 
 classify_file() { # $1 = live path, $2 = repo file -> ok | link | repoint | identical | differs | dir | other
-  if [ -L "$1" ]; then [ "$(readlink "$1")" = "$2" ] && echo ok || echo repoint
+  if [ -L "$1" ]; then if [ "$COPY" = 0 ] && [ "$(readlink "$1")" = "$2" ]; then echo ok; else echo repoint; fi
   elif [ ! -e "$1" ]; then echo link
   elif [ -d "$1" ]; then echo dir
-  elif [ -f "$1" ]; then cmp -s "$2" "$1" && echo identical || echo differs
+  elif [ -f "$1" ]; then if cmp -s "$2" "$1"; then if [ "$COPY" = 1 ]; then echo ok; else echo identical; fi; else echo differs; fi
   else echo other; fi
 }
 
@@ -94,9 +109,9 @@ delete_leftover() {
 if [ "$UNLINK" = 1 ]; then
   for t in "${TOOL[@]}"; do
     d="$ACCT/$t"
-    [ -L "$d" ] && [ "$(readlink "$d")" = "$SRC/$t" ] || continue
+    [ -L "$d" ] && [ "$(readlink "$d")" = "$(src_of "$t")" ] || continue
     echo "${W}unlink: $d (regular copy)"
-    if [ "$DRY" = 0 ]; then under "$d" && cp -p "$SRC/$t" "$d.install-tmp" && mv -T "$d.install-tmp" "$d" || { rm -f "$d.install-tmp"; rc=1; }; fi
+    if [ "$DRY" = 0 ]; then under "$d" && cp -p "$(src_of "$t")" "$d.install-tmp" && mv -T "$d.install-tmp" "$d" || { rm -f "$d.install-tmp"; rc=1; }; fi
   done
   if [ -L "$SKILL_LINK" ] && [ "$(readlink "$SKILL_LINK")" = "$SRC/skill" ]; then
     echo "${W}unlink: $SKILL_LINK (real directory copy)"
@@ -117,14 +132,14 @@ for d in "$ACCT" "$ACCT/bin"; do
 done
 for t in "${TOOL[@]}"; do
   d="$ACCT/$t"; [ -n "${blocked[$ACCT]+x}" ] && break
-  case $(classify_file "$d" "$SRC/$t") in
+  case $(classify_file "$d" "$(src_of "$t")") in
     dir) refuse "$d is a directory" "$d" ;;
     other) refuse "$d is not a regular file or link" "$d" ;;
-    differs) [ "$FORCE" = 1 ] || refuse "$d differs from the repo's file; see: diff '$d' '$SRC/$t'  (--force moves it to $BACKUP first)" "$d" ;;
+    differs) [ "$FORCE" = 1 ] || refuse "$d differs from the repo's file; see: diff '$d' '$(src_of "$t")'  (--force moves it to $BACKUP first)" "$d" ;;
   esac
 done
 SKILL_STATE=link
-if [ -L "$SKILL_LINK" ]; then [ "$(readlink "$SKILL_LINK")" = "$SRC/skill" ] && SKILL_STATE=ok || SKILL_STATE=repoint
+if [ -L "$SKILL_LINK" ]; then if [ "$COPY" = 0 ] && [ "$(readlink "$SKILL_LINK")" = "$SRC/skill" ]; then SKILL_STATE=ok; else SKILL_STATE=repoint; fi
 elif real_dir "$SKILL_LINK"; then
   SKILL_STATE=replace
   for f in "$SKILL_LINK"/* "$SKILL_LINK"/.[!.]*; do
@@ -133,6 +148,7 @@ elif real_dir "$SKILL_LINK"; then
       real_file "$f" && cmp -s "$SRC/skill/SKILL.md" "$f" || { SKILL_STATE=differs; SKILL_WHY="$f differs from the repo's file; see: diff '$f' '$SRC/skill/SKILL.md'"; }
     elif ! is_leftover "$f" SKILL.md; then SKILL_STATE=differs; SKILL_WHY="$f is not part of the skill"; fi
   done
+  [ "$SKILL_STATE" = replace ] && [ "$COPY" = 1 ] && SKILL_STATE=ok  # identical copy already in place
   if [ "$SKILL_STATE" = differs ] && [ "$FORCE" = 0 ]; then refuse "$SKILL_WHY  (--force moves the folder to $BACKUP first)" "$SKILL_LINK"; fi
 elif [ -e "$SKILL_LINK" ]; then refuse "$SKILL_LINK is not a directory or link" "$SKILL_LINK"; fi
 if [ "$REFUSED" = 1 ]; then
@@ -146,12 +162,13 @@ for t in "${TOOL[@]}"; do
   d="$ACCT/$t"
   [ -n "${blocked[$d]+x}" ] && { echo "would refuse: $d"; continue; }
   [ -n "${blocked[$ACCT]+x}" ] && continue
-  case $(classify_file "$d" "$SRC/$t") in
+  from=$(src_of "$t"); verb=link; [ "$COPY" = 1 ] && verb=copy
+  case $(classify_file "$d" "$from") in
     ok) echo "ok: $d" ;;
-    link) echo "${W}link: $d -> $SRC/$t"; swap "$SRC/$t" "$d" ;;
-    repoint) echo "${W}repoint: $d -> $SRC/$t"; swap "$SRC/$t" "$d" ;;
-    identical) echo "${W}link: $d (identical copy replaced) -> $SRC/$t"; swap "$SRC/$t" "$d" ;;
-    differs) backup "$d" "$t"; echo "${W}link: $d -> $SRC/$t"; swap "$SRC/$t" "$d" ;;
+    link) echo "${W}$verb: $d -> $from"; swap "$from" "$d" ;;
+    repoint) echo "${W}repoint: $d -> $from"; swap "$from" "$d" ;;
+    identical) echo "${W}link: $d (identical copy replaced) -> $from"; swap "$from" "$d" ;;
+    differs) backup "$d" "$t"; echo "${W}$verb: $d -> $from"; swap "$from" "$d" ;;
   esac
 done
 
@@ -159,7 +176,8 @@ if [ -n "${blocked[$SKILL_LINK]+x}" ]; then echo "would refuse: $SKILL_LINK"
 else
   case $SKILL_STATE in
     ok) echo "ok: $SKILL_LINK" ;;
-    link|repoint) echo "${W}$SKILL_STATE: $SKILL_LINK -> $SRC/skill"; swap "$SRC/skill" "$SKILL_LINK" ;;
+    link|repoint) st=$SKILL_STATE; [ "$COPY" = 1 ] && [ "$st" = link ] && st=copy  # copy mode: a folder of copies
+                  echo "${W}$st: $SKILL_LINK -> $SRC/skill"; swap "$SRC/skill" "$SKILL_LINK" ;;
     replace)
       echo "${W}replace directory: $SKILL_LINK -> $SRC/skill"
       for f in "$SKILL_LINK"/* "$SKILL_LINK"/.[!.]*; do

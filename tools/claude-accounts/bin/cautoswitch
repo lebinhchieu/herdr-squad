@@ -9,11 +9,18 @@ workspace that runs off its default, one at a time. Run it in its own herdr tab.
 Usage: cautoswitch --interval 300 in a dedicated tab; it retries off-default panes every tick.
 """
 import argparse, datetime, json, os, subprocess, sys, time, urllib.request
+from pathlib import Path
 
 H = os.path.expanduser("~/.claude-accounts")
 CFG = {"1": os.path.expanduser("~/.claude"), "2": os.path.expanduser("~/.claude-2"), "3": os.path.expanduser("~/.claude-3")}
 CACHE_MAX_AGE = 900  # status-line cache older than this is too stale to act on
-ACCT_OF = {v: k for k, v in CFG.items()}
+if os.name == "nt":  # Git Bash: no /proc, no pgrep, no exec of extensionless scripts; caproc.py stands in
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import caproc
+    norm = caproc.norm_path
+else:
+    norm = os.path.normpath
+ACCT_OF = {norm(v): k for k, v in CFG.items()}
 REFRESH_FAILED = {}  # acct -> time of the last failed claude -p refresh
 PENDING_DIR = f"{H}/wake-pending"
 MARKER_MAX_AGE = 1800  # a wake marker older than this is deleted unsent
@@ -23,8 +30,21 @@ OLD_ACCT = {}  # pane -> account it ran on before its last cswitch (for the wake
 def log(msg):
     line = f"{time.strftime('%Y-%m-%dT%H:%M:%S')} autoswitch: {msg}"
     print(line, flush=True)
-    with open(f"{H}/cswitch.log", "a") as f:
+    with open(f"{H}/cswitch.log", "a", encoding="utf-8") as f:
         f.write(line + "\n")
+
+
+def run_bin(name, *args, **kw):
+    """Run ~/.claude-accounts/bin/<name>. Windows cannot exec an extensionless script: pick the interpreter by its shebang."""
+    cmd = [f"{H}/bin/{name}", *args]
+    if os.name == "nt":
+        with open(cmd[0], encoding="utf-8") as f:
+            python = "python" in f.readline()
+        prog = sys.executable if python else caproc.bash_exe()
+        if not prog:
+            raise RuntimeError("Git Bash not found (set CA_BASH)")
+        cmd = [prog, Path(cmd[0]).as_posix(), *args]
+    return subprocess.run(cmd, **kw)
 
 
 def read_creds(acct):
@@ -37,9 +57,9 @@ def refresh_token(acct):
         return
     env = {**os.environ, "ACCT_NO_WS_DEFAULT": "1"}  # a refresh must not become a workspace default
     try:
-        rc = subprocess.run([f"{H}/bin/c{acct}", "-p", "ok", "--model", "haiku", "--no-session-persistence"],
-                            env=env, cwd=H, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL, timeout=60).returncode
+        rc = run_bin(f"c{acct}", "-p", "ok", "--model", "haiku", "--no-session-persistence",
+                     env=env, cwd=H, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, timeout=60).returncode
     except Exception as e:
         rc = type(e).__name__
     try:
@@ -76,9 +96,11 @@ def usage(acct):
     return None
 
 
-def squad_panes():
-    """{pane_id: (squad_name, account, workspace)} for every running claude process with SQUAD_NAME."""
-    out = {}
+def claude_envs():
+    """The environment of every running claude TUI."""
+    if os.name == "nt":
+        return caproc.pane_envs()
+    out = []
     for pid in subprocess.run(["pgrep", "-x", "claude"], capture_output=True, text=True).stdout.split():
         try:
             env = dict(kv.split("=", 1) for kv in open(f"/proc/{pid}/environ").read().split("\0") if "=" in kv)
@@ -87,7 +109,15 @@ def squad_panes():
                 continue
         except OSError:
             continue
-        acct = ACCT_OF.get(env.get("CLAUDE_CONFIG_DIR") or CFG["1"])
+        out.append(env)
+    return out
+
+
+def squad_panes():
+    """{pane_id: (squad_name, account, workspace)} for every running claude process with SQUAD_NAME."""
+    out = {}
+    for env in claude_envs():
+        acct = ACCT_OF.get(norm(env.get("CLAUDE_CONFIG_DIR") or CFG["1"]))
         if env.get("SQUAD_NAME") and env.get("HERDR_PANE_ID") and env.get("HERDR_WORKSPACE_ID") and acct:
             out[env["HERDR_PANE_ID"]] = (env["SQUAD_NAME"], acct, env["HERDR_WORKSPACE_ID"])
     return out
@@ -95,8 +125,8 @@ def squad_panes():
 
 def workspace_default(ws):
     """cdefault is the one source of truth for the file format and the global fallback."""
-    r = subprocess.run([f"{H}/bin/cdefault"], capture_output=True, text=True,
-                       env={**os.environ, "HERDR_ENV": "1", "HERDR_WORKSPACE_ID": ws})
+    r = run_bin("cdefault", capture_output=True, text=True,
+                env={**os.environ, "HERDR_ENV": "1", "HERDR_WORKSPACE_ID": ws})
     return r.stdout.strip() if r.stdout.strip() in CFG else "1"
 
 
@@ -104,7 +134,7 @@ def pending(pane):
     """True when the pane's last cswitch.log line is a '-> account' line younger than 15 min."""
     last = ""
     try:
-        with open(f"{H}/cswitch.log") as f:
+        with open(f"{H}/cswitch.log", encoding="utf-8") as f:
             for l in f:
                 w = l.split()
                 if len(w) > 1 and w[1] == pane:
@@ -127,6 +157,11 @@ def log_ts(line):
         return None
 
 
+def marker_file(pane):
+    """wake-pending/<pane>; on Windows w1:p2 is stored as w1_p2 (a file name cannot hold a colon)."""
+    return f"{PENDING_DIR}/{pane.replace(':', '_') if os.name == 'nt' else pane}"
+
+
 def markers():
     """{pane: (epoch, name, reason)} of wake-pending/."""
     out = {}
@@ -134,11 +169,12 @@ def markers():
         files = os.listdir(PENDING_DIR)
     except OSError:
         return out
-    for pane in files:
-        if pane.startswith("."):
+    for fname in files:
+        if fname.startswith("."):
             continue
+        pane = fname.replace("_", ":") if os.name == "nt" else fname
         try:
-            with open(f"{PENDING_DIR}/{pane}") as f:
+            with open(marker_file(pane), encoding="utf-8") as f:
                 e, name, reason = (f.read().split(None, 2) + [""])[:3]
             out[pane] = (int(e), name, reason.strip())
         except (OSError, ValueError):
@@ -150,7 +186,7 @@ def batch_start(panes):
     """Epoch of the first '-> account' line of these panes in the last 30 min (T0 of the batch), else None."""
     t0 = None
     try:
-        with open(f"{H}/cswitch.log") as f:
+        with open(f"{H}/cswitch.log", encoding="utf-8") as f:
             for l in f:
                 w = l.split()
                 if len(w) > 1 and w[1] in panes and " -> account " in l:
@@ -165,7 +201,7 @@ def batch_start(panes):
 def woken_since(pane, t0):
     """True when cswitch.log has a 'wake sent|skipped' line of the pane at or after t0."""
     try:
-        with open(f"{H}/cswitch.log") as f:
+        with open(f"{H}/cswitch.log", encoding="utf-8") as f:
             for l in f:
                 w = l.split()
                 if len(w) > 3 and w[1] == pane and w[-2] == "wake" and w[-1] in ("sent", "skipped") \
@@ -182,7 +218,7 @@ def wake_step(panes, target, back):
     A pane that failed or is still running keeps its marker and is not woken (the others are not held up)."""
     for pane, (epoch, name, _) in markers().items():
         if time.time() - epoch > MARKER_MAX_AGE:
-            os.remove(f"{PENDING_DIR}/{pane}")
+            os.remove(marker_file(pane))
             log(f"wake marker of {name}({pane}) older than 30 min; deleted unsent")
     gap = float(os.environ.get("CSWITCH_WAKE_GAP", "3"))
     for ws in target:
@@ -193,13 +229,13 @@ def wake_step(panes, target, back):
         if t0 is not None:
             for p in sorted(wp & back):
                 if not woken_since(p, t0):
-                    subprocess.run([f"{H}/bin/cwake", "--mark", p, "--clauses", "2", "--since", str(t0)])
+                    run_bin("cwake", "--mark", p, "--clauses", "2", "--since", str(t0))
         due = sorted((m[p][0], p) for m in [markers()] for p in m if p in wp and p in back)
         for i, (_, p) in enumerate(due):
             if i:
                 time.sleep(gap)
             old = OLD_ACCT.get(p)
-            subprocess.run([f"{H}/bin/cwake", p, *(["--old", old, "--new", target[ws]] if old else [])])
+            run_bin("cwake", p, *(["--old", old, "--new", target[ws]] if old else []))
 
 
 def tick(threshold, dry):
@@ -228,7 +264,7 @@ def tick(threshold, dry):
         other = min(better, key=lambda o: better[o][0])
         log(f"{'[dry-run] would set' if dry else 'setting'} {ws} default to c{other}: c{t} {fmt(ut)}; c{other} {fmt(better[other])}")
         if not dry:
-            subprocess.run([f"{H}/bin/cdefault", "--ws", ws, other], check=True)
+            run_bin("cdefault", "--ws", ws, other, check=True)
             target[ws] = other
     print(f"{time.strftime('%H:%M:%S')} ok: {' | '.join(status) or 'no squad panes'}", flush=True)
     wake_on = os.environ.get("CSWITCH_WAKE", "on") != "off"
@@ -245,11 +281,11 @@ def tick(threshold, dry):
         log(f"retry: cswitch {name}({pane}) c{acct} -> c{target[ws]}")
         start = os.path.getsize(f"{H}/cswitch.log")
         OLD_ACCT[pane] = acct
-        subprocess.run([f"{H}/bin/cswitch", target[ws], pane])
+        run_bin("cswitch", target[ws], pane)
         deadline = time.time() + 900  # cswitch waits up to 10 min for idle, then restarts
         while time.time() < deadline:
             time.sleep(5)
-            with open(f"{H}/cswitch.log") as f:
+            with open(f"{H}/cswitch.log", encoding="utf-8") as f:
                 f.seek(start)
                 res = [l for l in f if len(w := l.split()) > 1 and w[1] == pane and (" done" in l or "FAILED" in l)]
             if res:

@@ -58,6 +58,17 @@ def unsafe_home(p):
     if not p or not str(p).strip():
         return "empty"
     real = os.path.realpath(str(p))
+    if os.name == "nt":  # native Windows: the temp dir is under the profile, so only the launchers' own folders are off limits
+        if len(real.rstrip("\\")) == 2:
+            return "a drive root"
+        for h in {os.path.realpath(os.path.expanduser("~")), os.path.realpath(os.environ.get("USERPROFILE", "\nonexistent"))}:
+            if real == h:
+                return "the real home"
+            for sub in (".claude-accounts", ".claude", ".claude-2", ".claude-3"):
+                guarded = os.path.join(h, sub)
+                if real == guarded or real.startswith(guarded + os.sep):
+                    return "the real home or under it"
+        return None
     if real == "/mnt" or real.startswith("/mnt/") or real == "/":
         return "under /mnt (a Windows disk)"
     for h in {os.path.realpath(os.path.expanduser("~")), os.path.realpath(os.environ.get("HOME", "/nonexistent"))}:
@@ -68,9 +79,13 @@ def unsafe_home(p):
 
 class GuardTest(unittest.TestCase):
     def test_refuses_empty_mnt_and_the_real_home(self):
-        for bad in ("", "  ", "/", "/mnt/c/Users/84084/.claude-accounts", "/mnt/c", os.path.expanduser("~"),
-                    os.path.expanduser("~/.claude-accounts"), "/mnt/c/../c/Users"):
-            self.assertIsNotNone(unsafe_home(bad), repr(bad))
+        bad = ("", "  ", "/", "/mnt/c/Users/84084/.claude-accounts", "/mnt/c", os.path.expanduser("~"),
+               os.path.expanduser("~/.claude-accounts"), "/mnt/c/../c/Users")
+        if os.name == "nt":
+            bad = ("", "  ", "/", "C:\\", os.path.expanduser("~"), os.path.expanduser("~/.claude-accounts"),
+                   os.path.expanduser("~/.claude-2/projects"))
+        for b in bad:
+            self.assertIsNotNone(unsafe_home(b), repr(b))
 
     def test_accepts_a_wsl_temp_dir(self):
         with tempfile.TemporaryDirectory(prefix="cawin") as d:
@@ -86,10 +101,10 @@ class FinderTest(unittest.TestCase):
 
     def test_finds_pwsh_on_path_before_the_alias(self):
         with tempfile.TemporaryDirectory() as d:
-            exe = Path(d, "pwsh")
+            exe = Path(d, "pwsh.exe" if os.name == "nt" else "pwsh")  # which() ignores an extensionless file on nt
             exe.write_text("#!/bin/sh\n", encoding="utf-8")
             exe.chmod(0o755)
-            self.assertEqual(find_pwsh(path=d, alias="/nonexistent/pwsh.exe"), str(exe))
+            self.assertEqual(os.path.normcase(find_pwsh(path=d, alias="/nonexistent/pwsh.exe")), os.path.normcase(str(exe)))
 
     def test_the_alias_is_the_fallback(self):
         with tempfile.TemporaryDirectory() as d:

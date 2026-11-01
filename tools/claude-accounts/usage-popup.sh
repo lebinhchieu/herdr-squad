@@ -2,9 +2,10 @@
 # Herdr popup (prefix+u): both accounts' usage, fetched live from Anthropic's usage
 # endpoint (what /usage shows) with each account's own login token. Falls back to the
 # status-line cache (record-usage.sh) when a token has expired or the request fails.
+. "$HOME/.claude-accounts/lib.sh"
 H="$HOME/.claude-accounts"
 default=$(cat "$H/default" 2>/dev/null || echo 1)
-python3 -I - "$H" "$default" "$HOME/.claude" "$HOME/.claude-2" "$HOME/.claude-3" <<'PY'
+python3 -I - "$H" "$default" "$(acct_dir 1)" "$(acct_dir 2)" "$(acct_dir 3)" <<'PY'
 import json, sys, time, urllib.request
 from datetime import datetime
 home, default, *dirs = sys.argv[1:]

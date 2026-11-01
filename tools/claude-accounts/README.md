@@ -28,6 +28,12 @@ The install never edits `.bashrc`, the herdr config or the statusline. It swaps 
 | `--allow-worktree` | Run from a linked worktree (tests only; the worktree is deleted at squad close) |
 | `--unlink` | Rollback: turn every link made here back into a regular copy; state untouched |
 
+## Windows (Git Bash)
+
+`install.sh` detects Git Bash and **copies** instead of linking (file symlinks need admin there), so rerun `bash tools/claude-accounts/install.sh --force` after a repo change. Accounts are `~/.claude`, `~/.claude-2`, `~/.claude-3`, as on WSL. `lib.sh` joins accounts 2 and 3 to account 1 with hardlinks (files) and junctions (folders), and re-joins a hardlink Claude split. Copy mode also installs `windows/claude-accounts.ps1` (pwsh) and the older group watcher `windows/autoswitch.py` with its `windows/usage.py`. `--copy` forces this mode on Linux (tests).
+
+`cswitch`, `cautoswitch` and `cwake` run on Git Bash too. Git Bash has no `/proc`, so `bin/caproc.py` asks `herdr pane process-info` for the pane's `claude` (pid, argv, shell) and reads its environment (`SQUAD_NAME`, `CLAUDE_CONFIG_DIR`) from the process memory (same user only). `cswitch` restarts a bash pane with the launcher's full path (a non-login bash has no PATH entry for it) and a PowerShell pane with the bare function name. Wake markers are stored as `wake-pending/w1_p2` (a file name cannot hold a colon). Needs `python3` on PATH.
+
 ## Commands added by autoswitch
 
 | Command | Does |
