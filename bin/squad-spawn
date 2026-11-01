@@ -331,11 +331,38 @@ tab_json=$(herdr tab create --cwd "$cwd" --label "$label" --no-focus "${ws_args[
 pane=$(jq -r '.result.root_pane.pane_id' <<<"$tab_json")
 tab=$(jq -r '.result.tab.tab_id' <<<"$tab_json")
 
-herdr agent start "$name" --kind claude --pane "$pane" --timeout 120000 -- "${claude_args[@]}" >/dev/null || {
-  echo "agent did not become ready; inspect with: herdr agent read $name --lines 40" >&2
-  jq -n --arg name "$name" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" \
-    '{name:$name, tab:$tab, pane:$pane, cwd:$cwd, status:"not_ready"}'
-  exit 1
+start_err=$(herdr agent start "$name" --kind claude --pane "$pane" --timeout 120000 -- "${claude_args[@]}" 2>&1) || {
+  if [[ $start_err == *agent_pane_busy* ]]; then
+    # herdr found no shell prompt in the new pane. On Windows it only hooks PowerShell, so a Git Bash
+    # default_shell lands here. Do what `agent start` would: type the command into the pane, wait until herdr
+    # detects Claude there, then give the agent its name. The pane already holds the SQUAD_* env (--env above).
+    printf -v claude_cmd '%q ' claude "${claude_args[@]}"
+    herdr pane run "$pane" "$claude_cmd" >/dev/null 2>&1 || start_err="$start_err (pane run failed)"
+    ready=0
+    for _ in $(seq 1 120); do
+      [[ $(herdr pane get "$pane" 2>/dev/null | jq -r '.result.pane.agent // empty') == claude ]] && { ready=1; break; }
+      sleep 1
+    done
+    if [[ $ready == 1 ]]; then
+      herdr agent rename "$pane" "$name" >/dev/null 2>&1 && start_err="" || start_err="could not name the agent $name"
+      for _ in $(seq 1 120); do   # same readiness as `agent start`: wait for the prompt before the first message
+        st=$(herdr agent get "$name" 2>/dev/null | jq -r '.result.agent.agent_status // .agent_status // empty')
+        [[ $st == idle || $st == done ]] && break
+        sleep 1
+      done
+    else
+      herdr tab close "$tab" >/dev/null 2>&1 || true
+      echo "herdr could not start $name: the pane is not a PowerShell shell and Claude was not detected in it." >&2
+      echo "herdr said: $start_err" >&2
+      exit 1
+    fi
+  fi
+  if [[ -n $start_err ]]; then
+    echo "$start_err" >&2
+    echo "agent did not become ready; inspect with: herdr agent read $name --lines 40" >&2
+    jq -n --arg name "$name" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd"       '{name:$name, tab:$tab, pane:$pane, cwd:$cwd, status:"not_ready"}'
+    exit 1
+  fi
 }
 
 "$plugin_root/bin/squad-usage" --squad-dir "$home" --set-session "$name" "$session" --role "$role" --scope "$scope"
