@@ -61,7 +61,7 @@ export function drawSpans(spans: Span[], T: T, base = ''): any[] {
   return spans.map((s, i) => {
     const key = `${base}s${i}`
     if (s.kind === 'bold') return <Text key={key} bold>{s.text}</Text>
-    if (s.kind === 'code') return <Text key={key} inverse>{s.text}</Text>
+    if (s.kind === 'code') return <Text key={key} bold color={ACCENT}>{s.text}</Text>
     if (s.kind === 'badge') return <Text key={key} {...chipProps(CHIPS[s.text].tone)}>{chipText(s.text)}</Text>
     if (s.kind === 'link') {
       // The url is always shown: a pane cannot open it, and no escape sequence leaves the pane.

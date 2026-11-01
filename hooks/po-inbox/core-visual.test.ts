@@ -3,7 +3,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import {
   TONE, blocksTone, bodyBudget, capGroup, cellWidth, kindTone, outcomeTone, recommendedKey, clipCells, rowsFor, tableLayout,
 } from './core'
-import { clipRows, drawBody } from './draw'
+import { clipRows, drawBody, drawSpans } from './draw'
 import { parseBody } from './markup'
 import { FIXTURES } from './fixtures'
 import { VISUAL } from './fixtures/visual'
@@ -345,6 +345,12 @@ describe('chips and headings (item.md section 5)', () => {
     const d = drawBody(parseBody('merge `squad/x` into'), 80, T, plan)
     expect(JSON.stringify(d.nodes)).toContain('"squad/x"')
     expect(JSON.stringify(d.nodes)).not.toContain('" squad/x "')
+  })
+  test('inline code is bold in the permission colour, with no fill', () => {
+    const [el] = drawSpans([{ kind: 'code', text: 'x' } as any], T)
+    expect(el.props).toMatchObject({ bold: true, color: 'permission' })
+    expect(el.props.inverse).toBeUndefined()
+    expect(el.props.backgroundColor).toBeUndefined()
   })
   test('a blank row above a heading in the tall tier only, never above the first block, counted in rows', () => {
     const body = parseBody('# One\na\n## Two\nb')

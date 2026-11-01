@@ -411,7 +411,9 @@ const STRUCT = '# Head\n## Two\n### Three\nplain **bold** and `code`\n- bullet\n
 test('V-18: no meaning colour on structure (heading, code, bold, table, bullet); only the [rec] tag is green', async ($, on) => {
   const { ui } = await open($, on, [item({ id: 'E3', body: STRUCT, title: 'S' })], 'E3', 80, 40)
   const tree = await ui.drawn()
-  for (const t of ['Head', 'Two', 'Three', 'bold', 'code', 'const a = 1', 'bullet', 'A  B', '1  2']) {
+  // inline code is the one structure with a colour: bold + `permission`, no fill (a theme key, no good/bad meaning)
+  expect(styleOf(tree, 'code')).toEqual({ bold: true, color: 'permission' })
+  for (const t of ['Head', 'Two', 'Three', 'bold', 'const a = 1', 'bullet', 'A  B', '1  2']) {
     const s = styleOf(tree, t)
     expect(s, t).not.toBeNull()
     expect(s?.color, t).toBeUndefined()
@@ -701,7 +703,7 @@ test('M5: read item: Mark read on row 1, chips without padding, headings, second
   expect((await ui.find({ key: 'mark-read' }))?.props?.hotkey).toBe('m')
   expect((await ui.find({ key: 'mark-read-end' }))?.props?.hotkey).toBeUndefined()
   expect(styleOf(tree, 'Check-in summary')).toEqual({ bold: true, underline: true })
-  expect(styleOf(tree, 'qa-w')).toEqual({ inverse: true })
+  expect(styleOf(tree, 'qa-w')).toEqual({ bold: true, color: 'permission' })
   expect(text).toContain('Branch squad/x passed qa-w.')
   expect(text).toContain('Task   State')
   expect(text).toMatch(/… \d+ more rows\n\[Details\]\n\[Mark read\]$/)
