@@ -20,7 +20,7 @@ import sys
 def herdr(*args):
     """The `result` object of a herdr command, or None."""
     try:
-        r = subprocess.run(["herdr", *args], capture_output=True, text=True, encoding="utf-8", timeout=15)
+        r = subprocess.run(["herdr", *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15)
         return json.loads(r.stdout)["result"] if r.returncode == 0 else None
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
         return None
@@ -47,7 +47,7 @@ def shell_name(pane):
         return None
     try:
         out = subprocess.run(["tasklist", "/FI", f"PID eq {int(pid)}", "/FO", "CSV", "/NH"],
-                             capture_output=True, text=True, timeout=15).stdout
+                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15).stdout
     except (OSError, subprocess.SubprocessError, ValueError):
         return None
     m = re.match(r'"([^"]+)"', out.strip())
