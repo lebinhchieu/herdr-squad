@@ -101,11 +101,12 @@ def claude_envs():
     if os.name == "nt":
         return caproc.pane_envs()
     out = []
-    for pid in subprocess.run(["pgrep", "-x", "claude"], capture_output=True, text=True).stdout.split():
+    for pid in subprocess.run(["pgrep", "-x", "claude"], capture_output=True, text=True,
+                          encoding="utf-8", errors="replace").stdout.split():
         try:
-            env = dict(kv.split("=", 1) for kv in open(f"/proc/{pid}/environ").read().split("\0") if "=" in kv)
+            env = dict(kv.split("=", 1) for kv in open(f"/proc/{pid}/environ", encoding="utf-8", errors="replace").read().split("\0") if "=" in kv)
             # the "claude daemon run" child shares the pane's env but can keep the old account after a cswitch
-            if open(f"/proc/{pid}/cmdline").read().split("\0")[1:2] == ["daemon"]:
+            if open(f"/proc/{pid}/cmdline", encoding="utf-8", errors="replace").read().split("\0")[1:2] == ["daemon"]:
                 continue
         except OSError:
             continue
@@ -125,7 +126,7 @@ def squad_panes():
 
 def workspace_default(ws):
     """cdefault is the one source of truth for the file format and the global fallback."""
-    r = run_bin("cdefault", capture_output=True, text=True,
+    r = run_bin("cdefault", capture_output=True, text=True, encoding="utf-8", errors="replace",
                 env={**os.environ, "HERDR_ENV": "1", "HERDR_WORKSPACE_ID": ws})
     return r.stdout.strip() if r.stdout.strip() in CFG else "1"
 

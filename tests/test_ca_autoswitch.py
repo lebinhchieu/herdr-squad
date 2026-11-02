@@ -285,6 +285,21 @@ class AutoswitchTest(Base):
         self.assertIn("w1 -> c1 5h 50% 7d 20%", r.stdout)
         self.assertNotIn("would set", self.log())
 
+    def test_bad_byte_in_child_output_is_replaced_not_a_traceback(self):
+        # a child prints 0x90 (undefined in cp1252, invalid UTF-8): no traceback, the same decision as with clean output
+        self.usage_file(1, 50, 20)
+        self.pane("dev-1", "p1", "w1", "1")
+        clean = self.auto("--dry-run")
+        pgrep = self.e.stub / "bin" / "pgrep"
+        script = pgrep.read_text(encoding="utf-8")
+        extra = "printf '\\220\\n'\n"  # a line of one 0x90 byte, before the live pids
+        pgrep.write_text(script.replace("for p in", extra + "for p in", 1), encoding="utf-8")
+        bad = self.auto("--dry-run")
+        self.assertEqual(bad.returncode, 0, bad.stderr)
+        self.assertNotIn("Traceback", bad.stderr)
+        self.assertIn("ok: w1 -> c1 5h 50% 7d 20%", clean.stdout)
+        self.assertIn("ok: w1 -> c1 5h 50% 7d 20%", bad.stdout)
+
     def test_over_threshold_picks_the_lowest_5h_of_the_better_accounts(self):
         self.usage_file(1, 95, 80)
         self.usage_file(2, 30, 10)

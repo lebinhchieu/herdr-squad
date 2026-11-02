@@ -42,7 +42,7 @@ def log(msg, dry=False):
 
 
 def herdr(*args, parse=True):
-    out = subprocess.run(["herdr", *args], capture_output=True, text=True, encoding="utf-8")
+    out = subprocess.run(["herdr", *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if not parse:
         return out.stdout
     try:
