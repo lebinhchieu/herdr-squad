@@ -194,6 +194,27 @@ if [ "$rc" = 0 ]; then
   while IFS= read -r f; do [ -n "$f" ] && delete_leftover "$f"; done < <(leftovers "$ACCT" "${TOP[@]}"; leftovers "$ACCT/bin" "${BINS[@]}")
 fi
 
+# Herdr shows the reported account token only if a spaces row names it. Add that row when the config has no
+# [ui.sidebar.spaces] section; never edit an existing one (the user's own rows win). Missing config = do nothing.
+if [ "$rc" = 0 ]; then
+  case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) hcfg="$(cygpath -u "${APPDATA:-$HOME/AppData/Roaming}")/herdr/config.toml" ;; *) hcfg="$HOME/.config/herdr/config.toml" ;; esac
+  hcfg=${HERDR_CONFIG_PATH:-$hcfg}
+  if [ ! -f "$hcfg" ]; then echo "skip: no herdr config at $hcfg (no account in the spaces panel until its [ui.sidebar.spaces] rows has \$account)"
+  elif grep -v '^[[:space:]]*#' "$hcfg" | grep -qF '$account'; then echo "ok: $hcfg names \$account"
+  elif grep -q '^[[:space:]]*\[ui\.sidebar\.spaces\]' "$hcfg"; then
+    echo "manual: $hcfg has [ui.sidebar.spaces] without \$account; add { token = \"\$account\", bold = true } to a rows entry, then: herdr server reload-config"
+  else
+    echo "${W}add: [ui.sidebar.spaces] rows with \$account -> $hcfg"
+    if [ "$DRY" = 0 ]; then
+      if { cat "$hcfg"; printf '\n'; printf '%s\n' '# Spaces rows: the Claude account (c1/c2/c3) next to the space name; claude-accounts reports the "account" token.' \
+             '[ui.sidebar.spaces]' 'rows = [' '  ["state_icon", "workspace", { token = "$account", bold = true }],' '  ["branch", "git_status"],' ']'; } > "$hcfg.install-tmp" \
+         && mv -f "$hcfg.install-tmp" "$hcfg"; then
+        command -v herdr >/dev/null 2>&1 && timeout 5 herdr server reload-config >/dev/null 2>&1
+      else rm -f "$hcfg.install-tmp"; echo "warning: could not write $hcfg" >&2; fi
+    fi
+  fi
+fi
+
 for d in "$ACCT" "$ACCT/bin" "$ACCT/workspace-default"; do
   real_dir "$d" || continue
   for f in "$d"/* "$d"/.[!.]*; do

@@ -19,7 +19,7 @@ The install deletes leftovers (`<managed name>.bak-*`, `.new`, `.orig` in `~/.cl
 5. Later, the PO's choice: retire `~/.claude-accounts/.git`.
 6. **Rollback:** `bash tools/claude-accounts/install.sh --unlink` (real copies again), or restore from `~/.claude-accounts.rar` / the live `.git`. Never `git checkout` another branch in the main checkout while linked (see Hazards).
 
-The install never edits `.bashrc`, the herdr config or the statusline. It swaps links atomically, so the statusline, the popup and a running `cautoswitch` keep working while it runs.
+The install never edits `.bashrc` or the statusline. It touches the herdr config in one case only: when `config.toml` exists and has no `[ui.sidebar.spaces]` section, it appends one whose first row shows the `$account` token next to the space name, then runs `herdr server reload-config`. A config that already has that section is never edited (the install prints `manual:` if `$account` is missing). A missing config is skipped. It swaps links atomically, so the statusline, the popup and a running `cautoswitch` keep working while it runs.
 
 | Flag | Does |
 |---|---|

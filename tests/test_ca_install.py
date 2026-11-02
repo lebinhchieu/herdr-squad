@@ -285,6 +285,23 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertNotIn("copy:", again.stdout)  # a second run has nothing to do
 
+    def test_herdr_config_gets_the_account_row_once_and_a_user_section_is_never_edited(self):
+        cfg = self.home / ".config" / "herdr" / "config.toml"
+        cfg.parent.mkdir(parents=True)
+        cfg.write_text("onboarding = false\n")
+        self.assertEqual(self.run_install().returncode, 0)
+        added = cfg.read_text()
+        self.assertEqual(added.count("[ui.sidebar.spaces]"), 1)
+        self.assertIn('{ token = "$account", bold = true }', added)
+        self.assertEqual(self.run_install().returncode, 0)
+        self.assertEqual(cfg.read_text(), added)  # second run: nothing added
+        own = '[ui.sidebar.spaces]\nrows = [["workspace"]]\n'
+        cfg.write_text(own)
+        r = self.run_install()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(cfg.read_text(), own)
+        self.assertIn("manual:", r.stdout)
+
     def test_launchers_run_through_the_installed_links(self):
         env = Env()
         self.addCleanup(env.cleanup)
