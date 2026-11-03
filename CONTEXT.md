@@ -269,7 +269,7 @@ One block of the dashboard (Needs you, Tasks, Agents now, Files, Scopes of this 
 _Avoid_: widget, card
 
 **Needs you**:
-The dashboard's count and panel of what waits on the PO in the choice: open questions, answers to read and tasks ready to merge. A parked question is not counted.
+The dashboard's squad-wide count of what waits on the PO: open questions, answers to read, tasks ready to merge and permission prompts; items outside the choice show as "N more need you in <name>". A parked question is not counted.
 _Avoid_: notifications, todo list
 
 **Parked question**:
