@@ -23,6 +23,7 @@ import squadreport  # noqa: E402
 TIMEOUT_S = 5
 NOT_RUNNING = "herdr not running"
 STATUSES = ("working", "idle", "blocked")
+ALIASES = {"done": "idle"}  # herdr `done` = a turn finished, waiting for input (seen live); a new word stays "unknown"
 
 
 def parse_herdr(text):
@@ -43,7 +44,7 @@ def parse_herdr(text):
     for a in agents:
         if isinstance(a, dict) and a.get("name"):
             st = a.get("agent_status")
-            out[str(a["name"])] = {"status": st if st in STATUSES else "unknown", "pane_id": a.get("pane_id"),
+            out[str(a["name"])] = {"status": ALIASES.get(st, st) if ALIASES.get(st, st) in STATUSES else "unknown", "pane_id": a.get("pane_id"),
                                    "cwd": a.get("cwd")}
     return out, None
 

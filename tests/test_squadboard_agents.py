@@ -42,6 +42,13 @@ class Agents(unittest.TestCase):
         self.assertEqual(ag.parse_herdr(EMPTY), ({}, None))
         self.assertEqual(ag.parse_herdr(self.fx.herdr_down.read_text(encoding="utf-8")), (None, ag.NOT_RUNNING))
 
+    def test_T08_TA4_done_status_is_idle_new_word_unknown(self):
+        # shape copied from a live `herdr agent list` (agent_status "done"), name changed; "paused" stands for a future word
+        a = '{"agent": "claude", "agent_status": "%s", "cwd": "/fixture/repo", "name": "fix-dev-02", "pane_id": "w1:p2"}'
+        for word, want in (("done", "idle"), ("paused", "unknown")):
+            got, _ = ag.parse_herdr('{"id": "cli:agent:list", "result": {"agents": [%s]}}' % (a % word))
+            self.assertEqual(got["fix-dev-02"]["status"], want)
+
     def test_T08_AC6_five_live_one_retired_other_squad_hidden(self):
         d = ag.read(self.sel(self.fx.herdr_json))["data"]
         self.assertEqual(d["status"], "ok")
