@@ -106,6 +106,39 @@ class SaveTest(Base):
         self.assertEqual(m.call_count, 3)
 
 
+class HardeningTest(Base):
+    def test_T09_position_keys_are_refused(self):
+        for extra in ({"x": 1}, {"y": 2}, {"row": 3}, {"size": 5}):
+            self.assertEqual(self.put(dict(GOOD, **extra))[0], 400, extra)
+            p = {"order": 0, "span": 1, "hidden": False, **extra}
+            self.assertEqual(self.put(dict(GOOD, panels={"a": p}))[0], 400, extra)
+        self.assertFalse(self.file.exists())
+
+    def test_T09_nan_and_lone_surrogate_are_400_not_a_dropped_connection(self):
+        self.assertEqual(self.put(b'{"saved_at":"2026-11-04T10:00:00Z","extra":NaN}')[0], 400)
+        raw = b'{"saved_at":"2026-11-04T10:00:00Z","choice":{"kind":"scope","name":"\\ud800"}}'
+        self.assertEqual(self.put(raw.replace(b"\\\\", b"\\"))[0], 400)
+        self.assertFalse(self.file.exists())
+
+    @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+                     "chmod 444 does not stop writes on Windows or for root")
+    def test_T09_AC2_read_only_file_is_507_on_put_and_unwritable_on_get(self):
+        self.put(GOOD)
+        self.file.chmod(0o444)
+        before = self.sha()
+        self.assertEqual(self.get()["status"], "unwritable")
+        code, r = self.put(dict(GOOD, font="small"))
+        self.assertEqual((code, r["status"]), (507, "unwritable"))
+        self.assertEqual(self.sha(), before)
+
+    @unittest.skipIf(os.name == "nt", "POSIX file modes")
+    def test_T09_file_keeps_its_mode(self):
+        self.put(GOOD)
+        self.file.chmod(0o664)
+        self.put(dict(GOOD, font="small"))
+        self.assertEqual(self.file.stat().st_mode & 0o777, 0o664)
+
+
 class ReadTest(Base):
     def test_T09_AC2_AC3_unwritable_status_on_get_and_put(self):
         with unittest.mock.patch("os.access", return_value=False):

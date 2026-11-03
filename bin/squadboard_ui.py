@@ -26,6 +26,11 @@ RECENT_MAX = 5
 FONTS = ("small", "normal", "xl")
 SAVED_AT_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$")
 REPLACE_TRIES = 3
+NO_POSITION_KEYS = ("x", "y", "row", "".join(("si", "ze")))  # layout is order and span only (architecture 1a)
+
+
+def _no_constant(name):
+    raise ValueError("%s is not valid JSON" % name)
 
 
 def defaults():
@@ -48,6 +53,9 @@ def validate(body):
     """-> the ui dict to store. Raises ValueError (message for the 400) on a wrong type; unknown top-level keys are kept."""
     if not isinstance(body, dict):
         raise ValueError("body must be a JSON object")
+    bad = [k for k in NO_POSITION_KEYS if k in body]
+    if bad:
+        raise ValueError("no position keys in the layout: %s" % ", ".join(bad))
     ui = {k: v for k, v in body.items() if k not in ("path", "squad")}  # never taken from the request
     ui["version"] = VERSION
     saved_at = body.get("saved_at")
@@ -75,6 +83,8 @@ def validate(body):
         raise ValueError("panels must be an object")
     clean = {}
     for pid, p in panels.items():
+        if isinstance(p, dict) and any(k in p for k in NO_POSITION_KEYS):
+            raise ValueError("panel %s: no position keys, use order and span" % pid)
         if not (isinstance(p, dict) and _int(p.get("order")) and _int(p.get("span"), 1)
                 and isinstance(p.get("hidden", False), bool)
                 and (p.get("max_height") is None or _int(p.get("max_height"), 1))):
@@ -84,6 +94,10 @@ def validate(body):
             row["max_height"] = p["max_height"]
         clean[str(pid)] = row
     ui["panels"] = clean
+    try:
+        json.dumps(ui, ensure_ascii=False, allow_nan=False).encode("utf-8")  # NaN, lone surrogates
+    except (ValueError, UnicodeError) as e:
+        raise ValueError("not storable: %s" % e)
     return ui
 
 
@@ -118,13 +132,18 @@ def read_state(folder):
 def write_state(folder, ui):
     """Atomic write of `ui`. Raises OSError when the folder or file cannot be written; the old file stays whole."""
     folder = Path(folder)
-    text = json.dumps(ui, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    text = json.dumps(ui, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n"
+    try:
+        mode = (folder / FILE).stat().st_mode & 0o777
+    except OSError:
+        mode = 0o644
     fd, tmp = tempfile.mkstemp(dir=str(folder), prefix=FILE + ".", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
+        os.chmod(tmp, mode)  # mkstemp is 0600; keep the file's own mode
         for i in range(REPLACE_TRIES):
             try:
                 os.replace(tmp, str(folder / FILE))
@@ -164,9 +183,11 @@ def put(server, params, body):
     if squad is None:
         return 400, {"error": "squad required", "status": "refused"}
     try:
-        ui = validate(json.loads(body.decode("utf-8")))
+        ui = validate(json.loads(body.decode("utf-8"), parse_constant=_no_constant))
     except (ValueError, UnicodeError, RecursionError) as e:
         return 400, {"error": "bad body: %s" % e, "status": "refused"}
+    if not _writable(squad.path):
+        return 507, {"error": "settings file not writable", "status": "unwritable"}
     try:
         write_state(squad.path, ui)
     except OSError as e:
