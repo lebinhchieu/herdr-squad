@@ -16,6 +16,11 @@ class ParseIso(unittest.TestCase):
                   "2023-11-15T05:13:20+07:00", "2023-11-14T17:13:20-05:00"):
             self.assertEqual(parse_iso(s), E, s)
 
+    def test_T17_TA4_real_strings(self):
+        # copied from this scope: messages.jsonl ts, inbox.jsonl ts
+        self.assertEqual(parse_iso("2026-11-03T14:21:58.000Z"), 1793715718.0)
+        self.assertEqual(parse_iso("2026-11-03T14:16:42Z"), 1793715402.0)
+
     def test_naive_is_utc(self):
         self.assertEqual(parse_iso("2023-11-14T22:13:20"), E)
 

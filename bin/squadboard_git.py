@@ -11,7 +11,7 @@ TIMEOUT_S = 10
 def _git(repo, *args):
     """-> stdout text, or None."""
     try:
-        r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True,
+        r = subprocess.run(["git", *args], cwd=str(repo), capture_output=True, text=True,
                            encoding="utf-8", errors="replace", timeout=TIMEOUT_S)
     except (OSError, ValueError, subprocess.SubprocessError):
         return None
@@ -21,10 +21,12 @@ def _git(repo, *args):
 def worktrees(repo):
     """git worktree list --porcelain -> [{path, head, branch}] (branch '' when detached) or None."""
     out = _git(repo, "worktree", "list", "--porcelain")
-    if out is None:
-        return None
+    return None if out is None else parse_worktrees(out)
+
+
+def parse_worktrees(text):
     rows, cur = [], None
-    for line in out.splitlines():
+    for line in text.splitlines():
         if line.startswith("worktree "):
             cur = {"path": line[9:], "head": "", "branch": ""}
             rows.append(cur)
@@ -46,10 +48,12 @@ def branch_refs(repo, prefix="", merged_into=None):
         args.append("--merged=" + merged_into)
     args.append("refs/heads/" + prefix)
     out = _git(repo, *args)
-    if out is None:
-        return None
+    return None if out is None else parse_refs(out)
+
+
+def parse_refs(text):
     rows = []
-    for line in out.splitlines():
+    for line in text.splitlines():
         parts = line.split("\t")
         if len(parts) != 3:
             continue
