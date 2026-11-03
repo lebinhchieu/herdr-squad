@@ -1,7 +1,9 @@
 """squad-board CLI and server (ticket 03). Tests are named for the business AC (T03.ACn) or technical risk they cover.
 
 A tiny temp squad stands in for the fixture of ticket 02. Nothing here starts a browser or uses a fixed port."""
+import contextlib
 import hashlib
+import io
 import json
 import os
 import socket
@@ -173,12 +175,25 @@ class CliTest(Base):
 
 
 class ServerTest(Base):
+    def raw(self, port, text):
+        """Status code of a hand-written request (an empty Host header cannot be sent by urllib)."""
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as c:
+            c.sendall(text.encode("ascii"))
+            c.shutdown(socket.SHUT_WR)
+            data = b""
+            while chunk := c.recv(4096):
+                data += chunk
+        return int(data.split(b" ", 2)[1])
+
     def test_T03_AC10_bound_to_loopback_only_and_wrong_host_refused(self):
         srv, base = self.serve()
         self.assertEqual(srv.server_address[0], "127.0.0.1")
         self.assertEqual(get(base + "/api/squads")[0], 200)
         self.assertEqual(get(base + "/api/squads", host="evil.example:%d" % srv.port)[0], 403)
         self.assertEqual(get(base + "/api/squads", host="127.0.0.1:1")[0], 403)
+        for bad in ("127.0.0.1.evil.com", "127.0.0.1@evil.com", "127.0.0.1.evil.com:%d" % srv.port):
+            self.assertEqual(get(base + "/api/squads", host=bad)[0], 403, bad)
+        self.assertEqual(self.raw(srv.port, "GET /api/squads HTTP/1.0\r\nHost:\r\n\r\n"), 403)
         self.assertEqual(get(base + "/api/squads", host="localhost:%d" % srv.port)[0], 200)
         try:  # the machine's LAN address gets no answer (skipped result when the host has none)
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -212,15 +227,44 @@ class ServerTest(Base):
         d = json.loads(get(base + "/api/b")[2])
         self.assertEqual((d["unknown"], d["quality"]), (["b"], "unknown"))
 
-    def test_routes_are_discovered_from_squadboard_files(self):
-        routes, errors = squadboard.load_routes()
-        self.assertEqual(errors, [])
-        reader = BIN / "squadboard_zz_probe.py"
-        reader.write_text('ROUTE = {"name": "probe", "path": "/api/probe", "selection": False, '
-                          '"read": lambda sel: {"data": 7, "quality": "exact", "unknown": []}}\n', encoding="utf-8")
-        self.addCleanup(lambda: (reader.unlink(), sys.modules.pop("squadboard_zz_probe", None)))
-        routes, _ = squadboard.load_routes()
-        self.assertIn("/api/probe", routes)
+    def test_routes_are_discovered_from_a_readers_dir_and_a_broken_one_is_skipped(self):
+        d = self.repo / "readers"
+        d.mkdir()
+        (d / "squadboard_good.py").write_text('ROUTE = {"name": "good", "path": "/api/good", "selection": False, '
+                                              '"read": lambda sel: {"data": 7}}\n', encoding="utf-8")
+        (d / "squadboard_bad.py").write_text("raise RuntimeError('boom')\n", encoding="utf-8")
+        (d / "squadboard_badroute.py").write_text('ROUTE = {"path": "nope"}\n', encoding="utf-8")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            routes, errors = squadboard.load_routes(dirs=[d])
+        self.assertEqual(sorted(errors), ["squadboard_bad", "squadboard_badroute"])
+        self.assertEqual(len([l for l in err.getvalue().splitlines() if "skipped reader" in l]), 2)
+        _, base = self.serve(routes=routes)  # the server still starts
+        good = json.loads(get(base + "/api/good")[2])
+        self.assertEqual((good["data"], good["quality"], good["unknown"]), (7, "unknown", []))  # defaults filled
+        bad = json.loads(get(base + "/api/bad")[2])
+        self.assertEqual((get(base + "/api/bad")[0], bad["unknown"]), (200, ["bad"]))
+        self.assertEqual(squadboard.load_routes()[1], [])  # the real bin/ loads clean
+
+    def test_reader_over_budget_is_unknown_and_selection_has_a_fixed_now(self):
+        import time
+        seen = {}
+        def slow(sel):
+            time.sleep(2)
+            return {"data": 1}
+        def clock(sel):
+            seen["now"] = sel["now"]
+            return {"data": 1}
+        routes = {"/api/slow": {"name": "slow", "path": "/api/slow", "read": slow, "selection": False},
+                  "/api/c": {"name": "c", "path": "/api/c", "read": clock, "selection": False}}
+        srv, base = self.serve(routes=routes)
+        self.assertEqual(squadboard.READ_BUDGET_S, 3.0)
+        with unittest.mock.patch.object(squadboard, "READ_BUDGET_S", 0.2):
+            d = json.loads(get(base + "/api/slow")[2])
+        self.assertEqual((d["unknown"], d["quality"], d["data"]), (["slow"], "unknown", None))
+        srv.clock = lambda: 1234.5
+        get(base + "/api/c")
+        self.assertEqual(seen["now"], 1234.5)
 
     def test_token_and_write_routes(self):
         srv, base = self.serve()
@@ -234,6 +278,10 @@ class ServerTest(Base):
             except urllib.error.HTTPError as e:
                 code = e.code
             self.assertEqual(code, want)
+        called = []
+        srv.put_routes["/api/ui"] = lambda server, params, body: called.append(1) or {}
+        self.assertEqual(self.raw(srv.port, "PUT /api/ui HTTP/1.0\r\nHost: evil.com\r\nX-Board-Token: %s\r\nContent-Length: 2\r\n\r\n{}" % tok), 403)
+        self.assertEqual(called, [])  # refused on Host before the route ran
         req = urllib.request.Request(base + "/api/squads", data=b"{}", method="POST", headers={"X-Board-Token": tok})
         with self.assertRaises(urllib.error.HTTPError) as cm:
             urllib.request.urlopen(req, timeout=10)
@@ -260,6 +308,13 @@ class ServerTest(Base):
         self.assertEqual(q(outside)[0], 403)
         self.assertEqual(q(self.squad / "scopes" / ".." / ".." / ".." / ".." / "secret.txt")[0], 403)
         self.assertEqual(q("/etc/passwd")[0], 403)
+        evil = self.squad.parent / (self.squad.name + "-evil")  # sibling folder with the same name prefix
+        evil.mkdir()
+        (evil / "x.txt").write_text("no", encoding="utf-8")
+        self.assertEqual(q(evil / "x.txt")[0], 403)
+        self.assertIn(get(base + "/api/file?path=scopes%2Falpha%2F%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2fsecret.txt")[0], (403, 404))
+        self.assertEqual(q("C:\\Windows\\win.ini")[0], 404)  # not a path here; never read
+        self.assertEqual(q(self.squad / "scopes" / "alpha" / "note.md")[1]["X-Content-Type-Options"], "nosniff")
         if link:
             self.assertEqual(q(link)[0], 403)
         self.assertEqual(q(self.squad / "nothing.md")[0], 404)
@@ -267,9 +322,12 @@ class ServerTest(Base):
 
     def test_T03_AC11_serving_changes_nothing_in_the_squad_folder(self):
         def snap():
-            return {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(self.squad.rglob("*")) if p.is_file()}
+            return {str(p): (hashlib.sha256(p.read_bytes()).hexdigest(), p.stat().st_size, p.stat().st_mtime_ns)
+                    for p in sorted(self.squad.rglob("*")) if p.is_file()}
         before = snap()
-        _, base = self.serve()
+        route = {"name": "x", "path": "/api/x", "read": lambda sel: {"data": sorted(p.name for p in sel["home"].iterdir())}}
+        _, base = self.serve(routes={"/api/x": route})
+        get(base + "/api/x?scope=alpha")
         for path in ("/", "/api/session", "/api/squads", "/api/file?path=scopes/alpha/note.md", "/api/nope"):
             get(base + path)
         self.assertEqual(snap(), before)

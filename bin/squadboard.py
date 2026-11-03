@@ -8,8 +8,8 @@ Readers are discovered, not listed. Every `bin/squadboard_*.py` that defines `RO
     ROUTE = {"name": "inbox", "path": "/api/inbox", "read": read, "selection": True}   # a dict, or a list of dicts
 
 `read(sel) -> {"data": ..., "quality": ..., "unknown": [source, ...]}` and never raises (a raise or a run over
-`READ_BUDGET_S` is answered as `unknown:<name>`). `sel` is a dict: `squads` (all `Squad`), `squad` (the chosen one
-or None), `kind` ("goal" | "scope" | None), `name`, `home` (Path of that goal or scope folder), `repo_root`,
+`READ_BUDGET_S` is answered as `unknown:<name>`; a missing `quality` or `unknown` is filled in). `sel` is a dict: `squads` (all `Squad`), `squad` (the chosen one
+or None), `kind` ("goal" | "scope" | None), `name`, `home` (Path of that goal or scope folder), `repo_root`, `now` (epoch seconds from the server clock, fixed in tests),
 `params` (the query as {key: first value}). `selection` defaults to True: the server answers
 `400 selection required` unless `goal=` or `scope=` is given. A picker-style route sets it to False. A route whose
 path equals a built-in one (`/api/squads`) replaces it. Every response carries `schema_version` (additive only).
@@ -18,6 +18,7 @@ Exit codes: 0 ok, 1 error (port busy), 2 refused (bad flags, unknown or ambiguou
 """
 import argparse
 import importlib
+import importlib.util
 import json
 import mimetypes
 import os
@@ -26,6 +27,7 @@ import secrets
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -41,7 +43,7 @@ STATIC_DIR = PLUGIN_ROOT / "templates" / "board"
 SCHEMA_VERSION = 1
 DEFAULT_PORT = 8765
 HOSTS = ("127.0.0.1", "localhost")
-READ_BUDGET_S = 8.0
+READ_BUDGET_S = 3.0  # one constant for every reader; the page says "not updating" after 3 failed polls (architecture 1)
 MAX_FILE = 5_000_000
 OK, ERROR, REFUSED = 0, 1, 2
 FLAT_MESSAGE = "flat squad: not supported"
@@ -162,19 +164,43 @@ def initial_selection(squads, goal, scope):
     raise Refused("unknown %s: %s. Known %ss: %s" % (kind, name, kind, ", ".join(known) or "none"))
 
 
-def load_routes():
-    """-> (routes {path: route dict}, errors [module names]). Every `squadboard_*.py` with a `ROUTE`."""
+def _unknown_route(stem):
+    """A reader that failed to load still answers: `unknown:<name>`, not a 404."""
+    name = stem[len("squadboard_"):]
+    return {"name": name, "path": "/api/" + name, "selection": False,
+            "read": lambda sel: {"data": None, "quality": "unknown", "unknown": [name]}}
+
+
+def load_routes(dirs=None):
+    """-> (routes {path: route dict}, errors [module names]). Every `squadboard_*.py` with a `ROUTE` in `dirs`
+    (default: this `bin/`). A module that does not import, or has a bad `ROUTE`, is skipped with one stderr line
+    and its path answers `unknown:<name>`."""
     routes, errors = {}, []
-    for f in sorted(BIN.glob("squadboard_*.py")):
-        try:
-            mod = importlib.import_module(f.stem)
-        except Exception:  # a broken reader must not stop the board
-            errors.append(f.stem)
-            continue
-        raw = getattr(mod, "ROUTE", None)
-        for r in (raw if isinstance(raw, list) else [raw] if raw else []):
-            if isinstance(r, dict) and r.get("path", "").startswith("/api/") and callable(r.get("read")):
-                routes[r["path"]] = r
+
+    def skip(stem, why):
+        errors.append(stem)
+        print("squad-board: skipped reader %s (%s)" % (stem, why), file=sys.stderr)
+        r = _unknown_route(stem)
+        routes.setdefault(r["path"], r)
+
+    for d in [BIN] if dirs is None else [Path(x) for x in dirs]:
+        for f in sorted(d.glob("squadboard_*.py")):
+            try:
+                if d == BIN:
+                    mod = importlib.import_module(f.stem)
+                else:
+                    spec = importlib.util.spec_from_file_location("squadboard_ext_" + f.stem, str(f))
+                    mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(mod)
+            except Exception as e:  # a broken reader must not stop the board
+                skip(f.stem, "%s: %s" % (type(e).__name__, e))
+                continue
+            raw = getattr(mod, "ROUTE", None)
+            for r in (raw if isinstance(raw, list) else [raw] if raw else []):
+                if isinstance(r, dict) and str(r.get("path", "")).startswith("/api/") and callable(r.get("read")):
+                    routes[r["path"]] = r
+                else:
+                    skip(f.stem, "bad ROUTE")
     return routes, errors
 
 
@@ -189,6 +215,7 @@ class BoardServer(ThreadingHTTPServer):
         self.token = secrets.token_urlsafe(24)
         self.routes, self.load_errors = (load_routes() if routes is None else (routes, []))
         self.put_routes = dict(PUT_ROUTES)
+        self.clock = time.time
 
     @property
     def port(self):
@@ -229,7 +256,7 @@ def resolve_selection(server, params):
     else:
         squad = server.squads[0] if len(server.squads) == 1 else None
     sel = {"squads": server.squads, "squad": squad, "kind": None, "name": None, "home": None,
-           "repo_root": squad.repo_root if squad else None, "params": params}
+           "repo_root": squad.repo_root if squad else None, "now": server.clock(), "params": params}
     goal, scope = params.get("goal"), params.get("scope")
     if goal and scope:
         return None, _error(400, "give goal or scope, not both")
@@ -262,7 +289,7 @@ def call_reader(route, sel):
     r = box.get("r")
     if not isinstance(r, dict):
         return {"data": None, "quality": "unknown", "unknown": [route.get("name", route["path"])]}
-    return r
+    return {"data": None, "quality": "unknown", "unknown": [], **r}
 
 
 def _under(path, roots):
