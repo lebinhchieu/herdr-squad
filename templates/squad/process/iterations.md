@@ -39,6 +39,7 @@ topic: iterations
 - The body goes in a quoted heredoc, `squad-inbox add ... <<'EOF' … EOF`; no pipe and no unquoted heredoc (the body would show in chat).
 - One `squad-inbox add` per Bash call, never two. After an add, also after a failed one (fix and retry), your reply is the printed line and nothing else: no body, options or recommendation.
 - A question that blocks nothing takes `--blocks ""` and waits for the check-in.
+- A question the PO parks is `squad-inbox park --text "<q>" [--from E<n>[ #<p>]] [--blocks "<work>"] [--level scope|goal|squad]`, later `unpark|resolve Q<n>`. Never wait on a parked one; raise it when its `Blocks:` work is all that is left.
 - A note with nothing to decide goes through `squad-inbox add --kind read`, never a hand-written row in `escalations.md`; only `--kind answer` makes a row, and the command writes it.
 - A resolved question is withdrawn (`squad-inbox withdraw E<n> --reason "<why>"`), not left open. A chat reply to the PO never lists steps for the PO: the steps go in the inbox item, and the reply is the printed line (or one line pointing at it).
 
