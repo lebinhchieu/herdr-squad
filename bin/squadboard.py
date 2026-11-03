@@ -214,7 +214,7 @@ class BoardServer(ThreadingHTTPServer):
         self.initial = initial or {}
         self.token = secrets.token_urlsafe(24)
         self.routes, self.load_errors = (load_routes() if routes is None else (routes, []))
-        self.put_routes = dict(PUT_ROUTES)
+        self.put_routes = _collect_put_routes(self.routes)
         self.clock = time.time
 
     @property
@@ -226,6 +226,15 @@ class BoardServer(ThreadingHTTPServer):
             if s.key == key or s.name == key:
                 return s
         return None
+
+
+def _collect_put_routes(routes):
+    """PUT_ROUTES plus the `put` function of any reader route (ticket 09: `/api/ui`)."""
+    out = dict(PUT_ROUTES)
+    for r in routes.values():
+        if callable(r.get("put")):
+            out[r["path"]] = r["put"]
+    return out
 
 
 def _squads_payload(server):
@@ -367,12 +376,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(405, {"error": "read-only: no write route"})
         if not secrets.compare_digest(self.headers.get("X-Board-Token", ""), self.server.token):
             return self._json(403, {"error": "token required"})
+        if getattr(fn, "json_only", False) and not self.headers.get("Content-Type", "").lower().startswith("application/json"):
+            return self._json(415, {"error": "Content-Type must be application/json"})
         try:
             n = min(int(self.headers.get("Content-Length", "0")), 1_000_000)
         except ValueError:
             n = 0
         params = {k: v[0] for k, v in parse_qs(u.query).items()}
-        self._json(200, fn(self.server, params, self.rfile.read(n)))
+        res = fn(self.server, params, self.rfile.read(max(n, 0)))
+        self._json(*res) if isinstance(res, tuple) else self._json(200, res)  # fn may answer (code, payload)
 
     do_PUT = do_POST = do_DELETE = do_PATCH = _mutating
 
