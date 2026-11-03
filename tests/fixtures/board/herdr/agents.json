@@ -1,0 +1,127 @@
+{
+ "id": "cli:agent:list",
+ "result": {
+  "agents": [
+   {
+    "agent": "claude",
+    "agent_session": {
+     "agent": "claude",
+     "kind": "id",
+     "source": "herdr:claude",
+     "value": "00000000-0000-4000-8000-000000000001"
+    },
+    "agent_status": "working",
+    "completion_seq": 1,
+    "cwd": "/fixture/repo",
+    "focused": false,
+    "foreground_cwd": "/fixture/repo",
+    "interactive_ready": true,
+    "name": "fix-mgr-checkout",
+    "pane_id": "w1:p1",
+    "revision": 1,
+    "state_change_seq": 1,
+    "tab_id": "w1:t1",
+    "terminal_id": "term_fixture01",
+    "terminal_title": "fix-mgr-checkout",
+    "terminal_title_stripped": "fix-mgr-checkout",
+    "workspace_id": "w1"
+   },
+   {
+    "agent": "claude",
+    "agent_session": {
+     "agent": "claude",
+     "kind": "id",
+     "source": "herdr:claude",
+     "value": "00000000-0000-4000-8000-000000000002"
+    },
+    "agent_status": "blocked",
+    "completion_seq": 2,
+    "cwd": "/fixture/repo",
+    "focused": false,
+    "foreground_cwd": "/fixture/repo",
+    "interactive_ready": true,
+    "name": "fix-dev-02",
+    "pane_id": "w1:p2",
+    "revision": 1,
+    "state_change_seq": 2,
+    "tab_id": "w1:t2",
+    "terminal_id": "term_fixture02",
+    "terminal_title": "fix-dev-02",
+    "terminal_title_stripped": "fix-dev-02",
+    "workspace_id": "w1"
+   },
+   {
+    "agent": "claude",
+    "agent_session": {
+     "agent": "claude",
+     "kind": "id",
+     "source": "herdr:claude",
+     "value": "00000000-0000-4000-8000-000000000003"
+    },
+    "agent_status": "idle",
+    "completion_seq": 3,
+    "cwd": "/fixture/repo",
+    "focused": false,
+    "foreground_cwd": "/fixture/repo",
+    "interactive_ready": true,
+    "name": "fix-dev-04",
+    "pane_id": "w1:p3",
+    "revision": 1,
+    "state_change_seq": 3,
+    "tab_id": "w1:t3",
+    "terminal_id": "term_fixture03",
+    "terminal_title": "fix-dev-04",
+    "terminal_title_stripped": "fix-dev-04",
+    "workspace_id": "w1"
+   },
+   {
+    "agent": "claude",
+    "agent_session": {
+     "agent": "claude",
+     "kind": "id",
+     "source": "herdr:claude",
+     "value": "00000000-0000-4000-8000-000000000004"
+    },
+    "agent_status": "working",
+    "completion_seq": 4,
+    "cwd": "/fixture/repo",
+    "focused": false,
+    "foreground_cwd": "/fixture/repo",
+    "interactive_ready": true,
+    "name": "fix-qaw-checkout",
+    "pane_id": "w1:p4",
+    "revision": 1,
+    "state_change_seq": 4,
+    "tab_id": "w1:t4",
+    "terminal_id": "term_fixture04",
+    "terminal_title": "fix-qaw-checkout",
+    "terminal_title_stripped": "fix-qaw-checkout",
+    "workspace_id": "w1"
+   },
+   {
+    "agent": "claude",
+    "agent_session": {
+     "agent": "claude",
+     "kind": "id",
+     "source": "herdr:claude",
+     "value": "00000000-0000-4000-8000-000000000005"
+    },
+    "agent_status": "working",
+    "completion_seq": 5,
+    "cwd": "/fixture/repo2",
+    "focused": false,
+    "foreground_cwd": "/fixture/repo2",
+    "interactive_ready": true,
+    "name": "other-dev-1",
+    "pane_id": "w1:p5",
+    "revision": 1,
+    "state_change_seq": 5,
+    "tab_id": "w1:t5",
+    "terminal_id": "term_fixture05",
+    "terminal_title": "other-dev-1",
+    "terminal_title_stripped": "other-dev-1",
+    "workspace_id": "w1"
+   }
+  ]
+ }
+}
