@@ -1,0 +1,1181 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>(6) board</title><style>
+/* every colour is a token of mango-parrot-color-theme.json (light); see design-v3.md for the token per colour */
+:root{--u:1;--r:10px;
+--bg:#FCF8F1;       /* editor.background */
+--panel:#F4ECDD;    /* editor.lineHighlightBackground */
+--panel2:#F0E6D6;   /* activityBar.background */
+--border:#E7DBC8;   /* panel.border */
+--ink:#3E372E;      /* editor.foreground */
+--muted:#7E705A;    /* tab.inactiveForeground (darkest secondary-text token in the theme) */
+--muted2:#A99C86;   /* descriptionForeground */
+--mango:#E8820E;    /* editorCursor.foreground */
+--work:#368A1E;     /* terminal.ansiGreen */
+--wait:#2A6DC0;     /* terminal.ansiBlue */
+--block:#DB3B22;    /* terminal.ansiRed */
+--block2:#DB3B2280; /* mergeEditor.conflict.unhandledUnfocused.border */
+--po:#9A40CF;       /* terminal.ansiMagenta */
+--po2:#B966E8;      /* terminal.ansiBrightMagenta */
+--fail:#CE1D6C;     /* errorForeground */
+--amber:#9E7A00;    /* list.warningForeground */
+--err:#B01010;      /* statusBarItem.errorBackground */
+--shadow:#3E372E20; /* widget.shadow */
+--t-need:#E8820E25; /* list.activeSelectionBackground */
+--t-need2:#E8820E18;/* activityBar.activeBackground */
+--t-need3:#E8820E12;/* list.hoverBackground */
+--t-edge:#E8820E80; /* editorBracketMatch.border */
+--t-work:#368A1E18; /* mergeEditor.change.background */
+--t-bad:#DB3B2212;  /* diffEditor.removedLineBackground */
+--t-amber:#9E7A0018;/* editor.findRangeHighlightBackground */
+--t-idle:#A99C8625; /* scrollbarSlider.background */}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:calc(12px*var(--u))/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+code.nb,.tbl code{white-space:nowrap}
+code{font:.96em ui-monospace,Menlo,Consolas,monospace;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0 .33em;overflow-wrap:anywhere}
+code.cmd{user-select:all}
+h1,h2,h3{margin:0}p{margin:3px 0}
+.muted{color:var(--muted)}.sm{font-size:.875em}.ap{font-size:.83em;font-style:italic;color:var(--muted);margin-left:3px}
+button{font:inherit;color:var(--ink);cursor:pointer}
+a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--mango);text-underline-offset:2px}
+time{white-space:nowrap}
+:focus-visible{outline:2px solid var(--mango);outline-offset:1px}
+/* prototype bar (not part of the design) */
+.demo{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 12px;border-bottom:1px dashed var(--muted2);color:var(--muted);background:var(--panel2)}
+.demo b{color:var(--ink)}.demo button,.demo select{font:inherit;border:1px solid var(--border);background:var(--bg);border-radius:12px;padding:1px 10px;color:var(--ink)}
+.demo button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+/* header */
+header.top{padding:6px 12px 4px;border-bottom:1px solid var(--border)}
+.r1,.r2,.r3{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.r2,.r3{margin-top:4px}
+header h1{font-size:1.25em}
+.pick select,.fsel select{font:inherit;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--ink);padding:1px 4px}
+.fsel{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--border);border-radius:8px;padding:1px 6px;background:var(--bg)}
+.fsel.on{border-color:var(--mango);background:var(--t-need2)}
+.fsel select{border-color:transparent;background:transparent}
+.fr{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.fresh{color:var(--muted);white-space:nowrap}.fresh .dot{display:inline-block;width:.67em;height:.67em;border-radius:50%;background:var(--work);margin-right:3px}
+.fresh.bad{color:var(--err)}.fresh.bad .dot{background:var(--block)}.fresh.load .dot{background:var(--muted2)}
+.hb{border:1px solid var(--border);background:var(--bg);border-radius:6px;padding:1px 9px}
+.hb:hover{border-color:var(--mango)}
+.seg{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--bg);overflow:hidden}
+.seg button{border:0;background:transparent;padding:1px 9px}.seg button:hover{background:var(--t-need3)}.seg button[disabled]{opacity:.35;cursor:default}
+.seg span{padding:0 8px;border-left:1px solid var(--border);border-right:1px solid var(--border);min-width:6.2em;text-align:center}
+.zone{border:1px solid var(--border);border-radius:10px;padding:0 8px;background:var(--bg);white-space:nowrap}.zone b{font-weight:700}
+.srcs{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center}
+.src{border:1px solid var(--border);border-radius:10px;padding:0 7px;background:var(--bg);color:var(--muted);white-space:nowrap}
+.src i{display:inline-block;width:.6em;height:.6em;border-radius:50%;background:var(--work);margin-right:3px}
+.src.bad{border-style:dashed;border-color:var(--muted);color:var(--ink)}.src.bad i{background:var(--bg);border:1px solid var(--muted)}
+.prefs{color:var(--muted)}.prefs.warn{color:var(--ink);border:1px solid var(--amber);background:var(--t-amber);border-radius:10px;padding:0 8px;font-weight:600}
+/* chips: text is always ink; the state is the border and tint */
+/* chips: text is always ink; the state is the border and tint (v4: flex centring is in the v4 block at the end) */
+.chip{display:inline-flex;border-radius:.8em;padding:0 .6em;font-size:.92em;font-weight:600;border:1px solid var(--border);background:var(--bg);color:var(--ink);white-space:nowrap}
+.chip.need{background:var(--t-need);border-color:var(--mango)}
+.chip.work{background:var(--t-work);border-color:var(--work)}
+.chip.wait{border-color:var(--wait)}
+.chip.bad{background:var(--t-bad);border-color:var(--block)}
+.chip.fail{border-color:var(--fail)}
+.chip.quiet{background:var(--t-amber);border-color:var(--amber)}
+.chip.idle{background:var(--t-idle);border-color:var(--muted2);color:var(--muted)}
+.chip.unk{border:1px dashed var(--muted);color:var(--muted)}
+.chip.run{background:var(--t-need2);border-color:var(--t-edge)}
+.chip.sup{border-color:var(--muted2);color:var(--muted);text-decoration:line-through}
+.chip.park{border:1px dashed var(--muted);color:var(--muted)}
+/* alerts */
+.banner{margin:6px 12px 0;border:1px solid var(--t-edge);border-left:5px solid var(--mango);background:var(--t-need2);border-radius:8px;padding:6px 12px}
+.banner.stale{border-color:var(--border);border-left-color:var(--block);background:var(--bg)}.banner.unk{border-left:4px dashed var(--muted);background:var(--bg)}
+.banner .t{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.banner .age{margin-left:auto;font-weight:700}
+.note{border:1px dashed var(--muted);background:var(--bg);border-radius:6px;padding:5px 9px;margin:4px 0}
+.note.out{border-style:solid;border-color:var(--t-edge);background:var(--t-need3)}
+.empty{border:1px dashed var(--border);border-radius:8px;padding:10px;margin:4px 0;color:var(--muted);text-align:center;background:var(--bg)}.empty b{color:var(--ink)}
+/* canvas + panels */
+main{padding:8px 12px 24px}
+#canvas{position:relative}
+.panel{position:absolute;background:var(--panel);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;min-height:0;min-width:0;transition:left .12s,top .12s,width .12s,height .12s}
+.panel.drag{transition:none;z-index:30;box-shadow:0 8px 24px var(--shadow);opacity:.95}
+.panel.rsz{transition:none;z-index:30}
+.panel.hot{border-color:var(--mango);background:linear-gradient(var(--t-need3),var(--t-need3)),var(--panel)}
+.ghost{position:absolute;border:2px dashed var(--mango);background:var(--t-need2);border-radius:var(--r);pointer-events:none;transition:left .1s,top .1s}
+.ph{display:flex;gap:6px;align-items:center;padding:5px 6px 3px 8px;cursor:grab;touch-action:none;user-select:none;border-radius:var(--r) var(--r) 0 0}
+.ph:active{cursor:grabbing}
+.ph .grip{color:var(--muted2);letter-spacing:-2px;font-size:.92em}
+.ph h2{font-size:1em;text-transform:uppercase;letter-spacing:.05em}
+.ph .sp{flex:1}
+.ph .pbtn{border:1px solid transparent;background:transparent;border-radius:5px;padding:0 6px;color:var(--muted);line-height:1.5}
+.ph .pbtn:hover{border-color:var(--border);background:var(--bg);color:var(--ink)}
+.count{display:inline-block;min-width:20px;text-align:center;border-radius:10px;background:var(--bg);border:1px solid var(--border);color:var(--muted);font-weight:700;padding:0 6px;font-size:.92em;white-space:nowrap}
+.count.hot{background:var(--t-need);border-color:var(--mango);color:var(--ink)}
+.count.flt{border-color:var(--mango);color:var(--ink)}
+.pb{overflow:auto;padding:2px 10px 8px;flex:1;min-height:0;border-radius:0 0 calc(var(--r) - 1px) calc(var(--r) - 1px)}
+.rz{position:absolute;z-index:5}
+.rz.n,.rz.s{left:10px;right:10px;height:7px;cursor:ns-resize}.rz.n{top:-3px}.rz.s{bottom:-3px}
+.rz.e,.rz.w{top:10px;bottom:10px;width:7px;cursor:ew-resize}.rz.e{right:-3px}.rz.w{left:-3px}
+.rz.n:hover,.rz.s:hover,.rz.e:hover,.rz.w:hover{background:var(--t-need);border-radius:4px}
+/* corner handles: the mark is an arc concentric with the panel corner (panel radius 10, arc inset 4 => radius 6) */
+.rz.ne,.rz.nw,.rz.se,.rz.sw{width:16px;height:16px}
+.rz.ne{top:-3px;right:-3px;cursor:nesw-resize}.rz.nw{top:-3px;left:-3px;cursor:nwse-resize}.rz.se{bottom:-3px;right:-3px;cursor:nwse-resize}.rz.sw{bottom:-3px;left:-3px;cursor:nesw-resize}
+.rz.ne::after,.rz.nw::after,.rz.se::after,.rz.sw::after{content:"";position:absolute;width:10px;height:10px;border:0 solid transparent}
+.rz.se::after{right:6px;bottom:6px;border-right:2px solid var(--muted2);border-bottom:2px solid var(--muted2);border-bottom-right-radius:6px}
+.rz.sw::after{left:6px;bottom:6px;border-left-width:2px;border-bottom-width:2px;border-bottom-left-radius:6px}
+.rz.ne::after{right:6px;top:6px;border-right-width:2px;border-top-width:2px;border-top-right-radius:6px}
+.rz.nw::after{left:6px;top:6px;border-left-width:2px;border-top-width:2px;border-top-left-radius:6px}
+.rz.ne:hover::after,.rz.nw:hover::after,.rz.sw:hover::after{border-color:var(--mango)}.rz.se:hover::after{border-color:var(--mango)}
+body[data-view=stale] .panel{opacity:.8}
+/* tables */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{text-align:left;font-size:.875em;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:2px 8px 3px 0;border-bottom:1px solid var(--border);position:sticky;top:-2px;z-index:2;background:var(--panel);cursor:grab;white-space:nowrap}
+.pb.wt .tbl th{top:calc(var(--tfh,0px) - 2px)}
+.tbl th.over{box-shadow:inset 3px 0 var(--mango)}
+.tbl td{padding:4px 8px 4px 0;border-bottom:1px solid var(--border);vertical-align:top}
+.tbl tr.r:last-child td{border-bottom:0}
+.tbl tr.r[data-k],.tbl tr.r[data-hl]{cursor:pointer}.tbl tr.r[data-k]:hover td,.tbl tr.r[data-hl]:hover td{background:var(--t-need3)}
+.tbl tr.on td{background:var(--t-need2)}
+.tbl tr.done td{color:var(--muted)}
+.tbl tr.need td:first-child{box-shadow:inset 3px 0 var(--mango);padding-left:6px}
+.tbl tr.quiet td:first-child{box-shadow:inset 3px 0 var(--amber);padding-left:6px}
+.tbl tr.x td{background:var(--bg);padding:6px 10px;border-bottom:1px solid var(--border)}
+.nm{font-weight:600}.nw{white-space:nowrap}
+.bt{margin-top:3px;padding:3px 8px;border-left:3px solid var(--block);background:var(--bg);border-radius:0 4px 4px 0}
+.chips{display:flex;gap:3px;flex-wrap:wrap}
+.steps{margin:2px 0 0;padding-left:16px}.steps li{margin:1px 0}
+.tools{display:flex;gap:6px;align-items:center;margin:0 0 4px;flex-wrap:wrap}
+.tools button{border:1px solid var(--border);background:var(--bg);border-radius:12px;padding:0 9px}.tools button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.more{margin-top:6px;color:var(--muted)}.more summary{cursor:pointer}
+/* inbox */
+.items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.item{background:var(--bg);border:1px solid var(--border);border-left:5px solid var(--mango);border-radius:8px;padding:5px 9px}
+.item.read{border-left-color:var(--border)}
+.item.parked{border:1px dashed var(--muted2);border-left:5px solid var(--muted2);background:var(--bg)}
+.item .top{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}.item .age{margin-left:auto;font-weight:700;white-space:nowrap}
+.item .blocks{color:var(--muted)}.item.parked .blocks{color:var(--ink)}
+.opts{list-style:none;margin:3px 0;padding:0;display:flex;flex-direction:column;gap:2px}
+.opts li{padding:1px 7px;border-radius:6px}.opts li.rec{background:var(--t-need3);outline:1px solid var(--t-edge)}
+.recmark{font-size:.875em;font-weight:700;margin-left:4px;background:var(--t-need);border:1px solid var(--t-edge);border-radius:8px;padding:0 6px;white-space:nowrap}
+.how{display:flex;gap:6px;align-items:center;flex-wrap:wrap;color:var(--muted)}
+.cp{border:1px solid var(--border);background:var(--bg);border-radius:5px;padding:0 6px;font-size:.92em}.cp:hover{border-color:var(--mango)}
+.cp.proto{border-style:dashed;color:var(--muted)}
+h3.sec{font-size:.875em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:8px 0 3px;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}h3.sec:first-child{margin-top:2px}
+h3.sec .t{text-transform:none;letter-spacing:0;font-weight:400}
+/* timeline */
+/* timeline (all colours are tokens of mango-parrot-color-theme.json; see the :root block of the page) */
+.tl{--tlbg:var(--bg);position:relative}
+.tl-bar{position:sticky;top:0;z-index:30;background:var(--tlbg);border-bottom:1px solid var(--border);padding:4px 0 5px;margin-bottom:6px}
+.tl-r{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:3px}.tl-r:first-child{margin-top:0}
+.tfl{font-weight:700;min-width:2.8em}
+.tc{display:inline-flex;align-items:center;height:1.6em;line-height:1;border:1px solid var(--border);background:var(--bg);border-radius:.8em;padding:0 .7em;white-space:nowrap}
+.tc:hover{border-color:var(--mango)}.tc.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tl-gap{margin-left:auto;display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;color:var(--muted)}
+.tl-gap select{font:inherit;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--ink);padding:0 3px}
+.tl-rng{color:var(--ink)}.tl-rng .muted{font-weight:400}.tfs{margin-left:auto}
+.tl-leg{display:flex;flex-wrap:wrap;gap:2px 11px;color:var(--muted);margin:2px 0 6px;align-items:center}.tl-leg span{display:inline-flex;gap:4px;align-items:center;white-space:nowrap}
+.sw{display:inline-block;width:1em;height:.75em;border-radius:2px}
+.s-w{background:var(--work)}.s-a{background:var(--wait)}
+.s-b{background:repeating-linear-gradient(45deg,var(--block) 0 4px,var(--block2) 4px 7px)}
+.s-p{background:repeating-linear-gradient(45deg,var(--po) 0 3px,var(--po2) 3px 5px)}
+.s-n{background:repeating-linear-gradient(45deg,var(--mango) 0 4px,var(--t-edge) 4px 8px)}
+.s-i{background:var(--muted2);opacity:.55}
+.brk-sw{background:repeating-linear-gradient(135deg,var(--t-idle) 0 3px,var(--bg) 3px 6px);border:1px solid var(--muted2)}
+.tl-chart{position:relative;outline:none}.tl-chart:focus-visible{outline:2px solid var(--mango);outline-offset:2px}
+.tl-axis,.tl-row{display:grid;grid-template-columns:var(--lw) 1fr;gap:6px}
+.tl-axis{position:sticky;top:var(--barh,0px);z-index:25;background:var(--tlbg);border-bottom:1px solid var(--border)}
+.tl-axis .pl{position:relative;height:2.9em;user-select:none}
+.tl-axis .days{position:absolute;left:0;right:0;top:0;height:1.3em;border-bottom:1px solid var(--border)}
+.tl-axis .dy{position:absolute;top:0;bottom:0;border-left:1px solid var(--muted2);padding:0 .35em;font-weight:700;white-space:nowrap;overflow:hidden;display:flex;align-items:center;color:var(--ink)}
+.tl-axis .ticks{position:absolute;left:0;right:0;top:1.35em;height:1.4em;color:var(--muted)}
+.tl-axis .ticks span{position:absolute;transform:translateX(-50%);font-size:.875em;white-space:nowrap}
+.tl-axis .hit{position:absolute;left:0;right:0;top:0;bottom:0;cursor:col-resize;background:transparent}
+.tl-axis .hit:hover{background:var(--t-need3)}
+.tl-row{align-items:stretch;border-bottom:1px solid var(--border)}
+.tl-row .lab{display:flex;flex-direction:column;justify-content:center;min-width:0;padding:2px 0}
+.tl-row .lab .ln{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}.tl-row .lab small{color:var(--muted);font-weight:400}
+.tl-row.grp{border-bottom:0;margin-top:5px}.tl-row.grp .lab{font-size:.875em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;flex-direction:row;align-items:center;gap:6px}
+.tl-trk{position:relative;cursor:grab;min-width:0}.tl-trk.nodata{background:repeating-linear-gradient(135deg,var(--bg) 0 5px,var(--panel) 5px 10px);border:1px dashed var(--muted);border-radius:4px;color:var(--muted);display:flex;align-items:center;padding-left:8px;cursor:default}
+.tl-trk:active{cursor:grabbing}
+.blk{position:absolute;top:1.15em;bottom:.2em;display:flex;align-items:center;border:0;padding:0;border-radius:3px;overflow:hidden;min-width:2px;transition:opacity .1s}
+.blk .lb{display:inline-flex;align-items:center;height:1.35em;margin:0 0 0 .3em;padding:0 .3em;border-radius:3px;background:var(--bg);color:var(--ink);font-weight:700;font-size:.875em;line-height:1;white-space:nowrap;flex:none}
+.blk .lb u{text-decoration:none;border-bottom:1px dotted var(--ink)}
+.blk.st-w{background:var(--work)}.blk.st-a{background:var(--wait)}
+.blk.st-b{background:repeating-linear-gradient(45deg,var(--block) 0 4px,var(--block2) 4px 7px)}
+.blk.st-p{background:repeating-linear-gradient(45deg,var(--po) 0 3px,var(--po2) 3px 5px)}
+.blk.st-p.now{background:repeating-linear-gradient(45deg,var(--mango) 0 4px,var(--t-edge) 4px 8px)}
+.blk.st-i{background:var(--muted2);opacity:.5}
+.blk.un{outline:1px dashed var(--ink);outline-offset:-2px}
+.blk.sel{box-shadow:0 0 0 2px var(--ink);z-index:3}.blk.dim{opacity:.16}
+.blk:focus-visible{outline:2px solid var(--mango);outline-offset:1px;z-index:4}
+.mk{position:absolute;top:.55em;width:.75em;height:.75em;margin:-.375em 0 0 -.375em;z-index:4;border:1.5px solid var(--ink);background:var(--bg);border-radius:50%;padding:0;pointer-events:auto}
+.mk.pass,.mk.fail{border-radius:1px;transform:rotate(45deg);width:.7em;height:.7em;margin:-.35em 0 0 -.35em}.mk.pass{background:var(--work);border-color:var(--bg)}.mk.fail{background:var(--fail);border-color:var(--bg)}
+.mk.art{border-radius:1px;width:.6em;height:.6em;margin:-.3em 0 0 -.3em;background:var(--mango);border-color:var(--bg)}
+.tl-ov{position:absolute;left:calc(var(--lw) + 6px);right:0;bottom:0;pointer-events:none;z-index:6}
+.tl-ov .grid i{position:absolute;top:0;bottom:0;border-left:1px solid var(--border);opacity:.7}.tl-ov .grid i.mid{border-left:1px solid var(--muted2);opacity:1}
+.brk{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,var(--t-idle) 0 4px,var(--bg) 4px 8px);border-left:1px solid var(--muted2);border-right:1px solid var(--muted2);display:flex;align-items:center;justify-content:center;pointer-events:auto;overflow:hidden;z-index:2}
+.brk span{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;font-size:.875em;font-weight:700;color:var(--ink);background:var(--bg);border-radius:3px;padding:.3em .1em;max-height:96%;overflow:hidden;text-overflow:ellipsis}
+.now{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--ink);z-index:6}
+.now span{position:absolute;top:-1.55em;transform:translateX(-50%);font-size:.83em;font-weight:700;background:var(--ink);color:var(--bg);border-radius:3px;padding:0 4px;white-space:nowrap}
+.selr{position:absolute;top:-2.9em;bottom:0;background:var(--t-need);border:1px solid var(--mango);z-index:7}
+.tl-hint{margin:6px 0}
+.tl-detail{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin:6px 0}
+.tl-detail dl{display:grid;grid-template-columns:8.7em 1fr;gap:2px 8px;margin:4px 0 0}.tl-detail dt{color:var(--muted)}.tl-detail dd{margin:0;overflow-wrap:anywhere}
+.tl-h{font-size:.875em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:10px 0 3px}
+.tl-tbl{width:100%;border-collapse:collapse}.tl-tbl th{text-align:left;font-size:.875em;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:2px 8px 3px 0;border-bottom:1px solid var(--border);white-space:nowrap}
+.tl-tbl td{padding:4px 8px 4px 0;border-bottom:1px solid var(--border);vertical-align:top}.tl-tbl tr.r{cursor:pointer}.tl-tbl tr.r:hover td{background:var(--t-need3)}.tl-tbl tr.on td{background:var(--t-need2)}
+.tl-row.hide{display:none}
+@media(max-width:700px){.tl-chart{--lw:6em!important}}
+/* concept 2: agent colour via --ac; state by pattern */
+.blk.c2{--ac:var(--ink)}.blk.c2.st-w{background:var(--ac)}.blk.c2.st-a{background:var(--ac);opacity:.42}.blk.c2.st-a.dim{opacity:.1}
+.blk.c2.st-b{background:repeating-linear-gradient(45deg,var(--ac) 0 4px,var(--bg) 4px 8px)}
+.blk.c2.st-p{box-shadow:inset 0 0 0 2px var(--ac)}.blk.c2.st-i{background:var(--ac);opacity:.18}
+.blk.c2 .lb{height:1.3em}
+.tl-row .lab small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* concept 3 */
+.ov3{display:grid;grid-template-columns:var(--lw) 1fr;gap:6px;margin:2px 0 8px}
+.ov3 .lab{font-weight:700;display:flex;flex-direction:column;justify-content:center;color:var(--ink)}.ov3 .lab small{font-weight:400;color:var(--muted)}
+.ov3 .strip{position:relative;height:5.6em;background:var(--bg);border:1px solid var(--border);border-radius:6px;overflow:hidden;cursor:crosshair;user-select:none;touch-action:none}
+.ov3 .hd{position:absolute;left:0;right:0;height:1.4em;top:1.5em}.ov3 .hd.b{top:3.05em}
+.ov3 .hd i{position:absolute;top:0;bottom:0}.ov3 .hd.a i{background:var(--work)}.ov3 .hd.b i{background:var(--wait)}
+.ov3 .dayl{position:absolute;top:0;height:1.4em;border-left:1px solid var(--muted2);padding:0 .35em;font-weight:700;white-space:nowrap;overflow:hidden;display:flex;align-items:center}
+.ov3 .gl{position:absolute;top:1.5em;height:2.95em;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.875em;overflow:hidden;white-space:nowrap;background:repeating-linear-gradient(135deg,var(--t-idle) 0 4px,transparent 4px 8px)}
+.ov3 .ev{position:absolute;top:4.55em;height:.9em}.ov3 .ev i{position:absolute;width:2px;height:100%;background:var(--ink);opacity:.5}.ov3 .ev i.fail{background:var(--fail);opacity:1}.ov3 .ev i.pass{background:var(--work);opacity:1}
+.ov3 .brush{position:absolute;top:0;bottom:0;border:2px solid var(--mango);background:var(--t-need);cursor:grab;box-shadow:0 0 0 100vmax #FCF8F1A0}
+.ov3 .bh{position:absolute;top:0;bottom:0;width:.8em;cursor:ew-resize;background:var(--mango);opacity:.8}.ov3 .bh.l{left:-2px}.ov3 .bh.r{right:-2px}
+.ov3 .scale{position:absolute;left:0;right:0;bottom:0}
+.c3 .blk{top:.3em;bottom:.3em}.c3 .mk{top:.18em;width:.6em;height:.6em;margin:-.3em 0 0 -.3em}
+.load{position:relative;height:2em}.load i{position:absolute;bottom:0;background:var(--work);opacity:.75}
+.tl-row.sub .lab .ln{font-weight:400}
+
+.cannot{color:var(--muted);margin:4px 0}
+.sk{height:.92em;border-radius:4px;background:linear-gradient(90deg,var(--border),var(--bg),var(--border));background-size:200% 100%;animation:sk 1.2s linear infinite;margin:7px 0}
+@keyframes sk{to{background-position:-200% 0}}
+/* popover */
+.pop{position:absolute;z-index:60;background:var(--bg);border:1px solid var(--ink);border-radius:8px;padding:6px 8px;box-shadow:0 6px 20px var(--shadow);min-width:230px;max-width:340px}
+.pop h4{margin:0 0 4px;font-size:.92em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.pop li{list-style:none;display:flex;gap:6px;align-items:center;padding:1px 0}.pop ul{margin:0;padding:0}
+.pop label{flex:1;display:flex;gap:5px;align-items:center;cursor:pointer}
+.pop button{border:1px solid var(--border);background:var(--bg);border-radius:5px;padding:0 6px}.pop button[disabled]{opacity:.35;cursor:default}
+.pop .lk{margin-top:5px;display:flex;gap:6px;justify-content:space-between}
+.pop .hint{color:var(--muted);margin:5px 0 0;font-size:.92em}
+/* ===== v4 ===== */
+/* one pill style for chip, count, recmark, src, zone, warning, filter button: flex-centred, line-height 1, trimmed to cap height where supported */
+.chip,.count,.recmark,.src,.zone,.prefs.warn,.cp,.tc{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;line-height:1;box-sizing:border-box;height:1.65em;padding-top:0;padding-bottom:0}
+.chip{padding-left:.65em;padding-right:.65em;border-radius:.825em;max-width:100%}
+.chip>.t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.count{padding:0 .6em;border-radius:.825em}.recmark{border-radius:.825em;padding:0 .6em}.src{border-radius:.825em}.zone{border-radius:.825em}.prefs.warn{border-radius:.825em}
+.cp{padding-left:.6em;padding-right:.6em}
+.src i{flex:none}
+@supports (text-box:trim-both cap alphabetic){.chip,.count,.recmark,.src,.zone,.prefs.warn,.cp,.tc{text-box:trim-both cap alphabetic}}
+.pb .tl{--tlbg:var(--panel)}.pb .tl-bar{top:-2px;margin:-2px -10px 6px;padding:4px 10px 5px}.pb .tl-axis{top:calc(var(--barh,0px) - 2px)}
+.tl .chip.idle,.tl-detail .chip{height:1.55em}
+/* selector in the header */
+.selbtn{display:inline-flex;align-items:center;gap:.5em;height:2em;padding:0 .8em;border:2px solid var(--ink);border-radius:.6em;background:var(--bg);font-size:1.08em;max-width:30em}
+.selbtn:hover{border-color:var(--mango)}.selbtn.none{border-color:var(--mango);background:var(--t-need2)}
+.selbtn b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.selbtn .kind,.kind{font-size:.83em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}.selbtn .car{color:var(--muted)}
+.ctx{flex:1;min-width:14em}.crumb{margin-right:.3em}
+.combo{position:absolute;z-index:70;width:min(34em,94vw);background:var(--bg);border:1px solid var(--ink);border-radius:8px;box-shadow:0 8px 24px var(--shadow);padding:6px}
+.combo input,.pkbar input{width:100%;font:inherit;padding:.35em .6em;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--ink)}
+.combo input:focus,.pkbar input:focus{outline:2px solid var(--mango);outline-offset:0}
+#cbl{max-height:22em;overflow:auto;margin-top:5px}
+.cbh{font-size:.83em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:5px 6px 1px}.cbh .lnk{border:0;background:none;padding:0;font:inherit;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.cbo{display:flex;gap:6px;align-items:center;padding:3px 8px;border-radius:6px;cursor:pointer}.cbo .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cbo.sub{padding-left:22px}.cbo.dn{color:var(--muted)}
+.cbo:hover,.cbo.act{background:var(--t-need)}.cbo.cur .cn b{text-decoration:underline;text-decoration-color:var(--mango)}
+.cbf{display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid var(--border);margin-top:5px;padding-top:5px}
+/* picker */
+#picker{padding:10px 12px 30px}.pk h2{font-size:1.4em;margin:2px 0 4px}.pk p{max-width:62em}
+.pkbar{display:flex;gap:8px;align-items:center;margin:10px 0 6px;flex-wrap:wrap}.pkbar input{flex:1;min-width:16em;max-width:34em;font-size:1.05em}.seg button.on{background:var(--ink);color:var(--bg)}
+.plist{border:1px solid var(--border);border-radius:var(--r);background:var(--panel);padding:2px 8px 8px}
+.phd,.pr{display:grid;grid-template-columns:1.8em minmax(11em,1.3fr) 5em minmax(10em,2.3fr) minmax(11em,1.2fr) 8.6em 9.2em;gap:8px;align-items:center}
+.phd{font-size:.83em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding:5px 6px 3px;border-bottom:1px solid var(--border)}
+.pr{padding:5px 6px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px}.pr:hover{background:var(--t-need3)}.pr.cur{background:var(--t-need2)}
+.pr.sub{background:var(--bg);border-left:3px solid var(--border);margin-left:1.6em}.pr.dn{color:var(--muted)}
+.pr .pn{min-width:0}.pr .pn b{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}.pr .pbr{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pr .pla small{display:block;color:var(--muted)}.pr .pla b{white-space:nowrap}
+.pn .kind{display:block;margin-top:1px}
+.chev{border:1px solid transparent;background:none;border-radius:5px;width:1.8em;height:1.8em;padding:0;color:var(--muted)}.chev:hover{border-color:var(--border);background:var(--bg);color:var(--ink)}.chev0{display:block}
+.pk h3.sec{margin:10px 0 2px}
+.dnd{margin-top:10px}.dnd summary{cursor:pointer;padding:4px 6px;font-size:.92em;text-transform:uppercase;letter-spacing:.05em}.dnd summary b{font-weight:700}
+.dnd summary .muted{text-transform:none;letter-spacing:0}
+@media(max-width:1000px){.phd,.pr{grid-template-columns:1.8em minmax(9em,1.4fr) 5em minmax(9em,1.2fr) 8.6em 9.2em}.phd span:nth-child(4),.pr .pbr{display:none}}
+.zone{gap:.35em}.src{gap:.3em}
+.pn .kind{text-transform:none;letter-spacing:0;font-size:.875em;font-weight:400}.cbo .kind{text-transform:none;letter-spacing:0;font-weight:400}
+
+/* ===== v5: layout fit ===== */
+.panel{transition:left .12s,top .12s}
+.pbi{display:flow-root}
+.ph .fit{border-color:var(--mango);color:var(--ink);font-size:.92em}
+</style></head><body data-view="normal">
+<div class="demo"><b>Prototype v5</b><span>state:</span><button data-v="normal">Normal</button><button data-v="empty">Empty</button><button data-v="unknown">Unknown sources</button><button data-v="stale">Not updating</button><button data-v="loading">Opening</button>
+ <span>&middot; pretend zone <select id="zsel" aria-label="Pretend time zone"><option value="">browser</option><option>UTC</option><option>Asia/Ho_Chi_Minh</option><option>Asia/Kolkata</option><option>America/New_York</option><option value="Mars/Olympus">unreadable zone</option></select></span>
+ <span>&middot; saving <select id="svm" aria-label="Saving state"><option value="ok">all works</option><option value="nofile">board-ui.json not writable</option><option value="nobrowser">browser storage blocked</option><option value="none">neither works</option><option value="badfile">board-ui.json unreadable</option></select></span>
+ <span>&middot; opened with <select id="openas" aria-label="How the board was opened"><option value="scope">--scope dashboard</option><option value="goal">--goal board-v2</option><option value="bad">--scope nope-scope (not in the squad)</option><option value="none">no flag (remembered selection)</option><option value="forget">no flag, nothing remembered (first time)</option></select></span> <span>&middot; rows in each table <select id="demorows" aria-label="Rows shown in every table (layout test)"><option value="0">all</option><option value="1">1</option><option value="3">3</option><option value="8">8</option></select></span> <button id="forget">Forget browser copy (new port)</button><span>(prototype bar, not part of the design)</span></div>
+<header class="top">
+ <div class="r1"><h1>squad board</h1>
+  <label class="pick">squad <select id="sq" aria-label="Squad"><option value="board">board (this repo)</option><option value="plugin">plugin (this repo)</option><option value="guardian">guardian (~/workspace/wpw, by path)</option><option disabled>legacy (flat squad: not supported)</option></select></label>
+  <span class="muted">home</span><code id="home"></code>
+  <span class="fr"><span id="zone" class="zone"></span><span id="fresh" class="fresh"></span><span class="muted">tab title <code id="tt"></code></span></span></div>
+<div class="r2"><span class="muted">opened with</span><code class="cmd" id="opencmd"></code><span class="muted sm">--goal / --scope open that selection directly and win over the remembered one</span><span class="chip">read-only</span><span id="srcs" class="srcs"></span></div>
+<div class="r3"><button class="selbtn" id="selbtn" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="cbl"></button><span id="ctx" class="ctx"></span>
+  <span class="fr"><span class="seg" role="group" aria-label="Text size"><button id="fsm" aria-label="Smaller text">A&minus;</button><span id="fsl"></span><button id="fsp" aria-label="Larger text">A+</button></span><button class="hb" id="bpanels" aria-haspopup="true">Panels &#9662;</button><button class="hb" id="breset" title="Clears panel positions, hidden panels and columns. The selection and text size have their own controls.">Reset layout</button><span id="prefs" class="prefs"></span></span></div>
+ </header>
+<div id="alerts"></div>
+<section id="picker" hidden aria-label="Pick a goal or a scope"></section>
+<main><div id="canvas"></div></main>
+<div class="pop" id="pop" hidden></div>
+<div class="combo" id="combo" hidden></div>
+<script>
+/* ---- timeline fake data (shared by the three timeline prototypes and by proto-v4). Times: epoch ms. Authored as +07 wall clock. ---- */
+var TL=(function(){
+var MIN=60000,NOW=Date.UTC(2026,10,3,7,22,7);              /* pinned "now": Tue 3 Nov 14:22 (+07) */
+var W=function(d,h,m){return Date.UTC(2026,9,d,h-7,m||0)}; /* Oct d (33 = Mon 2 Nov, 34 = Tue 3 Nov), wall clock +07 */
+var F=30,M=33,T=34;
+var TYPES=[['manager','Manager'],['developer','Developers'],['qa','QA']];
+var LANES=[
+ {id:'mgr',name:'mgr',sc:'dashboard',type:'manager',full:'board-mgr-dashboard'},
+ {id:'dev-01',name:'dev-01',sc:'dashboard',type:'developer',full:'board-dev-dashboard-01',wt:null,br:'squad/board/dashboard/dev-01',note:'retired'},
+ {id:'dev-02',name:'dev-02',sc:'dashboard',type:'developer',full:'board-dev-dashboard-02',wt:'.worktrees/board/dashboard/dev-02',br:'squad/board/dashboard/dev-02'},
+ {id:'dev-03',name:'dev-03',sc:'dashboard',type:'developer',full:'board-dev-dashboard-03',wt:'.worktrees/board/dashboard/dev-03',br:'squad/board/dashboard/dev-03'},
+ {id:'dev-04',name:'dev-04',sc:'dashboard',type:'developer',full:'board-dev-dashboard-04',wt:'.worktrees/board/dashboard/dev-04',br:'squad/board/dashboard/dev-04'},
+ {id:'dev-01@cli',name:'dev-01',sc:'board-cli',type:'developer',full:'board-dev-board-cli-01',wt:'.worktrees/board/board-cli/dev-01',br:'squad/board/board-cli/dev-01'},
+ {id:'qa-white',name:'qa-white',sc:'dashboard',type:'qa',full:'board-qa-white-dashboard'},
+ {id:'qa-black',name:'qa-black',sc:'dashboard',type:'qa',full:'board-qa-black-dashboard'},
+ {id:'qa-white@cli',name:'qa-white',sc:'board-cli',type:'qa',full:'board-qa-white-board-cli'}];
+var TASKS=[
+ ['dashboard',1,'ADR: a dashboard replaces the board'],['dashboard',2,'Read-only data layer (one JSON state)'],['dashboard',3,'Local server, page shell, layout engine'],
+ ['dashboard',4,'Inbox panel and permission banner'],['dashboard',5,'Tasks, Goals and Scopes panels'],['dashboard',6,'Files and Decisions panels'],
+ ['dashboard',7,'Work-time view'],['dashboard',8,'Picker and selection'],
+ ['board-cli',1,'squad-board --squad NAME|PATH'],['board-cli',2,'Picker for squads in other repos'],['board-cli',3,'--goal and --scope flags'],['board-cli',4,'Remember the selection per squad']
+].map(function(t){var n=('0'+t[1]).slice(-2);return {k:t[0]+'/'+n,sc:t[0],n:n,t:t[2]}});
+var seed=11;function rnd(){seed=(seed*1664525+1013904223)%4294967296;return seed/4294967296}
+var R=function(a,b){return Math.round(a+rnd()*(b-a))};
+var BL=[];
+/* fill [s,e] of one lane with working/waiting blocks of one task; forced = [[s,e,state],...] */
+function seg(lane,k,s,e,forced){forced=(forced||[]).slice().sort(function(a,b){return a[0]-b[0]});var t=s,st='w';
+ function push(a,b,x){if(b>a)BL.push({lane:lane,s:a,e:b,st:x,k:k})}
+ while(t<e){var nf=forced.filter(function(f){return f[0]>=t})[0];
+  if(nf&&nf[0]<=t){push(t,Math.min(nf[1],e),nf[2]);t=nf[1];st='w';continue}
+  var lim=nf?nf[0]:e,d=(st==='w'?R(25,75):R(6,22))*MIN,te=Math.min(t+d,lim);if(lim-te<9*MIN)te=lim;push(t,te,st);t=te;st=st==='w'?'a':'w'}}
+var dsh='dashboard/',cli='board-cli/';
+/* manager: mostly overhead (no task) */
+seg('mgr',null,W(F,9,0),W(F,12,10));seg('mgr',null,W(F,13,30),W(F,18,0));seg('mgr',dsh+'02',W(F,18,0),W(F,18,40));seg('mgr',null,W(F,21,0),W(F+1,0,40),[[W(F,22,10),W(F,22,40),'a']]);
+seg('mgr',null,W(M,8,30),W(M,12,0));seg('mgr',dsh+'05',W(M,13,40),W(M,14,30));seg('mgr',null,W(M,14,30),W(M,17,50));
+seg('mgr',null,W(T,8,30),W(T,12,0));seg('mgr',dsh+'03',W(T,12,0),W(T,12,50));seg('mgr',null,W(T,12,50),NOW);
+/* developers */
+seg('dev-01',dsh+'01',W(F,9,30),W(F,11,40));
+seg('dev-02',dsh+'02',W(F,13,20),W(F,18,0),[[W(F,15,40),W(F,16,25),'p']]);seg('dev-02',dsh+'02',W(M,9,0),W(M,10,40));seg('dev-02',dsh+'05',W(M,13,30),W(M,17,45));seg('dev-02',dsh+'02',W(T,8,45),NOW);
+seg('dev-03',dsh+'03',W(F,14,0),W(F,18,30));seg('dev-03',dsh+'03',W(M,8,50),W(M,12,0));seg('dev-03',dsh+'03',W(M,13,40),W(M,17,30),[[W(M,15,10),W(M,15,22),'b']]);
+seg('dev-03',dsh+'03',W(T,8,40),W(T,14,11),[[W(T,10,20),W(T,10,34),'b']]);seg('dev-03',dsh+'03',W(T,14,11),NOW,[[W(T,14,11),NOW,'p']]);
+seg('dev-04',dsh+'06',W(F,15,0),W(F,18,0));seg('dev-04',dsh+'07',W(M,9,0),W(M,11,50));seg('dev-04',dsh+'04',W(M,14,0),W(M,17,40));seg('dev-04',dsh+'04',W(T,9,0),NOW);
+seg('dev-01@cli',cli+'01',W(F,15,0),W(F,18,15));seg('dev-01@cli',cli+'01',W(M,9,30),W(M,11,50));seg('dev-01@cli',cli+'02',W(M,13,30),W(M,17,0));seg('dev-01@cli',cli+'01',W(T,9,30),W(T,13,25));seg('dev-01@cli',cli+'03',W(T,13,30),NOW);
+/* QA: short checks, long idle between (session open, nothing happening) */
+function chk(lane,k,s,m){BL.push({lane:lane,s:s,e:s+m*MIN,st:'w',k:k})}
+function idle(lane,s,e,k){BL.push({lane:lane,s:s,e:e,st:'i',k:k||null})}
+chk('qa-white',dsh+'01',W(F,11,45),15);chk('qa-black',dsh+'01',W(F,12,0),12);
+chk('qa-black',dsh+'06',W(F,18,5),24);chk('qa-white',dsh+'06',W(F,18,10),22);
+chk('qa-white',dsh+'07',W(M,12,10),18);chk('qa-black',dsh+'07',W(M,12,20),16);chk('qa-white',dsh+'05',W(M,17,50),0);
+chk('qa-white@cli',cli+'02',W(M,17,5),24);
+chk('qa-black',dsh+'05',W(T,9,30),20);chk('qa-black',dsh+'03',W(T,12,32),13);chk('qa-white',dsh+'03',W(T,13,12),10);chk('qa-white',dsh+'03',W(T,13,38),8);
+chk('qa-white',dsh+'02',W(T,13,54),8);chk('qa-white',dsh+'04',W(T,14,5),7);BL.push({lane:'qa-white',s:W(T,14,13),e:NOW,st:'p',k:dsh+'02'});
+chk('qa-white@cli',cli+'01',W(T,13,48),10);
+idle('qa-white',W(F,11,25),W(F,11,45));idle('qa-white',W(F,12,5),W(F,12,40));idle('qa-black',W(F,12,12),W(F,12,40));idle('qa-black',W(T,8,40),W(T,9,30));idle('qa-black',W(T,9,50),W(T,12,32));idle('qa-black',W(T,12,45),NOW);idle('qa-white',W(T,8,40),W(T,12,0));idle('qa-white@cli',W(T,13,58),NOW);idle('dev-01',W(F,11,40),W(F,12,10));
+BL=BL.filter(function(b){return b.e>b.s}).sort(function(a,b){return a.s-b.s});
+BL.forEach(function(b,i){b.id=i;if(b.st==='p'&&b.e>=NOW)b.now=1});
+var COMMITS=[['dev-01',W(F,11,35),'a41c9e2','dashboard/01'],['dev-02',W(F,15,20),'3c19aa0','dashboard/02'],['dev-02',W(M,10,30),'1d2e7aa','dashboard/02'],['dev-02',W(T,13,48),'7be03d1','dashboard/02'],['dev-02',W(T,14,8),'91ac2d4','dashboard/02'],
+ ['dev-02',W(M,17,40),'4d2f9c1','dashboard/05'],['dev-03',W(T,12,30),'5d1e0aa','dashboard/03'],['dev-03',W(T,13,10),'9b3c7f2','dashboard/03'],['dev-03',W(T,13,34),'c90ff12','dashboard/03'],
+ ['dev-04',W(F,17,50),'b83a0d6','dashboard/06'],['dev-04',W(M,11,40),'6e51c08','dashboard/07'],['dev-04',W(M,17,20),'f10aa31','dashboard/04'],['dev-04',W(T,13,52),'e2a9b01','dashboard/04'],
+ ['dev-01@cli',W(F,18,10),'2a7c4b9','board-cli/01'],['dev-01@cli',W(T,13,20),'9a31c40','board-cli/01'],['dev-01@cli',W(M,16,50),'c7d3e12','board-cli/02']];
+var VERD=[['qa-white',W(F,11,58),'PASS','dashboard/01'],['qa-black',W(F,12,10),'PASS','dashboard/01'],['qa-black',W(F,18,28),'PASS','dashboard/06'],['qa-white',W(F,18,30),'FAIL','dashboard/06'],
+ ['qa-white',W(M,12,26),'PASS','dashboard/07'],['qa-black',W(M,12,34),'PASS','dashboard/07'],['qa-white@cli',W(M,17,27),'PASS','board-cli/02'],['qa-black',W(T,9,48),'PASS','dashboard/05'],
+ ['qa-black',W(T,12,45),'FAIL','dashboard/03'],['qa-white',W(T,13,20),'FAIL','dashboard/03'],['qa-white',W(T,13,44),'FAIL','dashboard/03'],['qa-white',W(T,14,0),'PASS','dashboard/02'],['qa-white',W(T,14,12),'FAIL','dashboard/04'],['qa-white@cli',W(T,13,58),'PASS','board-cli/01']];
+var ARTS=[['mgr',W(F,12,5),'tasks/features.md'],['mgr',W(M,9,40),'iterations/1.md'],['dev-01',W(F,11,30),'.scratch/dashboard/issues/01-adr/evidence.md'],['dev-02',W(T,13,45),'.scratch/dashboard/issues/02-data-layer/evidence.md'],
+ ['dev-04',W(F,17,45),'.scratch/dashboard/issues/06-panels/evidence.md'],['qa-black',W(F,18,25),'evidence/06/qa-b.md'],['qa-white',W(T,13,58),'evidence/02/qa-w.md'],['qa-black',W(T,12,40),'evidence/03/qa-b.md'],['dev-01@cli',W(T,13,18),'.scratch/board-cli/issues/01-cli/evidence.md']];
+return {NOW:NOW,TYPES:TYPES,LANES:LANES,TASKS:TASKS,BL:BL,COMMITS:COMMITS,VERD:VERD,ARTS:ARTS,
+ STNAME:{w:'working',a:'waiting',b:'blocked on a peer',p:'blocked on you',i:'idle'},
+ task:function(k){return TASKS.filter(function(t){return t.k===k})[0]},lane:function(id){return LANES.filter(function(l){return l.id===id})[0]}}})();
+
+/* ---- timeline engine: scale with collapsed gaps, zoom, pan, ticks, filter, detail. A concept supplies rows(ctx), legend(), pre(ctx). ---- */
+var TLE=(function(){
+var MIN=60000,HR=3600000,DAY=86400000,NOW=TL.NOW;
+var WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var E={zone:function(){return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'},onChange:function(){},C:null,root:null,lanes:function(){return TL.LANES},state:'normal'};
+var S={ta:0,tb:0,N:60,real:false,HL:null,SEL:null,W:900},cache={},DTF={};
+var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+function dtf(){var z=E.zone();return DTF[z]||(DTF[z]=new Intl.DateTimeFormat('en-GB',{timeZone:z,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}))}
+function loc(ep){var k=E.zone()+Math.floor(ep/MIN),c=cache[k];if(c)return c;var r={};dtf().formatToParts(new Date(ep)).forEach(function(p){r[p.type]=p.value});
+ var y=+r.year,mo=+r.month,d=+r.day;c={y:y,mo:mo,d:d,h:+r.hour,mi:+r.minute,wd:new Date(Date.UTC(y,mo-1,d)).getUTCDay()};if(Object.keys(cache).length>6000)cache={};cache[k]=c;return c}
+var p2=function(n){return (n<10?'0':'')+n};
+var hhmm=function(ep){var l=loc(ep);return p2(l.h)+':'+p2(l.mi)};
+var dkey=function(ep){var l=loc(ep);return l.y*10000+l.mo*100+l.d};
+var dlab=function(ep,s){var l=loc(ep);return s?l.d+' '+MO[l.mo-1]:WD[l.wd]+' '+l.d+' '+MO[l.mo-1]};
+var stamp=function(ep){return dlab(ep)+' '+hhmm(ep)};
+var offMin=function(ep){var l=loc(ep);return Math.round((Date.UTC(l.y,l.mo-1,l.d,l.h,l.mi)-Math.floor(ep/MIN)*MIN)/MIN)};
+function nextMid(t){var a=t,b=t+DAY+3*HR,k=dkey(t);while(b-a>MIN){var m=Math.floor((a+b)/2/MIN)*MIN;if(dkey(m)===k)a=m;else b=m}return b}
+function dur(ms){var m=Math.round(ms/MIN);if(m<1)return 'under 1 min';if(m<60)return m+' min';var h=Math.floor(m/60);if(h<48)return h+' h'+(m%60?' '+p2(m%60)+' min':'');return Math.floor(h/24)+' d'+(h%24?' '+h%24+' h':'')}
+E.fmt={hhmm:hhmm,stamp:stamp,dlab:dlab,dur:dur,offMin:offMin};
+
+/* ---- selection of lanes, blocks, tasks ---- */
+var ids=function(){var o={};E.lanes().forEach(function(l){o[l.id]=1});return o};
+function blocks(){var o=ids();return TL.BL.filter(function(b){return o[b.lane]})}
+function tasksOf(){var o={};blocks().forEach(function(b){if(b.k)o[b.k]=1});return TL.TASKS.filter(function(t){return o[t.k]})}
+var multi=function(){var o={};E.lanes().forEach(function(l){o[l.sc]=1});return Object.keys(o).length>1};
+var tlabel=function(k){return multi()?k:k.split('/')[1]};
+
+/* ---- scale: pieces of real time, gaps collapsed into breaks of fixed visual width ---- */
+var pcs=[],gaps=[],vp=[],avail=1,BW=.04,DOM=[0,0];
+function build(){var bs=blocks().filter(function(b){return b.st!=='i'}).sort(function(a,b){return a.s-b.s}),U=[];
+ bs.forEach(function(b){var l=U[U.length-1];if(l&&b.s<=l[1])l[1]=Math.max(l[1],b.e);else U.push([b.s,b.e])});
+ var D0=(U.length?U[0][0]:NOW-HR)-20*MIN,D1=NOW+10*MIN;DOM=[D0,D1];gaps=[];pcs=[];
+ if(!S.real)for(var i=0;i+1<U.length;i++){var g=U[i+1][0]-U[i][1];if(g>=S.N*MIN){var pad=Math.min(4*MIN,g/4);gaps.push({s:U[i][1],e:U[i+1][0],cs:U[i][1]+pad,ce:U[i+1][0]-pad})}}
+ var st=D0,v=0;gaps.forEach(function(g){pcs.push({a:st,b:g.cs,va:v});v+=g.cs-st;st=g.ce});pcs.push({a:st,b:D1,va:v});S.V=v+D1-st}
+function toV(t){for(var i=0;i<pcs.length;i++){var p=pcs[i];if(t<p.a)return p.va;if(t<=p.b)return p.va+t-p.a}var l=pcs[pcs.length-1];return l.va+l.b-l.a}
+function toR(v,side){for(var i=0;i<pcs.length;i++){var p=pcs[i],len=p.b-p.a;if(v<=p.va+len){if(v<p.va)return p.a;if(v===p.va+len&&side==='a'&&pcs[i+1])return pcs[i+1].a;return p.a+(v-p.va)}}var l=pcs[pcs.length-1];return l.b}
+function norm(){var D0=DOM[0],D1=DOM[1];if(!S.ta&&!S.tb){S.ta=D0;S.tb=D1}
+ S.ta=Math.max(D0,Math.min(S.ta,D1));S.tb=Math.max(D0,Math.min(S.tb,D1));
+ if(S.tb-S.ta<3*MIN){var c=(S.ta+S.tb)/2;S.ta=c-1.5*MIN;S.tb=c+1.5*MIN}
+ gaps.forEach(function(g){if(S.ta>g.cs&&S.tb<g.ce){var sp=S.tb-S.ta;S.ta=g.ce;S.tb=Math.min(D1,g.ce+sp)}});
+ gaps.forEach(function(g){if(S.ta>g.cs&&S.ta<g.ce)S.ta=g.ce;if(S.tb>g.cs&&S.tb<g.ce)S.tb=g.cs});
+ if(S.tb<=S.ta){S.ta=D0;S.tb=D1}}
+function layout(){vp=[];pcs.forEach(function(p,i){var a=Math.max(p.a,S.ta),b=Math.min(p.b,S.tb);if(b>a)vp.push({a:a,b:b,len:b-a,pi:i})});
+ var nb=Math.max(0,vp.length-1);BW=nb?Math.min(.045,.15/nb):0;avail=1-nb*BW;var V=0;vp.forEach(function(p){V+=p.len});var c=0;
+ vp.forEach(function(p,i){p.x0=c/V*avail+i*BW;p.w=p.len/V*avail;c+=p.len});S.vis=V;if(vp.length){S.ta=vp[0].a;S.tb=vp[vp.length-1].b}}
+function X(t,side){for(var i=0;i<vp.length;i++){var p=vp[i];if(t<p.a)return side==='e'&&i>0?vp[i-1].x0+vp[i-1].w:p.x0;if(t<=p.b)return p.x0+(t-p.a)/p.len*p.w}var l=vp[vp.length-1];return l?l.x0+l.w:0}
+function tAt(f){for(var i=0;i<vp.length;i++){var p=vp[i];if(f<=p.x0+p.w){if(f<p.x0)return (p.x0-f<f-(i?vp[i-1].x0+vp[i-1].w:0))?p.a:(i?vp[i-1].b:p.a);return p.a+(f-p.x0)/p.w*p.len}}return vp.length?vp[vp.length-1].b:S.tb}
+function gapKind(g){var wk=false,night=false;for(var t=g.s;t<=g.e;t+=30*MIN){var l=loc(t);if(l.wd===6||l.wd===0)wk=true;if(l.h<6||l.h>=22)night=true}
+ var d=g.e-g.s;return d>=36*HR&&wk?'weekend':night&&d>=4*HR?'night':'idle'}
+var dshort=function(ms){var m=Math.round(ms/MIN);if(m<60)return m+' min';var h=Math.round(m/60);return h<48?h+' h':Math.round(h/24)+' d'};
+var gapLabel=function(g){return gapKind(g)+' · '+dur(g.e-g.s)};
+
+/* ---- html pieces ---- */
+function pct(x){return (x*100).toFixed(3)+'%'}
+function blkHtml(b,o){o=o||{};var h='',hl=S.HL,dim=hl&&(hl==='—'?!!b.k:b.k!==hl);if(o.skipDim)dim=false;
+ vp.forEach(function(p,i){var s=Math.max(b.s,p.a),e=Math.min(b.e,p.b);if(e<=s)return;var l=p.x0+(s-p.a)/p.len*p.w,w=(e-s)/p.len*p.w;
+  var first=!h,lb=o.label&&first?'<span class="lb">'+o.label+'</span>':'';
+  h+='<button class="blk st-'+b.st+(b.now?' now':'')+(b.k?'':' un')+(dim?' dim':'')+(S.SEL===b.id?' sel':'')+(o.cls?' '+o.cls(b):'')+'" data-tl="b:'+b.id+'" style="left:'+pct(l)+';width:'+pct(w)+(o.style?';'+o.style(b):'')+'" title="'+esc(blkTitle(b))+'">'+lb+'</button>'});
+ return h}
+function blkTitle(b){var l=TL.lane(b.lane);return l.name+' · '+l.sc+' · '+hhmm(b.s)+'–'+hhmm(b.e)+' ('+dur(b.e-b.s)+') · '+TL.STNAME[b.st]+' · '+(b.k?'task '+b.k+' (approx)':'no task (overhead)')}
+function labelOf(b){return b.k?'<u>'+esc(b.k.split('/')[1])+'</u><span class="ax">&nbsp;approx</span>':''}
+function mkHtml(list,top){var h='';list.forEach(function(m){var t=m[1];for(var i=0;i<vp.length;i++){var p=vp[i];if(t>=p.a&&t<=p.b){var x=p.x0+(t-p.a)/p.len*p.w;
+  var cls=m.cls,ttl=m.title;h+='<i class="mk '+cls+'" style="left:'+pct(x)+(top?';top:'+top:'')+'" title="'+esc(ttl)+'"></i>';break}}});return h}
+function marks(filter){var o=ids(),L=[];
+ TL.COMMITS.forEach(function(c){if(o[c[0]]&&filter(c[0],c[3]))L.push({1:c[1],cls:'cm',title:'commit '+c[2]+' · '+hhmm(c[1])+' (exact)'})});
+ TL.VERD.forEach(function(c){if(o[c[0]]&&filter(c[0],c[3]))L.push({1:c[1],cls:c[2].toLowerCase(),title:c[2]+' of '+c[3]+' · '+hhmm(c[1])+' (exact)'})});
+ TL.ARTS.forEach(function(c){if(o[c[0]]&&filter(c[0],null))L.push({1:c[1],cls:'art',title:'artifact '+c[2]+' · '+hhmm(c[1])+' (approx, file time)'})});return L}
+function axisHtml(){var days='',ticks='',grid='',pxw=S.W*avail,vmin=S.vis/MIN;
+ vp.forEach(function(p){var ppm=pxw*(p.w/avail)/(p.len/MIN),want=62/ppm,steps=[1,2,5,10,15,30,60,120,180,360,720],st=steps.filter(function(s){return s>=want})[0]||1440;
+  var off=offMin(p.a),t=Math.ceil((p.a/MIN+off)/st)*st-off;
+  for(;t*MIN<=p.b;t+=st){var x=p.x0+(t*MIN-p.a)/p.len*p.w;if(x<p.x0+.002||x>p.x0+p.w-.004)continue;var tm=t*MIN,l=loc(tm);
+   if(l.h===0&&l.mi===0)continue;ticks+='<span style="left:'+pct(x)+'">'+hhmm(tm)+'</span>';grid+='<i style="left:'+pct(x)+'"></i>'}
+  var a=p.a;while(a<p.b){var nm=Math.min(nextMid(a),p.b),x0=p.x0+(a-p.a)/p.len*p.w,w=(nm-a)/p.len*p.w,wp=w*pxw;
+   days+='<span class="dy" style="left:'+pct(x0)+';width:'+pct(w)+'" title="'+esc(dlab(a))+'">'+(wp>96?dlab(a):wp>46?dlab(a,1):wp>20?'':'')+'</span>';
+   if(nm<p.b){var xm=p.x0+(nm-p.a)/p.len*p.w;grid+='<i class="mid" style="left:'+pct(xm)+'"></i>'}a=nm}});
+ return {days:days,ticks:ticks,grid:grid}}
+function brkHtml(){var h='';for(var i=0;i+1<vp.length;i++){var g=gaps[vp[i].pi];if(!g)continue;var x0=vp[i].x0+vp[i].w;
+  h+='<div class="brk" style="left:'+pct(x0)+';width:'+pct(BW)+'" title="'+esc('Idle '+stamp(g.s)+' to '+stamp(g.e)+' ('+dur(g.e-g.s)+'): no agent did anything. Collapsed. Turn on "Show real time" to see it.')+'"><span data-full="'+esc(gapLabel(g))+'" data-s1="'+gapKind(g)+' '+dshort(g.e-g.s)+'" data-s2="'+dshort(g.e-g.s)+'">'+gapLabel(g)+'</span></div>'}return h}
+
+/* stats inside the visible range */
+function stats(){var by={},tot=0,un=0;blocks().forEach(function(b){var s=Math.max(b.s,S.ta),e=Math.min(b.e,S.tb);if(e<=s)return;var d=e-s,k=b.k||'—',o=by[k]||(by[k]={w:0,o:0,ag:{}});
+ if(b.st==='w'){o.w+=d;tot+=d;if(!b.k)un+=d}else if(b.st==='a'||b.st==='b'||b.st==='p')o.o+=d;if(b.st!=='i')o.ag[TL.lane(b.lane).name]=b.lane});return {by:by,tot:tot,un:un}}
+function statsTable(){var s=stats(),ks=Object.keys(s.by).filter(function(k){return k!=='—'}).sort();
+ var h='<h3 class="tl-h">Which time worked which task <span class="muted">(this range; click a row to follow it)</span></h3><table class="tl-tbl"><thead><tr><th>Task</th><th>Working</th><th>Waiting or blocked</th><th>Agents</th><th>Branch</th></tr></thead><tbody>';
+ ks.forEach(function(k){var o=s.by[k],t=TL.task(k),br=Object.keys(o.ag).map(function(n){return TL.lane(o.ag[n]).br}).filter(Boolean)[0];
+  h+='<tr class="r'+(S.HL===k?' on':'')+'" data-tl="hl:'+k+'" tabindex="0"><td><b>'+k+'</b> '+esc(t?t.t:'')+'</td><td class="nw">'+dur(o.w)+' <span class="ap">approx</span></td><td class="nw">'+dur(o.o)+' <span class="ap">approx</span></td><td>'+Object.keys(o.ag).join(', ')+'</td><td>'+(br?'<code>…/'+br.split('/').slice(-1)+'</code>':'<span class="muted">none</span>')+'</td></tr>'});
+ var u=s.by['—']||{w:0,o:0};
+ h+='<tr class="r'+(S.HL==='—'?' on':'')+'" data-tl="hl:—" tabindex="0"><td><b>unattributed</b> <span class="muted">overhead, no task</span></td><td class="nw">'+dur(u.w)+' <span class="ap">approx</span></td><td class="nw">'+dur(u.o)+' <span class="ap">approx</span></td><td colspan="2"><b>'+dur(u.w)+' of '+dur(s.tot)+' working time</b> has no task <span class="ap">approx</span></td></tr></tbody></table>';return h}
+function detail(){if(S.SEL==null)return '<div class="tl-detail muted">Click a block to see its task, worktree, branch, commits, artifacts and reports.</div>';
+ var b=TL.BL[S.SEL];if(!b)return '';var l=TL.lane(b.lane),t=b.k&&TL.task(b.k),cm=TL.COMMITS.filter(function(c){return c[0]===b.lane&&c[1]>=b.s&&c[1]<=b.e}),vd=TL.VERD.filter(function(c){return c[0]===b.lane&&c[1]>=b.s&&c[1]<=b.e}),ar=TL.ARTS.filter(function(c){return c[0]===b.lane&&c[1]>=b.s&&c[1]<=b.e});
+ var ex=function(s){return ' <span class="muted">'+s+'</span>'};
+ return '<div class="tl-detail"><b>'+esc(l.name)+'</b> <span class="chip idle">'+esc(l.sc)+'</span> '+stamp(b.s)+'–'+hhmm(b.e)+' · '+dur(b.e-b.s)+' '+TL.STNAME[b.st]+(b.now?' (open now)':'')+'<dl><dt>Task</dt><dd>'+(t?'<b>'+t.k+'</b> '+esc(t.t)+' <span class="ap">approx</span><div class="muted">from the agent’s latest message naming a task (until the next one)</div>':'<b>none: overhead</b>'+ex('no message and no roster line ties this time to a task'))+'</dd><dt>Worktree</dt><dd>'+(l.wt?'<code>'+l.wt+'</code>':'<span class="muted">'+(l.note==='retired'?'removed: this agent is retired':'none: works in the main checkout')+'</span>')+'</dd><dt>Branch</dt><dd>'+(l.br?'<code>'+l.br+'</code>':'<span class="muted">—</span>')+'</dd><dt>Commits, verdicts</dt><dd>'+(cm.length+vd.length?cm.map(function(c){return '<code>'+c[2]+'</code> '+hhmm(c[1])+ex('exact')}).concat(vd.map(function(c){return '<span class="chip '+(c[2]==='PASS'?'work':'fail')+'">'+c[2]+' '+c[3]+'</span> '+hhmm(c[1])+ex('exact')})).join(' · '):'<span class="muted">none in this block</span>')+'</dd><dt>Artifacts</dt><dd>'+(ar.length?ar.map(function(a){return '<a href="#" data-f="'+a[2]+'">'+a[2]+'</a> '+hhmm(a[1])+' <span class="ap">approx, file time</span>'}).join(', '):'<span class="muted">none changed in this block</span>')+'</dd><dt>Reports</dt><dd><span class="muted">none yet (made when the scope closes)</span></dd></dl></div>'}
+
+/* ---- the page ---- */
+var PRE=[['1h','Last 1 h'],['today','Today'],['3d','3 days'],['all','All']];
+function bar(){var ts=tasksOf(),all=blocks();
+ var h='<div class="tl-bar"><div class="tl-r"><span class="tfl">Task</span><button class="tc'+(S.HL?'':' on')+'" data-tl="hl:">All tasks</button>'+ts.map(function(t){return '<button class="tc'+(S.HL===t.k?' on':'')+'" data-tl="hl:'+t.k+'" title="'+esc(t.k+' '+t.t)+'">'+tlabel(t.k)+'</button>'}).join('')+'<button class="tc'+(S.HL==='—'?' on':'')+'" data-tl="hl:—" title="working time with no task">unattributed</button></div>';
+ var cur=S.pre||'';
+ h+='<div class="tl-r"><span class="tfl">View</span>'+PRE.map(function(p){return '<button class="tc'+(cur===p[0]?' on':'')+'" data-tl="pre:'+p[0]+'">'+p[1]+'</button>'}).join('')+
+  '<span class="seg"><button data-tl="zout" title="Zoom out (−)" aria-label="Zoom out">−</button><button data-tl="zin" title="Zoom in (+)" aria-label="Zoom in">+</button></span><span class="seg"><button data-tl="pl" title="Earlier (←)" aria-label="Earlier">◀</button><button data-tl="pr" title="Later (→)" aria-label="Later">▶</button></span>'+
+  '<span class="tl-gap"><label>Collapse gaps longer than <select data-tl-n="1" aria-label="Collapse idle gaps longer than">'+[15,30,60,120,240].map(function(n){return '<option value="'+n+'"'+(S.N===n?' selected':'')+'>'+(n<60?n+' min':n/60+' h')+'</option>'}).join('')+'</select></label><button class="tc'+(S.real?' on':'')+'" data-tl="real" aria-pressed="'+S.real+'">Show real time</button></span></div>';
+ h+='<div class="tl-r tl-rng"><b>'+stamp(S.ta)+' → '+(dkey(S.tb)===dkey(S.ta)?'':dlab(S.tb)+' ')+hhmm(S.tb)+'</b><span class="muted">· '+dur(S.tb-S.ta)+(S.real?' · real time':gaps.length?' · '+(vp.length-1)+' gap'+(vp.length===2?'':'s')+' collapsed in view (of '+gaps.length+')':' · nothing to collapse')+'</span>'+(S.HL?'<span class="tfs">Following <b>'+esc(S.HL==='—'?'unattributed time':S.HL+' '+((TL.task(S.HL)||{}).t||''))+'</b> <button class="cp" data-tl="hl:">Clear</button></span>':'')+'</div></div>';return h}
+function legend(){return '<div class="tl-leg"><span><i class="sw s-w"></i>working</span><span><i class="sw s-a"></i>waiting</span><span><i class="sw s-b"></i>blocked on a peer</span><span><i class="sw s-p"></i>blocked on you</span><span><i class="sw s-n"></i>blocked on you, open now</span><span><i class="sw s-i"></i>idle</span><span><i class="mk cm" style="position:static;display:inline-block;margin:0"></i>commit</span><span><i class="mk pass" style="position:static;display:inline-block;margin:0 3px"></i>PASS<i class="mk fail" style="position:static;display:inline-block;margin:0 3px 0 6px"></i>FAIL</span><span><i class="mk art" style="position:static;display:inline-block;margin:0"></i>artifact (file time, approx)</span><span><i class="sw brk-sw"></i>collapsed gap</span><span class="muted">block edges <b>real</b> · task label <b>approx</b> · dashed block = no task</span></div>'}
+E.html=function(){var C=E.C;
+ if(E.state==='loading')return '<div class="sk" style="width:70%"></div><div class="sk"></div><div class="sk" style="width:85%"></div>';
+ if(E.state==='empty')return '<p class="empty"><b>No work time yet.</b> No agent in this selection has a transcript.</p>';
+ if(!blocks().length)return '<p class="empty"><b>No work time in this selection.</b> No agent of it has a transcript yet. (Scopes that closed keep their report, not their transcripts.)</p>';
+ if(C.note!==undefined)C.note='';build();norm();layout();var ax=axisHtml(),mine=blocks().filter(function(b){return b.e>S.ta&&b.s<S.tb}).length;
+ var ctx={vp:vp,X:X,blk:blkHtml,label:labelOf,marks:marks,mk:mkHtml,S:S,blocks:blocks,tasks:tasksOf,multi:multi,tlabel:tlabel,pct:pct,lanes:E.lanes,tAt:tAt,gaps:gaps,dom:DOM,loc:loc,hhmm:hhmm,dlab:dlab,dur:dur,nextMid:nextMid,runs:function(list,key){var o={},run=[];var flush=function(){if(run.length&&key(run[0])){var m=run[0];run.forEach(function(b){if(b.e-b.s>m.e-m.s)m=b});o[m.id]=1}run=[]};list.forEach(function(b){if(run.length&&key(run[0])!==key(b))flush();run.push(b)});flush();return o},esc:esc,stamp:stamp,gapLabel:gapLabel,toV:toV,toR:toR};E.ctx=ctx;
+ var h='<div class="tl" id="tl">';
+ if(E.state==='unknown')h+='<p class="note"><b>unknown: transcripts and git are not readable.</b> Lanes show "no data". Nothing is invented and nothing reads 0.</p>';
+ h+=bar()+(C.pre?C.pre(ctx):'')+(C.ownLegend?'':legend())+(C.legend?C.legend(ctx):'');
+ h+='<div class="tl-chart" id="tlc" style="--lw:'+C.lw+'" tabindex="0" aria-label="Work time chart. Plus and minus zoom, arrow keys move."><div class="tl-axis"><div></div><div class="pl"><div class="days">'+ax.days+'</div><div class="ticks">'+ax.ticks+'</div><i class="hit" title="Drag to zoom into a range"></i></div></div>';
+ h+=E.state==='unknown'?'<div class="tl-row" style="height:3em"><div class="lab"></div><div class="tl-trk nodata">unknown: transcripts not readable. No time is invented.</div></div>':C.rows(ctx);
+ h+='<div class="tl-ov"><div class="grid">'+ax.grid+'</div>'+brkHtml()+(NOW>=S.ta&&NOW<=S.tb?'<div class="now" style="left:'+pct(X(NOW))+'"><span'+(X(NOW)>.92?' style="transform:none;right:0"':'')+'>now '+hhmm(NOW)+'</span></div>':'')+'<div class="selr" hidden></div></div></div>'+(C.note||'');
+ if(!mine)h+='<p class="empty"><b>No agent did anything in this range.</b> Zoom out, or pick "All".</p>';
+ h+='<p class="tl-hint muted">Drag on the time axis to zoom into a range · '+(E.wheelZoom?'Wheel':'Ctrl+wheel')+' or pinch zooms · drag the chart or Shift+wheel to move · + − and arrow keys when the chart has focus · click a block for detail.</p>'+(E.state==='unknown'?'':detail()+statsTable()+'<p class="cannot"><b>Cannot be known:</b> your own working time; work before an agent’s first task message (it reads "overhead"); two tasks at once in one session; why an agent was idle.</p>')+'</div>';
+ return h};
+E.after=function(){var r=E.root;if(!r)return;var b=r.querySelector('.tl-bar'),ax=r.querySelector('.tl-axis'),tl=r.querySelector('.tl');if(!tl)return;
+ tl.style.setProperty('--barh',(b?b.offsetHeight:0)+'px');var ov=r.querySelector('.tl-ov');if(ov){ov.style.top=(ax?ax.offsetHeight:0)+'px';var w=ov.clientWidth;if(w&&Math.abs(w-S.W)>3){S.W=w;E.onChange();return}}
+ [].forEach.call(r.querySelectorAll('.brk span'),function(sp){sp.textContent=sp.dataset.full;if(sp.scrollHeight>sp.clientHeight+1){sp.textContent=sp.dataset.s1;if(sp.scrollHeight>sp.clientHeight+1)sp.textContent=sp.dataset.s2}});
+ fit();if(E.C.after)E.C.after(E.ctx)};
+function fit(){var r=E.root;[].forEach.call(r.querySelectorAll('.blk'),function(b){var l=b.querySelector('.lb');if(!l)return;var x=l.querySelector('.ax');if(x)x.hidden=false;l.hidden=false;var w=b.clientWidth-3;if(l.offsetWidth>w&&x)x.hidden=true;if(l.offsetWidth>w)l.hidden=true})}
+
+/* ---- view operations (all in virtual time, so collapsed gaps do not distort zoom and pan) ---- */
+function setView(a,b,pre){S.ta=a;S.tb=b;S.pre=pre||'';E.onChange()}
+function zoomAt(f,factor){var t=tAt(f),va=toV(S.ta),vb=toV(S.tb),vt=toV(t),na=vt-(vt-va)*factor,nb=vt+(vb-vt)*factor;S.pre='';S.ta=toR(Math.max(0,na),'a');S.tb=toR(Math.min(S.V,nb),'b');E.onChange()}
+function pan(dv){var va=toV(S.ta),vb=toV(S.tb),sp=vb-va;va=Math.max(0,Math.min(S.V-sp,va+dv));S.pre='';S.ta=toR(va,'a');S.tb=toR(va+sp,'b');E.onChange()}
+function preset(k){var m=nextMid(NOW-DAY);if(k==='1h')setView(NOW-HR,NOW+3*MIN,k);else if(k==='today')setView(m,NOW+10*MIN,k);else if(k==='3d')setView(NOW-3*DAY,NOW+10*MIN,k);else setView(0,0,k)}
+E.setView=setView;E.preset=preset;E.S=S;
+E.bind=function(el){E.root=el;
+ el.addEventListener('click',function(e){if(S.moved){S.moved=false;return}var t=e.target.closest('[data-tl]');if(!t){if(e.target.closest('a[data-f]'))e.preventDefault();return}var a=t.dataset.tl,c=a.indexOf(':'),k=c<0?a:a.slice(0,c),v=c<0?'':a.slice(c+1);
+  if(k==='hl'){S.HL=(v===''||S.HL===v)?null:v;E.onChange()}else if(k==='b'){S.SEL=+v;var b=TL.BL[+v];if(b&&b.k)S.HL=b.k;E.onChange()}
+  else if(k==='pre')preset(v);else if(k==='zin')zoomAt(.5,.5);else if(k==='zout')zoomAt(.5,2);else if(k==='pl')pan(-(toV(S.tb)-toV(S.ta))*.3);else if(k==='pr')pan((toV(S.tb)-toV(S.ta))*.3);
+  else if(k==='real'){S.real=!S.real;E.onChange()}else if(E.C.click)E.C.click(k,v,e,E.ctx)});
+ el.addEventListener('keydown',function(e){var t=e.target;if(e.key==='Enter'&&t.matches&&t.matches('tr[data-tl]')){S.HL=S.HL===t.dataset.tl.slice(3)?null:t.dataset.tl.slice(3);E.onChange();return}
+  if(!t.closest||!t.closest('#tlc'))return;var k=e.key;if(k==='+'||k==='='){e.preventDefault();zoomAt(.5,.5)}else if(k==='-'||k==='_'){e.preventDefault();zoomAt(.5,2)}else if(k==='ArrowLeft'){e.preventDefault();pan(-(toV(S.tb)-toV(S.ta))*.25)}else if(k==='ArrowRight'){e.preventDefault();pan((toV(S.tb)-toV(S.ta))*.25)}});
+ el.addEventListener('change',function(e){if(e.target.dataset.tlN){S.N=+e.target.value;E.onChange()}});
+ el.addEventListener('wheel',function(e){var c=e.target.closest&&e.target.closest('.tl-chart');if(!c)return;var ov=el.querySelector('.tl-ov');if(!ov)return;var r=ov.getBoundingClientRect(),f=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+  if(e.ctrlKey||e.metaKey||(E.wheelZoom&&!e.shiftKey&&Math.abs(e.deltaY)>=Math.abs(e.deltaX))){e.preventDefault();zoomAt(f,e.deltaY>0?1.25:.8)}else if(e.shiftKey||Math.abs(e.deltaX)>Math.abs(e.deltaY)){e.preventDefault();pan((e.deltaX||e.deltaY)/r.width*(toV(S.tb)-toV(S.ta)))}},{passive:false});
+ el.addEventListener('pointerdown',function(e){if(e.button!==0)return;if(E.C.down&&E.C.down(e,E.ctx))return;var ax=e.target.closest('.tl-axis .hit'),ov=el.querySelector('.tl-ov');if(!ov)return;var r=ov.getBoundingClientRect(),x0=e.clientX,fr=function(x){return Math.max(0,Math.min(1,(x-r.left)/r.width))};
+  if(ax){e.preventDefault();var sel=ov.querySelector('.selr'),mv=function(ev){var a=Math.min(x0,ev.clientX),b=Math.max(x0,ev.clientX);sel.hidden=false;sel.style.left=pct(fr(a))+'';sel.style.width=pct(fr(b)-fr(a))};
+   var up=function(ev){document.removeEventListener('pointermove',mv);document.removeEventListener('pointerup',up);sel.hidden=true;if(Math.abs(ev.clientX-x0)>6){var a=tAt(fr(Math.min(x0,ev.clientX))),b=tAt(fr(Math.max(x0,ev.clientX)));if(b>a)setView(a,b,'')}};
+   document.addEventListener('pointermove',mv);document.addEventListener('pointerup',up);return}
+  if(e.target.closest('.tl-trk')||e.target.closest('.tl-ov')){var va0=toV(S.ta),vb0=toV(S.tb),moved=false,raf=0;
+   var mv2=function(ev){var dx=ev.clientX-x0;if(!moved&&Math.abs(dx)<5)return;moved=true;S.moved=true;var dv=-dx/r.width*(vb0-va0)/Math.max(.2,avail),sp=vb0-va0,a=Math.max(0,Math.min(S.V-sp,va0+dv));
+    if(!raf)raf=requestAnimationFrame(function(){raf=0;S.pre='';S.ta=toR(a,'a');S.tb=toR(a+sp,'b');E.onChange()})};
+   var up2=function(){document.removeEventListener('pointermove',mv2);document.removeEventListener('pointerup',up2);if(moved)setTimeout(function(){S.moved=false},0)};
+   document.addEventListener('pointermove',mv2);document.addEventListener('pointerup',up2)}});
+ if(window.ResizeObserver)new ResizeObserver(function(){var ov=el.querySelector('.tl-ov');if(ov&&ov.clientWidth&&Math.abs(ov.clientWidth-S.W)>3){S.W=ov.clientWidth;E.onChange()}}).observe(el)};
+E.toV=toV;E.toR=toR;
+return E})();
+
+/* concept 1: one swimlane per agent (Gantt), grouped by agent type. Colour = state. */
+var TLC={id:1,lw:'11em',
+rows:function(c){var h='',hl=c.S.HL,hidden=0,ls=c.lanes();TLC.note='';
+ TL.TYPES.forEach(function(ty){var g=ls.filter(function(l){return l.type===ty[0]});
+  if(hl)g=g.filter(function(l){var r=c.blocks().some(function(b){return b.lane===l.id&&(hl==='—'?!b.k:b.k===hl)});if(!r)hidden++;return r});
+  if(!g.length)return;
+  h+='<div class="tl-row grp"><div class="lab">'+ty[1]+' <span class="chip idle">'+g.length+'</span></div><div></div></div>';
+  g.forEach(function(l){var bs=c.blocks().filter(function(b){return b.lane===l.id}),rs=c.runs(bs,function(b){return b.k}),inV=bs.some(function(b){return b.e>c.S.ta&&b.s<c.S.tb});
+   h+='<div class="tl-row" style="height:2.9em"><div class="lab" title="'+c.esc(l.full+' · '+l.sc)+'"><span class="ln">'+l.name+(l.note?' <small>'+l.note+'</small>':'')+'</span>'+(c.multi()?'<small>'+l.sc+'</small>':'')+'</div><div class="tl-trk">'+
+    bs.map(function(b){return c.blk(b,{label:rs[b.id]?c.label(b):''})}).join('')+c.mk(c.marks(function(id,k){return id===l.id&&(!hl||k===hl||k===null)}))+(inV?'':'<span class="muted" style="position:absolute;left:.5em;top:1.3em">no activity in this range</span>')+'</div></div>'})});
+ if(hidden)TLC.note='<p class="cannot">'+hidden+' lane'+(hidden===1?'':'s')+' hidden: no time on this task. <button class="cp" data-tl="hl:">Show all lanes</button></p>';
+ return h}};
+
+</script>
+<script>
+(function(){
+'use strict';
+var $=function(s,r){return (r||document).querySelector(s)},$$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+var SQ={board:'/home/chieule/workspace/squad/.claude/squads/board',plugin:'/home/chieule/workspace/squad/.claude/squads/plugin',guardian:'/home/chieule/workspace/wpw/.claude/squads/guardian'};
+var squad='board',view='normal',SAVEMODE='ok',PARKMODE='A',zoneOv='';
+var MISSING={inbox:1,herdr:1,ledger:1,git:1,transcripts:1};
+var SRCNAME={inbox:'squad-inbox',herdr:'herdr',ledger:'squad-ledger',git:'git',transcripts:'transcripts',files:'squad files'};
+var UNK=function(s){return '<span class="chip unk" title="unknown: '+SRCNAME[s]+'">unknown</span>'};
+var chip=function(c,t,x){t=String(t);return '<span class="chip '+c+'"'+(t.length>26?' title="'+esc(t)+'"':'')+(x||'')+'><span class="t">'+esc(t)+'</span></span>'};
+var ap=function(t){return '<span class="ap">'+(t||'approx')+'</span>'};
+var cmd=function(t){return '<code class="cmd">'+esc(t)+'</code>'};
+
+/* ---------- time: the ONE place that formats a time. Data is UTC (epoch ms); the page shows the browser zone ---------- */
+var MIN=60000,BASE=Date.UTC(2026,10,3,3,0),NOWEP=Date.UTC(2026,10,3,7,22,7);   /* demo "now" is pinned: 07:22:07 UTC */
+var E=function(h,m,d){return Date.UTC(2026,10,d||3,h-7,m)};      /* demo data written as +07 wall clock, stored as UTC */
+var D=function(mo,d,h,m){return Date.UTC(2026,mo-1,d,h,m)};      /* demo data written as UTC */
+function zone(){if(zoneOv){try{new Intl.DateTimeFormat('en-GB',{timeZone:zoneOv});return zoneOv}catch(x){return 'UTC'}}try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}catch(x){return 'UTC'}}
+var DTF={};
+function dtf(o){var k=zone()+JSON.stringify(o);return DTF[k]||(DTF[k]=new Intl.DateTimeFormat('en-GB',Object.assign({timeZone:zone()},o)))}
+function parts(ep){var r={};dtf({year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(ep)).forEach(function(p){r[p.type]=p.value});return r}
+function offLabel(ep){var p=dtf({timeZoneName:'longOffset'}).formatToParts(new Date(ep)).filter(function(x){return x.type==='timeZoneName'})[0],m=/GMT([+−-])(\d\d)(?::(\d\d))?/.exec(p?p.value:'');
+ if(!m)return zone()==='UTC'?'UTC':'+00';var s=(m[1]==='+'?'+':'-')+m[2]+(m[3]&&m[3]!=='00'?':'+m[3]:'');return s}
+var dayKey=function(ep){var p=parts(ep);return p.year+p.month+p.day};
+function fmt(ep,o){o=o||{};var p=parts(ep),t=p.hour+':'+p.minute+(o.s?':'+p.second:'');return (!o.t&&(o.d||dayKey(ep)!==dayKey(NOWEP)))?p.month+' '+p.day.replace(/^0/,'')+' '+t:t}
+function T(ep,o){var iso=new Date(ep).toISOString();return '<time datetime="'+iso+'" title="'+iso.slice(0,10)+' '+iso.slice(11,16)+' UTC in the files">'+fmt(ep,o)+'</time>'}
+function ago(ep){var m=Math.round((NOWEP-ep)/MIN);if(m<1)return 'under 1 min ago';if(m<60)return m+' min ago';var h=Math.floor(m/60);if(h<24)return h+' h'+(m%60?' '+m%60+' min':'')+' ago';return Math.floor(h/24)+' d ago'}
+var waited=function(ep){return ago(ep).replace(' ago','')};
+function dayLine(ep){var p=parts(ep);return p.day+' '+p.month+' '+p.year}
+var clock=function(m,o){return fmt(BASE+m*MIN,o)};
+var dur=function(m){return m<60?m+' min':Math.floor(m/60)+' h '+(m%60<10?'0':'')+(m%60)};
+var best=function(c){c=c.filter(Boolean);return c.length?c.reduce(function(a,b){return b[0]>a[0]?b:a}):null};
+function lastCell(la){if(!la)return '<span class="chip unk" title="no message, commit or transcript record found">no activity recorded</span>';
+ return '<span class="nw"><b>'+ago(la[0])+'</b></span><div class="muted sm nw">'+T(la[0])+' · '+esc(la[1])+'</div>'+(la[2]?'<div class="sm"><span class="chip quiet">partial: '+esc(la[2])+' missing</span></div>':'')}
+
+var Fr=function(h,m){return Date.UTC(2026,9,30,h-7,m)};
+var GOALS=[
+ {n:'board-v2',st:'open',brief:'Dashboard page and the squad-board command',when:'iteration 1',msg:[E(13,5),'goal message']},
+ {n:'claude-accounts',st:'open',brief:'Two Claude accounts, their launchers and the account switcher',when:'iteration 3'},
+ {n:'cost-control',st:'open',brief:'Cost hook, token coach and budget view',when:'iteration 2'},
+ {n:'herdr-spaces',st:'open',brief:'One herdr space per scope, with the account shown',when:'iteration 1'},
+ {n:'per-scope-squads',st:'done',brief:'Every scope gets its own team, folder and worktrees',closed:D(10,14,17,40)},
+ {n:'process-trim',st:'done',brief:'Shorter process rules and role cards',closed:D(10,23,9,0)},
+ {n:'report-v1',st:'done',brief:'report.html and the digest after a scope closes',closed:D(10,9,3,35)},
+ {n:'windows-support',st:'done',brief:'Spawn and guard hooks on Windows with Git Bash',closed:D(10,28,10,0)}];
+var SCOPES=[
+ {n:'dashboard',goal:'board-v2',st:'open',brief:'Show helpful info of a squad on one page',team:'ba, designer, architect, qa-white, qa-black',when:'iteration 1'},
+ {n:'board-cli',goal:'board-v2',st:'open',brief:'squad-board --squad NAME|PATH command',team:'dev, qa-white',when:'iteration 1'},
+ {n:'spawn-windows',goal:'per-scope-squads',st:'done',brief:'Spawn agents under Git Bash on Windows',team:'dev, qa-white',closed:D(10,14,17,40)},
+ {n:'adr-cleanup',goal:'per-scope-squads',st:'done',brief:'Tidy the ADR status lines',team:'dev, qa-white',closed:D(10,12,9,5)},
+ {n:'report-html',goal:'report-v1',st:'done',brief:'report.html with data.json after close',team:'dev, qa-white, qa-black',closed:D(10,9,3,30),part:'transcript'}];
+/* generated scopes: [name, goal, status, brief, tasks, open tasks, questions for you, minutes since last activity (open) or days since close (done)] */
+var SCT=[['board-report','board-v2','open','Weekly report page made from the squad data',3,2,0,95],
+ ['launcher-windows','claude-accounts','done','c1 and c2 launchers on Git Bash',3,0,0,2],['cswitch','claude-accounts','open','Switch account when a usage limit is near',4,2,1,42],['cwake','claude-accounts','open','Wake an idle account at its reset time',2,1,0,300],['account-row','claude-accounts','open','Show the account in the herdr spaces row',2,1,0,700],
+ ['usage-hook','cost-control','open','Stop hook that logs usage events',5,2,2,18],['token-coach','cost-control','open','Retro coach that ranks token savings',3,3,0,260],['budget-view','cost-control','done','Spend per role in the board',2,0,0,3],
+ ['spaces-row','herdr-spaces','open','Pane names show scope and account',2,1,0,55],['spawn-panes','herdr-spaces','open','Spawn roles into the right panes',3,1,1,25],
+ ['scope-folders','per-scope-squads','done','One folder per scope',4,0,0,6],['worktree-names','per-scope-squads','done','Worktree and branch names per scope',2,0,0,8],
+ ['rules-compose','process-trim','done','Compose the rules per role',6,0,0,11],['role-cards','process-trim','done','Short role cards',3,0,0,12],['notes-file-is-a-snapshot-not-a-log','process-trim','done','Notes file is rewritten, not appended',1,0,0,13],
+ ['report-digest','report-v1','done','Digest of a scope report',2,0,0,9],
+ ['git-bash-spawn','windows-support','done','Spawn under Git Bash',3,0,0,4],['path-guard','windows-support','done','Block writes in the project root',2,0,0,5],
+ ['quick-fix-ci','','open','Fix the flaky suite on CI',1,1,0,200],['docs-glossary','','open','Glossary terms for the board',2,1,0,1500]];
+
+var S=function(h,m,t){return [E(h,m),t]};
+var TASKS=[
+ {k:'dashboard/03',sc:'dashboard',n:'03',t:'Local server, page shell, layout engine',st:'blocked',ret:3,
+  what:'3 returns; dev-03 fixes the 3rd FAIL (c90ff12).',blocked:'11 min ago: fixed port 8787 or a free port? Waits on E6.',
+  ag:[['dev-03',''],['qa-white','FAIL'],['qa-black','FAIL']],wait:'you (E6)',la:[E(14,11),'message: dev-03 BLOCKED'],br:'dev-03',
+  steps:[S(12,30,'dev-03 HANDIN 5d1e0aa'),S(12,45,'qa-black FAIL: answered item stays in the list after two refreshes (AC 3)'),S(13,10,'dev-03 HANDIN 9b3c7f2'),S(13,20,'qa-white FAIL: tab-title count did not drop after an answer (AC 3)'),S(13,34,'dev-03 HANDIN c90ff12'),S(13,44,'qa-white FAIL: options of E2 hide behind a click (AC 2). 3rd return'),S(14,11,'dev-03 BLOCKED: fixed port or free port? (E6)')]},
+ {k:'dashboard/04',sc:'dashboard',n:'04',t:'Inbox panel and permission banner',st:'returned',ret:1,what:'FAIL on e2a9b01 (qa-white): banner stays after the prompt is answered. dev-04 is fixing.',
+  ag:[['dev-04',''],['qa-white','FAIL'],['qa-black','']],wait:'dev-04',la:[E(14,12),'message: qa-white FAIL'],br:'dev-04',steps:[S(13,52,'dev-04 HANDIN e2a9b01'),S(14,12,'qa-white FAIL: banner stays after answer (AC 4)')]},
+ {k:'dashboard/02',sc:'dashboard',n:'02',t:'Read-only data layer (one JSON state)',st:'in progress',ret:0,what:'Checking. Tip moved after PASS (7be03d1 to 91ac2d4). qa-white re-check waits on a permission prompt; qa-black not started.',
+  ag:[['dev-02',''],['qa-white','PASS*'],['qa-black','']],wait:'you (permission prompt), then qa-black',la:[E(14,19),'transcript of qa-white, approx'],br:'dev-02',steps:[S(13,50,'dev-02 HANDIN 7be03d1'),S(14,0,'qa-white PASS 7be03d1'),S(14,8,'dev-02 commit 91ac2d4 after the PASS'),S(14,16,'qa-white re-check waits on a permission prompt')]},
+ {k:'board-cli/01',sc:'board-cli',n:'01',t:'squad-board --squad NAME|PATH',st:'in progress',ret:0,what:'Checking: 1 of 2 PASS (qa-white on 9a31c40). qa-black has not answered.',
+  ag:[['dev-01',''],['qa-white','PASS'],['qa-black','']],wait:'qa-black',la:[E(13,58),'message: qa-white PASS'],br:'dev-01',steps:[S(13,20,'dev-01 HANDIN 9a31c40'),S(13,58,'qa-white PASS 9a31c40')]},
+ {k:'dashboard/05',sc:'dashboard',n:'05',t:'Tasks, Goals and Scopes panels',st:'done',ret:0,what:'PASS by both on 4d2f9c1. Branch not merged yet.',ag:[['dev-02',''],['qa-white','PASS'],['qa-black','PASS']],wait:'',la:[Date.UTC(2026,9,34,9,48-420,0)-0,'message: qa-black PASS'],br:'dev-02',steps:[]},
+ {k:'dashboard/06',sc:'dashboard',n:'06',t:'Files and Decisions panels',st:'done',ret:0,what:'PASS by both on b83a0d6. Branch not merged yet.',ag:[['dev-04',''],['qa-white','PASS'],['qa-black','PASS']],wait:'',la:[Fr(18,28),'message: qa-black PASS'],br:'dev-04',steps:[]},
+ {k:'dashboard/07',sc:'dashboard',n:'07',t:'Work-time view',st:'done',ret:0,what:'PASS by both on 6e51c08. Branch not merged yet.',ag:[['dev-04',''],['qa-white','PASS'],['qa-black','PASS']],wait:'',la:[Date.UTC(2026,9,33,12-7,34),'message: qa-black PASS'],br:'dev-04',steps:[]},
+ {k:'board-cli/02',sc:'board-cli',n:'02',t:'Picker for squads in other repos',st:'done',ret:0,what:'PASS by both on c7d3e12. Branch not merged yet.',ag:[['dev-01',''],['qa-white','PASS'],['qa-black','PASS']],wait:'',la:[Date.UTC(2026,9,33,17-7,27),'message: qa-black PASS'],br:'dev-01',steps:[]},
+ {k:'dashboard/08',sc:'dashboard',n:'08',t:'Picker and selection',st:'todo',ret:0,what:'Ticket waits for the PO to pick a design (v4).',ag:[],wait:'you (design pick)',la:null,br:'',steps:[]},
+ {k:'board-cli/03',sc:'board-cli',n:'03',t:'--goal and --scope flags',st:'in progress',ret:0,what:'dev-01 is building it.',ag:[['dev-01','']],wait:'dev-01',la:[E(14,19),'transcript of dev-01'],br:'dev-01',steps:[S(13,30,'dev-01 started')]},
+ {k:'board-cli/04',sc:'board-cli',n:'04',t:'Remember the selection per squad',st:'todo',ret:0,what:'Ticket drafted. Waits on 03.',ag:[],wait:'task 03',la:null,br:'',steps:[]},
+ {k:'dashboard/01',sc:'dashboard',n:'01',t:'ADR: a dashboard replaces the board',st:'done',ret:0,what:'PASS by both checkers on a41c9e2. Branch not merged yet.',ag:[['dev-01 (retired)',''],['qa-white','PASS'],['qa-black','PASS']],wait:'',la:[Fr(12,10),'message: qa-black PASS'],br:'dev-01',steps:[[Fr(11,35),'dev-01 HANDIN a41c9e2'],[Fr(11,58),'qa-white PASS'],[Fr(12,10),'qa-black PASS']]},
+ {k:'spawn-windows/01',sc:'spawn-windows',n:'01',t:'Start Claude by hand when herdr finds no PowerShell prompt',st:'done',ret:0,what:'PASS by both on 18bea0c. Branch not merged yet.',ag:[['dev-01',''],['qa-white','PASS'],['qa-black','PASS']],wait:'',la:[D(10,14,17,40),'commit 18bea0c'],br:'',steps:[[D(10,14,16,10),'dev-01 HANDIN 18bea0c'],[D(10,14,17,0),'qa-white PASS'],[D(10,14,17,40),'qa-black PASS']]},
+ {k:'adr-cleanup/01',sc:'adr-cleanup',n:'01',t:'Rewrite the ADR status lines',st:'done',ret:0,what:'PASS by both on 0e3b1c7. Merged.',ag:[['dev-01',''],['qa-white','PASS'],['qa-black','PASS']],wait:'',la:[D(10,12,9,5),'commit 0e3b1c7'],br:'',steps:[[D(10,12,8,0),'dev-01 HANDIN 0e3b1c7'],[D(10,12,8,40),'qa-white PASS'],[D(10,12,9,5),'qa-black PASS']]},
+ {k:'report-html/01',sc:'report-html',n:'01',t:'report.html with data.json',st:'done',ret:1,what:'PASS by both on 6c0d2e8 after 1 return. Merged.',ag:[['dev-01',''],['qa-white','PASS'],['qa-black','PASS']],wait:'',la:[D(10,9,3,30),'commit 6c0d2e8','transcript'],br:'',steps:[[D(10,9,1,0),'dev-01 HANDIN 2f81b0c'],[D(10,9,1,50),'qa-black FAIL: data.json misses cost rows'],[D(10,9,2,40),'dev-01 HANDIN 6c0d2e8'],[D(10,9,3,10),'qa-white PASS'],[D(10,9,3,30),'qa-black PASS']]}];
+var RANK={blocked:0,returned:1,'in progress':2,todo:3,done:4};
+TASKS.sort(function(a,b){return RANK[a.st]-RANK[b.st]});
+var AGENTS=[
+ {a:'mgr',full:'board-mgr-dashboard',sc:'dashboard',role:'manager',own:'plan, team',st:'working',lm:1},
+ {a:'ux',full:'board-ux-dashboard',sc:'dashboard',role:'designer',own:'prototype v4',st:'working',lm:2},
+ {a:'dev-02',full:'board-dev-dashboard-02',sc:'dashboard',role:'developer',own:'ticket 02',st:'idle',lm:12,note:'owes 02 (check)'},
+ {a:'dev-03',full:'board-dev-dashboard-03',sc:'dashboard',role:'developer',own:'ticket 03',st:'idle',lm:11,note:'BLOCKED, waits on E6'},
+ {a:'dev-04',full:'board-dev-dashboard-04',sc:'dashboard',role:'developer',own:'ticket 04',st:'working',lm:14,quiet:'quiet 14 min'},
+ {a:'qa-white',full:'board-qa-white-dashboard',sc:'dashboard',role:'qa-whitebox',own:'check 02',st:'blocked',lm:6,need:1},
+ {a:'qa-black',full:'board-qa-black-dashboard',sc:'dashboard',role:'qa-blackbox',own:'check 02',st:'idle',lm:80},
+ {a:'dev-01',full:'board-dev-board-cli-01',sc:'board-cli',role:'developer',own:'ticket 01',st:'idle',lm:85,note:'owes 01 (check)'},
+ {a:'qa-white',full:'board-qa-white-board-cli',sc:'board-cli',role:'qa-whitebox',own:'check 01',st:'idle',lm:84}];
+AGENTS.forEach(function(a){a.la=[NOWEP-a.lm*MIN,'transcript']});
+var RETIRED=[['board-ba-dashboard','ba',E(13,40),'dashboard'],['board-dev-dashboard-01','developer',E(12,7),'dashboard']];
+var TREES=[
+ {br:'squad/board/dashboard/dev-02',wt:'.worktrees/board/dashboard/dev-02',sc:'dashboard',tk:'02',ag:'dev-02',tip:'91ac2d4',ahead:3,st:'sha changed after PASS',c:'bad',note:'qa-white PASSed 7be03d1; the tip moved to 91ac2d4.'},
+ {br:'squad/board/dashboard/dev-03',wt:'.worktrees/board/dashboard/dev-03',sc:'dashboard',tk:'03',ag:'dev-03',tip:'c90ff12',ahead:3,st:'not ready: FAIL (return 3)',c:'fail'},
+ {br:'squad/board/dashboard/dev-04',wt:'.worktrees/board/dashboard/dev-04',sc:'dashboard',tk:'04',ag:'dev-04',tip:'e2a9b01',ahead:1,st:'not ready: FAIL (return 1)',c:'fail'},
+ {br:'squad/board/dashboard/dev-01',wt:'',sc:'dashboard',tk:'01',ag:'dev-01 (retired)',tip:'a41c9e2',ahead:1,st:'ready for PO review',c:'work',merge:1},
+ {br:'squad/board/spawn-windows/dev-01',wt:'',sc:'spawn-windows',tk:'01',ag:'dev-01',tip:'18bea0c',ahead:2,st:'ready for PO review',c:'work',merge:1},
+ {br:'squad/board/board-cli/dev-01',wt:'',sc:'board-cli',tk:'01',ag:'dev-01',tip:'9a31c40',ahead:3,st:'not ready: waits on qa-black',c:'wait'},
+ {br:'squad/board/adr-cleanup/dev-01',wt:'',sc:'adr-cleanup',tk:'01',ag:'dev-01',tip:'0e3b1c7',ahead:0,st:'merged',c:'idle'},
+ {br:'squad/board/report-html/dev-01',wt:'',sc:'report-html',tk:'01',ag:'dev-01',tip:'6c0d2e8',ahead:0,st:'merged',c:'idle'}];
+var FILES=[
+ {p:'ui-design/proto-v3.html',k:'artifact',w:'prototype',sc:'dashboard',o:'ux',t:E(14,20)},
+ {p:'tasks/features.md',k:'artifact',w:'feature list',sc:'dashboard',o:'ba',t:E(14,2)},
+ {p:'evidence/02/qa-w.md',k:'evidence',w:'whitebox receipt',sc:'dashboard',o:'qa-white',t:E(14,16)},
+ {p:'evidence/03/qa-b.md',k:'evidence',w:'blackbox findings',sc:'dashboard',o:'qa-black',t:E(12,45)},
+ {p:'.scratch/dashboard/issues/01-adr/evidence.md',k:'evidence',w:'ticket evidence',sc:'dashboard',o:'dev-01',t:E(11,55)},
+ {p:'report/report.html',k:'report',w:'scope report',sc:'dashboard',o:'—',t:null,miss:'no report yet (made at close)'},
+ {p:'ui-design/proto-v2.html',k:'artifact',w:'prototype',sc:'dashboard',o:'ux',t:E(12,41)},
+ {p:'iterations/1.md',k:'artifact',w:'iteration file',sc:'dashboard',o:'mgr',t:E(11,10)},
+ {p:'tasks/cli-notes.md',k:'artifact',w:'notes',sc:'board-cli',o:'dev-01',t:E(13,22)},
+ {p:'report/report.html',k:'report',w:'scope report',sc:'spawn-windows',o:'squad-close',t:D(10,14,17,45)},
+ {p:'report/report.html',k:'report',w:'scope report',sc:'adr-cleanup',o:'squad-close',t:D(10,12,9,10)},
+ {p:'report/report.html',k:'report',w:'scope report',sc:'report-html',o:'squad-close',t:D(10,9,3,35)},
+ {p:'promote.md',k:'artifact',w:'lasting docs',sc:'report-html',o:'mgr',t:D(10,9,3,40)}];
+var DEC=[
+ {ref:'ADR 0021',kind:'ADR',title:'A dashboard replaces the board',out:'proposed',c:'run',t:D(11,3,2,0)},
+ {ref:'ADR 0014',kind:'ADR',title:'Classify a transcript gap by the record that ends it',out:'accepted',c:'work',t:D(10,21,9,0)},
+ {ref:'ADR 0009',kind:'ADR',title:'Remove the board and squad-board',out:'superseded by 0021',c:'sup',t:D(10,16,9,0),sup:1},
+ {ref:'ADR 0007',kind:'ADR',title:'Inbox for PO questions',out:'accepted',c:'work',t:D(10,11,9,0)},
+ {ref:'ADR 0004',kind:'ADR',title:'Per-scope squads',out:'accepted',c:'work',t:D(10,9,9,0)},
+ {ref:'board-v2',kind:'Goal',goal:'board-v2',title:'One board per squad; the home folder is shown',out:'decided in shared/decisions.md',c:'work',t:D(11,2,8,0)},
+ {ref:'E3',kind:'PO answer',sc:'dashboard',title:'Keep the message feed and the context limit?',out:'You: no, drop both',c:'',t:E(9,30),src:'inbox'},
+ {ref:'E5',kind:'PO answer',sc:null,title:'Open the board for any squad?',out:'You: yes, by path',c:'',t:E(11,2),src:'inbox'}];
+
+
+/* ---------- parked questions (Needs you) ---------- */
+var QS=[
+ {id:'E8',sc:'board-cli',title:'Should squad-board refuse a path outside ~/workspace?',since:NOWEP-330*MIN,blocks:'task board-cli/02 (todo)',opts:[['Yes, refuse',0,1],['No, any path']]},
+ {id:'E7',sc:'dashboard',title:'Show answered questions in Decisions as well as in the inbox?',since:NOWEP-130*MIN,blocks:'design of task 05 (todo)',opts:[['Yes, both places',0,1],['No, only the inbox']]},
+ {id:'E6',sc:'dashboard',title:'Board port: fixed 8787 or a free port printed on start?',since:NOWEP-10*MIN,blocks:'task 03 (dev-03 is BLOCKED)',opts:[['Fixed 8787, same bookmark every time',0,1],['Free port, printed on start']]}];var READS=[{id:'R9',sc:'dashboard',title:'Iteration 1 retro draft is ready to read',since:NOWEP-12*MIN,f:'iterations/1.md'},{id:'E5',sc:null,title:'Open the board for any squad?',since:NOWEP-3*60*MIN,ans:'Your answer: yes, by path. Recorded in Decisions.'}];
+var H1=60*MIN,PQS=[
+ {id:'Q1',level:'scope',sc:'dashboard',text:'Stack the panels in one column on screens under 900 px?',from:'E3 #2',blocks:'the narrow-screen layout (no task yet)',parked:NOWEP-13*H1,st:'parked',file:'dashboard/open-questions.md'},
+ {id:'Q4',level:'scope',sc:'board-cli',text:'Cache the squad picker scan between runs?',from:'E8',blocks:'task board-cli/02',parked:NOWEP-5*H1,st:'parked',file:'board-cli/open-questions.md'},
+ {id:'Q2',level:'goal',goal:'board-v2',text:'May the board ever write squad data, or only board-ui.json?',from:null,blocks:null,parked:NOWEP-50*H1,st:'parked',file:'goals/board-v2/open-questions.md'},
+ {id:'Q3',level:'squad',text:'A Windows-native launcher for squad-board?',from:null,blocks:null,parked:NOWEP-9*24*H1,st:'parked',file:'open-questions.md'},
+ {id:'Q5',level:'scope',sc:'dashboard',text:'Show cost per task in Work time?',from:'E2',blocks:null,parked:NOWEP-30*H1,st:'resolved',answer:'No: no price data exists.',resolved:E(10,40),file:'dashboard/open-questions.md'}];
+var PEND=[];
+/* generated detail for the 20 scopes that have no hand-written data: tasks, agents, branches, files, questions */
+(function(){var PH=['Read the squad files','Add the command','Write the page','Cover the edge cases','Document the result','Wire the hook','Tidy the output'],qn=10;
+ SCT.forEach(function(x){var op=x[2]==='open',s={n:x[0],goal:x[1]||null,st:x[2],brief:x[3],team:'dev, qa-white, qa-black'};
+  if(op){s.when='iteration '+(1+x[0].length%3)}else{s.closed=NOWEP-x[7]*1440*MIN}SCOPES.push(s);var la=op?NOWEP-x[7]*MIN:s.closed,cur=x[4]-x[5]+1;
+  for(var i=1;i<=x[4];i++){var n=('0'+i).slice(-2),done=i<cur-0&&i<=x[4]-x[5],now=!done&&i===cur;
+   TASKS.push({k:x[0]+'/'+n,sc:x[0],n:n,t:PH[(i+x[0].length)%PH.length],st:done?'done':now?'in progress':'todo',ret:0,what:done?'PASS by both checkers. Merged.':now?'dev-01 is building it.':'Ticket drafted. Waits for a free developer.',ag:done?[['dev-01',''],['qa-white','PASS'],['qa-black','PASS']]:now?[['dev-01','']]:[],wait:done?'':now?'dev-01':'a free developer slot',la:[la-(x[4]-i)*45*MIN,done?'commit '+('a1b2c3d4e5f6'.slice(i,i+7)):'message: dev-01'],br:now?'dev-01':'',steps:[]})}
+  if(op){AGENTS.push({a:'dev-01',full:'board-dev-'+x[0]+'-01',sc:x[0],role:'developer',own:'ticket '+('0'+cur).slice(-2),st:x[7]<120?'working':'idle',lm:x[7],la:[la,'transcript']});AGENTS.push({a:'qa-white',full:'board-qa-white-'+x[0],sc:x[0],role:'qa-whitebox',own:'check',st:'idle',lm:x[7]+40,la:[la-40*MIN,'transcript']});
+   TREES.push({br:'squad/board/'+x[0]+'/dev-01',wt:'.worktrees/board/'+x[0]+'/dev-01',sc:x[0],tk:('0'+cur).slice(-2),ag:'dev-01',tip:'b7e04c1',ahead:2,st:'not ready: building',c:'wait'})}
+  else TREES.push({br:'squad/board/'+x[0]+'/dev-01',wt:'',sc:x[0],tk:'01',ag:'dev-01',tip:'c4d91a0',ahead:0,st:'merged',c:'idle'});
+  FILES.push(op?{p:'tasks/notes.md',k:'artifact',w:'notes',sc:x[0],o:'dev-01',t:la}:{p:'report/report.html',k:'report',w:'scope report',sc:x[0],o:'squad-close',t:s.closed+10*MIN});
+  for(var q=0;q<x[6];q++){QS.push({id:'E'+(++qn),sc:x[0],title:q?'Keep the old command name as an alias?':'Which default should '+x[0]+' use?',since:NOWEP-(40+q*70)*MIN,blocks:'task '+x[0]+'/0'+cur,opts:[['The simple default',0,1],['Make it a flag']]})}});
+ SCOPES.forEach(function(s){var t=TASKS.filter(function(k){return k.sc===s.n}),d=t.filter(function(k){return k.st==='done'}).length;s.tasks=t.length+' task'+(t.length===1?'':'s')+': '+d+' done'+(t.length-d?', '+(t.length-d)+' open':'')});
+ TASKS.sort(function(a,b){return RANK[a.st]-RANK[b.st]})})();
+
+/* ---------- selection: ONE goal (with its scopes) or ONE scope. There is no "all". ---------- */
+var F={goal:null,scope:null},RECENT=[],OPENAS='scope',NOTE='';
+var goalOf=function(sc){var s=SCOPES.filter(function(x){return x.n===sc})[0];return s?s.goal:null};
+var hasSel=function(){return !!(F.goal||F.scope)};
+var selKey=function(){return F.scope?'scope:'+F.scope:F.goal?'goal:'+F.goal:null};
+var selGoal=function(){return F.scope?goalOf(F.scope):F.goal};
+function inF(sc){if(sc==null)return true;if(F.scope)return sc===F.scope;if(F.goal)return goalOf(sc)===F.goal;return false}
+var filtered=function(){return hasSel()};
+var fl=function(a,key){return a.filter(function(r){return inF(key?key(r):r.sc)})};
+var cnt=function(n){return String(n)};
+var multi=function(){return SCOPES.filter(function(s){return inF(s.n)}).length>1};
+var scLabel=function(){return F.scope?'scope '+F.scope:'goal '+F.goal};
+var scChip=function(sc){return '<span class="chip idle" title="scope '+esc(sc)+'">'+esc(sc)+'</span>'};
+var noneBox=function(what){return '<p class="empty"><b>No '+what+' in '+esc(scLabel())+'.</b></p>'};
+var unkScope=function(r){return r.sc==null?' <span class="chip unk" title="no scope is recorded, so it shows under every selection">scope unknown</span>':''};
+var keyOk=function(k){var p=(k||'').split(':'),n=p.slice(1).join(':');return p[0]==='goal'?GOALS.some(function(g){return g.n===n}):p[0]==='scope'?SCOPES.some(function(s){return s.n===n}):false};
+function laScope(n){var s=SCOPES.filter(function(x){return x.n===n})[0],c=[];TASKS.forEach(function(t){if(t.sc===n)c.push(t.la)});AGENTS.forEach(function(a){if(a.sc===n)c.push(a.la)});var b=best(c);return b&&s.part?[b[0],b[1],s.part]:b}
+function laGoal(n){var c=[];SCOPES.forEach(function(s){if(s.goal===n)c.push(laScope(s.n))});GOALS.forEach(function(g){if(g.n===n&&g.msg)c.push(g.msg)});return best(c)}
+var needsOf=function(sc){return (sc==='dashboard'?1:0)+QS.filter(function(q){return q.sc===sc}).length+READS.filter(function(r){return r.sc===sc}).length};
+var scopesOf=function(g){return SCOPES.filter(function(s){return s.goal===g})};
+var needsGoal=function(g){return scopesOf(g).reduce(function(a,s){return a+needsOf(s.n)},0)};
+var openTasks=function(sc){return TASKS.filter(function(t){return t.sc===sc&&t.st!=='done'}).length};
+var openScopes=function(g){return scopesOf(g).filter(function(s){return s.st==='open'}).length};
+function selectKey(k){var p=k.split(':'),n=p.slice(1).join(':');
+ if(p[0]==='picker')F={goal:null,scope:null};else if(p[0]==='goal')F={goal:n,scope:null};else F={goal:goalOf(n),scope:n};
+ if(hasSel()){RECENT=RECENT.filter(function(r){return r!==k});RECENT.unshift(k);RECENT=RECENT.slice(0,5)}
+ NOTE='';ST.open={};PK.q='';if(window.TLE){TLE.S.HL=null;TLE.S.SEL=null}
+ closeCombo();save();renderFilter();renderAll();if(!hasSel()){var q=$('#pkq');q&&q.focus()}}
+
+var pqIn=function(q){return q.level==='squad'?true:q.level==='goal'?q.goal===selGoal():inF(q.sc)};
+function inboxCounts(){var open=1+QS.length,reads=READS.length;
+ var sOpen=(inF('dashboard')?1:0)+QS.filter(function(q){return inF(q.sc)}).length,sReads=READS.filter(function(r){return inF(r.sc)}).length;
+ return {all:open+reads,shown:sOpen+sReads,outside:open+reads-sOpen-sReads}}
+
+/* ---------- layout engine v5: unit = 4 px; a panel's height follows its content (up to a max, then it scrolls inside); the grid packs; a drop snaps to the packed grid ---------- */
+var COLS=12,GAP=8,U=4,MINW=2,MINU=21;
+var DEF={inbox:{x:0,y:0,w:4,h:100},scopes:{x:4,y:0,w:8,h:40},tasks:{x:4,y:40,w:8,h:100},files:{x:4,y:140,w:8,h:50},decisions:{x:4,y:190,w:8,h:60},agents:{x:0,y:250,w:4,h:50},time:{x:0,y:300,w:12,h:100}};
+var ORDER=['inbox','scopes','tasks','agents','files','decisions','time'];
+var MAXPX={inbox:720,scopes:300,tasks:560,agents:380,files:380,decisions:420,time:780},MINPX=76;
+var autoHid=function(i){return i==='scopes'&&!(F.goal&&!F.scope)};
+var canvas=$('#canvas'),P={},L={},H={},C={},AUTO={},BUSY=false,ST={open:{},tf:'all',ff:'all',tshow:'all'};
+var clone=function(o){return JSON.parse(JSON.stringify(o))};
+var clamp=function(v,a,b){return Math.max(a,Math.min(b,v))};
+function geom(){var W=canvas.clientWidth||1200,cw=(W-GAP*(COLS-1))/COLS;return {px:cw+GAP}}
+var vis=function(){return ORDER.filter(function(i){return !H[i]&&!autoHid(i)})};
+function hit(a,b){return a.x<b.x+(b.dw||b.w)&&b.x<a.x+(a.dw||a.w)&&a.y<b.y+b.h&&b.y<a.y+a.h}
+/* first fit: the lowest y, then the lowest x. The active item (the one just dropped or resized) is placed first, then lifted up and left into free space. */
+function pack(it,aid){
+ var act=it.filter(function(i){return i.id===aid})[0],rest=it.filter(function(i){return i!==act});
+ for(var pass=0;pass<3;pass++){
+  var placed=act?[act]:[],o=rest.slice().sort(function(a,b){return a.y-b.y||a.x-b.x});
+  o.forEach(function(t){var ys=[0];placed.forEach(function(p){ys.push(p.y+p.h)});ys.sort(function(a,b){return a-b});var ok=false;
+   for(var k=0;k<ys.length&&!ok;k++)for(var x=0;x<=COLS-t.w;x++){t.x=x;t.y=ys[k];if(!placed.some(function(p){return hit(p,t)})){ok=true;break}}
+   placed.push(t)});
+  if(!act)break;var moved=false;act.x=clamp(act.x,0,COLS-act.w);act.y=Math.max(0,act.y);
+  while(act.y>0){act.y--;if(rest.some(function(p){return hit(p,act)})){act.y++;break}moved=true}
+  while(act.x>0){act.x--;if(rest.some(function(p){return hit(p,act)})){act.x++;break}moved=true}
+  while(act.y>0){act.y--;if(rest.some(function(p){return hit(p,act)})){act.y++;break}moved=true}
+  if(!moved)break}}
+/* a panel whose width the user has not set grows right into free grid columns beside it */
+function fill(it){it.forEach(function(a){a.dw=a.w});it.slice().sort(function(a,b){return a.x-b.x||a.y-b.y}).forEach(function(a){if(a.mw)return;
+ while(a.x+a.dw<COLS){var t={x:a.x+a.dw,w:1,y:a.y,h:a.h};if(it.some(function(p){return p!==a&&hit(t,p)}))break;a.dw++}})}
+var fsz=function(){return FS[fs][1]};
+function hOf(id){var r=L[id];return r.m?r.h:(AUTO[id]||r.h)}
+function items(){return vis().map(function(i){return {id:i,x:L[i].x,y:L[i].y,w:L[i].w,mw:L[i].mw,h:hOf(i)}})}
+function calc(over){var it=items();if(over){var a=it.filter(function(i){return i.id===over.id})[0];for(var k in over)a[k]=over[k]}pack(it,over&&over.id);fill(it);return it}
+function place(el,r,g){g=g||geom();el.style.left=r.x*g.px+'px';el.style.top=r.y*U+'px';el.style.width=((r.dw||r.w)*g.px-GAP)+'px';el.style.height=(r.h*U-GAP)+'px'}
+function placeAll(it,skip){var g=geom(),bot=0;it.forEach(function(i){if(i.id!==skip){place(P[i.id].el,i,g);var f=$('.fit',P[i.id].el);if(f)f.hidden=!(L[i.id].m||L[i.id].mw)}bot=Math.max(bot,i.y+i.h)});canvas.style.height=Math.max(bot*U,60)+'px'}
+function natUnits(id){var el=P[id].el,pb=$('.pb',el),inn=$('.pbi',pb);if(!inn||!canvas.clientWidth||el.hidden)return null;
+ var cs=getComputedStyle(pb),px=el.offsetHeight-pb.clientHeight+parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom)+inn.offsetHeight,s=fsz();
+ return clamp(Math.ceil((px+GAP)/U),Math.ceil((MINPX*s+GAP)/U),Math.ceil((MAXPX[id]*s+GAP)/U))}
+function measure(){var ch=false;vis().forEach(function(id){var n=natUnits(id);if(n!=null&&AUTO[id]!==n){AUTO[id]=n;ch=true}});return ch}
+function relayout(act){if(!canvas.clientWidth)return;var it,n=0;
+ do{it=calc(act?{id:act,x:L[act].x,y:L[act].y}:null);it.forEach(function(i){L[i.id].x=i.x;L[i.id].y=i.y});placeAll(it)}while(measure()&&++n<4)}
+function applyAll(){if(!BUSY)relayout(null)}
+function settle(id){if(id==null&&AUTOLAY){replan();save();return}relayout(id);save()}
+function fixLayout(){relayout(null)}
+/* auto plan: until the user moves or resizes a panel, the grid picks the order and the 4/8-column widths that leave the least empty area. It runs when the selection, text size, panel set or table size changes, never on a data refresh, so panels do not jump while you read. */
+var AUTOLAY=true,WOPT={inbox:[4],scopes:[8],tasks:[8],agents:[4,8],files:[4,8],decisions:[4,8]};
+function score(it){var bot=0,a=0,c;it.forEach(function(i){bot=Math.max(bot,i.y+i.h)});
+ for(c=0;c<COLS;c++){var cov=0;it.forEach(function(i){if(c>=i.x&&c<i.x+(i.dw||i.w))cov+=i.h});a+=bot-cov}return a*1000+bot}
+function perms(a){if(a.length<2)return [a];var r=[];a.forEach(function(x,i){perms(a.slice(0,i).concat(a.slice(i+1))).forEach(function(p){r.push([x].concat(p))})});return r}
+function autoPlan(){var ids=vis().filter(function(i){return i!=='time'}),best=null,bs=1e18;
+ var combos=[[]];ids.forEach(function(id){var o=WOPT[id]||[4];combos=[].concat.apply([],combos.map(function(c){return o.map(function(w){return c.concat([[id,w]])})}))});
+ var hs={};ids.concat(['time']).forEach(function(i){hs[i]=hOf(i)});
+ perms(ids).forEach(function(order){combos.forEach(function(cb){var W={};cb.forEach(function(c){W[c[0]]=c[1]});
+  var it=order.map(function(id,k){return {id:id,x:0,y:k*1000,w:W[id],h:hs[id]}});if(P.time&&!H.time)it.push({id:'time',x:0,y:99999,w:12,h:hs.time});
+  pack(it,null);fill(it);var sc=score(it);if(sc<bs){bs=sc;best=it.map(function(i){return {id:i.id,w:i.w}})}})});
+ if(best)best.forEach(function(b,k){var q=L[b.id];q.x=0;q.y=k*1000;q.w=b.w;delete q.mw});}
+function replan(){relayout(null);if(AUTOLAY&&canvas.clientWidth){autoPlan();relayout(null)}}
+var rq=0;function sched(){if(rq||BUSY)return;rq=requestAnimationFrame(function(){rq=0;relayout(null)})}
+var RO=new ResizeObserver(sched);
+
+function drag(id,e){
+ var el=P[id].el,g=geom(),ox=el.offsetLeft,oy=el.offsetTop,sx=e.clientX,sy=e.clientY,moved=false,ghost=null,cur=null,wc=Math.round((el.offsetWidth+GAP)/g.px);
+ function mv(ev){var dx=ev.clientX-sx,dy=ev.clientY-sy;
+  if(!moved){if(Math.hypot(dx,dy)<4)return;moved=true;BUSY=true;el.classList.add('drag');ghost=document.createElement('div');ghost.className='ghost';canvas.appendChild(ghost)}
+  el.style.left=(ox+dx)+'px';el.style.top=(oy+dy)+'px';
+  var nx=clamp(Math.round((ox+dx)/g.px),0,COLS-L[id].w),ny=Math.max(0,Math.round((oy+dy)/U));
+  if(!cur||cur.x!==nx||cur.y!==ny){cur={x:nx,y:ny};var it=calc({id:id,x:nx,y:ny});placeAll(it,id);place(ghost,it.filter(function(i){return i.id===id})[0],g)}}
+ function up(){document.removeEventListener('pointermove',mv);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',up);document.removeEventListener('keydown',kd);
+  el.classList.remove('drag');if(ghost)ghost.remove();BUSY=false;
+  if(moved&&cur){L[id].x=cur.x;L[id].y=cur.y;AUTOLAY=false}
+  settle(id)}
+ function kd(ev){if(ev.key==='Escape'){cur=null;moved=false;up()}}
+ document.addEventListener('pointermove',mv);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',up);document.addEventListener('keydown',kd)}
+
+function resize(id,dir,e){
+ var el=P[id].el,g=geom(),sx=e.clientX,sy=e.clientY,x0=L[id].x,y0=L[id].y,h0=hOf(id),w0=Math.round((el.offsetWidth+GAP)/g.px),last='';
+ el.classList.add('rsz');BUSY=true;
+ function mv(ev){var dc=Math.round((ev.clientX-sx)/g.px),du=Math.round((ev.clientY-sy)/U);
+  var r={x:x0,y:y0,w:w0,h:h0};
+  if(dir.indexOf('e')>=0)r.w=clamp(w0+dc,MINW,COLS-x0);
+  if(dir.indexOf('w')>=0){var d=clamp(dc,-x0,w0-MINW);r.x=x0+d;r.w=w0-d}
+  if(dir.indexOf('s')>=0)r.h=Math.max(MINU,h0+du);
+  if(dir.indexOf('n')>=0){var d2=clamp(du,-y0,h0-MINU);r.y=y0+d2;r.h=h0-d2}
+  var key=[r.x,r.y,r.w,r.h].join();if(key===last)return;last=key;
+  var q=L[id];q.x=r.x;q.y=r.y;q.w=r.w;if(r.w!==w0)q.mw=true;if(r.h!==h0){q.h=r.h;q.m=true}
+  var it=calc({id:id,x:r.x,y:r.y,h:hOf(id)});placeAll(it)}
+ function up(){document.removeEventListener('pointermove',mv);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',up);el.classList.remove('rsz');BUSY=false;AUTOLAY=false;settle(id)}
+ document.addEventListener('pointermove',mv);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',up)}
+
+/* ---------- saved UI state: board-ui.json (server file, simulated) + browser copy. Version 4 adds the selection and the recent list. ---------- */
+var FS=[['Small',.9],['Normal',1],['Large',1.15],['Extra large',1.3]],fs=1;
+var FKEY=function(){return 'squadboard.v5.file.'+squad},BKEY=function(){return 'squadboard.v5.'+squad};
+function rd(k){try{var r=localStorage.getItem(k);return r?JSON.parse(r):null}catch(x){return null}}
+function put(k,s){try{localStorage.setItem(k,s);return true}catch(x){return false}}
+function save(){var o={v:5,saved_at:Date.now(),auto:AUTOLAY,L:L,H:H,C:C,sel:selKey(),recent:RECENT,fs:fs},s=JSON.stringify(o);
+ if(/^(ok|nobrowser|badfile)$/.test(SAVEMODE))put(FKEY(),s);                       /* board-ui.json */
+ if(/^(ok|nofile|badfile)$/.test(SAVEMODE))put(BKEY(),JSON.stringify(o))   /* browser copy  */
+ if(SAVEMODE==='badfile'){SAVEMODE='ok';$('#svm').value='ok'}
+ showSave()}
+var PT={ok:['','settings saved · board-ui.json','The selection, text size, layout and columns are saved in board-ui.json and in this browser, per squad.'],nofile:['warn','settings not shared','board-ui.json cannot be written. This browser keeps a copy; another port or browser will not see it.'],nobrowser:['','saved in board-ui.json · browser copy blocked','Browser storage is blocked. board-ui.json still keeps your settings.'],none:['warn','layout not saved','Neither board-ui.json nor browser storage works. Your settings last until you close the page.'],badfile:['warn','settings file unreadable · defaults shown','board-ui.json cannot be read or has an unknown version. Defaults show; the next change writes a new file.']};
+function showSave(){var p=PT[SAVEMODE],e=$('#prefs');e.className='prefs'+(p[0]?' '+p[0]:'');e.textContent=p[1];e.title=p[2];
+ $('#bpanels').textContent='Panels'+(ORDER.some(function(i){return H[i]})?' ('+ORDER.filter(function(i){return H[i]}).length+' hidden)':'')+' ▾'}
+function setFont(i){fs=clamp(i,0,FS.length-1);document.documentElement.style.setProperty('--u',FS[fs][1]);$('#fsl').textContent=FS[fs][0];$('#fsm').disabled=fs===0;$('#fsp').disabled=fs===FS.length-1;applyAll();if(P.time&&hasSel())TLE.after()}
+var FLAG={scope:['scope:dashboard','--scope dashboard'],goal:['goal:board-v2','--goal board-v2'],bad:['scope:nope-scope','--scope nope-scope'],none:[null,'']};
+function load(first){L=clone(DEF);H={};C={};F={goal:null,scope:null};fs=1;NOTE='';PEND=[];RECENT=[];
+ var rf=/^(ok|nobrowser|nofile)$/.test(SAVEMODE),rb=/^(ok|nofile)$/.test(SAVEMODE),a=rf?rd(FKEY()):null,b=rb?rd(BKEY()):null,s=a&&b?(b.saved_at>a.saved_at?b:a):(a||b),mem=null;
+ if(s&&s.v===5){AUTOLAY=s.auto!==false;ORDER.forEach(function(i){if(s.L&&s.L[i])L[i]=s.L[i];if(s.H&&s.H[i])H[i]=true});if(s.C)C=s.C;if(s.fs!=null)fs=s.fs;mem=s.sel;RECENT=(s.recent||[]).filter(keyOk)}
+ else if(squad==='board'&&!window.__noseed)RECENT=['scope:board-cli','goal:claude-accounts','scope:usage-hook'];
+ var flag=first?FLAG[OPENAS]:FLAG.none,k=null;
+ if(flag[0]){if(keyOk(flag[0]))k=flag[0];else NOTE='The scope you named ('+flag[1].replace('--scope ','')+') is not in this squad. Pick one below.'}
+ else if(mem){if(keyOk(mem))k=mem;else NOTE='What you looked at last time ('+mem.split(':').slice(1).join(':')+') no longer exists. Pick a goal or a scope.'}
+ if(k){var p=k.split(':'),n=p.slice(1).join(':');F=p[0]==='goal'?{goal:n,scope:null}:{goal:goalOf(n),scope:n};RECENT=RECENT.filter(function(r){return r!==k});RECENT.unshift(k);RECENT=RECENT.slice(0,5)}
+ $('#opencmd').textContent='squad-board --squad '+squad+(first&&flag[1]?' '+flag[1]:'');
+ ORDER.forEach(function(i){if(P[i]&&P[i].el)P[i].el.hidden=!!H[i]||autoHid(i)});
+ AUTOLAY=AUTOLAY;setFont(fs);renderFilter();showSave();renderAll()}
+function reset(){L=clone(DEF);H={};C={};AUTOLAY=true;ORDER.forEach(function(i){P[i].el.hidden=autoHid(i)});fixLayout();save();renderAll()}   /* layout, hidden panels, columns; not selection, not text size */
+/* ---------- header selector ---------- */
+function renderFilter(){var b=$('#selbtn'),c=$('#ctx'),g=F.goal?GOALS.filter(function(x){return x.n===F.goal})[0]:null,s=F.scope?SCOPES.filter(function(x){return x.n===F.scope})[0]:null;
+ b.classList.toggle('none',!hasSel());
+ b.innerHTML=!hasSel()?'<span class="chip need">pick one</span> Choose a goal or a scope <span class="car">▾</span>':(F.scope?'<span class="kind">scope</span>':'<span class="kind">goal</span>')+' <b>'+esc(F.scope||F.goal)+'</b> <span class="car">▾</span>';
+ var h='';
+ if(s)h=(s.goal?'<span class="crumb">in goal <a href="#" data-pick="goal:'+esc(s.goal)+'" title="Show the whole goal">'+esc(s.goal)+'</a></span> ':'<span class="crumb muted">no goal</span> ')+chip(s.st==='open'?'run':'work',s.st)+' <span class="muted">'+esc(s.brief)+' · team '+esc(s.team||'—')+' · '+esc(s.closed?'closed '+fmt(s.closed,{d:1}):s.when)+'</span>';
+ else if(g)h=chip(g.st==='open'?'run':'work',g.st)+' <span class="muted">'+esc(g.brief)+' · '+scopesOf(g.n).length+' scopes ('+openScopes(g.n)+' open) · panels show them together</span>';
+ else h='<span class="muted">Nothing is selected, so no panel shows data. The picker below lists goals and scopes.</span>';
+ c.innerHTML=h;
+ $('#canvas').hidden=!hasSel();$('#picker').hidden=hasSel();$('#bpanels').disabled=!hasSel();$('#breset').disabled=!hasSel();
+ ORDER.forEach(function(i){if(P[i]&&P[i].el)P[i].el.hidden=!!H[i]||autoHid(i)});if(hasSel())fixLayout()}
+$('#fsm').onclick=function(){setFont(fs-1);save();renderAll()};$('#fsp').onclick=function(){setFont(fs+1);save();renderAll()};
+
+
+/* ---------- columns ---------- */
+var COLDEF={};
+function colsFor(pid){var all=COLDEF[pid],ids=C[pid];
+ if(!ids)ids=all.filter(function(c){return c.def===1||(c.def==='m'&&multi())}).map(function(c){return c.id});
+ return ids.map(function(i){return all.filter(function(c){return c.id===i})[0]}).filter(Boolean)}
+function setCols(pid,ids){C[pid]=ids;save();P[pid].render()}
+function colMenu(pid,btn){
+ var all=COLDEF[pid],vis_=colsFor(pid).map(function(c){return c.id}),hid=all.filter(function(c){return vis_.indexOf(c.id)<0}).map(function(c){return c.id});
+ var rows=vis_.concat(hid),h='<h4>Columns of '+esc(P[pid].title)+'</h4><ul>';
+ rows.forEach(function(i){var c=all.filter(function(x){return x.id===i})[0],on=vis_.indexOf(i)>=0,ix=vis_.indexOf(i);
+  h+='<li><label><input type="checkbox" data-col="'+i+'" '+(on?'checked':'')+'> '+esc(c.label)+'</label><button data-up="'+i+'" '+(on&&ix>0?'':'disabled')+' aria-label="Move '+esc(c.label)+' left" title="Move left">&#9664;</button><button data-dn="'+i+'" '+(on&&ix<vis_.length-1?'':'disabled')+' aria-label="Move '+esc(c.label)+' right" title="Move right">&#9654;</button></li>'});
+ h+='</ul><div class="lk"><button data-defcols="1">Default columns</button><button data-closepop="1">Close</button></div><p class="hint">You can also drag a column title onto another.</p>';
+ openPop(btn,h,function(t){var ids=colsFor(pid).map(function(c){return c.id}),i;
+  if(t.dataset.col){i=t.dataset.col;if(t.checked){if(ids.indexOf(i)<0)ids.push(i)}else if(ids.length>1)ids=ids.filter(function(x){return x!==i});else{t.checked=true;return}setCols(pid,ids);colMenu(pid,btn)}
+  else if(t.dataset.up||t.dataset.dn){i=t.dataset.up||t.dataset.dn;var ix=ids.indexOf(i),to=t.dataset.up?ix-1:ix+1;ids.splice(to,0,ids.splice(ix,1)[0]);setCols(pid,ids);colMenu(pid,btn);var again=$('#pop [data-'+(t.dataset.up?'up':'dn')+'="'+i+'"]');if(again&&!again.disabled)again.focus()}
+  else if(t.dataset.defcols){delete C[pid];save();P[pid].render();colMenu(pid,btn)}
+  else if(t.dataset.closepop)closePop()})}
+
+/* ---------- popover ---------- */
+var popFor=null,popFn=null;
+function openPop(btn,html,fn){var p=$('#pop');p.innerHTML=html;p.hidden=false;popFor=btn;popFn=fn;var r=btn.getBoundingClientRect(),w=p.offsetWidth;p.style.left=clamp(r.left+scrollX,8,innerWidth-w-8)+'px';p.style.top=(r.bottom+scrollY+4)+'px';btn.setAttribute('aria-expanded','true')}
+function closePop(){var p=$('#pop');if(popFor){popFor.removeAttribute('aria-expanded');popFor.focus&&popFor.focus()}p.hidden=true;popFor=null;popFn=null}
+$('#pop').addEventListener('click',function(e){var t=e.target.closest('button');if(t&&popFn)popFn(t)});
+$('#pop').addEventListener('change',function(e){if(popFn)popFn(e.target)});
+document.addEventListener('pointerdown',function(e){if(!$('#pop').hidden&&!e.target.closest('#pop')&&e.target!==popFor&&!e.target.closest('[aria-expanded]')){$('#pop').hidden=true;if(popFor)popFor.removeAttribute('aria-expanded');popFor=null}});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#pop').hidden)closePop()});
+$('#bpanels').onclick=function(){panelsMenu(this)};
+function panelsMenu(btn){var h='<h4>Panels</h4><ul>';
+ ORDER.forEach(function(i){h+='<li><label><input type="checkbox" data-pan="'+i+'" '+(H[i]?'':'checked')+'> '+esc(P[i].title)+'</label></li>'});
+ h+='</ul><p class="hint">The permission banner cannot be hidden.</p><div class="lk"><button data-showall="1">Show all</button><button data-closepop="1">Close</button></div>';
+ openPop(btn,h,function(t){if(t.dataset.pan){var i=t.dataset.pan;if(t.checked){delete H[i];P[i].el.hidden=false;renderOne(i);replan();save()}else{H[i]=true;P[i].el.hidden=true;settle(null)}showSave();panelsMenu(btn);var cb=$('#pop [data-pan="'+i+'"]');cb&&cb.focus()}
+  else if(t.dataset.showall){H={};ORDER.forEach(function(i){P[i].el.hidden=false});settle(null);renderAll();panelsMenu(btn)}
+  else if(t.dataset.closepop)closePop()})}
+$('#breset').onclick=reset;
+
+/* ---------- generic table ---------- */
+function cellHTML(c,r){var s=r.src||c.src;if(view==='unknown'&&s&&MISSING[s]&&!c.keep)return UNK(s);return c.cell(r)}
+var DEMOROWS=0;
+function table(pid,rows,o){o=o||{};if(DEMOROWS&&pid!=='time')rows=rows.slice(0,DEMOROWS);var cols=colsFor(pid);
+ var h='<table class="tbl" data-p="'+pid+'"><thead><tr>'+cols.map(function(c){return '<th draggable="true" data-c="'+c.id+'" title="Drag onto another title to reorder">'+esc(c.label)+'</th>'}).join('')+'</tr></thead><tbody>';
+ rows.forEach(function(r){var k=o.key?o.key(r):'';
+  h+='<tr class="r '+(o.cls?o.cls(r):'')+'" '+(o.pick?'data-pick="'+esc(o.pick(r))+'" tabindex="0" ':'')+(o.expand?'data-k="'+esc(k)+'" tabindex="0" aria-expanded="'+(!!ST.open[pid+k])+'"':'')+'>'+cols.map(function(c){return '<td>'+cellHTML(c,r)+'</td>'}).join('')+'</tr>';
+  if(o.expand&&ST.open[pid+k])h+='<tr class="x"><td colspan="'+cols.length+'">'+o.expand(r)+'</td></tr>'});
+ return h+'</tbody></table>'}
+var emptyBox=function(b,t){return '<p class="empty"><b>'+b+'</b> '+t+'</p>'};
+var unkBox=function(s,t){return '<p class="note"><b>unknown: '+SRCNAME[s]+(t?' '+t:'')+'.</b></p>'};
+function skeleton(){return '<div class="sk" style="width:70%"></div><div class="sk"></div><div class="sk" style="width:85%"></div><div class="sk" style="width:55%"></div>'}
+/* ---------- panel definitions ---------- */
+var PANELS={};
+function agentChips(r){return '<div class="chips">'+(r.ag.length?r.ag.map(function(a){var v=a[1],dev=/^dev/.test(a[0]),c=v==='FAIL'?'fail':v==='PASS'?'work':v==='PASS*'?'quiet':'idle';return chip(c,a[0]+(dev?'':v?' '+(v==='PASS*'?'PASS (old sha)':v):': no verdict yet'))}).join(''):'<span class="muted">no one yet</span>')+'</div>'}
+var RR=function(r){return r.st==='done'&&/not merged yet/.test(r.what)};
+var STCHIP={blocked:'bad',returned:'fail','in progress':'run',todo:'idle',done:'work'};
+COLDEF.tasks=[
+ {id:'id',label:'Task',def:1,keep:1,cell:function(r){return '<span class="nw"><span class="muted">'+r.sc+'/</span><b>'+r.n+'</b></span>'}},
+ {id:'title',label:'Title',def:1,keep:1,cell:function(r){return esc(r.t)}},
+ {id:'stage',label:'Stage',def:1,src:'ledger',cell:function(r){return (RR(r)?chip('need','ready for review'):chip(STCHIP[r.st],r.st))+(r.ret>=1&&r.st!=='done'?' '+chip('fail',r.ret+(r.ret===1?' return':' returns')):'')}},
+ {id:'la',label:'Last active',def:1,src:'ledger',cell:function(r){return lastCell(r.la)}},
+ {id:'what',label:'What happened',def:1,src:'ledger',cell:function(r){return esc(r.what)+(r.blocked?'<div class="bt"><b>BLOCKED:</b> '+esc(r.blocked)+'</div>':'')}},
+ {id:'agents',label:'Agents involved',def:1,src:'ledger',cell:agentChips},
+ {id:'wait',label:'Waits on',def:1,src:'ledger',cell:function(r){return r.wait?esc(r.wait):'<span class="muted">—</span>'}},
+ {id:'ret',label:'Returns',def:0,src:'ledger',cell:function(r){return r.ret}},
+ {id:'br',label:'Branch',def:0,src:'git',cell:function(r){return r.br?'<code>…/'+r.br+'</code>':'<span class="muted">—</span>'}},
+ {id:'scope',label:'Scope',def:'m',keep:1,cell:function(r){return scChip(r.sc)}}];
+PANELS.tasks={title:'Tasks',table:1,render:function(){
+ if(view==='loading')return skeleton();
+ if(view==='empty')return emptyBox('No tasks yet.','The Manager has not published tickets for this squad.');
+ var all=fl(TASKS);if(!all.length)return noneBox('tasks',TASKS.length);
+ var rows=all.filter(function(r){return ST.tf==='all'||(ST.tf==='open'?r.st!=='done':ST.tf==='review'?RR(r):r.st==='done')}),n=all.filter(function(r){return r.st!=='done'}).length;
+ return (view==='unknown'?'<p class="note"><b>unknown: squad-ledger did not answer.</b> Ids and titles come from the ticket files. Stages are not shown, not guessed.</p>':'')+
+  '<div class="tools"><button data-tf="all" class="'+(ST.tf==='all'?'on':'')+'">All ('+all.length+')</button><button data-tf="open" class="'+(ST.tf==='open'?'on':'')+'">Open ('+n+')</button><button data-tf="review" class="'+(ST.tf==='review'?'on':'')+'">Ready for review ('+all.filter(RR).length+')</button><button data-tf="done" class="'+(ST.tf==='done'?'on':'')+'">Done ('+(all.length-n)+')</button><span class="muted">Click a row for the steps in time order.</span></div>'+
+  table('tasks',rows,{key:function(r){return r.k},cls:function(r){return RR(r)?'need':r.st==='done'?'done':r.st==='blocked'&&view!=='unknown'?'need':''},expand:function(r){
+   return '<b>'+esc(r.k)+'</b> '+esc(r.t)+'<div class="muted">Ticket <code>.scratch/'+r.sc+'/issues/'+r.n+'-*.md</code></div>'+
+    (view==='unknown'?'<p class="muted">Steps unknown: messages and ledger not read.</p>':'<div class="chips" style="margin:4px 0">'+agentChips(r)+'</div>'+(r.steps.length?'<ol class="steps">'+r.steps.map(function(s){return '<li>'+T(s[0])+' '+esc(s[1])+'</li>'}).join('')+'</ol>':'<p class="muted">No message, commit or transcript record: no activity recorded.</p>'))+(RR(r)?'<p><b>Ready for your review.</b> Every checker PASSed this tip. Only you merge: '+cmd('git merge squad/board/'+r.sc+'/'+r.br)+'</p>':'')}})},
+ count:function(){return view==='empty'?'0':view==='unknown'?'?':cnt(fl(TASKS).length,TASKS.length)}};
+/* ---------- Scopes of this goal: only while a GOAL is selected. Replaces the Goals and Scopes panels (the picker lists them). ---------- */
+COLDEF.scopes=[
+ {id:'scope',label:'Scope',def:1,keep:1,cell:function(r){return '<span class="nm">'+esc(r.n)+'</span>'}},
+ {id:'st',label:'Status',def:1,keep:1,cell:function(r){return chip(r.st==='open'?'run':'work',r.st)}},
+ {id:'tasks',label:'Tasks',def:1,src:'ledger',cell:function(r){var t=TASKS.filter(function(x){return x.sc===r.n}).length;return openTasks(r.n)+' open of '+t}},
+ {id:'you',label:'Needs you',def:1,src:'inbox',cell:function(r){var n=needsOf(r.n);return n?chip('need',String(n)):'<span class="muted">—</span>'}},
+ {id:'la',label:'Last active',def:1,src:'ledger',cell:function(r){return lastCell(laScope(r.n))}},
+ {id:'brief',label:'Brief',def:1,keep:1,cell:function(r){return esc(r.brief)}},
+ {id:'when',label:'Iteration / closed',def:0,keep:1,cell:function(r){return r.closed?'closed '+T(r.closed,{d:1})+ap():esc(r.when)}},
+ {id:'team',label:'Team',def:0,keep:1,cell:function(r){return esc(r.team)}}];
+PANELS.scopes={title:'Scopes of this goal',table:1,render:function(){
+ if(view==='loading')return skeleton();if(view==='empty')return emptyBox('No scopes yet.','The Manager creates a scope with squad-spawn.');
+ var rows=scopesOf(F.goal).sort(function(a,b){return (a.st==='open'?0:1)-(b.st==='open'?0:1)});
+ if(!rows.length)return '<p class="empty"><b>Goal '+esc(F.goal)+' has no scope yet.</b></p>';
+ return '<p class="muted sm">Click a row to look at that scope only. The goal stays one click away in the header.</p>'+table('scopes',rows,{cls:function(r){return r.st==='done'?'done':''},pick:function(r){return 'scope:'+r.n}})},
+ count:function(){return view==='empty'?'0':String(scopesOf(F.goal).length)}};
+/* ---------- Work time = timeline option 1 (per-agent swimlanes). The engine lives in the first script block. ---------- */
+PANELS.time={title:'Work time',render:function(){TLE.state=view==='loading'?'loading':view==='empty'?'empty':view==='unknown'?'unknown':'normal';return TLE.html()},
+ count:function(){if(view==='empty')return '0';if(view==='unknown')return '?';var w=0;TL.BL.forEach(function(b){if(b.st==='w'&&inF(TL.lane(b.lane).sc))w+=b.e-b.s});return w?Math.round(w/3600000)+' h':'0'}};
+
+COLDEF.agents=[
+ {id:'agent',label:'Agent',def:1,keep:1,cell:function(r){return '<span class="nm" title="'+r.full+'">'+r.a+'</span>'+(multi()?' '+scChip(r.sc):'')}},
+ {id:'role',label:'Role',def:0,keep:1,cell:function(r){return r.role}},
+ {id:'own',label:'Owns',def:1,keep:1,cell:function(r){return r.own}},
+ {id:'status',label:'Status',def:1,src:'herdr',cell:function(r){return r.need?chip('need','blocked: permission prompt'):chip(r.st==='working'?'work':'idle',r.st)+(r.quiet?' '+chip('quiet',r.quiet):'')+(r.note?' <span class="muted">'+esc(r.note)+'</span>':'')}},
+ {id:'last',label:'Last active',def:1,src:'transcripts',cell:function(r){return lastCell(r.la)}}];
+PANELS.agents={title:'Agents now',table:1,render:function(){
+ if(view==='loading')return skeleton();if(view==='empty')return emptyBox('No live agents.','roster.md lists none yet.');
+ var a=fl(AGENTS);if(!a.length)return noneBox('agents',AGENTS.length);var rt=fl(RETIRED,function(x){return x[3]});
+ return (view==='unknown'?'<p class="note"><b>status unknown: herdr not running.</b> Roles and tasks come from roster.md.</p>':'')+table('agents',a,{cls:function(r){return view!=='unknown'&&r.need?'need':r.quiet&&view!=='unknown'?'quiet':''}})+
+  (rt.length?'<details class="more"><summary>'+rt.length+' retired, hidden</summary><ul>'+rt.map(function(x){return '<li>'+x[0]+' · '+x[1]+' <span class="muted">retired '+T(x[2])+'</span></li>'}).join('')+'</ul></details>':'')},
+ count:function(){return view==='empty'?'0':cnt(fl(AGENTS).length,AGENTS.length)}};
+
+COLDEF.files=[
+ {id:'name',label:'File',def:1,keep:1,cell:function(r){return r.t?'<a href="#" class="of" data-f="'+esc(r.p)+'" title="Opens in the browser (read-only)">'+esc(r.p)+'</a>':'<span class="nm">'+esc(r.p)+'</span> <span class="chip unk">'+r.miss+'</span>'}},
+ {id:'kind',label:'Kind',def:1,keep:1,cell:function(r){return chip(r.k==='report'?'wait':r.k==='evidence'?'work':'idle',r.k)}},
+ {id:'what',label:'What',def:1,keep:1,cell:function(r){return esc(r.w)}},
+ {id:'sc',label:'Scope',def:'m',keep:1,cell:function(r){return scChip(r.sc)}},
+ {id:'o',label:'Owner',def:0,keep:1,cell:function(r){return esc(r.o)}},
+ {id:'t',label:'Changed (file time)',def:1,keep:1,cell:function(r){return r.t?T(r.t)+ap('file time'):'—'}}];
+PANELS.files={title:'Files',table:1,render:function(){
+ if(view==='loading')return skeleton();if(view==='empty')return emptyBox('No files yet.','Artifacts, reports and evidences appear as the team writes them.');
+ var all=fl(FILES);if(!all.length)return noneBox('files',FILES.length);var rows=all.filter(function(r){return ST.ff==='all'||r.k===ST.ff});
+ return '<div class="tools">'+['all','artifact','report','evidence'].map(function(k){return '<button data-ff="'+k+'" class="'+(ST.ff===k?'on':'')+'">'+(k==='all'?'All':k[0].toUpperCase()+k.slice(1)+'s')+'</button>'}).join('')+'<span class="muted">Time is the file’s modified time.</span></div>'+table('files',rows)},
+ count:function(){return view==='empty'?'0':cnt(fl(FILES).length,FILES.length)}};
+function decIn(r){if(r.kind==='ADR')return true;if(r.kind==='Goal')return r.goal===selGoal();return inF(r.sc)}
+COLDEF.decisions=[
+ {id:'ref',label:'Ref',def:1,keep:1,cell:function(r){return '<span class="nw"><b>'+esc(r.ref)+'</b></span>'}},
+ {id:'kind',label:'Kind',def:1,keep:1,cell:function(r){return esc(r.kind)+(r.kind==='ADR'?' <span class="muted sm">whole squad</span>':'')}},
+ {id:'title',label:'Decision',def:1,keep:1,cell:function(r){return (r.sup?'<s class="muted">'+esc(r.title)+'</s>':esc(r.title))+(r.kind==='PO answer'&&r.sc===null?unkScope(r):'')}},
+ {id:'out',label:'Status / answer',def:1,cell:function(r){return r.c?chip(r.c,r.out):esc(r.out)}},
+ {id:'d',label:'Date',def:0,keep:1,cell:function(r){return T(r.t,{d:1})}}];
+PANELS.decisions={title:'Decisions',table:1,render:function(){
+ if(view==='loading')return skeleton();if(view==='empty')return emptyBox('No decisions found.','No ADR, goal decision or answered question yet.');
+ return (view==='unknown'?'<p class="note"><b>unknown: squad-inbox.</b> ADRs are read from files; the PO’s answers cannot be listed.</p>':'')+(filtered()?'<p class="muted sm">ADRs belong to the whole squad and always show. Goal decisions and your answers follow the filter.</p>':'')+table('decisions',DEC.filter(decIn),{cls:function(r){return r.sup?'done':''}})},
+ count:function(){return view==='empty'?'0':cnt(DEC.filter(decIn).length,DEC.length)}};
+
+/* Needs you */
+var ymd=function(ep){return new Date(ep).toISOString().slice(0,10)};
+function qCard(q){var id=q.id,pc='squad-inbox park --text "'+q.title+'" --from '+id+' --blocks "'+q.blocks+'" --level scope';
+ var h='<li class="item" data-q="'+id+'"><div class="top">'+chip('need',id)+' <b>'+esc(q.title)+'</b>'+(multi()?' '+scChip(q.sc):'')+'<span class="age">waiting '+waited(q.since)+'</span></div>';
+ h+='<p class="blocks">Blocks: '+esc(q.blocks)+'</p><ul class="opts">'+q.opts.map(function(o,i){return '<li class="'+(o[2]?'rec':'')+'"><b>'+'AB'[i]+'</b> '+esc(o[0])+(o[2]?' <span class="recmark">Manager recommends</span>':'')+'</li>'}).join('')+'</ul>';
+ return h+'<div class="how">Answer: '+cmd('squad-inbox answer '+id)+'<button class="cp" data-copy="squad-inbox answer '+id+'">copy</button><button class="cp" data-parkc="'+esc(pc)+'" data-from="'+id+'" title="Copies a park command for the whole item. For one point of it, add #<point> to --from.">Park: copy command</button></div></li>'}
+var lvChip=function(q){return q.level==='squad'?chip('idle','squad'):chip('idle',q.level+' · '+(q.level==='goal'?q.goal:q.sc))};
+function pqCard(q){var h='<li class="item parked" data-q="'+q.id+'"><div class="top">'+lvChip(q)+' <b>'+esc(q.text)+'</b><span class="age">'+q.id+'</span></div>';
+ h+='<p class="blocks">'+(q.blocks?'<b>Still blocks:</b> '+esc(q.blocks):'Blocks nothing known.')+'</p><p class="muted sm">'+(q.from?'From <b>'+esc(q.from)+'</b>':'<b>free</b> question')+' · parked '+T(q.parked)+' ('+ago(q.parked)+') · <span title="the file the page read">'+esc(q.file)+'</span></p>';
+ return h+'<div class="how"><button class="cp" data-cmd="squad-inbox unpark '+q.id+'">Unpark: copy command</button><button class="cp" data-cmd="squad-inbox resolve '+q.id+' --answer &quot;...&quot;" title="Write your answer in place of ...">Resolve: copy command</button></div></li>'}
+function parkForm(){var d=F.scope?'scope':F.goal?'goal':'squad';
+ return '<details class="more"><summary>Park a question that is not in the inbox</summary><div class="note"><label>Question <input id="pf-t" size="30" placeholder="Should we ...?"></label> <label>Level <select id="pf-l"><option'+(d==='scope'?' selected':'')+'>scope</option><option'+(d==='goal'?' selected':'')+'>goal</option><option'+(d==='squad'?' selected':'')+'>squad</option></select></label> <label>From <input id="pf-f" size="8" placeholder="E3 #2 or empty"></label> <label>Blocks <input id="pf-b" size="18" placeholder="optional"></label> <button class="cp" id="pf-go" data-pf="1">Copy command</button><p class="muted sm">Builds the command from the fields. The page never writes the file.</p></div></details>'}
+PANELS.inbox={title:'Needs you',hot:1,render:function(){
+ if(view==='loading')return skeleton();
+ if(view==='empty')return emptyBox('Nothing needs you.','No open question, no answer to read, no permission prompt. Parked questions: none.');
+ if(view==='unknown')return '<p class="note"><b>unknown: squad-inbox did not answer.</b> This is not "all good". Open the inbox by hand: '+cmd('squad-inbox list')+'</p><p class="note"><b>unknown: herdr is not running.</b> Permission prompts cannot be listed.</p><p class="note"><b>Parked questions are read from files</b> and still show below.</p>'+parkedHtml();
+ var c=inboxCounts(),oq=QS.filter(function(q){return inF(q.sc)}).sort(function(a,b){return a.since-b.since}),rd_=READS.filter(function(r){return inF(r.sc)}),perm=inF('dashboard'),h='';
+ if(c.outside){var o=[];if(!perm)o.push(['permission','dashboard']);QS.forEach(function(q){if(!inF(q.sc))o.push([q.id,q.sc])});READS.forEach(function(r){if(!inF(r.sc)&&r.sc)o.push([r.id+' to read',r.sc])});
+  h+='<p class="note out"><b>'+c.outside+' more need'+(c.outside===1?'s':'')+' you in other goals and scopes</b> <span class="how">'+o.map(function(x){return '<button class="cp" data-pick="scope:'+esc(x[1])+'" title="Look at scope '+esc(x[1])+'">'+esc(x[0])+' · '+esc(x[1])+'</button>'}).join('')+'<button class="cp" data-pick="picker">Open the picker</button></span></p>'}
+ h+='<h3 class="sec">Open now ('+((perm?1:0)+oq.length)+')</h3><ol class="items">';
+ if(perm)h+='<li class="item"><div class="top">'+chip('need','permission')+' <b>qa-white</b> <span class="muted">qa-whitebox</span><span class="age">waiting 6 min</span></div><p>Prompt: '+cmd('Bash: python3 tests/run_suite.py --receipt evidence/02')+'</p><p class="blocks">Blocks: the re-check of 02</p><p class="blocks">Answer in the pane of <code>board-qa-white-dashboard</code>. A message cannot approve it, and it cannot be parked.</p></li>';
+ h+=oq.map(qCard).join('')+'</ol>';
+ if(!perm&&!oq.length)h+='<p class="empty"><b>Nothing open in '+esc(scLabel())+'.</b></p>';
+ h+=parkedHtml();
+ if(rd_.length)h+='<h3 class="sec">Answers to read ('+rd_.length+')</h3><ol class="items">'+rd_.map(function(r){return '<li class="item read"><div class="top">'+chip('idle',r.id+(r.f?' read':' answered'))+' <b>'+esc(r.title)+'</b>'+unkScope(r)+'<span class="age">'+waited(r.since)+'</span></div>'+(r.f?'<div class="how">Read <a href="#" class="of" data-f="'+r.f+'">'+r.f+'</a></div>':'<p class="blocks">'+esc(r.ans)+'</p>')+'</li>'}).join('')+'</ol>';
+ return h},
+ count:function(){if(view==='empty')return '0';if(view==='unknown')return '?';var c=inboxCounts();return cnt(c.shown,c.all)}};
+function parkedHtml(){var all=PQS.filter(pqIn),pk=all.filter(function(q){return q.st==='parked'}).sort(function(a,b){return a.parked-b.parked}),rs=all.filter(function(q){return q.st==='resolved'}),out=PQS.filter(function(q){return q.st==='parked'}).length-pk.length;
+ var h='<h3 class="sec">Parked ('+pk.length+') '+chip('park','not counted in the tab title')+'<span class="t muted">your own list: scope, goal and squad files (open-questions.md)</span></h3>';
+ h+=PEND.map(function(p,i){return '<p class="note">Copied '+cmd(p.cmd)+'. Run it in a terminal; the page never writes the file. The entry changes when the board next reads the files (up to 5 s). <button class="cp proto" data-sim="'+i+'">prototype: the board refreshed</button></p>'}).join('');
+ h+=pk.length?'<ol class="items">'+pk.map(pqCard).join('')+'</ol>':'<p class="empty"><b>Nothing parked'+(filtered()?' in '+esc(scLabel()):'')+'.</b> Park a question you cannot answer now: it leaves Open now only when you park a copy; the inbox item stays as it is.</p>';
+ if(out)h+='<p class="muted sm">'+out+' more parked in other goals and scopes.</p>';
+ if(rs.length)h+='<details class="more"><summary>Resolved ('+rs.length+')</summary><ul class="items" style="margin-top:4px">'+rs.map(function(q){return '<li class="item read">'+lvChip(q)+' <s class="muted">'+esc(q.text)+'</s><div>Answer: <b>'+esc(q.answer)+'</b> <span class="muted sm">· resolved '+T(q.resolved,{d:1})+(q.from?' · from '+esc(q.from):'')+'</span></div></li>'}).join('')+'</ul></details>';
+ return h+parkForm()}
+
+/* ---------- picker (landing screen when nothing is selected) and the header combobox ---------- */
+var PK={q:'',sort:'last',exp:{},ai:0,doneOpen:false};
+var SORTS=[['last','Last active'],['needs','Needs you'],['name','Name']];
+function item(kind,n){var o=kind==='goal'?GOALS.filter(function(g){return g.n===n})[0]:SCOPES.filter(function(s){return s.n===n})[0];
+ var la=kind==='goal'?laGoal(n):laScope(n),open=o.st==='open';
+ return {kind:kind,n:n,o:o,open:open,la:la,t:la?la[0]:(o.closed||0),needs:kind==='goal'?needsGoal(n):needsOf(n),key:kind+':'+n}}
+function sorter(){return function(a,b){if(a.open!==b.open)return a.open?-1:1;if(PK.sort==='name')return a.n<b.n?-1:1;if(PK.sort==='needs'&&a.needs!==b.needs)return b.needs-a.needs;return b.t-a.t}}
+function groups(q){var all=[],g=GOALS.map(function(x){return item('goal',x.n)}),s=SCOPES.map(function(x){return item('scope',x.n)}),srt=sorter(),m=function(i){return (i.n+' '+i.o.brief).toLowerCase().indexOf(q)>=0};
+ if(q){q=q.toLowerCase();return [{t:'Goals',rows:g.filter(m).sort(srt).map(function(i){return {i:i,d:0}})},{t:'Scopes',rows:s.filter(m).sort(srt).map(function(i){return {i:i,d:0,ctx:i.o.goal}})}].filter(function(x){return x.rows.length})}
+ var rec=RECENT.filter(keyOk).slice(0,4).map(function(k){var p=k.split(':');return {i:item(p[0],p.slice(1).join(':')),d:0,ctx:p[0]==='scope'?goalOf(p[1]):null}});
+ var tops=function(done){var a=g.filter(function(i){return i.open!==done}).concat(s.filter(function(i){return !i.o.goal&&i.open!==done})).sort(function(a,b){return PK.sort==='name'?(a.n<b.n?-1:1):PK.sort==='needs'&&a.needs!==b.needs?b.needs-a.needs:b.t-a.t}),r=[];
+  a.forEach(function(i){r.push({i:i,d:0,loose:i.kind==='scope'});if(i.kind==='goal'&&PK.exp[i.n])scopesOf(i.n).map(function(x){return item('scope',x.n)}).sort(srt).forEach(function(c){r.push({i:c,d:1})})});return r};
+ var out=[];if(rec.length)out.push({t:'Recent',rows:rec});out.push({t:'Open',rows:tops(false),open:1});out.push({t:'Done',rows:tops(true),done:1});return out}
+function countsOf(i){if(view==='unknown')return UNK('ledger');if(i.kind==='goal'){var sc=scopesOf(i.n),o=openScopes(i.n);return sc.length+' scope'+(sc.length===1?'':'s')+(o===sc.length?'':' ('+o+' open)')+' · '+scopesOf(i.n).reduce(function(a,s){return a+openTasks(s.n)},0)+' open tasks'}
+ var t=TASKS.filter(function(x){return x.sc===i.n}).length;return openTasks(i.n)+' open of '+t+' task'+(t===1?'':'s')}
+function needsChip(i){if(view==='unknown')return UNK('inbox');return i.needs?chip('need',i.needs+' need'+(i.needs===1?'s':'')+' you'):'<span class="muted">nothing</span>'}
+function rowRich(r){var i=r.i,sel=selKey()===i.key,exp=i.kind==='goal'&&PK.exp[i.n],ex=i.kind==='goal'?'<button class="chev" data-exp="'+esc(i.n)+'" aria-expanded="'+!!exp+'" aria-label="'+(exp?'Hide':'Show')+' the scopes of '+esc(i.n)+'" title="'+(exp?'Hide':'Show')+' the scopes">'+(exp?'▾':'▸')+'</button>':'<span class="chev0"></span>';
+ return '<div class="pr'+(r.d?' sub':'')+(i.open?'':' dn')+(sel?' cur':'')+'" role="option" tabindex="0" data-pick="'+esc(i.key)+'" aria-selected="'+sel+'">'+ex+'<span class="pn"><b title="'+esc(i.n)+'">'+esc(i.n)+'</b> <span class="kind">'+(i.kind==='goal'?'goal':r.loose?'scope · no goal':r.ctx?'scope · goal '+esc(r.ctx):r.d?'':'scope')+'</span></span><span class="ps">'+chip(i.open?'run':'work',i.open?'open':'done')+'</span><span class="pbr">'+esc(i.o.brief)+'</span><span class="pc">'+countsOf(i)+'</span><span class="pnd">'+needsChip(i)+'</span><span class="pla">'+(view==='unknown'?UNK('ledger'):i.la?'<b>'+ago(i.la[0])+'</b><small>'+T(i.la[0])+'</small>':'<span class="muted">no activity</span>')+'</span></div>'}
+function renderPicker(){var el=$('#picker'),sq=squad,nO=GOALS.filter(function(g){return g.st==='open'}).length;
+ if(view==='loading'){el.innerHTML='<div class="pk"><h2>Opening the squad…</h2>'+skeleton()+skeleton()+'</div>';return}
+ if(view==='empty'||!SCOPES.length){el.innerHTML='<div class="pk"><h2>Nothing to pick yet</h2><p class="empty"><b>This squad has no goal and no scope.</b> The Manager creates a scope with <code>squad-spawn</code>; it shows up here at the next refresh.</p></div>';return}
+ var q=PK.q.trim(),gs=groups(q),h='<div class="pk"><h2>What do you want to look at?</h2><p class="muted">The board shows <b>one goal</b> (with its scopes) <b>or one scope</b>. Squad <code>'+esc(sq)+'</code>: '+GOALS.length+' goals ('+nO+' open), '+SCOPES.length+' scopes ('+SCOPES.filter(function(s){return s.st==='open'}).length+' open). Needs-you counts cover the whole squad, so you can see where to go first.'+(READS.some(function(r){return r.sc==null})?' <span class="muted">'+READS.filter(function(r){return r.sc==null}).length+' answer has no scope: it shows in every selection and is not in these counts.</span>':'')+'</p>';
+ if(NOTE)h+='<p class="note out">'+esc(NOTE)+'</p>';
+ if(view==='unknown')h+='<p class="note"><b>unknown: squad-ledger and squad-inbox did not answer.</b> Names and briefs come from files; counts and last-active are not shown, not guessed. You can still pick.</p>';
+ h+='<div class="pkbar"><input id="pkq" type="search" autocomplete="off" placeholder="Search goals and scopes by name or brief   ( / )" aria-label="Search goals and scopes" value="'+esc(PK.q)+'"><span class="seg" role="group" aria-label="Sort">'+SORTS.map(function(s){return '<button data-sort="'+s[0]+'" aria-pressed="'+(PK.sort===s[0])+'" class="'+(PK.sort===s[0]?'on':'')+'">'+s[1]+'</button>'}).join('')+'</span>'+(q?'':'<button class="cp" data-pkexp="1">'+(Object.keys(PK.exp).length?'Collapse all goals':'Expand all open goals')+'</button>')+'</div>';
+ if(!gs.length)h+='<p class="empty"><b>Nothing is called “'+esc(PK.q)+'”.</b> This squad has '+GOALS.length+' goals and '+SCOPES.length+' scopes. <button class="cp" data-pkclr="1">Clear search</button></p>';
+ h+='<div class="plist" role="listbox" aria-label="Goals and scopes"><div class="phd" aria-hidden="true"><span></span><span>Name</span><span>Status</span><span>Brief</span><span>Work</span><span>You</span><span>Last active</span></div>';
+ gs.forEach(function(g){var rows=g.rows.map(rowRich).join('');
+  if(g.done&&!q){h+='<details class="dnd"'+(PK.doneOpen?' open':'')+'><summary><b>Done</b> <span class="chip idle">'+g.rows.filter(function(r){return !r.d}).length+'</span> <span class="muted">goals and loose scopes that closed. Their scopes show when you open a goal.</span></summary>'+rows+'</details>'}
+  else if(g.rows.length)h+='<h3 class="sec">'+g.t+' <span class="chip idle">'+g.rows.filter(function(r){return !r.d}).length+'</span>'+(g.t==='Recent'?' <span class="t muted">what you opened last</span>':'')+'</h3>'+rows;
+  else if(g.open)h+='<h3 class="sec">Open</h3><p class="empty">Nothing open. Open the Done list below.</p>'});
+ el.innerHTML=h+'</div></div>'}
+/* header combobox: compact list, same data, search, arrows, Enter, Esc */
+function comboList(q){var gs=groups(q),h='',n=0;q=q.trim();
+ var row=function(r){var i=r.i,sel=selKey()===i.key;return '<div class="cbo'+(r.d?' sub':'')+(i.open?'':' dn')+(sel?' cur':'')+'" role="option" id="cbo-'+(n++)+'" data-pick="'+esc(i.key)+'" aria-selected="'+sel+'"><span class="cn"><b>'+esc(i.n)+'</b> <span class="kind">'+(i.kind==='goal'?'goal':r.ctx?'in '+esc(r.ctx):r.loose?'no goal':'')+'</span></span>'+(i.open?'':chip('work','done'))+(view!=='unknown'&&i.needs?chip('need',i.needs):'')+'<span class="muted sm nw">'+(view==='unknown'||!i.la?'':ago(i.la[0]).replace(' ago',''))+'</span></div>'};
+ gs.forEach(function(g){var rows=g.rows,many=g.done&&!q;
+  if(many){h+='<div class="cbh"><button class="lnk" data-cbdone="1">'+(PK.doneOpen?'▾':'▸')+' Done ('+rows.length+')</button></div>';if(PK.doneOpen)h+=rows.map(row).join('')}
+  else{h+='<div class="cbh">'+g.t+'</div>'+(g.open&&!q?rows.filter(function(r){return r.i.kind==='goal'||r.loose}).map(function(r){var x=row(r);if(r.i.kind==='goal')x+=scopesOf(r.i.n).filter(function(s){return s.st==='open'}).map(function(s){return row({i:item('scope',s.n),d:1})}).join('');return x}).join(''):rows.map(row).join(''))}});
+ if(!n)h+='<p class="empty">Nothing is called “'+esc(q)+'”.</p>';return h}
+function openCombo(){var p=$('#combo'),b=$('#selbtn');p.hidden=false;p.innerHTML='<input id="cbq" type="search" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="cbl" aria-autocomplete="list" placeholder="Search goals and scopes" aria-label="Search goals and scopes"><div id="cbl" role="listbox" aria-label="Goals and scopes"></div><div class="cbf"><button class="cp" data-pick="picker">Open the picker (counts, last active)</button><span class="muted sm">↑ ↓ Enter · Esc</span></div>';
+ var r=b.getBoundingClientRect();p.style.left=Math.max(8,Math.min(r.left+scrollX,innerWidth-p.offsetWidth-8))+'px';p.style.top=(r.bottom+scrollY+4)+'px';b.setAttribute('aria-expanded','true');PK.ai=-1;fillCombo('');$('#cbq').focus()}
+function fillCombo(q){$('#cbl').innerHTML=comboList(q);var a=$$('#cbl .cbo'),cur=a.filter(function(x){return x.classList.contains('cur')})[0];PK.ai=q?0:-1;if(q||!cur)PK.ai=q?0:-1;markAct()}
+function markAct(){var a=$$('#cbl .cbo');a.forEach(function(x,i){x.classList.toggle('act',i===PK.ai)});var q=$('#cbq'),c=a[PK.ai];if(q){if(c){q.setAttribute('aria-activedescendant',c.id);c.scrollIntoView({block:'nearest'})}else q.removeAttribute('aria-activedescendant')}}
+function closeCombo(){var p=$('#combo');if(!p||p.hidden)return;p.hidden=true;var b=$('#selbtn');b.setAttribute('aria-expanded','false')}
+document.addEventListener('input',function(e){if(e.target.id==='cbq')fillCombo(e.target.value);if(e.target.id==='pkq'){PK.q=e.target.value;var pos=e.target.selectionStart;renderPicker();var q=$('#pkq');q.focus();q.setSelectionRange(pos,pos)}});
+document.addEventListener('keydown',function(e){
+ if(e.target.id==='cbq'){var a=$$('#cbl .cbo');if(e.key==='ArrowDown'){e.preventDefault();PK.ai=Math.min(a.length-1,PK.ai+1);markAct()}else if(e.key==='ArrowUp'){e.preventDefault();PK.ai=Math.max(0,PK.ai-1);markAct()}else if(e.key==='Enter'){e.preventDefault();var c=a[PK.ai>=0?PK.ai:0];if(c)selectKey(c.dataset.pick)}else if(e.key==='Escape'){closeCombo();$('#selbtn').focus()}return}
+ if(e.key==='Enter'&&e.target.dataset&&e.target.dataset.pick&&(e.target.classList.contains('pr')||e.target.tagName==='TR')){e.preventDefault();selectKey(e.target.dataset.pick);return}
+ if((e.key==='ArrowRight'||e.key==='ArrowLeft')&&e.target.classList&&e.target.classList.contains('pr')&&e.target.dataset.pick.indexOf('goal:')===0){var n=e.target.dataset.pick.slice(5);if(e.key==='ArrowRight'===!PK.exp[n]){PK.exp[n]=!PK.exp[n];renderPicker();var r=$('.pr[data-pick="goal:'+n+'"]');r&&r.focus()}return}
+ if((e.key==='ArrowDown'||e.key==='ArrowUp')&&e.target.classList&&(e.target.classList.contains('pr')||e.target.id==='pkq')){var rs=$$('#picker .pr'),ix=rs.indexOf(e.target),nx=rs[e.key==='ArrowDown'?ix+1:ix-1];if(e.target.id==='pkq')nx=rs[0];if(nx){e.preventDefault();nx.focus()}return}
+ if(e.key==='/'&&!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)&&!hasSel()){var q=$('#pkq');if(q){e.preventDefault();q.focus()}}
+ if(e.key==='Escape')closeCombo()});
+document.addEventListener('pointerdown',function(e){if(!$('#combo').hidden&&!e.target.closest('#combo')&&!e.target.closest('#selbtn'))closeCombo()});
+$('#selbtn').onclick=function(){if($('#combo').hidden)openCombo();else closeCombo()};
+document.addEventListener('click',function(e){var t=e.target.closest('[data-pick],[data-exp],[data-sort],[data-pkexp],[data-pkclr],[data-cbdone]');if(!t)return;
+ if(t.tagName==='A')e.preventDefault();
+ if(t.dataset.exp!==undefined){PK.exp[t.dataset.exp]=!PK.exp[t.dataset.exp];renderPicker();e.stopPropagation();return}
+ if(t.dataset.sort){PK.sort=t.dataset.sort;renderPicker();return}
+ if(t.dataset.pkexp){if(Object.keys(PK.exp).length)PK.exp={};else GOALS.forEach(function(g){if(g.st==='open')PK.exp[g.n]=true});renderPicker();return}
+ if(t.dataset.pkclr){PK.q='';renderPicker();return}
+ if(t.dataset.cbdone){PK.doneOpen=!PK.doneOpen;fillCombo($('#cbq').value);$('#cbq').focus();return}
+ if(t.dataset.pick&&!e.target.closest('.chev'))selectKey(t.dataset.pick)});
+document.addEventListener('toggle',function(e){if(e.target.classList&&e.target.classList.contains('dnd'))PK.doneOpen=e.target.open},true);
+
+/* ---------- panel shell ---------- */
+function copyTxt(s){try{navigator.clipboard.writeText(s)}catch(x){}}
+function addPend(c,fn){PEND.push({cmd:c,apply:fn});renderOne('inbox')}
+function mkPanel(id){var d=PANELS[id],el=document.createElement('section');el.className='panel'+(d.hot?' hot':'');el.id='p-'+id;
+ el.innerHTML='<div class="ph" tabindex="0" role="group" aria-label="'+d.title+' panel. Drag the title, or press arrow keys to move and Shift+arrows to resize."><span class="grip" aria-hidden="true">&#8942;&#8942;</span><h2>'+d.title+'</h2><span class="count"></span><span class="sp"></span>'+(d.table?'<button class="pbtn" data-cols="1" title="Choose and reorder columns" aria-label="Columns of '+d.title+'">Columns</button>':'')+'<button class="pbtn fit" data-fit="1" hidden title="Fit height and width to the content again" aria-label="Fit '+d.title+' to its content">Fit</button><button class="pbtn" data-hide="1" title="Hide this panel (bring it back from Panels)" aria-label="Hide '+d.title+'">&#10005;</button></div><div class="pb"><div class="pbi"></div></div>'+['n','s','e','w','ne','nw','se','sw'].map(function(x){return '<i class="rz '+x+'" data-dir="'+x+'"></i>'}).join('');
+ canvas.appendChild(el);P[id]={el:el,title:d.title,render:function(){renderOne(id)}};RO.observe($('.pbi',el));
+ var ph=$('.ph',el);
+ ph.addEventListener('pointerdown',function(e){if(e.button!==0||e.target.closest('button'))return;try{ph.setPointerCapture(e.pointerId)}catch(x){}drag(id,e)});
+ ph.addEventListener('keydown',function(e){if(e.target!==ph)return;var k=e.key,dx=k==='ArrowRight'?1:k==='ArrowLeft'?-1:0,dy=k==='ArrowDown'?1:k==='ArrowUp'?-1:0;if(!dx&&!dy)return;e.preventDefault();
+  var r=L[id];AUTOLAY=false;if(e.shiftKey){if(dx){r.w=clamp(r.w+dx,MINW,COLS-r.x);r.mw=true}if(dy){r.h=Math.max(MINU,hOf(id)+dy*20);r.m=true}}else{r.x=clamp(r.x+dx,0,COLS-r.w);r.y=Math.max(0,r.y+dy*20)}settle(id)});
+ $$('.rz',el).forEach(function(z){z.addEventListener('dblclick',function(){var q=L[id],dr=z.dataset.dir;if(/[ns]/.test(dr))delete q.m;if(/[ew]/.test(dr))delete q.mw;settle(id)});z.addEventListener('pointerdown',function(e){if(e.button!==0)return;e.preventDefault();try{z.setPointerCapture(e.pointerId)}catch(x){}resize(id,z.dataset.dir,e)})});
+ el.addEventListener('click',function(e){var t=e.target.closest('button,a,tr[data-k],tr[data-hl]');if(!t)return;
+  if(t.dataset.fit){delete L[id].m;delete L[id].mw;settle(id)}
+  else if(t.dataset.hide){H[id]=true;el.hidden=true;settle(null);showSave()}
+  else if(t.dataset.cols)colMenu(id,t);
+  else if(t.dataset.tf){ST.tf=t.dataset.tf;renderOne(id)}
+  else if(t.dataset.ff){ST.ff=t.dataset.ff;renderOne(id)}
+  else if(t.dataset.copy){copyTxt(t.dataset.copy);t.textContent='copied';setTimeout(function(){t.textContent='copy'},1200)}
+  else if(t.dataset.parkc){copyTxt(t.dataset.parkc);addPend(t.dataset.parkc,function(){var q=QS.filter(function(x){return x.id===t.dataset.from})[0];PQS.push({id:'Q'+(PQS.length+2),level:'scope',sc:q.sc,text:q.title,from:q.id,blocks:q.blocks,parked:NOWEP,st:'parked',file:q.sc+'/open-questions.md'})})}
+  else if(t.dataset.pf){var tx=$('#pf-t').value.trim()||'Should we ...?',lv=$('#pf-l').value,fr=$('#pf-f').value.trim(),bl=$('#pf-b').value.trim(),c='squad-inbox park --text "'+tx+'"'+(fr?' --from '+fr:'')+(bl?' --blocks "'+bl+'"':'')+' --level '+lv;copyTxt(c);addPend(c,function(){PQS.push({id:'Q'+(PQS.length+2),level:lv,sc:lv==='scope'?(F.scope!=='all'?F.scope:'dashboard'):undefined,goal:lv==='goal'?(F.goal!=='all'?F.goal:'board-v2'):undefined,text:tx,from:fr||null,blocks:bl||null,parked:NOWEP,st:'parked',file:'open-questions.md'})})}
+  else if(t.dataset.cmd){var cm=t.dataset.cmd.replace(/&quot;/g,'"'),qid=/(Q\d+)/.exec(cm)[1];copyTxt(cm);addPend(cm,function(){var q=PQS.filter(function(x){return x.id===qid})[0];if(/unpark/.test(cm))PQS.splice(PQS.indexOf(q),1);else{q.st='resolved';q.answer='(your answer)';q.resolved=NOWEP}})}
+  else if(t.dataset.sim){var p=PEND.splice(+t.dataset.sim,1)[0];p.apply();renderAll()}
+  else if(t.classList.contains('of')){e.preventDefault()}
+  else if(t.dataset.k&&!e.target.closest('code,a')){var kk=id+t.dataset.k;ST.open[kk]=!ST.open[kk];renderOne(id)}});
+ el.addEventListener('keydown',function(e){var t=e.target;if((e.key==='Enter'||e.key===' ')&&t.matches&&t.matches('tr[data-k]')){e.preventDefault();var kk=id+t.dataset.k;ST.open[kk]=!ST.open[kk];renderOne(id);var r=$('tr[data-k="'+t.dataset.k+'"]',el);r&&r.focus()}});
+ /* column drag */
+ var dragCol=null;
+ el.addEventListener('dragstart',function(e){var th=e.target.closest&&e.target.closest('th[data-c]');if(!th)return;dragCol=th.dataset.c;try{e.dataTransfer.setData('text/plain',dragCol)}catch(x){}});
+ el.addEventListener('dragover',function(e){var th=e.target.closest&&e.target.closest('th[data-c]');if(th&&dragCol){e.preventDefault();$$('th.over',el).forEach(function(x){x.classList.remove('over')});th.classList.add('over')}});
+ el.addEventListener('drop',function(e){var th=e.target.closest&&e.target.closest('th[data-c]');if(!th||!dragCol)return;e.preventDefault();var ids=colsFor(id).map(function(c){return c.id}),from=ids.indexOf(dragCol),to=ids.indexOf(th.dataset.c);if(from>=0&&to>=0&&from!==to){ids.splice(to,0,ids.splice(from,1)[0]);setCols(id,ids)}dragCol=null});
+ el.addEventListener('dragend',function(){dragCol=null;$$('th.over',el).forEach(function(x){x.classList.remove('over')})});
+}
+function renderOne(id){var d=PANELS[id],el=P[id].el,body=$('.pb',el),sc=body.scrollTop;$('.pbi',body).innerHTML=d.render();body.scrollTop=sc;body.classList.toggle('wt',id==='time');
+ var c=d.count?d.count():'',ce=$('.count',el);ce.textContent=c;ce.style.display=c===''?'none':'';
+ var hot=d.hot&&(view==='normal'||view==='stale');el.classList.toggle('hot',!!hot);ce.classList.toggle('hot',!!hot);ce.classList.toggle('flt',filtered()&&/ of /.test(c));
+ if(id==='time'&&hasSel())TLE.after()}
+function renderAll(){if(hasSel())ORDER.forEach(renderOne);else renderPicker();chrome();if(hasSel())replan()}
+/* ---------- header, banner, views ---------- */
+function chrome(){
+ var c=inboxCounts(),tt=view==='normal'||view==='stale'?'('+c.all+') board':view==='unknown'?'(?) board':'board';
+ $('#home').textContent=SQ[squad];document.title=tt;$('#tt').textContent=tt;
+ var z=zone(),bad=zoneOv&&zoneOv!=='UTC'&&z==='UTC';
+ $('#zone').innerHTML='times in <b>'+offLabel(NOWEP)+'</b>'+(bad?' (zone not readable)':z==='UTC'?'':' '+esc(z))+' <span class="muted sm">files are UTC</span>';
+ $('#zone').title=bad?'The browser zone cannot be read, so times show in UTC.':'Every time on this page is shown in your browser zone. The files and the data stay UTC; hover a time to see the UTC value.';
+ var f=$('#fresh');f.className='fresh'+(view==='stale'?' bad':view==='loading'?' load':'');
+ f.innerHTML=view==='stale'?'<i class="dot"></i><b>not updating</b> · last good '+T(NOWEP-135000,{s:1}):view==='loading'?'<i class="dot"></i>reading the squad…':'<i class="dot"></i>updated '+T(NOWEP,{s:1})+' · refreshes every 5 s';
+ var names=['inbox','herdr','ledger','git','transcripts','files'];
+ $('#srcs').innerHTML=view==='loading'?'<span class="muted">sources: checking…</span>':names.map(function(n){var bad=view==='unknown'&&MISSING[n];return '<span class="src '+(bad?'bad':'')+'" title="'+(bad?'unknown: '+SRCNAME[n]+' did not answer':SRCNAME[n]+' readable')+'"><i></i>'+n+(bad?': unknown':'')+'</span>'}).join('');
+ var a='';
+ if(view==='stale')a+='<div class="banner stale" role="alert"><b>Not updating.</b> 3 refreshes in a row failed. You see the squad as of '+T(NOWEP-135000,{s:1})+'. The board may be stopped: '+cmd('squad-board --squad board --scope dashboard')+'</div>';
+ if(view==='normal'||view==='stale')a+='<div class="banner" role="alert"><div class="t">'+chip('need','permission prompt')+' <b>qa-white</b> <span class="muted">board-qa-white-dashboard</span> waits for you: '+cmd('Bash: python3 tests/run_suite.py --receipt evidence/02')+'<span class="age">waiting 6 min</span></div><div class="muted">Open that pane and answer there; a message cannot approve it. This banner ignores the filter, cannot be hidden and leaves when the prompt is answered.</div></div>';
+ if(view==='unknown')a+='<div class="banner unk"><b>unknown: herdr is not running.</b> Permission prompts cannot be listed, so there is no banner. This is not "no prompt".</div>';
+ $('#alerts').innerHTML=a;
+ $$('.demo button[data-v]').forEach(function(b){b.className=b.dataset.v===view?'on':''});
+ applyAll()}
+function setView(v){view=v;document.body.setAttribute('data-view',v);renderAll()}
+$$('.demo button[data-v]').forEach(function(b){b.onclick=function(){setView(b.dataset.v)}});
+$('#zsel').onchange=function(){zoneOv=this.value;renderAll()};
+$('#svm').onchange=function(){SAVEMODE=this.value;if(SAVEMODE==='badfile'||SAVEMODE==='none'||SAVEMODE==='nofile'||SAVEMODE==='nobrowser'){if(SAVEMODE==='badfile')load();else showSave()}else showSave()};
+$('#forget').onclick=function(){try{localStorage.removeItem(BKEY())}catch(x){}load()};
+$('#sq').onchange=function(){squad=this.value;load();chrome()};
+$('#demorows').onchange=function(){DEMOROWS=+this.value;renderAll()};
+$('#openas').onchange=function(){OPENAS=this.value;if(OPENAS==='forget'){try{localStorage.removeItem(BKEY());localStorage.removeItem(FKEY())}catch(x){}OPENAS='none';window.__noseed=1}load(true);chrome()};
+new ResizeObserver(function(){applyAll()}).observe(canvas);window.__rows=function(){return JSON.stringify({AUTO:AUTO,L:L})};
+
+ORDER.forEach(mkPanel);
+TLE.C=TLC;TLE.zone=zone;TLE.onChange=function(){renderOne('time')};TLE.lanes=function(){return TL.LANES.filter(function(l){return inF(l.sc)})};TLE.bind($('.pb',P.time.el));
+var m=/view=(\w+)/.exec(location.hash);if(m)view=m[1];var om=/open=(\w+)/.exec(location.hash);if(om&&FLAG[om[1]])OPENAS=om[1];
+document.body.setAttribute('data-view',view);
+load(true);chrome();
+window.__setView=setView;window.__layout=function(){return JSON.stringify(L)};window.__zone=function(){return zone()+' '+offLabel(NOWEP)};
+})();
+</script></body></html>
