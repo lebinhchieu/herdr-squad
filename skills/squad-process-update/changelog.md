@@ -1,3 +1,21 @@
+## v11 — 2026-11-04
+
+Plugin 0.6.0 stays. Rule text only; no settings change.
+
+added:
+none
+
+changed:
+- ITER-4: new bullet: `squad-inbox park|unpark|resolve` and never waiting on a parked question. why: a parked question clears "Needs you" without answering it
+- START-18: the Manager also reads `open-questions.md` of its level when present. why: the Manager must see parked questions
+- START-19: the Manager writes `tickets: <feature-slug>` into `scope.md` at plan. why: the board reads the ticket folder from it
+
+removed:
+none
+
+retargeted:
+none
+
 ## v10 — 2026-10-28
 
 Plugin 0.6.0 stays. Rule text only; no settings change.
