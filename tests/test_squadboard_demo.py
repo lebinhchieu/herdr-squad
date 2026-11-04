@@ -5,6 +5,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import signal
 import socket
 import subprocess
@@ -312,6 +313,73 @@ class Label(unittest.TestCase):
             self.assertTrue(d[t].startswith("[demo] "), d[t])
         self.assertFalse(n["first"]["shown"])  # a normal run: hidden, no prefix
         self.assertFalse(n["title1"].startswith("[demo]"))
+
+
+PW_CORE = Path("/home/chieule/.nvm/versions/node/v24.15.0/lib/node_modules/@playwright/cli/node_modules/playwright-core")
+
+
+def browser(mode, port, profile):
+    env = {**os.environ, "PLAYWRIGHT_CORE": str(PW_CORE), "CHROME_BIN": CHROME}
+    r = subprocess.run(["node", str(HERE / "demo_ac9_browser.js"), mode, "http://127.0.0.1:%d/" % port, str(profile)],
+                       capture_output=True, text=True, encoding="utf-8", timeout=120, env=env)
+    assert r.returncode == 0, r.stderr[-600:]
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
+@unittest.skipUnless(PW_CORE.exists() and CHROME and shutil.which("node"), "needs node + playwright-core + Chrome")
+class Browser(unittest.TestCase):
+    """The demo seen by a real Chrome with a persistent profile (T37.AC9, T37.AC11)."""
+
+    def start(self, port):
+        p = subprocess.Popen([sys.executable, "-I", str(ROOT / "bin" / "squad-board"), "--demo", "--port", str(port), "--no-open"],
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=tempfile.gettempdir())
+        for _ in range(100):
+            try:
+                urllib.request.urlopen("http://127.0.0.1:%d/api/squads" % port, timeout=2)
+                return p
+            except OSError:
+                time.sleep(0.2)
+        p.kill()
+        raise AssertionError("demo did not start")
+
+    def stop(self, p):
+        p.send_signal(signal.SIGINT)
+        p.wait(15)
+
+    def test_T37_AC9_hidden_panel_does_not_survive_a_demo_restart(self):
+        profile = tempfile.mkdtemp(prefix="demo-profile-")
+        self.addCleanup(shutil.rmtree, profile, True)
+        port = free_port()
+        p = self.start(port)
+        try:
+            first = browser("hide", port, profile)
+        finally:
+            self.stop(p)
+        self.assertNotIn("files", first["panels"])  # the hide worked
+        self.assertEqual(first["keys"], [])  # the demo writes no layout to browser storage
+        p = self.start(port)
+        try:
+            second = browser("check", port, profile)
+        finally:
+            self.stop(p)
+        self.assertEqual(sorted(second["panels"]), sorted(["inbox", "scopes", "tasks", "agents", "files", "worktime"]), second)
+        self.assertEqual(second["keys"], [])
+
+    def test_T37_AC11_no_age_in_days_in_the_rendered_demo(self):
+        profile = tempfile.mkdtemp(prefix="demo-profile-")
+        self.addCleanup(shutil.rmtree, profile, True)
+        port = free_port()
+        p = self.start(port)
+        try:
+            views = browser("ages", port, profile)
+        finally:
+            self.stop(p)
+        age = re.compile(r"\b\d+\s*(d|day|days|y|year|years)\b\s*ago", re.I)
+        self.assertGreaterEqual(len(views), 3, list(views))
+        for label, text in views.items():
+            self.assertTrue(text.strip(), label)  # not vacuous
+            self.assertIsNone(age.search(text), (label, age.search(text) and age.search(text).group(0)))
+        self.assertTrue(any(re.search(r"Pick the payment provider[\s\S]{0,200}\b\d+ min ago", t) for t in views.values()), "E1 reads minutes")
 
 
 if __name__ == "__main__":

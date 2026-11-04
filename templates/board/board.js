@@ -441,7 +441,7 @@
     function touch(extra) {
             S.saved_at = iso();
       var snap = snapshot();
-      try { if (storage) storage.setItem(storeKey(), JSON.stringify(snap)); S.notes.storage = ""; }
+      try { if (storage && !S.demo) storage.setItem(storeKey(), JSON.stringify(snap)); S.notes.storage = ""; }
       catch (e) { S.notes.storage = "This browser blocks storage: settings are kept in the squad folder only."; }
       clearT(saveTimer);
       saveTimer = setT(function () { put(snap); }, SAVE_DELAY_MS);
@@ -868,7 +868,7 @@
         var d = j && j.data ? j.data : { ui: null, status: "unreadable" };
         S.saveStatus = d.status === "unreadable" ? "unreadable" : (d.status === "unwritable" ? "unwritable" : "ok");
         var copy = null;
-        try { copy = storage ? JSON.parse(storage.getItem(storeKey()) || "null") : null; S.notes.storage = ""; }
+        try { copy = storage && !S.demo ? JSON.parse(storage.getItem(storeKey()) || "null") : null; S.notes.storage = ""; }
         catch (e) { S.notes.storage = "This browser blocks storage: settings are kept in the squad folder only."; }
         var file = d.status === "unreadable" ? null : d.ui;
         S.columns = {};

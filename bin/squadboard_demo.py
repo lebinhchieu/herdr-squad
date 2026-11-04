@@ -76,6 +76,13 @@ def extend(fx, now=None):
     for f in ("escalations.md", "inbox.jsonl"):  # an open question (and an answered one) in both scopes
         for d in (src, dst):
             shutil.copy2(questions / f, d / f)
+    seen = (now - timedelta(minutes=25)).strftime("%Y-%m-%dT%H:%M:%SZ")  # the fixture stamp is a fixed date: make E1 and E2 minutes old
+    for d in (src, dst, questions):  # the temp copy of the `questions` scope too (the fixture file stays unedited)
+        lines = [json.loads(l) for l in _read(d / "inbox.jsonl").splitlines() if l.strip()]
+        for rec in lines:
+            if rec.get("ts", "").startswith("2026-11-03"):
+                rec["ts"] = seen
+        _write(d / "inbox.jsonl", "".join(json.dumps(r) + "\n" for r in lines))
     _write(dst / "messages.jsonl", _rename(_read(src / "messages.jsonl")))
     roster = _read(src / "roster.md")
     _write(src / "roster.md", roster.replace("s-qab-missing", "s-qab"))
