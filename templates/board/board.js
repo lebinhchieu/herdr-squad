@@ -11,6 +11,7 @@
   var SAVE_DELAY_MS = 300;
   var FONTS = [["small", "Small", 0.9], ["normal", "Normal", 1], ["xl", "Extra large", 1.3]];
   var RECENT_MAX = 5;
+  BOARD.hooks = BOARD.hooks || {};   /* view hooks (ticket 11): flags(), boot(S, d, ini), data(squadsResp, S), paint(S) */
 
   /* ---------- pure rules ---------- */
   function readZone() {
@@ -195,7 +196,8 @@
       els.pick = el("p", "note"); els.pick.hidden = true;
       var main = el("main"); els.canvas = el("div"); els.canvas.id = "canvas"; main.appendChild(els.canvas);
       els.pop = el("div", "pop"); els.pop.hidden = true; els.pop.setAttribute("role", "menu");
-      [header, els.notes, els.banner, els.pick, main, els.pop].forEach(function (n) { app.appendChild(n); });
+      els.view = el("div"); els.view.id = "view";   /* the picker and the context line (panel_scopes.js) */
+      [header, els.notes, els.banner, els.pick, els.view, main, els.pop].forEach(function (n) { app.appendChild(n); });
       els.squad.addEventListener("change", function () { switchSquad(els.squad.value); });
       els.choice.addEventListener("change", function () { setChoice(els.choice.value); });
       els.reset.addEventListener("click", resetLayout);
@@ -372,6 +374,8 @@
       if (S.choice) els.choice.value = S.choice.kind + ":" + S.choice.name;
       els.pick.hidden = !!S.choice;
       els.pick.textContent = S.choice ? "" : "Pick a goal or a scope to show.";
+      els.canvas.parentNode.hidden = !S.choice;
+      if (BOARD.hooks.paint) BOARD.hooks.paint(S);
     }
 
     function setChoice(v) {
@@ -475,6 +479,7 @@
         S.squads = sq.squads;
         S.squad = S.squads.filter(function (s) { return s.key === cur; })[0] || S.squad;
       }
+      if (BOARD.hooks.data) BOARD.hooks.data(v.squads, S);
       v.panels.forEach(function (p, i) { renderPanel(p, v.resp[i]); });
       var n = needsFrom(v.resp);
       if (n != null) S.needs = n;
@@ -514,17 +519,19 @@
       }).then(function (j) {
         var d = j.data || {};
         S.squads = d.squads || [];
-        var ini = d.initial || {};
+        var ini = d.initial || (BOARD.hooks.flags && BOARD.hooks.flags()) || {};
         S.squad = S.squads.filter(function (s) { return s.key === ini.squad && !s.flat; })[0] || S.squads.filter(function (s) { return !s.flat; })[0] || null;
         if (!S.squad) { paintPickers(); throw new Error("no squad"); }
         return loadSaved().then(function (ok) {
           if (!ok) throw new Error("no saved state answer");
+          if (BOARD.hooks.boot) return BOARD.hooks.boot(S, d, ini);
           if (ini.goal) S.choice = { kind: "goal", name: ini.goal };
           else if (ini.scope) S.choice = { kind: "scope", name: ini.scope };
           if (!S.choice) {
             var first = (S.squad.scopes || [])[0];
             if (first) S.choice = { kind: "scope", name: first };
           }
+        }).then(function () {
           applyFont(); paintPickers(); setFlags(); paintTitle();
           booted = true;
         });
@@ -548,6 +555,8 @@
     }
 
     init();
+    BOARD.ctx = { state: S, els: els, setChoice: setChoice, paint: paintPickers, poller: poller, touch: touch, clear: clearPanels,
+                  getJson: getJson, panels: P, fmtClock: function (i) { return fmtClock(i, tz); }, now: nowMs, paintTitle: paintTitle };
     BOARD.page = { state: S, panels: P, poller: poller, engine: engine, paintFresh: paintFresh, setFont: setFont, resetLayout: resetLayout,
                    replan: replan, snapshot: snapshot, setChoice: setChoice, touch: touch };
     return BOARD.page;
