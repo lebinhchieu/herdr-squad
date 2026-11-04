@@ -444,8 +444,8 @@ pe36('pointerup',s.left+Wk(3,4),s.top+20);await sleep(300);out({mid,np,b:boxes()
             above = [y["b"] for y in r["b"] if y is not x and y["l"] < x["l"] + x["w"] - 1 and x["l"] < y["l"] + y["w"] - 1 and y["b"] <= x["t"] + 2]
             self.assertAlmostEqual(x["t"], max(above) + 12 if above else 0, delta=3, msg=x["id"])
 
-    def _flush_right_widen(self, beyond, travel=True):
-        edge = "innerWidth-1" if beyond else "cr.right+8"   # the handle sits within 8 px of the edge: the pointer needs 8 px of travel
+    def _flush_right_widen(self, travel=True):
+        edge = "innerWidth-1"
         return page36("""await start35();const cs=getComputedStyle($('#canvas')),pr=parseFloat(cs.paddingRight)||0,cr=$('#canvas').getBoundingClientRect();
 const b0=box36('tasks'),o={iw:innerWidth,b0,flush:Math.abs(b0.l+b0.w-(cr.width-pr-(parseFloat(cs.paddingLeft)||0)-0))<40||b0.l+b0.w+pr>=cr.width-2};
 const s=down36('tasks'),h=hnd('tasks').getBoundingClientRect();o.p0=puts36().length;
@@ -456,8 +456,8 @@ o.cr=[Math.round(cr.left),Math.round(cr.right-pr)];o.b=boxes();o.puts=puts36().s
             "true" if travel else "false", edge, edge if travel else "h.left+6"))
 
     def test_T36_AC3_flush_right_panel_widens_by_mouse_to_the_canvas_edge(self):
-        for beyond in (False, True):
-            r = self._flush_right_widen(beyond)
+        for beyond in (True,):
+            r = self._flush_right_widen()
             self.assertEqual(r["iw"], 1440)
             self.assertEqual(r["pill"], "4 of 4 columns", beyond)
             self.assertGreaterEqual(r["ol"][0], r["cr"][0] - 1, beyond)    # outline inside the canvas
@@ -472,11 +472,24 @@ o.cr=[Math.round(cr.left),Math.round(cr.right-pr)];o.b=boxes();o.puts=puts36().s
                     self.assertFalse(overlap(x, y), (beyond, x["id"], y["id"]))
 
     def test_T36_AC3_click_without_travel_on_a_flush_right_panel_changes_nothing(self):
-        r = self._flush_right_widen(False, travel=False)
+        r = self._flush_right_widen(travel=False)
         self.assertEqual(r["puts"], [])
         self.assertEqual(r["b"], [dict(x) for x in r["b"]])
         t = [x for x in r["b"] if x["id"] == "tasks"][0]
         self.assertEqual((t["l"], t["w"]), (r["b0"]["l"], r["b0"]["w"]))
+
+    def test_T36_AC3_grab_on_the_gutter_half_of_the_handle_needs_4px_of_travel(self):
+        r = page36("""await start35();const cr=$('#canvas').getBoundingClientRect(),y=$('section[data-panel=tasks]').getBoundingClientRect().top+20;
+const o={iw:innerWidth,p0:puts36().length,w0:box36('tasks').w};
+hnd('tasks').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:cr.right+5,clientY:y,button:0}));
+pe36('pointermove',cr.right+8,y);await sleep(50);o.small=document.querySelector('.rzp').textContent;
+pe36('pointermove',cr.right+9,y);await sleep(50);o.big=document.querySelector('.rzp').textContent;
+pe36('pointermove',cr.right+8,y);await sleep(50);o.back=document.querySelector('.rzp').textContent;
+pe36('pointerup',cr.right+8,y);await sleep(300);o.puts=puts36().length-o.p0;o.w=box36('tasks').w;out(o);""")
+        self.assertEqual(r["iw"], 1440)
+        self.assertEqual((r["small"], r["big"], r["back"]), ("2 of 4 columns", "4 of 4 columns", "2 of 4 columns"))   # 3 px: old span; 4 px: full; back to 3 px: old span
+        self.assertEqual(r["puts"], 0)                 # released at 3 px of travel: nothing saved
+        self.assertEqual(r["w"], r["w0"])
 
     def test_T36_TA7_handle_is_a_focusable_separator_and_the_banner_has_none(self):
         r = page36("""await start35();out({h:$$('section.panel:not([hidden]) .rz.e').map(e=>[e.closest('section').dataset.panel,e.getAttribute('role'),e.getAttribute('aria-orientation'),e.tabIndex,e.getAttribute('aria-label')]),

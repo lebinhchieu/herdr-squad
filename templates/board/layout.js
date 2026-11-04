@@ -333,7 +333,7 @@
       show();
       var grabX = e.clientX == null ? r.right : e.clientX;
       function mv(ev) {
-        var atEdge = ev.clientX >= cr.right - pr && ev.clientX - grabX >= 8;
+        var atEdge = ev.clientX >= cr.right - pr && ev.clientX - grabX >= 4;
         k = edgeSpan(ev.clientX - r.left, trackW, GUTTER, G, minOf(p), atEdge); show();
       }
       function end(cancel) {
