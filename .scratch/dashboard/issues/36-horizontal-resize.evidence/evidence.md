@@ -1,5 +1,5 @@
 ## Behaviour
-Every panel has an east-edge handle `.rz.e` (a focusable separator). A drag shows a dashed outline, a pill `k of G columns` and guides; nothing moves until release. On release one save writes `tracks` (twelfths, 1..12) and `place` runs once. Esc cancels, double-click removes `tracks`, Left/Right change the span by one. `PUT /api/ui` keeps `tracks` 1..12 and drops `col`, `span`, `auto`. Code sha: f3d070f (flush-right widen added on top of 31ec56a). Tests: test_squadboard_grid, test_squadboard_ui, test_squadboard_page 61 OK.
+Every panel has an east-edge handle `.rz.e` (a focusable separator). A drag shows a dashed outline, a pill `k of G columns` and guides; nothing moves until release. On release one save writes `tracks` (twelfths, 1..12) and `place` runs once. Esc cancels, double-click removes `tracks`, Left/Right change the span by one. `PUT /api/ui` keeps `tracks` 1..12 and drops `col`, `span`, `auto`. Code sha: 8e2c743 (flush-right widen added on top of 31ec56a). Tests: test_squadboard_grid, test_squadboard_ui, test_squadboard_page 61 OK.
 
 What I saw (headless Chrome, real server, fixture, Agents panel handle; shots at 1000/1440/1920):
 - Hover: a thin vertical line on the panel's east edge (at 1920 the Agents handle is at the window edge, so the line is faint).
@@ -17,7 +17,7 @@ What I saw (headless Chrome, real server, fixture, Agents panel handle; shots at
 ![drag 1440](img/drag-1440.png)
 ![drag 1920](img/drag-1920.png)
 
-Flush-right panel (ruling D, option A). Tasks sits flush right at 1440 (G = 4). Dragging its east handle to the canvas right edge or past it shows the pill `4 of 4 columns`; the dashed outline is clamped inside the canvas (it shows where the panel lands after `place`). On release one save writes tracks 12 and the panel is as wide as the canvas content (1402 px at this size; the canvas is 1401 px wide, not 1416). A click with no travel changes nothing. One edge case: the handle (12 px) lies within 8 px of the canvas edge, so a pointer that stops exactly at the content edge has less than the 8 px of travel and keeps the normal snap (2 of 4); the pointer must go 8 px past the grab point (the margin right of the canvas is 27 px at 1440).
+Flush-right panel (ruling D, option A). Tasks sits flush right at 1440 (G = 4). Dragging its east handle to the canvas right edge or past it shows the pill `4 of 4 columns`; the dashed outline is clamped inside the canvas (it shows where the panel lands after `place`). On release one save writes tracks 12 and the panel is as wide as the canvas content (1402 px at this size; the canvas is 1401 px wide, not 1416). A click with no travel changes nothing. The pointer must have moved 4 px right of the grab point (same as the panel drag threshold), so a grab on the gutter half of the 12 px handle still reaches full width; a smaller move keeps the snap (2 of 4).
 
 ![drag flush 1440](img/drag-flush-1440.png)
 
@@ -43,7 +43,7 @@ Business AC (QA blackbox owns the live check):
 |---|---|
 | T36.AC1 handle exists | TA7 test; shots hover-*/focus-* |
 | T36.AC2a, AC2b span and snap (a flush-right panel too) | TA1, TA2 tests; flush-right widen test above (layout.js `edgeSpan`) |
-| T36.AC3 limits, flush-right widen by mouse | TA1 test (minSpan, beyond G, `edgeSpan`); `Resize::test_T36_AC3_flush_right_panel_widens_by_mouse_to_the_canvas_edge` (edge and beyond the edge, 1440, pill, outline inside, tracks 12, no overlap); `Resize::test_T36_AC3_click_without_travel_on_a_flush_right_panel_changes_nothing`; shot drag-flush-1440 (layout.js `edgeSpan`, `resizeEast` mv/show) |
+| T36.AC3 limits, flush-right widen by mouse | TA1 test (minSpan, beyond G, `edgeSpan`); `Resize::test_T36_AC3_flush_right_panel_widens_by_mouse_to_the_canvas_edge` (pointer at the window edge, 1440, pill, outline inside, tracks 12, width = 4 tracks + 3 gaps of the measured canvas, no overlap); `Resize::test_T36_AC3_click_without_travel_on_a_flush_right_panel_changes_nothing`; `Resize::test_T36_AC3_grab_on_the_gutter_half_of_the_handle_needs_4px_of_travel` (3 px keeps 2 of 4 and saves nothing, 4 px gives 4 of 4); shot drag-flush-1440 (layout.js `edgeSpan`, `resizeEast` mv/show) |
 | T36.AC4 live outline, pill, no move | TA6 test; shots drag-1000/1440/1920 |
 | T36.AC5 Esc | TA5 test |
 | T36.AC6 neighbours re-place | TA6 test; T35 TA2 geometry |
