@@ -31,3 +31,10 @@ Removed (they pinned the 12-column grid): `PureRules` `T10_AC5_AC6_short_beside_
 - The iteration-1 fixture is written by hand in the shape of the iteration-1 docstring, not copied from a live iteration-1 build.
 - Panel definitions (`panel_*.js`, `timeline.js`) still carry `span:`/`spans:` fields; they are unused. Left alone: those files are not in this ticket's touched list (TC.10).
 - No screenshots: the look is QA blackbox's (design-v7).
+
+## Return 2 (QA blackbox F1, F2; QA whitebox TA3)
+| Finding | Fix | Shown by |
+|---|---|---|
+| QA whitebox: TA3 goal view | Scopes placed at n=2, 3 | `PureRules.test_T26_TA3_...` |
+| F1 T26.AC14: drop outside every column cancels | `layout.js` `drag` `mv`: outside = x left of first / right of last column, y above the columns or below the window (was: only half a gutter and the window edge, so the top bar counted as inside) | `Layout.test_T26_AC3_AC4_AC6_AC11_AC14_AC15_...` `outSame`: release at y=1 and at x=1, layout and PUT count unchanged, no ghost; fails on 9af9c5f |
+| F2 design-v7 s2: spot before the first panel whose middle is below the pointer | `layout.js` `drag` `mv`: the spot is taken out of the column before the middles are measured | no new test (decision: F1 only); QA blackbox re-checks with pointer y 260/300/340/380 |

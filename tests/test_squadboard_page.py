@@ -298,6 +298,14 @@ ev('pointerdown',f.hdr,f.hdr.getBoundingClientRect().left+20,f.hdr.getBoundingCl
 ev('pointermove',document,fr.left+30,fr.top+200);await sleep(30);
 document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await sleep(60);await fire();
 const escSame=JSON.stringify(lay())===JSON.stringify(L1)&&puts.length===n0;
+// a drop outside every column (above them, left margin) cancels: nothing moves, nothing saved (T26.AC14)
+const n1=puts.length;let outSame=true;
+for(const [x,y] of [[fr.left+30,1],[1,fr.top+200]]){
+  const h=f.hdr.getBoundingClientRect();
+  ev('pointerdown',f.hdr,h.left+20,h.top+5);ev('pointermove',document,x,y);await sleep(30);
+  ev('pointerup',document,x,y);await sleep(60);await fire();
+  outSame=outSame&&JSON.stringify(lay())===JSON.stringify(L1)&&puts.length===n1&&!document.querySelector('.ghost');
+}
 // keyboard: Up/Down in the column, Left/Right to the next column, focus stays, edges do nothing
 f.hdr.focus();
 key(f,'ArrowUp');const upEdge=JSON.stringify(lay())===JSON.stringify(L1);
@@ -315,7 +323,7 @@ const L3=lay();
 // reload from the saved body
 const page2=BOARD.start(env(put2));await sleep(400);const L4=lay();
 page2.resetLayout();await sleep(200);const L5=lay();
-out({L0,L1,L2,L3,L4,L5,dst,src,spotFirst,gaps,escSame,upEdge,afterDown,afterSide,sideEdge,focusKept,put1,put2,hidL,auto5:page2.state.auto,
+out({L0,L1,L2,L3,L4,L5,dst,src,spotFirst,gaps,escSame,outSame,upEdge,afterDown,afterSide,sideEdge,focusKept,put1,put2,hidL,auto5:page2.state.auto,
   nospan:Object.values(put2.panels).every(p=>!('span' in p))});
 """, self.real)
         self.assertTrue(res["spotFirst"])                                        # T26.AC3: the spot shows where it lands
@@ -324,6 +332,7 @@ out({L0,L1,L2,L3,L4,L5,dst,src,spotFirst,gaps,escSame,upEdge,afterDown,afterSide
         self.assertTrue(all(abs(g - 12) <= 2 for c in res["gaps"] for g in c))   # the column it left closed up
         self.assertEqual((res["put1"]["panels"]["4"]["col"], res["put1"]["panels"]["4"]["order"], res["put1"]["auto"]), (res["dst"], 0, False))
         self.assertTrue(res["escSame"])                                          # T26.AC14: Esc cancels, nothing saved
+        self.assertTrue(res["outSame"])                                          # T26.AC14: a drop outside every column cancels
         self.assertTrue(res["upEdge"])                                           # T26.AC15: Up on the first moves nothing
         self.assertNotEqual(res["afterDown"], res["L1"])
         self.assertIn("4", res["afterSide"][res["src"]])                         # Left/Right: next column

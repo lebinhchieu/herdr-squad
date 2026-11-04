@@ -179,10 +179,12 @@
           if (d < bestD) { bestD = d; best = c; }
         });
         var first = cols[0].getBoundingClientRect(), last = cols[cols.length - 1].getBoundingClientRect();
-        var outside = ev.clientX < first.left - GUTTER / 2 || ev.clientX > last.right + GUTTER / 2 || ev.clientY < 0 || ev.clientY > root.innerHeight;
+        /* outside every column: left or right of the columns, above them (top bar) or below the window */
+        var outside = ev.clientX < first.left || ev.clientX > last.right || ev.clientY < first.top || ev.clientY > root.innerHeight;
         if (outside) { slot.remove(); over = null; return; }
         over = best; best.classList.add("over");
         var emp = best.querySelector(".empty"); if (emp) emp.hidden = true;
+        slot.remove();   /* decide on the layout at rest: the spot itself must not move the middles */
         var kids = [].slice.call(best.children).filter(function (k) { return k !== el && k.classList.contains("panel") && !k.hidden; }), at = null;
         for (var i = 0; i < kids.length; i++) {
           var b2 = kids[i].getBoundingClientRect();
