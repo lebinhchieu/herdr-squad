@@ -56,10 +56,10 @@ const key=(t,k)=>{const e=new KeyboardEvent('keydown',{key:k,bubbles:true,cancel
 """
 
 
-def run_page(body, real, suffix=""):
+def run_page(body, real, suffix="", head=None):
     with tempfile.TemporaryDirectory() as d:
         page = Path(d) / "page.html"
-        page.write_text(HEAD % {"tpl": str(TPL), "real": json.dumps(real), "body": body}, encoding="utf-8")
+        page.write_text((head or HEAD) % {"tpl": str(TPL), "real": json.dumps(real), "body": body}, encoding="utf-8")
         r = subprocess.run([CHROME, "--headless", "--disable-gpu", "--no-sandbox", "--allow-file-access-from-files",
                             "--virtual-time-budget=8000", "--window-size=1440,900", "--dump-dom",
                             "file://" + str(page) + suffix], capture_output=True, text=True, timeout=90)
@@ -382,6 +382,181 @@ class Static(unittest.TestCase):
         self.assertIsNone(re.search(r"\"All\"|'All'|>All<", js + (TPL / "board.js").read_text(encoding="utf-8")))
         self.assertEqual(re.findall(r'method\s*:\s*"(\w+)"', js), [])
         self.assertIsNone(re.search(r"#[0-9a-fA-F]{3,8}\b", js))   # colours are var(--x) tokens
+
+
+# ---------------------------------------------------------------- ticket 12: Needs you, Tasks, Agents now
+import datetime  # noqa: E402
+
+PANELS12 = ("panel_inbox.js", "panel_tasks.js", "panel_agents.js")
+
+
+def head12(files=PANELS12):
+    tag = lambda f: '<script src="file://%%(tpl)s/%s"></script>' % f   # same order as index.html: inbox, scopes, tasks, agents
+    pre = tag("panel_inbox.js") if "panel_inbox.js" in files else ""
+    post = "".join(tag(f) for f in files if f != "panel_inbox.js")
+    return HEAD.replace('<script src="file://%(tpl)s/panel_scopes.js"></script>', pre + '<script src="file://%(tpl)s/panel_scopes.js"></script>' + post, 1)
+
+
+PRE12 = r"""
+window.__w=[];Object.defineProperty(navigator,'clipboard',{value:{writeText:async t=>{window.__w.push(t)}},configurable:true});
+const P=R.p12,q12=u=>new URLSearchParams(u.split('?')[1]);
+const f12=async(url,opt)=>{const m=url.match(/^\/api\/(inbox|tasks|agents)\?/);
+  if(m){const q=q12(url),sc=q.get('scope')||'goal:'+q.get('goal'),d=q.get('detail');
+    if(m[1]==='tasks'&&d)return J(P['detail:'+d]);return J(P[m[1]+':'+sc])}
+  return fetchStub(url,opt)};
+const start12=async()=>{BOARD.start({fetch:f12,storage:mem(),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,now:()=>Date.parse('2026-11-04T10:00:00Z'),tz:'UTC'});
+  await sleep(300);return BOARD.page};
+"""
+
+
+def payloads12():
+    """The real answers of /api/inbox, /api/tasks and /api/agents on the ticket-02 fixture (git branches built)."""
+    now = datetime.datetime(2026, 11, 4, 10, 0, tzinfo=datetime.timezone.utc)
+    fx = board_fixtures.copy_fixture(now=now)
+    (fx.squad / "scopes" / "questions" / "open-questions.md").write_text(
+        "## Q1\nStatus: parked\nParked: 2026-11-03T09:00:00Z\nWhich port for the proxy?\nBlocks: ticket 3\nFrom: E1 #2\n", encoding="utf-8")
+    squads = squadboard.find_squads([str(fx.squad)])
+    srv = squadboard.BoardServer(0, squads, {})
+    srv.routes, _ = squadboard.load_routes()
+    srv.herdr_json = str(fx.herdr_json)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = "http://127.0.0.1:%d" % srv.port
+    try:
+        def get(u):
+            with urllib.request.urlopen(base + u, timeout=30) as r:
+                return json.loads(r.read())
+        out = {}
+        for sc in ("questions", "checkout"):
+            for route in ("inbox", "tasks", "agents"):
+                out["%s:%s" % (route, sc)] = get("/api/%s?squad=fix&scope=%s" % (route, sc))
+        for tid in ("03", "06"):
+            out["detail:" + tid] = get("/api/tasks?squad=fix&scope=checkout&detail=" + tid)
+        srv.herdr_json = str(fx.herdr_down)
+        out["inbox:down"] = get("/api/inbox?squad=fix&scope=questions")
+        return out
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        board_fixtures.cleanup(fx)
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
+class Panels12(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.real = dict(real_payloads(), saved=None, p12=payloads12())
+        cls.head = head12()
+
+    def page(self, body, hash_):
+        return run_page(PRE12 + body, self.real, hash_, self.head)
+
+    def test_T12_AC1_AC3_AC5_AC10_inbox_row_options_recommended_copy_exact_and_no_write_labels(self):
+        r = self.page(r"""
+await start12();
+const sec=$('section[data-panel=inbox]'),item=sec.querySelector('.nb-item');
+const code=item.querySelector('.nb-how code').textContent;
+const btn=item.querySelector('.nb-how button');btn.click();await sleep(20);
+const rec=Array.from(item.querySelectorAll('.nb-opts li')).map(li=>[li.textContent,li.classList.contains('rec')]);
+out({title:item.querySelector('b:not(.nb-opts b)').textContent,id:item.dataset.id,age:item.querySelector('.age').textContent,blocks:item.querySelector('.blocks').textContent,
+ rec,code,clip:window.__w.slice(),copyRet:BOARD.copyText(btn),
+ labels:$$('button').map(b=>b.textContent+'|'+(b.getAttribute('aria-label')||'')+'|'+(b.title||'')).filter(t=>/answer|park|merge|approve|delete/i.test(t)),
+ openLabel:sec.querySelector('h3.nb-sec').textContent});
+""", "#/scope/questions")
+        self.assertEqual((r["id"], r["blocks"]), ("E1", "Blocks: ticket 04"))
+        self.assertEqual(r["openLabel"], "Open now (1)")
+        self.assertRegex(r["age"], r"\d+ h ago|age unknown")
+        self.assertEqual([x[1] for x in r["rec"]], [True, False])
+        self.assertIn("recommended", r["rec"][0][0])
+        self.assertNotIn("recommended", r["rec"][1][0])
+        self.assertEqual((r["code"], r["clip"], r["copyRet"]), ("squad-inbox answer E1", ["squad-inbox answer E1"], "squad-inbox answer E1"))
+        self.assertEqual(r["labels"], [])   # AC10: no control is labelled answer, park, merge, approve, delete
+
+    def test_T12_AC2_AC4_empty_text_parked_group_tab_title_from_the_server_and_two_banner_lines(self):
+        r = self.page(r"""
+const q=P['inbox:questions'];
+q.data.rows=[];q.data.count_choice=0;q.data.count_squad=7;q.data.banner.entries=[{agent:'a-1',pane_id:'p1',scope:'x'},{agent:'a-2',pane_id:'p2',scope:'y'}];
+await start12();
+const sec=$('section[data-panel=inbox]');
+const parked=sec.querySelector('.nb-item.parked');
+out({empty:sec.querySelector('.nb-empty b').textContent,labels:$$('h3.nb-sec').map(h=>h.textContent),parkedText:parked?parked.textContent:'',
+ title:document.title,count:sec.querySelector('.count').textContent,lines:$$('#app .bannerslot .banner .t').map(t=>t.textContent)});
+""", "#/scope/questions")
+        self.assertEqual(r["empty"], "Nothing needs you")
+        self.assertIn("Parked (1)", [x[:10] for x in r["labels"]])
+        self.assertIn("Still blocks: ticket 3", r["parkedText"])
+        self.assertIn("From E1 #2", r["parkedText"])
+        self.assertTrue(r["title"].startswith("(7) "))   # count_squad, not summed in the page
+        self.assertEqual(r["count"], "0")
+        self.assertEqual(len(r["lines"]), 2)
+        self.assertTrue(all(("a-1" in r["lines"][0], "p1" in r["lines"][0])) and "a-2" in r["lines"][1] and "p2" in r["lines"][1])
+
+    def test_T12_AC6_herdr_down_says_so(self):
+        r = self.page(r"""
+P['inbox:questions']=P['inbox:down'];
+await start12();
+out({banner:$('#app .bannerslot').textContent});
+""", "#/scope/questions")
+        self.assertIn("status unknown: herdr not running", r["banner"])
+
+    def test_T12_AC7_AC8_AC9_tasks_stages_ready_flag_detail_in_time_order_toggle_and_esc(self):
+        r = self.page(r"""
+await start12();
+const sec=$('section[data-panel=tasks]');
+const rows=()=>$$('section[data-panel=tasks] tr.r');
+const cells=rows().map(tr=>Array.from(tr.children).map(td=>td.textContent));
+const ready=rows().filter(tr=>tr.classList.contains('need')).map(tr=>tr.dataset.k);
+let calls=0;const orig=EventTarget.prototype.addEventListener;EventTarget.prototype.addEventListener=function(){calls++;return orig.apply(this,arguments)};
+const r3=rows().find(tr=>tr.dataset.k==='03');
+r3.click();await sleep(60);
+const det=$('section[data-panel=tasks] tr.x').textContent;const steps=$$('section[data-panel=tasks] tr.x .steps li').map(l=>l.textContent);
+rows().find(tr=>tr.dataset.k==='03').click();await sleep(20);const closed=$$('section[data-panel=tasks] tr.x').length;
+for(let i=0;i<10;i++){rows().find(tr=>tr.dataset.k==='03').click();await sleep(30);key(document,'Escape');await sleep(10)}
+const afterEsc=$$('section[data-panel=tasks] tr.x').length;
+out({cells,ready,det,steps,closed,afterEsc,calls,count:sec.querySelector('.count').textContent,tools:$$('section[data-panel=tasks] .tools button').map(b=>b.textContent)});
+""", "#/scope/checkout")
+        stages = [c[2] for c in r["cells"]]
+        for word in ("todo", "in progress", "returned", "blocked", "checking, 1 of 2 PASS", "ready for review", "sha changed after PASS", "merged", "done"):
+            self.assertTrue(any(s.startswith(word) for s in stages), word)
+        self.assertEqual(r["ready"], ["06"])
+        self.assertEqual(len(r["cells"][0]), 6)   # id, title, stage, owner, waits on, last active
+        self.assertIn("Ready for review (1)", r["tools"])
+        self.assertIn("FAIL: reason 3 first line (newest)", r["det"])
+        times = [s.split(" ")[1] for s in r["steps"]]
+        self.assertEqual(times, sorted(times))
+        self.assertEqual((r["closed"], r["afterEsc"]), (0, 0))
+        self.assertLess(r["calls"], 12)   # open and close 10 times add no listener (re-draws only)
+
+    def test_T12_TA7_retired_toggle_without_a_request_and_TU3_text_is_text(self):
+        r = self.page(r"""
+P['tasks:checkout'].data.rows[0].title='<img src=x onerror=window.__x=1>';
+await start12();
+let fetches=0;const of=window.fetch;
+const sec=$('section[data-panel=agents]');
+const before=sec.querySelector('[data-retired]').textContent;
+sec.querySelector('[data-retired]').click();await sleep(20);
+out({before,after:sec.querySelector('[data-retired]').textContent,li:sec.querySelectorAll('.ag-more li').length,x:window.__x===undefined,
+ title:$('section[data-panel=tasks] tr.r td:nth-child(2)').textContent,img:!!$('section[data-panel=tasks] img')});
+""", "#/scope/checkout")
+        self.assertEqual((r["before"], r["after"], r["li"]), ("1 retired, hidden", "Hide 1 retired", 1))
+        self.assertTrue(r["x"] and not r["img"] and r["title"].startswith("<img"))
+
+    def test_T12_TA1_cutting_a_panel_file_leaves_the_rest_working(self):
+        r = run_page(PRE12 + r"""
+await start12();
+out({ids:BOARD.panels.map(p=>p.id),inbox:!!$('section[data-panel=inbox] .nb-item'),agents:!!$('section[data-panel=agents]')});
+""", self.real, "#/scope/questions", head12(("panel_inbox.js", "panel_tasks.js")))
+        self.assertEqual(r["ids"], ["inbox", "scopes", "tasks"])
+        self.assertTrue(r["inbox"] and not r["agents"])
+
+
+class Static12(unittest.TestCase):
+    def test_T12_TU3_TU4_TU5_TA6_no_innerhtml_no_remote_no_write_no_summed_count(self):
+        for f in PANELS12:
+            js = (TPL / f).read_text(encoding="utf-8")
+            self.assertIsNone(re.search(r"innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|https?://", js), f)
+            self.assertIsNone(re.search(r"method\s*:", js), f)
+            self.assertIsNone(re.search(r"#[0-9a-fA-F]{3,8}\b", js), f)
+            self.assertIsNone(re.search(r"count_squad|count_choice\s*\+|\.length\s*\+\s*\w+\.length", js.replace("d.count_choice", "")), f)
 
 
 if __name__ == "__main__":
