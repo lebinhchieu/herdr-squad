@@ -541,7 +541,7 @@
   }
   var CSS = [
     ".tl{position:relative}",
-    ".tl-bar{position:sticky;top:0;z-index:30;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:.75em;margin-bottom:6px}",
+    ".tl-bar{position:sticky;top:var(--bt,0px);z-index:30;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:.75em;margin-bottom:6px}",
     ".tl-r{position:relative;display:flex;gap:.67em;align-items:center;flex-wrap:wrap;margin-top:.6em;padding-left:3.4em}.tl-r:first-child{margin-top:0}",
     ".tfl{position:absolute;left:0;top:0;height:2.2em;display:flex;align-items:center;font-weight:700;font-size:.85em;font-variant:small-caps;text-transform:lowercase;letter-spacing:.04em;color:var(--muted)}",
     ".tc,.tl .cp{display:inline-flex;align-items:center;height:2.2em;box-sizing:border-box;line-height:1;border:1px solid var(--border);background:var(--bg);color:var(--ink);border-radius:999px;padding:0 .85em;white-space:nowrap}",
@@ -561,7 +561,7 @@
     ".brk-sw{background:repeating-linear-gradient(135deg,var(--t-idle) 0 3px,var(--bg) 3px 6px);border:1px solid var(--muted2)}",
     ".tl-chart{position:relative;outline:none}.tl-chart:focus-visible{outline:2px solid var(--mango);outline-offset:2px}",
     ".tl-axis,.tl-row{display:grid;grid-template-columns:var(--lw) 1fr;gap:6px}",
-    ".tl-axis{position:sticky;top:var(--barh,0px);z-index:25;background:var(--bg);border-bottom:1px solid var(--border)}",
+    ".tl-axis{position:sticky;top:calc(var(--barh,0px) + var(--bt,0px));z-index:25;background:var(--bg);border-bottom:1px solid var(--border)}",
     ".tl-axis .pl{position:relative;height:2.9em;user-select:none}",
     ".tl-axis .days{position:absolute;left:0;right:0;top:0;height:1.3em;border-bottom:1px solid var(--border)}",
     ".tl-axis .dy{position:absolute;top:0;bottom:0;border-left:1px solid var(--muted2);padding:0 .35em;font-weight:700;white-space:nowrap;overflow:hidden;display:flex;align-items:center;color:var(--ink)}",
@@ -945,6 +945,10 @@
   /* measure the plot (px) once it is in the page; draw again when it changed, so ticks and labels fit */
   function fit(c) {
     var bar = c.tl.querySelector(".tl-bar");
+    /* the scrolling panel body has top padding; sticky sticks below it, so pull the bar up by that much (no strip above it) */
+    var sp = c.tl.parentNode, pt = 0;
+    while (sp && sp.nodeType === 1) { var cs = getComputedStyle(sp); if (/(auto|scroll)/.test(cs.overflowY)) { pt = parseFloat(cs.paddingTop) || 0; break; } sp = sp.parentNode; }
+    c.tl.style.setProperty("--bt", (-pt) + "px");
     c.tl.style.setProperty("--barh", (bar ? bar.offsetHeight : 0) + "px");
     c.ov.style.top = c.axis.offsetHeight + "px";
     var w = c.ov.clientWidth;

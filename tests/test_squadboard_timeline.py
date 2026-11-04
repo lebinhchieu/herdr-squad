@@ -423,7 +423,7 @@ out({bar:{bg:cs.backgroundColor,bw:cs.borderTopWidth,bc:cs.borderTopColor,rad:px
         self.assertNotEqual(r["bar"]["bg"], "rgb(255, 255, 255)")
         self.assertEqual(r["bar"]["rad"], 8)
         self.assertTrue(all(x >= 8 for x in r["bar"]["pad"]), r["bar"]["pad"])
-        self.assertEqual((r["bar"]["pos"], r["bar"]["top"]), ("sticky", "0px"))
+        self.assertEqual((r["bar"]["pos"], r["bar"]["top"]), ("sticky", "-2px"))   # pulled up by the panel body top padding (F1)
         self.assertEqual((r["on"]["bg"], r["on"]["bc"], r["on"]["c"], r["on"]["w"]), (t["need"]["bg"], t["mango"]["bc"], t["ink"]["c"], "700"))
         self.assertEqual((r["off"]["bg"], r["off"]["bc"]), (t["bg"]["bg"], t["border"]["bc"]))
         self.assertLess(int(r["off"]["w"]), 600)
@@ -437,7 +437,7 @@ out({bar:{bg:cs.backgroundColor,bw:cs.borderTopWidth,bc:cs.borderTopColor,rad:px
         r = run_page("""
 await startPage();
 const tl=$('.tl'),px=v=>parseFloat(v),o={sizes:[],narrow:null};
-const H=()=>$('.tl').parentNode;H().style.cssText+=';height:300px;overflow:auto;position:relative';
+const H=()=>$('.tl').parentNode;H().style.cssText+=';height:300px;overflow:auto;position:relative;padding:2px 10px 8px';
 const B=()=>$('.tl-bar');const ctl=()=>Array.from(B().querySelectorAll('button,select'));
 const hit=(a,b)=>a.left<b.right-.5&&b.left<a.right-.5&&a.top<b.bottom-.5&&b.top<a.bottom-.5;
 const probe=()=>{const bar=B(),bc=bar.getBoundingClientRect(),rs=ctl().map(c=>c.getBoundingClientRect());let ov=0;
