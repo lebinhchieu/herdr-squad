@@ -1,0 +1,25 @@
+{"type": "agent-name", "agentName": "wt-dev-normal"}
+{"type":"attachment","timestamp":"2026-10-20T14:52:50.872Z","isSidechain":false}
+{"type":"user","timestamp":"2026-10-20T14:53:41.879Z","isSidechain":false,"origin":{"kind":"human"},"message":{"role":"user","content":"x"}}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.877Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.878Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.878Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.878Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.878Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.878Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.878Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.878Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.878Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.878Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.878Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.940Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.940Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.940Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.944Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.947Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:41.949Z","isSidechain":false}
+{"type":"assistant","timestamp":"2026-10-20T14:53:44.507Z","isSidechain":false,"message":{"id":"msg_011CgDgQH5CwKvubGV3roZ8o","model":"claude-opus-5-5","content":[{"type":"text","text":"x"}],"usage":{"input_tokens":2,"cache_read_input_tokens":12635,"cache_creation_input_tokens":21820,"output_tokens":296}}}
+{"type":"assistant","timestamp":"2026-10-20T14:53:45.871Z","isSidechain":false,"message":{"id":"msg_011CgDgQH5CwKvubGV3roZ8o","model":"claude-opus-5-5","content":[{"type":"tool_use","name":"Bash","input":{"command":"ls"}}],"usage":{"input_tokens":2,"cache_read_input_tokens":12635,"cache_creation_input_tokens":21820,"output_tokens":296}}}
+{"type":"attachment","timestamp":"2026-10-20T14:53:45.893Z","isSidechain":false}
+{"type":"attachment","timestamp":"2026-10-20T14:53:45.917Z","isSidechain":false}
+{"type":"user","timestamp":"2026-10-20T14:53:48.137Z","isSidechain":false,"message":{"role":"user","content":"x"}}
