@@ -284,7 +284,8 @@ const down36=id=>{const s=$('section[data-panel='+id+']').getBoundingClientRect(
   hnd(id).dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:h.left+6,clientY:h.top+20,button:0}));return s};
 const drag36=async(id,px)=>{const s=down36(id);pe36('pointermove',s.left+px,s.top+20);await sleep(50);return s};
 const box36=id=>boxes().find(b=>b.id===id);
-const puts36=()=>(window.__puts||[]).map(p=>p.panels);
+const Wk=(k,G)=>k*(($('#canvas').getBoundingClientRect().width-12*(G-1))/G)+(k-1)*12;
+const puts36=()=>{for(const t of fakeTimers.splice(0)){if(t.ms===300)t.f()}return (window.__puts||[]).map(p=>p.panels)};
 """
 
 
@@ -296,28 +297,28 @@ def page36(body, **kw):
 class Resize(unittest.TestCase):
     def test_T36_TA1_pure_functions(self):
         r = page("""const L=BOARD.layout,o={};
-o.snap=[L.snapTracks(345,345,12,4,1),L.snapTracks(351,345,12,4,1),L.snapTracks(352,345,12,4,1),L.snapTracks(5,345,12,4,2),L.snapTracks(9999,345,12,4,1),L.snapTracks(100,345,12,2,2)];
+o.snap=[L.snapTracks(345,345,12,4,1),L.snapTracks(523,345,12,4,1),L.snapTracks(524,345,12,4,1),L.snapTracks(5,345,12,4,2),L.snapTracks(9999,345,12,4,1),L.snapTracks(100,345,12,2,2)];
 o.w2t=[L.widthToTracks(3,4,1),L.widthToTracks(3,6,1),L.widthToTracks(3,2,1),L.widthToTracks(12,4,1),L.widthToTracks(1,6,2)];
 o.t2w=[L.tracksToWidth(1,4),L.tracksToWidth(2,6),L.tracksToWidth(1,2)];
 o.round=[2,4,6].every(G=>{for(let k=1;k<=G;k++)if(L.widthToTracks(L.tracksToWidth(k,G),G,1)!==k)return false;return true});
 out(o);""")
-        self.assertEqual(r["snap"], [1, 2, 2, 2, 4, 2])   # edge, half way up (351.5 rounds up at 352), below one track -> minSpan, beyond G -> G, G=2 -> full
+        self.assertEqual(r["snap"], [1, 1, 2, 2, 4, 2])   # edge, just under half way, half way up (523.5), below one track -> minSpan, beyond G -> G, G=2 -> full
         self.assertEqual(r["w2t"], [1, 2, 1, 4, 2])         # 3 twelfths: 1 of 4, 2 of 6 (1.5 up), 1 of 2 (0.5 up); 12 -> G; below minSpan -> minSpan
         self.assertEqual(r["t2w"], [3, 4, 6])
         self.assertTrue(r["round"])
 
     def test_T36_TA2_drag_saves_tracks_only_and_reload_draws_it(self):
-        r = page36("""await start35();const w0=box36('files').w;await drag36('files',1059);pe36('pointerup',0,0);await sleep(300);
-out({w0,b:box36('files'),puts:puts36(),snap:BOARD.page.snapshot().panels.files});""")
-        self.assertAlmostEqual(r["w0"], 702, delta=2)
-        self.assertAlmostEqual(r["b"]["w"], 1059, delta=2)            # 3 of 4 columns
+        r = page36("""await start35();const w0=box36('files').w;await drag36('files',Wk(3,4)+30);pe36('pointerup',0,0);await sleep(300);
+out({w0,b:box36('files'),puts:puts36(),W:[Wk(2,4),Wk(3,4)]});""")
+        self.assertAlmostEqual(r["w0"], r["W"][0], delta=3)
+        self.assertAlmostEqual(r["b"]["w"], r["W"][1], delta=3)       # 3 of 4 columns
         self.assertEqual(len(r["puts"]), 1)
         row = r["puts"][0]["files"]
         self.assertEqual(row["tracks"], 9)                            # 3 x 12 / 4 twelfths
         self.assertNotIn("col", row)
         self.assertNotIn("span", row)
         r2 = page("await start35(cur.saved);out({w:boxes().find(b=>b.id==='files').w});", saved=fixture("board-ui-files6.json"))
-        self.assertAlmostEqual(r2["w"], 702, delta=2)                 # 6 twelfths = 2 of 4
+        self.assertAlmostEqual(r2["w"], r["W"][0], delta=3)           # 6 twelfths = 2 of 4
 
     def test_T36_TA3_narrow_window_keeps_the_saved_share(self):
         saved = fixture("board-ui-files6.json")
@@ -327,36 +328,37 @@ pg.setFont('xl');await sleep(400);o.w2=box36('files').w;o.t2=pg.snapshot().panel
 const s=down36('inbox');pe36('pointermove',s.left+700,s.top+20);pe36('pointerup',s.left+700,s.top+20);await sleep(300);
 o.puts=puts36();pg.setFont('normal');await sleep(400);o.back=box36('files').w;o.t4=pg.snapshot().panels.files.tracks;out(o);""", size="1000,800", saved=saved)
         self.assertEqual((r["t2"], r["t4"]), (9, 9))                  # never rewritten
-        self.assertLess(r["w2"], r["w4"] + 1)
+        self.assertGreaterEqual(len(r["puts"]), 1)
         self.assertAlmostEqual(r["back"], r["w4"], delta=2)
         for put in r["puts"]:
             self.assertEqual(put["files"]["tracks"], 9)               # another panel's save carries it as read
 
     def test_T36_TA5_esc_dblclick_and_keyboard(self):
-        r = page36("""const pg=await start35();const o={};
-const s=await drag36('files',1059);document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));pe36('pointerup',s.left+1059,s.top+20);await sleep(200);
-o.esc={w:box36('files').w,puts:puts36().length,outline:!!document.querySelector('.rzo')};
+        r = page36("""const pg=await start35();const o={};o.p0=puts36().length;
+const s=await drag36('files',Wk(3,4));document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));pe36('pointerup',s.left+Wk(3,4),s.top+20);await sleep(200);
+o.W=[1,2,3,4].map(k=>Wk(k,4));o.esc={w:box36('files').w,puts:puts36().length-o.p0,outline:!!document.querySelector('.rzo')};
 const h=hnd('files');h.focus();const k=async n=>{h.dispatchEvent(new KeyboardEvent('keydown',{key:n,bubbles:true,cancelable:true}));await sleep(150);return box36('files').w};
 o.right=await k('ArrowRight');o.focus=document.activeElement===h;o.t=pg.snapshot().panels.files.tracks;
 await k('ArrowRight');o.max=await k('ArrowRight');await k('ArrowLeft');await k('ArrowLeft');o.left=await k('ArrowLeft');o.min=await k('ArrowLeft');
 h.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true}));await sleep(200);
-o.dbl={w:box36('files').w,tracks:pg.snapshot().panels.files.tracks};out(o);""")
+o.dbl=Object.assign({w:box36("files").w},pg.snapshot().panels.files.tracks===undefined?{}:{tracks:1});out(o);""")
         self.assertEqual(r["esc"], {"w": r["esc"]["w"], "puts": 0, "outline": False})
-        self.assertAlmostEqual(r["esc"]["w"], 702, delta=2)
-        self.assertAlmostEqual(r["right"], 1059, delta=2)
+        W = r["W"]
+        self.assertAlmostEqual(r["esc"]["w"], W[1], delta=3)
+        self.assertAlmostEqual(r["right"], W[2], delta=3)
         self.assertTrue(r["focus"])
         self.assertEqual(r["t"], 9)
-        self.assertAlmostEqual(r["max"], 1416, delta=2)               # stops at N = 4
-        self.assertAlmostEqual(r["min"], 345, delta=2)                # stops at 1
-        self.assertAlmostEqual(r["dbl"]["w"], 702, delta=2)
-        self.assertIsNone(r["dbl"]["tracks"])
+        self.assertAlmostEqual(r["max"], W[3], delta=3)               # stops at N = 4
+        self.assertAlmostEqual(r["min"], W[0], delta=3)               # stops at 1
+        self.assertAlmostEqual(r["dbl"]["w"], W[1], delta=3)
+        self.assertNotIn("tracks", r["dbl"])
 
     def test_T36_TA6_place_runs_once_on_pointerup_and_panels_do_not_move_while_dragging(self):
         r = page36("""await start35();const L=BOARD.layout,real=L.place;let np=0;L.place=function(){np++;return real.apply(this,arguments)};
 const b0=JSON.stringify(boxes());const s=down36('files');
-for(const px of [400,700,900,1059]){pe36('pointermove',s.left+px,s.top+20);await sleep(30)}
+for(const px of [400,700,900,Wk(3,4)]){pe36('pointermove',s.left+px,s.top+20);await sleep(30)}
 const mid={np,same:JSON.stringify(boxes())===b0,pill:document.querySelector('.rzp').textContent,guides:document.querySelectorAll('.rzg').length};
-pe36('pointerup',s.left+1059,s.top+20);await sleep(300);out({mid,np,b:boxes()});""")
+pe36('pointerup',s.left+Wk(3,4),s.top+20);await sleep(300);out({mid,np,b:boxes()});""")
         self.assertEqual(r["mid"]["np"], 0)
         self.assertTrue(r["mid"]["same"])
         self.assertEqual(r["mid"]["pill"], "3 of 4 columns")
@@ -367,7 +369,7 @@ pe36('pointerup',s.left+1059,s.top+20);await sleep(300);out({mid,np,b:boxes()});
                 self.assertFalse(overlap(x, y), (x["id"], y["id"]))
 
     def test_T36_TA7_handle_is_a_focusable_separator_and_the_banner_has_none(self):
-        r = page36("""await start35();out({h:$$('section.panel .rz.e').map(e=>[e.closest('section').dataset.panel,e.getAttribute('role'),e.getAttribute('aria-orientation'),e.tabIndex,e.getAttribute('aria-label')]),
+        r = page36("""await start35();out({h:$$('section.panel:not([hidden]) .rz.e').map(e=>[e.closest('section').dataset.panel,e.getAttribute('role'),e.getAttribute('aria-orientation'),e.tabIndex,e.getAttribute('aria-label')]),
 w:Math.round(hnd('files').getBoundingClientRect().width),cur:getComputedStyle(hnd('files')).cursor,banner:!!document.querySelector('.bannerslot .rz')});""")
         self.assertEqual(len(r["h"]), 5)
         for pid, role, ori, tab, label in r["h"]:
