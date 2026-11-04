@@ -110,7 +110,9 @@ out(o);""")
         self.assertEqual(r["ties"], {"A": {"x": 0, "y": 0}, "B": {"x": 1, "y": 0}})
         self.assertEqual(r["ex"]["c"], {"x": 0, "y": 140})
         self.assertTrue(r["same"])
-        self.assertEqual(r["grown"]["d"]["y"] - r["ex"]["d"]["y"], 85 if r["ex"]["d"]["x"] == r["ex"]["b"]["x"] else 0)
+        self.assertEqual(r["ex"]["d"]["x"], r["ex"]["b"]["x"])   # d sits under b, so it moves down with it
+        self.assertEqual(r["grown"]["d"]["y"] - r["ex"]["d"]["y"], 85)
+        self.assertEqual(r["grown"]["c"], r["ex"]["c"])           # c is in the other column: it does not move
         self.assertEqual(r["mig"], [["inbox", 0, False, False], ["tasks", 1, False, False], ["agents", 2, False, False]])
         self.assertEqual(r["drop"], [0, 1, 2, 0])
         self.assertEqual(r["cc"], [6, 4, 4, 2, 2])
@@ -119,6 +121,7 @@ out(o);""")
         for size, n in (("1000,800", 4), ("1440,900", 4), ("1920,1000", 6)):
             r = page("await start35();out({n:getComputedStyle($('#canvas')).getPropertyValue('--n').trim(),b:boxes(),w:innerWidth});", size)
             b = r["b"]
+            self.assertEqual(r["w"], int(size.split(",")[0]), size)   # the window really has the size named (inner height is 813 for 900 here: browser chrome)
             self.assertEqual(int(r["n"]), n, size)
             self.assertEqual(len(b), 5, size)
             for i, x in enumerate(b):
@@ -136,11 +139,26 @@ L.place=function(){np++;return real.apply(this,arguments)};L.refresh=function(){
 const b0=boxes();
 const tall=document.createElement('div');tall.style.height='60px';$('section[data-panel=inbox] .pb').appendChild(tall);
 pg.engine.request();await sleep(300);
-const b1=boxes();out({b0,b1,np,nr});""")
+const b1=boxes();tall.remove();pg.engine.request();await sleep(300);out({b0,b1,b2:boxes(),np,nr});""")
         l0 = {x["id"]: x["l"] for x in r["b0"]}
         self.assertEqual(l0, {x["id"]: x["l"] for x in r["b1"]})
         self.assertEqual(r["np"], 0)
         self.assertGreaterEqual(r["nr"], 1)
+        self.assertEqual([x["id"] for x in r["b0"]], [x["id"] for x in r["b1"]])   # same order
+        t0 = {x["id"]: x["t"] for x in r["b0"]}
+        t1 = {x["id"]: x["t"] for x in r["b1"]}
+        inbox = next(x for x in r["b0"] if x["id"] == "inbox")
+        grow = next(x for x in r["b1"] if x["id"] == "inbox")["h"] - inbox["h"]
+        self.assertGreaterEqual(grow, 50)
+        for x in r["b0"]:
+            below = x["id"] != "inbox" and x["l"] == inbox["l"] and x["t"] >= inbox["b"] - 1   # a column neighbour under Needs-you
+            self.assertAlmostEqual(t1[x["id"]] - t0[x["id"]], grow if below else 0, delta=3, msg=x["id"])
+        self.assertTrue(any(x["id"] != "inbox" and x["l"] == inbox["l"] and x["t"] >= inbox["b"] - 1 for x in r["b0"]))
+        for i, x in enumerate(r["b1"]):
+            for y in r["b1"][i + 1:]:
+                self.assertFalse(overlap(x, y), (x["id"], y["id"]))
+        self.assertEqual({x["id"]: x["t"] for x in r["b2"]}, t0)                    # shrunk back: the panels come back up
+        self.assertEqual([x["id"] for x in r["b2"]], [x["id"] for x in r["b0"]])
 
     def test_T35_TA2b_first_settle_places_after_first_data_of_all_panels_not_on_loading(self):
         # R3: one panel answers "unknown", all others answer: place runs only after every panel has data, once; a PO action adds one.
@@ -172,7 +190,6 @@ fakeTimers.filter(t=>t.ms===5000).forEach(t=>t.f());await sleep(500);out({before
                  "tasks": {"order": 0, "hidden": True}, "agents": {"order": 3, "hidden": False}, "files": {"order": 5, "hidden": False},
                  "worktime": {"order": 4, "hidden": False}}}
         r = page("await start35(cur.saved);out({dom:$$('#canvas>section.panel').map(e=>e.dataset.panel+(e.hidden?'!':'')),shown:boxes().map(b=>b.id)});", saved=saved)
-        self.assertEqual(r["dom"][:2], ["tasks!", "scopes!"] if False else r["dom"][:2])
         self.assertEqual([d for d in r["dom"] if d.rstrip("!") in ("inbox", "agents", "worktime", "files")], ["inbox", "agents", "worktime", "files"])
         self.assertIn("tasks!", r["dom"])
         self.assertNotIn("tasks", r["shown"])
@@ -196,12 +213,39 @@ out(o);""")
         self.assertEqual(r["before"], base)
         self.assertEqual(r["esc"], base)
         self.assertTrue(r["ghostGone"])
-        self.assertEqual(r["up"], ["inbox", "tasks", "scopes", "agents", "files", "worktime"][:0] or r["up"])
         self.assertLess(r["up"].index("tasks"), r["before"].index("tasks"))
         self.assertTrue(r["focus"])
         self.assertEqual(r["first"][0], "tasks")
         self.assertEqual(r["outside"], r["first"])
         self.assertFalse(r["cols"])
+
+    def test_T35_TA4_completed_drop_renumbers_order_without_col_or_span_and_saves_once(self):
+        r = page(r"""
+const pg=await start35();const tasks=$('section[data-panel=tasks] .ph'),ra=tasks.getBoundingClientRect(),rf=$('section[data-panel=inbox]').getBoundingClientRect();
+const pe=(t,x,y)=>document.dispatchEvent(new PointerEvent(t,{clientX:x,clientY:y,bubbles:true,button:0}));
+tasks.dispatchEvent(new PointerEvent('pointerdown',{clientX:ra.left+20,clientY:ra.top+10,bubbles:true,button:0}));
+pe('pointermove',ra.left+20,ra.top+30);pe('pointermove',rf.left+20,rf.top+10);await sleep(80);
+pe('pointerup',rf.left+20,rf.top+10);await sleep(200);
+for(const t of fakeTimers.splice(0)){if(t.ms===300)t.f()}await sleep(100);
+out({snap:pg.snapshot().panels,puts:window.__puts||[],ghost:!!$('#canvas .ghost')});""")
+        sn = r["snap"]
+        self.assertEqual(sorted(p["order"] for p in sn.values()), list(range(len(sn))))      # 0..k-1
+        self.assertEqual(min(sn, key=lambda k: sn[k]["order"]), "tasks")                       # dropped before panel 1
+        self.assertFalse(any("col" in p or "span" in p for p in sn.values()))
+        self.assertEqual(len(r["puts"]), 1)                                                     # one change, one PUT
+        self.assertFalse(any("col" in p or "span" in p for p in r["puts"][0]["panels"].values()))
+        self.assertFalse(r["ghost"])
+
+    def test_T35_TA5_T36_TA4_iteration_1_file_loads_with_no_panel_wider_and_saves_without_span(self):
+        saved = json.loads((HERE / "fixtures" / "board" / "layout-26" / "board-ui-iter1.json").read_text(encoding="utf-8"))
+        r = page("""const pg=await start35(cur.saved);const o={b:boxes(),txt:document.body.innerText,w:Math.round($('#canvas').getBoundingClientRect().width)};
+pg.setFont('large');await sleep(300);pg.setFont('normal');await sleep(300);o.snap=pg.snapshot();o.puts=window.__puts||[];out(o);""", saved=saved)
+        self.assertEqual(len(r["b"]), 5)
+        self.assertEqual(len({x["w"] for x in r["b"]}), 1)                 # span 4/6/8 made none wider
+        self.assertNotRegex(r["txt"], r"(?i)\berror\b|\bundefined\b|\bNaN\b")
+        rows = list(r["snap"]["panels"].values()) + [p for put in r["puts"] for p in put["panels"].values()]
+        self.assertTrue(rows)
+        self.assertFalse(any("span" in p or "col" in p for p in rows))
 
     def test_T35_TA5_old_layout_migrates_and_first_save_drops_col_and_span(self):
         saved = fixture("board-ui-iter2.json")
@@ -229,6 +273,7 @@ pg.setFont('large');await sleep(300);pg.setFont('normal');await sleep(300);o.sna
     def test_T35_TA7_text_scale_recomputes_columns_and_nothing_leaves_the_window(self):
         r = page("""const pg=await start35();pg.setFont('xl');await sleep(400);
 out({n:getComputedStyle($('#canvas')).getPropertyValue('--n').trim(),b:boxes(),w:innerWidth,sw:document.documentElement.scrollWidth});""", "1000,800")
+        self.assertEqual(r["w"], 1000)
         self.assertEqual(int(r["n"]), 2)
         self.assertTrue(all(x["l"] + x["w"] <= r["w"] for x in r["b"]))
         self.assertEqual(len({x["l"] for x in r["b"]}), 1)   # one full-width panel per row
@@ -383,7 +428,7 @@ o.dbl=Object.assign({w:box36("files").w},pg.snapshot().panels.files.tracks===und
 const b0=JSON.stringify(boxes());const s=down36('files');
 for(const px of [400,700,900,Wk(3,4)]){pe36('pointermove',s.left+px,s.top+20);await sleep(30)}
 const mid={np,same:JSON.stringify(boxes())===b0,pill:document.querySelector('.rzp').textContent,guides:document.querySelectorAll('.rzg').length};
-pe36('pointerup',s.left+Wk(3,4),s.top+20);await sleep(300);out({mid,np,b:boxes()});""")
+pe36('pointerup',s.left+Wk(3,4),s.top+20);await sleep(300);out({mid,np,b:boxes(),b0:JSON.parse(b0)});""")
         self.assertEqual(r["mid"]["np"], 0)
         self.assertTrue(r["mid"]["same"])
         self.assertEqual(r["mid"]["pill"], "3 of 4 columns")
@@ -392,6 +437,11 @@ pe36('pointerup',s.left+Wk(3,4),s.top+20);await sleep(300);out({mid,np,b:boxes()
         for i, x in enumerate(r["b"]):
             for y in r["b"][i + 1:]:
                 self.assertFalse(overlap(x, y), (x["id"], y["id"]))
+        # the hole is filled: no panel ends with free room above it that it could use (top is 0 or 12 under the lowest box above)
+        for x in r["b"]:
+            above = [y["b"] for y in r["b"] if y is not x and y["l"] < x["l"] + x["w"] - 1 and x["l"] < y["l"] + y["w"] - 1 and y["b"] <= x["t"] + 2]
+            self.assertAlmostEqual(x["t"], max(above) + 12 if above else 0, delta=3, msg=x["id"])
+        self.assertLessEqual(max(x["t"] for x in r["b"]), max(x["t"] for x in r["b0"]) + 3)   # nothing sank below where it was
 
     def test_T36_TA7_handle_is_a_focusable_separator_and_the_banner_has_none(self):
         r = page36("""await start35();out({h:$$('section.panel:not([hidden]) .rz.e').map(e=>[e.closest('section').dataset.panel,e.getAttribute('role'),e.getAttribute('aria-orientation'),e.tabIndex,e.getAttribute('aria-label')]),
