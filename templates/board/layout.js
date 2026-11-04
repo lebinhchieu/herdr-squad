@@ -97,10 +97,14 @@
     var k = Math.floor((px + gap) / (trackW + gap) + 0.5);
     return Math.max(minSpan || 1, Math.min(k, G));
   }
+  /* east drag: a pointer at the canvas right edge (after real travel to the right) means the full grid, G; else the snap */
+  function edgeSpan(px, trackW, gap, G, minSpan, atEdge) {
+    return atEdge ? G : snapTracks(px, trackW, gap, G, minSpan);
+  }
 
   BOARD.layout = { GUTTER: GUTTER, MIN_PX: MIN_PX, ORDER: ORDER, SMALLEST: SMALLEST, defaultRank: defaultRank,
     colCount: colCount, place: place, refresh: refresh, recordGrid: recordGrid, migrate: migrate, dropIndex: dropIndex,
-    widthToTracks: widthToTracks, tracksToWidth: tracksToWidth, snapTracks: snapTracks };
+    widthToTracks: widthToTracks, tracksToWidth: tracksToWidth, snapTracks: snapTracks, edgeSpan: edgeSpan };
 
   /* ---------------- DOM part ---------------- */
   /* mount(opts) -> {relayout, request, drag, resize, key, observe, unobserve}
@@ -321,11 +325,17 @@
       busy = true; el.classList.add("rsz"); 
       if (handle && handle.setPointerCapture && e.pointerId != null) { try { handle.setPointerCapture(e.pointerId); } catch (x) { /* synthetic event */ } }
       function show() {
-        outline.style.width = (k * trackW + (k - 1) * GUTTER) + "px";
+        var wk = k * trackW + (k - 1) * GUTTER;   /* a panel that would pass the canvas edge lands further left after place: show that */
+        outline.style.width = wk + "px";
+        outline.style.left = Math.min(r.left, cr.right - pr - wk) + "px";
         pill.textContent = k + " of " + G + " columns";
       }
       show();
-      function mv(ev) { k = snapTracks(ev.clientX - r.left, trackW, GUTTER, G, minOf(p)); show(); }
+      var grabX = e.clientX == null ? r.right : e.clientX;
+      function mv(ev) {
+        var atEdge = ev.clientX >= cr.right - pr && ev.clientX - grabX >= 8;
+        k = edgeSpan(ev.clientX - r.left, trackW, GUTTER, G, minOf(p), atEdge); show();
+      }
       function end(cancel) {
         doc.removeEventListener("pointermove", mv);
         doc.removeEventListener("pointerup", up);

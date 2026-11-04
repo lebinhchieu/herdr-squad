@@ -368,10 +368,12 @@ class Resize(unittest.TestCase):
     def test_T36_TA1_pure_functions(self):
         r = page("""const L=BOARD.layout,o={};
 o.snap=[L.snapTracks(345,345,12,4,1),L.snapTracks(523,345,12,4,1),L.snapTracks(524,345,12,4,1),L.snapTracks(5,345,12,4,2),L.snapTracks(9999,345,12,4,1),L.snapTracks(100,345,12,2,2)];
+o.edge=[L.edgeSpan(100,345,12,4,1,true),L.edgeSpan(345,345,12,4,1,false),L.edgeSpan(5,345,12,4,2,true),L.edgeSpan(5,345,12,2,1,true)];
 o.w2t=[L.widthToTracks(3,4,1),L.widthToTracks(3,6,1),L.widthToTracks(3,2,1),L.widthToTracks(12,4,1),L.widthToTracks(1,6,2)];
 o.t2w=[L.tracksToWidth(1,4),L.tracksToWidth(2,6),L.tracksToWidth(1,2)];
 o.round=[2,4,6].every(G=>{for(let k=1;k<=G;k++)if(L.widthToTracks(L.tracksToWidth(k,G),G,1)!==k)return false;return true});
 out(o);""")
+        self.assertEqual(r["edge"], [4, 1, 4, 2])             # at the edge -> G; not at the edge -> the snap; G=2 -> 2
         self.assertEqual(r["snap"], [1, 1, 2, 2, 4, 2])   # edge, just under half way, half way up (523.5), below one track -> minSpan, beyond G -> G, G=2 -> full
         self.assertEqual(r["w2t"], [1, 2, 1, 4, 2])         # 3 twelfths: 1 of 4, 2 of 6 (1.5 up), 1 of 2 (0.5 up); 12 -> G; below minSpan -> minSpan
         self.assertEqual(r["t2w"], [3, 4, 6])
@@ -441,6 +443,40 @@ pe36('pointerup',s.left+Wk(3,4),s.top+20);await sleep(300);out({mid,np,b:boxes()
         for x in r["b"]:
             above = [y["b"] for y in r["b"] if y is not x and y["l"] < x["l"] + x["w"] - 1 and x["l"] < y["l"] + y["w"] - 1 and y["b"] <= x["t"] + 2]
             self.assertAlmostEqual(x["t"], max(above) + 12 if above else 0, delta=3, msg=x["id"])
+
+    def _flush_right_widen(self, beyond, travel=True):
+        edge = "innerWidth-1" if beyond else "cr.right+8"   # the handle sits within 8 px of the edge: the pointer needs 8 px of travel
+        return page36("""await start35();const cs=getComputedStyle($('#canvas')),pr=parseFloat(cs.paddingRight)||0,cr=$('#canvas').getBoundingClientRect();
+const b0=box36('tasks'),o={iw:innerWidth,b0,flush:Math.abs(b0.l+b0.w-(cr.width-pr-(parseFloat(cs.paddingLeft)||0)-0))<40||b0.l+b0.w+pr>=cr.width-2};
+const s=down36('tasks'),h=hnd('tasks').getBoundingClientRect();o.p0=puts36().length;
+if(%s){pe36('pointermove',%s,s.top+20);await sleep(50);
+  const ol=document.querySelector('.rzo').getBoundingClientRect();o.pill=document.querySelector('.rzp').textContent;o.ol=[Math.round(ol.left),Math.round(ol.right)];}
+pe36('pointerup',%s,s.top+20);await sleep(300);
+o.cr=[Math.round(cr.left),Math.round(cr.right-pr)];o.b=boxes();o.puts=puts36().slice(o.p0);o.wcanvas=Math.round(cr.right-pr-cr.left-(parseFloat(cs.paddingLeft)||0));o.outline=!!document.querySelector('.rzo');out(o);""" % (
+            "true" if travel else "false", edge, edge if travel else "h.left+6"))
+
+    def test_T36_AC3_flush_right_panel_widens_by_mouse_to_the_canvas_edge(self):
+        for beyond in (False, True):
+            r = self._flush_right_widen(beyond)
+            self.assertEqual(r["iw"], 1440)
+            self.assertEqual(r["pill"], "4 of 4 columns", beyond)
+            self.assertGreaterEqual(r["ol"][0], r["cr"][0] - 1, beyond)    # outline inside the canvas
+            self.assertLessEqual(r["ol"][1], r["cr"][1] + 1, beyond)
+            self.assertFalse(r["outline"])
+            self.assertEqual(len(r["puts"]), 1, beyond)                  # one save
+            self.assertEqual(r["puts"][0]["tasks"]["tracks"], 12, beyond)
+            t = [x for x in r["b"] if x["id"] == "tasks"][0]
+            self.assertAlmostEqual(t["w"], r["wcanvas"], delta=2, msg=beyond)   # all four tracks: the content width of the canvas
+            for i, x in enumerate(r["b"]):
+                for y in r["b"][i + 1:]:
+                    self.assertFalse(overlap(x, y), (beyond, x["id"], y["id"]))
+
+    def test_T36_AC3_click_without_travel_on_a_flush_right_panel_changes_nothing(self):
+        r = self._flush_right_widen(False, travel=False)
+        self.assertEqual(r["puts"], [])
+        self.assertEqual(r["b"], [dict(x) for x in r["b"]])
+        t = [x for x in r["b"] if x["id"] == "tasks"][0]
+        self.assertEqual((t["l"], t["w"]), (r["b0"]["l"], r["b0"]["w"]))
 
     def test_T36_TA7_handle_is_a_focusable_separator_and_the_banner_has_none(self):
         r = page36("""await start35();out({h:$$('section.panel:not([hidden]) .rz.e').map(e=>[e.closest('section').dataset.panel,e.getAttribute('role'),e.getAttribute('aria-orientation'),e.tabIndex,e.getAttribute('aria-label')]),
