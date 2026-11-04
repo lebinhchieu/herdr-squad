@@ -123,20 +123,11 @@ o.newer=[B.pickNewer(a,b).font,B.pickNewer(b,a).font,B.pickNewer(null,a).font,B.
 const P=B.panelView;
 o.unk=[P({schema_version:1,data:[],unknown:['inbox']},{id:'inbox'}).kind,P({schema_version:1,data:{rows:[1]},unknown:['x']},{id:'inbox'}).kind,P({schema_version:2,data:{}},{id:'inbox'}).kind];
 o.needs=[B.needsFrom([{data:{}},{data:{count_squad:3}}]),B.needsFrom([])];
-// layout.pack
-const mk=(id,order,span,height,extra)=>Object.assign({id,order,span,hidden:false,height,max:1000},extra||{});
-const cell=(r,id)=>r.find(c=>c.id===id);
-const overlap=r=>r.some((x,i)=>r.some((y,j)=>j>i&&x.col<y.col+y.span&&y.col<x.col+x.span&&x.row<y.row+y.rowSpan&&y.row<x.row+x.rowSpan));
-const short=mk('files',1,4,40),tall=mk('tasks',0,4,300),under=mk('dec',2,4,100);
-let r=L.pack([tall,short,under,mk('ag',3,4,100)],12,4);
-o.pack={hole:r.map(c=>[c.id,c.col,c.row,c.span,c.rowSpan]),overlap:overlap(r)};
-o.hidden=L.pack([tall,Object.assign({},short,{hidden:true}),under],12,4).map(c=>c.id);
-o.up=[cell(L.pack([tall,short,under],12,4),'dec').row, cell(L.pack([tall,Object.assign({},short,{hidden:true}),under],12,4),'dec').row];
-const rows=n=>mk('p'+n,n,4,n*30+40);
-const shape=h=>L.pack([1,3,8].map(n=>Object.assign(rows(n),{height:rows(n).height*h})),12,4).map(c=>[c.id,c.col,c.span]);
-o.fonts=[shape(0.9),shape(1),shape(1.3)];
-const cap=L.pack([mk('big',0,4,900,{max:300})],12,4)[0];o.cap={rs:cap.rowSpan,scroll:cap.scroll};
-o.cols=[L.cols(1000),L.cols(1440)];
+// layout (ticket 26): colCount, place, norm
+const hs={inbox:200,tasks:300,agents:150,files:120,worktime:400},ORD=['inbox','tasks','agents','files','worktime'];
+o.cc=[[1440,1],[1800,1],[1799,1],[932,1],[931,1],[1000,1.3],[1920,1.3],[1920,0.9]].map(a=>L.colCount(a[0],a[1]));
+o.place={n1:L.place(ORD,1,hs),n2:L.place(ORD,2,hs),n3:L.place(ORD,3,hs),tie:L.place(['a','b'],2,{a:100,b:100})};
+o.norm=L.norm([{id:'a',col:9,order:0,idx:0},{id:'b',col:0,order:1,idx:1},{id:'c',col:0,order:1,idx:0},{id:'d',col:null,order:0,idx:3},{id:'e',col:0,order:0,idx:4,hidden:true}],2);
 // poller: 3 failures stale, no pile-up, success resets, 5 s constant
 const log=[],ft=[];let id=0,fail=true,calls=0,resolve;
 const po=B.makePoller({load:()=>{calls++;return fail?Promise.reject(new Error('x')):new Promise(r=>{resolve=r})},onOk:()=>log.push('ok'),onFail:(n,s)=>log.push(n+(s?'S':'')),
@@ -175,27 +166,20 @@ out(o);
     def test_T10_TA6_needs_from_server_count(self):
         self.assertEqual(self.res["needs"], [3, None])
 
-    def test_T10_AC5_AC6_short_beside_tall_leaves_no_hole_and_hide_moves_up(self):
-        p = self.res["pack"]
-        cells = {c[0]: c[1:] for c in p["hole"]}
-        self.assertFalse(p["overlap"])
-        self.assertEqual(cells["tasks"][:2], [0, 0])
-        self.assertEqual(cells["files"][:2], [4, 0])       # beside the tall one, top row
-        self.assertEqual(cells["dec"][:2], [8, 0])
-        self.assertEqual(cells["ag"][:2], [4, 13])         # the fourth goes up under the short one, not under the tall one
-        self.assertEqual(self.res["hidden"], ["tasks", "dec"])
-        self.assertEqual(self.res["up"][0], 0)             # dec sits beside tasks, at the top (no gap under files)
+    def test_T26_TA2_column_count_follows_window_and_text_scale(self):
+        self.assertEqual(self.res["cc"], [2, 3, 2, 2, 1, 1, 2, 3])
 
-    def test_T10_TA1_same_state_same_order_and_spans_at_three_font_sizes(self):
-        a, b, c = self.res["fonts"]
-        self.assertEqual([x[0] for x in a], [x[0] for x in c])
-        self.assertEqual([x[2] for x in a], [x[2] for x in c])
+    def test_T26_TA3_default_place_is_the_shortest_column_leftmost_on_a_tie(self):
+        pl = self.res["place"]
+        col = lambda n: {k: v["col"] for k, v in pl[n].items()}
+        self.assertEqual(col("n2"), {"inbox": 0, "tasks": 1, "agents": 0, "files": 1, "worktime": 0})  # the PO's case
+        self.assertEqual(col("n3"), {"inbox": 0, "tasks": 1, "agents": 2, "files": 2, "worktime": 0})
+        self.assertEqual(set(col("n1").values()), {0})
+        self.assertEqual(col("tie"), {"a": 0, "b": 1})
+        self.assertEqual(pl["n2"]["worktime"]["pos"], 2)
 
-    def test_T10_AC8_taller_content_scrolls_at_the_cap(self):
-        self.assertEqual(self.res["cap"], {"rs": 78, "scroll": True})  # ceil((300 + 12) / 4)
-
-    def test_T10_TA10_fewer_columns_at_1000(self):
-        self.assertEqual(self.res["cols"], [8, 12])
+    def test_T26_TA1_TA13_norm_clamps_col_skips_hidden_and_no_col_and_ties_by_default_order(self):
+        self.assertEqual(self.res["norm"], [["c", "b"], ["a"]])
 
     def test_T10_TA7_refresh_counts_three_failures_and_never_piles_up(self):
         p = self.res["poll"]
@@ -244,87 +228,157 @@ class Layout(unittest.TestCase):
         ps, tag = res["ps"], "%s %dpx" % (font, width)
         self.assertEqual(len(ps), 6, tag)
         self.assertLessEqual(res["page"]["sw"], max(res["page"]["cw"], 1000) + 1, tag)  # no sideways scroll at 1000 or wider
+        lefts = sorted({round(p["l"]) for p in ps})
+        W = width / {"small": 0.9, "normal": 1, "xl": 1.3}[font]
+        self.assertEqual(len(lefts), 3 if W >= 1800 else (2 if W >= 932 else 1), tag)           # T26.AC13: the count follows the window
         for i, a in enumerate(ps):
-            for b in ps[i + 1:]:  # nothing overlaps (AC7)
+            for b in ps[i + 1:]:                              # nothing overlaps
                 self.assertFalse(a["l"] < b["r"] - 0.5 and b["l"] < a["r"] - 0.5 and a["t"] < b["b"] - 0.5 and b["t"] < a["b"] - 0.5,
                                  "%s: %s overlaps %s" % (tag, a["id"], b["id"]))
-            if not a["scrolls"]:  # AC3: no empty band over 16 px under the last row
+            if not a["scrolls"]:                              # a short panel is as tall as its content, no stretch
                 self.assertLessEqual(a["blank"], 16, "%s: %s blank %s" % (tag, a["id"], a["blank"]))
-            # AC4: beside a panel in a row, the next thing starts one gutter (12 px) later, or the page edge is there
-            if a["r"] < res["w"] - 1:
-                nxt = [b for b in ps if b is not a and abs(b["l"] - (a["r"] + 12)) <= 1 and b["t"] < a["b"] and a["t"] < b["b"]]
-                self.assertTrue(nxt, "%s: %s leaves an empty cell on its right (right %.0f of %.0f)" % (tag, a["id"], a["r"], res["w"]))
-        long_ = [p for p in ps if p["id"] == "6"][0]
-        self.assertTrue(long_["scrolls"], tag)  # AC8: longer than its cap, it scrolls inside
-        top = [p for p in ps if p["t"] < 1]
-        self.assertTrue(top and min(p["l"] for p in top) <= 1, tag)
+        for lf in lefts:                                      # T26.AC1/AC2: 12 px between panels of a column
+            col = sorted([p for p in ps if round(p["l"]) == lf], key=lambda p: p["t"])
+            for a, b in zip(col, col[1:]):
+                self.assertAlmostEqual(b["t"], a["b"] + 12, delta=2, msg="%s: %s under %s" % (tag, b["id"], a["id"]))
+            self.assertLessEqual(col[0]["t"], 1, tag)
+        self.assertTrue([p for p in ps if p["id"] == "6"][0]["scrolls"], tag)   # longer than its cap: scrolls inside
 
-    def test_T10_AC3_to_AC9_fit_gaps_and_no_overlap_at_three_font_sizes_and_1000(self):
+    def test_T26_AC1_AC2_AC8_AC13_columns_stack_with_12px_at_three_font_sizes_and_1000(self):
         for font in ("small", "normal", "xl"):
             self.check(self.run_layout(font, 1440), font, 1440)
         for font in ("small", "xl"):
             r = self.run_layout(font, 1000)
             self.check(r, font, 1000)
-            self.assertLessEqual(r["page"]["sw"], 1000 + 1)  # nothing is cut off at 1000
+            self.assertLessEqual(r["page"]["sw"], 1000 + 1)   # nothing is cut off at 1000
+        self.check(self.run_layout("normal", 1920), "normal", 1920)
 
-    def test_T10_AC1_AC2_AC7_move_resize_hide_reset_and_saved_state(self):
+    def test_T26_AC9_TA11_banner_is_outside_the_columns_without_drag_or_hide(self):
+        r = run_page(STUB + """
+mkPanel('1','A',1,4,300);
+BOARD.start({fetch:mkFetch({'1':1}),tz:'UTC',now:()=>Date.parse('2026-11-04T10:00:00Z'),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,storage:mem()});
+await sleep(300);
+const b=document.querySelector('.bannerslot');
+out({outside:!!b&&!b.closest('#canvas'),canvasKids:[...document.getElementById('canvas').children].every(c=>c.classList.contains('col')),
+  handles:!!document.querySelector('.rz.e,.rz.se')});
+""", self.real)
+        self.assertEqual(r, {"outside": True, "canvasKids": True, "handles": False})
+
+    def test_T26_AC3_AC4_AC6_AC11_AC14_AC15_drag_keys_hide_save_reload_reset(self):
         res = run_page(STUB + """
-mkPanel('1','Needs you',1,4,720);mkPanel('2','Tasks',8,8,560);mkPanel('3','Agents',3,4,380);mkPanel('4','Files',1,4,380);
+mkPanel('1','Needs you',8,4,720);mkPanel('2','Tasks',8,8,560);mkPanel('3','Agents',3,4,380);mkPanel('4','Files',1,4,380);
 const rows={'1':8,'2':8,'3':3,'4':1};
 const env=(ui)=>{const R2=JSON.parse(JSON.stringify(R));if(ui)R2.ui.data.ui=ui;return {fetch:mkFetch(rows,{'/api/ui':()=>({ok:true,status:200,json:async()=>Object.assign({schema_version:1},R2.ui)})}),tz:'UTC',now:()=>Date.parse('2026-11-04T10:00:00Z'),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,storage:mem()}};
 const page=BOARD.start(env());await sleep(400);
+const lay=()=>[...document.querySelectorAll('.col')].map(c=>[...c.querySelectorAll(':scope > .panel')].filter(e=>!e.hidden).map(e=>e.dataset.panel));
+const fire=async()=>{for(const t of fakeTimers.splice(0)){if(t.ms===300)t.f()}await sleep(50)};
 const ev=(t,el,x,y)=>el.dispatchEvent(new PointerEvent(t,{bubbles:true,clientX:x,clientY:y,button:0}));
-const order0=Object.values(page.panels).sort((a,b)=>a.order-b.order).map(p=>p.id);
-// drag Files (4) to the top area
-const f=page.panels['4'];const fr=f.hdr.getBoundingClientRect();
+const key=(p,k,sh)=>p.hdr.dispatchEvent(new KeyboardEvent('keydown',{key:k,shiftKey:!!sh,bubbles:true}));
+const L0=lay();
+const colOf=(l,id)=>l.findIndex(c=>c.includes(id));
+const src=colOf(L0,'4'),dst=1-src;
+// drag Files to the top of the other column
+const f=page.panels['4'],fr=f.hdr.getBoundingClientRect(),first=document.querySelector('.col:nth-child('+(dst+1)+') > .panel').getBoundingClientRect();
 ev('pointerdown',f.hdr,fr.left+20,fr.top+5);
-const m=document.getElementById('canvas').getBoundingClientRect();
-for(const [x,y] of [[m.left+30,m.top+30],[m.left+40,m.top+40]]){ev('pointermove',document,x,y);await sleep(20)}
-const ghost=!!document.querySelector('.ghost');
-ev('pointerup',document,m.left+40,m.top+40);await sleep(300);
-const order1=Object.values(page.panels).sort((a,b)=>a.order-b.order).map(p=>p.id);
-// resize Agents wider: east handle
-const a=page.panels['3'],h=a.el.querySelector('.rz.e'),hr=h.getBoundingClientRect(),span0=a.span;
-ev('pointerdown',h,hr.left+2,hr.top+20);ev("pointermove",document,hr.left-250,hr.top+20);await sleep(20);ev("pointerup",document,hr.left-250,hr.top+20);await sleep(300);
-const span1=a.span;
-fk.setTimeout.length;
-await sleep(10);
-for(const t of fakeTimers.splice(0)){if(t.ms===300)t.f()}   // fire the debounced save
-await sleep(50);
-const put=puts[puts.length-1];
-// hide Tasks: banner has no hide, panel returns from the list
-page.panels['2'].hide.click();await sleep(100);
-const hid=document.querySelector('[data-panel="2"]').hidden;
-document.querySelector('.hb[aria-haspopup]').click();
-const items=[...document.querySelectorAll('.pop button')].map(b=>b.textContent);
-document.querySelector('.pop button').click();await sleep(100);
-const back=!document.querySelector('[data-panel="2"]').hidden;
-// reload: a second page reading the saved state
-const page2=BOARD.start(env(put));await sleep(400);
-const order2=Object.values(page2.panels).sort((x,y)=>x.order-y.order).map(p=>p.id);
-const span2=page2.panels['3'].span;
-// reset
-page2.resetLayout();await sleep(200);
-const order3=Object.values(page2.panels).sort((x,y)=>x.order-y.order).map(p=>p.id);
-out({order0,order1,ghost,span0,span1,put,hid,items,back,order2,span2,order3,span3:page2.panels['3'].span,
-  bannerHide:!!document.querySelector('.bannerslot .pbtn, .bannerslot .grip')});
+ev('pointermove',document,first.left+30,first.top+4);await sleep(30);
+const spot=document.querySelector('.ghost'),spotFirst=!!spot&&spot.parentNode.dataset.col==String(dst)&&!spot.previousElementSibling;
+ev('pointerup',document,first.left+30,first.top+4);await sleep(100);
+const L1=lay();await fire();
+const put1=puts[puts.length-1];
+// a column closes up: no gap under the left panels
+const gaps=[...document.querySelectorAll('.col')].map(c=>{const k=[...c.querySelectorAll(':scope > .panel')];return k.slice(1).map((e,i)=>e.getBoundingClientRect().top-k[i].getBoundingClientRect().bottom)});
+// Esc cancels, nothing saved
+const n0=puts.length;
+ev('pointerdown',f.hdr,f.hdr.getBoundingClientRect().left+20,f.hdr.getBoundingClientRect().top+5);
+ev('pointermove',document,fr.left+30,fr.top+200);await sleep(30);
+document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await sleep(60);await fire();
+const escSame=JSON.stringify(lay())===JSON.stringify(L1)&&puts.length===n0;
+// keyboard: Up/Down in the column, Left/Right to the next column, focus stays, edges do nothing
+f.hdr.focus();
+key(f,'ArrowUp');const upEdge=JSON.stringify(lay())===JSON.stringify(L1);
+key(f,'ArrowDown');const afterDown=lay();
+key(f,'ArrowUp');
+key(f,dst===0?'ArrowRight':'ArrowLeft');const afterSide=lay();
+key(f,dst===0?'ArrowRight':'ArrowLeft');const sideEdge=JSON.stringify(lay())===JSON.stringify(afterSide);
+const focusKept=document.activeElement===f.hdr;
+// put it back in the other column by key, save, hide and show
+key(f,dst===0?'ArrowLeft':'ArrowRight');await fire();
+const put2=puts[puts.length-1],L2=lay();
+page.panels['2'].hide.click();await sleep(100);const hidL=lay();
+document.querySelector('.hb[aria-haspopup]').click();document.querySelector('.pop button').click();await sleep(100);
+const L3=lay();
+// reload from the saved body
+const page2=BOARD.start(env(put2));await sleep(400);const L4=lay();
+page2.resetLayout();await sleep(200);const L5=lay();
+out({L0,L1,L2,L3,L4,L5,dst,src,spotFirst,gaps,escSame,upEdge,afterDown,afterSide,sideEdge,focusKept,put1,put2,hidL,auto5:page2.state.auto,
+  nospan:Object.values(put2.panels).every(p=>!('span' in p))});
 """, self.real)
-        self.assertTrue(res["ghost"])
-        self.assertLess(res["order1"].index("4"), res["order0"].index("4"))  # Files moved up
-        self.assertNotEqual(res["order0"], res["order1"])
-        self.assertNotEqual(res["span1"], res["span0"])
-        # AC2: hidden, then back from the list
-        self.assertTrue(res["hid"])
-        self.assertEqual(res["items"], ["Show Tasks"])
-        self.assertTrue(res["back"])
-        # AC1: the saved state restores both; AC2: reset returns the default
-        self.assertEqual(res["order2"], res["order1"])
-        self.assertEqual(res["span2"], res["span1"])
-        self.assertEqual((res["order3"], res["span3"]), (res["order0"], res["span0"]))
-        # T10.TA2: no stored pixels, and the real server's validator accepts the body
-        self.assertEqual([k for k in json.dumps(res["put"]) and _keys(res["put"]) if re.fullmatch(r"x|y|top|left|px|row", k)], [])
-        squadboard_ui.validate(res["put"])
+        self.assertTrue(res["spotFirst"])                                        # T26.AC3: the spot shows where it lands
+        self.assertEqual(res["L1"][res["dst"]][0], "4")                          # ... and it landed there
+        self.assertNotIn("4", res["L1"][res["src"]])
+        self.assertTrue(all(abs(g - 12) <= 2 for c in res["gaps"] for g in c))   # the column it left closed up
+        self.assertEqual((res["put1"]["panels"]["4"]["col"], res["put1"]["panels"]["4"]["order"], res["put1"]["auto"]), (res["dst"], 0, False))
+        self.assertTrue(res["escSame"])                                          # T26.AC14: Esc cancels, nothing saved
+        self.assertTrue(res["upEdge"])                                           # T26.AC15: Up on the first moves nothing
+        self.assertNotEqual(res["afterDown"], res["L1"])
+        self.assertIn("4", res["afterSide"][res["src"]])                         # Left/Right: next column
+        self.assertTrue(res["sideEdge"] and res["focusKept"])
+        self.assertEqual(res["L3"], res["L2"])                                   # T26.AC4: show returns it to its place
+        self.assertNotIn("2", sum(res["hidL"], []))
+        self.assertEqual(res["L4"], res["L2"])                                   # T26.AC3: same after reload
+        self.assertEqual(res["L5"], res["L0"])                                   # T26.AC6: Reset: default place
+        self.assertTrue(res["auto5"])
+        self.assertTrue(res["nospan"])                                           # span is no longer written
+        squadboard_ui.validate(res["put2"])
 
+    def test_T26_AC5_AC12_south_edge_changes_height_only_fit_returns(self):
+        res = run_page(STUB + """
+mkPanel('1','Needs you',8,4,720);mkPanel('2','Tasks',2,8,560);mkPanel('3','Agents',3,4,380);
+const page=BOARD.start({fetch:mkFetch({'1':8,'2':2,'3':3}),tz:'UTC',now:()=>Date.parse('2026-11-04T10:00:00Z'),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,storage:mem()});
+await sleep(400);
+const a=page.panels['2'],r=()=>a.el.getBoundingClientRect(),below=()=>{const k=[...a.el.parentNode.children].filter(e=>e.classList.contains('panel'));const i=k.indexOf(a.el);return k[i+1]?k[i+1].getBoundingClientRect().top:null};
+const other=[...document.querySelectorAll('.col')].filter(c=>c!==a.el.parentNode).map(c=>{const k=[...c.querySelectorAll(':scope > .panel')];return k[k.length-1].getBoundingClientRect().bottom});
+const h0=r().height,w0=r().width,b0=below();
+const s=a.el.querySelector('.rz.s'),sr=s.getBoundingClientRect();
+s.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:sr.left+20,clientY:sr.top+3,button:0}));
+document.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:sr.left+20,clientY:sr.top+203}));
+document.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:sr.left+20,clientY:sr.top+203}));await sleep(100);
+const h1=r().height,w1=r().width,b1=below();
+const other1=[...document.querySelectorAll('.col')].filter(c=>c!==a.el.parentNode).map(c=>{const k=[...c.querySelectorAll(':scope > .panel')];return k[k.length-1].getBoundingClientRect().bottom});
+a.fit.click();await sleep(100);
+out({h0,h1,h2:r().height,w0,w1,b0,b1,other,other1,mh:a.max_height});
+""", self.real)
+        self.assertGreater(res["h1"], res["h0"] + 100)                    # taller
+        self.assertAlmostEqual(res["w1"], res["w0"], delta=1)             # width stays the column's
+        if res["b0"] is not None:
+            self.assertGreater(res["b1"], res["b0"] + 100)                # the panel below moves down
+        self.assertEqual(res["other"], res["other1"])                     # no other column changes
+        self.assertAlmostEqual(res["h2"], res["h0"], delta=1)             # Fit: back to the content
+
+    def test_T26_AC7_TA5_TA12_old_saved_layout_loads_without_error_or_write(self):
+        old = json.loads((HERE / "fixtures" / "board" / "layout-26" / "board-ui-iter1.json").read_text(encoding="utf-8"))
+        real = dict(self.real, ui={"schema_version": 1, "data": {"ui": old, "status": "ok"}})
+        mixed = dict(old, panels={"1": {"order": 0, "col": 9, "hidden": False}, "3": {"order": 0, "col": 0, "hidden": False},
+                                  "4": {"order": 1, "col": 1, "hidden": False}})
+        body = STUB + """
+mkPanel('1','Needs you',8,4,720);mkPanel('2','Tasks',8,8,560);mkPanel('3','Agents',3,4,380);mkPanel('4','Files',1,4,380);
+const run=async(ui)=>{const R2=JSON.parse(JSON.stringify(R));R2.ui.data.ui=ui;puts.length=0;
+  const page=BOARD.start({fetch:mkFetch({'1':8,'2':8,'3':3,'4':1},{'/api/ui':()=>({ok:true,status:200,json:async()=>R2.ui})}),tz:'UTC',now:()=>Date.parse('2026-11-04T10:00:00Z'),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,storage:mem()});
+  await sleep(400);for(const t of fakeTimers.splice(0)){t.f()}await sleep(50);
+  return {lay:[...document.querySelectorAll('.col')].map(c=>[...c.querySelectorAll(':scope > .panel')].filter(e=>!e.hidden).map(e=>e.dataset.panel)),
+    puts:puts.length,notes:document.querySelector('.notes').textContent,h3:page.panels['3'].el.getBoundingClientRect().height,snap:page.snapshot()}};
+out({old:await run(%s),mixed:await run(%s)});
+""" % (json.dumps(old), json.dumps(mixed))
+        r = run_page(body, real)
+        o, m = r["old"], r["mixed"]
+        self.assertEqual(sorted(sum(o["lay"], [])), ["1", "3", "4"])             # '2' stays hidden; default place for the rest
+        self.assertEqual((o["puts"], o["notes"]), (0, ""))                       # no write on load, no error text
+        self.assertAlmostEqual(o["h3"], 200, delta=1)                            # max_height kept
+        self.assertEqual(m["puts"], 0)
+        self.assertEqual(m["lay"][0][0], "3")                                    # a panel with a col does not move
+        self.assertLess(m["lay"][1].index("1"), m["lay"][1].index("4"))          # col 9 shows in the last column, by order
+        self.assertIn("2", sum(m["lay"], []))                                    # the one without col got a default place
+        self.assertEqual(m["snap"]["panels"]["1"]["col"], 9)                     # the file keeps the larger value
 
     def test_T10_TA7_response_for_the_old_choice_is_dropped_and_new_one_loads(self):
         res = run_page(STUB + """
