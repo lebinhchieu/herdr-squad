@@ -144,8 +144,8 @@ const po=B.makePoller({load:()=>{calls++;return fail?Promise.reject(new Error('x
 const step=async()=>{await sleep(5);const t=ft.pop();if(t)t.f();await sleep(5)};
 po.start();await sleep(5);await step();await step();
 fail=false;await step();po.now();po.now();await sleep(5);
-const during=calls;resolve(1);await sleep(5);
-o.poll={log,ms:ft.map(t=>t.ms),during,interval:B.REFRESH_MS,stale:B.FAILS_STALE};
+const during=calls;resolve(1);await sleep(5);const after=calls;resolve&&resolve(1);await sleep(5);
+o.poll={log,ms:ft.map(t=>t.ms),during,after,interval:B.REFRESH_MS,stale:B.FAILS_STALE};
 out(o);
 """)
 
@@ -203,7 +203,8 @@ out(o);
         self.assertEqual(p["ms"][-1], p["interval"])
         self.assertEqual((p["interval"], p["stale"]), (5000, 3))
         self.assertEqual(p["log"][-1], "ok")
-        self.assertEqual(p["during"], 4)  # two extra now() calls while one load ran started nothing
+        self.assertEqual(p["during"], 4)  # two extra now() calls while one load ran started nothing at once
+        self.assertEqual(p["after"], 5)   # ... and one load runs right after it (a skipped refresh is not lost)
 
 
 LAYOUT = STUB + """
@@ -323,6 +324,37 @@ out({order0,order1,ghost,span0,span1,put,hid,items,back,order2,span2,order3,span
         # T10.TA2: no stored pixels, and the real server's validator accepts the body
         self.assertEqual([k for k in json.dumps(res["put"]) and _keys(res["put"]) if re.fullmatch(r"x|y|top|left|px|row", k)], [])
         squadboard_ui.validate(res["put"])
+
+
+    def test_T10_TA7_response_for_the_old_choice_is_dropped_and_new_one_loads(self):
+        res = run_page(STUB + """
+mkPanel('1','A',1,4,300);
+let release;const held=new Promise(r=>{release=r});let first=true;
+const resp=n=>({ok:true,status:200,json:async()=>({schema_version:1,unknown:[],quality:'exact',data:{rows:n}})});
+const over={'/api/t1':async(url)=>{if(first&&url.includes('scope=checkout')){first=false;await held;return resp(2)}return resp(5)}};
+const page=BOARD.start({fetch:mkFetch({},over),tz:'UTC',now:()=>Date.parse('2026-11-04T10:00:00Z'),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,storage:mem()});
+await sleep(200);
+page.setChoice('scope:other');
+release();await sleep(300);
+out({rows:page.panels['1'].body.children.length,choice:page.state.choice.name});
+""", self.real)
+        self.assertEqual(res, {"rows": 5, "choice": "other"})
+
+    def test_T10_AC16_failed_start_recovers_and_updated_shows_only_after_panels_load(self):
+        res = run_page(STUB + """
+mkPanel('1','A',1,4,300);
+let n=0;
+const over={'/api/session':async()=>{if(n++===0)throw new Error('down');return {ok:true,status:200,json:async()=>Object.assign({schema_version:1,unknown:[]},R.session)}}};
+const page=BOARD.start({fetch:mkFetch({'1':3},over),tz:'UTC',now:()=>Date.parse('2026-11-04T10:00:00Z'),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,storage:mem()});
+await sleep(100);
+const before={status:page.state.status,text:document.querySelector('.fresh').textContent,rows:page.panels['1'].body.children.length};
+for(let i=0;i<3;i++){const t=fakeTimers.filter(x=>x.ms===BOARD.REFRESH_MS).pop();if(t){fakeTimers.splice(fakeTimers.indexOf(t),1);t.f()}await sleep(100)}
+out({before,status:page.state.status,text:document.querySelector('.fresh').textContent,rows:page.panels['1'].body.children.length,token:page.state.token,choice:!!page.state.choice});
+""", self.real)
+        self.assertEqual(res["before"]["rows"], 0)
+        self.assertNotIn("updated", res["before"]["text"])
+        self.assertEqual((res["rows"], res["status"], bool(res["token"]), res["choice"]), (3, "ok", True, True))
+        self.assertIn("updated", res["text"])
 
 
 def _keys(o):

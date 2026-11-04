@@ -5,7 +5,7 @@ from a request. Layout is stored as order, column span, hidden and an optional m
 position and no row index (a saved layout then survives a font change or a window resize).
 
     {"version": 1, "saved_at": "2026-11-04T10:00:00Z", "font": "normal",
-     "choice": {"kind": "scope", "name": "dashboard"} | null, "recent": [<choice>, ...5],
+     "choice": {"kind": "scope", "name": "dashboard"} | null, "recent": [<choice>, ...5], "auto": true,
      "panels": {"<panel id>": {"order": 0, "span": 2, "hidden": false, "max_height": 300}}}
 
 `GET /api/ui?squad=K` -> data {"ui": {...}, "status": "ok" | "unwritable" | "unreadable"}; it never raises and never

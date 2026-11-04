@@ -21,3 +21,10 @@ Not built here (later tickets): the panels, the permission banner content (slot 
 Touched: `templates/board/index.html`, `board.css`, `board.js`, `layout.js`, `tests/test_squadboard_page.py` (all new).
 Greps: `grep -rl 'templates/board|squadboard\b' tests/` hits `test_squadboard_server.py`, `test_squadboard_ui.py`, `test_squadboard_page.py` (run, pass); also test_windows_safe, test_no_bare_bash, test_old_language_inventory pass (55 tests OK).
 `%` hits in page scripts: none. `innerHTML` and friends: none. `method`: only `"PUT"` (to `/api/ui`, with the token header).
+
+## Return 1 fixes (QA whitebox F1-F4)
+- F1: a load remembers its query; `onOk` drops a result whose query is no longer the page's; the poller runs one more load right after the current one when asked meanwhile (`now()` while busy is queued, never two at once). Test: held fetch for the old choice, `setChoice`, release: the panel shows the new choice's rows.
+- F2: startup (session token, squads, saved state, choice) is `boot()`, run from the poller's load until it has worked once; a failure counts like any failed refresh. "updated" shows only after a load that filled the panels. Test: `/api/session` fails once, then the panels fill and the header says updated.
+- F3: `auto` is added to the documented state shape (docstring of `bin/squadboard_ui.py`, one line; no code change). The body stays valid for the real validator (tested).
+- F4: removed the no-op `S.needs = S.needs`, the duplicate `query()` branch, the repeated squad filter, and the unused `st0` in `layout.js`.
+Run: test_squadboard_page, test_squadboard_ui, test_squadboard_server, test_windows_safe, test_no_bare_bash, test_old_language_inventory: 76 tests OK.

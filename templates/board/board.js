@@ -106,17 +106,19 @@
   /* makePoller: one timer, no pile-up (a load still running is not started again), failures counted.
      o: load() -> Promise (rejects on a failed refresh), onOk(value), onFail(n, stale), setTimeout, clearTimeout. */
   function makePoller(o) {
-    var fails = 0, busy = false, timer = null, stopped = false;
+    var fails = 0, busy = false, timer = null, stopped = false, again = false;
     var st = o.setTimeout || root.setTimeout.bind(root), ct = o.clearTimeout || root.clearTimeout.bind(root);
     var every = o.interval || REFRESH_MS;
     function next() { if (!stopped) { ct(timer); timer = st(tick, every); } }
     function tick() {
-      if (busy || stopped) return;
+      if (stopped) return;
+      if (busy) { again = true; return; }   /* a load runs: start one more right after it, never two at once */
       busy = true;
       var p;
       try { p = Promise.resolve(o.load()); } catch (e) { p = Promise.reject(e); }
-      p.then(function (v) { fails = 0; busy = false; o.onOk(v); next(); },
-             function () { fails += 1; busy = false; o.onFail(fails, fails >= FAILS_STALE); next(); });
+      var rerun = function () { if (again) { again = false; tick(); } };
+      p.then(function (v) { fails = 0; busy = false; o.onOk(v); next(); rerun(); },
+             function () { fails += 1; busy = false; o.onFail(fails, fails >= FAILS_STALE); next(); rerun(); });
     }
     return { start: tick, now: tick, stop: function () { stopped = true; ct(timer); }, fails: function () { return fails; },
              busy: function () { return busy; } };
@@ -158,7 +160,7 @@
     var S = { squads: [], squad: null, token: "", choice: null, recent: [], font: "normal", auto: true,
               needs: null, lastOk: null, status: "loading", saveStatus: "ok", notes: {}, saved_at: null };
     var P = {};          /* panel id -> {id, def, order, span, hidden, max_height, el, body, hdr, last} */
-    var engine = null, saveTimer = null, loadedOnce = false, popOpen = false;
+    var engine = null, saveTimer = null, loadedOnce = false, popOpen = false, booted = false;
 
     var els = {};
     function build() {
@@ -377,7 +379,7 @@
       if (i < 0) return;
       S.choice = { kind: v.slice(0, i), name: v.slice(i + 1) };
       S.recent = [S.choice].concat(S.recent.filter(function (c) { return !(c.kind === S.choice.kind && c.name === S.choice.name); })).slice(0, RECENT_MAX);
-      S.needs = S.needs; touch(); paintPickers(); clearPanels(); loadedOnce = false; poller.now();
+      touch(); paintPickers(); clearPanels(); loadedOnce = false; poller.now();
     }
 
     function switchSquad(key) {
@@ -421,8 +423,7 @@
     /* ---- data ---- */
     function query() {
       var q = [];
-      if (S.squad && S.squads.length > 1) q.push("squad=" + encodeURIComponent(S.squad.key));
-      else if (S.squad) q.push("squad=" + encodeURIComponent(S.squad.key));
+      if (S.squad) q.push("squad=" + encodeURIComponent(S.squad.key));
       if (S.choice) q.push(S.choice.kind + "=" + encodeURIComponent(S.choice.name));
       return q.join("&");
     }
@@ -437,11 +438,11 @@
       }, function (e) { if (t != null) clearT(t); throw e; });
     }
 
-    function load() {
+    function loadData() {
       var q = query(), jobs = [getJson("/api/squads")];
       var withRoute = S.choice ? panelList().filter(function (p) { return p.def.route; }) : [];
       withRoute.forEach(function (p) { jobs.push(getJson(p.def.route + (p.def.route.indexOf("?") < 0 ? "?" : "&") + q)); });
-      return Promise.all(jobs).then(function (rs) { return { squads: rs[0], panels: withRoute, resp: rs.slice(1) }; });
+      return Promise.all(jobs).then(function (rs) { return { q: q, squads: rs[0], panels: withRoute, resp: rs.slice(1) }; });
     }
 
     function ctxFor(p) {
@@ -467,12 +468,12 @@
     }
 
     function onOk(v) {
+      if (v.q !== query()) return;   /* the choice changed while this load ran: its rows are not for this page; the next load is queued */
       var sq = v.squads && v.squads.data;
       if (sq && Array.isArray(sq.squads)) {
         var cur = S.squad && S.squad.key;
         S.squads = sq.squads;
         S.squad = S.squads.filter(function (s) { return s.key === cur; })[0] || S.squad;
-        if (S.squad) { S.squad = S.squads.filter(function (s) { return s.key === S.squad.key; })[0]; }
       }
       v.panels.forEach(function (p, i) { renderPanel(p, v.resp[i]); });
       var n = needsFrom(v.resp);
@@ -501,8 +502,36 @@
         var file = d.status === "unreadable" ? null : d.ui;
         applySaved(pickNewer(file, copy));
         showNotes();
-      }, function () { /* the page still shows defaults; the refresh says "not updating" */ });
+        return true;
+      }, function () { return false; });
     }
+
+    /* boot: session token, squad list, saved state, choice. Runs again from the poller until it has worked once. */
+    function boot() {
+      return getJson("/api/session").then(function (j) {
+        S.token = (j.data && j.data.token) || "";
+        return getJson("/api/squads");
+      }).then(function (j) {
+        var d = j.data || {};
+        S.squads = d.squads || [];
+        var ini = d.initial || {};
+        S.squad = S.squads.filter(function (s) { return s.key === ini.squad && !s.flat; })[0] || S.squads.filter(function (s) { return !s.flat; })[0] || null;
+        if (!S.squad) { paintPickers(); throw new Error("no squad"); }
+        return loadSaved().then(function (ok) {
+          if (!ok) throw new Error("no saved state answer");
+          if (ini.goal) S.choice = { kind: "goal", name: ini.goal };
+          else if (ini.scope) S.choice = { kind: "scope", name: ini.scope };
+          if (!S.choice) {
+            var first = (S.squad.scopes || [])[0];
+            if (first) S.choice = { kind: "scope", name: first };
+          }
+          applyFont(); paintPickers(); setFlags(); paintTitle();
+          booted = true;
+        });
+      });
+    }
+
+    function load() { return booted ? loadData() : boot().then(loadData); }
 
     function init() {
       build();
@@ -515,26 +544,7 @@
       REG.forEach(function (def, i) { P[def.id] = makePanel(def, i); });
       applyFont(); paintFresh(); showNotes();
       root.addEventListener("resize", function () { engine.request(); });
-      getJson("/api/session").then(function (j) {
-        S.token = (j.data && j.data.token) || "";
-        return getJson("/api/squads");
-      }).then(function (j) {
-        var d = j.data || {};
-        S.squads = d.squads || [];
-        var ini = d.initial || {};
-        S.squad = S.squads.filter(function (s) { return s.key === ini.squad && !s.flat; })[0] || S.squads.filter(function (s) { return !s.flat; })[0] || null;
-        if (!S.squad) { paintPickers(); S.status = "stale"; paintFresh(); return null; }
-        return loadSaved().then(function () {
-          if (ini.goal) S.choice = { kind: "goal", name: ini.goal };
-          else if (ini.scope) S.choice = { kind: "scope", name: ini.scope };
-          if (!S.choice) {
-            var first = (S.squad.scopes || [])[0];
-            if (first) S.choice = { kind: "scope", name: first };
-          }
-          applyFont(); paintPickers(); setFlags(); paintTitle();
-          poller.start();
-        });
-      }).catch(function () { S.status = "stale"; paintFresh(); poller.start(); });
+      poller.start();
     }
 
     init();

@@ -207,7 +207,6 @@
       if (e.button != null && e.button !== 0) return;
       if (e.target.closest && e.target.closest("button")) return;
       var el = p.el, sx = e.clientX, sy = e.clientY, ox = el.offsetLeft, oy = el.offsetTop, moved = false, ghost = null, target = null;
-      var st0 = opts.get();
       function candidate(ev) {
         var st = opts.get(), n = cols(width()), px = ox + ev.clientX - sx + el.offsetWidth / 2, py = oy + ev.clientY - sy + el.offsetHeight / 2;
         var others = visible(st).filter(function (q) { return q.id !== p.id; }).sort(function (a, b) { return a.order - b.order; });
@@ -260,7 +259,6 @@
       root.document.addEventListener("pointerup", up);
       root.document.addEventListener("pointercancel", up);
       root.document.addEventListener("keydown", kd);
-      void st0;
     }
 
     /* ---- resize: east edge sets the width (span), south edge sets the height cap ---- */
