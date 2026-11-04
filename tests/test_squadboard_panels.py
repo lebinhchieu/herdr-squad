@@ -659,10 +659,11 @@ class Panels14(unittest.TestCase):
     def page(self, body, hash_, head=HEAD14):
         return run_page(PRE14 + body, self.real, hash_, head)
 
-    def test_T14_AC1_AC2_TA3_rows_with_kind_and_local_time_links_open_in_a_new_tab(self):
+    def test_T14_AC1_AC2_TA3_rows_with_kind_and_local_time_links_open_in_vscode_not_a_new_tab(self):
+        # changed on purpose by ticket 30: the old pin was target=_blank and /api/file
         r = self.page(r"""
 await start14('Asia/Ho_Chi_Minh');
-const rows=$$('section[data-panel=files] table.fl tr').slice(1).map(tr=>({t:tr.textContent,a:tr.querySelector('a')&&{h:tr.querySelector('a').getAttribute('href'),tg:tr.querySelector('a').target,rel:tr.querySelector('a').rel,md:tr.querySelector('a').dataset.md||null,n:tr.querySelector('a').textContent},
+const rows=$$('section[data-panel=files] table.fl tr').slice(1).map(tr=>({t:tr.textContent,a:tr.querySelector('a')&&{h:tr.querySelector('a').getAttribute('href'),tg:tr.querySelector('a').target,rel:tr.querySelector('a').rel,n:tr.querySelector('a').textContent},
   time:tr.querySelector('time')&&{iso:tr.querySelector('time').dateTime,txt:tr.querySelector('time').textContent}}));
 out({rows,fmt:rows.filter(x=>x.time).map(x=>BOARD.fmtTime(x.time.iso,'Asia/Ho_Chi_Minh'))});
 """, "#/scope/checkout")
@@ -671,10 +672,8 @@ out({rows,fmt:rows.filter(x=>x.time).map(x=>BOARD.fmtTime(x.time.iso,'Asia/Ho_Ch
             self.assertIn(want, names)
         for x in r["rows"]:
             if x["a"]:
-                self.assertEqual((x["a"]["tg"], x["a"]["rel"]), ("_blank", "noopener noreferrer"))
-                self.assertTrue(x["a"]["h"].startswith("/api/file?squad=fix&path="), x)
-        md = [x for x in r["rows"] if x["a"] and x["a"]["n"] == "tasks/features.md"][0]
-        self.assertEqual(md["a"]["md"], "scopes/checkout/tasks/features.md")
+                self.assertEqual((x["a"]["tg"], x["a"]["rel"]), ("", "noopener noreferrer"))
+                self.assertTrue(x["a"]["h"].startswith("vscode://"), x)
         self.assertEqual([x["time"]["txt"] for x in r["rows"] if x["time"]], r["fmt"])   # shown with the shared BOARD zone function
 
     def test_T14_AC1_old_file_shows_month_and_day_today_shows_time_only(self):
@@ -1089,3 +1088,80 @@ out(o);""", "#/scope/checkout")
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
+class Panels30(unittest.TestCase):
+    """Ticket 30: a file click opens VS Code (T30.AC1-AC13, TA1-TA7, TA11)."""
+    @classmethod
+    def setUpClass(cls):
+        cls.real = dict(real_payloads(), saved=None, f14=payloads14())
+
+    def page(self, body, hash_="#/scope/checkout"):
+        return run_page(PRE14 + body, self.real, hash_, HEAD14)
+
+    def test_T30_TA1_AC5_url_function_table(self):
+        r = self.page(r"""await start14();const u=BOARD.vscodeUrl;
+out({a:u('/home/me/a b#c.md'),b:u('/home/me/a b#c.md','Debian'),c:u('/home/me/\u0111\u1ec1-b\u00e0i.md'),d:u('C:\\Users\\me\\x.md'),e:u(''),f:u('javascript:alert(1)')});""")
+        self.assertEqual(r["a"], "vscode://file/home/me/a%20b%23c.md")
+        self.assertEqual(r["b"], "vscode://vscode-remote/wsl+Debian/home/me/a%20b%23c.md")
+        self.assertEqual(r["c"], "vscode://file/home/me/%C4%91%E1%BB%81-b%C3%A0i.md")
+        self.assertEqual(r["d"], "vscode://file/C:/Users/me/x.md")
+        self.assertIsNone(r["e"])
+        self.assertEqual(r["f"], "vscode://file/javascript%3Aalert(1)")
+
+    def test_T30_AC3_AC7_AC9_AC10_AC12_AC13_folder_rows_blocked_row_tooltip_and_status_line(self):
+        r = self.page(r"""
+const d=F14.checkout.data;d.wsl_distro='Debian';
+d.rows.push({name:'tasks/<img onerror=x>.md',kind:'other',what:'cannot be opened: outside the squad folders',scope:'checkout',path:'x',abs:null,blocked:true,mtime:1793700000});
+BOARD.filesStatusMs=400;
+await start14();
+const panel=$('section[data-panel=files]');
+const trs=Array.from(panel.querySelectorAll('table.fl tr')).slice(1);
+const first=trs[0];const link=first.querySelector('a');
+const blocked=trs.filter(tr=>tr.textContent.includes('outside the squad folders'))[0];
+const tabs=[];window.open=function(){tabs.push(1)};
+link.addEventListener('click',e=>e.preventDefault());
+link.click();
+const st=panel.querySelector('[role=status]');
+const s1=st&&st.textContent;
+const written=[];Object.defineProperty(navigator,'clipboard',{value:{writeText:v=>{written.push(v);return Promise.resolve()}},configurable:true});
+st.querySelector('button').click();
+await sleep(100);
+const kept=!!panel.querySelector('[role=status]');
+await sleep(600);
+out({names:trs.slice(0,2).map(tr=>tr.querySelector('a').textContent),href:link.getAttribute('href'),title:link.title,pathLine:first.querySelector('.fpath').textContent,
+ abs:link.dataset.abs,s1,written,kept,gone:!panel.querySelector('[role=status]'),tabs:tabs.length,blockedHref:!!blocked.querySelector('a'),blockedText:blocked.textContent,imgs:panel.querySelectorAll('img').length});
+""")
+        self.assertEqual(r["names"][0], ".scratch")
+        self.assertTrue(r["href"].startswith("vscode://vscode-remote/wsl+Debian/"), r["href"])
+        self.assertIn("opens in VS Code", r["title"])
+        self.assertIn(r["abs"], r["title"])
+        self.assertEqual(r["pathLine"], r["abs"])
+        self.assertEqual(r["s1"], "Sent to VS Code: " + r["abs"] + " Copy path")
+        self.assertEqual(r["written"], [r["abs"]])
+        self.assertTrue(r["kept"] and r["gone"])
+        self.assertEqual(r["tabs"], 0)
+        self.assertFalse(r["blockedHref"])
+        self.assertIn("<img onerror=x>", r["blockedText"])
+        self.assertEqual(r["imgs"], 0)
+
+    def test_T30_TA2_no_new_tab_code_in_the_panels(self):
+        for f in ("panel_files.js", "panel_tasks.js"):
+            js = (TPL / f).read_text(encoding="utf-8")
+            self.assertIsNone(re.search(r"_blank|window\.open|root\.open|openMarkdown", js), f)
+
+    def test_T30_TA11_AC4_tasks_where_file_name_is_a_vscode_link_without_a_tab(self):
+        pg = Panels12.__new__(Panels12)
+        pg.real = dict(real_payloads(), saved=None, p12=payloads12())
+        pg.head = head12(PANELS12 + ("panel_files.js",))
+        r = Panels12.page(pg, r"""
+await start12();await sleep(100);
+const wf=Array.from(document.querySelectorAll('section[data-panel=tasks] .wf'));
+out({n:wf.length,links:wf.map(w=>{const a=w.querySelector('a');return a&&{h:a.getAttribute('href'),tg:a.target,t:a.title}}).filter(Boolean)});
+""", "#/scope/checkout")
+        self.assertGreater(len(r["links"]), 0)
+        for x in r["links"]:
+            self.assertTrue(x["h"].startswith("vscode://"), x)
+            self.assertEqual(x["tg"], "")
+            self.assertIn("opens in VS Code", x["t"])

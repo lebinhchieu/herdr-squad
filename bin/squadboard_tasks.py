@@ -306,7 +306,7 @@ def read(sel):
             for x in rows:
                 new_by_scope[x["scope"]] = new_by_scope.get(x["scope"], 0) + x["new_count"]
         data = {"rows": rows, "ready_for_review": ready, "scope_column": goal, "new_by_scope": new_by_scope,
-                "looked": looked}
+                "looked": looked, "wsl_distro": os.environ.get("WSL_DISTRO_NAME") or None}  # ticket 30: the VS Code link form
         return {"data": data, "quality": "exact" if not unknown else "approx", "unknown": unknown}
     except Exception:  # a reader never raises
         return {"data": None, "quality": "unknown", "unknown": ["tasks"]}

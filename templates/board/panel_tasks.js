@@ -196,11 +196,14 @@
       cell.waits = el("td", null, r.waits);
       var wt = el("td", "wh"), cut = r.where.lastIndexOf("/");
       if (r.where.indexOf("plan table") === 0) wt.appendChild(el("span", "muted", r.where));
-      else {   /* the path is text; ticket 30 turns the file name into a link through data-abs */
+      else {   /* the file name is a VS Code link (ticket 30) when the row has abs */
         var wl = el("span", "wf");
         if (r.abs) wl.setAttribute("data-abs", r.abs);
         if (cut >= 0) wl.appendChild(el("span", "muted", r.where.slice(0, cut + 1)));
-        wl.appendChild(el("b", null, r.where.slice(cut + 1)));
+        var wb = el("b", null, r.where.slice(cut + 1)), url = BOARD.vscodeUrl ? BOARD.vscodeUrl(r.abs, d.wsl_distro) : null;
+        if (url) {   /* ticket 30: one link form for every file; no new tab */
+          var wa = el("a", null); wa.href = url; wa.rel = "noopener noreferrer"; wa.title = r.abs + " \u2014 opens in VS Code"; wa.appendChild(wb); wl.appendChild(wa);
+        } else wl.appendChild(wb);
         wt.appendChild(wl);
       }
       cell.where = wt;
