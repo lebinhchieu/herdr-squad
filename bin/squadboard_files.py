@@ -73,7 +73,7 @@ class _Walk:
             pass
         self.rows.append({"name": name, "kind": kind, "what": WHAT[kind], "scope": self.home.name, "path": path, "mtime": mtime})
 
-    def files(self, d, exts, kind_of, depth=1):
+    def files(self, d, exts, kind_of, depth=1, flat=False):
         """Files of folder `d` with an extension in `exts`; recurse into real (not symlinked) subfolders up to DEPTH."""
         for e in _scandir(d):
             if len(self.rows) >= MAX_ROWS:
@@ -84,6 +84,8 @@ class _Walk:
                     if e.is_file() and Path(e.name).suffix.lower() in exts:
                         self.add(Path(e.path), kind_of(e.name))
                 elif e.is_dir(follow_symlinks=False):
+                    if flat:  # tasks/ and shared/ list their own *.md only; a subfolder is not part of the list
+                        continue
                     if depth < DEPTH:
                         self.files(Path(e.path), exts, kind_of, depth + 1)
                     else:
@@ -104,7 +106,7 @@ def list_files(squad, kind, name, home):
     w = _Walk(squad, Path(home), roots)
     home = Path(home)
     if kind == "scope":
-        w.files(home / "tasks", {".md"}, lambda n: "ticket" if n[:1].isdigit() else "other", DEPTH)
+        w.files(home / "tasks", {".md"}, lambda n: "ticket" if n[:1].isdigit() else "other", flat=True)
         w.files(home / "ui-design", {".md", ".html"}, lambda n: "prototype" if n.endswith(".html") else "design")
         if (home / "promote.md").is_file():
             w.add(home / "promote.md", "promote")
@@ -119,7 +121,7 @@ def list_files(squad, kind, name, home):
             except OSError:
                 continue
     else:
-        w.files(home / "shared", {".md"}, lambda n: "decision" if n == "decisions.md" else "other", DEPTH)
+        w.files(home / "shared", {".md"}, lambda n: "decision" if n == "decisions.md" else "other", flat=True)
     if (home / "escalations.md").is_file():
         w.add(home / "escalations.md", "answer")
     rows = sorted(w.rows, key=lambda r: (-r["mtime"], r["name"]))

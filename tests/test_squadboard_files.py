@@ -103,6 +103,14 @@ class Reader(Base):
             for p in sorted(outside.rglob("*"), reverse=True) + [outside]:
                 p.rmdir() if p.is_dir() else p.unlink()
 
+    def test_T14_TA5_a_tasks_subfolder_is_not_listed_and_does_not_set_truncated(self):
+        put(self.home / "tasks" / "issues" / "01-a.md")
+        put(self.home / "tasks" / "issues-tech" / "01.md")
+        d = sf.read(self.sel())["data"]
+        self.assertFalse(d["truncated"])
+        self.assertFalse([r for r in d["rows"] if r["name"].startswith("tasks/issues")])
+        self.assertIn("tasks/features.md", [r["name"] for r in d["rows"]])
+
     def test_T14_TA5_cap_sets_truncated_and_a_missing_folder_is_unknown(self):
         with mock.patch.object(sf, "MAX_ROWS", 3):
             d = sf.read(self.sel())["data"]
