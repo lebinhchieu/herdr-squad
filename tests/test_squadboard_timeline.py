@@ -447,14 +447,14 @@ const segs=$$('.tl-bar .seg').map(g=>{const b=g.querySelectorAll('button'),f=b[0
 const clipper=e=>{for(let n=e.parentNode;n&&n.nodeType===1;n=n.parentNode){if(getComputedStyle(n).overflow!=='visible')return n}return document.documentElement};
 const find=t=>$$('.tl-bar .tc').find(x=>x.textContent===t),sb=$$('.tl-bar .seg button');
 const ring={};
-for(const [k,e] of [['minus',sb[0]],['next',sb[3]],['all',find('All')],['alltasks',find('All tasks')]]){e.focus();const r=e.getBoundingClientRect(),c=getComputedStyle(e),cb=clipper(e).getBoundingClientRect();
- ring[k]={rad:rd(e),out:c.outlineWidth,h:r.height,inside:r.left-2>=Math.max(cb.left,0)&&r.right+2<=Math.min(cb.right,innerWidth)&&r.top-2>=Math.max(cb.top,0),focus:document.activeElement===e}}
+for(const [k,e] of [['minus',sb[0]],['prev',sb[2]],['next',sb[3]],['all',find('All')],['alltasks',find('All tasks')]]){e.focus();const r=e.getBoundingClientRect(),c=getComputedStyle(e),cb=clipper(e).getBoundingClientRect();
+ ring[k]={rad:rd(e),out:c.outlineWidth,h:r.height,inside:r.left-2>=Math.max(cb.left,0)&&r.right+2<=Math.min(cb.right,innerWidth)&&r.top-2>=Math.max(cb.top,0),focus:document.activeElement===e,zi:c.zIndex,nzi:getComputedStyle(e.nextElementSibling||e.previousElementSibling).zIndex}}
 document.activeElement.blur();
 /* :hover cannot be set from a script: copy every :hover rule of the page to a class and put the class on the control */
 let hovRules=0;for(const ss of document.styleSheets){for(const r of Array.from(ss.cssRules)){if(r.selectorText&&r.selectorText.includes(':hover')){hovRules++;ss.insertRule(r.cssText.replace(/:hover/g,'.__hov'),ss.cssRules.length)}}}
 const hov={};
 for(const [k,e] of [['minus',sb[0]],['plus',sb[1]],['next',sb[3]],['all',find('All')],['alltasks',find('All tasks')]]){e.classList.add('__hov');const c=getComputedStyle(e);
- hov[k]={rad:rd(e),bc:c.borderTopColor,h:e.getBoundingClientRect().height,ov:getComputedStyle(e.parentNode).overflow};e.classList.remove('__hov')}
+ hov[k]={rad:rd(e),bs:c.boxShadow,zi:c.zIndex,bc:c.borderTopColor,h:e.getBoundingClientRect().height,ov:getComputedStyle(e.parentNode).overflow};e.classList.remove('__hov')}
 const on=$$('.tl-bar .tc.on')[0],ons=getComputedStyle(on);
 const outside=$$('.seg').filter(x=>!B.contains(x)).map(x=>{const c=getComputedStyle(x);return [c.borderTopLeftRadius,c.overflow]});
 const pw=$('.tl').parentNode.getBoundingClientRect().width;
@@ -485,12 +485,18 @@ out({chips,segs,ring,hov,hovRules,pw,active:{bg:ons.backgroundColor,bc:ons.borde
             self.assertEqual(set(r["ring"]), {"minus", "next", "all", "alltasks"})
             for k, v in r["ring"].items():
                 self.assertTrue(v["focus"] and v["out"] == "2px" and v["inside"], (k, v, name))
+                if k in ("minus", "prev", "next"):   # QAB AC6: the ring is painted above the neighbour button, not under it
+                    self.assertTrue(v["zi"] == "1" and v["nzi"] in ("auto", "0"), (k, v, name))
                 if k in ("all", "alltasks"):   # the PO's "All" pill, focused
                     self.assertTrue(all(x >= v["h"] / 2 for x in v["rad"]), (k, v, name))
             self.assertGreaterEqual(r["hovRules"], 1)   # hover rules exist, so the class copy proves something
             rest = {"minus": r["segs"][0]["fr"], "plus": r["segs"][0]["lr"], "next": r["segs"][1]["lr"]}
             for k, v in r["hov"].items():
                 self.assertEqual(v["bc"], r["tok"]["ink"]["bc"], (k, v, name))   # the hover rule applied
+                if k in ("minus", "plus", "next"):   # QAB AC6: hover edge on top; the inner edge of the last button is drawn in --ink
+                    self.assertEqual(v["zi"], "1", (k, v, name))
+                if k in ("plus", "next"):
+                    self.assertIn(r["tok"]["ink"]["bc"], v["bs"], (k, v, name))
                 if k in rest:
                     self.assertEqual((v["rad"], v["ov"]), (rest[k], "visible"), (k, v, name))   # same corners as at rest
                 else:
