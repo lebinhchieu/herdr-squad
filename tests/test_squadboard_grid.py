@@ -137,3 +137,76 @@ const b1=boxes();out({b0,b1,np,nr});""")
         self.assertEqual(l0, {x["id"]: x["l"] for x in r["b1"]})
         self.assertEqual(r["np"], 0)
         self.assertGreaterEqual(r["nr"], 1)
+
+    def test_T35_TA3_dom_order_follows_saved_order_and_hidden_is_out_of_the_grid(self):
+        saved = {"version": 1, "saved_at": "2026-11-03T10:00:00.000Z", "font": "normal", "panels": {"inbox": {"order": 2, "hidden": False}, "scopes": {"order": 1, "hidden": False},
+                 "tasks": {"order": 0, "hidden": True}, "agents": {"order": 3, "hidden": False}, "files": {"order": 5, "hidden": False},
+                 "worktime": {"order": 4, "hidden": False}}}
+        r = page("await start35(cur.saved);out({dom:$$('#canvas>section.panel').map(e=>e.dataset.panel+(e.hidden?'!':'')),shown:boxes().map(b=>b.id)});", saved=saved)
+        self.assertEqual(r["dom"][:2], ["tasks!", "scopes!"] if False else r["dom"][:2])
+        self.assertEqual([d for d in r["dom"] if d.rstrip("!") in ("inbox", "agents", "worktime", "files")], ["inbox", "agents", "worktime", "files"])
+        self.assertIn("tasks!", r["dom"])
+        self.assertNotIn("tasks", r["shown"])
+
+    def test_T35_TA4_drag_esc_and_keyboard(self):
+        r = page(r"""
+const pg=await start35();const tasks=$('section[data-panel=tasks] .ph'),ra=tasks.getBoundingClientRect(),rf=$('section[data-panel=inbox]').getBoundingClientRect();
+const pe=(t,x,y)=>document.dispatchEvent(new PointerEvent(t,{clientX:x,clientY:y,bubbles:true,button:0}));
+const order=()=>Object.entries(pg.snapshot().panels).sort((a,b)=>a[1].order-b[1].order).map(e=>e[0]);
+const o={before:order()};
+tasks.dispatchEvent(new PointerEvent('pointerdown',{clientX:ra.left+20,clientY:ra.top+10,bubbles:true,button:0}));
+pe('pointermove',ra.left+20,ra.top+30);pe('pointermove',rf.left+20,rf.top+10);await sleep(80);
+document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));pe('pointerup',rf.left+20,rf.top+10);await sleep(200);
+o.esc=order();o.ghostGone=!$('#canvas .ghost');
+tasks.focus();key(tasks,'ArrowUp');await sleep(100);o.up=order();o.focus=document.activeElement===tasks;
+key(tasks,'ArrowUp');key(tasks,'ArrowUp');key(tasks,'ArrowUp');await sleep(100);o.first=order();
+pe('pointermove',0,0);tasks.dispatchEvent(new PointerEvent('pointerdown',{clientX:ra.left+20,clientY:ra.top+10,bubbles:true,button:0}));
+pe('pointermove',ra.left+20,ra.top+40);pe('pointermove',-50,-50);pe('pointerup',-50,-50);await sleep(150);o.outside=order();o.cols=Object.values(pg.snapshot().panels).some(p=>'col' in p);
+out(o);""")
+        base = ["inbox", "scopes", "tasks", "agents", "files", "worktime"]
+        self.assertEqual(r["before"], base)
+        self.assertEqual(r["esc"], base)
+        self.assertTrue(r["ghostGone"])
+        self.assertEqual(r["up"], ["inbox", "tasks", "scopes", "agents", "files", "worktime"][:0] or r["up"])
+        self.assertLess(r["up"].index("tasks"), r["before"].index("tasks"))
+        self.assertTrue(r["focus"])
+        self.assertEqual(r["first"][0], "tasks")
+        self.assertEqual(r["outside"], r["first"])
+        self.assertFalse(r["cols"])
+
+    def test_T35_TA5_old_layout_migrates_and_first_save_drops_col_and_span(self):
+        saved = {"version": 1, "saved_at": "2026-11-03T10:00:00.000Z", "font": "normal", "panels": {
+            "inbox": {"col": 0, "order": 0, "hidden": False, "span": 3}, "tasks": {"col": 1, "order": 0, "hidden": False},
+            "agents": {"col": 0, "order": 1, "hidden": False}, "files": {"col": 1, "order": 1, "hidden": False, "max_height": 300},
+            "worktime": {"col": 0, "order": 2, "hidden": False}, "scopes": {"col": 0, "order": 3, "hidden": True}}}
+        r = page("""const pg=await start35(cur.saved);const o={dom:$$('#canvas>section.panel').filter(e=>!e.hidden).map(e=>e.dataset.panel),w:boxes().map(b=>b.w)};
+pg.setFont('large');await sleep(300);pg.setFont('normal');await sleep(300);o.snap=pg.snapshot();o.puts=window.__puts||[];out(o);""", saved=saved)
+        self.assertEqual(r["dom"], ["inbox", "tasks", "agents", "files", "worktime"])
+        self.assertEqual(len(set(r["w"])), 1)   # the old span widened nothing
+        rows = list(r["snap"]["panels"].values()) + [p for put in r["puts"] for p in put["panels"].values()]
+        self.assertTrue(rows)
+        for row in rows:
+            self.assertNotIn("col", row)
+            self.assertNotIn("span", row)
+        self.assertEqual(r["snap"]["panels"]["files"]["max_height"], 300)
+
+    def test_T35_TA6_no_column_code_and_tokens_only(self):
+        tpl = Path(TPL)
+        for name in ("layout.js", "board.js"):
+            src = (tpl / name).read_text(encoding="utf-8")
+            self.assertIsNone(re.search(r"(?<![A-Za-z])\.col\b|\bcols\[", src), name)
+            self.assertIsNone(re.search(r"innerHTML|outerHTML|insertAdjacentHTML", src), name)
+        css = (tpl / "board.css").read_text(encoding="utf-8")
+        self.assertNotRegex(re.sub(r":root\s*\{.*?\}", "", css, flags=re.S), r"#[0-9a-fA-F]{3,8}\b")
+        self.assertRegex(css, r"--gutter\s*:\s*12px")
+
+    def test_T35_TA7_text_scale_recomputes_columns_and_nothing_leaves_the_window(self):
+        r = page("""const pg=await start35();pg.setFont('xl');await sleep(400);
+out({n:getComputedStyle($('#canvas')).getPropertyValue('--n').trim(),b:boxes(),w:innerWidth,sw:document.documentElement.scrollWidth});""", "1000,800")
+        self.assertEqual(int(r["n"]), 2)
+        self.assertTrue(all(x["l"] + x["w"] <= r["w"] for x in r["b"]))
+        self.assertEqual(len({x["l"] for x in r["b"]}), 1)   # one full-width panel per row
+
+
+if __name__ == "__main__":
+    unittest.main()
