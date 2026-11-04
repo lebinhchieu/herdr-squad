@@ -258,7 +258,7 @@
     function snapshot() {
       var panels = {};
       panelList().forEach(function (p) {
-        var r = { order: p.order, span: p.span, hidden: !!p.hidden };
+        var r = { order: p.order, span: p.span, hidden: !!p.hidden && !p.def.byView };
         if (p.max_height != null) r.max_height = p.max_height;
         panels[p.id] = r;
       });
@@ -400,7 +400,7 @@
     /* ---- hidden panels list ---- */
     function renderPop() {
       els.pop.textContent = "";
-      var hid = panelList().filter(function (p) { return p.hidden; });
+      var hid = panelList().filter(function (p) { return p.hidden && !p.def.byView; });
       els.hiddenBtn.textContent = "Panels" + (hid.length ? " (" + hid.length + " hidden)" : "") + " ▾";
       if (!hid.length) els.pop.appendChild(el("p", "muted", "No hidden panels."));
       hid.forEach(function (p) {
@@ -419,7 +419,7 @@
     function resetLayout() {
       panelList().forEach(function (p) {
         var i = REG.indexOf(p.def), d = defaults(p.def, i);
-        p.order = d.order; p.span = d.span; p.hidden = false; p.max_height = null;
+        p.order = d.order; p.span = d.span; p.hidden = p.def.byView ? p.hidden : false; p.max_height = null;
       });
       S.auto = true; touch(); renderPop(); replan();
     }

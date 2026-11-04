@@ -164,7 +164,7 @@ class Picker(unittest.TestCase):
         r = run_page("""
 await startPage();
 const t0=performance.now();BOARD.page.state.squad&&BOARD.ctx.paint();const ms=performance.now()-t0;
-out({rows:$$('#view .plist .pr').map(x=>x.dataset.name),done:$('#view .dnd summary').textContent,doneOpen:$('#view .dnd').open,
+out({rows:$$('#view .plist .pr[data-name]').map(x=>x.dataset.name),done:$('#view .dnd summary').textContent,doneOpen:$('#view .dnd').open,
  mainHidden:$('main').hidden,panelsShown:$$('section.panel').filter(p=>!p.hidden).length,
  text:document.getElementById('app').textContent,ms,title:document.title,choice:BOARD.page.state.choice});
 """, self.real)
@@ -187,7 +187,7 @@ const inp=$('#pkq');
 const slash=key(document.body,'/');const focused=document.activeElement===inp;
 const inSlash=key(inp,'/');
 inp.value="LONE";inp.dispatchEvent(new Event('input',{bubbles:true}));
-const names=$$('#view .pr').map(x=>x.dataset.name);
+const names=$$('#view .pr[data-name]').map(x=>x.dataset.name);
 key(inp,'Enter');await sleep(100);
 const chosen=BOARD.page.state.choice;
 BOARD.page.state.choice=null;BOARD.ctx.paint();await sleep(50);
@@ -209,7 +209,7 @@ for(const n of names)p.setChoice('scope:'+n);
 p.setChoice('scope:'+names[5]);
 await sleep(50);
 p.state.choice=null;BOARD.ctx.paint();await sleep(50);
-out({recent:p.state.recent.map(c=>c.name),shown:$$('#view h3').length&&$$('#view .plist')[0].querySelectorAll('.pr').length});
+out({recent:p.state.recent.map(c=>c.name),shown:$$('#view h3').length&&$$('#view .plist')[0].querySelectorAll('.pr[data-name]').length});
 """ % json.dumps(names), self.real)
         self.assertEqual(r["recent"], names[:0:-1])
         self.assertEqual(r["shown"], 5)
@@ -323,6 +323,23 @@ out({before,ro:Array.from($$('#view .ro')).map(x=>x.textContent),links:Array.fro
         self.assertTrue(r["ro"] and "closed" in r["ro"][0])
         self.assertEqual(r["links"], ["Back to the picker"])
         self.assertNotIn("not updating", r["fresh"])
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
+class ByView(unittest.TestCase):
+    def test_T11_TA1_scopes_panel_hidden_in_scope_view_is_not_in_panels_menu_reset_or_saved_state(self):
+        real = dict(real_payloads(), saved=None)
+        r = run_page("""
+const p=await startPage();
+const sc=$('section[data-panel=scopes]');
+const hiddenIn=sc.hidden;
+BOARD.page.resetLayout();await sleep(50);
+$('.hb[aria-haspopup=true]').click();await sleep(20);
+out({hiddenIn,afterReset:sc.hidden,btn:$('.hb[aria-haspopup=true]').textContent,menu:$('.pop').textContent,saved:BOARD.page.snapshot().panels.scopes.hidden});
+""", real, "#/scope/checkout")
+        self.assertEqual((r["hiddenIn"], r["afterReset"], r["saved"]), (True, True, False))
+        self.assertNotIn("hidden)", r["btn"])
+        self.assertNotIn("Scopes", r["menu"])
 
 
 class Static(unittest.TestCase):

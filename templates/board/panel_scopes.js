@@ -125,7 +125,7 @@
   }
 
   BOARD.registerPanel({
-    id: "scopes", title: "Scopes of this goal", route: "/api/scopes", span: 12, spans: [8, 12], maxPx: 300,
+    id: "scopes", byView: true, title: "Scopes of this goal", route: "/api/scopes", span: 12, spans: [8, 12], maxPx: 300,
     isEmpty: function (d) { return !d || (d.kind === "goal" && !(d.scopes || []).length && !d.empty_text); },
     render: function (body, d, c) {
       if (!d) return;
@@ -301,6 +301,7 @@
       ".pk h3 .chip{margin-left:6px}.pkbar{margin:10px 0 6px;max-width:34em}.pk h3{margin:12px 0 2px;font-size:1em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}" +
       ".plist{border:1px solid var(--border);border-radius:var(--r);background:var(--panel);padding:2px 8px 8px}" +
       ".pr{display:grid;grid-template-columns:1.8em minmax(11em,1.3fr) 5em minmax(10em,2.3fr) minmax(8em,1fr) minmax(8em,1fr) 9em;gap:8px;align-items:center;padding:5px 6px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px}" +
+      ".pr.phd{cursor:default;font-size:.83em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border)}.pr.phd:hover{background:none}" +
       ".pr:hover{background:var(--t-need3)}.pr.sub{background:var(--bg);border-left:3px solid var(--border);margin-left:1.6em}.pr.dn{color:var(--muted)}" +
       ".pr .pn,.pr .pbr{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pr .kind{color:var(--muted);margin-left:4px}" +
       ".chev{border:1px solid transparent;background:none;border-radius:5px;width:1.8em;height:1.8em;padding:0;color:var(--muted)}" +
@@ -352,6 +353,14 @@
     return out.slice(0, RECENT_MAX);
   }
 
+  function listEl() {
+    var l = el("div", "plist"); l.setAttribute("role", "listbox");
+    var h = el("div", "pr phd"); h.setAttribute("aria-hidden", "true");
+    ["", "Name", "Status", "Brief", "Work", "You", "Last active"].forEach(function (t) { h.appendChild(el("span", null, t)); });
+    l.appendChild(h);
+    return l;
+  }
+
   function section(title, count) {
     var h = el("h3", null, title);
     if (count != null) h.appendChild(el("span", "chip", String(count)));
@@ -366,7 +375,7 @@
       var vis = filterRows(flatRows(sq, V.kids), q);
       if (!vis.length) { frag.appendChild(el("p", "note", "Nothing matches '" + q + "'")); }
       else {
-        var l = el("div", "plist"); l.setAttribute("role", "listbox");
+        var l = listEl();
         vis.forEach(function (r) { l.appendChild(rowEl(r, false, nowMs)); });
         frag.appendChild(l);
       }
@@ -376,12 +385,12 @@
     var rec = recentRows(sq);
     if (rec.length) {
       frag.appendChild(section("Recent"));
-      var lr = el("div", "plist"); lr.setAttribute("role", "listbox");
+      var lr = listEl();
       rec.forEach(function (r) { lr.appendChild(rowEl(r, false, nowMs)); });
       frag.appendChild(lr);
     }
     frag.appendChild(section("Open", (sq.open || []).length));
-    var lo = el("div", "plist"); lo.setAttribute("role", "listbox");
+    var lo = listEl();
     if (!(sq.open || []).length) lo.appendChild(el("p", "muted", "Nothing open."));
     (sq.open || []).forEach(function (r) {
       lo.appendChild(rowEl(r, false, nowMs));
@@ -457,17 +466,12 @@
     sw.addEventListener("click", function (e) { e.stopPropagation(); toggleSheet(); });
     bar.appendChild(sw); bar.appendChild(wh);
     bar.appendChild(link("Open the picker", function () { openPicker(true); }));
-    var oth = otherNeeds(sq, c, goal);
-    if (oth.length) {
-      var tot = oth.reduce(function (a, r) { return a + r.needs_you; }, 0);
+    otherNeeds(sq, c, goal).forEach(function (r) {
       var o = el("span", "out");
-      o.appendChild(root.document.createTextNode(tot + " more need" + (tot === 1 ? "s" : "") + " you in "));
-      oth.forEach(function (r, i) {
-        if (i) o.appendChild(root.document.createTextNode(", "));
-        o.appendChild(link(r.name, function () { openChoice({ kind: r.kind, name: r.name }, true); }, "Show " + r.kind + " " + r.name));
-      });
+      o.appendChild(root.document.createTextNode(r.needs_you + " more need" + (r.needs_you === 1 ? "s" : "") + " you in "));
+      o.appendChild(link(r.name, function () { openChoice({ kind: r.kind, name: r.name }, true); }, "Show " + r.kind + " " + r.name));
       bar.appendChild(o);
-    }
+    });
     if (V.closed) {
       var ro = el("span", "ro", "closed: read-only. ");
       ro.setAttribute("role", "status");
