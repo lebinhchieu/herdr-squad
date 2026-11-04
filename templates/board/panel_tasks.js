@@ -27,16 +27,16 @@
       return { key: (r.scope ? r.scope + "/" : "") + r.id, id: r.id, scope: r.scope || "", title: r.title, stage: r.stage, ready: isReady(r.stage),
                done: isDone(r.stage), cls: stageClass(r.stage), owner: r.owner, waits: r.waits_on, lastIso: r.last_active_iso || null,
                last: secs == null ? "no activity recorded" : BOARD.ageWords(secs), returns: r.returns || 0, failLine: r.last_fail_line || "",
-               note: r.detail_note || "", where: r.where || "", branch: r.branch || "", newCount: r.new_count > 0 ? r.new_count : 0 };
+               note: r.detail_note || "", where: r.where || "", abs: r.abs || "", untitled: !!r.untitled, branch: r.branch || "", newCount: r.new_count > 0 ? r.new_count : 0 };
     });
   }
   function filterRows(rows, f) {
     return rows.filter(function (r) { return f === "all" || (f === "open" ? !r.done : f === "review" ? r.ready : r.done); });
   }
   /* the columns the panel really has (ticket 20); the Columns control in board.js lists these */
-  var COLS = [{ id: "task", label: "Task", identity: true }, { id: "title", label: "Title" }, { id: "stage", label: "Stage" },
+  var COLS = [{ id: "task", label: "Task", identity: true }, { id: "title", label: "Title" }, { id: "where", label: "Where" }, { id: "stage", label: "Stage" },
               { id: "last_active", label: "Last active" }, { id: "happened", label: "What happened" }, { id: "owner", label: "Owner" },
-              { id: "waits", label: "Waits on" }, { id: "where", label: "Where it lives" }];
+              { id: "waits", label: "Waits on" }];
   BOARD.rowsForTasks = rowsForTasks; BOARD.taskStageClass = stageClass; BOARD.taskFilter = filterRows;
 
   /* ---------- drawing ---------- */
@@ -65,6 +65,9 @@
       ".tk .failfirst{margin-top:3px;padding:3px 8px;border-left:3px solid var(--fail);background:var(--panel);border-radius:0 4px 4px 0}" +
       ".tools{display:flex;gap:6px;align-items:center;margin:0 0 4px;flex-wrap:wrap}.tools button{border:1px solid var(--border);background:var(--bg);border-radius:12px;padding:0 9px}" +
       ".tools button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}" +
+      ".tk .ttl{max-width:28em}.tk .tt{font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}.tk .tt.nm{font-weight:400;font-style:italic;color:var(--muted)}" +
+      ".tk td.wh{font-size:.875em;overflow-wrap:anywhere;min-width:10em}.tk .wf b{color:var(--ink)}" +
+      ".tk-empty{border:1px dashed var(--border);border-radius:6px;padding:8px 10px;color:var(--muted)}.tk-empty ul{margin:4px 0 0;padding-left:18px}" +
       ".tk .cp{border:1px solid var(--border);background:var(--bg);border-radius:5px;padding:0 6px;font-size:.92em}.tk .cp:hover{border-color:var(--mango)}";
     root.document.head.appendChild(s);
   }
@@ -146,8 +149,15 @@
     var nOpen = all.filter(function (r) { return !r.done; }).length, nReady = all.filter(function (r) { return r.ready; }).length;
     c.setCount(all.length, nReady > 0);
     if (!all.length) {
-      var lk = (d && d.looked) || [];
-      body.appendChild(el("p", "muted", "No task files found." + (lk.length ? " Looked in: " + lk.join(", ") + "." : "")));
+      var lk = (d && d.looked) || [], note = el("div", "tk-empty");
+      note.appendChild(el("b", null, "No task files found."));
+      if (lk.length) {
+        note.appendChild(root.document.createTextNode(" Looked in:"));
+        var ul = el("ul");
+        lk.forEach(function (x) { ul.appendChild(el("li", null, x)); });
+        note.appendChild(ul);
+      }
+      body.appendChild(note);
       return;
     }
     var tools = el("div", "tools");
@@ -169,7 +179,9 @@
       a.appendChild(el("b", null, r.id));
       var nn = newOf(r); if (nn > 0) { a.appendChild(root.document.createTextNode(" ")); a.appendChild(BOARD.newBadge(nn)); }
       cell.task = a;
-      cell.title = el("td", null, r.title);
+      var tt = el("td", "ttl"), tb2 = el("div", r.untitled ? "tt nm" : "tt", r.title);
+      tb2.title = r.title; tt.appendChild(tb2);
+      cell.title = tt;
       var st = el("td"); st.appendChild(chip(r.cls, r.stage));
       if (r.returns >= 1 && !r.done) st.appendChild(chip("fail", r.returns + (r.returns === 1 ? " return" : " returns")));
       cell.stage = st;
@@ -182,7 +194,16 @@
       cell.happened = wh;
       cell.owner = el("td", null, r.owner);
       cell.waits = el("td", null, r.waits);
-      cell.where = el("td", null, r.where);
+      var wt = el("td", "wh"), cut = r.where.lastIndexOf("/");
+      if (r.where.indexOf("plan table") === 0) wt.appendChild(el("span", "muted", r.where));
+      else {   /* the path is text; ticket 30 turns the file name into a link through data-abs */
+        var wl = el("span", "wf");
+        if (r.abs) wl.setAttribute("data-abs", r.abs);
+        if (cut >= 0) wl.appendChild(el("span", "muted", r.where.slice(0, cut + 1)));
+        wl.appendChild(el("b", null, r.where.slice(cut + 1)));
+        wt.appendChild(wl);
+      }
+      cell.where = wt;
       cols.forEach(function (k) { tr.appendChild(cell[k.id]); });
       tb.appendChild(tr);
       if (OPEN === r.key) {

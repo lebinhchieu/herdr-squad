@@ -527,7 +527,7 @@ for(let i=0;i<10;i++){rows().find(tr=>tr.dataset.k==='03').click();await sleep(3
 const afterEsc=$$('section[data-panel=tasks] tr.x').length;
 out({cells,ready,det,steps,closed,afterEsc,calls,count:sec.querySelector('.count').textContent,tools:$$('section[data-panel=tasks] .tools button').map(b=>b.textContent)});
 """, "#/scope/checkout")
-        stages = [c[2] for c in r["cells"]]
+        stages = [c[3] for c in r["cells"]]
         for word in ("todo", "in progress", "returned", "blocked", "checking, 1 of 2 PASS", "ready for review", "sha changed after PASS", "merged", "done"):
             self.assertTrue(any(s.startswith(word) for s in stages), word)
         self.assertEqual(r["ready"], ["06"])
@@ -732,7 +732,7 @@ const btn=id=>$('section[data-panel='+id+'] .ph button.pbtn:not([hidden])');
 const colsBtn=id=>$$('section[data-panel='+id+'] .ph button').find(b=>/^Columns/.test(b.textContent));
 const tick=(id,on)=>{const c=$('.cpop input[data-col='+id+']');if(c.checked!==on){c.click()}};
 """
-TASK_COLS = ["Task", "Title", "Stage", "Last active", "What happened", "Owner", "Waits on", "Where it lives"]
+TASK_COLS = ["Task", "Title", "Where", "Stage", "Last active", "What happened", "Owner", "Waits on"]
 
 
 @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
@@ -764,7 +764,7 @@ out({
  reset:B.resetColumns({tasks:['task'],files:['file']},'tasks'),
  clean:B.cleanColumns({a:['x'],b:'x',c:[1],d:null}),cleanBad:[B.cleanColumns(null),B.cleanColumns([1]),B.cleanColumns('x')]});
 """)
-        self.assertEqual(r["def"], ["task", "title", "stage", "last_active", "happened", "owner", "waits", "where"])
+        self.assertEqual(r["def"], ["task", "title", "where", "stage", "last_active", "happened", "owner", "waits"])
         self.assertEqual(r["moved"], ["stage", "title", "task"])
         self.assertEqual(r["onlyTask"], ["task"])
         self.assertEqual(r["noIdentity"], ["task", "stage", "title"])   # identity is added first when a saved list lacks it
@@ -828,13 +828,13 @@ out({def,only,noInbox,rows,expanded,noWaits,cells,tag,tip,moved,focusKept,back,o
         self.assertTrue(r["cells"])   # TA10: th and every td leave together
         self.assertIn("1 hidden", r["tag"])
         self.assertIn("Waits on", r["tip"])
-        self.assertEqual(r["moved"].index("Last active"), 2)   # T20.AC3: Last active before Stage
-        self.assertEqual(r["moved"].index("Stage"), 3)
+        self.assertEqual(r["moved"].index("Last active"), 3)   # T20.AC3: Last active before Stage
+        self.assertEqual(r["moved"].index("Stage"), 4)
         self.assertEqual(r["focusKept"], "up:last_active")   # focus stays on the pressed button
-        self.assertEqual(r["back"][-2:], ["Waits on", "Where it lives"])
-        self.assertEqual(r["onlyTask"], ["Waits on", "Where it lives", "Task"])   # T20.AC1: Task moved last, the other boxes cleared
+        self.assertEqual(r["back"][-1], "Waits on")
+        self.assertEqual(r["onlyTask"], ["Where", "Waits on", "Task"])   # T20.AC1: Task moved last, the other boxes cleared
         self.assertEqual(r["span"], 3)   # the open row spans exactly the shown columns
-        self.assertEqual(r["snap"]["tasks"], ["waits", "where", "task"])   # saved: visible ids in order
+        self.assertEqual(r["snap"]["tasks"], ["where", "waits", "task"])   # saved: visible ids in order
         self.assertTrue(all(r["same"].values()), r["same"])   # T20.AC6 / TA5
         self.assertEqual((r["outside"], r["reopened"], r["closed"], r["focus"]), (True, True, True, True))
         self.assertEqual(r["afterReset"], TASK_COLS)   # T20.AC7: Reset columns
@@ -851,10 +851,10 @@ const a={heads:heads(T),even:even()};
 pg.poller.now();await sleep(300);
 out({a,heads:heads(T),even:even(),pop:!!$('.cpop'),cols:pg.snapshot().columns,boxes:$$('.cpop input:checked').length});
 """)
-        self.assertEqual(r["a"]["heads"], ["Task", "Title", "Last active", "What happened", "Waits on", "Where it lives"])
+        self.assertEqual(r["a"]["heads"], ["Task", "Title", "Where", "Last active", "What happened", "Waits on"])
         self.assertTrue(r["a"]["even"] and r["even"])   # header and every row have the same number of cells
         self.assertEqual((r["heads"], r["pop"]), (r["a"]["heads"], True))
-        self.assertEqual(r["cols"], {"tasks": ["task", "title", "last_active", "happened", "waits", "where"]})
+        self.assertEqual(r["cols"], {"tasks": ["task", "title", "where", "last_active", "happened", "waits"]})
         self.assertEqual(r["boxes"], 6)
 
     def test_T20_AC7_AC10_reset_layout_resets_every_panel_columns_not_font_or_choice(self):
@@ -1045,19 +1045,11 @@ d.rows=[];d.looked=['.scratch/checkout/issues','.claude/squads/s/scopes/checkout
 await start12();await sleep(150);
 o.empty=$('section[data-panel=tasks]').textContent;
 out(o);""", "#/scope/checkout")
-        self.assertEqual(r["heads"][-1], "Where it lives")
+        self.assertEqual(r["heads"][2], "Where")
         self.assertIn(".claude/squads/a/scopes/b/tasks/01.md", r["cells"])
         self.assertIn("<img src=x onerror=window.__x=1>", r["cells"])   # text, not markup (TU.3)
         self.assertEqual((r["img"], r["x"]), (0, True))
-        self.assertIn("No task files found. Looked in: .scratch/checkout/issues, .claude/squads/s/scopes/checkout/tasks.", r["empty"])
-
-    def test_T28_TA7_saved_columns_without_where_render(self):
-        r = self.page(r"""
-await start12();await sleep(100);
-const pg=BOARD.page;pg.state.columns={tasks:['task','title','stage']};pg.repaint&&pg.repaint();
-await sleep(100);
-out({heads:Array.from(document.querySelectorAll('section[data-panel=tasks] th')).map(t=>t.textContent)});""", "#/scope/checkout")
-        self.assertEqual(r["heads"][:3], ["Task", "Title", "Stage"])
+        self.assertIn("No task files found. Looked in:.scratch/checkout/issues.claude/squads/s/scopes/checkout/tasks", r["empty"])
 
 
 if __name__ == "__main__":

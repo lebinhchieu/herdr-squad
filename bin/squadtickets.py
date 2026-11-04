@@ -94,6 +94,8 @@ def _row(f, root, roots, source):
     rel = _rel(f, root) if root else None
     row = {"id": nn, "title": title_of(text, nn, f.stem), "status": status_of(text), "where": rel or f.as_posix(),
            "source": source}
+    if not any(x.startswith("# ") for x in (text or "").splitlines()):
+        row["untitled"] = True   # the title is the file name (the panel shows it in italics)
     try:
         real = f.resolve()
         if any(real == r or r in real.parents for r in roots):
@@ -145,7 +147,7 @@ def _scope_tasks(scope_home, repo_root, name):
     name = name or home.name
     roots = [r for r in (home.resolve().parent.parent if home.parent.name == "scopes" else home.resolve(),
                          root / ".scratch" if root else None) if r]
-    tried, found = [], (None, [], None)
+    tried, found = ["scope.md (tickets: line)"], (None, [], None)
     for src in SOURCES:
         if src in ("declared", "scratch"):
             slug = declared_folder(home) if src == "declared" else name

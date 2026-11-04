@@ -189,6 +189,8 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
                "last_fail_line": _first_line(fails[-1].get("text")) if fails else "",
                "branch": branch, "tip": tip, "new_count": new, "detail_note": detail,
                "where": (by_id.get(tid) or {}).get("where", ""), "ticket_status": facts["ticket_status"]}
+        if (by_id.get(tid) or {}).get("untitled"):
+            row["untitled"] = True
         if "abs" in (by_id.get(tid) or {}):
             row["abs"] = by_id[tid]["abs"]
         if with_detail:
