@@ -13,7 +13,7 @@ Test: `tests/test_squadboard_timeline.py` `Safety.test_T27_filter_block_look_act
 |---|---|
 | T27.AC1 / TA2 block bg, border, radius | timeline.js `.tl-bar` rule; the T27 test (bg = resolved --panel2, 1px, 8px) |
 | T27.AC2 padding >= 8 px, text >= 6 px | T27 test (padding), chip `padding:0 .85em` |
-| T27.AC3 two rows on one line, 8 px gaps | `.tl-r` `gap:.67em`, rows built in `toolbar()` (Task row, View row); one-line at 1440 and wrap at 1000 / Extra large: QA blackbox look check (open: not in my test) |
+| T27.AC3 two rows on one line, 8 px gaps | `.tl-r` `gap:.67em`, rows built in `toolbar()` (Task row, View row); one line at 700 px, wrap at 330 px: Return 1 test |
 | T27.AC4 active chip, focus ring | `.tc.on` rule; T27 test (on/off colours, weight); focus ring is the page rule (unchanged) |
 | T27.AC5 / TA1 tokens only | `grep -nE "#[0-9a-fA-F]{3,8}\b\|rgba?\(" templates/board/timeline.js`: no hit; T27 test resolves tokens |
 | T27.AC6 / TA5 behaviour unchanged | test_squadboard_timeline (all pass, none edited) |
@@ -23,5 +23,7 @@ Test: `tests/test_squadboard_timeline.py` `Safety.test_T27_filter_block_look_act
 | T27.AC10 / TA7 no `%` | T27 test (`textContent` of the block) |
 | Design s4 Real time chip in range line | timeline.js `toolbar()` `r3.appendChild(g)`; T27 test (`.tl-rng button[data-real]`) |
 
-## Open gaps
-- T27.AC3 at 1000 px / Extra large and T27.TA3 three-size test: not automated; QA blackbox checks the look.
+## Return 1 (QA whitebox)
+- TA2/TA3: `Safety.test_T27_TA2_TA3_TA4_three_sizes_narrow_wrap_and_sticky_in_a_scrolling_panel` runs Small, Normal, Extra large (padding >= 8, chip height >= 2.2em, side padding >= .85em, first chip inset >= 8 px, no overlap, nothing cut; Task and View one line each at 700 px for Small and Normal) and a 330 px host (the 1000 px window case): a row wraps, no overlap, nothing cut.
+- TA4: the host scrolls 200 px; `.tl-bar` stays at the host top (gap < 1.5 px) and its background is `rgb(...)` (alpha 1).
+- Open gap: none. At Extra large the View row may take two lines at 700 px (allowed by T27.AC3).
