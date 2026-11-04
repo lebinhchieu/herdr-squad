@@ -75,8 +75,8 @@ class OpenFile(unittest.TestCase):
                         self.assertEqual(argv, ["/bin/code", "--goto", "/x/a b.md"])
 
 
-def post(url, body, token=None, host=None, ctype="application/json"):
-    h = {"Content-Type": ctype}
+def post(url, body, token=None, host=None, ctype="application/json", headers=None):
+    h = {"Content-Type": ctype, **(headers or {})}
     if token is not None:
         h["X-Board-Token"] = token
     if host:
@@ -141,6 +141,24 @@ class Route(ts.Base):
         c, j = post(self.url + "/api/open?squad=nope", {"path": str(self.f)}, token=self.srv.token)
         self.assertEqual(c, 404); self.assertIn("unknown squad", j["error"])
         self.assertEqual(self.calls(), 2)
+
+    def test_T34_TA8_foreign_origin_refused_before_the_route(self):
+        port = self.srv.port
+        for origin in ("http://evil.example.com", "null", "http://127.0.0.1:1", "https://127.0.0.1:%d" % port):
+            with self.subTest(origin):
+                c, j = self.go(self.f, headers={"Origin": origin})
+                self.assertEqual((c, j["error"]), (403, "origin not allowed"))
+        self.assertEqual(self.calls(), 0)
+        for origin in ("http://127.0.0.1:%d" % port, "http://localhost:%d" % port):
+            self.assertEqual(self.go(self.f, headers={"Origin": origin})[0], 200)
+        self.assertEqual(self.calls(), 2)
+        called = []
+        self.srv.put_routes["/api/ui"] = lambda server, params, body: called.append(1) or {}
+        req = urllib.request.Request(self.url + "/api/ui", data=b"{}", method="PUT",
+                                     headers={"X-Board-Token": self.srv.token, "Origin": "http://evil.example.com"})
+        with self.assertRaises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(req, timeout=10)
+        self.assertEqual((e.exception.code, called), (403, []))
 
     def test_T34_TA2_refusal_and_exit_code_give_ok_false_and_one_at_a_time(self):
         for k, v in (("STUB_SAY", REFUSAL), ("STUB_EXIT", "1")):

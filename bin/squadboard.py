@@ -345,6 +345,14 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return True
 
+    def _origin_ok(self):
+        # A browser sends Origin on a cross-site write. None = a non-browser client (curl, tests): allowed.
+        origin = self.headers.get("Origin")
+        if origin is not None and origin not in (f"http://{h}:{self.server.port}" for h in ("127.0.0.1", "localhost")):
+            self._json(403, {"error": "origin not allowed"})
+            return False
+        return True
+
     # --- verbs ---
     def do_GET(self):
         if not self._host_ok():
@@ -373,7 +381,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(200, call_reader(route, sel))
 
     def _mutating(self):
-        if not self._host_ok():
+        if not self._host_ok() or not self._origin_ok():
             return
         u = urlsplit(self.path)
         fn = (self.server.put_routes if self.command == "PUT" else self.server.post_routes if self.command == "POST" else {}).get(u.path)
