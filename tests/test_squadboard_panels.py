@@ -527,11 +527,11 @@ for(let i=0;i<10;i++){rows().find(tr=>tr.dataset.k==='03').click();await sleep(3
 const afterEsc=$$('section[data-panel=tasks] tr.x').length;
 out({cells,ready,det,steps,closed,afterEsc,calls,count:sec.querySelector('.count').textContent,tools:$$('section[data-panel=tasks] .tools button').map(b=>b.textContent)});
 """, "#/scope/checkout")
-        stages = [c[2] for c in r["cells"]]
+        stages = [c[3] for c in r["cells"]]
         for word in ("todo", "in progress", "returned", "blocked", "checking, 1 of 2 PASS", "ready for review", "sha changed after PASS", "merged", "done"):
             self.assertTrue(any(s.startswith(word) for s in stages), word)
         self.assertEqual(r["ready"], ["06"])
-        self.assertEqual(len(r["cells"][0]), 7)   # id, title, stage, last active, what happened, owner, waits on
+        self.assertEqual(len(r["cells"][0]), 8)   # id, title, stage, last active, what happened, owner, waits on, where
         self.assertIn("Ready for review (1)", r["tools"])
         self.assertIn("FAIL: reason 3 first line (newest)", r["det"])
         times = [s.split(" ")[1] for s in r["steps"]]
@@ -732,7 +732,7 @@ const btn=id=>$('section[data-panel='+id+'] .ph button.pbtn:not([hidden])');
 const colsBtn=id=>$$('section[data-panel='+id+'] .ph button').find(b=>/^Columns/.test(b.textContent));
 const tick=(id,on)=>{const c=$('.cpop input[data-col='+id+']');if(c.checked!==on){c.click()}};
 """
-TASK_COLS = ["Task", "Title", "Stage", "Last active", "What happened", "Owner", "Waits on"]
+TASK_COLS = ["Task", "Title", "Where", "Stage", "Last active", "What happened", "Owner", "Waits on"]
 
 
 @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
@@ -764,7 +764,7 @@ out({
  reset:B.resetColumns({tasks:['task'],files:['file']},'tasks'),
  clean:B.cleanColumns({a:['x'],b:'x',c:[1],d:null}),cleanBad:[B.cleanColumns(null),B.cleanColumns([1]),B.cleanColumns('x')]});
 """)
-        self.assertEqual(r["def"], ["task", "title", "stage", "last_active", "happened", "owner", "waits"])
+        self.assertEqual(r["def"], ["task", "title", "where", "stage", "last_active", "happened", "owner", "waits"])
         self.assertEqual(r["moved"], ["stage", "title", "task"])
         self.assertEqual(r["onlyTask"], ["task"])
         self.assertEqual(r["noIdentity"], ["task", "stage", "title"])   # identity is added first when a saved list lacks it
@@ -822,19 +822,19 @@ out({def,only,noInbox,rows,expanded,noWaits,cells,tag,tip,moved,focusKept,back,o
         self.assertEqual(r["only"], ["agents", "files", "scopes", "tasks"])   # T20.TA6 / AC10: four panels, not Needs you
         self.assertTrue(r["noInbox"])
         self.assertEqual([x["t"].replace("always shown", "") for x in r["rows"]], TASK_COLS)   # T20.AC1: every column, current order
-        self.assertEqual([(x["cb"], x["dis"]) for x in r["rows"]], [(True, True)] + [(True, False)] * 6)   # Task cannot be cleared
+        self.assertEqual([(x["cb"], x["dis"]) for x in r["rows"]], [(True, True)] + [(True, False)] * 7)   # Task cannot be cleared
         self.assertEqual(r["expanded"], "true")
-        self.assertEqual(r["noWaits"], TASK_COLS[:-1])   # T20.AC2: gone at once, others keep order
+        self.assertEqual(r["noWaits"], [c for c in TASK_COLS if c != "Waits on"])   # T20.AC2: gone at once, others keep order
         self.assertTrue(r["cells"])   # TA10: th and every td leave together
         self.assertIn("1 hidden", r["tag"])
         self.assertIn("Waits on", r["tip"])
-        self.assertEqual(r["moved"].index("Last active"), 2)   # T20.AC3: Last active before Stage
-        self.assertEqual(r["moved"].index("Stage"), 3)
+        self.assertEqual(r["moved"].index("Last active"), 3)   # T20.AC3: Last active before Stage
+        self.assertEqual(r["moved"].index("Stage"), 4)
         self.assertEqual(r["focusKept"], "up:last_active")   # focus stays on the pressed button
         self.assertEqual(r["back"][-1], "Waits on")
-        self.assertEqual(r["onlyTask"], ["Waits on", "Task"])   # T20.AC1: Task moved last, the other boxes cleared
-        self.assertEqual(r["span"], 2)   # the open row spans exactly the shown columns
-        self.assertEqual(r["snap"]["tasks"], ["waits", "task"])   # saved: visible ids in order
+        self.assertEqual(r["onlyTask"], ["Where", "Waits on", "Task"])   # T20.AC1: Task moved last, the other boxes cleared
+        self.assertEqual(r["span"], 3)   # the open row spans exactly the shown columns
+        self.assertEqual(r["snap"]["tasks"], ["where", "waits", "task"])   # saved: visible ids in order
         self.assertTrue(all(r["same"].values()), r["same"])   # T20.AC6 / TA5
         self.assertEqual((r["outside"], r["reopened"], r["closed"], r["focus"]), (True, True, True, True))
         self.assertEqual(r["afterReset"], TASK_COLS)   # T20.AC7: Reset columns
@@ -851,11 +851,11 @@ const a={heads:heads(T),even:even()};
 pg.poller.now();await sleep(300);
 out({a,heads:heads(T),even:even(),pop:!!$('.cpop'),cols:pg.snapshot().columns,boxes:$$('.cpop input:checked').length});
 """)
-        self.assertEqual(r["a"]["heads"], ["Task", "Title", "Last active", "What happened", "Waits on"])
+        self.assertEqual(r["a"]["heads"], ["Task", "Title", "Where", "Last active", "What happened", "Waits on"])
         self.assertTrue(r["a"]["even"] and r["even"])   # header and every row have the same number of cells
         self.assertEqual((r["heads"], r["pop"]), (r["a"]["heads"], True))
-        self.assertEqual(r["cols"], {"tasks": ["task", "title", "last_active", "happened", "waits"]})
-        self.assertEqual(r["boxes"], 5)
+        self.assertEqual(r["cols"], {"tasks": ["task", "title", "where", "last_active", "happened", "waits"]})
+        self.assertEqual(r["boxes"], 6)
 
     def test_T20_AC7_AC10_reset_layout_resets_every_panel_columns_not_font_or_choice(self):
         r = self.page(r"""
@@ -871,7 +871,7 @@ colsBtn('tasks').click();await sleep(20);tick('waits',false);
 $$('button').find(b=>b.textContent==='Reset layout').click();await sleep(300);
 out({before,one,all:{t:heads(T),a:heads(A),font:pg.state.font,choice:pg.state.choice,snap:pg.snapshot().columns,pop:!!$('.cpop')}});
 """)
-        self.assertEqual(r["before"]["t"], TASK_COLS[:-1])
+        self.assertEqual(r["before"]["t"], [c for c in TASK_COLS if c != "Waits on"])
         self.assertNotIn("Owns", r["before"]["a"])
         self.assertEqual((r["one"]["t"], r["one"]["a"]), (TASK_COLS, r["before"]["a"]))
         self.assertEqual(r["all"]["t"], TASK_COLS)
@@ -1019,6 +1019,72 @@ class Static13(unittest.TestCase):
         for f in ("board.js", "panel_tasks.js", "panel_scopes.js"):
             self.assertIsNone(re.search(r"innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|https?://",
                                         (TPL / f).read_text(encoding="utf-8")), f)
+
+
+class Tasks28(unittest.TestCase):
+    """T28.TA7: the rendered Tasks panel shows title and `where` as text, a Where column, and the empty state names folders."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.real = dict(real_payloads(), saved=None, p12=payloads12())
+        cls.head = head12()
+
+    def page(self, body, hash_):
+        return run_page(PRE12 + body, self.real, hash_, self.head)
+
+    def test_T28_TA7_panel_dom_where_text_untrusted_title_empty_state_and_saved_list(self):
+        r = self.page(r"""
+const d=P['tasks:checkout'].data;
+d.rows[0].title='<img src=x onerror=window.__x=1>';d.rows[0].where='.claude/squads/a/scopes/b/tasks/01.md';
+await start12();await sleep(150);
+const root=$('section[data-panel=tasks]');
+const heads=Array.from(root.querySelectorAll('th')).map(t=>t.textContent);
+const cells=Array.from(root.querySelectorAll('tr.r')[0].children).map(c=>c.textContent);
+const o={heads,cells,img:root.querySelectorAll('img').length,x:window.__x===undefined};
+d.rows=[];d.looked=['.scratch/checkout/issues','.claude/squads/s/scopes/checkout/tasks'];
+await start12();await sleep(150);
+o.empty=$('section[data-panel=tasks]').textContent;
+out(o);""", "#/scope/checkout")
+        self.assertEqual(r["heads"][2], "Where")
+        self.assertIn(".claude/squads/a/scopes/b/tasks/01.md", r["cells"])
+        self.assertIn("<img src=x onerror=window.__x=1>", r["cells"])   # text, not markup (TU.3)
+        self.assertEqual((r["img"], r["x"]), (0, True))
+        self.assertIn("No task files found. Looked in:.scratch/checkout/issues.claude/squads/s/scopes/checkout/tasks", r["empty"])
+        saved = {"version": 1, "saved_at": "2026-11-03T10:00:00Z", "choice": {"kind": "scope", "name": "checkout"}, "recent": [],
+                 "panels": {}, "columns": {"tasks": ["id", "title", "stage"]}}   # a list saved before `where` existed
+        r = run_page(PRE12 + r"""
+await start12();await sleep(150);
+const root=$('section[data-panel=tasks]');
+const heads=Array.from(root.querySelectorAll('th')).map(t=>t.textContent);
+root.querySelector('.ph .pbtn').click();await sleep(30);
+const cp=Array.from(document.querySelectorAll('.cpop .cr label')).map(l=>l.textContent);
+out({heads,rows:root.querySelectorAll('tr.r').length,cp});""", dict(self.real, saved=saved), "#/scope/checkout", self.head)
+        self.assertGreater(r["rows"], 0)
+        self.assertNotIn("Where", r["heads"])
+        self.assertTrue(any("Where" in c for c in r["cp"]), r["cp"])
+
+    def test_T28_design_v7_s5_loading_note_then_error_note_and_rows_stay(self):
+        r = self.page(r"""
+const hang=(url,opt)=>/^\/api\/tasks\?/.test(url)?new Promise(()=>{}):f12(url,opt);
+BOARD.start({fetch:hang,storage:mem(),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,now:()=>Date.parse('2026-11-04T10:00:00Z'),tz:'UTC'});
+await sleep(300);
+const o={loading:$('section[data-panel=tasks]').textContent};
+const d=P['tasks:checkout'];
+d.errors=[{file:'tasks/09.md',reason:'not readable'}];
+await start12();await sleep(150);
+let root=$('section[data-panel=tasks]');
+o.keep={note:root.querySelectorAll('.pstate.perr').length,rows:root.querySelectorAll('tr.r').length,txt:root.querySelector('.pstate.perr').textContent};
+delete d.errors;d.data=null;d.unknown=['tasks'];d.error='tasks/01.md: bad utf-8';
+await start12();await sleep(150);
+root=$('section[data-panel=tasks]');
+o.err={note:root.querySelectorAll('.pstate.perr').length,rows:root.querySelectorAll('tr.r').length,txt:root.querySelector('.pstate.perr').textContent};
+out(o);""", "#/scope/checkout")
+        self.assertIn("Loading tasks\u2026", r["loading"])
+        self.assertEqual(r["keep"]["note"], 1)
+        self.assertGreater(r["keep"]["rows"], 0)
+        self.assertIn("Could not read the tasks of this scope.tasks/09.md: not readable", r["keep"]["txt"])
+        self.assertEqual((r["err"]["note"], r["err"]["rows"]), (1, 0))
+        self.assertIn("Could not read the tasks of this scope.tasks/01.md: bad utf-8", r["err"]["txt"])
 
 
 if __name__ == "__main__":
