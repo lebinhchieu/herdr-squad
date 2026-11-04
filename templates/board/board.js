@@ -513,14 +513,16 @@
       seenRec = S.squad ? seenRead(storage, S.squad.key) : null;
       S.since = seenRec ? sinceFor(seenRec, choiceKey(), nowMs()) : null;
     }
+    var away = false;   /* a hidden tab that is closed later fires pagehide too: the time it was hidden stays */
     function leave() {
-      if (!S.squad || seenKey == null) return;
+      if (away || !S.squad || seenKey == null) return;
+      away = true;
       seenRec = seenRec || seenRead(storage, S.squad.key);
       markVisible(seenRec, choiceKey(), nowMs()); seenWrite(storage, S.squad.key, seenRec);
     }
     doc.addEventListener("visibilitychange", function () {
       if (doc.visibilityState === "hidden") leave();
-      else if (doc.visibilityState === "visible") { syncSince(true); poller.now(); }
+      else if (doc.visibilityState === "visible") { away = false; syncSince(true); poller.now(); }
     });
     root.addEventListener("pagehide", leave);
     function withSince(route) {

@@ -684,13 +684,16 @@ const before=Object.keys(store.m).filter(k=>k.startsWith('squad-board-seen:'));
 Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true});
 document.dispatchEvent(new Event('visibilitychange'));
 const rec=JSON.parse(store.m['squad-board-seen:fix']);
+store.m['squad-board-seen:fix']=JSON.stringify({any:1,last:{'scope:checkout':1}});window.dispatchEvent(new Event('pagehide'));   /* closing the hidden tab later */
+const kept=JSON.parse(store.m['squad-board-seen:fix']).any;
 const blocked={getItem(){throw new Error('blocked')},setItem(){throw new Error('blocked')}};
 const rb=BOARD.seenRead(blocked,'fix');
-out({before,last:rec.last,any:rec.any,blockedSince:BOARD.sinceFor(rb,'scope:checkout',T0),writeOk:BOARD.seenWrite(blocked,'fix',rb)});
+out({before,kept,last:rec.last,any:rec.any,blockedSince:BOARD.sinceFor(rb,'scope:checkout',T0),writeOk:BOARD.seenWrite(blocked,'fix',rb)});
 """, "#/scope/checkout")
         self.assertEqual(r["before"], [])                  # nothing is written while the page stays visible
         self.assertEqual(r["last"], {"scope:checkout": EPOCH13})
         self.assertEqual(r["any"], EPOCH13)
+        self.assertEqual(r["kept"], 1)                     # pagehide of an already hidden tab does not move the time forward
         self.assertIsNone(r["blockedSince"])
         self.assertFalse(r["writeOk"])
 
