@@ -328,11 +328,11 @@
     }
 
     /* ---- panels ---- */
-    function defaults(def, i) { return { order: i, width: null, hidden: false, max_height: null }; }
+    function defaults(def, i) { return { order: i, tracks: null, hidden: false, max_height: null }; }
 
     function makePanel(def, i) {
       var d = defaults(def, i);
-      var p = { id: def.id, def: def, idx: i, width: d.width, order: d.order, hidden: d.hidden, max_height: d.max_height,
+      var p = { id: def.id, def: def, idx: i, tracks: d.tracks, order: d.order, hidden: d.hidden, max_height: d.max_height,
                 maxPx: def.maxPx || 400 };
       var sec = el("section", "panel"); sec.dataset.panel = def.id; sec.setAttribute("aria-label", def.title);
       var ph = el("div", "ph"); ph.tabIndex = 0; ph.setAttribute("aria-label", def.title + ": Up and Left move earlier, Down and Right move later, Shift with Up or Down resizes");
@@ -390,7 +390,7 @@
       var panels = {};
       panelList().forEach(function (p) {
         var r = { order: p.order, hidden: !!p.hidden && !p.def.byView };
-        if (p.width != null) r.width = p.width;
+        if (p.tracks != null) r.tracks = p.tracks;
         if (p.max_height != null) r.max_height = p.max_height;
         panels[p.id] = r;
       });
@@ -408,7 +408,7 @@
       S.columns = cleanColumns(ui.columns);
       if (BOARD.hooks.applySaved) BOARD.hooks.applySaved(ui);
       /* design-v8 s9: the saved rows are read in memory and put in one order (old col / span are only used to sort, then dropped);
-         the file is not rewritten on load. A panel with no row goes last by its default rank. A bad width = the default. */
+         the file is not rewritten on load. A panel with no row goes last by its default rank. A bad tracks value = the default. */
       var pan = ui.panels && typeof ui.panels === "object" ? ui.panels : {};
       var rows = panelList().map(function (p) {
         var r = pan[p.id], row = { id: p.id };
@@ -424,7 +424,7 @@
         if (!r || typeof r !== "object") return;
         p.hidden = !!r.hidden;
         p.max_height = Number.isInteger(r.max_height) ? r.max_height : null;
-        p.width = Number.isInteger(r.width) && r.width >= 1 && r.width <= 12 ? r.width : null;
+        p.tracks = Number.isInteger(r.tracks) && r.tracks >= 1 && r.tracks <= 12 ? r.tracks : null;
       });
     }
 
@@ -609,7 +609,7 @@
     function resetLayout() {
       panelList().forEach(function (p) {
         var i = REG.indexOf(p.def), d = defaults(p.def, i);
-        p.order = d.order; p.width = d.width; p.hidden = p.def.byView ? p.hidden : false; p.max_height = null;
+        p.order = d.order; p.tracks = d.tracks; p.hidden = p.def.byView ? p.hidden : false; p.max_height = null;
       });
       S.columns = resetColumns(S.columns); closeColumns(); touch(); renderPop(); replace(); redrawAll();
     }

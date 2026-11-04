@@ -123,13 +123,8 @@ o.newer=[B.pickNewer(a,b).font,B.pickNewer(b,a).font,B.pickNewer(null,a).font,B.
 const P=B.panelView;
 o.unk=[P({schema_version:1,data:[],unknown:['inbox']},{id:'inbox'}).kind,P({schema_version:1,data:{rows:[1]},unknown:['x']},{id:'inbox'}).kind,P({schema_version:2,data:{}},{id:'inbox'}).kind];
 o.needs=[B.needsFrom([{data:{}},{data:{count_squad:3}}]),B.needsFrom([])];
-// layout (ticket 26): colCount, place, norm
-const hs={inbox:200,tasks:300,agents:150,files:120,worktime:400},ORD=['inbox','tasks','agents','files','worktime'];
+// layout: colCount (grid tracks); place/norm moved to test_squadboard_grid (ticket 35)
 o.cc=[[1440,1],[1800,1],[1799,1],[932,1],[931,1],[1000,1.3],[1920,1.3],[1920,0.9]].map(a=>L.colCount(a[0],a[1]));
-o.place={n1:L.place(ORD,1,hs),n2:L.place(ORD,2,hs),n3:L.place(ORD,3,hs),tie:L.place(['a','b'],2,{a:100,b:100})};
-const hg=Object.assign({scopes:100},hs),ORG=['inbox','tasks','agents','files','scopes','worktime'];
-o.placeG={n2:L.place(ORG,2,hg),n3:L.place(ORG,3,hg)};
-o.norm=L.norm([{id:'a',col:9,order:0,idx:0},{id:'b',col:0,order:1,idx:1},{id:'c',col:0,order:1,idx:0},{id:'d',col:null,order:0,idx:3},{id:'e',col:0,order:0,idx:4,hidden:true}],2);
 // poller: 3 failures stale, no pile-up, success resets, 5 s constant
 const log=[],ft=[];let id=0,fail=true,calls=0,resolve;
 const po=B.makePoller({load:()=>{calls++;return fail?Promise.reject(new Error('x')):new Promise(r=>{resolve=r})},onOk:()=>log.push('ok'),onFail:(n,s)=>log.push(n+(s?'S':'')),
@@ -169,22 +164,7 @@ out(o);
         self.assertEqual(self.res["needs"], [3, None])
 
     def test_T26_TA2_column_count_follows_window_and_text_scale(self):
-        self.assertEqual(self.res["cc"], [2, 3, 2, 2, 1, 1, 2, 3])
-
-    def test_T26_TA3_default_place_is_the_shortest_column_leftmost_on_a_tie(self):
-        pl = self.res["place"]
-        col = lambda n: {k: v["col"] for k, v in pl[n].items()}
-        self.assertEqual(col("n2"), {"inbox": 0, "tasks": 1, "agents": 0, "files": 1, "worktime": 0})  # the PO's case
-        self.assertEqual(col("n3"), {"inbox": 0, "tasks": 1, "agents": 2, "files": 2, "worktime": 0})
-        self.assertEqual(set(col("n1").values()), {0})
-        self.assertEqual(col("tie"), {"a": 0, "b": 1})
-        self.assertEqual(pl["n2"]["worktime"]["pos"], 2)
-        g = {n: {k: v["col"] for k, v in self.res["placeG"][n].items()} for n in ("n2", "n3")}  # goal view: Scopes between Files and Work time
-        self.assertEqual(g["n2"], {"inbox": 0, "tasks": 1, "agents": 0, "files": 1, "scopes": 0, "worktime": 1})
-        self.assertEqual(g["n3"], {"inbox": 0, "tasks": 1, "agents": 2, "files": 2, "scopes": 0, "worktime": 2})
-
-    def test_T26_TA1_TA13_norm_clamps_col_skips_hidden_and_no_col_and_ties_by_default_order(self):
-        self.assertEqual(self.res["norm"], [["c", "b"], ["a"]])
+        self.assertEqual(self.res["cc"], [4, 6, 4, 2, 2, 2, 4, 6])
 
     def test_T10_TA7_refresh_counts_three_failures_and_never_piles_up(self):
         p = self.res["poll"]
@@ -264,86 +244,10 @@ mkPanel('1','A',1,4,300);
 BOARD.start({fetch:mkFetch({'1':1}),tz:'UTC',now:()=>Date.parse('2026-11-04T10:00:00Z'),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,storage:mem()});
 await sleep(300);
 const b=document.querySelector('.bannerslot');
-out({outside:!!b&&!b.closest('#canvas'),canvasKids:[...document.getElementById('canvas').children].every(c=>c.classList.contains('col')),
+out({outside:!!b&&!b.closest('#canvas'),canvasKids:[...document.getElementById('canvas').children].every(c=>!c.classList.contains('bannerslot')),
   handles:!!document.querySelector('.rz.e,.rz.se')});
 """, self.real)
         self.assertEqual(r, {"outside": True, "canvasKids": True, "handles": False})
-
-    def test_T26_AC3_AC4_AC6_AC11_AC14_AC15_drag_keys_hide_save_reload_reset(self):
-        res = run_page(STUB + """
-mkPanel('1','Needs you',8,4,720);mkPanel('2','Tasks',8,8,560);mkPanel('3','Agents',3,4,380);mkPanel('4','Files',1,4,380);
-const rows={'1':8,'2':8,'3':3,'4':1};
-const env=(ui)=>{const R2=JSON.parse(JSON.stringify(R));if(ui)R2.ui.data.ui=ui;return {fetch:mkFetch(rows,{'/api/ui':()=>({ok:true,status:200,json:async()=>Object.assign({schema_version:1},R2.ui)})}),tz:'UTC',now:()=>Date.parse('2026-11-04T10:00:00Z'),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,storage:mem()}};
-const page=BOARD.start(env());await sleep(400);
-const lay=()=>[...document.querySelectorAll('.col')].map(c=>[...c.querySelectorAll(':scope > .panel')].filter(e=>!e.hidden).map(e=>e.dataset.panel));
-const fire=async()=>{for(const t of fakeTimers.splice(0)){if(t.ms===300)t.f()}await sleep(50)};
-const ev=(t,el,x,y)=>el.dispatchEvent(new PointerEvent(t,{bubbles:true,clientX:x,clientY:y,button:0}));
-const key=(p,k,sh)=>p.hdr.dispatchEvent(new KeyboardEvent('keydown',{key:k,shiftKey:!!sh,bubbles:true}));
-const L0=lay();
-const colOf=(l,id)=>l.findIndex(c=>c.includes(id));
-const src=colOf(L0,'4'),dst=1-src;
-// drag Files to the top of the other column
-const f=page.panels['4'],fr=f.hdr.getBoundingClientRect(),first=document.querySelector('.col:nth-child('+(dst+1)+') > .panel').getBoundingClientRect();
-ev('pointerdown',f.hdr,fr.left+20,fr.top+5);
-ev('pointermove',document,first.left+30,first.top+4);await sleep(30);
-const spot=document.querySelector('.ghost'),spotFirst=!!spot&&spot.parentNode.dataset.col==String(dst)&&!spot.previousElementSibling;
-ev('pointerup',document,first.left+30,first.top+4);await sleep(100);
-const L1=lay();await fire();
-const put1=puts[puts.length-1];
-// a column closes up: no gap under the left panels
-const gaps=[...document.querySelectorAll('.col')].map(c=>{const k=[...c.querySelectorAll(':scope > .panel')];return k.slice(1).map((e,i)=>e.getBoundingClientRect().top-k[i].getBoundingClientRect().bottom)});
-// Esc cancels, nothing saved
-const n0=puts.length;
-ev('pointerdown',f.hdr,f.hdr.getBoundingClientRect().left+20,f.hdr.getBoundingClientRect().top+5);
-ev('pointermove',document,fr.left+30,fr.top+200);await sleep(30);
-document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await sleep(60);await fire();
-const escSame=JSON.stringify(lay())===JSON.stringify(L1)&&puts.length===n0;
-// a drop outside every column (above them, left margin) cancels: nothing moves, nothing saved (T26.AC14)
-const n1=puts.length;let outSame=true;
-for(const [x,y] of [[fr.left+30,1],[1,fr.top+200]]){
-  const h=f.hdr.getBoundingClientRect();
-  ev('pointerdown',f.hdr,h.left+20,h.top+5);ev('pointermove',document,x,y);await sleep(30);
-  ev('pointerup',document,x,y);await sleep(60);await fire();
-  outSame=outSame&&JSON.stringify(lay())===JSON.stringify(L1)&&puts.length===n1&&!document.querySelector('.ghost');
-}
-// keyboard: Up/Down in the column, Left/Right to the next column, focus stays, edges do nothing
-f.hdr.focus();
-key(f,'ArrowUp');const upEdge=JSON.stringify(lay())===JSON.stringify(L1);
-key(f,'ArrowDown');const afterDown=lay();
-key(f,'ArrowUp');
-key(f,dst===0?'ArrowRight':'ArrowLeft');const afterSide=lay();
-key(f,dst===0?'ArrowRight':'ArrowLeft');const sideEdge=JSON.stringify(lay())===JSON.stringify(afterSide);
-const focusKept=document.activeElement===f.hdr;
-// put it back in the other column by key, save, hide and show
-key(f,dst===0?'ArrowLeft':'ArrowRight');await fire();
-const put2=puts[puts.length-1],L2=lay();
-page.panels['2'].hide.click();await sleep(100);const hidL=lay();
-document.querySelector('.hb[aria-haspopup]').click();document.querySelector('.pop button').click();await sleep(100);
-const L3=lay();
-// reload from the saved body
-const page2=BOARD.start(env(put2));await sleep(400);const L4=lay();
-page2.resetLayout();await sleep(200);const L5=lay();
-out({L0,L1,L2,L3,L4,L5,dst,src,spotFirst,gaps,escSame,outSame,upEdge,afterDown,afterSide,sideEdge,focusKept,put1,put2,hidL,auto5:page2.state.auto,
-  nospan:Object.values(put2.panels).every(p=>!('span' in p))});
-""", self.real)
-        self.assertTrue(res["spotFirst"])                                        # T26.AC3: the spot shows where it lands
-        self.assertEqual(res["L1"][res["dst"]][0], "4")                          # ... and it landed there
-        self.assertNotIn("4", res["L1"][res["src"]])
-        self.assertTrue(all(abs(g - 12) <= 2 for c in res["gaps"] for g in c))   # the column it left closed up
-        self.assertEqual((res["put1"]["panels"]["4"]["col"], res["put1"]["panels"]["4"]["order"], res["put1"]["auto"]), (res["dst"], 0, False))
-        self.assertTrue(res["escSame"])                                          # T26.AC14: Esc cancels, nothing saved
-        self.assertTrue(res["outSame"])                                          # T26.AC14: a drop outside every column cancels
-        self.assertTrue(res["upEdge"])                                           # T26.AC15: Up on the first moves nothing
-        self.assertNotEqual(res["afterDown"], res["L1"])
-        self.assertIn("4", res["afterSide"][res["src"]])                         # Left/Right: next column
-        self.assertTrue(res["sideEdge"] and res["focusKept"])
-        self.assertEqual(res["L3"], res["L2"])                                   # T26.AC4: show returns it to its place
-        self.assertNotIn("2", sum(res["hidL"], []))
-        self.assertEqual(res["L4"], res["L2"])                                   # T26.AC3: same after reload
-        self.assertEqual(res["L5"], res["L0"])                                   # T26.AC6: Reset: default place
-        self.assertTrue(res["auto5"])
-        self.assertTrue(res["nospan"])                                           # span is no longer written
-        squadboard_ui.validate(res["put2"])
 
     def test_T26_AC5_AC12_south_edge_changes_height_only_fit_returns(self):
         res = run_page(STUB + """
@@ -368,31 +272,6 @@ out({h0,h1,h2:r().height,w0,w1,b0,b1,other,other1,mh:a.max_height});
             self.assertGreater(res["b1"], res["b0"] + 100)                # the panel below moves down
         self.assertEqual(res["other"], res["other1"])                     # no other column changes
         self.assertAlmostEqual(res["h2"], res["h0"], delta=1)             # Fit: back to the content
-
-    def test_T26_AC7_TA5_TA12_old_saved_layout_loads_without_error_or_write(self):
-        old = json.loads((HERE / "fixtures" / "board" / "layout-26" / "board-ui-iter1.json").read_text(encoding="utf-8"))
-        real = dict(self.real, ui={"schema_version": 1, "data": {"ui": old, "status": "ok"}})
-        mixed = dict(old, panels={"1": {"order": 0, "col": 9, "hidden": False}, "3": {"order": 0, "col": 0, "hidden": False},
-                                  "4": {"order": 1, "col": 1, "hidden": False}})
-        body = STUB + """
-mkPanel('1','Needs you',8,4,720);mkPanel('2','Tasks',8,8,560);mkPanel('3','Agents',3,4,380);mkPanel('4','Files',1,4,380);
-const run=async(ui)=>{const R2=JSON.parse(JSON.stringify(R));R2.ui.data.ui=ui;puts.length=0;
-  const page=BOARD.start({fetch:mkFetch({'1':8,'2':8,'3':3,'4':1},{'/api/ui':()=>({ok:true,status:200,json:async()=>R2.ui})}),tz:'UTC',now:()=>Date.parse('2026-11-04T10:00:00Z'),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,storage:mem()});
-  await sleep(400);for(const t of fakeTimers.splice(0)){t.f()}await sleep(50);
-  return {lay:[...document.querySelectorAll('.col')].map(c=>[...c.querySelectorAll(':scope > .panel')].filter(e=>!e.hidden).map(e=>e.dataset.panel)),
-    puts:puts.length,notes:document.querySelector('.notes').textContent,h3:page.panels['3'].el.getBoundingClientRect().height,snap:page.snapshot()}};
-out({old:await run(%s),mixed:await run(%s)});
-""" % (json.dumps(old), json.dumps(mixed))
-        r = run_page(body, real)
-        o, m = r["old"], r["mixed"]
-        self.assertEqual(sorted(sum(o["lay"], [])), ["1", "3", "4"])             # '2' stays hidden; default place for the rest
-        self.assertEqual((o["puts"], o["notes"]), (0, ""))                       # no write on load, no error text
-        self.assertAlmostEqual(o["h3"], 200, delta=1)                            # max_height kept
-        self.assertEqual(m["puts"], 0)
-        self.assertEqual(m["lay"][0][0], "3")                                    # a panel with a col does not move
-        self.assertLess(m["lay"][1].index("1"), m["lay"][1].index("4"))          # col 9 shows in the last column, by order
-        self.assertIn("2", sum(m["lay"], []))                                    # the one without col got a default place
-        self.assertEqual(m["snap"]["panels"]["1"]["col"], 9)                     # the file keeps the larger value
 
     def test_T10_TA7_response_for_the_old_choice_is_dropped_and_new_one_loads(self):
         res = run_page(STUB + """

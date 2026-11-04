@@ -2,7 +2,7 @@
    Pure part: colCount, place, refresh, recordGrid, migrate, dropIndex, widthToTracks, tracksToWidth, snapTracks.
    They touch no DOM, no window, no clock.
    DOM part: BOARD.layout.mount(): #canvas is a CSS grid; each panel gets grid-column / grid-row from place().
-   It only edits the state ({id: {order, width, hidden, max_height}}); pixels are never stored. */
+   It only edits the state ({id: {order, tracks, hidden, max_height}}); pixels are never stored. */
 (function (root) {
   "use strict";
   var BOARD = root.BOARD = root.BOARD || {};
@@ -104,7 +104,7 @@
 
   /* ---------------- DOM part ---------------- */
   /* mount(opts) -> {relayout, request, drag, resize, key, observe, unobserve}
-     opts: canvas (element), get() -> {panels: [{id, order, width, idx, hidden, max_height, el, maxPx, hdr}], scale},
+     opts: canvas (element), get() -> {panels: [{id, order, tracks, idx, hidden, max_height, el, maxPx, hdr}], scale},
            set(id, patch) edits the state (order, max_height), changed(extra) is called after a user edit.
      relayout() is a placement moment: it calls BOARD.layout.place. request() is a data refresh: it calls BOARD.layout.refresh
      (x and order stay). request(true) is a placement moment on the next frame (window or text size change). */
@@ -131,7 +131,7 @@
       return st.panels.filter(function (p) { return all || !p.hidden; })
         .sort(function (a, b) { return (a.order - b.order) || (a.idx - b.idx); });
     }
-    function spanOf(p) { return widthToTracks(p.width, G, SMALLEST[p.id] || 1); }
+    function spanOf(p) { return widthToTracks(p.tracks, G, SMALLEST[p.id] || 1); }
     function rowH(el) { return Math.ceil((el.getBoundingClientRect().height + GUTTER) / 2) * 2; }
 
     /* the DOM stays in saved order (reading order, Tab order); a node moves only when it is not already right */
