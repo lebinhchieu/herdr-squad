@@ -105,7 +105,7 @@ def _folder_row(p, name, what, scope, roots):
     """A folder row for real directory `p` (ticket 29), or None when it is missing, a link out of the allow-list, or unreadable."""
     try:
         real = p.resolve(strict=True)
-        if not real.is_dir() or not squadboard._under(real, roots):
+        if p.is_symlink() or not real.is_dir() or not squadboard._under(real, roots):  # a linked folder is not "the real folder" (AC6)
             return None
         mtime = int(real.stat().st_mtime)
     except (OSError, RuntimeError, ValueError):

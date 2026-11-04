@@ -145,6 +145,26 @@ class Reader(Base):
         rows = {r["name"]: r for r in sf.read(self.sel(name="closed-release"))["data"]["rows"]}
         self.assertEqual((rows["tasks/01.md"]["kind"], rows["tasks/01.md"]["what"]), ("ticket", "Repro: a pane"))
 
+    def test_T29_AC6_AC3_TA3_folders_quiet_when_scratch_missing_or_linked_out_and_cap_holds(self):
+        import shutil
+        sc = self.squad.repo_root / ".scratch"
+        out = Path(tempfile.mkdtemp(prefix="board-out-"))
+        try:
+            shutil.rmtree(sc)
+            self.assertEqual([f["name"] for f in sf.read(self.sel())["data"]["folders"]], ["fix"])  # no .scratch: one row, no error
+            try:
+                sc.symlink_to(out, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlinks cannot be created here")
+            self.assertEqual([f["name"] for f in sf.read(self.sel())["data"]["folders"]], ["fix"])  # link out: no row
+            sc.unlink()
+            sc.mkdir()
+            with mock.patch.object(sf, "MAX_ROWS", 3):
+                d = sf.read(self.sel())["data"]
+            self.assertEqual([f["name"] for f in d["folders"]], [".scratch", "fix"])  # not counted in the cap
+        finally:
+            out.rmdir()
+
     def test_T14_TA6_listing_writes_nothing(self):
         def snap():
             return sorted((str(p), p.stat().st_mtime_ns, hashlib.sha1(p.read_bytes()).hexdigest()) for p in self.squad.path.rglob("*") if p.is_file())
