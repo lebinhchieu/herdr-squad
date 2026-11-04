@@ -46,6 +46,29 @@
   }
   BOARD.vscodeUrl = vscodeUrl;
 
+  /* openFile(e, a, abs): ticket 34. A plain left click on a file link asks the board (POST /api/open) to run `code --goto <abs>`.
+     The link is followed only when that fails (no VS Code, refused, timeout, no token): the fallback is the ticket-30 click on the same link.
+     Returns true when it took the click. Ctrl/Shift/Alt/Meta, middle and right clicks, folder links and the fallback click are left to the browser. */
+  BOARD.openTimeoutMs = 5800;
+  function openFile(e, a, abs) {
+    if (!a || a.dataset.fb || a.dataset.folder || !abs || e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return false;
+    var st = BOARD.page && BOARD.page.state, sq = st && st.squad;
+    e.preventDefault();
+    var done = false;
+    function fallback() { if (done) return; done = true; a.dataset.fb = "1"; try { a.click(); } finally { delete a.dataset.fb; } }
+    if (!st || !st.token || !sq || !root.fetch) { fallback(); return true; }
+    var timer = root.setTimeout(fallback, BOARD.openTimeoutMs);
+    try {
+      root.fetch("/api/open?squad=" + encodeURIComponent(sq.key), { method: "POST", headers: { "Content-Type": "application/json", "X-Board-Token": st.token },
+        body: JSON.stringify({ path: abs }) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { root.clearTimeout(timer); if (j && j.data && j.data.ok === true) done = true; else fallback(); })
+        .catch(function () { root.clearTimeout(timer); fallback(); });
+    } catch (err) { root.clearTimeout(timer); fallback(); }
+    return true;
+  }
+  BOARD.openFile = openFile;
+
   /* mdBlocks(text) -> [{t: "h", l, s} | {t: "li", s} | {t: "p", s} | {t: "code", s} | {t: "table", rows: [[cell]], head}] */
   function mdBlocks(text) {
     var lines = String(text == null ? "" : text).replace(/\r\n?/g, "\n").split("\n"), out = [], i = 0, para = [];
@@ -177,6 +200,7 @@
     if (url) {
       var link = el("a", "of");
       link.href = url; link.rel = "noopener noreferrer"; link.title = r.abs + " \u2014 opens in VS Code"; link.dataset.abs = r.abs;
+      if (r.kind === "folder") link.dataset.folder = "1";   /* ticket 34: no route call for a folder, the href does the work */
       var nm = el(r.kind === "folder" ? "b" : "span", null, r.name); link.appendChild(nm);
       a.appendChild(link);
       if (r.kind === "folder") a.appendChild(el("div", "fpath muted", r.abs));
@@ -242,7 +266,7 @@
       var cp = t.closest && t.closest("button[data-copy]");
       if (cp) { copyPath(cp.dataset.copy); return; }
       var a = t.closest && t.closest("a[data-abs]");
-      if (a) { sent(body, a.dataset.abs); return; }            /* the browser follows the link: no preventDefault, no new tab */
+      if (a) { sent(body, a.dataset.abs); openFile(e, a, a.dataset.abs); return; }   /* the board opens it; the link is followed only as the fallback */
       var tr = t.closest && t.closest("tr[data-open]");        /* the whole row is the link */
       if (tr && tr.querySelector("a[data-abs]")) tr.querySelector("a[data-abs]").click();
     });
