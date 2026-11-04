@@ -245,7 +245,7 @@ BOARD.start({fetch:mkFetch({'1':1}),tz:'UTC',now:()=>Date.parse('2026-11-04T10:0
 await sleep(300);
 const b=document.querySelector('.bannerslot');
 out({outside:!!b&&!b.closest('#canvas'),canvasKids:[...document.getElementById('canvas').children].every(c=>!c.classList.contains('bannerslot')),
-  handles:!!document.querySelector('.rz.e,.rz.se')});
+  handles:!!document.querySelector('.bannerslot .rz,.rz.se')});
 """, self.real)
         self.assertEqual(r, {"outside": True, "canvasKids": True, "handles": False})
 
