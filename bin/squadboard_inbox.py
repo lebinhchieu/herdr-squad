@@ -78,6 +78,37 @@ def parked_from(home):
     return {e["from"].strip() for e in entries if e["status"] == "parked" and re.fullmatch(r"E[0-9]+", e["from"].strip())}
 
 
+def parked_rows(sel, choice):
+    """-> (rows, warnings, ok). Parked and resolved questions of the choice's folders and of the squad folder (a squad-level
+    question shows under every choice). Row: {id, status parked|resolved, level squad|goal|scope, scope, text, from, blocks,
+    parked_iso, resolved_iso, answer, file}. Unparked entries are open again and are not rows. A broken block is a warning."""
+    rows, warns, ok, seen = [], [], True, set()
+    squad = sel["squad"]
+    homes = [(squad.name, squad.path, "squad")] + [(l, h, "goal" if sel.get("kind") == "goal" and str(h) == str(sel.get("home")) else "scope")
+                                                   for l, h in choice]
+    for label, home, level in homes:
+        if str(home) in seen:
+            continue
+        seen.add(str(home))
+        path = Path(home) / squadinbox.OQ_FILE
+        if not path.exists():
+            continue
+        try:
+            entries, w = squadinbox.parse_open_questions(path.read_text(encoding="utf-8", errors="replace"), str(path))
+        except (OSError, ValueError):
+            ok = False
+            continue
+        warns += w
+        for e in entries:
+            if e["status"] not in ("parked", "resolved"):
+                continue
+            rows.append({"id": e["id"], "status": e["status"], "level": level, "scope": label, "text": e["text"],
+                         "from": e["from"], "blocks": e["blocks"], "parked_iso": e["parked"], "resolved_iso": e["resolved_ts"],
+                         "answer": e["answer"], "file": str(path)})
+    rows.sort(key=lambda r: (r["parked_iso"] or "9", r["id"]))
+    return rows, warns, ok
+
+
 def options_of(item):
     """[{key, text, recommended}], the text unmodified; the mark is data, the word is the page's."""
     rec = (item.get("recommendation") or "").strip().lower()
@@ -163,9 +194,13 @@ def read(sel):
         count_squad = sum(per_scope.values())
         count_choice = sum(n for k, n in per_scope.items() if k in names)
         others = [{"scope": k, "n": n} for k, n in sorted(per_scope.items()) if k not in names and n]
+        prows, pwarn, pok = parked_rows(sel, choice)
+        if not pok:
+            unknown.append("open-questions")
         data = {"status": "unknown" if "inbox" in unknown else "ok", "rows": rows, "count_choice": count_choice,
                 "count_squad": count_squad, "others": others,
-                "banner": {"entries": entries, "reason": b.get("reason")}, "parked": parked_n}
+                "banner": {"entries": entries, "reason": b.get("reason")}, "parked": parked_n,
+                "parked_rows": prows, "parked_warnings": pwarn}
         return {"data": data, "quality": "unknown" if unknown else "exact", "unknown": unknown}
     except Exception:
         return {"data": None, "quality": "unknown", "unknown": ["inbox"]}

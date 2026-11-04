@@ -98,6 +98,21 @@ class Rows(Base):
         self.assertEqual([r["id"] for r in d["rows"]], ["E2"])
         self.assertEqual((d["count_choice"], d["parked"]), (1, 1))
 
+    def test_T12_AC4_parked_rows_follow_the_choice_squad_level_always_and_a_broken_block_warns(self):
+        stamp = "Status: parked\nParked: 2026-11-03T09:00:00Z\n"
+        (self.home("parked") / "open-questions.md").write_text(
+            "## Q1\n" + stamp + "Which port?\nBlocks: ticket 3\nFrom: E1 #2\n\n## Q2\nStatus: resolved\nParked: 2026-11-03T09:00:00Z\n"
+            "Done?\nResolved: 2026-11-04T08:00:00Z yes\n\n## Q3\nStatus: nope\nbroken\n", encoding="utf-8")
+        (self.home("checkout") / "open-questions.md").write_text("## Q1\n" + stamp + "Other scope\n", encoding="utf-8")
+        (self.squad.path / "open-questions.md").write_text("## Q1\n" + stamp + "Squad wide\n", encoding="utf-8")
+        d = self.read("parked")["data"]
+        got = [(r["level"], r["id"], r["status"], r["text"], r["blocks"], r["from"]) for r in d["parked_rows"]]
+        self.assertEqual(sorted(got), sorted([("scope", "Q1", "parked", "Which port?", "ticket 3", "E1 #2"),
+                                              ("scope", "Q2", "resolved", "Done?", "", ""), ("squad", "Q1", "parked", "Squad wide", "", "")]))
+        self.assertEqual([r["answer"] for r in d["parked_rows"] if r["status"] == "resolved"], ["yes"])
+        self.assertEqual(len(d["parked_warnings"]), 1)
+        self.assertIn("open-questions.md unreadable", d["parked_warnings"][0])
+
 
 class Squadwide(Base):
     def test_T05_AC5_AC7_banner_entries_and_herdr_down(self):
