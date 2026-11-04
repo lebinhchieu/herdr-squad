@@ -47,7 +47,97 @@
 
   function defaultRank(id, idx) { var k = ORDER.indexOf(id); return k < 0 ? ORDER.length + idx : k; }
 
-  BOARD.layout = { GUTTER: GUTTER, MIN_PX: MIN_PX, ORDER: ORDER, colCount: colCount, place: place, norm: norm, defaultRank: defaultRank };
+  /* ---------------- grid pure part (tickets 35, 36; design-v8 s2, s3) ----------------
+     Added next to the ticket 26 functions. The DOM part still uses the old place/norm until it is rewritten;
+     then these names become place/refresh/colCount (see tasks/notes-grid-36.md). */
+  var SMALLEST = { tasks: 2, worktime: 2 };   /* smallest span; others 1 */
+  function gridCount(innerWidth, scale) {
+    var w = innerWidth / (scale || 1);
+    return w >= 1800 ? 6 : (w >= 960 ? 4 : 2);
+  }
+  /* placeGrid(items, G) -> {id: {x, y}}. items [{id, span, height}] in saved order (height = box height incl. gutter).
+     Each item goes to the highest free spot where its span fits, leftmost when equal. Candidate rows: 0 and every bottom. */
+  function placeGrid(items, G) {
+    var boxes = [], out = {};
+    items.forEach(function (it) {
+      var span = Math.max(1, Math.min(it.span, G)), h = it.height || 0, rows = [0], best = null;
+      boxes.forEach(function (b) { rows.push(b.y + b.h); });
+      rows.sort(function (a, b) { return a - b; });
+      rows.forEach(function (y) {
+        if (best) return;
+        for (var x = 0; x + span <= G; x++) {
+          var clash = boxes.some(function (b) {
+            return b.x < x + span && x < b.x + b.s && b.y < y + h && y < b.y + b.h;
+          });
+          if (!clash) { best = { x: x, y: y }; return; }
+        }
+      });
+      boxes.push({ id: it.id, x: best.x, y: best.y, s: span, h: h });
+      out[it.id] = { x: best.x, y: best.y };
+    });
+    return out;
+  }
+  /* refreshGrid(prev, heights) -> {id: {x, y}}. prev: [{id, x, span, above:[ids]}] in row order of the last place.
+     Each panel keeps x; y = lowest bottom of the panels recorded above it (0 when none). */
+  function refreshGrid(prev, heights) {
+    var out = {};
+    prev.forEach(function (p) {
+      var y = 0;
+      (p.above || []).forEach(function (a) { if (out[a]) y = Math.max(y, out[a].y + (heights[a] || 0)); });
+      out[p.id] = { x: p.x, y: y };
+    });
+    return out;
+  }
+  /* recordGrid(items, pos, G) -> prev for refreshGrid: row order, x, and the panels above (overlapping columns, ending at or above its top). */
+  function recordGrid(items, pos, G) {
+    var list = items.map(function (it) { return { id: it.id, x: pos[it.id].x, y: pos[it.id].y, span: Math.min(it.span, G), h: it.height }; });
+    list.sort(function (a, b) { return (a.y - b.y) || (a.x - b.x); });
+    return list.map(function (p) {
+      return { id: p.id, x: p.x, span: p.span, above: list.filter(function (q) {
+        return q !== p && q.x < p.x + p.span && p.x < q.x + q.span && q.y + q.h <= p.y;
+      }).map(function (q) { return q.id; }) };
+    });
+  }
+  /* migrateGrid(panels) -> panels sorted by (order, col, default rank), order renumbered 0..k-1, col and span dropped. */
+  function migrateGrid(panels) {
+    var rows = panels.map(function (p, i) { return { p: p, i: i }; });
+    rows.sort(function (a, b) {
+      var oa = Number.isInteger(a.p.order) ? a.p.order : 1e9, ob = Number.isInteger(b.p.order) ? b.p.order : 1e9;
+      var ca = Number.isInteger(a.p.col) ? a.p.col : 0, cb = Number.isInteger(b.p.col) ? b.p.col : 0;
+      return (oa - ob) || (ca - cb) || (defaultRank(a.p.id, a.i) - defaultRank(b.p.id, b.i));
+    });
+    return rows.map(function (r, k) {
+      var q = {}; Object.keys(r.p).forEach(function (key) { if (key !== "col" && key !== "span") q[key] = r.p[key]; });
+      q.order = k; return q;
+    });
+  }
+  /* dropIndex(rects, x, y) -> index in reading order: the panel whose centre is nearest; before it when the pointer is above/left of it. */
+  function dropIndex(rects, x, y) {
+    var best = -1, bd = Infinity;
+    rects.forEach(function (r, i) {
+      var cx = r.left + r.width / 2, cy = r.top + r.height / 2, d = Math.hypot(x - cx, y - cy);
+      if (d < bd) { bd = d; best = i; }
+    });
+    if (best < 0) return 0;
+    var r = rects[best], cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    return (y < cy || (y <= cy && x < cx)) ? best : best + 1;
+  }
+  /* width in twelfths <-> tracks (design-v8 s2) */
+  function widthToTracks(width, G, minSpan) {
+    var lo = minSpan || 1;
+    if (!Number.isInteger(width) || width < 1) return Math.min(Math.max(2, lo), G);
+    var k = Math.floor(width * G / 12 + 0.5);
+    return Math.max(lo, Math.min(k, G));
+  }
+  function tracksToWidth(k, G) { return k * 12 / G; }
+  function snapTracks(px, trackW, gap, G, minSpan) {
+    var k = Math.floor((px + gap) / (trackW + gap) + 0.5);
+    return Math.max(minSpan || 1, Math.min(k, G));
+  }
+
+  BOARD.layout = { GUTTER: GUTTER, MIN_PX: MIN_PX, ORDER: ORDER, colCount: colCount, place: place, norm: norm, defaultRank: defaultRank,
+    SMALLEST: SMALLEST, gridCount: gridCount, placeGrid: placeGrid, refreshGrid: refreshGrid, recordGrid: recordGrid,
+    migrateGrid: migrateGrid, dropIndex: dropIndex, widthToTracks: widthToTracks, tracksToWidth: tracksToWidth, snapTracks: snapTracks };
 
   /* ---------------- DOM part ---------------- */
   /* mount(opts) -> {relayout, plan, request, drag, resize, key, observe, unobserve}
