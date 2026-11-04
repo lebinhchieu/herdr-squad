@@ -20,7 +20,7 @@ import squadboard  # noqa: E402
 import squadboard_files as sf  # noqa: E402
 from test_squadboard_page import CHROME  # noqa: E402
 
-ROW = {"name", "kind", "what", "scope", "path", "mtime"}
+ROW = {"name", "kind", "what", "scope", "path", "abs", "mtime"}
 
 
 def put(p, text="x\n"):
@@ -101,8 +101,12 @@ class Reader(Base):
                 (self.home / "ui-design" / "linkdir").symlink_to(outside, target_is_directory=True)
             except (OSError, NotImplementedError):
                 self.skipTest("symlinks cannot be created here")
-            names = {r["name"] for r in sf.read(self.sel())["data"]["rows"]}  # also proves the loop symlink does not hang
-            self.assertNotIn("tasks/leak.md", names)
+            d = sf.read(self.sel())["data"]
+            names = {r["name"] for r in d["rows"]}  # also proves the loop symlink does not hang
+            leak = [r for r in d["rows"] if r["name"] == "tasks/leak.md"]  # T30.AC7: kept as a blocked row, no target path
+            self.assertEqual([(r["abs"], r.get("blocked"), r["what"]) for r in leak], [(None, True, "cannot be opened: outside the squad folders")])
+            self.assertNotIn(str(outside), json.dumps(d))
+            self.assertEqual(d["wsl_distro"], os.environ.get("WSL_DISTRO_NAME") or None)
             self.assertFalse([n for n in names if "linkdir" in n or "loop" in n], names)
         finally:
             for p in sorted(outside.rglob("*"), reverse=True) + [outside]:
@@ -201,7 +205,7 @@ class Served(Base):
         self.assertEqual(code, 200)
         j = json.loads(body)
         self.assertEqual(j["schema_version"], 1)
-        for r in j["data"]["rows"]:
+        for r in [x for x in j["data"]["rows"] if not x.get("blocked")]:
             c, _, _ = self.get("/api/file?squad=fix&path=" + urllib.request.quote(r["path"]))
             self.assertEqual(c, 200, r)
 

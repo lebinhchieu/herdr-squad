@@ -53,12 +53,15 @@ class _Walk:
             return
         try:
             real = p.resolve(strict=True)
-            if not real.is_file() or not squadboard._under(real, self.roots):
+            if not real.is_file():
+                return
+            blocked = not squadboard._under(real, self.roots)
+            if blocked and not p.is_symlink():
                 return
             mtime = int(real.stat().st_mtime)
         except (OSError, RuntimeError, ValueError):
             return
-        path, name = str(real), p.name
+        path, name = (str(p) if blocked else str(real)), p.name
         for base in (self.squad.path, self.squad.repo_root):  # /api/file takes a path relative to the squad folder
             try:
                 rel = p.relative_to(base).as_posix()
@@ -72,11 +75,17 @@ class _Walk:
             name = p.relative_to(self.home).as_posix()
         except ValueError:
             pass
+        if blocked:  # T30.AC7: a symlink out of the allow-list is a plain row with no target, never the target's path
+            what = "cannot be opened: outside the squad folders"
         if str(real) in self.listed:  # a file reached by two rules is one row; the first rule wins
             return
         self.listed.add(str(real))
         what = what or WHAT[kind]
-        self.rows.append({"name": name, "kind": kind, "what": what, "scope": self.home.name, "path": path, "mtime": mtime})
+        row = {"name": name, "kind": "other" if blocked else kind, "what": what, "scope": self.home.name, "path": path,
+               "abs": None if blocked else str(real), "mtime": mtime}
+        if blocked:
+            row["blocked"] = True
+        self.rows.append(row)
 
     def files(self, d, exts, kind_of, depth=1, flat=False):
         """Files of folder `d` with an extension in `exts`; recurse into real (not symlinked) subfolders up to DEPTH."""
@@ -155,7 +164,7 @@ def list_files(squad, kind, name, home):
     folders = [f for f in (_folder_row(squad.repo_root / ".scratch", ".scratch", "Repo tickets folder", home.name, roots),
                            _folder_row(squad.path, squad.name, "Squad folder", home.name, roots)) if f]
     report = next((r for r in rows if r["kind"] == "report"), None)
-    return {"folders": folders, "rows": rows, "report": report, "report_expected": kind == "scope", "closed": kind == "scope" and _closed(home),
+    return {"wsl_distro": os.environ.get("WSL_DISTRO_NAME") or None, "folders": folders, "rows": rows, "report": report, "report_expected": kind == "scope", "closed": kind == "scope" and _closed(home),
             "truncated": w.truncated, "files_seen": w.seen}
 
 
