@@ -27,9 +27,9 @@ Technical AC (SQ-6): tests/test_squadboard_grid.py, class Resize, unless named.
 | T36.TA1 `tracksToWidth` | `Resize::test_T36_TA1_pure_functions` (o.t2w, round trip) | pass |
 | T36.TA2 drag saves `tracks` only, reload draws it | `Resize::test_T36_TA2_drag_saves_tracks_only_and_reload_draws_it` | pass |
 | T36.TA3 narrow window keeps the saved share | `Resize::test_T36_TA3_narrow_window_keeps_the_saved_share` | pass |
-| T36.TA4 server bounds, old keys, bad saved values | tests/test_squadboard_ui.py::test_T36_TA4_tracks_bounds_and_old_keys; page reader: `Grid::test_T35_bad_tracks_values_fall_back_and_files_at_six_twelfths` | pass |
+| T36.TA4 server bounds, old keys, bad saved values | tests/test_squadboard_ui.py::test_T36_TA4_tracks_bounds_and_old_keys; page reader: `Grid::test_T35_bad_tracks_values_fall_back_and_files_at_six_twelfths`; iteration-1 file: `Grid::test_T35_TA5_T36_TA4_iteration_1_file_loads_with_no_panel_wider_and_saves_without_span` | pass |
 | T36.TA5 Esc, double-click, keyboard | `Resize::test_T36_TA5_esc_dblclick_and_keyboard` | pass |
-| T36.TA6 `place` once on pointerup, none while dragging | `Resize::test_T36_TA6_place_runs_once_on_pointerup_and_panels_do_not_move_while_dragging` | pass |
+| T36.TA6 `place` once on pointerup, none while dragging; after widening Files 2 to 3 tracks no overlap and no gap (tops 0 or 12 under the box above). The fill-the-hole case is T35.TA1 `hole` (`Grid::test_T35_TA1_pure_functions`): widening here pushes Needs-you's neighbour down, no panel has a hole to fill | `Resize::test_T36_TA6_place_runs_once_on_pointerup_and_panels_do_not_move_while_dragging` | pass |
 | T36.TA7 handle attributes | `Resize::test_T36_TA7_handle_is_a_focusable_separator_and_the_banner_has_none` | pass |
 
 Business AC (QA blackbox owns the live check):

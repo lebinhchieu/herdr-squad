@@ -18,15 +18,17 @@ Technical AC (SQ-6): test file is tests/test_squadboard_grid.py, class Grid, unl
 | AC | Test | Result |
 |---|---|---|
 | T35.TA1 pure functions (place, refresh, migrate, dropIndex, colCount) | `Grid::test_T35_TA1_pure_functions` | pass |
-| T35.TA2 holes, gutters, no overlap at 1000/1440/1920 | `Grid::test_T35_TA2_geometry_holes_gutters_no_overlap_at_three_sizes` | pass |
-| T35.TA2b refresh: columns kept, `place` 0 calls, `refresh` ran | `Grid::test_T35_TA2b_refresh_keeps_columns_and_calls_no_place` | pass |
+| T35.TA2 holes, gutters, no overlap at 1000/1440/1920 | `Grid::test_T35_TA2_geometry_holes_gutters_no_overlap_at_three_sizes` (asserts `innerWidth` equals the width named; the inner height is 813 for `--window-size=...,900` in this Chrome because of browser chrome, so height is not asserted) | pass |
+| T35.TA2b refresh: columns kept, `place` 0 calls, `refresh` ran; same order; after a Needs-you grow its column neighbours' tops move by the grown height, the others +0, no overlap; shrink back gives the first tops | `Grid::test_T35_TA2b_refresh_keeps_columns_and_calls_no_place`; pure `refresh`: `Grid::test_T35_TA1_pure_functions` (d +85 exact, c +0) | pass |
 | T35.TA2b PO action: `place` spy sees 1 call | `Grid::test_T35_TA2b_first_settle_places_after_first_data_of_all_panels_not_on_loading` (after-count 1) | pass |
 | T35.TA2b first load: first `place` after the answers of all five panels (one answers "unknown"); a hanging panel is placed by the 5 s timer | same test | pass |
 | T35.TA3 order and hidden | `Grid::test_T35_TA3_dom_order_follows_saved_order_and_hidden_is_out_of_the_grid` | pass |
-| T35.TA4 drag, Esc, keyboard persist | `Grid::test_T35_TA4_drag_esc_and_keyboard` | pass |
+| T35.TA4 drag, Esc, keyboard | `Grid::test_T35_TA4_drag_esc_and_keyboard` (the always-true asserts were deleted) |
+| T35.TA4 completed drop: Tasks before Needs-you, order 0..k-1, no `col`/`span`, one PUT | `Grid::test_T35_TA4_completed_drop_renumbers_order_without_col_or_span_and_saves_once` | pass | pass |
 | T35.TA5 migration, first save drops col/span | `Grid::test_T35_TA5_old_layout_migrates_and_first_save_drops_col_and_span` (fixture iter2) | pass |
-| T35.TA6 no column code, no innerHTML, tokens | `Grid::test_T35_TA6_no_column_code_and_tokens_only` | pass |
-| T35.TA7 text scale, nothing leaves the window | `Grid::test_T35_TA7_text_scale_recomputes_columns_and_nothing_leaves_the_window` | pass |
+| T35.TA5 / T36.TA4 iteration-1 file (numeric ids, span 4/6/8, unknown ids): 5 panels, same width, no error text, saves without `span` | `Grid::test_T35_TA5_T36_TA4_iteration_1_file_loads_with_no_panel_wider_and_saves_without_span` | pass |
+| T35.TA6 no column code, no innerHTML, tokens | `Grid::test_T35_TA6_no_column_code_and_tokens_only` (the test regex skips `r.col`/`p.col` on purpose; the literal AC grep has 4 hits, all legitimate: board.js:423 and layout.js:69 migrate reads the old `col`; board.js:716 and 725 `dataset.col`, the ticket-20 table column) | pass |
+| T35.TA7 text scale, nothing leaves the window | `Grid::test_T35_TA7_text_scale_recomputes_columns_and_nothing_leaves_the_window` (asserts `innerWidth` == 1000) | pass |
 | T35.TA8 min width 1000 stays | no new test: CSS rule `#app{min-width:1000px}` untouched (git diff) | open gap: no test named |
 
 Business AC (QA blackbox owns the live check; the test that also covers it, if any):
