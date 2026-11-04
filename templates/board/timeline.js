@@ -291,6 +291,14 @@
                      task: p.task, approx: p.approx, on: p.on, mixed: false, piece: p });
       }
     }
+    var co = [];   /* whole blocks: touching rects of one state and task are one block for drawing */
+    rects.forEach(function (r) {
+      var l = co[co.length - 1];
+      if (l && l.bucket === r.bucket && l.task === r.task && l.on === r.on && l.approx === r.approx && r.x - (l.x + l.w) < 0.5 && r.start >= l.end) {
+        l.w = r.x + r.w - l.x; l.fw = l.w / width; l.end = r.end; l.seconds += r.seconds; l.n += 1;
+      } else co.push(r);
+    });
+    rects = co;
     var out = [], g = null, acc = null;
     function flush() {
       if (!g) return;
@@ -409,7 +417,9 @@
     render: function (body, data, ctx) {
       V.body = body; V.tz = ctx.tz;
       var p = V.poll;
-      if (p && p.key === V.key && data && p.reqs.some(function (q) { return (q.from == null || data.from === q.from) && data.to === q.to; })) accept(data, true);
+      var ok = p && p.key === V.key && data && p.reqs.some(function (q) { return (q.from == null || data.from === q.from) && data.to === q.to; });
+      if (ok) accept(data, true);
+      else if (V.state === "ok" && V.agents.length) draw();   /* the board cleared the body for this answer: never leave it blank */
     }
   };
   /* the board's poller asks for this route every 5 s (one timer for the page); it reads the current range each time */
@@ -425,7 +435,7 @@
     var n = normalizeData(data);
     var h = JSON.stringify(n);
     V.state = "ok"; V.err = false; V.loadingRange = false;
-    if (fromPoll && h === V.hash) return;
+    if (fromPoll && h === V.hash && V.body && V.body.firstChild) return;   /* unchanged and still drawn: no redraw */
     V.hash = h; V.data = n; V.agents = n.agents;
     draw();
   }
@@ -448,6 +458,7 @@
      arrives after a newer request is dropped (request id) */
   function request(range, preset) {
     V.preset = preset || "";
+    V.sel = null;
     V.range = range ? { from: range.from, to: range.to } : null;
     V.key++;
     var id = ++V.req, r = rangeNow();
@@ -492,7 +503,7 @@
     if (!e.ctrlKey) return false;
     e.preventDefault();
     var r = effective(), sc = scaleNow(r);
-    V.preset = ""; V.range = zoomRange(r, sc.tAt(Math.max(0, Math.min(1, frac))), e.deltaY > 0 ? 1.25 : 0.8);
+    V.sel = null; V.preset = ""; V.range = zoomRange(r, sc.tAt(Math.max(0, Math.min(1, frac))), e.deltaY > 0 ? 1.25 : 0.8);
     draw();
     root.clearTimeout(V.wheelTimer);
     V.wheelTimer = root.setTimeout(function () { request(V.range, ""); }, WHEEL_WAIT_MS);
@@ -699,7 +710,7 @@
     var s = a.agent + (a.scope ? " · " + a.scope : "") + " · " + hhmm(r.start, tz) + "–" + hhmm(r.end, tz) + " (" + durLabel(r.seconds) + ") · " +
       (r.bucket === "blocked" ? (r.on === "PO" ? "blocked on you" : "blocked" + (r.on ? " on " + r.on : "")) : r.bucket) +
       " · " + (r.task != null ? "task " + r.task + (r.approx ? " (approx)" : "") : "no task");
-    return r.n > 1 ? s + " · " + r.n + " short pieces" : s;
+    return r.mixed ? s + " · " + r.n + " short pieces" : s;
   }
 
   function laneRow(a, sc, rects, marks, tz, width, multi) {
@@ -707,7 +718,7 @@
     lab.title = a.agent + (a.scope ? " · " + a.scope : "");
     var ln = el("span", "ln", a.agent);
     lab.appendChild(ln);
-    if (multi && a.scope) lab.appendChild(el("small", null, a.scope));
+    if (a.scope) lab.appendChild(el("small", null, a.scope));
     row.dataset.agent = a.agent;
     row.appendChild(lab);
     var trk = el("div", "tl-trk");
@@ -769,10 +780,12 @@
     row("Start", stamp(s.start, tz) + " (" + offLabel(s.start, tz) + ")");
     row("End", stamp(s.end, tz) + " (" + offLabel(s.end, tz) + ")");
     if (s.bucket === "blocked" && s.on) row("Blocked on", s.on === "PO" ? "you" : s.on);
-    if (s.worktree) row("Worktree", s.worktree);
-    if (s.branch) row("Branch", s.branch);
+    row("Worktree", s.worktree || "none: not in the data yet");
+    row("Branch", s.branch || "—");
     var ms = (V.data ? V.data.marks : []).filter(function (m) { return m.ts >= s.start && m.ts <= s.end && (m.agent === s.agent || m.agent == null); });
-    row("Marks", ms.length ? ms.map(function (m) { return (MARK_NAMES[m.kind] || m.kind) + (m.task ? " " + m.task : "") + " " + hhmm(m.ts, tz); }).join(" · ") : "none in this block");
+    row("Commits, verdicts", ms.length ? ms.map(function (m) { return (MARK_NAMES[m.kind] || m.kind) + (m.sha ? " " + m.sha : "") + (m.task ? " " + m.task : "") + " " + hhmm(m.ts, tz); }).join(" · ") : "none in this block");
+    row("Artifacts", "not read (cut from the data)");
+    row("Reports", "none yet (made when the scope closes)");
     d.appendChild(dl);
     return d;
   }
@@ -910,7 +923,8 @@
       var sb = el("button", "cp", "Show all lanes"); sb.type = "button"; sb.addEventListener("click", function () { T.setTask(null); }); hn.appendChild(sb); tl.appendChild(hn);
     }
     var anyIn = V.agents.some(function (a) { return a.pieces.some(function (p) { return p.end > r.from && p.start < r.to; }); });
-    if (!anyIn) {
+    var marksIn = (V.data ? V.data.marks : []).some(function (m) { return m.ts >= r.from && m.ts <= r.to; });
+    if (!anyIn && !marksIn) {
       var ne = el("p", "note box"); ne.appendChild(el("b", null, "No agent did anything in this range. "));
       ne.appendChild(root.document.createTextNode("Zoom out, or pick \"All\".")); tl.appendChild(ne);
     }

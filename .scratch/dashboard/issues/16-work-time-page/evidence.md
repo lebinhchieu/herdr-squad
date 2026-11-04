@@ -48,3 +48,9 @@ Technical points: one timer (the board's 5 s poll reads the panel's route, which
 Touched files beyond the ticket list (approved): `templates/board/index.html` (one script line), `templates/board/board.js` (exactly two hook calls: `snapshot`, `applySaved`), `tests/test_squadboard_page.py` (file-list test names `timeline.js`).
 
 Live run (real server, this scope): `/api/worktime` gave 24 agents, 4511 pieces, 70 marks, unattributed `7 h 22 min`. The page drew 18 developer lanes plus the other roles, a "night · 5 h 30 min" break, commits in their own lane, no console error. Server stopped after the run.
+
+## Return after QA blackbox FAIL (F1, F2)
+- F1 cause: the board clears the panel body when a poll answer differs from the last one; my panel skipped the redraw when the answer equalled the data of the zoom request, so the body stayed blank. Now the panel always redraws into an empty body. Test `T16.AC4_AC7_a_custom_range_survives_the_next_poll`.
+- F2 fixed: detail rows Worktree, Branch, Commits and verdicts, Artifacts, Reports; touching pieces of one state and task draw as one whole block with its task label; lane scope line under every agent name; "No agent did anything in this range" is not shown when marks are in the range; the detail card closes when the range changes.
+- F2 not fixable here: table rows show the task number only, because `/api/worktime` carries no task titles (ticket 15 data). Needs a Manager decision if the PO wants titles.
+- AC6, AC9: covered by the tests on reader output (`test_T16_AC6_...`, `test_T16_AC9_...`), which use the PO night and the clock change.

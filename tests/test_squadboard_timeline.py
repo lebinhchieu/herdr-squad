@@ -440,9 +440,25 @@ const p=JSON.parse(JSON.stringify(R.wt));const ps=p.data.agents[0].pieces;
 delete ps[0].end;ps[1].bucket='bogus';ps[2].bucket='bogus';payload=p;await startPage();
 out({unk:$$('.blk[data-state=unknown]').length,warns:window.__warns,rows:$$('.tl-row[data-agent]').length});""",
                      {"wt": rich(), "dst": {}, "now": NOW})
-        self.assertEqual(r["unk"], 3)
+        self.assertEqual(r["unk"], 2)   # the two touching "bogus" pieces draw as one block; the piece with no end is its own
         self.assertEqual(len(r["warns"]), 2)   # one line per kind (no end, bucket), not per piece
         self.assertEqual(r["rows"], 3)
+
+    def test_T16_AC4_AC7_a_custom_range_survives_the_next_poll(self):
+        r = run_page("""
+await startPage();T.zoomAt(.5,.5);await sleep(200);
+const a=$$('.blk').length;
+for(let i=0;i<2;i++){fakeTimers.filter(t=>t.ms===5000).forEach(t=>t.f());await sleep(300);}
+const after=$$('.blk').length;
+$$('.blk[data-task]')[0].click();await sleep(50);const had=!!$('.tl-detail dl');
+T.zoomAt(.5,2);await sleep(200);
+out({a:a,after:after,lanes:$$('.tl-row[data-agent]').length,detailGone:!$('.tl-detail dl'),had:had,scope:$$('.tl-row[data-agent] .lab small').length>0});""",
+                     {"wt": rich(), "dst": {}, "now": NOW})
+        self.assertGreater(r["a"], 0)
+        self.assertEqual(r["after"], r["a"])   # the poll after a zoom did not blank the panel
+        self.assertEqual(r["lanes"], 3)
+        self.assertTrue(r["had"] and r["detailGone"])   # the detail card goes when the range changes
+        self.assertTrue(r["scope"])
 
     def test_T16_TA7_an_unchanged_poll_does_not_redraw(self):
         r = run_page("""
