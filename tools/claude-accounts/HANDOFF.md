@@ -97,6 +97,36 @@
 - **`python3`** instead of `python`; no `cygpath`/`mklink`.
 - **No PowerShell launchers.** Windows also has `~/.claude-accounts/claude-accounts.ps1` (dot-sourced from both PowerShell profiles; no `cswitch`). WSL only needs bash.
 
+## Background work (repro 2026-11-04)
+
+claude 2.1.318, herdr 0.9.5, auto mode. Throwaway panes `repro-*` only (split from the dev pane, cwd a `mktemp -d`, all closed after; no cswitch run on any pane). Evidence: scope `tasks/01/evidence.md`.
+Commands: `herdr pane split --pane $HERDR_PANE_ID --direction right --cwd $D --no-focus`; `herdr agent start repro-X --kind claude --pane $P [-- --permission-mode auto]`; `herdr agent prompt $P "<text>"`; `herdr agent get $P | jq .result.agent`; `herdr agent wait $P --until idle --until done --timeout N`; `herdr pane read $P --source visible --lines 14`; `herdr pane send-keys $P Enter|Escape|Down`.
+
+| Case | herdr status at prompt | `agent get` .tokens.bg | `agent wait idle/done` | `/exit` typed |
+|---|---|---|---|---|
+| Monitor (quiet) | idle (flaps working/idle/done if it emits events) | `"⏵ 1 monitor"` | exit 0, 0 s | dialog, status `blocked` |
+| Background shell | done | `"⏵ 1 shell"` | exit 0, 0 s | dialog, status `blocked` |
+| Subagent | `working` (steady) | null | timeout, exit 1 | `prompt` accepted, dialog, status stays `working` |
+| Permission prompt | `blocked` | null | timeout, exit 1 | `agent prompt` fails: `agent_blocked`, `/exit` never typed |
+
+Cause A is real for blocked panes and a running subagent (wait times out, cswitch goes on). Cause B is real for all three kinds of background work: the docs said a shell shows no dialog; it does. Cause C follows from A and B (log: 9 x `agent_blocked`, then 120 s `did not exit`).
+Wait on timeout: stdout `{"error":{"code":"timeout",...}}`, exit 1. cswitch discards both.
+
+### Background-work dialog
+Text: `Background work is running` / `The following will stop when you exit:` then one line per task (`monitor · ...`, `shell · ...`, `subagent · ...`) / `1. Exit and stop tasks` `2. Move to background and exit` `3. Stay` / `Enter to confirm · Esc to cancel`.
+- Enter (1): claude exits at once, rc 0; the shell/monitor/subagent is stopped. This is the data loss of the 2026-11-04 live case. `pgrep` showed the task's sleep process gone within 3 s (monitor and subagent cases).
+- Down Enter (2): pane returns to the shell, prints `backgrounded · <id>`; the session lives on as a `claude agents` background session and the shell keeps running. `claude --resume <sid>` then shows `1 shell` again, but its `/exit` lands in the agents view (`describe a task for a new session`), not at the shell. `claude stop <id>` stopped the session and left the shell child running (killed by PID). Not usable for cswitch.
+- Esc (3, "Stay"): dialog closes, status back to `done`, shell still alive. This is the safe answer.
+- Dialog status: `blocked` for shell/monitor, `working` for a subagent. Status alone does not show it; `pane read` does.
+
+### Recommended detection (cswitch, before and after `/exit`)
+1. After the wait, `herdr agent get $pane`: busy if `.result.agent.agent_status` is not idle/done, or `.result.agent.tokens.bg` is non-empty (`⏵ 1 shell`, `⏵ 1 monitor`; subagent shows as `working`). The wait result (exit 1) alone also means busy. Do not use the process tree: a shell is a child of claude (`pgrep -P`), but so are MCP servers and foreground tools.
+2. Safety net after `herdr agent prompt "/exit"`: if it fails (`agent_blocked`) or `herdr pane read $pane --source visible --lines 14` contains `Background work is running`, send `Escape`, log, skip. Never answer 1 or 2.
+3. Log `skipped: busy (<status>, <bg>)`; the watcher exits 75 (EX_TEMPFAIL). cswitch itself returns before the watcher runs (nohup), so cautoswitch cannot see that code: task 02/03 must do the check 1 synchronously before detaching and return 75 there.
+4. Status is racy: a Monitor that emits events flipped working/idle/done and one `wait` returned `done` while the monitor ran. Check 1 can pass wrongly; check 2 is the net.
+
+Untested: the same dialog on account 2/3 (not touched, no cswitch run); a Monitor/shell started while the `/exit` is typed (race).
+
 ## Notes
 
 - **WSL's `~/.claude` is separate from Windows'.** Your skills, `CLAUDE.md`, settings and memory are not there yet. Copy them first (e.g. `cp -r /mnt/c/Users/84084/.claude/{CLAUDE.md,settings.json,skills,output-styles} ~/.claude/`), then run the installer. Windows paths inside `settings.json` (status line, hooks) will need rewriting for Linux.
