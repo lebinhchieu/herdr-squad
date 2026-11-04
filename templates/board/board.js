@@ -186,6 +186,63 @@
     return out;
   }
 
+  /* ---------- new since last looked (ticket 13) ----------
+     rec = {any: epoch ms the page was last visible (any choice) or null, last: {"kind:name": epoch ms}}; kept per squad in browser storage
+     only. Counts come from the server (`new_count`, `new`); the page only keeps "since" and what the PO already opened. */
+  var SEEN_PREFIX = "squad-board-seen:";
+  function seenRead(store, squadKey) {
+    var rec = { any: null, last: {} };
+    try {
+      var j = JSON.parse(store.getItem(SEEN_PREFIX + squadKey) || "null");
+      if (j && typeof j === "object") {
+        if (typeof j.any === "number" && isFinite(j.any)) rec.any = j.any;
+        if (j.last && typeof j.last === "object") Object.keys(j.last).forEach(function (k) { if (typeof j.last[k] === "number" && isFinite(j.last[k])) rec.last[k] = j.last[k]; });
+      }
+    } catch (e) { /* blocked or bad storage: first visit, nothing new */ }
+    return rec;
+  }
+  function seenWrite(store, squadKey, rec) {
+    try { store.setItem(SEEN_PREFIX + squadKey, JSON.stringify({ any: rec.any, last: rec.last })); return true; } catch (e) { return false; }
+  }
+  /* the time the PO last looked at this choice (choiceKey "scope:x"), or at the squad when there is no choice; null = first visit */
+  function sinceFor(rec, choiceKey, now) {
+    var t = choiceKey ? rec.last[choiceKey] : rec.any;
+    return typeof t === "number" && isFinite(t) ? Math.min(t, now) : null;
+  }
+  function markVisible(rec, choiceKey, now) { rec.any = now; if (choiceKey) rec.last[choiceKey] = now; return rec; }
+  /* opening a task's detail: remember how many of its server count the PO has now seen */
+  function clearTask(cleared, scope, task, count, now) { cleared[scope + "/" + task] = { scope: scope, at: now, n: count > 0 ? count : 0 }; return cleared; }
+  function clearedN(e, since) { return e && since != null && e.at >= since ? e.n : 0; }
+  function shownNew(cleared, scope, task, serverN, since) { return Math.max(0, (serverN > 0 ? serverN : 0) - clearedN(cleared[scope + "/" + task], since)); }
+  /* a picker row: the server's count minus what was cleared inside it (scopes: the names it holds; null = every scope) */
+  function rowNew(cleared, serverN, since, scopes) {
+    if (!(serverN > 0)) return 0;
+    var sub = 0;
+    Object.keys(cleared).forEach(function (k) { if (!scopes || scopes.indexOf(cleared[k].scope) >= 0) sub += clearedN(cleared[k], since); });
+    return Math.max(0, serverN - sub);
+  }
+  var NEW_ROUTES = { "/api/tasks": "epoch", "/api/squads": "iso", "/api/scopes": "iso" };   /* the list routes read an ISO time, the tasks route epoch seconds */
+  function sinceQuery(route, since) {
+    var how = NEW_ROUTES[String(route).split("?")[0]];
+    if (since == null || !how) return "";
+    return "since=" + (how === "epoch" ? String(since / 1000) : encodeURIComponent(new Date(since).toISOString()));
+  }
+  /* the dot and "N new"; text only */
+  function newBadge(n) {
+    var d = root.document;
+    if (!d.getElementById("new-css")) {
+      var st = d.createElement("style"); st.id = "new-css";
+      st.textContent = ".chip.newc{background:var(--t-need2);border-color:var(--mango);gap:4px;white-space:nowrap}.newc .nd{display:inline-block;width:.6em;height:.6em;border-radius:999px;background:var(--mango)}";
+      d.head.appendChild(st);
+    }
+    var b = d.createElement("span"); b.className = "chip newc"; b.setAttribute("data-new", String(n));
+    var dot = d.createElement("i"); dot.className = "nd"; dot.setAttribute("aria-hidden", "true");
+    b.appendChild(dot); b.appendChild(d.createTextNode(n + " new"));
+    return b;
+  }
+  BOARD.seenRead = seenRead; BOARD.seenWrite = seenWrite; BOARD.sinceFor = sinceFor; BOARD.markVisible = markVisible;
+  BOARD.clearTask = clearTask; BOARD.shownNew = shownNew; BOARD.rowNew = rowNew; BOARD.sinceQuery = sinceQuery; BOARD.newBadge = newBadge;
+
   /* ---------- panel registry ---------- */
   var REG = [];
   /* registerPanel({id, title, route, maxPx, span, spans, render(body, data, ctx), isEmpty(data)})
@@ -644,10 +701,42 @@
       }, function (e) { if (t != null) clearT(t); throw e; });
     }
 
+    /* ---- away detection (ticket 13): "since" is the time the page was last visible for this choice, read at load and when the tab
+       becomes visible; it is written when the tab hides or closes and when the choice changes. The refresh timer is not involved. ---- */
+    var seenKey = null, seenRec = null, cleared = {};
+    function choiceKey() { return S.choice ? S.choice.kind + ":" + S.choice.name : null; }
+    function syncSince(force) {
+      var k = S.squad ? S.squad.key + "|" + (choiceKey() || "") : null;
+      if (!force && k === seenKey) return;
+      if (seenKey != null && seenRec && S.squad && seenKey.split("|")[0] === S.squad.key) {
+        markVisible(seenRec, seenKey.split("|")[1] || null, nowMs()); seenWrite(storage, S.squad.key, seenRec);
+      }
+      seenKey = k; cleared = {};
+      seenRec = S.squad ? seenRead(storage, S.squad.key) : null;
+      S.since = seenRec ? sinceFor(seenRec, choiceKey(), nowMs()) : null;
+    }
+    var away = false;   /* a hidden tab that is closed later fires pagehide too: the time it was hidden stays */
+    function leave() {
+      if (away || !S.squad || seenKey == null) return;
+      away = true;
+      seenRec = seenRec || seenRead(storage, S.squad.key);
+      markVisible(seenRec, choiceKey(), nowMs()); seenWrite(storage, S.squad.key, seenRec);
+    }
+    doc.addEventListener("visibilitychange", function () {
+      if (doc.visibilityState === "hidden") leave();
+      else if (doc.visibilityState === "visible") { away = false; syncSince(true); poller.now(); }
+    });
+    root.addEventListener("pagehide", leave);
+    function withSince(route) {
+      var sq = sinceQuery(route, S.since);
+      return sq ? route + (route.indexOf("?") < 0 ? "?" : "&") + sq : route;
+    }
+
     function loadData() {
-      var q = query(), jobs = [getJson("/api/squads")];
+      syncSince();
+      var q = query(), jobs = [getJson(withSince("/api/squads"))];
       var withRoute = S.choice ? panelList().filter(function (p) { return p.def.route; }) : [];
-      withRoute.forEach(function (p) { jobs.push(getJson(p.def.route + (p.def.route.indexOf("?") < 0 ? "?" : "&") + q)); });
+      withRoute.forEach(function (p) { jobs.push(getJson(withSince(p.def.route + (p.def.route.indexOf("?") < 0 ? "?" : "&") + q))); });
       return Promise.all(jobs).then(function (rs) { return { q: q, squads: rs[0], panels: withRoute, resp: rs.slice(1) }; });
     }
 
@@ -761,7 +850,11 @@
 
     init();
     BOARD.ctx = { state: S, els: els, setChoice: setChoice, paint: paintPickers, poller: poller, touch: touch, clear: clearPanels,
-                  getJson: getJson, panels: P, fmtClock: function (i) { return fmtClock(i, tz); }, now: nowMs, paintTitle: paintTitle };
+                  getJson: getJson, withSince: withSince, panels: P,
+                  seen: { scopeKey: function () { return S.choice && S.choice.kind === "scope" ? S.choice.name : ""; },
+                          clear: function (scope, task, count) { clearTask(cleared, scope, task, count, nowMs()); },
+                          shown: function (scope, task, n) { return shownNew(cleared, scope, task, n, S.since); },
+                          rowNew: function (n, scopes) { return rowNew(cleared, n, S.since, scopes); } }, fmtClock: function (i) { return fmtClock(i, tz); }, now: nowMs, paintTitle: paintTitle };
     BOARD.page = { state: S, panels: P, poller: poller, engine: engine, paintFresh: paintFresh, setFont: setFont, resetLayout: resetLayout,
                    replan: replan, snapshot: snapshot, setChoice: setChoice, touch: touch };
     return BOARD.page;

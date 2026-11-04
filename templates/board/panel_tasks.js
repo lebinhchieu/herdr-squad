@@ -27,7 +27,7 @@
       return { key: (r.scope ? r.scope + "/" : "") + r.id, id: r.id, scope: r.scope || "", title: r.title, stage: r.stage, ready: isReady(r.stage),
                done: isDone(r.stage), cls: stageClass(r.stage), owner: r.owner, waits: r.waits_on, lastIso: r.last_active_iso || null,
                last: secs == null ? "no activity recorded" : BOARD.ageWords(secs), returns: r.returns || 0, failLine: r.last_fail_line || "",
-               note: r.detail_note || "", branch: r.branch || "" };
+               note: r.detail_note || "", branch: r.branch || "", newCount: r.new_count > 0 ? r.new_count : 0 };
     });
   }
   function filterRows(rows, f) {
@@ -68,6 +68,9 @@
       ".tk .cp{border:1px solid var(--border);background:var(--bg);border-radius:5px;padding:0 6px;font-size:.92em}.tk .cp:hover{border-color:var(--mango)}";
     root.document.head.appendChild(s);
   }
+  /* the "N new" of a row: the server's count minus what the PO already opened (ticket 13) */
+  function seenScope(r) { var s = BOARD.ctx && BOARD.ctx.seen; return r.scope || (s ? s.scopeKey() : ""); }
+  function newOf(r) { var s = BOARD.ctx && BOARD.ctx.seen; return s ? s.shown(seenScope(r), r.id, r.newCount) : r.newCount; }
   function chip(cls, text) { return el("span", "chip " + cls, text); }
 
   function copyIt(btn) {
@@ -159,7 +162,9 @@
       tr.dataset.k = r.key; tr.tabIndex = 0;
       var a = el("td", "nw");
       if (r.scope) a.appendChild(el("span", "muted", r.scope + "/"));
-      a.appendChild(el("b", null, r.id)); cell.task = a;
+      a.appendChild(el("b", null, r.id));
+      var nn = newOf(r); if (nn > 0) { a.appendChild(root.document.createTextNode(" ")); a.appendChild(BOARD.newBadge(nn)); }
+      cell.task = a;
       cell.title = el("td", null, r.title);
       var st = el("td"); st.appendChild(chip(r.cls, r.stage));
       if (r.returns >= 1 && !r.done) st.appendChild(chip("fail", r.returns + (r.returns === 1 ? " return" : " returns")));
@@ -197,8 +202,12 @@
       if (!tr) return;
       var k = tr.dataset.k;
       if (OPEN === k) { OPEN = null; draw(); return; }
-      OPEN = k; draw();
       var row = rowsForTasks(LAST.d, LAST.c.now).filter(function (r) { return r.key === k; })[0];
+      if (row && row.newCount > 0 && BOARD.ctx && BOARD.ctx.seen) {   /* opening the detail clears the dot; the picker rows drop by the same count */
+        BOARD.ctx.seen.clear(seenScope(row), row.id, row.newCount);
+        if (BOARD.hooks.paint) BOARD.hooks.paint(BOARD.ctx.state);
+      }
+      OPEN = k; draw();
       if (row) fetchDetail(row);
     });
     body.addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.tagName === "TR") e.target.click(); });

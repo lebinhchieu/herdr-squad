@@ -927,5 +927,99 @@ class Static20(unittest.TestCase):
             self.assertEqual((TPL / f).read_text(encoding="utf-8").count("createElement(\"input\")"), 0, f)   # one shared builder in board.js
 
 
+# ---------------------------------------------------------------- ticket 13: new since last looked
+PRE13 = PRE12 + r"""
+const T0=Date.parse('2026-11-04T10:00:00Z'),HOUR=3600000;
+window.__u=[];
+const seenStore=(init)=>{const m=Object.assign({},init||{});return{m,getItem:k=>(k in m?m[k]:null),setItem:(k,v)=>{m[k]=String(v)}}};
+const f13=async(url,opt)=>{window.__u.push(url);return f12(url,opt)};
+const start13=async(store)=>{BOARD.start({fetch:f13,storage:store,setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,now:()=>T0,tz:'UTC'});
+  await sleep(300);return BOARD.page};
+const task=(id)=>P['tasks:checkout'].data.rows.find(r=>r.id===id);
+const badges=()=>$$('section[data-panel=tasks] tr.r').map(tr=>[tr.dataset.k,(tr.querySelector('.newc')||{}).textContent||'']);
+"""
+EPOCH13 = 1793786400000   # 2026-11-04T10:00:00Z in ms
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
+class Panels13(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.real = dict(real_payloads(), saved=None, p12=payloads12())
+        cls.head = head12()
+
+    def page(self, body, hash_):
+        return run_page(PRE13 + body, self.real, hash_, self.head)
+
+    def test_T13_AC2_TA1_first_visit_is_nothing_new_and_since_is_the_stored_visible_time(self):
+        r = self.page(r"""
+const B=BOARD,rec=B.seenRead(seenStore(),'fix');
+const first=B.sinceFor(rec,'scope:checkout',T0);
+B.markVisible(rec,'scope:checkout',T0-HOUR);
+out({first,anyOnly:B.sinceFor(B.seenRead(seenStore(),'fix'),null,T0),after:B.sinceFor(rec,'scope:checkout',T0),other:B.sinceFor(rec,'scope:other',T0),
+ capped:B.sinceFor(B.markVisible(B.seenRead(seenStore(),'fix'),'scope:x',T0+HOUR),'scope:x',T0),
+ q:[B.sinceQuery('/api/tasks',1000000),B.sinceQuery('/api/squads?x=1',1000000),B.sinceQuery('/api/inbox',1000000),B.sinceQuery('/api/tasks',null)]});
+""", "#/scope/checkout")
+        self.assertIsNone(r["first"])
+        self.assertIsNone(r["anyOnly"])
+        self.assertEqual(r["after"], EPOCH13 - 3600000)
+        self.assertIsNone(r["other"])                      # per choice: another choice has no time of its own
+        self.assertEqual(r["capped"], EPOCH13)             # a stored time in the future is cut to now
+        self.assertEqual(r["q"], ["since=1000", "since=1970-01-01T00%3A16%3A40.000Z", "", ""])   # tasks: epoch seconds; list routes: ISO
+
+    def test_T13_AC1_AC3_AC4_TA3_TA4_count_from_server_dot_clears_and_returns_for_a_newer_event(self):
+        r = self.page(r"""
+const since=T0-HOUR,store=seenStore({'squad-board-seen:fix':JSON.stringify({any:since,last:{'scope:checkout':since}})});
+task('03').new_count=3;task('06').new_count=2;
+await start13(store);
+const first={u:window.__u.filter(u=>u.startsWith('/api/tasks')&&!u.includes('detail'))[0],sq:window.__u.filter(u=>u.startsWith('/api/squads')).pop(),b:badges()};
+const seen=BOARD.ctx.seen;
+const rowBefore=seen.rowNew(5,['checkout']);
+$('section[data-panel=tasks] tr.r[data-k="03"]').click();await sleep(300);
+const afterClear={b:badges(),row:seen.rowNew(5,['checkout'])};
+task('03').new_count=4;BOARD.page.poller.now();await sleep(400);
+out({first,rowBefore,afterClear,again:badges()});
+""", "#/scope/checkout")
+        self.assertIn("since=%d" % ((EPOCH13 - 3600000) / 1000), r["first"]["u"])
+        self.assertIn("since=2026-11-04T09%3A00%3A00.000Z", r["first"]["sq"])
+        self.assertEqual(dict(r["first"]["b"])["03"], "3 new")        # AC1 (task row)
+        self.assertEqual(dict(r["first"]["b"])["06"], "2 new")
+        self.assertEqual(r["rowBefore"], 5)                           # AC1 (picker row: the server's number)
+        self.assertEqual(dict(r["afterClear"]["b"])["03"], "")        # AC3: the dot clears
+        self.assertEqual(dict(r["afterClear"]["b"])["06"], "2 new")   # only that task
+        self.assertEqual(r["afterClear"]["row"], 2)                   # AC3: the row drops by that task's count only
+        self.assertEqual(dict(r["again"])["03"], "1 new")             # AC4: a newer event brings it back with the new count
+
+    def test_T13_TA1_TA2_hiding_the_tab_writes_the_time_and_blocked_storage_shows_nothing(self):
+        r = self.page(r"""
+const store=seenStore();
+await start13(store);
+const before=Object.keys(store.m).filter(k=>k.startsWith('squad-board-seen:'));
+Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true});
+document.dispatchEvent(new Event('visibilitychange'));
+const rec=JSON.parse(store.m['squad-board-seen:fix']);
+store.m['squad-board-seen:fix']=JSON.stringify({any:1,last:{'scope:checkout':1}});window.dispatchEvent(new Event('pagehide'));   /* closing the hidden tab later */
+const kept=JSON.parse(store.m['squad-board-seen:fix']).any;
+const blocked={getItem(){throw new Error('blocked')},setItem(){throw new Error('blocked')}};
+const rb=BOARD.seenRead(blocked,'fix');
+out({before,kept,last:rec.last,any:rec.any,blockedSince:BOARD.sinceFor(rb,'scope:checkout',T0),writeOk:BOARD.seenWrite(blocked,'fix',rb)});
+""", "#/scope/checkout")
+        self.assertEqual(r["before"], [])                  # nothing is written while the page stays visible
+        self.assertEqual(r["last"], {"scope:checkout": EPOCH13})
+        self.assertEqual(r["any"], EPOCH13)
+        self.assertEqual(r["kept"], 1)                     # pagehide of an already hidden tab does not move the time forward
+        self.assertIsNone(r["blockedSince"])
+        self.assertFalse(r["writeOk"])
+
+
+class Static13(unittest.TestCase):
+    def test_T13_TA2_TA5_the_only_write_stays_put_ui_and_the_new_code_is_text_only(self):
+        js = (TPL / "board.js").read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r'method\s*:\s*"(\w+)"', js), ["PUT"])
+        for f in ("board.js", "panel_tasks.js", "panel_scopes.js"):
+            self.assertIsNone(re.search(r"innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|https?://",
+                                        (TPL / f).read_text(encoding="utf-8")), f)
+
+
 if __name__ == "__main__":
     unittest.main()
