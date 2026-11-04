@@ -1022,7 +1022,7 @@ class Static13(unittest.TestCase):
 
 
 class Tasks28(unittest.TestCase):
-    """T28.TA7: the Tasks panel shows `where` as text, lists a Where column, and says what it looked for."""
+    """T28.TA7: the rendered Tasks panel shows title and `where` as text, a Where column, and the empty state names folders."""
 
     @classmethod
     def setUpClass(cls):
@@ -1032,18 +1032,32 @@ class Tasks28(unittest.TestCase):
     def page(self, body, hash_):
         return run_page(PRE12 + body, self.real, hash_, self.head)
 
-    def test_T28_TA7_where_is_a_row_field_and_a_default_column_and_empty_text_names_folders(self):
+    def test_T28_TA7_panel_dom_where_text_untrusted_title_empty_state_and_saved_list(self):
         r = self.page(r"""
-const B=BOARD,d=JSON.parse(JSON.stringify(P['tasks:checkout'].data));
-d.rows[0].where='.claude/squads/a/scopes/b/tasks/01.md';
-const T=B.rowsForTasks(d,Date.parse('2026-11-04T10:00:00Z'));
-out({where:T[0].where,empty:B.rowsForTasks({rows:[],looked:['x']},0).length});
-""", "#/scope/checkout")
-        self.assertEqual(r["where"], ".claude/squads/a/scopes/b/tasks/01.md")
-        js = (TPL / "panel_tasks.js").read_text(encoding="utf-8")
-        self.assertIn('{ id: "where", label: "Where it lives" }', js)
-        self.assertNotIn("No tasks yet", js)
-        self.assertIn("No task files found.", js)
+const d=P['tasks:checkout'].data;
+d.rows[0].title='<img src=x onerror=window.__x=1>';d.rows[0].where='.claude/squads/a/scopes/b/tasks/01.md';
+await start12();await sleep(150);
+const root=$('section[data-panel=tasks]');
+const heads=Array.from(root.querySelectorAll('th')).map(t=>t.textContent);
+const cells=Array.from(root.querySelectorAll('tr.r')[0].children).map(c=>c.textContent);
+const o={heads,cells,img:root.querySelectorAll('img').length,x:window.__x===undefined};
+d.rows=[];d.looked=['.scratch/checkout/issues','.claude/squads/s/scopes/checkout/tasks'];
+await start12();await sleep(150);
+o.empty=$('section[data-panel=tasks]').textContent;
+out(o);""", "#/scope/checkout")
+        self.assertEqual(r["heads"][-1], "Where it lives")
+        self.assertIn(".claude/squads/a/scopes/b/tasks/01.md", r["cells"])
+        self.assertIn("<img src=x onerror=window.__x=1>", r["cells"])   # text, not markup (TU.3)
+        self.assertEqual((r["img"], r["x"]), (0, True))
+        self.assertIn("No task files found. Looked in: .scratch/checkout/issues, .claude/squads/s/scopes/checkout/tasks.", r["empty"])
+
+    def test_T28_TA7_saved_columns_without_where_render(self):
+        r = self.page(r"""
+await start12();await sleep(100);
+const pg=BOARD.page;pg.state.columns={tasks:['task','title','stage']};pg.repaint&&pg.repaint();
+await sleep(100);
+out({heads:Array.from(document.querySelectorAll('section[data-panel=tasks] th')).map(t=>t.textContent)});""", "#/scope/checkout")
+        self.assertEqual(r["heads"][:3], ["Task", "Title", "Stage"])
 
 
 if __name__ == "__main__":

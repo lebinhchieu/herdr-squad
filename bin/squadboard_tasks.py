@@ -59,18 +59,6 @@ def _roster(home):
     return _table(_read(Path(home) / "roster.md"))
 
 
-def _plan_ids(home):
-    """Task ids from a plan table (`plan.md` of the scope or its `tasks/` folder): first cell a number."""
-    ids = []
-    for rel in ("plan.md", "tasks/plan.md"):
-        for r in _table(_read(Path(home) / rel)):
-            first = next(iter(r.values()), "")
-            m = re.match(r"^`?#?(\d+)\b", first)
-            if m:
-                ids.append(m.group(1))
-    return ids
-
-
 def _first_line(text):
     """Reason line of a FAIL: header `FAIL NN:` removed; a bare one-word header (`finding`) gives the next line."""
     lines = [x.strip() for x in (text or "").splitlines() if x.strip()]

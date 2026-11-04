@@ -128,3 +128,19 @@ class ScopeTasksRule(unittest.TestCase):
                            ("Status: in progress", "in progress"), ("Status: ready-for-agent", "ready-for-agent"),
                            ("# t", ""), ("\n" * 12 + "Status: done", "")):
             self.assertEqual(sti.status_of(text), want, text)
+
+    def test_T28_AC13_TA1_I_coach_and_summary_files_are_not_tasks(self):
+        tk = self.home / "tasks"
+        for n in ("03-x.md", "03-x.coach.md", "05-y.summary.md", "07.md"):
+            self.put(tk / n, "# %s\n" % n)
+        r = self.run_()
+        self.assertEqual([(t["id"], t["where"].rsplit("/", 1)[1]) for t in r["tasks"]], [("03", "03-x.md"), ("07", "07.md")])
+
+    def test_T28_TA13_TA1_H_plan_is_capped_and_iteration_plan_is_read_newest_first(self):
+        self.put(self.home / "iterations" / "1.md", "| 1 | Old |\n")
+        self.put(self.home / "iterations" / "2.md", "| id | t |\n|---|---|\n| 9 | Nine |\n" + "x" * (sti.TEXT_MAX * 2))
+        r = self.run_()
+        self.assertEqual((r["source"], r["tasks"][0]["id"], r["tasks"][0]["where"]), ("plan", "09", "plan table, 2.md"))
+        self.put(self.home / "plan.md", ("| id | t |\n" + "junk\n" * (sti.TEXT_MAX // 5 + 10)) + "| 5 | Past the cap |\n")
+        self.assertEqual(self.run_()["tasks"][0]["id"], "09")   # plan.md has no row inside the cap: next candidate
+

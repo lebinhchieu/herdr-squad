@@ -14,11 +14,14 @@ from pathlib import Path
 
 SOURCES = ("declared", "scratch", "scope", "plan")
 NUM_FILE = re.compile(r"^(\d+)(?:-.*)?\.md$")
+NOT_TASK = re.compile(r"\.(coach|summary)\.md$", re.I)   # notes next to a task, never a task
+TEXT_MAX = 256 * 1024   # read at most this many bytes of any ticket or plan file
 
 
 def _text(path):
     try:
-        return Path(path).read_text(encoding="utf-8", errors="replace")
+        with open(path, "rb") as fh:
+            return fh.read(TEXT_MAX).decode("utf-8", errors="replace")
     except OSError:
         return None
 
@@ -72,7 +75,7 @@ def status_of(text):
 
 def _files(folder):
     try:
-        fs = [f for f in sorted(Path(folder).iterdir()) if f.is_file() and NUM_FILE.match(f.name)]
+        fs = [f for f in sorted(Path(folder).iterdir()) if f.is_file() and NUM_FILE.match(f.name) and not NOT_TASK.search(f.name)]
     except OSError:
         return []
     return fs
@@ -100,13 +103,22 @@ def _row(f, root, roots, source):
     return row
 
 
+def _plan_files(home):
+    """Plan candidates in order: plan.md, tasks/plan.md, then iterations/*.md (newest number first)."""
+    out = [home / "plan.md", home / "tasks" / "plan.md"]
+    try:
+        its = [f for f in (home / "iterations").glob("*.md") if f.is_file() and not NOT_TASK.search(f.name) and f.stem.isdigit()]
+    except OSError:
+        its = []
+    return out + sorted(its, key=lambda f: -int(f.stem))
+
+
 def _plan_rows(scope_home, root):
-    rows = []
-    for rel in ("plan.md", "tasks/plan.md"):
-        f = Path(str(scope_home)) / rel
+    for f in _plan_files(Path(str(scope_home))):
         text = _text(f)
         if text is None:
             continue
+        rows = []
         for line in text.splitlines():
             if not line.strip().startswith("|"):
                 continue
@@ -114,10 +126,10 @@ def _plan_rows(scope_home, root):
             m = re.match(r"^`?#?(\d+)`?$", cells[0]) if cells else None
             if m and len(cells) > 1:
                 rows.append({"id": m.group(1).zfill(2), "title": cells[1], "status": "",
-                             "where": "plan table, " + rel.split("/")[-1], "source": "plan"})
+                             "where": "plan table, " + f.name, "source": "plan"})
         if rows:
-            break
-    return rows
+            return rows
+    return []
 
 
 def scope_tasks(scope_home, repo_root=None, name=None):
@@ -156,7 +168,7 @@ def _scope_tasks(scope_home, repo_root, name):
             dirr = _rel(home / "tasks", root) or "tasks"
         else:
             rows = _plan_rows(home, root)
-            tried.append("plan.md")
+            tried.append("plan.md, tasks/plan.md, iterations/")
             dirr = None
         if rows:
             rows.sort(key=lambda r: (len(r["id"]), r["id"]))
