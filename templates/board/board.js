@@ -321,7 +321,7 @@
 
     function showNotes() {
       var msgs = [];
-      if (S.saveStatus === "unwritable") msgs.push("The settings file in the squad folder cannot be written. Settings are kept in this browser only.");
+      if (S.saveStatus === "unwritable") msgs.push("Settings not shared. The settings file in the squad folder cannot be written. Settings are kept in this browser only.");
       else if (S.saveStatus === "unreadable") msgs.push("The saved settings file could not be read. Default settings are shown.");
       else if (S.saveStatus === "failed") msgs.push("Settings could not be saved just now. They are kept in this browser.");
       if (S.notes.storage) msgs.push(S.notes.storage);

@@ -450,7 +450,7 @@ out({host:await scenario([[403,H]]),ok:await scenario([[403,T],[200]]),twice:awa
         self.assertEqual(res["twice"]["second"], ["PUT", "GET", "PUT"])
         # TA4 (AC4): unwritable after the retry, the T09 text, no third PUT
         self.assertEqual((res["unw"]["calls"], res["unw"]["status"]), (["PUT", "GET", "PUT"], "unwritable"))
-        self.assertIn("cannot be written", res["unw"]["note"])
+        self.assertTrue(res["unw"]["note"].startswith("Settings not shared. The settings file in the squad folder cannot be written."))
 
 
 class StaticRules(unittest.TestCase):
