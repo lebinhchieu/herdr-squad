@@ -169,6 +169,17 @@ class Reader(Base):
         finally:
             out.rmdir()
 
+    def test_T29_TA1_TA2_both_views_have_two_folder_rows_equal_to_the_real_folders_and_an_empty_scope_still_shows_them(self):
+        for kind, name in (("scope", "checkout"), ("goal", "alpha")):
+            fol = sf.read(self.sel(kind, name))["data"]["folders"]
+            self.assertEqual([f["name"] for f in fol], [".scratch", "fix"])
+            for f, real in zip(fol, (self.squad.repo_root / ".scratch", self.squad.path)):
+                self.assertEqual((f["abs"], f["mtime"]), (str(real.resolve()), int(os.stat(real).st_mtime)))
+        empty = self.squad.path / "scopes" / "empty"  # a scope with no files at all
+        empty.mkdir()
+        d = sf.read(dict(self.sel(), name="empty", home=empty))["data"]
+        self.assertEqual((len(d["folders"]), d["rows"], d["files_seen"], d["truncated"]), (2, [], 0, False))
+
     def test_T14_TA6_listing_writes_nothing(self):
         def snap():
             return sorted((str(p), p.stat().st_mtime_ns, hashlib.sha1(p.read_bytes()).hexdigest()) for p in self.squad.path.rglob("*") if p.is_file())
