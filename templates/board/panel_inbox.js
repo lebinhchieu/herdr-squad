@@ -21,20 +21,22 @@
   }
 
   /* rowsForInbox(data): the rows as plain data. open: oldest first (the server sorts; unknown age last); reads: items to read. */
-  function rowsForInbox(data) {
+  function rowsForInbox(data, tz) {
     var d = data || {}, rows = d.rows || [], pr = d.parked_rows || [];
-    var openRows = rows.filter(function (r) { return r.kind !== "answer"; }), reads = rows.filter(function (r) { return r.kind === "answer"; });
     var mk = function (r) {
       return { id: r.id, title: r.title, age: BOARD.ageWords(r.age_s), blocks: r.blocks || "", options: optionRows(r.options),
-               answer: answerCommand(r.id), park: parkCommand(r.id), scope: r.scope };
+               answer: answerCommand(r.id), park: parkCommand(r.id), scope: r.scope, read: r.kind === "answer" };
     };
+    var out = (d.others || []).map(function (o) { return o.scope; });
+    var perms = bannerLines(d.banner).lines.filter(function (l) { return out.indexOf(l.scope) < 0; });
     var parked = pr.filter(function (r) { return r.status === "parked"; }).map(function (r) {
       return { id: r.id, level: r.level, scope: r.scope, text: r.text, from: r.from, blocks: r.blocks, parked_iso: r.parked_iso, file: r.file,
                unpark: unparkCommand(r.id), resolve: resolveCommand(r.id) };
     });
     var resolved = pr.filter(function (r) { return r.status === "resolved"; });
-    return { open: openRows.map(mk), reads: reads.map(mk), parked: parked, resolved: resolved,
-             openLabel: "Open now (" + openRows.length + ")", parkedLabel: "Parked (" + parked.length + ")" };
+    /* open questions and items to read are one list, oldest first (the server sorts; AC1): 3 rows for 2 questions and 1 unread item */
+    return { open: rows.map(mk), perms: perms, parked: parked, resolved: resolved,
+             openLabel: "Open now (" + rows.concat(perms).length + ")", parkedLabel: "Parked (" + parked.length + ")" };
   }
 
   /* bannerLines(banner): one line per blocked agent; entries null = herdr did not answer. The lines do not depend on the choice. */
@@ -110,11 +112,12 @@
     return h;
   }
 
-  function openItem(r, multi, kindWord) {
-    var li = el("li", "nb-item" + (kindWord === "read" ? " read" : ""));
+  function openItem(r, multi) {
+    var kindWord = r.read ? "read" : "open";
+    var li = el("li", "nb-item" + (r.read ? " read" : ""));
     li.dataset.id = r.id;
     var top = el("div", "top");
-    top.appendChild(chip(kindWord === "read" ? "idle" : "need", r.id));
+    top.appendChild(chip(r.read ? "idle" : "need", r.id + (r.read ? " answered" : "")));
     top.appendChild(el("b", null, r.title));
     if (multi && r.scope) top.appendChild(chip("idle", r.scope));
     top.appendChild(el("span", "age", r.age));
@@ -138,6 +141,15 @@
     return li;
   }
 
+  function permItem(l) {
+    var li = el("li", "nb-item");
+    var top = el("div", "top");
+    top.appendChild(chip("need", "permission")); top.appendChild(el("b", null, l.agent)); top.appendChild(el("span", "muted", "pane " + l.pane));
+    li.appendChild(top);
+    li.appendChild(el("p", "blocks", "Answer in the pane of this agent. A message cannot approve it, and it cannot be parked."));
+    return li;
+  }
+
   function parkedItem(q) {
     var li = el("li", "nb-item parked");
     li.dataset.id = q.id;
@@ -150,13 +162,14 @@
     if (q.blocks) { bl.appendChild(el("b", null, "Still blocks: ")); bl.appendChild(root.document.createTextNode(q.blocks)); }
     else bl.textContent = "Blocks nothing known.";
     li.appendChild(bl);
-    var since = q.parked_iso ? " · parked " + BOARD.fmtDate(q.parked_iso, BOARD.readZone()) + " " + BOARD.fmtTime(q.parked_iso, BOARD.readZone()) : "";
+    var since = q.parked_iso ? " · parked " + BOARD.fmtDate(q.parked_iso, TZ) + " " + BOARD.fmtTime(q.parked_iso, TZ) : "";
     li.appendChild(el("p", "muted", (q.from ? "From " + q.from : "free question") + since));
     li.appendChild(cmdRow("To bring it back:", q.unpark));
     li.appendChild(cmdRow("To close it:", q.resolve));
     return li;
   }
 
+  var TZ = "UTC";
   function section(h, label, extra) {
     var x = el("h3", "nb-sec", label);
     if (extra) x.appendChild(extra);
@@ -180,14 +193,15 @@
       t.appendChild(el("b", null, l.agent));
       t.appendChild(el("span", "muted", "pane " + l.pane));
       if (l.scope) t.appendChild(el("span", "muted", "· " + l.scope));
-      t.appendChild(el("span", "hint", "waits for you: open that pane and answer there"));
+      t.appendChild(el("span", "hint", "waits for you"));
       box.appendChild(t);
     });
+    box.appendChild(el("div", "muted", "Open that pane and answer there; a message cannot approve it. This banner ignores the choice and leaves when the prompt is answered."));
     setBanner(box);
   }
 
   function render(body, d, c) {
-    css();
+    css(); TZ = c.tz;
     renderBanner(c.setBanner, d.banner);
     c.setCount(typeof d.count_choice === "number" ? d.count_choice : 0, d.count_choice > 0);
     if (d.status === "unknown") {
@@ -200,22 +214,30 @@
     var others = d.others || [];
     if (others.length) {
       var o = el("p", "nb-out");
-      o.appendChild(el("b", null, "More need you in other scopes: "));
+      o.appendChild(el("b", null, others.length + " more " + (others.length === 1 ? "needs" : "need") + " you in other goals and scopes: "));
       others.forEach(function (x) {
-        var b = el("button", "cp", x.scope + " · " + x.n); b.type = "button"; b.title = "Look at scope " + x.scope;
-        b.addEventListener("click", function () { if (BOARD.ctx) BOARD.ctx.setChoice("scope:" + x.scope); });
+        var b = el("button", "cp", x.scope + " · " + x.n); b.type = "button"; b.title = "Look at " + x.scope;
+        b.addEventListener("click", function () {
+          var sq = BOARD.ctx && BOARD.ctx.state.squad;
+          if (BOARD.ctx && sq) BOARD.ctx.setChoice(((sq.goals || []).indexOf(x.scope) >= 0 ? "goal:" : "scope:") + x.scope);   /* the squad folder itself is not a choice */
+        });
         o.appendChild(b); o.appendChild(root.document.createTextNode(" "));
       });
       body.appendChild(o);
     }
-    if (d.status !== "unknown" && !R.open.length && !R.reads.length && !(d.count_choice > 0)) {
+    var shown = R.open.concat(R.perms).length;
+    if (d.status !== "unknown" && !shown && !(d.count_choice > 0)) {
       var e = el("div", "nb-empty"); e.appendChild(el("b", null, "Nothing needs you"));
       e.appendChild(el("p", null, "No open question, no answer to read, no permission prompt."));
       body.appendChild(e);
     } else {
       section(body, R.openLabel);
-      if (R.open.length) { var ol = el("ol", "nb-items"); R.open.forEach(function (r) { ol.appendChild(openItem(r, multi, "open")); }); body.appendChild(ol); }
-      else body.appendChild(el("p", "muted", d.count_choice > 0 ? "No open question here. The count also holds branches ready for review (Tasks) and permission prompts (banner)." : "No open question."));
+      if (shown) {
+        var ol = el("ol", "nb-items");
+        R.perms.forEach(function (l) { ol.appendChild(permItem(l)); });
+        R.open.forEach(function (r) { ol.appendChild(openItem(r, multi)); });
+        body.appendChild(ol);
+      } else body.appendChild(el("p", "muted", "No open question here. The count also holds branches ready for review: see Tasks."));
     }
     section(body, R.parkedLabel, chip("park", "not counted in the tab title"));
     if (R.parked.length) { var pl = el("ol", "nb-items"); R.parked.forEach(function (q) { pl.appendChild(parkedItem(q)); }); body.appendChild(pl); }
@@ -231,10 +253,6 @@
         rl.appendChild(li);
       });
       det.appendChild(rl); body.appendChild(det);
-    }
-    if (R.reads.length) {
-      section(body, "Answers to read (" + R.reads.length + ")");
-      var rd = el("ol", "nb-items"); R.reads.forEach(function (r) { rd.appendChild(openItem(r, multi, "read")); }); body.appendChild(rd);
     }
   }
 

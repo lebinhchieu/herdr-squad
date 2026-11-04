@@ -44,7 +44,7 @@
       ".ag{width:100%;border-collapse:collapse}.ag th{text-align:left;font-size:.875em;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:2px 8px 3px 0;border-bottom:1px solid var(--border);white-space:nowrap}" +
       ".ag td{padding:4px 8px 4px 0;border-bottom:1px solid var(--border);vertical-align:top}.ag tr.need td:first-child{box-shadow:inset 3px 0 var(--mango);padding-left:6px}" +
       ".ag .nm{font-weight:600}.ag small{display:block;color:var(--muted)}.ag-more{margin-top:6px}.ag-more ul{margin:4px 0 0;padding-left:16px;color:var(--muted)}" +
-      ".ag-btn{border:1px solid var(--border);background:var(--bg);border-radius:12px;padding:0 9px;color:var(--muted)}.ag-btn:hover{border-color:var(--ink);color:var(--ink)}";
+      ".ag-btn{border:0;background:none;padding:0;color:var(--muted);cursor:pointer}.ag-btn:hover{color:var(--ink)}";
     root.document.head.appendChild(s);
   }
   function chip(cls, text) { return el("span", "chip " + cls, text); }
@@ -77,7 +77,7 @@
     }
     if (R.retiredCount > 0) {
       var m = el("div", "ag-more");
-      var b = el("button", "ag-btn", SHOW ? "Hide " + R.retiredLabel : R.retiredLabel + ", hidden");
+      var b = el("button", "ag-btn", (SHOW ? "▾ " : "▸ ") + R.retiredLabel + (SHOW ? "" : ", hidden"));
       b.type = "button"; b.dataset.retired = "1"; b.setAttribute("aria-expanded", SHOW ? "true" : "false");
       m.appendChild(b);
       if (SHOW) {

@@ -148,7 +148,7 @@
     tools.appendChild(el("span", "muted", "Click a row for the steps in time order."));
     body.appendChild(tools);
     var tb = el("table", "tk"), hd = el("tr");
-    ["Task", "Title", "Stage", "Owner", "Waits on", "Last active"].forEach(function (h) { hd.appendChild(el("th", null, h)); });
+    ["Task", "Title", "Stage", "Last active", "What happened", "Owner", "Waits on"].forEach(function (h) { hd.appendChild(el("th", null, h)); });
     tb.appendChild(hd);
     rows.forEach(function (r) {
       var tr = el("tr", "r" + (r.ready ? " need" : r.done ? " done" : "") + (OPEN === r.key ? " on" : ""));
@@ -160,14 +160,18 @@
       var st = el("td"); st.appendChild(chip(r.cls, r.stage));
       if (r.returns >= 1 && !r.done) st.appendChild(chip("fail", r.returns + (r.returns === 1 ? " return" : " returns")));
       tr.appendChild(st);
-      tr.appendChild(el("td", null, r.owner));
-      tr.appendChild(el("td", null, r.waits));
       var la = el("td"); la.appendChild(el("b", null, r.last));
       if (r.lastIso) la.appendChild(el("div", "muted", stepTime(r.lastIso, c.tz)));
       tr.appendChild(la);
+      var wh = el("td");
+      if (r.failLine) wh.appendChild(el("div", null, "FAIL: " + r.failLine));
+      if (r.note) wh.appendChild(el("div", r.stage === "blocked" ? "bt" : "muted", r.note));
+      tr.appendChild(wh);
+      tr.appendChild(el("td", null, r.owner));
+      tr.appendChild(el("td", null, r.waits));
       tb.appendChild(tr);
       if (OPEN === r.key) {
-        var x = el("tr", "x"), xd = el("td"); xd.colSpan = 6; xd.appendChild(detailNode(r, c)); x.appendChild(xd); tb.appendChild(x);
+        var x = el("tr", "x"), xd = el("td"); xd.colSpan = 7; xd.appendChild(detailNode(r, c)); x.appendChild(xd); tb.appendChild(x);
       }
     });
     body.appendChild(tb);

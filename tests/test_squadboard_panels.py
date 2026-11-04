@@ -474,7 +474,7 @@ out({title:item.querySelector('b:not(.nb-opts b)').textContent,id:item.dataset.i
     def test_T12_AC2_AC4_empty_text_parked_group_tab_title_from_the_server_and_two_banner_lines(self):
         r = self.page(r"""
 const q=P['inbox:questions'];
-q.data.rows=[];q.data.count_choice=0;q.data.count_squad=7;q.data.banner.entries=[{agent:'a-1',pane_id:'p1',scope:'x'},{agent:'a-2',pane_id:'p2',scope:'y'}];
+q.data.rows=[];q.data.count_choice=0;q.data.count_squad=7;q.data.banner.entries=[{agent:'a-1',pane_id:'p1',scope:'checkout'},{agent:'a-2',pane_id:'p2',scope:'checkout'}];
 await start12();
 const sec=$('section[data-panel=inbox]');
 const parked=sec.querySelector('.nb-item.parked');
@@ -518,7 +518,7 @@ out({cells,ready,det,steps,closed,afterEsc,calls,count:sec.querySelector('.count
         for word in ("todo", "in progress", "returned", "blocked", "checking, 1 of 2 PASS", "ready for review", "sha changed after PASS", "merged", "done"):
             self.assertTrue(any(s.startswith(word) for s in stages), word)
         self.assertEqual(r["ready"], ["06"])
-        self.assertEqual(len(r["cells"][0]), 6)   # id, title, stage, owner, waits on, last active
+        self.assertEqual(len(r["cells"][0]), 7)   # id, title, stage, last active, what happened, owner, waits on
         self.assertIn("Ready for review (1)", r["tools"])
         self.assertIn("FAIL: reason 3 first line (newest)", r["det"])
         times = [s.split(" ")[1] for s in r["steps"]]
@@ -537,8 +537,49 @@ sec.querySelector('[data-retired]').click();await sleep(20);
 out({before,after:sec.querySelector('[data-retired]').textContent,li:sec.querySelectorAll('.ag-more li').length,x:window.__x===undefined,
  title:$('section[data-panel=tasks] tr.r td:nth-child(2)').textContent,img:!!$('section[data-panel=tasks] img')});
 """, "#/scope/checkout")
-        self.assertEqual((r["before"], r["after"], r["li"]), ("1 retired, hidden", "Hide 1 retired", 1))
+        self.assertEqual((r["before"], r["after"], r["li"]), ("▸ 1 retired, hidden", "▾ 1 retired", 1))
         self.assertTrue(r["x"] and not r["img"] and r["title"].startswith("<img"))
+
+
+    def test_T12_TA2_AC1_AC3_AC4_pure_rows_two_questions_one_unread_oldest_first_parked_after_open(self):
+        r = self.page(r"""
+const B=BOARD,d=JSON.parse(JSON.stringify(P['inbox:questions'])).data;
+const e1=d.rows[0];
+d.rows=[Object.assign({},e1,{id:'E2',age_s:100,kind:'open',options:[]}),Object.assign({},e1,{id:'E5',age_s:7200,kind:'answer',options:[]}),Object.assign({},e1,{id:'E1',age_s:90000})];
+d.rows.sort((a,b)=>b.age_s-a.age_s);
+const RW=B.rowsForInbox(d),T=B.rowsForTasks(P['tasks:checkout'].data,Date.parse('2026-11-04T10:00:00Z')),A=B.rowsForAgents(P['agents:checkout'].data,Date.parse('2026-11-04T10:00:00Z'));
+out({ids:RW.open.map(x=>x.id),keys:Object.keys(RW.open[0]).sort(),recs:RW.open[2].options.map(o=>o.word),read:RW.open.map(x=>x.read),parkedLabel:RW.parkedLabel,openLabel:RW.openLabel,
+ tkeys:Object.keys(T[0]).sort(),akeys:Object.keys(A.live[0]).sort(),retired:A.retiredLabel,
+ cmds:[B.answerCommand('E3 #2'),B.answerCommand('Q1'),B.unparkCommand('Q1'),B.resolveCommand('Q1')]});
+""", "#/scope/questions")
+        self.assertEqual(r["ids"], ["E1", "E5", "E2"])   # oldest first: 2 open questions and 1 unread item are 3 rows
+        self.assertEqual(r["read"], [False, True, False])
+        self.assertEqual((r["parkedLabel"], r["openLabel"]), ("Parked (1)", "Open now (3)"))
+        self.assertEqual(r["recs"], [])   # E2 has no options in this made-up row
+        for k in ("id", "title", "age", "blocks", "options", "answer", "scope"):
+            self.assertIn(k, r["keys"])
+        for k in ("id", "title", "stage", "owner", "waits", "last", "lastIso"):
+            self.assertIn(k, r["tkeys"])
+        for k in ("name", "role", "owns", "status", "last"):
+            self.assertIn(k, r["akeys"])
+        self.assertEqual(r["retired"], "1 retired")
+        self.assertEqual(r["cmds"], ["squad-inbox answer E3 #2", "squad-inbox answer Q1", "squad-inbox unpark Q1", 'squad-inbox resolve Q1 --answer "..."'])
+
+    def test_T12_TA3_TA5_a_title_is_never_in_a_command_and_the_banner_lines_ignore_the_choice(self):
+        r = self.page(r"""
+P['inbox:questions'].data.rows[0].title='$(rm -rf /) "x"';
+P['inbox:questions'].data.banner.entries=[{agent:'a-1',pane_id:'p1',scope:'checkout'},{agent:'a-2',pane_id:'p2',scope:'checkout'}];
+P['inbox:checkout'].data.banner.entries=P['inbox:questions'].data.banner.entries;
+await start12();
+const codes=$$('section[data-panel=inbox] code').map(c=>c.textContent);
+const lines1=$$('#app .bannerslot .banner .t').map(t=>t.textContent);
+BOARD.page.setChoice('scope:checkout');await sleep(300);
+const lines2=$$('#app .bannerslot .banner .t').map(t=>t.textContent);
+out({codes,lines1,lines2});
+""", "#/scope/questions")
+        self.assertFalse(any("rm -rf" in c for c in r["codes"]))
+        self.assertEqual(len(r["lines1"]), 2)
+        self.assertEqual(r["lines1"], r["lines2"])
 
     def test_T12_TA1_cutting_a_panel_file_leaves_the_rest_working(self):
         r = run_page(PRE12 + r"""
