@@ -16,6 +16,9 @@ code{font:.96em ui-monospace,Menlo,Consolas,monospace;background:var(--bg);borde
 a{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
 :focus-visible{outline:2px solid var(--ink);outline-offset:1px}
 .muted{color:var(--muted)}
+/* ticket 37b: demo label, a light strip (manager-rulings-iter3-c): panel background, ink text, dashed muted border */
+.demo{position:sticky;top:0;z-index:5;text-align:center;padding:.25em 12px;background:var(--panel);color:var(--ink);font-weight:700;letter-spacing:.05em;border-bottom:2px dashed var(--muted)}
+.demo[hidden]{display:none}
 header.top{padding:6px var(--gutter) 4px;border-bottom:1px solid var(--border)}
 .r1,.r3{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.r3{margin-top:4px}
 header h1{font-size:1.25em}
