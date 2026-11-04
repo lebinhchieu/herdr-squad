@@ -125,6 +125,67 @@
              busy: function () { return busy; } };
   }
 
+  /* ---------- column rules (ticket 20) ----------
+     defs: [{id, label, identity?, off?, only?}] in default order. A saved list holds the VISIBLE column ids in order.
+     A column with `only: "goal"` is drawn in a goal view only; its place in the list is kept in a scope view. */
+  function colDefaults(defs) { return defs.filter(function (d) { return !d.off; }).map(function (d) { return d.id; }); }
+  function colFull(saved, defs) {
+    var known = {}, out = [];
+    defs.forEach(function (d) { known[d.id] = d; });
+    if (Array.isArray(saved)) saved.forEach(function (id) { if (typeof id === "string" && known[id] && out.indexOf(id) < 0) out.push(id); });
+    if (!out.length) out = colDefaults(defs);
+    var idn = defs.filter(function (d) { return d.identity; })[0];
+    if (idn && out.indexOf(idn.id) < 0) out.unshift(idn.id);
+    return out;
+  }
+  /* columnsFor(saved, defs, kind): the column defs to draw, in order (kind "goal" | "scope") */
+  function columnsFor(saved, defs, kind) {
+    var by = {};
+    defs.forEach(function (d) { by[d.id] = d; });
+    return colFull(saved, defs).map(function (id) { return by[id]; }).filter(function (d) { return !d.only || d.only === kind; });
+  }
+  /* toggleColumn(list, id, defs): the list with id shown or hidden; the identity column cannot be hidden.
+     A column shown again goes after the nearest earlier column of the default order that is shown, else first. */
+  function toggleColumn(list, id, defs) {
+    var full = colFull(list, defs), at = full.indexOf(id), order = defs.map(function (d) { return d.id; });
+    var d = defs.filter(function (x) { return x.id === id; })[0];
+    if (!d) return full;
+    if (at >= 0) { if (!d.identity) full.splice(at, 1); return full; }
+    var pos = 0;
+    for (var i = order.indexOf(id) - 1; i >= 0; i--) { var j = full.indexOf(order[i]); if (j >= 0) { pos = j + 1; break; } }
+    full.splice(pos, 0, id);
+    return full;
+  }
+  /* moveColumn(list, id, delta) one place up (-1) or down (+1); moveColumnTo(list, id, targetId) puts it where target is */
+  function moveColumn(list, id, delta, defs) {
+    var full = colFull(list, defs), at = full.indexOf(id), to = at + delta;
+    if (at < 0 || to < 0 || to >= full.length) return full;
+    full.splice(at, 1); full.splice(to, 0, id);
+    return full;
+  }
+  function moveColumnTo(list, id, targetId, defs) {
+    var full = colFull(list, defs), at = full.indexOf(id), to = full.indexOf(targetId);
+    if (at < 0 || to < 0 || at === to) return full;
+    full.splice(at, 1); full.splice(to, 0, id);
+    return full;
+  }
+  /* resetColumns(map, panelId): the map without that panel (every panel shows its defaults again); no panelId = all */
+  function resetColumns(map, panelId) {
+    var out = {};
+    if (panelId) Object.keys(map || {}).forEach(function (k) { if (k !== panelId) out[k] = map[k]; });
+    return out;
+  }
+  function sameList(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+  /* cleanColumns(raw): a saved `columns` value made safe: only {panel id: [string ids]} survives, never throws */
+  function cleanColumns(raw) {
+    var out = {};
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+    Object.keys(raw).forEach(function (k) {
+      if (Array.isArray(raw[k]) && raw[k].every(function (x) { return typeof x === "string"; })) out[k] = raw[k].slice(0, 30);
+    });
+    return out;
+  }
+
   /* ---------- panel registry ---------- */
   var REG = [];
   /* registerPanel({id, title, route, maxPx, span, spans, render(body, data, ctx), isEmpty(data)})
@@ -139,6 +200,8 @@
   BOARD.readZone = readZone; BOARD.ageWords = ageWords; BOARD.titleFor = titleFor; BOARD.pickNewer = pickNewer;
   BOARD.needsFrom = needsFrom; BOARD.panelView = panelView; BOARD.makePoller = makePoller;
   BOARD.registerPanel = registerPanel; BOARD.panels = REG;
+  BOARD.columnsFor = columnsFor; BOARD.toggleColumn = toggleColumn; BOARD.moveColumn = moveColumn; BOARD.moveColumnTo = moveColumnTo;
+  BOARD.resetColumns = resetColumns; BOARD.colDefaults = colDefaults; BOARD.cleanColumns = cleanColumns;
 
   /* ---------- the page ---------- */
   function el(tag, cls, text) {
@@ -159,9 +222,9 @@
     var iso = function () { return new Date(nowMs()).toISOString(); };
 
     var S = { squads: [], squad: null, token: "", choice: null, recent: [], font: "normal", auto: true,
-              needs: null, lastOk: null, status: "loading", saveStatus: "ok", notes: {}, saved_at: null };
+              needs: null, lastOk: null, status: "loading", saveStatus: "ok", notes: {}, saved_at: null, columns: {} };
     var P = {};          /* panel id -> {id, def, order, span, hidden, max_height, el, body, hdr, last} */
-    var engine = null, saveTimer = null, loadedOnce = false, popOpen = false, booted = false;
+    var engine = null, saveTimer = null, loadedOnce = false, popOpen = false, booted = false, colPop = null;
 
     var els = {};
     function build() {
@@ -221,6 +284,12 @@
       p.unk = el("span", "chip unk"); p.unk.hidden = true; ph.appendChild(p.unk);
       ph.appendChild(el("span", "sp"));
       p.fit = el("button", "pbtn", "Fit"); p.fit.type = "button"; p.fit.hidden = true; p.fit.title = "Back to the height of the content";
+      if (def.columns) {
+        p.cols = el("button", "pbtn", "Columns"); p.cols.type = "button"; p.cols.setAttribute("aria-haspopup", "true");
+        p.cols.setAttribute("aria-expanded", "false"); p.colTag = el("span", "chip colhid"); p.colTag.hidden = true; p.cols.appendChild(p.colTag);
+        ph.appendChild(p.cols);
+        p.cols.addEventListener("click", function (e) { e.stopPropagation(); openColumns(p); });
+      }
       p.hide = el("button", "pbtn", "Hide"); p.hide.type = "button"; p.hide.title = "Hide this panel";
       ph.appendChild(p.fit); ph.appendChild(p.hide);
       var pb = el("div", "pb"); p.body = el("div", "pbi"); pb.appendChild(p.body);
@@ -235,6 +304,7 @@
       p.fit.addEventListener("click", function () { p.max_height = null; touch({ auto: false }); engine.relayout(); });
       p.hide.addEventListener("click", function () { p.hidden = true; touch(); replan(); renderPop(); });
       els.canvas.appendChild(sec);
+      if (def.columns) wireColumnDrag(p);
       engine.observe(p.body);
       return p;
     }
@@ -262,7 +332,7 @@
         if (p.max_height != null) r.max_height = p.max_height;
         panels[p.id] = r;
       });
-      var snap = { version: 1, saved_at: S.saved_at, font: S.font, choice: S.choice, recent: S.recent, panels: panels, auto: S.auto };
+      var snap = { version: 1, saved_at: S.saved_at, font: S.font, choice: S.choice, recent: S.recent, panels: panels, auto: S.auto, columns: S.columns };
       if (BOARD.hooks.snapshot) BOARD.hooks.snapshot(snap);   /* a view adds its own saved keys (timeline.js) */
       return snap;
     }
@@ -274,6 +344,7 @@
       if (Array.isArray(ui.recent)) S.recent = ui.recent.slice(0, RECENT_MAX);
       if (typeof ui.auto === "boolean") S.auto = ui.auto;
       S.saved_at = ui.saved_at || null;
+      S.columns = cleanColumns(ui.columns);
       if (BOARD.hooks.applySaved) BOARD.hooks.applySaved(ui);
       var pan = ui.panels || {};
       panelList().forEach(function (p) {
@@ -439,7 +510,119 @@
         var i = REG.indexOf(p.def), d = defaults(p.def, i);
         p.order = d.order; p.span = d.span; p.hidden = p.def.byView ? p.hidden : false; p.max_height = null;
       });
-      S.auto = true; touch(); renderPop(); replan();
+      S.auto = true; S.columns = resetColumns(S.columns); closeColumns(); touch(); renderPop(); replan(); redrawAll();
+    }
+
+    /* ---- columns (ticket 20): one control for every table panel ---- */
+    function colsOf(p) { return p.def.columns || []; }
+    function shownCols(p, kind) { return columnsFor(S.columns[p.id], colsOf(p), kind || (S.choice && S.choice.kind)); }
+    function redraw(p) { if (p.resp !== undefined) { p.last = null; renderPanel(p, p.resp); } paintColTag(p); }
+    function redrawAll() { panelList().forEach(function (p) { if (p.def.columns) redraw(p); }); }
+    function setCols(p, list) {
+      var d = colDefaults(colsOf(p)), full = colFull(list, colsOf(p));
+      if (sameList(full, d)) delete S.columns[p.id]; else S.columns[p.id] = full;
+      touch(); redraw(p);
+    }
+    function hiddenCols(p) {
+      var full = colFull(S.columns[p.id], colsOf(p));
+      return colsOf(p).filter(function (d) { return !d.off && full.indexOf(d.id) < 0; });
+    }
+    function paintColTag(p) {
+      if (!p.cols) return;
+      var h = hiddenCols(p);
+      p.colTag.hidden = !h.length;
+      p.colTag.textContent = h.length + " hidden";
+      p.cols.title = h.length ? "Hidden: " + h.map(function (d) { return d.label; }).join(", ") : "Choose the columns of this table";
+    }
+    function closeColumns(refocus) {
+      if (!colPop) return;
+      var p = colPop.p;
+      doc.removeEventListener("keydown", colPop.key, true); doc.removeEventListener("click", colPop.out, true);
+      colPop.box.remove(); colPop = null;
+      p.cols.setAttribute("aria-expanded", "false");
+      if (refocus) p.cols.focus();
+    }
+    function openColumns(p) {
+      var was = colPop && colPop.p === p;
+      closeColumns();
+      if (was) return;
+      var box = el("div", "cpop"); box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "Columns of " + p.def.title);
+      var st = { p: p, box: box };
+      st.key = function (e) { if (e.key === "Escape") { e.stopPropagation(); closeColumns(true); } };
+      st.out = function (e) { if (!box.contains(e.target) && e.target !== p.cols && !p.cols.contains(e.target)) closeColumns(); };
+      doc.addEventListener("keydown", st.key, true); doc.addEventListener("click", st.out, true);
+      colPop = st;
+      p.cols.setAttribute("aria-expanded", "true");
+      app().appendChild(box);
+      paintColumns();
+      var first = box.querySelector("input,button");
+      if (first) first.focus();
+    }
+    function app() { return doc.getElementById("app"); }
+    function paintColumns(focusKey) {
+      if (!colPop) return;
+      var p = colPop.p, box = colPop.box, defs = colsOf(p), full = colFull(S.columns[p.id], defs), by = {};
+      defs.forEach(function (d) { by[d.id] = d; });
+      box.textContent = "";
+      box.appendChild(el("h3", null, "Columns of " + p.def.title));
+      var list = el("div", "cl");
+      var hid = defs.map(function (d) { return d.id; }).filter(function (id) { return full.indexOf(id) < 0; });
+      full.concat(hid).forEach(function (id) {
+        var d = by[id], on = full.indexOf(id) >= 0, at = full.indexOf(id);
+        var row = el("div", "cr" + (on ? "" : " off")), lab = el("label");
+        var cb = el("input"); cb.type = "checkbox"; cb.checked = on; cb.disabled = !!d.identity; cb.dataset.col = id;
+        cb.addEventListener("change", function () { setCols(p, toggleColumn(S.columns[p.id], id, defs)); paintColumns("c:" + id); });
+        lab.appendChild(cb); lab.appendChild(el("span", null, d.label));
+        if (d.identity) lab.appendChild(el("small", null, "always shown"));
+        else if (d.only === "goal") lab.appendChild(el("small", null, "goal view only"));
+        row.appendChild(lab);
+        [["up", "▲", -1, "Move " + d.label + " up"], ["down", "▼", 1, "Move " + d.label + " down"]].forEach(function (m) {
+          var b = el("button", "mv", m[1]); b.type = "button"; b.dataset.mv = m[0] + ":" + id; b.setAttribute("aria-label", m[3]);
+          b.disabled = !on || (m[2] < 0 ? at === 0 : at === full.length - 1);
+          b.addEventListener("click", function () { setCols(p, moveColumn(S.columns[p.id], id, m[2], defs)); paintColumns(m[0] + ":" + id); });
+          row.appendChild(b);
+        });
+        list.appendChild(row);
+      });
+      box.appendChild(list);
+      box.appendChild(el("p", "muted hint", "Or drag a column title onto another."));
+      var ft = el("div", "cf");
+      var rs = el("button", "hb", "Reset columns"); rs.type = "button"; rs.disabled = !S.columns[p.id]; rs.dataset.reset = "1";
+      rs.addEventListener("click", function () { S.columns = resetColumns(S.columns, p.id); touch(); redraw(p); paintColumns("reset"); });
+      var cl = el("button", "hb", "Close"); cl.type = "button"; cl.addEventListener("click", function () { closeColumns(true); });
+      ft.appendChild(rs); ft.appendChild(cl); box.appendChild(ft);
+      placeColumns();
+      if (focusKey) {
+        var t = focusKey.indexOf("c:") === 0 ? box.querySelector('[data-col="' + focusKey.slice(2) + '"]') : box.querySelector('[data-mv="' + focusKey + '"]');
+        if (!t || t.disabled) { var sib = focusKey.indexOf(":") > 0 ? focusKey.slice(focusKey.indexOf(":") + 1) : ""; t = box.querySelector('[data-mv$=":' + sib + '"]:not(:disabled)') || box.querySelector("button:not(:disabled)"); }
+        if (t) t.focus();
+      }
+    }
+    function placeColumns() {
+      var box = colPop.box, r = colPop.p.cols.getBoundingClientRect(), W = root.innerWidth || 1000, H = root.innerHeight || 800;
+      box.style.maxHeight = Math.max(120, H - 16) + "px";
+      var bw = box.offsetWidth, bh = box.offsetHeight;
+      var left = Math.min(Math.max(8, r.left), Math.max(8, W - bw - 8)), top = Math.min(Math.max(8, r.bottom + 4), Math.max(8, H - bh - 8));
+      box.style.left = left + "px"; box.style.top = top + "px";
+    }
+    function wireColumnDrag(p) {
+      var from = null;
+      p.body.addEventListener("dragstart", function (e) {
+        var th = e.target.closest && e.target.closest("th[data-col]");
+        if (!th) return;
+        from = th.dataset.col;
+        try { e.dataTransfer.setData("text/plain", from); e.dataTransfer.effectAllowed = "move"; } catch (x) { /* some browsers need the data */ }
+      });
+      p.body.addEventListener("dragover", function (e) { if (from && e.target.closest && e.target.closest("th[data-col]")) e.preventDefault(); });
+      p.body.addEventListener("drop", function (e) {
+        var th = e.target.closest && e.target.closest("th[data-col]");
+        if (!from || !th) return;
+        e.preventDefault();
+        var id = from; from = null;
+        setCols(p, moveColumnTo(S.columns[p.id], id, th.dataset.col, colsOf(p)));
+        if (colPop && colPop.p === p) paintColumns();
+      });
+      p.body.addEventListener("dragend", function () { from = null; });
     }
 
     /* ---- data ---- */
@@ -470,13 +653,14 @@
     function ctxFor(p) {
       return { tz: tz, now: nowMs(), fmtTime: function (i) { return fmtTime(i, tz); }, ageWords: ageWords,
                setCount: function (n, hot) { p.count.textContent = String(n); p.count.hidden = false; p.count.classList.toggle("hot", !!hot); },
-               setBanner: setBanner };
+               setBanner: setBanner, columns: function (kind) { return shownCols(p, kind); } };
     }
 
     function setBanner(node) { els.banner.textContent = ""; if (node) els.banner.appendChild(node); }
 
     function renderPanel(p, resp) {
       var key = JSON.stringify(resp);
+      p.resp = resp;
       if (p.last === key) return;
       p.last = key;
       var v = panelView(resp, p.def);
@@ -499,6 +683,7 @@
       }
       if (BOARD.hooks.data) BOARD.hooks.data(v.squads, S);
       v.panels.forEach(function (p, i) { renderPanel(p, v.resp[i]); });
+      panelList().forEach(paintColTag);
       var n = needsFrom(v.resp);
       if (n != null) S.needs = n;
       S.status = "ok"; S.lastOk = iso();
@@ -523,6 +708,7 @@
         try { copy = storage ? JSON.parse(storage.getItem(storeKey()) || "null") : null; S.notes.storage = ""; }
         catch (e) { S.notes.storage = "This browser blocks storage: settings are kept in the squad folder only."; }
         var file = d.status === "unreadable" ? null : d.ui;
+        S.columns = {};
         applySaved(pickNewer(file, copy));
         showNotes();
         return true;
@@ -567,7 +753,7 @@
         changed: function (x) { touch(x); setFlags(); renderPop(); }
       });
       REG.forEach(function (def, i) { P[def.id] = makePanel(def, i); });
-      applyFont(); paintFresh(); showNotes();
+      applyFont(); paintFresh(); showNotes(); redrawAll();
       root.addEventListener("resize", function () { engine.request(); });
       poller.start();
     }

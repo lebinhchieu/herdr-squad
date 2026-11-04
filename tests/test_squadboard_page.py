@@ -480,7 +480,7 @@ class StaticRules(unittest.TestCase):
         rules = [r for r in re.findall(r"([^{}]+)\{([^}]*)\}", re.sub(r":root\{.*?\}", "", css, count=1, flags=re.S))
                  if re.search(r"var\(--(mango|t-need|t-edge)", r[1])]
         for sel, _ in rules:
-            self.assertRegex(sel, r"hot|need|banner", sel)
+            self.assertRegex(sel, r"hot|need|banner|colhid", sel)  # colhid: the "N hidden" tag of the Columns button (design-v6 section 3)
 
 
 if __name__ == "__main__":

@@ -131,8 +131,11 @@
     return b;
   }
 
+  var COLS = [{ id: "scope", label: "Scope", identity: true }, { id: "brief", label: "Brief" }, { id: "stage", label: "Stage" },
+              { id: "needs_you", label: "Needs you" }, { id: "blocked", label: "Blocked" }, { id: "tasks", label: "Tasks" },
+              { id: "last_active", label: "Last active" }];   /* the columns the panel really has (ticket 20) */
   BOARD.registerPanel({
-    id: "scopes", byView: true, title: "Scopes of this goal", route: "/api/scopes", span: 12, spans: [8, 12], maxPx: 300,
+    id: "scopes", byView: true, columns: COLS, title: "Scopes of this goal", route: "/api/scopes", span: 12, spans: [8, 12], maxPx: 300,
     isEmpty: function (d) { return !d || (d.kind === "goal" && !(d.scopes || []).length && !d.empty_text); },
     render: function (body, d, c) {
       if (!d) return;
@@ -144,21 +147,23 @@
       V.goalCounts = { n: rows.length, open: rows.filter(function (r) { return r.status !== "done"; }).length };
       body.appendChild(el("p", "muted sm", "Click a row to look at that scope only. The goal stays one click away in the header."));
       var tb = el("table", "sc");
-      var hd = el("tr");
-      ["Scope", "Brief", "Stage", "Needs you", "Blocked", "Tasks", "Last active"].forEach(function (h) { hd.appendChild(el("th", null, h)); });
+      var hd = el("tr"), cols = c.columns();
+      cols.forEach(function (k) { var th = el("th", null, k.label); th.dataset.col = k.id; th.draggable = true; hd.appendChild(th); });
       tb.appendChild(hd);
       rows.forEach(function (r) {
         var tr = el("tr", "go" + (r.needs_you > 0 ? " need" : ""));
         var go = function () { openChoice({ kind: "scope", name: r.name }, true); };
         tr.addEventListener("click", go);
-        var a = el("td"); a.appendChild(link(r.name, go, "Show scope " + r.name)); tr.appendChild(a);
-        tr.appendChild(el("td", "br", r.brief || ""));
-        var st = el("td"); st.appendChild(statusChip(r.status === "done")); tr.appendChild(st);
+        var cell = {};
+        var a = el("td"); a.appendChild(link(r.name, go, "Show scope " + r.name)); cell.scope = a;
+        cell.brief = el("td", "br", r.brief || "");
+        var st = el("td"); st.appendChild(statusChip(r.status === "done")); cell.stage = st;
         var n = el("td"); if (r.needs_you > 0) n.appendChild(chipEl("need", needsText(r.needs_you))); else n.textContent = r.needs_you == null ? "?" : "nothing";
-        tr.appendChild(n);
-        tr.appendChild(el("td", null, num(r.stuck)));
-        tr.appendChild(el("td", null, tasks(r)));
-        var la = el("td"); la.appendChild(lastCell(r.last_active, c.now, "span")); tr.appendChild(la);
+        cell.needs_you = n;
+        cell.blocked = el("td", null, num(r.stuck));
+        cell.tasks = el("td", null, tasks(r));
+        var la = el("td"); la.appendChild(lastCell(r.last_active, c.now, "span")); cell.last_active = la;
+        cols.forEach(function (k) { tr.appendChild(cell[k.id]); });
         tb.appendChild(tr);
       });
       body.appendChild(tb);

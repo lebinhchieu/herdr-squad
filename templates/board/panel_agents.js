@@ -24,6 +24,8 @@
     return { live: (d.agents || []).map(mk), retired: (d.retired || []).map(mk), retiredCount: n, retiredLabel: n + " retired",
              unknown: d.status === "unknown" ? "status unknown: " + (d.reason || "herdr not running") : null };
   }
+  var COLS = [{ id: "agent", label: "Agent", identity: true }, { id: "owns", label: "Owns" }, { id: "status", label: "Status" },
+              { id: "last_active", label: "Last active" }];   /* the columns the panel really has (ticket 20) */
   BOARD.rowsForAgents = rowsForAgents;
 
   /* ---------- drawing ---------- */
@@ -59,18 +61,19 @@
     if (R.unknown) { var n = el("p", "note"); n.appendChild(el("b", null, R.unknown + ".")); n.appendChild(root.document.createTextNode(" Roles and tasks come from roster.md.")); body.appendChild(n); }
     if (!R.live.length) body.appendChild(el("p", "muted", "No live agents. roster.md lists none yet."));
     else {
-      var tb = el("table", "ag"), hd = el("tr");
-      ["Agent", "Owns", "Status", "Last active"].forEach(function (h) { hd.appendChild(el("th", null, h)); });
+      var tb = el("table", "ag"), hd = el("tr"), cols = c.columns();
+      cols.forEach(function (k) { var th = el("th", null, k.label); th.dataset.col = k.id; th.draggable = true; hd.appendChild(th); });
       tb.appendChild(hd);
       R.live.forEach(function (r) {
-        var tr = el("tr", r.cls === "need" ? "need" : "");
+        var tr = el("tr", r.cls === "need" ? "need" : ""), cell = {};
         var a = el("td"); var nm = el("span", "nm", r.name); nm.title = r.role; a.appendChild(nm);
-        a.appendChild(el("small", null, r.role + (r.scope ? " · " + r.scope : ""))); tr.appendChild(a);
-        tr.appendChild(el("td", null, r.owns));
-        var st = el("td"); st.appendChild(chip(r.cls, r.status)); tr.appendChild(st);
+        a.appendChild(el("small", null, r.role + (r.scope ? " · " + r.scope : ""))); cell.agent = a;
+        cell.owns = el("td", null, r.owns);
+        var st = el("td"); st.appendChild(chip(r.cls, r.status)); cell.status = st;
         var la = el("td"); la.appendChild(el("b", null, r.last));
         if (r.lastEpoch != null) { var iso = new Date(r.lastEpoch * 1000).toISOString(); la.appendChild(el("small", null, c.fmtTime(iso))); }
-        tr.appendChild(la);
+        cell.last_active = la;
+        cols.forEach(function (k) { tr.appendChild(cell[k.id]); });
         tb.appendChild(tr);
       });
       body.appendChild(tb);
@@ -90,7 +93,7 @@
   }
 
   BOARD.registerPanel({
-    id: "agents", title: "Agents now", route: "/api/agents", span: 4, spans: [4, 6, 8], maxPx: 380,
+    id: "agents", columns: COLS, title: "Agents now", route: "/api/agents", span: 4, spans: [4, 6, 8], maxPx: 380,
     isEmpty: function (d) { return !d; },
     render: function (body, d, c) {
       LAST = { body: body, d: d, c: c };

@@ -718,5 +718,198 @@ class Static14(unittest.TestCase):
         self.assertIsNone(re.search(r"#[0-9a-fA-F]{3,8}\b", js))
 
 
+# ---------------------------------------------------------------- ticket 20: column picker
+PANELS20 = PANELS12 + ("panel_files.js",)
+HEAD20 = head12(PANELS20)
+PRE20 = PRE12 + r"""
+window.__puts=[];
+const f20=async(url,opt)=>{if(opt&&opt.method==='PUT'){window.__puts.push(JSON.parse(opt.body))}return f12(url,opt)};
+const start20=async()=>{BOARD.start({fetch:f20,storage:mem(),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,now:()=>Date.parse('2026-11-04T10:00:00Z'),tz:'UTC'});
+  await sleep(300);return BOARD.page};
+const flush=async()=>{fakeTimers.filter(t=>t.ms===300).forEach(t=>t.f());await sleep(30)};
+const heads=sel=>$$(sel+' th').map(th=>th.textContent);
+const btn=id=>$('section[data-panel='+id+'] .ph button.pbtn:not([hidden])');
+const colsBtn=id=>$$('section[data-panel='+id+'] .ph button').find(b=>/^Columns/.test(b.textContent));
+const tick=(id,on)=>{const c=$('.cpop input[data-col='+id+']');if(c.checked!==on){c.click()}};
+"""
+TASK_COLS = ["Task", "Title", "Stage", "Last active", "What happened", "Owner", "Waits on"]
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
+class Panels20(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.real = dict(real_payloads(), saved=None, p12=payloads12())
+
+    def page(self, body, hash_="#/scope/checkout"):
+        return run_page(PRE20 + body, self.real, hash_, HEAD20)
+
+    def test_T20_TA4_AC1_AC5_AC9_pure_rules(self):
+        r = self.page(r"""
+const B=BOARD,D=B.panels.find(p=>p.id==='files').columns,T=B.panels.find(p=>p.id==='tasks').columns;
+const ids=l=>l.map(c=>c.id);
+out({
+ def:ids(B.columnsFor(undefined,T,'scope')),
+ moved:ids(B.columnsFor(['stage','title','task'],T,'scope')),
+ onlyTask:ids(B.columnsFor(['task'],T,'scope')),
+ noIdentity:ids(B.columnsFor(['stage','title'],T,'scope')),
+ junk:ids(B.columnsFor(['zzz',7,null,'title','title'],T,'scope')),
+ allJunk:ids(B.columnsFor(['zzz'],T,'scope')),
+ scopeView:ids(B.columnsFor(['file','scope','kind'],D,'scope')),goalView:ids(B.columnsFor(['file','scope','kind'],D,'goal')),
+ goalDef:ids(B.columnsFor(undefined,D,'goal')),
+ noHide:B.toggleColumn(['task','title'],'task',T),
+ back:B.toggleColumn(['task','stage'],'title',T),
+ up:B.moveColumn(['task','title','stage'],'stage',-1,T),edge:B.moveColumn(['task','title'],'task',-1,T),
+ to:B.moveColumnTo(['task','title','stage'],'task','stage',T),
+ reset:B.resetColumns({tasks:['task'],files:['file']},'tasks'),
+ clean:B.cleanColumns({a:['x'],b:'x',c:[1],d:null}),cleanBad:[B.cleanColumns(null),B.cleanColumns([1]),B.cleanColumns('x')]});
+""")
+        self.assertEqual(r["def"], ["task", "title", "stage", "last_active", "happened", "owner", "waits"])
+        self.assertEqual(r["moved"], ["stage", "title", "task"])
+        self.assertEqual(r["onlyTask"], ["task"])
+        self.assertEqual(r["noIdentity"], ["task", "stage", "title"])   # identity is added first when a saved list lacks it
+        self.assertEqual(r["junk"], ["task", "title"])
+        self.assertEqual(r["allJunk"], r["def"])   # T20.AC9: nothing valid left -> the defaults
+        self.assertEqual((r["scopeView"], r["goalView"]), (["file", "kind"], ["file", "scope", "kind"]))   # T20.AC5
+        self.assertEqual(r["goalDef"], ["file", "kind", "what", "scope", "changed"])
+        self.assertEqual(r["noHide"], ["task", "title"])
+        self.assertEqual(r["back"], ["task", "title", "stage"])   # a shown-again column returns to its default place
+        self.assertEqual((r["up"], r["edge"]), (["task", "stage", "title"], ["task", "title"]))
+        self.assertEqual(r["to"], ["title", "stage", "task"])
+        self.assertEqual(r["reset"], {"files": ["file"]})
+        self.assertEqual(r["clean"], {"a": ["x"]})
+        self.assertEqual(r["cleanBad"], [{}, {}, {}])
+
+    def test_T20_AC1_AC2_AC3_AC6_AC7_TA6_TA7_TA10_tasks_control_hide_move_counts_reset(self):
+        r = self.page(r"""
+await start20();
+const T='section[data-panel=tasks]',n0=$$(T+' tr.r').length,title0=document.title,count0=$(T+' .count').textContent,need0=$$(T+' tr.need').length;
+const def=heads(T);
+const only=['tasks','agents','files','scopes'].filter(id=>colsBtn(id)).sort();
+const noInbox=!colsBtn('inbox');
+colsBtn('tasks').click();await sleep(20);
+const pop=$('.cpop'),rows=$$('.cpop .cr').map(r=>({t:r.querySelector('label').textContent,cb:r.querySelector('input').checked,dis:r.querySelector('input').disabled,mv:r.querySelectorAll('button').length}));
+const expanded=colsBtn('tasks').getAttribute('aria-expanded');
+tick('waits',false);await sleep(20);
+const noWaits=heads(T),cells=$$(T+' tr.r').every(tr=>tr.children.length===noWaits.length);
+const tag=colsBtn('tasks').textContent,tip=colsBtn('tasks').title;
+$('.cpop button[data-mv="up:last_active"]').click();await sleep(20);
+const moved=heads(T),focusKept=document.activeElement.dataset.mv;
+tick('waits',true);await sleep(20);
+const back=heads(T);
+// everything off but Task, Task last
+for(const id of ['title','stage','last_active','happened','owner'])tick(id,false);
+for(let i=0;i<8;i++){const b=$('.cpop button[data-mv="down:task"]');if(!b.disabled)b.click()}
+await sleep(20);
+const onlyTask=heads(T);
+$$(T+' tr.r')[0].click();await sleep(60);
+const span=$(T+' tr.x td').colSpan;
+const snap=BOARD.page.snapshot().columns;
+// counts do not depend on columns
+const same={title:document.title===title0,count:$(T+' .count').textContent===count0,need:$$(T+' tr.need').length===need0,rows:$$(T+' tr.r').length===n0};
+// a click outside closes it; Esc closes it and gives the focus back to the button
+const outside=!$('.cpop');
+colsBtn('tasks').click();await sleep(20);const reopened=!!$('.cpop');
+key(document,'Escape');await sleep(10);
+const closed=!$('.cpop'),focus=document.activeElement===colsBtn('tasks');
+// reset one panel, not the layout
+colsBtn('tasks').click();await sleep(20);
+$('.cpop [data-reset]').click();await sleep(20);
+const afterReset=heads(T),resetOff=$('.cpop [data-reset]').disabled;
+out({def,only,noInbox,rows,expanded,noWaits,cells,tag,tip,moved,focusKept,back,onlyTask,span,snap,same,outside,reopened,closed,focus,afterReset,resetOff,snapAfter:BOARD.page.snapshot().columns});
+""")
+        self.assertEqual(r["def"], TASK_COLS)
+        self.assertEqual(r["only"], ["agents", "files", "scopes", "tasks"])   # T20.TA6 / AC10: four panels, not Needs you
+        self.assertTrue(r["noInbox"])
+        self.assertEqual([x["t"].replace("always shown", "") for x in r["rows"]], TASK_COLS)   # T20.AC1: every column, current order
+        self.assertEqual([(x["cb"], x["dis"]) for x in r["rows"]], [(True, True)] + [(True, False)] * 6)   # Task cannot be cleared
+        self.assertEqual(r["expanded"], "true")
+        self.assertEqual(r["noWaits"], TASK_COLS[:-1])   # T20.AC2: gone at once, others keep order
+        self.assertTrue(r["cells"])   # TA10: th and every td leave together
+        self.assertIn("1 hidden", r["tag"])
+        self.assertIn("Waits on", r["tip"])
+        self.assertEqual(r["moved"].index("Last active"), 2)   # T20.AC3: Last active before Stage
+        self.assertEqual(r["moved"].index("Stage"), 3)
+        self.assertEqual(r["focusKept"], "up:last_active")   # focus stays on the pressed button
+        self.assertEqual(r["back"][-1], "Waits on")
+        self.assertEqual(r["onlyTask"], ["Waits on", "Task"])   # T20.AC1: Task moved last, the other boxes cleared
+        self.assertEqual(r["span"], 2)   # the open row spans exactly the shown columns
+        self.assertEqual(r["snap"]["tasks"], ["waits", "task"])   # saved: visible ids in order
+        self.assertTrue(all(r["same"].values()), r["same"])   # T20.AC6 / TA5
+        self.assertEqual((r["outside"], r["reopened"], r["closed"], r["focus"]), (True, True, True, True))
+        self.assertEqual(r["afterReset"], TASK_COLS)   # T20.AC7: Reset columns
+        self.assertTrue(r["resetOff"])
+        self.assertEqual(r["snapAfter"], {})
+
+    def test_T20_AC7_AC10_reset_layout_resets_every_panel_columns_not_font_or_choice(self):
+        r = self.page(r"""
+const pg=await start20();
+const A='section[data-panel=agents]',T='section[data-panel=tasks]';
+for(const [id,col] of [['tasks','waits'],['agents','owns']]){colsBtn(id).click();await sleep(20);tick(col,false);key(document,'Escape');await sleep(10)}
+BOARD.page.setFont('xl');await sleep(300);
+const before={t:heads(T),a:heads(A),font:pg.state.font,choice:pg.state.choice,snap:pg.snapshot().columns};
+// Reset columns in Tasks only
+colsBtn('tasks').click();await sleep(20);$('.cpop [data-reset]').click();key(document,'Escape');await sleep(20);
+const one={t:heads(T),a:heads(A)};
+colsBtn('tasks').click();await sleep(20);tick('waits',false);
+$$('button').find(b=>b.textContent==='Reset layout').click();await sleep(300);
+out({before,one,all:{t:heads(T),a:heads(A),font:pg.state.font,choice:pg.state.choice,snap:pg.snapshot().columns,pop:!!$('.cpop')}});
+""")
+        self.assertEqual(r["before"]["t"], TASK_COLS[:-1])
+        self.assertNotIn("Owns", r["before"]["a"])
+        self.assertEqual((r["one"]["t"], r["one"]["a"]), (TASK_COLS, r["before"]["a"]))
+        self.assertEqual(r["all"]["t"], TASK_COLS)
+        self.assertIn("Owns", r["all"]["a"])
+        self.assertEqual((r["all"]["font"], r["all"]["choice"]), (r["before"]["font"], r["before"]["choice"]))
+        self.assertEqual((r["all"]["snap"], r["all"]["pop"]), ({}, False))
+
+    def test_T20_AC4_AC9_AC5_saved_columns_come_back_and_bad_ones_are_ignored(self):
+        r = self.page(r"""
+const snap=(cols)=>Object.assign({version:1,saved_at:'2026-11-04T09:00:00Z',font:'normal',choice:{kind:'scope',name:'checkout'},recent:[],panels:{},auto:true},{columns:cols});
+cur.saved=snap({tasks:['owner','task','zzz_unknown'],gone_panel:['x'],agents:['nope'],files:['file','scope','kind']});
+await start20();
+out({t:heads('section[data-panel=tasks]'),a:heads('section[data-panel=agents]'),keep:BOARD.page.snapshot().columns});
+""")
+        self.assertEqual(r["t"], ["Owner", "Task"])   # T20.AC4: same columns, same order after reopening
+        self.assertEqual(r["a"], ["Agent", "Owns", "Status", "Last active"])   # T20.AC9: unknown ids -> defaults
+        self.assertIn("gone_panel", r["keep"])   # a panel the page does not know is kept for a newer page
+        bad = self.page(r"""
+cur.saved={version:1,saved_at:'2026-11-04T09:00:00Z',font:'normal',choice:{kind:'scope',name:'checkout'},recent:[],panels:{},auto:true,columns:'garbage'};
+await start20();out({t:heads('section[data-panel=tasks]'),c:BOARD.page.snapshot().columns});
+""")
+        self.assertEqual((bad["t"], bad["c"]), (TASK_COLS, {}))
+
+    def test_T20_TA8_a_change_is_saved_through_the_one_put_with_columns_and_newer_copy_wins(self):
+        r = self.page(r"""
+cur.saved={version:1,saved_at:'2026-11-04T08:00:00Z',font:'normal',choice:{kind:'scope',name:'checkout'},recent:[],panels:{},auto:true,columns:{tasks:['task','title']}};
+await start20();
+const first=heads('section[data-panel=tasks]');
+colsBtn('tasks').click();await sleep(20);tick('stage',true);await flush();
+out({first,last:window.__puts[window.__puts.length-1],after:heads('section[data-panel=tasks]'),picked:BOARD.pickNewer({saved_at:'2026-11-04T08:00:00Z',columns:{a:['x']}},{saved_at:'2026-11-04T09:00:00Z',columns:{b:['y']}}).columns});
+""")
+        self.assertEqual(r["first"], ["Task", "Title"])
+        self.assertEqual(r["last"]["columns"], {"tasks": ["task", "title", "stage"]})
+        self.assertEqual(r["last"]["version"], 1)
+        self.assertEqual(r["after"], ["Task", "Title", "Stage"])
+        self.assertEqual(r["picked"], {"b": ["y"]})
+
+
+class Static20(unittest.TestCase):
+    def test_T20_TU3_TA11_control_code_has_no_innerhtml_no_inline_handler_no_percent_no_hex(self):
+        for f in ("board.js", "board.css", "panel_tasks.js", "panel_agents.js", "panel_files.js", "panel_scopes.js"):
+            txt = (TPL / f).read_text(encoding="utf-8")
+            if f.endswith(".js"):
+                self.assertIsNone(re.search(r"innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|\bon\w+\s*=\s*[\"']", txt), f)
+        js = (TPL / "board.js").read_text(encoding="utf-8")
+        ctl = js[js.index("columns (ticket 20)"):js.index("function wireColumnDrag")]
+        self.assertNotIn("%", ctl)
+        self.assertIsNone(re.search(r"#[0-9a-fA-F]{3,8}\b", ctl))
+        self.assertNotIn("needsFrom", ctl)   # T20.TA5: the control never touches the counts or the tab title
+        self.assertNotIn("paintTitle", ctl)
+        self.assertEqual(len((TPL / "panel_inbox.js").read_text(encoding="utf-8").split("columns:")), 1)   # Needs you has no control
+        for f in ("panel_tasks.js", "panel_agents.js", "panel_files.js", "panel_scopes.js"):
+            self.assertEqual((TPL / f).read_text(encoding="utf-8").count("createElement(\"input\")"), 0, f)   # one shared builder in board.js
+
+
 if __name__ == "__main__":
     unittest.main()

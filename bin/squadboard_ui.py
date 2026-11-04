@@ -6,7 +6,11 @@ position and no row index (a saved layout then survives a font change or a windo
 
     {"version": 1, "saved_at": "2026-11-04T10:00:00Z", "font": "normal",
      "choice": {"kind": "scope", "name": "dashboard"} | null, "recent": [<choice>, ...5], "auto": true,
-     "panels": {"<panel id>": {"order": 0, "span": 2, "hidden": false, "max_height": 300}}}
+     "panels": {"<panel id>": {"order": 0, "span": 2, "hidden": false, "max_height": 300}},
+     "columns": {"<panel id>": ["<column id>", ...]}}
+
+`columns` (ticket 20) is the ordered list of the VISIBLE column ids of each table panel; a hidden column is absent. One
+entry for every choice (never keyed by goal or scope). Unknown panel and column ids are kept (a newer page may know them).
 
 `GET /api/ui?squad=K` -> data {"ui": {...}, "status": "ok" | "unwritable" | "unreadable"}; it never raises and never
 writes. `PUT /api/ui?squad=K` (token and Host are checked by the server before this runs) -> the saved ui, or a JSON
@@ -26,6 +30,9 @@ RECENT_MAX = 5
 FONTS = ("small", "normal", "xl")
 SAVED_AT_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$")
 REPLACE_TRIES = 3
+COLUMN_ID_RE = re.compile(r"^[a-z0-9_]{1,32}$")
+COLUMNS_MAX_PANELS = 20
+COLUMNS_MAX_IDS = 30
 NO_POSITION_KEYS = ("x", "y", "row", "".join(("si", "ze")))  # layout is order and span only (architecture 1a)
 
 
@@ -34,7 +41,14 @@ def _no_constant(name):
 
 
 def defaults():
-    return {"version": VERSION, "saved_at": None, "font": "normal", "choice": None, "recent": [], "panels": {}}
+    return {"version": VERSION, "saved_at": None, "font": "normal", "choice": None, "recent": [], "panels": {}, "columns": {}}
+
+
+def _columns_ok(c):
+    """True for {panel id: [column id, ...]} within the limits (ticket 20)."""
+    return (isinstance(c, dict) and len(c) <= COLUMNS_MAX_PANELS
+            and all(isinstance(k, str) and isinstance(v, list) and len(v) <= COLUMNS_MAX_IDS
+                    and all(isinstance(i, str) and COLUMN_ID_RE.match(i) for i in v) for k, v in c.items()))
 
 
 def _int(v, lo=0):
@@ -94,6 +108,10 @@ def validate(body):
             row["max_height"] = p["max_height"]
         clean[str(pid)] = row
     ui["panels"] = clean
+    if "columns" in body:
+        if not _columns_ok(body["columns"]):
+            raise ValueError("columns must be an object of lists of column ids (a-z, 0-9, _)")
+        ui["columns"] = {str(k): list(v) for k, v in body["columns"].items()}
     try:
         json.dumps(ui, ensure_ascii=False, allow_nan=False).encode("utf-8")  # NaN, lone surrogates
     except (ValueError, UnicodeError) as e:
@@ -122,6 +140,8 @@ def read_state(folder):
             if not isinstance(raw, dict) or raw.get("version") != VERSION:
                 raise ValueError("unknown version")
             ui = {**defaults(), **raw}
+            if not _columns_ok(ui.get("columns")):
+                ui["columns"] = {}   # one bad field never makes the file unreadable
     except (OSError, ValueError, UnicodeError, RecursionError):
         return defaults(), "unreadable"
     if not _writable(folder):

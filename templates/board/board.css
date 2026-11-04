@@ -59,3 +59,14 @@ main{padding:var(--gutter) var(--gutter) 24px}
 .rz.s{left:10px;right:10px;bottom:-3px;height:7px;cursor:ns-resize}
 .rz.se{right:-3px;bottom:-3px;width:16px;height:16px;cursor:nwse-resize}
 .rz:hover{background:var(--t-idle);border-radius:4px}
+.pbtn .colhid{margin-left:5px;background:var(--t-need);border-color:var(--mango);padding:0 .4em;font-size:.85em}
+.cpop{position:fixed;z-index:60;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px var(--shadow);display:flex;flex-direction:column;width:max-content;max-width:min(340px,calc(100vw - 16px));min-width:14em}
+.cpop h3{margin:0;padding:8px 10px 4px;font-size:.92em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.cpop .cl{overflow-y:auto;padding:2px 10px;min-height:0;flex:1 1 auto}
+.cpop .cr{display:flex;align-items:center;gap:4px;padding:2px 0}.cpop .cr.off{color:var(--muted)}
+.cpop .cr label{flex:1;display:flex;gap:6px;align-items:center;cursor:pointer}.cpop .cr small{color:var(--muted)}
+.cpop .mv{border:1px solid var(--border);background:var(--bg);border-radius:5px;padding:0 6px;line-height:1.5}
+.cpop .mv:disabled{opacity:.35;cursor:default}.cpop .hint{padding:2px 10px;font-size:.92em}
+.cpop .cf{display:flex;gap:6px;justify-content:flex-end;padding:6px 10px 8px;border-top:1px solid var(--border);background:var(--bg);flex:none}
+.cpop .cf button:disabled{opacity:.45;cursor:default}
+th[draggable=true]{cursor:grab}

@@ -122,6 +122,8 @@
 
   /* ---------- drawing ---------- */
   var F = "all", LAST = null, wired = false;
+  var COLS = [{ id: "file", label: "File", identity: true }, { id: "kind", label: "Kind" }, { id: "what", label: "What" },
+              { id: "scope", label: "Scope", only: "goal" }, { id: "changed", label: "Changed" }];   /* the columns the panel really has (ticket 20) */
   function el(tag, cls, text) {
     var e = root.document.createElement(tag);
     if (cls) e.className = cls;
@@ -166,27 +168,30 @@
     tools.appendChild(el("span", "muted", "Time is the file’s modified time."));
     body.appendChild(tools);
     var tb = el("table", "fl"), hd = el("tr");
-    var showScope = !(d && d.report_expected);   /* one scope selected: every row has the same scope, so the column is left out */
-    ["File", "Kind", "What"].concat(showScope ? ["Scope"] : [], ["Changed"]).forEach(function (h) { var th = el("th", null, h); if (h === "Changed") th.title = "The file\u2019s modified time, in your zone"; hd.appendChild(th); });
+    /* one scope selected: every row has the same scope, so the Scope column is left out (its place in the saved order stays) */
+    var cols = c.columns(d && d.report_expected ? "scope" : "goal");
+    cols.forEach(function (k) { var th = el("th", null, k.label); th.dataset.col = k.id; th.draggable = true; if (k.id === "changed") th.title = "The file\u2019s modified time, in your zone"; hd.appendChild(th); });
     tb.appendChild(hd);
     R.rows.forEach(function (r) {
-      var tr = el("tr"), a = el("td"), link = el("a", "of", r.name);
+      var tr = el("tr"), cell = {}, a = el("td"), link = el("a", "of", r.name);
       link.href = fileUrl(c, r.path); link.target = "_blank"; link.rel = "noopener noreferrer";
       link.title = "Opens in a new tab (read-only)"; if (r.md) link.dataset.md = r.path;
-      a.appendChild(link); tr.appendChild(a);
-      var k = el("td"); k.appendChild(chip(r.kind === "report" ? "wait" : r.kind === "evidence" ? "work" : "idle", r.kind)); tr.appendChild(k);
-      tr.appendChild(el("td", null, r.what));
-      if (showScope) tr.appendChild(el("td", null, r.scope));
+      a.appendChild(link); cell.file = a;
+      var k = el("td"); k.appendChild(chip(r.kind === "report" ? "wait" : r.kind === "evidence" ? "work" : "idle", r.kind)); cell.kind = k;
+      cell.what = el("td", null, r.what);
+      cell.scope = el("td", null, r.scope);
       var t = el("td", "nw");
       if (r.iso) { var tm = el("time", null, fileTime(r.iso, c.now, c.tz)); tm.dateTime = r.iso; tm.title = r.iso.slice(0, 10) + " " + r.iso.slice(11, 16) + " UTC in the files"; t.appendChild(tm); }
       else t.textContent = "—";
-      tr.appendChild(t); tb.appendChild(tr);
+      cell.changed = t;
+      cols.forEach(function (k2) { tr.appendChild(cell[k2.id]); }); tb.appendChild(tr);
     });
     if (R.missing) {
       var mr = el("tr"), n = el("td"); n.appendChild(el("span", null, "report/report.html")); n.appendChild(root.document.createTextNode(" "));
-      n.appendChild(chip("unk", R.missing)); mr.appendChild(n);
-      var kd = el("td"); kd.appendChild(chip("wait", "report")); mr.appendChild(kd);
-      mr.appendChild(el("td", null, "scope report")); mr.appendChild(el("td", null, "")); mr.appendChild(el("td", null, "—"));
+      n.appendChild(chip("unk", R.missing));
+      var kd = el("td"); kd.appendChild(chip("wait", "report"));
+      var mc = { file: n, kind: kd, what: el("td", null, "scope report"), scope: el("td", null, ""), changed: el("td", null, "—") };
+      cols.forEach(function (k2) { mr.appendChild(mc[k2.id]); });
       tb.insertBefore(mr, hd.nextSibling);   /* first, so the missing report is seen without scrolling */
     }
     body.appendChild(tb);
@@ -212,7 +217,7 @@
   }
 
   BOARD.registerPanel({
-    id: "files", title: "Files", route: "/api/files", span: 8, spans: [4, 8], maxPx: 380,
+    id: "files", columns: COLS, title: "Files", route: "/api/files", span: 8, spans: [4, 8], maxPx: 380,
     isEmpty: function (d) { return !d; },
     render: function (body, d, c) {
       var sq = BOARD.page && BOARD.page.state && BOARD.page.state.squad;

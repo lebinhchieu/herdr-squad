@@ -160,6 +160,40 @@ class ReadTest(Base):
         self.assertFalse(self.file.exists())
 
 
+class ColumnsTest(Base):
+    COLS = {"tasks": ["owner", "task", "last_active"], "files": ["file", "scope"], "future_panel": ["x_y"]}
+
+    def test_T20_TA1_columns_saved_read_back_one_entry_for_every_choice(self):
+        self.assertEqual(self.put(dict(GOOD, columns=self.COLS))[0], 200)
+        a = self.get()["ui"]
+        self.assertEqual((a["columns"], a["version"]), (self.COLS, 1))  # unknown panel kept
+        self.assertEqual(self.put(dict(GOOD, choice={"kind": "goal", "name": "g1"}, columns=self.COLS))[0], 200)
+        self.assertEqual(self.get()["ui"]["columns"], a["columns"])
+        raw = self.file.read_text(encoding="utf-8")
+        self.assertNotIn("alpha\": [", raw)
+
+    def test_T20_TA2_bad_columns_is_400_and_file_unchanged(self):
+        self.put(dict(GOOD, columns=self.COLS))
+        before = self.sha()
+        for bad in ([], {"tasks": "owner"}, {"tasks": [1]}, {"tasks": ["Bad Id"]}, {"tasks": ["a"] * 31},
+                    {("p%d" % i): [] for i in range(21)}):
+            self.assertEqual(self.put(dict(GOOD, font="small", columns=bad))[0], 400, bad)
+        self.assertEqual(self.sha(), before)
+
+    def test_T20_TA2_hand_edited_bad_columns_drops_to_empty_and_keeps_the_rest(self):
+        self.file.write_text(json.dumps(dict(GOOD, version=1, columns={"tasks": "x"})), encoding="utf-8")
+        d = self.get()
+        self.assertEqual((d["status"], d["ui"]["columns"], d["ui"]["font"]), ("ok", {}, "xl"))
+        self.assertEqual(d["ui"]["panels"], GOOD["panels"])
+
+    def test_T20_TA3_old_file_without_columns_reads_as_defaults_and_is_not_rewritten(self):
+        text = json.dumps(dict(GOOD, version=1))
+        self.file.write_text(text, encoding="utf-8")
+        d = self.get()
+        self.assertEqual((d["status"], d["ui"]["columns"]), ("ok", {}))
+        self.assertEqual(self.file.read_text(encoding="utf-8"), text)
+
+
 class GuardTest(Base):
     def test_T09_AC5_no_token_wrong_host_or_content_type_leaves_file_unchanged(self):
         self.put(GOOD)

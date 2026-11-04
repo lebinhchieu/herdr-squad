@@ -33,6 +33,10 @@
   function filterRows(rows, f) {
     return rows.filter(function (r) { return f === "all" || (f === "open" ? !r.done : f === "review" ? r.ready : r.done); });
   }
+  /* the columns the panel really has (ticket 20); the Columns control in board.js lists these */
+  var COLS = [{ id: "task", label: "Task", identity: true }, { id: "title", label: "Title" }, { id: "stage", label: "Stage" },
+              { id: "last_active", label: "Last active" }, { id: "happened", label: "What happened" }, { id: "owner", label: "Owner" },
+              { id: "waits", label: "Waits on" }];
   BOARD.rowsForTasks = rowsForTasks; BOARD.taskStageClass = stageClass; BOARD.taskFilter = filterRows;
 
   /* ---------- drawing ---------- */
@@ -147,31 +151,32 @@
     });
     tools.appendChild(el("span", "muted", "Click a row for the steps in time order."));
     body.appendChild(tools);
-    var tb = el("table", "tk"), hd = el("tr");
-    ["Task", "Title", "Stage", "Last active", "What happened", "Owner", "Waits on"].forEach(function (h) { hd.appendChild(el("th", null, h)); });
+    var tb = el("table", "tk"), hd = el("tr"), cols = c.columns();
+    cols.forEach(function (k) { var th = el("th", null, k.label); th.dataset.col = k.id; th.draggable = true; hd.appendChild(th); });
     tb.appendChild(hd);
     rows.forEach(function (r) {
-      var tr = el("tr", "r" + (r.ready ? " need" : r.done ? " done" : "") + (OPEN === r.key ? " on" : ""));
+      var cell = {}, tr = el("tr", "r" + (r.ready ? " need" : r.done ? " done" : "") + (OPEN === r.key ? " on" : ""));
       tr.dataset.k = r.key; tr.tabIndex = 0;
       var a = el("td", "nw");
       if (r.scope) a.appendChild(el("span", "muted", r.scope + "/"));
-      a.appendChild(el("b", null, r.id)); tr.appendChild(a);
-      tr.appendChild(el("td", null, r.title));
+      a.appendChild(el("b", null, r.id)); cell.task = a;
+      cell.title = el("td", null, r.title);
       var st = el("td"); st.appendChild(chip(r.cls, r.stage));
       if (r.returns >= 1 && !r.done) st.appendChild(chip("fail", r.returns + (r.returns === 1 ? " return" : " returns")));
-      tr.appendChild(st);
+      cell.stage = st;
       var la = el("td"); la.appendChild(el("b", null, r.last));
       if (r.lastIso) la.appendChild(el("div", "muted", stepTime(r.lastIso, c.tz)));
-      tr.appendChild(la);
+      cell.last_active = la;
       var wh = el("td");
       if (r.failLine) wh.appendChild(el("div", null, "FAIL: " + r.failLine));
       if (r.note) wh.appendChild(el("div", r.stage === "blocked" ? "bt" : "muted", r.note));
-      tr.appendChild(wh);
-      tr.appendChild(el("td", null, r.owner));
-      tr.appendChild(el("td", null, r.waits));
+      cell.happened = wh;
+      cell.owner = el("td", null, r.owner);
+      cell.waits = el("td", null, r.waits);
+      cols.forEach(function (k) { tr.appendChild(cell[k.id]); });
       tb.appendChild(tr);
       if (OPEN === r.key) {
-        var x = el("tr", "x"), xd = el("td"); xd.colSpan = 7; xd.appendChild(detailNode(r, c)); x.appendChild(xd); tb.appendChild(x);
+        var x = el("tr", "x"), xd = el("td"); xd.colSpan = cols.length; xd.appendChild(detailNode(r, c)); x.appendChild(xd); tb.appendChild(x);
       }
     });
     body.appendChild(tb);
@@ -201,7 +206,7 @@
   }
 
   BOARD.registerPanel({
-    id: "tasks", title: "Tasks", route: "/api/tasks", span: 8, spans: [4, 6, 8, 12], maxPx: 560,
+    id: "tasks", columns: COLS, title: "Tasks", route: "/api/tasks", span: 8, spans: [4, 6, 8, 12], maxPx: 560,
     isEmpty: function (d) { return !d; },
     render: function (body, d, c) {
       LAST = { body: body, d: d, c: c };
