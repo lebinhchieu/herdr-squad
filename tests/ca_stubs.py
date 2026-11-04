@@ -103,8 +103,10 @@ elif argv[:2] == ["agent", "get"]:
     if row is None:
         sys.exit(1)
     st = status(argv[2])
-    print(json.dumps({"id": "cli:agent:get", "result": {"agent": dict(row, agent_status=st or row["agent_status"])},
-                      "type": "agent_info"}))
+    agent = dict(row, agent_status=st or row["agent_status"])
+    if os.path.exists(S + "/bg/" + argv[2]):  # background work: herdr reports it in .tokens.bg
+        agent["tokens"] = {"bg": open(S + "/bg/" + argv[2], encoding="utf-8").read().strip()}
+    print(json.dumps({"id": "cli:agent:get", "result": {"agent": agent}, "type": "agent_info"}))
 elif argv[:2] == ["agent", "wait"]:
     # status/<pane> (written by a test) decides; no file = the state is reached at once (older tests)
     untils = [argv[i + 1] for i, a in enumerate(argv) if a == "--until"] or ["idle", "done", "blocked"]
@@ -119,8 +121,21 @@ elif argv[:2] == ["agent", "wait"]:
             sys.exit(1)
         time.sleep(0.05)
 elif argv[:2] == ["agent", "prompt"] and argv[3:4] == ["/exit"]:
+    if os.path.exists(S + "/prompt.blocked"):  # a permission dialog: herdr refuses and types nothing
+        print(json.dumps({"error": {"code": "agent_blocked"}}))
+        sys.exit(1)
+    if os.path.exists(S + "/exit.dialog"):  # "Background work is running": /exit is eaten, claude stays
+        os.makedirs(S + "/screen", exist_ok=True)
+        open(S + "/screen/" + argv[2], "w", encoding="utf-8").write(
+            "Background work is running\\n1. Exit and stop tasks\\n2. Move to background and exit\\n3. Stay\\n")
+        sys.exit(0)
     for p in live_claude(argv[2]):
         os.kill(p, signal.SIGTERM)
+elif argv[:2] == ["pane", "read"]:
+    serve("screen/" + argv[2])
+elif argv[:2] == ["pane", "send-keys"]:  # Escape closes the dialog (logged above like every call)
+    if argv[3:4] == ["Escape"] and os.path.exists(S + "/screen/" + argv[2]):
+        os.remove(S + "/screen/" + argv[2])
 elif argv[:2] == ["pane", "run"]:
     pane, cmd = argv[2], argv[3]
     try:
@@ -335,6 +350,20 @@ class Env:
             (d / pane).unlink(missing_ok=True)
         else:
             (d / pane).write_text(status, encoding="utf-8")
+
+    def set_bg(self, pane, text="⏵ 1 shell"):
+        """`herdr agent get` reports .tokens.bg = text for the pane (None drops it)."""
+        d = self.stub / "bg"
+        d.mkdir(exist_ok=True)
+        if text is None:
+            (d / pane).unlink(missing_ok=True)
+        else:
+            (d / pane).write_text(text, encoding="utf-8")
+
+    def set_flag(self, name, on=True):
+        """Stub flags: `exit.dialog` (/exit meets the background-work dialog), `prompt.blocked` (agent_blocked)."""
+        f = self.stub / name
+        f.touch() if on else f.unlink(missing_ok=True)
 
     def set_transcript(self, session_id, records, account="1"):
         """A session transcript under <config dir>/projects/<slug>/<session>.jsonl; records are dicts or raw lines."""
