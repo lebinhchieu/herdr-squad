@@ -19,3 +19,14 @@ Old tests changed: `test_T14_AC1_TA1_TA2...` (also asserts `folders`). None skip
 | T29.AC8 | existing T14 tests green |
 | T29.TA3 (600 files) | `test_T29_AC6_AC3_TA3` (folders not counted in the cap); existing cap test covers 500 rows |
 | T29.TA6 | `/api/file` test over every row in `rows` still 200 |
+
+## Return (QA blackbox FAIL on e89b7c2)
+Code change in `templates/board/panel_files.js` only; tests in `test_squadboard_panels.py` (class Panels30, no old test edited).
+
+| Finding | Fix | Test |
+|---|---|---|
+| F1 T29.AC3 | `empty = !R.total`: the note shows after the folder rows and the report placeholder | `test_T29_AC3_empty_note_shows_...` |
+| F2 T29.AC4 | the Kind pill reads `ticket` for ticket rows (`raw` kind kept; filter group still Artifacts) | `test_T29_AC4_AC11_ticket_row_pill_...` |
+| F3 T29.AC11 | What is cut at 80 characters with an ellipsis, full title is the tooltip | same test |
+
+Runs: panels 56, page 22, files 14, server 18, all OK.
