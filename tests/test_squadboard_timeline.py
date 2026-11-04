@@ -4,6 +4,7 @@ answer of `squadboard_worktime.read` (ticket 15) on pieces built by its own test
 Tests are named for the business AC (T16.ACn) or technical AC (T16.TAn)."""
 import html
 import json
+import os
 import re
 import subprocess
 import sys
@@ -45,6 +46,8 @@ const fetchStub=async(url,opt)=>{
   if(url.startsWith('/api/squads'))return J({data:SQ});
   if(url.startsWith('/api/ui'))return J({data:{ui:null,status:'ok'}});
   if(url.startsWith('/api/worktime')){
+    if(window.__v2)return J({schema_version:2,data:null});
+    if(window.__unk)return J({data:null,unknown:['transcript']});
     const q=new URLSearchParams(url.split('?')[1]);const f=q.get('from'),t=q.get('to');
     if(slow&&f===String(slow.from))await sleep(slow.ms);
     const d=Object.assign({},payload.data,{from:f==null?payload.data.from:+f,to:+t});
@@ -67,14 +70,14 @@ SCRIPTS = ('<script src="file://%(tpl)s/board.js"></script><script src="file://%
            '<script src="file://%(tpl)s/timeline.js"></script>')
 
 
-def run_page(body, real, scripts=SCRIPTS):
+def run_page(body, real, scripts=SCRIPTS, tz=None):
     with tempfile.TemporaryDirectory() as d:
         page = Path(d) / "page.html"
         page.write_text(HEAD % {"tpl": str(TPL), "real": json.dumps(real), "body": body, "scripts": scripts % {"tpl": str(TPL)}},
                         encoding="utf-8")
         r = subprocess.run([CHROME, "--headless", "--disable-gpu", "--no-sandbox", "--allow-file-access-from-files",
                             "--virtual-time-budget=20000", "--window-size=1440,900", "--dump-dom", "file://" + str(page)],
-                           capture_output=True, text=True, timeout=120)
+                           capture_output=True, text=True, timeout=120, env=dict(os.environ, TZ=tz) if tz else None)
     assert r.returncode == 0, r.stderr[-500:]
     m = re.search(r'<pre id="out">(.*?)</pre>', r.stdout, re.S)
     assert m, r.stdout[-800:]
@@ -142,7 +145,11 @@ def evil():
     return read_api(c)
 
 
-def real_long_gap():
+def real_normal():
+    return real_long_gap("normal.jsonl", "wt-dev-normal", "1792508000", "1792508100")
+
+
+def real_long_gap(fixture="long-gap.jsonl", agent="wt-dev-long", lo="1792508000", hi="1792552000"):
     """The real 11.2 h `long-gap` sample of ticket 15 through its own reader."""
     import os
     import shutil
@@ -151,8 +158,8 @@ def real_long_gap():
         with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(Path(tmp) / "cfg")}):
             wt._CACHE.clear()
             wt._PATHS.clear()
-            home, _ = tw.write_squad(tmp, "long-gap.jsonl", "sess2", "wt-dev-long")
-            r = wt.read(tw.sel_for(tmp, home, **{"from": "1792508000", "to": "1792552000", "gap_min": "60"}))
+            home, _ = tw.write_squad(tmp, fixture, "sess2", agent)
+            r = wt.read(tw.sel_for(tmp, home, **{"from": lo, "to": hi, "gap_min": "60"}))
         return {"schema_version": 1, "data": r["data"], "quality": r["quality"], "unknown": r["unknown"]}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -190,7 +197,11 @@ const l0=lanes[0];
 o.perf={ms:ms,in:2000,out:l0.length,sec:l0.reduce((s,r)=>s+r.seconds,0),sum:4000};
 const sc=T.makeScale({from:0,to:1000},[{start:400,end:600,kind:'idle',label:'x',seconds:200}]);
 o.scale=[sc.breaks.length,sc.x(0),sc.x(1000),sc.tAt(sc.x(300))];
-out(o);""", {"wt": rich(), "dst": dst()})
+const lg=R.long.data.agents.find(a=>a.agent==='wt-dev-long').pieces, nm=R.normal.data.agents.find(a=>a.agent==='wt-dev-normal').pieces;
+const cl=T.collapse(lg,60,false,'UTC');
+o.real2={breaks:cl.breaks.map(b=>b.seconds),filter:T.taskFilter(nm,['03']).length===nm.length,
+ secs:T.layoutLanes(nm,{from:nm[0].start,to:nm[nm.length-1].end},800,[]).reduce((s,r)=>s+r.seconds,0),want:nm.reduce((s,p)=>s+p.end-p.start,0)};
+out(o);""", {"wt": rich(), "dst": dst(), "long": real_long_gap(), "normal": real_normal()})
 
     def test_T16_AC8_TA2_setting_limits_clamp_and_strictly_longer(self):
         c = {x["n"]: x["breaks"] for x in self.res["collapse"]}
@@ -226,9 +237,17 @@ out(o);""", {"wt": rich(), "dst": dst()})
         self.assertTrue(0 < f[0] < f[4])
         self.assertEqual((f[1], f[2], f[3]), (True, True, 0))
 
+    def test_T16_TA1_the_two_real_samples_of_ticket_15(self):
+        r = self.res["real2"]
+        self.assertEqual(len(r["breaks"]), 1)
+        self.assertGreater(r["breaks"][0], 11 * 3600)
+        self.assertTrue(r["filter"])
+        self.assertEqual(r["secs"], r["want"])
+
     def test_T16_TA7_layout_is_fast_and_merging_keeps_the_time(self):
         p = self.res["perf"]
-        self.assertLess(p["ms"], 200)
+        self.assertGreater(p["ms"], 0)   # performance.now() is not frozen by the harness
+        self.assertLess(p["ms"], 200, p)
         self.assertLess(p["out"], p["in"])
         self.assertEqual(p["sec"], p["sum"])
 
@@ -316,6 +335,7 @@ out(o);""", {"wt": rich(), "dst": dst(), "now": NOW})
         self.assertEqual(sorted(r["rows"]), ["dev", "ghost", "qa"])
         self.assertTrue(r["b03"]["n"] > 0 and r["b03"]["approx"])
         self.assertTrue({"working", "waiting"} <= set(r["b03"]["states"]))
+        self.assertEqual([g.split(" ")[0] for g in r["groups"]], ["Developers", "QA"])
         self.assertRegex(r["titles"][0], r"^dev · .* · \d\d:\d\d–\d\d:\d\d \(.*\) · working · task 03 \(approx\)$")
         self.assertIn("no transcript: ghost", r["ghost"])
         self.assertRegex(r["detail"], r"Task\s*03")
@@ -385,6 +405,23 @@ out(o);""", {"wt": rich(), "dst": dst(), "now": NOW})
 
 @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
 class Safety(unittest.TestCase):
+    def test_T16_AC9_TA2_the_page_reads_its_own_zone_across_a_clock_change(self):
+        for z in ("Europe/Berlin", "America/New_York"):
+            r = run_page("""
+const z=BOARD.readZone(),dp=R.dst.data.agents[0].pieces;
+out({z:z,l:T.collapse(dp,60,false,z).breaks.map(b=>b.label)});""", {"wt": rich(), "dst": dst(), "now": NOW}, tz=z)
+            self.assertEqual((r["z"], r["l"]), (z, ["idle · 3 h"]))
+
+    def test_T16_TU8_a_zoom_answered_with_another_version_or_nothing_shows_unknown(self):
+        r = run_page("""
+await startPage();window.__v2=true;await T.zoomAt(.5,.5);await sleep(100);
+const v=$('.tl .note').textContent;window.__v2=false;window.__unk=true;await T.zoomAt(.5,.5);await sleep(100);
+out({v:v,u:$('.tl .note').textContent,nodata:($('.tl-trk.nodata')||{}).textContent,bar:!!$('.tl-bar')});""", {"wt": rich(), "dst": {}, "now": NOW})
+        self.assertEqual(r["v"], "unknown: board version")
+        self.assertIn("unknown: transcript", r["u"])
+        self.assertIn("No time is invented", r["nodata"])
+        self.assertTrue(r["bar"])
+
     def test_T16_TA4_untrusted_names_stay_text(self):
         r = run_page("""
 payload=R.evil;await startPage();

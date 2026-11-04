@@ -1,7 +1,7 @@
 # Evidence 16 work time page
 
 ## Behaviour
-New panel `templates/board/timeline.js` (id `worktime`, "Work time", swimlanes). Rules are plain functions on `BOARD.TIMELINE`. Tests: `tests/test_squadboard_timeline.py` (22 tests, id in each name), headless Chrome, data from the real `/api/worktime` reader of ticket 15 (`squadboard_worktime.read`) on its own test helpers. Screenshots are the page in that harness (scope `dev`, fake clock, zone UTC).
+New panel `templates/board/timeline.js` (id `worktime`, "Work time", swimlanes). Rules are plain functions on `BOARD.TIMELINE`. Tests: `tests/test_squadboard_timeline.py` (25 tests, id in each name), headless Chrome, data from the real `/api/worktime` reader of ticket 15 (`squadboard_worktime.read`) on its own test helpers. Screenshots are the page in that harness (scope `dev`, fake clock, zone UTC).
 
 | AC | What I saw |
 |---|---|
@@ -31,10 +31,20 @@ New panel `templates/board/timeline.js` (id `worktime`, "Work time", swimlanes).
 
 ![Empty state](img/swim-empty.png)
 
+![Unknown: a zoom answered with no data](img/swim-unknown.png)
+
 States: loading (skeleton), empty ("No work time yet."), unknown / board version (the board's own note; the panel's note for its own requests), lane with no activity in range ("no activity in this range"), odd piece (no `end`, bucket outside the four) drawn dashed as "unknown" and logged to the console once per kind.
 
 Technical points: one timer (the board's 5 s poll reads the panel's route, which follows the current range); a zoom is its own GET with a request id, an older answer arriving last is dropped (test). The panel redraws only when the data changes. Writes: only `PUT /api/ui` (key `timeline`: idle break, preset or range), with the board's token; the test records every call of a scripted session. Layout of 20 agents x 2000 pieces: under 200 ms; sub-pixel pieces merge for drawing, the sum of seconds is kept (test).
 
-Files outside the ticket list (needed): `templates/board/index.html` (one `<script>` line), `templates/board/board.js` (two hook calls, `snapshot` and `applySaved`, so the panel's keys are saved), `tests/test_squadboard_page.py` (the file-list test names `timeline.js`). Commit marks carry no agent in ticket 15's data, so they sit in their own lane "Commits and other marks". Not built: artifact marks and "blocked on you, open now" (not in the ticket or the data).
+## Differences from the design (approved by the Manager, FINAL 16)
+1. Commit marks carry no agent in ticket 15's data, so they sit in their own lane "Commits and other marks" (the design draws them in the author's lane). Visible in the first screen above (circles).
+2. No "blocked on you, open now" state: `open` is always false in ticket 15's data.
+3. No artifact marks (cut in architecture 2a).
+4. Hand-in, BLOCKED and merge marks have glyphs of their own (the design draws only commit, PASS, FAIL); each has a legend entry.
+5. Lane groups follow the design (Manager, Developers, QA ...), mapped from the roster role.
+6. Branch column reads "none" until M10 fills `branch`.
+
+Touched files beyond the ticket list (approved): `templates/board/index.html` (one script line), `templates/board/board.js` (exactly two hook calls: `snapshot`, `applySaved`), `tests/test_squadboard_page.py` (file-list test names `timeline.js`).
 
 Live run (real server, this scope): `/api/worktime` gave 24 agents, 4511 pieces, 70 marks, unattributed `7 h 22 min`. The page drew 18 developer lanes plus the other roles, a "night · 5 h 30 min" break, commits in their own lane, no console error. Server stopped after the run.

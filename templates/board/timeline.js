@@ -595,6 +595,8 @@
     ".tl-tbl{width:100%;border-collapse:collapse}.tl-tbl th{text-align:left;font-size:.875em;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:2px 8px 3px 0;border-bottom:1px solid var(--border);white-space:nowrap}",
     ".tl-tbl td{padding:4px 8px 4px 0;border-bottom:1px solid var(--border);vertical-align:top}.tl-tbl tr.r{cursor:pointer}.tl-tbl tr.r:hover td{background:var(--t-need3)}.tl-tbl tr.on td{background:var(--t-need2)}",
     ".tl .note{margin:6px 0;color:var(--muted)}",
+    ".tl .box{border:1px dashed var(--border);border-radius:8px;padding:8px 12px;text-align:center}.tl .box.warn{text-align:left;color:var(--ink)}",
+    ".tl .cannot{margin:8px 0 0;color:var(--muted)}",
     ".tl-wait{color:var(--muted);margin-left:auto}",
     ".sk{height:.92em;border-radius:4px;background:linear-gradient(90deg,var(--border),var(--bg),var(--border));background-size:200% 100%;animation:sk 1.2s linear infinite;margin:7px 0}@keyframes sk{to{background-position:-200% 0}}"
   ].join("\n");
@@ -607,6 +609,17 @@
     s.textContent = CSS;   /* a static literal: no data in it */
     root.document.head.appendChild(s);
   }
+
+  /* the lane groups of the design: Manager, Developers, QA ... (roles in the roster are dev, qa-whitebox, qa-blackbox ...) */
+  var TYPES = ["Manager", "BA", "Designer", "Architect", "Tech lead", "Team lead", "Developers", "QA"];
+  function typeOf(role) {
+    var r = String(role || "").toLowerCase();
+    if (r.indexOf("qa") === 0) return "QA";
+    if (r.indexOf("dev") === 0) return "Developers";
+    var m = { manager: "Manager", ba: "BA", designer: "Designer", architect: "Architect", "tech-lead": "Tech lead", "team-lead": "Team lead" }[r];
+    return m || (r ? r.charAt(0).toUpperCase() + r.slice(1) : "Agent");
+  }
+  T.typeOf = typeOf;
 
   var cur = null;   /* what the last draw used: {range, scale, lanes} */
   function scaleNow(r) {
@@ -685,7 +698,7 @@
   function blockTitle(a, r, tz) {
     var s = a.agent + (a.scope ? " · " + a.scope : "") + " · " + hhmm(r.start, tz) + "–" + hhmm(r.end, tz) + " (" + durLabel(r.seconds) + ") · " +
       (r.bucket === "blocked" ? (r.on === "PO" ? "blocked on you" : "blocked" + (r.on ? " on " + r.on : "")) : r.bucket) +
-      " · " + (r.task != null ? "task " + r.task + " (approx)" : "no task");
+      " · " + (r.task != null ? "task " + r.task + (r.approx ? " (approx)" : "") : "no task");
     return r.n > 1 ? s + " · " + r.n + " short pieces" : s;
   }
 
@@ -713,10 +726,11 @@
       b.style.left = pct(r.fx); b.style.width = pct(r.fw);
       b.title = blockTitle(a, r, tz);
       b.dataset.state = r.bucket; b.dataset.agent = a.agent; b.dataset.start = String(r.start); b.dataset.end = String(r.end);
-      if (r.task != null) { b.dataset.task = r.task; b.dataset.approx = "true"; }
+      if (r.task != null) b.dataset.task = r.task;
+      if (r.approx) b.dataset.approx = "true";
       if (r.task != null && r.w >= 64) {
         var lb = el("span", "lb"), u = el("u", null, r.task);
-        lb.appendChild(u); lb.appendChild(el("span", "ax", "\u00a0approx")); b.appendChild(lb);
+        lb.appendChild(u); if (r.approx) lb.appendChild(el("span", "ax", "\u00a0approx")); b.appendChild(lb);
       }
       b.addEventListener("click", function (e) {
         if (V.moved) { V.moved = false; return; }
@@ -763,11 +777,19 @@
     return d;
   }
 
+  function branchOf(task) {   /* ticket 15 leaves branch empty until M10: "none" */
+    var b = "";
+    V.agents.forEach(function (a) { a.pieces.forEach(function (p) { if (!b && p.task === task && p.branch) b = p.branch; }); });
+    if (!b) { var n = el("span", "muted", "none"); return n; }
+    var c = el("code", null, "\u2026/" + b.split("/").pop());
+    return c;
+  }
+
   function statsTable(sc) {
     var wrap = el("div"), st = taskStats(V.agents, sc);
     wrap.appendChild(el("h3", "tl-h", "Which time worked which task (this range)"));
     var tb = el("table", "tl-tbl"), hd = el("tr");
-    ["Task", "Working", "Waiting or blocked", "Agents"].forEach(function (x) { hd.appendChild(el("th", null, x)); });
+    ["Task", "Working", "Waiting or blocked", "Agents", "Branch"].forEach(function (x) { hd.appendChild(el("th", null, x)); });
     var th = el("thead"); th.appendChild(hd); tb.appendChild(th);
     var body = el("tbody");
     function tr(key, cells) {
@@ -778,14 +800,14 @@
     }
     function approx(t) { var c = el("span", "nw", t); c.appendChild(el("span", "ap", "approx")); return c; }
     Object.keys(st.by).filter(function (k) { return k !== ""; }).sort().forEach(function (k) {
-      var o = st.by[k]; tr(k, [k, approx(hm(o.work)), approx(hm(o.other)), Object.keys(o.agents).join(", ")]);
+      var o = st.by[k]; tr(k, [k, approx(hm(o.work)), approx(hm(o.other)), Object.keys(o.agents).join(", "), branchOf(k)]);
     });
     var u = st.by[""] || { work: 0, other: 0 };
     var un = el("span"), n = V.data ? V.data.unattributed : { hours: 0, minutes: 0 };
     un.appendChild(el("b", null, n.hours + " h " + n.minutes + " min"));
     un.appendChild(root.document.createTextNode(" of " + hm(V.data ? V.data.counted_working : st.working) + " working time has no task"));
     un.appendChild(el("span", "ap", "approx"));
-    tr("—", ["unattributed (overhead, no task)", approx(hm(u.work)), approx(hm(u.other)), un]);
+    tr("—", ["unattributed (overhead, no task)", approx(hm(u.work)), approx(hm(u.other)), un, ""]);
     tb.appendChild(body); wrap.appendChild(tb);
     return wrap;
   }
@@ -799,9 +821,25 @@
     body.appendChild(tl);
     if (V.state === "loading") { tl.appendChild(skeleton()); return; }
     if (V.state === "version") { tl.appendChild(el("p", "note", "unknown: board version")); return; }
-    if (V.state === "unknown") { tl.appendChild(el("p", "note", "unknown: " + ((V.unknown || []).join(", ") || "worktime"))); return; }
+    if (V.state === "unknown") {
+      var un = el("p", "note box warn"); un.appendChild(el("b", null, "unknown: " + ((V.unknown || []).join(", ") || "transcripts and git are not readable") + ". "));
+      un.appendChild(root.document.createTextNode("Lanes show \"no data\". Nothing is invented and nothing reads 0."));
+      tl.appendChild(un);
+      var ur = effective(), us = makeScale(ur, []), utz = zone();
+      tl.appendChild(toolbar(ur, us, utz)); tl.appendChild(legend());
+      var uc = el("div", "tl-chart"); uc.style.setProperty("--lw", "11em");
+      var uax = el("div", "tl-axis"), upl = el("div", "pl"), udays = el("div", "days"), uticks = el("div", "ticks"), uam = axisModel(us, utz, V.W);
+      uax.appendChild(el("div"));
+      uam.days.forEach(function (d) { var x = el("span", "dy", d.label); x.style.left = pct(d.x); x.style.width = pct(d.w); udays.appendChild(x); });
+      uam.ticks.forEach(function (t) { var x = el("span", null, t.label); x.style.left = pct(t.x); uticks.appendChild(x); });
+      upl.appendChild(udays); upl.appendChild(uticks); uax.appendChild(upl); uc.appendChild(uax);
+      var ur2 = el("div", "tl-row"); ur2.style.height = "3em"; ur2.appendChild(el("div", "lab"));
+      ur2.appendChild(el("div", "tl-trk nodata", "unknown: transcripts not readable. No time is invented."));
+      uc.appendChild(ur2); tl.appendChild(uc);
+      return;
+    }
     if (!V.agents.length) {
-      var em = el("p", "note"); em.appendChild(el("b", null, "No work time yet. ")); em.appendChild(root.document.createTextNode("No agent in this selection has a transcript."));
+      var em = el("p", "note box"); em.appendChild(el("b", null, "No work time yet. ")); em.appendChild(root.document.createTextNode("No agent in this selection has a transcript."));
       tl.appendChild(em); return;
     }
     var tz = zone(), r = effective(), all = [];
@@ -832,10 +870,14 @@
       chart.appendChild(laneRow({ agent: "commits", scope: "", note: "", pieces: [] }, sc, [], loose, tz, V.W, false));
     }
     var roles = [];
-    V.agents.forEach(function (a) { if (roles.indexOf(a.role) < 0) roles.push(a.role); });
+    V.agents.forEach(function (a) { var t = typeOf(a.role); if (roles.indexOf(t) < 0) roles.push(t); });
+    roles.sort(function (x, y) {
+      var i = TYPES.indexOf(x), j = TYPES.indexOf(y);
+      return (i < 0 ? 99 : i) - (j < 0 ? 99 : j);
+    });
     var hidden = 0;
     roles.forEach(function (role) {
-      var g = V.agents.filter(function (a) { return a.role === role; });
+      var g = V.agents.filter(function (a) { return typeOf(a.role) === role; });
       if (V.hl) g = g.filter(function (a) { var keep = !a.note && taskFilter(a.pieces, V.hl === "—" ? [null] : [V.hl]).length > 0; if (!keep && !a.note) hidden++; return keep || a.note; });
       if (!g.length) return;
       chart.appendChild(lab(role, g.length));
@@ -867,10 +909,18 @@
       var hn = el("p", "note", hidden + " lane" + (hidden === 1 ? "" : "s") + " hidden: no time on this task. ");
       var sb = el("button", "cp", "Show all lanes"); sb.type = "button"; sb.addEventListener("click", function () { T.setTask(null); }); hn.appendChild(sb); tl.appendChild(hn);
     }
+    var anyIn = V.agents.some(function (a) { return a.pieces.some(function (p) { return p.end > r.from && p.start < r.to; }); });
+    if (!anyIn) {
+      var ne = el("p", "note box"); ne.appendChild(el("b", null, "No agent did anything in this range. "));
+      ne.appendChild(root.document.createTextNode("Zoom out, or pick \"All\".")); tl.appendChild(ne);
+    }
     var hint = el("p", "tl-hint muted", "Drag on the time axis to zoom into a range · Ctrl+wheel or pinch zooms · the plain wheel scrolls the page · drag the chart to move · + − and arrow keys when the chart has focus · click a block for detail.");
     tl.appendChild(hint);
     tl.appendChild(detail(tz));
     tl.appendChild(statsTable(sc));
+    var cb = el("p", "cannot"); cb.appendChild(el("b", null, "Cannot be known: "));
+    cb.appendChild(root.document.createTextNode("your own working time; work before an agent\u2019s first task message (it reads \"overhead\"); two tasks at once in one session; why an agent was idle."));
+    tl.appendChild(cb);
     cur = { range: r, scale: sc, chart: chart, ov: ov, axis: axis, hit: hit, selr: selr, tl: tl };
     bind(cur);
     fit(cur);
