@@ -342,9 +342,31 @@ tr:Object.fromEntries(Object.entries(pg.snapshot().panels).map(e=>[e[0],e[1].tra
             self.assertEqual(len(w), 5, name)   # Scopes is drawn in a goal view only
             self.assertAlmostEqual(w["files"], (r["w"] - 12 * 3) / 4 * 2 + 12, delta=3, msg=name)   # 6/12 of 4 tracks = 2 tracks
             if "bad" in name:
-                for pid in ("inbox", "tasks", "agents"):
-                    self.assertIsNone(r["tr"][pid], (name, pid))       # 0, "wide", 99 (and -2 on Scopes), "wide", 99 are dropped
-                    self.assertLessEqual(w[pid], r["w"], (name, pid))
+                for pid in ("inbox", "tasks"):
+                    self.assertIsNone(r["tr"][pid], (name, pid))       # 0, -2, "wide" stay the default
+                    self.assertLess(w[pid], r["w"] - 100, (name, pid))
+                self.assertEqual(r["tr"]["agents"], 12)                # T36.AC9: 99 is the full width N, not the default
+                self.assertAlmostEqual(w["agents"], r["w"], delta=3)
+
+    def test_T36_AC9_saved_tracks_13_is_full_width(self):
+        saved = fixture("board-ui-bad-tracks.json")
+        saved["panels"]["agents"]["tracks"] = 13
+        r = page("""const pg=await start35(cur.saved);out({b:boxes(),w:$('#canvas').getBoundingClientRect().width,t:pg.snapshot().panels.agents.tracks});""", saved=saved)
+        self.assertEqual(r["t"], 12)
+        self.assertAlmostEqual({x["id"]: x["w"] for x in r["b"]}["agents"], r["w"], delta=3)
+
+    def test_T36_AC13_header_buttons_fit_at_1000(self):
+        saved = fixture("board-ui-files6.json")
+        saved["panels"]["agents"] = {"order": 3, "tracks": 3, "hidden": False}
+        r = page("""await start35(cur.saved);const o=[];
+for(const s of $$('#canvas>section.panel')){if(s.hidden)continue;const sr=s.getBoundingClientRect();
+  for(const b of s.querySelectorAll(".ph button")){const q=b.getBoundingClientRect();if(q.width)o.push({id:s.dataset.panel,t:b.textContent.trim(),over:Math.round(q.right-sr.right)})}}
+out({o,cr:Math.round($('#canvas').getBoundingClientRect().right),pr:boxes().map(b=>b.l+b.w),c0:Math.round($('#canvas').getBoundingClientRect().left),ag:Math.round($('section[data-panel=agents]').getBoundingClientRect().width)});""", size="1000,800", saved=saved)
+        self.assertTrue(r["o"])
+        for x in r["o"]:
+            self.assertLessEqual(x["over"], 0, x)
+        self.assertLessEqual(max(r["pr"]) + r["c0"], r["cr"] + 1)       # no panel sticks out sideways
+        self.assertAlmostEqual(r["ag"], 235, delta=3)                   # Agents really is at span 1
 
 
 PRE36 = r"""

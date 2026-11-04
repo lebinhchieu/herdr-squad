@@ -42,7 +42,7 @@ main{padding:var(--gutter) var(--gutter) 24px}
 .panel.popopen{z-index:40}.panel.drag{position:fixed;z-index:30;pointer-events:none;box-shadow:0 8px 24px var(--shadow);opacity:.95}
 .panel.rsz{z-index:30}
 .ghost{align-self:stretch;margin-bottom:var(--gutter);box-sizing:border-box;border:2px dashed var(--muted);background:var(--t-idle);border-radius:var(--r);pointer-events:none}
-.ph{display:flex;gap:6px;align-items:center;padding:5px 6px 3px 8px;cursor:grab;touch-action:none;user-select:none;border-radius:var(--r) var(--r) 0 0;flex:none}
+.ph{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:5px 6px 3px 8px;cursor:grab;touch-action:none;user-select:none;border-radius:var(--r) var(--r) 0 0;flex:none}
 .ph:active{cursor:grabbing}
 .ph .grip{color:var(--muted2);letter-spacing:-2px;font-size:.92em}
 .ph h2{font-size:1em;text-transform:uppercase;letter-spacing:.05em}

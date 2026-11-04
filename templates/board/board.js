@@ -430,7 +430,8 @@
         if (!r || typeof r !== "object") return;
         p.hidden = !!r.hidden;
         p.max_height = Number.isInteger(r.max_height) ? r.max_height : null;
-        p.tracks = Number.isInteger(r.tracks) && r.tracks >= 1 && r.tracks <= 12 ? r.tracks : null;
+        /* an integer above 12 is the full width (T36.AC9); anything else bad = the default */
+        p.tracks = Number.isInteger(r.tracks) && r.tracks >= 1 ? Math.min(r.tracks, 12) : null;
       });
     }
 
