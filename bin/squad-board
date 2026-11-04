@@ -2,8 +2,9 @@
 """Local, read-only dashboard of a squad (one goal or scope at a time). Stdlib only; listens on 127.0.0.1.
 
   squad-board [--squad NAME|PATH]... [--goal G | --scope S] [--port N] [--no-open]
+  squad-board --demo [--port N] [--no-open]        # sample data on a temporary copy of the test fixture
 
-Exit 0 ok, 1 port busy, 2 refused (unknown or ambiguous name, --goal with --scope).
+Exit 0 ok, 1 port busy, 2 refused (unknown or ambiguous name, --goal with --scope, --demo with --squad/--goal/--scope).
 """
 import os
 import sys
@@ -15,8 +16,8 @@ import squadio  # noqa: E402
 
 def main(argv=None):
     squadio.utf8_stdio()
-    import squadboard
-    return squadboard.main(argv)
+    import squadboard_demo
+    return squadboard_demo.main(argv)
 
 
 if __name__ == "__main__":
