@@ -44,6 +44,19 @@ class FindTickets(unittest.TestCase):
         (self.root / ".scratch" / "feat" / "issues" / "02-second.md").unlink()
         self.assertEqual(sti.find_tickets(self.c, ["01"]), ({}, None))
 
+    def test_T07_TA5_tickets_line_wins_over_guess(self):
+        other = self.root / ".scratch" / "other" / "issues"
+        other.mkdir(parents=True)
+        (other / "01-x.md").write_text("# 01: Other\n", encoding="utf-8")
+        (Path(self.c.scope_home) / "scope.md").write_bytes(b"Tickets: other\r\n")
+        out, d = sti.find_tickets(self.c, ["01", "02-second"])  # tokens favour `feat`, the line still wins
+        self.assertEqual((out, d), ({"01": "Other"}, ".scratch/other"))
+
+    def test_T07_TA5_line_with_missing_folder_falls_back(self):
+        (Path(self.c.scope_home) / "scope.md").write_text("tickets: nope\n", encoding="utf-8")
+        self.assertEqual(sti.find_tickets(self.c, [])[1], ".scratch/feat")
+        self.assertEqual(sti.declared_folder(self.c.scope_home), "nope")
+
     def test_report_tasks_uses_the_same_function(self):
         self.assertIs(st._find_tickets, sti.find_tickets)
 
