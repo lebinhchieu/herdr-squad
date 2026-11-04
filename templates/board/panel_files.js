@@ -22,6 +22,16 @@
   }
   BOARD.rowsForFiles = rowsForFiles;
 
+  /* fileTime(iso, nowMs, tz): "08:00" for a file changed today in the zone, "Oct 20 08:00" for an older day. Uses BOARD.fmtDate/fmtTime. */
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function fileTime(iso, nowMs, tz) {
+    var hm = BOARD.fmtTime(iso, tz), day = BOARD.fmtDate(iso, tz);
+    if (day === "unknown" || day === BOARD.fmtDate(new Date(nowMs).toISOString(), tz)) return hm;
+    var m = /^\d{4}-(\d\d)-(\d\d)$/.exec(day);
+    return m ? MONTHS[+m[1] - 1] + " " + (+m[2]) + " " + hm : day + " " + hm;
+  }
+  BOARD.fileTime = fileTime;
+
   /* mdBlocks(text) -> [{t: "h", l, s} | {t: "li", s} | {t: "p", s} | {t: "code", s} | {t: "table", rows: [[cell]], head}] */
   function mdBlocks(text) {
     var lines = String(text == null ? "" : text).replace(/\r\n?/g, "\n").split("\n"), out = [], i = 0, para = [];
@@ -168,7 +178,7 @@
       tr.appendChild(el("td", null, r.what));
       if (showScope) tr.appendChild(el("td", null, r.scope));
       var t = el("td", "nw");
-      if (r.iso) { var tm = el("time", null, c.fmtTime(r.iso)); tm.dateTime = r.iso; tm.title = r.iso.slice(0, 10) + " " + r.iso.slice(11, 16) + " UTC in the files"; t.appendChild(tm); }
+      if (r.iso) { var tm = el("time", null, fileTime(r.iso, c.now, c.tz)); tm.dateTime = r.iso; tm.title = r.iso.slice(0, 10) + " " + r.iso.slice(11, 16) + " UTC in the files"; t.appendChild(tm); }
       else t.textContent = "—";
       tr.appendChild(t); tb.appendChild(tr);
     });

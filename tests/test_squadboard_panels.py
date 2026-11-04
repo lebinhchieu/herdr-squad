@@ -677,6 +677,12 @@ out({rows,fmt:rows.filter(x=>x.time).map(x=>BOARD.fmtTime(x.time.iso,'Asia/Ho_Ch
         self.assertEqual(md["a"]["md"], "scopes/checkout/tasks/features.md")
         self.assertEqual([x["time"]["txt"] for x in r["rows"] if x["time"]], r["fmt"])   # shown with the shared BOARD zone function
 
+    def test_T14_AC1_old_file_shows_month_and_day_today_shows_time_only(self):
+        r = self.page("""await start14();const n=Date.parse('2026-11-04T10:00:00Z');
+out({today:BOARD.fileTime('2026-11-04T01:00:00Z',n,'UTC'),old:BOARD.fileTime('2026-10-20T08:00:00Z',n,'UTC'),
+ edge:BOARD.fileTime('2026-11-03T20:00:00Z',n,'Asia/Ho_Chi_Minh')});""", "#/scope/checkout")
+        self.assertEqual((r["today"], r["old"], r["edge"]), ("01:00", "Oct 20 08:00", "03:00"))
+
     def test_T14_AC4_AC5_live_scope_says_no_report_yet_closed_scope_lists_report_and_data(self):
         live = self.page("await start14();out({t:$('section[data-panel=files]').textContent});", "#/scope/checkout")
         self.assertIn("no report yet (made at close)", live["t"])
