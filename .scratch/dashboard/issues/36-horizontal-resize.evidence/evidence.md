@@ -1,5 +1,5 @@
 ## Behaviour
-Every panel has an east-edge handle `.rz.e` (a focusable separator). A drag shows a dashed outline, a pill `k of G columns` and guides; nothing moves until release. On release one save writes `tracks` (twelfths, 1..12) and `place` runs once. Esc cancels, double-click removes `tracks`, Left/Right change the span by one. `PUT /api/ui` keeps `tracks` 1..12 and drops `col`, `span`, `auto`. Code sha: 8e2c743 (flush-right widen added on top of 31ec56a). Tests: test_squadboard_grid, test_squadboard_ui, test_squadboard_page 61 OK.
+Every panel has an east-edge handle `.rz.e` (a focusable separator). A drag shows a dashed outline, a pill `k of G columns` and guides; nothing moves until release. On release one save writes `tracks` (twelfths, 1..12) and `place` runs once. Esc cancels, double-click removes `tracks`, Left/Right change the span by one. `PUT /api/ui` keeps `tracks` 1..12 and drops `col`, `span`, `auto`. Code sha: 8aa7f9e (flush-right widen added on top of 31ec56a). Tests: test_squadboard_grid, test_squadboard_ui, test_squadboard_page 61 OK.
 
 What I saw (headless Chrome, real server, fixture, Agents panel handle; shots at 1000/1440/1920):
 - Hover: a thin vertical line on the panel's east edge (at 1920 the Agents handle is at the window edge, so the line is faint).
