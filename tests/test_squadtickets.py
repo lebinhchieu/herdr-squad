@@ -63,3 +63,84 @@ class FindTickets(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ScopeTasksRule(unittest.TestCase):
+    """T28: one rule (scope_tasks) over the layouts; no guess from other scopes."""
+
+    def setUp(self):
+        self.td = tempfile.TemporaryDirectory()
+        self.root = Path(self.td.name).resolve()
+        (self.root / ".scratch").mkdir()
+        self.home = self.root / ".claude" / "squads" / "s" / "scopes" / "foo"
+        (self.home / "tasks").mkdir(parents=True)
+
+    def tearDown(self):
+        self.td.cleanup()
+
+    def put(self, path, text):
+        p = self.root / path if not str(path).startswith("/") else Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding="utf-8")
+
+    def run_(self):
+        return sti.scope_tasks(self.home, self.root, "foo")
+
+    def test_T28_TA1_source_order_and_fall_through(self):
+        tk = self.home / "tasks"
+        self.put(tk / "01.md", "# 01 Repro: what it meets\nStatus: done (Manager-confirmed; QA)\n")
+        self.put(tk / "TEMPLATE.md", "# t\n")
+        self.put(tk / "03-evidence" / "evidence.md", "x\n")
+        r = self.run_()  # E/B: scope's own files; heading without separator
+        self.assertEqual((r["source"], [t["id"] for t in r["tasks"]]), ("scope", ["01"]))
+        self.assertEqual((r["tasks"][0]["title"], r["tasks"][0]["status"]), ("Repro: what it meets", "done"))
+        self.assertEqual(r["tasks"][0]["where"], ".claude/squads/s/scopes/foo/tasks/01.md")
+        self.assertIn("abs", r["tasks"][0])
+        self.put(".scratch/foo/issues/05-x.md", "# 05 x\n")  # C: .scratch/<scope> beats the scope's files
+        self.assertEqual(self.run_()["source"], "scratch")
+        self.put(".scratch/slug/issues/NOTES.md", "n\n")  # F: tickets: line, folder without ticket files, falls through
+        self.put(self.home / "scope.md", "tickets: slug\n")
+        self.assertEqual(self.run_()["source"], "scratch")
+        self.put(".scratch/slug/issues/02-y.md", "# 02 y\n")  # A: declared wins
+        r = self.run_()
+        self.assertEqual((r["source"], [t["id"] for t in r["tasks"]]), ("declared", ["02"]))
+
+    def test_T28_AC14_drafts_and_plan_and_looked(self):
+        self.put(self.home / "tasks" / "issues" / "01-a.md", "# 01 a\nStatus: handed in abc, x\n")
+        r = self.run_()
+        self.assertEqual((r["source"], r["tasks"][0]["status"]), ("scope", "handed in"))
+        for f in (self.home / "tasks" / "issues").iterdir():
+            f.unlink()
+        self.put(self.home / "plan.md", "| id | title |\n|---|---|\n| 07 | Seven |\n")
+        r = self.run_()
+        self.assertEqual((r["source"], r["tasks"][0]["where"]), ("plan", "plan table, plan.md"))
+        (self.home / "plan.md").unlink()
+        r = self.run_()
+        self.assertEqual((r["source"], r["tasks"], bool(r["looked"])), (None, [], True))
+
+    def test_T28_TA2_no_guess_from_other_scope(self):
+        self.put(".scratch/other/issues/01-x.md", "# 01 x\n")
+        c = SimpleNamespace(scope_home=str(self.home), name="foo")
+        self.assertEqual(sti.find_tickets(c, ["01"]), ({}, None))
+
+    def test_T28_TA5_status_word(self):
+        for text, want in (("Status: done (x; y)", "done"), ("Status: Done", "done"), ("Status: handed in e8a, x", "handed in"),
+                           ("Status: in progress", "in progress"), ("Status: ready-for-agent", "ready-for-agent"),
+                           ("# t", ""), ("\n" * 12 + "Status: done", "")):
+            self.assertEqual(sti.status_of(text), want, text)
+
+    def test_T28_AC13_TA1_I_coach_and_summary_files_are_not_tasks(self):
+        tk = self.home / "tasks"
+        for n in ("03-x.md", "03-x.coach.md", "05-y.summary.md", "07.md"):
+            self.put(tk / n, "# %s\n" % n)
+        r = self.run_()
+        self.assertEqual([(t["id"], t["where"].rsplit("/", 1)[1]) for t in r["tasks"]], [("03", "03-x.md"), ("07", "07.md")])
+
+    def test_T28_TA13_TA1_H_plan_is_capped_and_iteration_plan_is_read_newest_first(self):
+        self.put(self.home / "iterations" / "1.md", "| 1 | Old |\n")
+        self.put(self.home / "iterations" / "2.md", "| id | t |\n|---|---|\n| 9 | Nine |\n" + "x" * (sti.TEXT_MAX * 2))
+        r = self.run_()
+        self.assertEqual((r["source"], r["tasks"][0]["id"], r["tasks"][0]["where"]), ("plan", "09", "plan table, 2.md"))
+        self.put(self.home / "plan.md", ("| id | t |\n" + "junk\n" * (sti.TEXT_MAX // 5 + 10)) + "| 5 | Past the cap |\n")
+        self.assertEqual(self.run_()["tasks"][0]["id"], "09")   # plan.md has no row inside the cap: next candidate
+

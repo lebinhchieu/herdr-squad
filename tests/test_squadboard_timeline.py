@@ -405,6 +405,71 @@ out(o);""", {"wt": rich(), "dst": dst(), "now": NOW})
 
 @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
 class Safety(unittest.TestCase):
+    def test_T27_filter_block_look_active_chip_sticky_opaque_no_percent(self):
+        r = run_page("""
+await startPage();
+const tok=n=>{const e=document.createElement('i');e.style.background='var(--'+n+')';e.style.borderColor='var(--'+n+')';e.style.color='var(--'+n+')';document.body.appendChild(e);const c=getComputedStyle(e);const o={bg:c.backgroundColor,bc:c.borderTopColor,c:c.color};e.remove();return o};
+const bar=$('.tl-bar'),cs=getComputedStyle(bar),px=v=>parseFloat(v);
+const on=$$('.tl-bar .tc.on')[0],off=$$('.tl-bar .tc').find(b=>!b.classList.contains('on')),ons=getComputedStyle(on),offs=getComputedStyle(off);
+const rows=Array.from(bar.querySelectorAll('.tl-r')).map(r=>r.getBoundingClientRect().height);
+const fs=px(offs.fontSize);
+out({bar:{bg:cs.backgroundColor,bw:cs.borderTopWidth,bc:cs.borderTopColor,rad:px(cs.borderTopLeftRadius),pad:[cs.paddingTop,cs.paddingRight,cs.paddingBottom,cs.paddingLeft].map(px),pos:cs.position,top:cs.top},
+ on:{bg:ons.backgroundColor,bc:ons.borderTopColor,c:ons.color,w:ons.fontWeight},off:{bg:offs.backgroundColor,bc:offs.borderTopColor,w:offs.fontWeight,h:px(offs.height)/fs,padx:px(offs.paddingLeft)/fs},
+ tok:{panel2:tok('panel2'),border:tok('border'),bg:tok('bg'),need:tok('t-need'),mango:tok('mango'),ink:tok('ink')},
+ pct:/%/.test(bar.textContent),rows:rows.length,real:!!bar.querySelector('.tl-rng button[data-real]'),
+ tips:Array.from(bar.querySelectorAll('.seg button')).map(b=>b.title)});""", {"wt": rich(), "dst": {}, "now": NOW})
+        t = r["tok"]
+        self.assertEqual((r["bar"]["bg"], r["bar"]["bc"], r["bar"]["bw"]), (t["panel2"]["bg"], t["border"]["bc"], "1px"))
+        self.assertNotEqual(r["bar"]["bg"], "rgb(255, 255, 255)")
+        self.assertEqual(r["bar"]["rad"], 8)
+        self.assertTrue(all(x >= 8 for x in r["bar"]["pad"]), r["bar"]["pad"])
+        self.assertEqual((r["bar"]["pos"], r["bar"]["top"]), ("sticky", "-2px"))   # pulled up by the panel body top padding (F1)
+        self.assertEqual((r["on"]["bg"], r["on"]["bc"], r["on"]["c"], r["on"]["w"]), (t["need"]["bg"], t["mango"]["bc"], t["ink"]["c"], "700"))
+        self.assertEqual((r["off"]["bg"], r["off"]["bc"]), (t["bg"]["bg"], t["border"]["bc"]))
+        self.assertLess(int(r["off"]["w"]), 600)
+        self.assertGreaterEqual(r["off"]["h"], 2.19)
+        self.assertGreaterEqual(r["off"]["padx"], 0.84)
+        self.assertFalse(r["pct"])
+        self.assertTrue(r["real"])
+        self.assertEqual(r["tips"], ["Zoom out", "Zoom in", "Earlier", "Later"])
+
+    def test_T27_TA2_TA3_TA4_three_sizes_narrow_wrap_and_sticky_in_a_scrolling_panel(self):
+        r = run_page("""
+await startPage();
+const tl=$('.tl'),px=v=>parseFloat(v),o={sizes:[],narrow:null};
+const H=()=>$('.tl').parentNode;H().style.cssText+=';height:300px;overflow:auto;position:relative;padding:2px 10px 8px';
+const B=()=>$('.tl-bar');const ctl=()=>Array.from(B().querySelectorAll('button,select'));
+const hit=(a,b)=>a.left<b.right-.5&&b.left<a.right-.5&&a.top<b.bottom-.5&&b.top<a.bottom-.5;
+const probe=()=>{const bar=B(),bc=bar.getBoundingClientRect(),rs=ctl().map(c=>c.getBoundingClientRect());let ov=0;
+  for(let i=0;i<rs.length;i++)for(let j=i+1;j<rs.length;j++)if(hit(rs[i],rs[j]))ov++;
+  return {w:Math.round(bc.width),ov:ov,cut:rs.filter(r=>r.right>bc.right+.5||r.left<bc.left-.5).length,rows:Array.from(bar.querySelectorAll('.tl-r')).slice(0,2).map(r=>new Set(Array.from(r.querySelectorAll('button')).map(b=>Math.round(b.getBoundingClientRect().top))).size)}};
+for(const f of [0.9,1,1.3]){
+  $('.tl').style.fontSize=(16*f)+'px';H().style.width='700px';await sleep(50);
+  const c=$$('.tl-bar .tc').find(b=>!b.classList.contains('on')),cs=getComputedStyle(c),fs=px(cs.fontSize),bs=getComputedStyle(B());const bar=B();
+  const first=bar.querySelector('.tl-r .tc').getBoundingClientRect(),bc=bar.getBoundingClientRect();
+  o.sizes.push({f:f,pad:[bs.paddingTop,bs.paddingRight,bs.paddingBottom,bs.paddingLeft].map(px),h:px(cs.height)/fs,padx:px(cs.paddingLeft)/fs,inset:first.left-bc.left,bw:bs.borderTopWidth,probe:probe()});
+}
+$('.tl').style.fontSize='16px';H().style.width='330px';await sleep(50);o.narrow=probe();
+H().style.width='700px';await sleep(50);
+const wrap=H();o.tall=wrap.scrollHeight;wrap.scrollTop=200;await sleep(50);
+const bar=B(),wb=wrap.getBoundingClientRect(),bb=bar.getBoundingClientRect();
+o.sticky={gap:bb.top-wb.top,scrolled:wrap.scrollTop,bg:getComputedStyle(bar).backgroundColor};
+out(o);""", {"wt": rich(), "dst": {}, "now": NOW})
+        for z in r["sizes"]:
+            self.assertTrue(all(x >= 8 for x in z["pad"]), z)
+            self.assertGreaterEqual(z["h"], 2.19)
+            if z["f"] <= 1:
+                self.assertEqual(z["probe"]["rows"], [1, 1], z)   # Task and View: one line each at the panel width (Extra large may wrap)
+            self.assertGreaterEqual(z["padx"], 0.84)
+            self.assertGreaterEqual(z["inset"], 8)
+            self.assertEqual((z["probe"]["ov"], z["probe"]["cut"]), (0, 0), z)
+        self.assertGreater(max(r["narrow"]["rows"]), 1)   # the View row needs a second line
+        self.assertEqual((r["narrow"]["ov"], r["narrow"]["cut"]), (0, 0))   # 1000 px window: rows wrap, nothing overlaps or is cut
+        self.assertGreater(r["tall"], 300)
+        self.assertGreaterEqual(r["sticky"]["scrolled"], 150)
+        self.assertLess(abs(r["sticky"]["gap"]), 1.5, r["sticky"])
+        self.assertTrue(r["sticky"]["bg"].startswith("rgb("), r["sticky"])   # alpha 1: no rgba
+
     def test_T16_AC9_TA2_the_page_reads_its_own_zone_across_a_clock_change(self):
         for z in ("Europe/Berlin", "America/New_York"):
             r = run_page("""

@@ -23,9 +23,10 @@ BIN = Path(__file__).resolve().parent
 if str(BIN) not in sys.path:
     sys.path.insert(0, str(BIN))
 import squadboard  # noqa: E402  (the allow-list helper `_under` and nothing else)
+import squadtickets  # noqa: E402  (`declared_folder`: the scope's ticket folder, as the Tasks panel names it)
 
-KINDS = ("ticket", "design", "prototype", "promote", "report", "data", "evidence", "decision", "answer", "other")
-WHAT = {"ticket": "ticket plan", "design": "design", "prototype": "prototype", "promote": "promotion", "report": "scope report",
+KINDS = ("folder", "ticket", "design", "prototype", "promote", "report", "data", "evidence", "decision", "answer", "other")
+WHAT = {"folder": "folder", "ticket": "ticket plan", "design": "design", "prototype": "prototype", "promote": "promotion", "report": "scope report",
         "data": "report data", "evidence": "evidence", "decision": "decisions", "answer": "questions and answers", "other": "document"}
 DEPTH = 3
 MAX_ROWS = 500
@@ -42,9 +43,9 @@ def _scandir(d):
 class _Walk:
     def __init__(self, squad, home, roots):
         self.squad, self.home, self.roots = squad, home, roots
-        self.rows, self.truncated, self.seen = [], False, 0
+        self.rows, self.truncated, self.seen, self.listed = [], False, 0, set()
 
-    def add(self, p, kind):
+    def add(self, p, kind, what=None):
         """List file `p` (a Path) when it is a regular file inside the allow-list."""
         self.seen += 1
         if len(self.rows) >= MAX_ROWS:
@@ -52,12 +53,15 @@ class _Walk:
             return
         try:
             real = p.resolve(strict=True)
-            if not real.is_file() or not squadboard._under(real, self.roots):
+            if not real.is_file():
+                return
+            blocked = not squadboard._under(real, self.roots)
+            if blocked and not p.is_symlink():
                 return
             mtime = int(real.stat().st_mtime)
         except (OSError, RuntimeError, ValueError):
             return
-        path, name = str(real), p.name
+        path, name = (str(p) if blocked else str(real)), p.name
         for base in (self.squad.path, self.squad.repo_root):  # /api/file takes a path relative to the squad folder
             try:
                 rel = p.relative_to(base).as_posix()
@@ -71,7 +75,17 @@ class _Walk:
             name = p.relative_to(self.home).as_posix()
         except ValueError:
             pass
-        self.rows.append({"name": name, "kind": kind, "what": WHAT[kind], "scope": self.home.name, "path": path, "mtime": mtime})
+        if blocked:  # T30.AC7: a symlink out of the allow-list is a plain row with no target, never the target's path
+            what = "cannot be opened: outside the squad folders"
+        if str(real) in self.listed:  # a file reached by two rules is one row; the first rule wins
+            return
+        self.listed.add(str(real))
+        what = what or WHAT[kind]
+        row = {"name": name, "kind": "other" if blocked else kind, "what": what, "scope": self.home.name, "path": path,
+               "abs": None if blocked else str(real), "mtime": mtime}
+        if blocked:
+            row["blocked"] = True
+        self.rows.append(row)
 
     def files(self, d, exts, kind_of, depth=1, flat=False):
         """Files of folder `d` with an extension in `exts`; recurse into real (not symlinked) subfolders up to DEPTH."""
@@ -96,6 +110,18 @@ class _Walk:
                 continue
 
 
+def _folder_row(p, name, what, scope, roots):
+    """A folder row for real directory `p` (ticket 29), or None when it is missing, a link out of the allow-list, or unreadable."""
+    try:
+        real = p.resolve(strict=True)
+        if p.is_symlink() or not real.is_dir() or not squadboard._under(real, roots):  # a linked folder is not "the real folder" (AC6)
+            return None
+        mtime = int(real.stat().st_mtime)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return {"name": name, "kind": "folder", "what": what, "scope": scope, "path": str(real), "abs": str(real), "mtime": mtime}
+
+
 def _closed(home):
     return home.parent.name == "_done"
 
@@ -106,6 +132,15 @@ def list_files(squad, kind, name, home):
     w = _Walk(squad, Path(home), roots)
     home = Path(home)
     if kind == "scope":
+        # ticket rows: the one reader of ticket 28 (this scope's own tickets only), title in What
+        st = squadtickets.scope_tasks(home, squad.repo_root, name)
+        for t in st["tasks"]:
+            if t.get("abs"):
+                w.add(Path(t["abs"]), "ticket", t["title"] or None)
+        if st["source"] in ("declared", "scratch") and st["dir"]:
+            spec = squad.repo_root / st["dir"] / "spec.md"
+            if spec.is_file():
+                w.add(spec, "ticket", "spec")
         w.files(home / "tasks", {".md"}, lambda n: "ticket" if n[:1].isdigit() else "other", flat=True)
         w.files(home / "ui-design", {".md", ".html"}, lambda n: "prototype" if n.endswith(".html") else "design")
         if (home / "promote.md").is_file():
@@ -124,9 +159,12 @@ def list_files(squad, kind, name, home):
         w.files(home / "shared", {".md"}, lambda n: "decision" if n == "decisions.md" else "other", flat=True)
     if (home / "escalations.md").is_file():
         w.add(home / "escalations.md", "answer")
-    rows = sorted(w.rows, key=lambda r: (-r["mtime"], r["name"]))
+    rows = list(w.rows)
+    rows.sort(key=lambda r: (-r["mtime"], r["name"]))
+    folders = [f for f in (_folder_row(squad.repo_root / ".scratch", ".scratch", "Repo tickets folder", home.name, roots),
+                           _folder_row(squad.path, squad.name, "Squad folder", home.name, roots)) if f]
     report = next((r for r in rows if r["kind"] == "report"), None)
-    return {"rows": rows, "report": report, "report_expected": kind == "scope", "closed": kind == "scope" and _closed(home),
+    return {"wsl_distro": os.environ.get("WSL_DISTRO_NAME") or None, "folders": folders, "rows": rows, "report": report, "report_expected": kind == "scope", "closed": kind == "scope" and _closed(home),
             "truncated": w.truncated, "files_seen": w.seen}
 
 

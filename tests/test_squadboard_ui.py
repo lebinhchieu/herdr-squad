@@ -107,6 +107,16 @@ class SaveTest(Base):
 
 
 class HardeningTest(Base):
+    def test_T26_TA6_col_is_kept_checked_and_span_is_optional(self):
+        row = {"order": 1, "col": 2, "hidden": False}
+        code, r = self.put(dict(GOOD, panels={"a": row}))
+        self.assertEqual(code, 200)
+        self.assertEqual(r["data"]["ui"]["panels"]["a"], {"order": 1, "col": 2, "hidden": False})   # col kept, no span added
+        for bad in (12, -1, "1", 1.5, True):
+            self.assertEqual(self.put(dict(GOOD, panels={"a": dict(row, col=bad)}))[0], 400, bad)
+        self.assertEqual(self.put(dict(GOOD, panels={"a": dict(row, span=2)}))[0], 200)   # an old file still saves
+        self.assertEqual(self.put(dict(GOOD, panels={"a": dict(row, row=3)}))[0], 400)    # position keys still refused
+
     def test_T09_position_keys_are_refused(self):
         for extra in ({"x": 1}, {"y": 2}, {"row": 3}, {"size": 5}):
             self.assertEqual(self.put(dict(GOOD, **extra))[0], 400, extra)

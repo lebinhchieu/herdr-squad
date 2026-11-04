@@ -7,13 +7,15 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "bin"))
 import board_fixtures  # noqa: E402
 import squadboard  # noqa: E402
-import squadboard_list  # noqa: E402
+import squadboard_list
+import squadtickets  # noqa: E402
 import squadboard_tasks as bt  # noqa: E402
 
 NOW = board_fixtures.REF.timestamp()
@@ -55,6 +57,14 @@ class Tasks(unittest.TestCase):
         self.assertEqual(self.rows["01"]["owner"], "unassigned")
         self.assertEqual(self.rows["03"]["returns"], 3)
         self.assertEqual(self.rows["03"]["last_fail_line"], "reason 3 first line (newest)")
+
+    def test_T30_TA3_wsl_distro_set_and_unset(self):
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"WSL_DISTRO_NAME": "Debian"}):
+            self.assertEqual(bt.read(sel_for(self.fx))["data"]["wsl_distro"], "Debian")
+        with mock.patch.dict(os.environ):
+            os.environ.pop("WSL_DISTRO_NAME", None)
+            self.assertIsNone(bt.read(sel_for(self.fx))["data"]["wsl_distro"])
 
     def test_T07_AC4_checking_words(self):
         self.assertEqual(self.rows["05"]["stage"], "checking, 1 of 2 PASS, waiting on QA blackbox, 40 min")
@@ -123,15 +133,16 @@ class Tasks(unittest.TestCase):
         self.assertIn("tickets", r["unknown"])
 
     def test_T19_same_folder_rule_as_list(self):
-        """TA3: this reader finds the same ticket files as squadboard_list over every fixture scope."""
+        """T28.TA1: reader and list both call squadtickets.scope_tasks, so they find the same ids over every fixture scope."""
         squad = squadboard.Squad(self.fx.squad, "fix")
         for kind_dir in ("scopes", "scopes/_done"):
             base = Path(squad.path) / kind_dir
             for home in sorted(p for p in base.iterdir() if p.is_dir() and not p.name.startswith("_")) if base.is_dir() else []:
                 text = (home / "scope.md").read_text(encoding="utf-8") if (home / "scope.md").exists() else ""
                 want = squadboard_list._tickets(squad, home, text, None)
-                got, tdir = bt._ticket_folder(squad.repo_root, home, home.name)
-                self.assertEqual(None if want is None else set(want), None if tdir is None else set(got), home.name)
+                r = squadtickets.scope_tasks(home, squad.repo_root, home.name)
+                got = None if r["source"] is None else {t["id"] for t in r["tasks"]}
+                self.assertEqual(None if want is None else set(want), got, home.name)
 
     def test_TA10_broken_sources_never_raise(self):
         fx = board_fixtures.copy_fixture(git=False)
@@ -155,6 +166,73 @@ class Tasks(unittest.TestCase):
             self.assertNotIn("CANARY", out)
         finally:
             board_fixtures.cleanup(fx)
+
+
+class ScopeFilesShape(unittest.TestCase):
+    """T28.TA2/TA3/TA4/TA6/TA10-TA12: the accounts/cswitch-bg shape (real heads), layout C, goal view, picker count."""
+    KEYS = {"id", "title", "stage", "owner", "where", "ticket_status"}
+    REAL = Path(__file__).resolve().parent / "fixtures" / "board" / "t28"
+
+    def setUp(self):
+        self.td = tempfile.TemporaryDirectory()
+        self.root = Path(self.td.name).resolve()
+        (self.root / ".scratch").mkdir()
+        self.home = self.root / ".claude" / "squads" / "accounts" / "scopes" / "cswitch-bg"
+        (self.home / "tasks").mkdir(parents=True)
+
+    def tearDown(self):
+        self.td.cleanup()
+
+    def put(self, path, text):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def rows(self, home=None, name="cswitch-bg"):
+        return bt.read_scope("accounts", name, home or self.home, self.root, None, NOW, git=([], []))[0]
+
+    def test_T28_TA3_TA4_TA6_TA10_real_heads_layout_B(self):
+        for n in ("01", "04"):
+            (self.home / "tasks" / (n + ".md")).write_text((self.REAL / (n + ".md")).read_text(encoding="utf-8"), encoding="utf-8")
+        self.put(self.home / "tasks" / "02.md", "# 02 Second\nStatus: handed in e8a7c5f, Manager-confirmed\n")
+        self.put(self.home / "tasks" / "notes.md", "# n\n")
+        rows = self.rows()
+        self.assertEqual([r["id"] for r in rows], ["01", "02", "04"])
+        self.assertEqual((rows[0]["title"], rows[0]["stage"], rows[0]["ticket_status"]),
+                         ("Repro: what cswitch meets on a pane with background work", "done", "done"))
+        self.assertEqual((rows[1]["stage"], rows[2]["title"], rows[2]["stage"]), ("in progress", "Integration, docs, promotion", "done"))
+        self.assertTrue(self.KEYS <= set(rows[0]) and "abs" in rows[0])
+        self.assertEqual(rows[0]["where"], ".claude/squads/accounts/scopes/cswitch-bg/tasks/01.md")
+        squad = SimpleNamespace(repo_root=self.root)
+        self.assertEqual(squadboard_list._tickets(squad, self.home, "", None), {"01": "done", "02": "handed in", "04": "done"})
+        self.assertEqual(len(squadboard_list._tickets(squad, self.home, "", None)), len(rows))   # TA10: picker y = Tasks rows
+
+    def test_T28_TA4_TA10_layout_C_keys_and_symlink_outside_has_no_abs(self):
+        home = self.root / ".claude" / "squads" / "accounts" / "scopes" / "cs"
+        home.mkdir(parents=True)
+        self.put(self.root / ".scratch" / "cs" / "issues" / "01-a.md", "# 01 A\nStatus: ready-for-agent\n")
+        with tempfile.TemporaryDirectory() as out:
+            outside = Path(out) / "02-b.md"
+            outside.write_text("# 02 B\n", encoding="utf-8")
+            try:
+                (self.root / ".scratch" / "cs" / "issues" / "02-b.md").symlink_to(outside)
+            except OSError:
+                self.skipTest("no symlinks here")
+            rows = self.rows(home, "cs")
+            ylen = len(squadboard_list._tickets(SimpleNamespace(repo_root=self.root), home, "", None))
+        self.assertEqual([r["id"] for r in rows], ["01", "02"])
+        self.assertTrue(self.KEYS <= set(rows[0]) and "abs" in rows[0])
+        self.assertEqual(rows[0]["where"], ".scratch/cs/issues/01-a.md")
+        self.assertNotIn("abs", rows[1])   # target outside the roots: listed, no abs
+        self.assertEqual(ylen, 2)
+
+    def test_T28_TA11_TA12_goal_rows_carry_scope_and_where_and_token_is_not_a_row(self):
+        self.put(self.home / "tasks" / "01.md", "# 01 One\nStatus: done\n")
+        self.put(self.home / "messages.jsonl", json.dumps({"ts": "2026-11-04T09:00:00Z", "from": "a", "to": "b", "type": "ASK", "task": "REV-8", "text": "ASK REV-8: x"}) + "\n")
+        self.put(self.home / "scope.md", "goal: g1\n")
+        squad = SimpleNamespace(name="accounts", path=self.root / ".claude" / "squads" / "accounts", repo_root=self.root)
+        r = bt.read({"squad": squad, "kind": "goal", "name": "g1", "home": self.home, "repo_root": self.root, "now": NOW, "params": {}})
+        rows = r["data"]["rows"]
+        self.assertEqual([(x["id"], x["scope"], x["where"].rsplit("/", 1)[1]) for x in rows], [("01", "cswitch-bg", "01.md")])   # no REV-8 row
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ import squadboard_git
 import squadboard_time
 import squadinbox
 import squadledger
+import squadtickets
 
 NAME_OK = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 HERDR_TIMEOUT_S = 3
@@ -136,20 +137,11 @@ def _ticket_status(path):
 
 
 def _tickets(squad, scope_dir, scope_text, ledger):
-    """-> {NN: status} or None when no ticket folder is found."""
-    root = squad.repo_root
-    tag = _field(scope_text, "tickets")
-    if tag and NAME_OK.match(tag):
-        rel = ".scratch/" + tag if (root / ".scratch" / tag / "issues").is_dir() else None
-    else:  # no `tickets:` line: a feature folder named like the scope, else unknown
-        rel = ".scratch/" + scope_dir.name if (root / ".scratch" / scope_dir.name / "issues").is_dir() else None
-    if rel is None:
+    """-> {NN: status} or None when no source has a task. One rule: squadtickets.scope_tasks."""
+    found = squadtickets.scope_tasks(scope_dir, squad.repo_root, scope_dir.name)
+    if found["source"] is None:
         return None
-    out = {}
-    for f in sorted((root / rel / "issues").glob("*.md")):
-        if re.match(r"^\d+-", f.name):
-            out[f.name.split("-", 1)[0]] = _ticket_status(f)
-    return out
+    return {t["id"]: t["status"] for t in found["tasks"]}
 
 
 def scope_row(squad, home, status, ctx):
