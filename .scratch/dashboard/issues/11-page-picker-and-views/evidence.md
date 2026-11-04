@@ -21,7 +21,7 @@ Code sha `1ec200c`. New `templates/board/panel_scopes.js` (picker, header contex
 - Stage column = row `status` (open/done): the API has no separate stage field.
 
 ## Design match fixes (return of 11: QA blackbox D1-D9), code sha 86315b8
-Run live on the fixture (real squadboard server), 1440 px. Pictures compared: `v4-picker-expanded.png`, `v4-combobox-open.png`, `v5-goal.png`.
+Run live on the fixture (real squadboard server), 1440 px. Pictures compared: the v4 picker, the v4 combobox and the v5 goal view in ui-design/img.
 
 | Item | Fix | Shot |
 |---|---|---|
@@ -31,7 +31,7 @@ Run live on the fixture (real squadboard server), 1440 px. Pictures compared: `v
 | D4 Name cell | Second line "SCOPE · GOAL X", "SCOPE · NO GOAL", "GOAL". | ![expanded](img/d-picker-expanded.png) |
 | D5 Last active | Age on line 1, clock on line 2 ("08:37", "Nov 1 14:22" when older than a day); also in the strip. | ![goal](img/d-goal.png) |
 | D6 Texts | Intro ("The board shows one goal ... or one scope. Squad X: n goals (m open), ..."), Recent and Open and Done count badges, "what you opened last", Done hint. Work column "N scopes (M open) · K open tasks" / "X open of Y tasks". Done summary is `Done` + badge (aria-label "Done (20)"). | ![picker](img/d-picker.png) |
-| D7 Header combobox | One button "SCOPE x ▾" / "GOAL x ▾" / "pick one"; opens a combobox: search, groups Recent / Open (goal with its open scopes) / Done (collapsed), needs-you chips, ages, footer "Open the picker · ↑ ↓ Enter · Esc"; search gives Goals / Scopes groups. ARIA combobox, arrows, Enter, Esc. | ![combo](img/d-combobox-scope.png) ![search](img/d-combobox-search.png) ![goal](img/d-combobox-goal.png) |
+| D7 Header combobox | (picker state: ![combo in picker](img/d-combobox.png)) One button "SCOPE x ▾" / "GOAL x ▾" / "pick one"; opens a combobox: search, groups Recent / Open (goal with its open scopes) / Done (collapsed), needs-you chips, ages, footer "Open the picker · ↑ ↓ Enter · Esc"; search gives Goals / Scopes groups. ARIA combobox, arrows, Enter, Esc. | ![combo](img/d-combobox-scope.png) ![search](img/d-combobox-search.png) ![goal](img/d-combobox-goal.png) |
 | D8 First row cut off | List is its own scroll box under the search input; first row is fully visible (test checks its top against the input bottom). | ![combo](img/d-combobox-scope.png) |
 | D9 Goal header and strip | Header: status chip and "4 scopes (4 open) · panels show them together". Strip: line "Click a row to look at that scope only...", rows clickable, clock line under last active, stage chip. | ![goal](img/d-goal.png) |
 
