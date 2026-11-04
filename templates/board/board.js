@@ -262,7 +262,9 @@
         if (p.max_height != null) r.max_height = p.max_height;
         panels[p.id] = r;
       });
-      return { version: 1, saved_at: S.saved_at, font: S.font, choice: S.choice, recent: S.recent, panels: panels, auto: S.auto };
+      var snap = { version: 1, saved_at: S.saved_at, font: S.font, choice: S.choice, recent: S.recent, panels: panels, auto: S.auto };
+      if (BOARD.hooks.snapshot) BOARD.hooks.snapshot(snap);   /* a view adds its own saved keys (timeline.js) */
+      return snap;
     }
 
     function applySaved(ui) {
@@ -272,6 +274,7 @@
       if (Array.isArray(ui.recent)) S.recent = ui.recent.slice(0, RECENT_MAX);
       if (typeof ui.auto === "boolean") S.auto = ui.auto;
       S.saved_at = ui.saved_at || null;
+      if (BOARD.hooks.applySaved) BOARD.hooks.applySaved(ui);
       var pan = ui.panels || {};
       panelList().forEach(function (p) {
         var r = pan[p.id];

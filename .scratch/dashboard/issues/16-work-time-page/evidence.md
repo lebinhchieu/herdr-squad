@@ -1,0 +1,56 @@
+# Evidence 16 work time page
+
+## Behaviour
+New panel `templates/board/timeline.js` (id `worktime`, "Work time", swimlanes). Rules are plain functions on `BOARD.TIMELINE`. Tests: `tests/test_squadboard_timeline.py` (25 tests, id in each name), headless Chrome, data from the real `/api/worktime` reader of ticket 15 (`squadboard_worktime.read`) on its own test helpers. Screenshots are the page in that harness (scope `dev`, fake clock, zone UTC).
+
+| AC | What I saw |
+|---|---|
+| T16.AC1 | Developer on task 03 for 1 h working + 30 min waiting: blocks `data-task=03` in the `dev` lane, green and blue from the legend. A click shows Task, Start, End in local time (`2023-11-14 22:13 (UTC)`). |
+| T16.AC2 | The unattributed row reads "0 h 50 min of 2 h 39 min working time has no task approx"; no `%` in the panel. Every task block has `data-approx=true`; no mark has it (checked per element). |
+| T16.AC3 | Preset "Last 1 h" asks `from=NOW-3600&to=NOW`; the axis has a date row (`Tue 14 Nov`) and `HH:MM` ticks in the browser zone; the range line shows the same. |
+| T16.AC4 | `dragZoom` on the axis gives one request with the new `from`/`to`; a Ctrl+wheel event is `preventDefault`ed and zooms (one request once the wheel rests); a plain wheel event is not prevented, the page scrolls. |
+| T16.AC5 | Gaps over the setting show a hatched break: `idle · 1 h 1 min`, `night · 4 h 1 min`, `night · 14 h 40 min`. "Show real time" removes all breaks. |
+| T16.AC6 | A 14 h night blocked on the PO stays a purple block; even when every piece is forced `collapsible`, no break touches a waiting or blocked piece. |
+| T16.AC7 | Task chip 03, then a zoom: the chip is still on, other blocks stay dimmed, the new request carries `scope=dev&squad=fix`. |
+| T16.AC8 | Setting 15 min gives 4 breaks (16 min, 61 min, 241 min, 14 h 40 min; the 15 min gap is not "over" 15), 1 h gives 3, 4 h gives 2. 14 and 241 clamp to 15 and 240. |
+| T16.AC9 | A 3 h idle gap across the 2026-03-29 change in Europe/Berlin reads `idle · 3 h` in Berlin, New York and UTC (local subtraction would say 4 h). |
+| T16.AC10 | The agent with no transcript shows "no transcript: ghost" in its lane (dashed). |
+
+## Screens
+![Default: all lanes, three breaks, PO night, marks, legend](img/swim-default.png)
+
+![Block clicked: task, start, end in local time](img/swim-detail.png)
+
+![Preset Last 1 h](img/swim-1h.png)
+
+![Idle break set to 15 min](img/swim-gap15.png)
+
+![Show real time: no breaks](img/swim-real.png)
+
+![Task 03 followed, other blocks dimmed](img/swim-filter.png)
+
+![Empty state](img/swim-empty.png)
+
+![Unknown: a zoom answered with no data](img/swim-unknown.png)
+
+States: loading (skeleton), empty ("No work time yet."), unknown / board version (the board's own note; the panel's note for its own requests), lane with no activity in range ("no activity in this range"), odd piece (no `end`, bucket outside the four) drawn dashed as "unknown" and logged to the console once per kind.
+
+Technical points: one timer (the board's 5 s poll reads the panel's route, which follows the current range); a zoom is its own GET with a request id, an older answer arriving last is dropped (test). The panel redraws only when the data changes. Writes: only `PUT /api/ui` (key `timeline`: idle break, preset or range), with the board's token; the test records every call of a scripted session. Layout of 20 agents x 2000 pieces: under 200 ms; sub-pixel pieces merge for drawing, the sum of seconds is kept (test).
+
+## Differences from the design (approved by the Manager, FINAL 16)
+1. Commit marks carry no agent in ticket 15's data, so they sit in their own lane "Commits and other marks" (the design draws them in the author's lane). Visible in the first screen above (circles).
+2. No "blocked on you, open now" state: `open` is always false in ticket 15's data.
+3. No artifact marks (cut in architecture 2a).
+4. Hand-in, BLOCKED and merge marks have glyphs of their own (the design draws only commit, PASS, FAIL); each has a legend entry.
+5. Lane groups follow the design (Manager, Developers, QA ...), mapped from the roster role.
+6. Branch column reads "none" until M10 fills `branch`.
+
+Touched files beyond the ticket list (approved): `templates/board/index.html` (one script line), `templates/board/board.js` (exactly two hook calls: `snapshot`, `applySaved`), `tests/test_squadboard_page.py` (file-list test names `timeline.js`).
+
+Live run (real server, this scope): `/api/worktime` gave 24 agents, 4511 pieces, 70 marks, unattributed `7 h 22 min`. The page drew 18 developer lanes plus the other roles, a "night · 5 h 30 min" break, commits in their own lane, no console error. Server stopped after the run.
+
+## Return after QA blackbox FAIL (F1, F2)
+- F1 cause: the board clears the panel body when a poll answer differs from the last one; my panel skipped the redraw when the answer equalled the data of the zoom request, so the body stayed blank. Now the panel always redraws into an empty body. Test `T16.AC4_AC7_a_custom_range_survives_the_next_poll`.
+- F2 fixed: detail rows Worktree, Branch, Commits and verdicts, Artifacts, Reports; touching pieces of one state and task draw as one whole block with its task label; lane scope line under every agent name; "No agent did anything in this range" is not shown when marks are in the range; the detail card closes when the range changes.
+- F2 not fixable here: table rows show the task number only, because `/api/worktime` carries no task titles (ticket 15 data). Needs a Manager decision if the PO wants titles.
+- AC6, AC9: covered by the tests on reader output (`test_T16_AC6_...`, `test_T16_AC9_...`), which use the PO night and the clock change.
