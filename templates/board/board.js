@@ -299,17 +299,32 @@
       showNotes();
     }
 
+    /* One save. A 403 "token required" (the server restarted and forgot the page token) gets a new token from
+       /api/session and ONE re-send of the same snapshot; nothing shows meanwhile. Any other answer is final. */
     function put(snap) {
       if (!S.token || !S.squad) return;
-      fetchFn("/api/ui?squad=" + encodeURIComponent(S.squad.key), {
-        method: "PUT", headers: { "Content-Type": "application/json", "X-Board-Token": S.token }, body: JSON.stringify(snap)
-      }).then(function (r) { S.saveStatus = r.ok ? "ok" : (r.status === 507 ? "unwritable" : "failed"); showNotes(); },
-              function () { S.saveStatus = "failed"; showNotes(); });
+      var url = "/api/ui?squad=" + encodeURIComponent(S.squad.key), body = JSON.stringify(snap);
+      function send() {
+        return fetchFn(url, { method: "PUT", headers: { "Content-Type": "application/json", "X-Board-Token": S.token }, body: body });
+      }
+      function done(r) { S.saveStatus = r.ok ? "ok" : (r.status === 507 ? "unwritable" : "failed"); showNotes(); }
+      function fail() { S.saveStatus = "failed"; showNotes(); }
+      send().then(function (r) {
+        if (r.status !== 403) return done(r);
+        return r.json().then(function (j) { return j && j.error === "token required"; }, function () { return false; }).then(function (stale) {
+          if (!stale) return done(r);
+          return getJson("/api/session").then(function (j) {
+            S.token = (j.data && j.data.token) || "";
+            if (!S.token) return fail();
+            return send().then(done, fail);
+          }, fail);
+        });
+      }, fail);
     }
 
     function showNotes() {
       var msgs = [];
-      if (S.saveStatus === "unwritable") msgs.push("The settings file in the squad folder cannot be written. Settings are kept in this browser only.");
+      if (S.saveStatus === "unwritable") msgs.push("Settings not shared. The settings file in the squad folder cannot be written. Settings are kept in this browser only.");
       else if (S.saveStatus === "unreadable") msgs.push("The saved settings file could not be read. Default settings are shown.");
       else if (S.saveStatus === "failed") msgs.push("Settings could not be saved just now. They are kept in this browser.");
       if (S.notes.storage) msgs.push(S.notes.storage);
