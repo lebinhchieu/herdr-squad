@@ -150,13 +150,12 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
     ledger = {squadledger.key(r["task"]): r for r in squadledger.build(recs)}
     tokens = sorted({str(r.get("task")) for r in recs if r.get("task")})
     scope_md = _read(home / "scope.md") or ""
-    tickets, tdir = squadtickets.find_tickets(_C(home, name), tokens)
-    declared = squadtickets.declared_folder(home)
-    if declared and tdir != ".scratch/" + declared:
-        unknown.append("tickets")
     root = _repo_of(home, repo_root)
+    tickets, tdir = _ticket_folder(root, home, name)
+    if tdir is None:
+        unknown.append("tickets")
     status = {}
-    if tdir and root:
+    if tdir:
         for f in sorted((root / tdir / "issues").glob("*.md")):
             status[f.name.split("-", 1)[0]] = (_field(_read(f) or "", "Status") or "").lower()
     ids = {squadledger.key(i): i for i in list(tickets) + _plan_ids(home)}
@@ -206,6 +205,19 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
         if word == "ready for review":
             ready.append({"task": tid, "branch": branch, "tip": tip})
     return rows, unknown, ready
+
+
+def _ticket_folder(root, home, name):
+    """Same rule as `squadboard_list._tickets` (a test keeps them equal): the `tickets:` line, else
+    `.scratch/<scope>/issues`, else unknown. -> ({NN: title}, relative folder or None).
+    Never the feature-folder guess of `squadtickets`: it can pick another scope's folder."""
+    if root is None:
+        return {}, None
+    slug = squadtickets.declared_folder(home) or name
+    if not (root / ".scratch" / slug / "issues").is_dir():
+        return {}, None
+    files = [f for f in sorted((root / ".scratch" / slug / "issues").glob("*.md")) if re.match(r"^\d+-", f.name)]
+    return squadtickets._titles(files), ".scratch/" + slug
 
 
 def _repo_of(home, repo_root):

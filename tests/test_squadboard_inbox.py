@@ -127,6 +127,13 @@ class Squadwide(Base):
         d = self.read("questions", ready_for_review=lambda sel: ready)["data"]
         self.assertEqual((d["count_squad"], d["others"]), (3, [{"scope": "checkout", "n": 2}]))
 
+    def test_T19_wiring_real_ready_by_scope(self):
+        """T05.AC8 with the real squadboard_tasks: no stub, S3's ready branch counts under 'others'."""
+        r = self.read("questions")
+        self.assertNotIn("ready_for_review", r["unknown"])
+        self.assertEqual(next(o["n"] for o in r["data"]["others"] if o["scope"] == "checkout"),
+                         1 + 1)  # ready branch + permission prompt (herdr)
+
     def test_T05_TA7_one_herdr_fetch_per_read(self):
         with unittest.mock.patch.object(I.squadboard_agents, "fetch", wraps=I.squadboard_agents.fetch) as f:
             self.read("questions")

@@ -13,6 +13,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "bin"))
 import board_fixtures  # noqa: E402
 import squadboard  # noqa: E402
+import squadboard_list  # noqa: E402
 import squadboard_tasks as bt  # noqa: E402
 
 NOW = board_fixtures.REF.timestamp()
@@ -71,7 +72,7 @@ class Tasks(unittest.TestCase):
         scope_md.write_text(scope_md.read_text(encoding="utf-8").replace("tickets: checkout-tasks", ""), encoding="utf-8")
         again = {r["id"] for r in bt.read(sel_for(self.fx))["data"]["rows"]}
         scope_md.write_text(scope_md.read_text(encoding="utf-8") + "tickets: checkout-tasks\n", encoding="utf-8")
-        self.assertIn("03", again)  # without the line tasks still list
+        self.assertEqual(again, set())  # T19: no line and no .scratch/checkout/issues: no guess, no tasks
 
     def test_T07_AC9_goal_has_scope_column(self):
         data = bt.read(sel_for(self.fx, "goal", "alpha"))["data"]
@@ -106,9 +107,31 @@ class Tasks(unittest.TestCase):
             scope_md.write_text(orig.replace("checkout-tasks", "nope"), encoding="utf-8")
             r = bt.read(sel_for(self.fx))
             self.assertIn("tickets", r["unknown"])
-            self.assertIn("03", {x["id"] for x in r["data"]["rows"]})
+            self.assertEqual(r["data"]["rows"], [])  # T19: no fallback to a guess
         finally:
             scope_md.write_text(orig, encoding="utf-8")
+
+    def test_T19_no_match_means_no_tasks(self):
+        """A scope with no `tickets:` line and no .scratch/<scope>/issues shows no tasks, not another scope's."""
+        for name in ("questions", "parked"):
+            r = bt.read(sel_for(self.fx, "scope", name))
+            self.assertEqual(r["data"]["rows"], [], name)
+            self.assertIn("tickets", r["unknown"])
+            self.assertEqual(r["quality"], "approx")
+        r = bt.read(sel_for(self.fx, "scope", "alpha-ui"))
+        self.assertEqual(r["data"]["rows"], [])
+        self.assertIn("tickets", r["unknown"])
+
+    def test_T19_same_folder_rule_as_list(self):
+        """TA3: this reader finds the same ticket files as squadboard_list over every fixture scope."""
+        squad = squadboard.Squad(self.fx.squad, "fix")
+        for kind_dir in ("scopes", "scopes/_done"):
+            base = Path(squad.path) / kind_dir
+            for home in sorted(p for p in base.iterdir() if p.is_dir() and not p.name.startswith("_")) if base.is_dir() else []:
+                text = (home / "scope.md").read_text(encoding="utf-8") if (home / "scope.md").exists() else ""
+                want = squadboard_list._tickets(squad, home, text, None)
+                got, tdir = bt._ticket_folder(squad.repo_root, home, home.name)
+                self.assertEqual(None if want is None else set(want), None if tdir is None else set(got), home.name)
 
     def test_TA10_broken_sources_never_raise(self):
         fx = board_fixtures.copy_fixture(git=False)

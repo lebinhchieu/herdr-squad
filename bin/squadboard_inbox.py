@@ -23,6 +23,7 @@ BIN = Path(__file__).resolve().parent
 if str(BIN) not in sys.path:
     sys.path.insert(0, str(BIN))
 import squadboard_agents  # noqa: E402
+import squadboard_tasks  # noqa: E402
 import squadboard_time  # noqa: E402
 import squadinbox  # noqa: E402
 
@@ -119,15 +120,8 @@ def _homes(sel):
 
 
 def _ready(sel):
-    fn = sel.get("ready_for_review")
-    if fn is None:
-        try:
-            import squadboard_tasks
-            fn = getattr(squadboard_tasks, "ready_by_scope", None)
-        except Exception:
-            fn = None
-    if fn is None:
-        return {}, False
+    """-> ({scope: n}, ok). `sel["ready_for_review"]` is a test hook; else ticket 07's `ready_by_scope`."""
+    fn = sel.get("ready_for_review") or squadboard_tasks.ready_by_scope
     try:
         return {k: int(v) for k, v in (fn(sel) or {}).items()}, True
     except Exception:
