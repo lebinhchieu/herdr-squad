@@ -613,5 +613,104 @@ class Static12(unittest.TestCase):
             self.assertIsNone(re.search(r"count_squad|count_choice\s*\+|\.length\s*\+\s*\w+\.length", js.replace("d.count_choice", "")), f)
 
 
+# ---------------------------------------------------------------- ticket 14: Files panel
+HEAD14 = HEAD.replace('<script src="file://%(tpl)s/panel_scopes.js"></script>',
+                      '<script src="file://%(tpl)s/panel_scopes.js"></script><script src="file://%(tpl)s/panel_files.js"></script>', 1)
+PRE14 = r"""
+const F14=R.f14;
+const f14=async(url,opt)=>{const m=url.match(/^\/api\/files\?/);
+  if(m){const q=new URLSearchParams(url.split('?')[1]);return J(F14[q.get('scope')||'none'])}
+  return fetchStub(url,opt)};
+const start14=async(tz)=>{BOARD.start({fetch:f14,storage:mem(),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,now:()=>Date.parse('2026-11-04T10:00:00Z'),tz:tz||'UTC'});
+  await sleep(300);return BOARD.page};
+"""
+
+
+def payloads14():
+    """The real answers of /api/files on the fixture (extended in a temp copy): a live scope and a closed one with a report."""
+    fx = board_fixtures.copy_fixture(git=False)
+    squad = fx.squad
+    for rel, text in (("scopes/checkout/tasks/features.md", "# Features\n- one\n"), ("scopes/checkout/ui-design/proto-a.html", "<p>x</p>"),
+                      ("scopes/checkout/promote.md", "p\n"), ("scopes/_done/closed-release/report/report.html", "<p>r</p>")):
+        f = squad / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(text, encoding="utf-8", newline="\n")
+    srv = squadboard.BoardServer(0, squadboard.find_squads([str(squad)]), {})
+    srv.routes, _ = squadboard.load_routes()
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        out = {}
+        for sc in ("checkout", "closed-release"):
+            with urllib.request.urlopen("http://127.0.0.1:%d/api/files?squad=fix&scope=%s" % (srv.port, sc), timeout=20) as r:
+                out[sc] = json.loads(r.read())
+        return out
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        board_fixtures.cleanup(fx)
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
+class Panels14(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.real = dict(real_payloads(), saved=None, f14=payloads14())
+
+    def page(self, body, hash_, head=HEAD14):
+        return run_page(PRE14 + body, self.real, hash_, head)
+
+    def test_T14_AC1_AC2_TA3_rows_with_kind_and_local_time_links_open_in_a_new_tab(self):
+        r = self.page(r"""
+await start14('Asia/Ho_Chi_Minh');
+const rows=$$('section[data-panel=files] table.fl tr').slice(1).map(tr=>({t:tr.textContent,a:tr.querySelector('a')&&{h:tr.querySelector('a').getAttribute('href'),tg:tr.querySelector('a').target,rel:tr.querySelector('a').rel,md:tr.querySelector('a').dataset.md||null,n:tr.querySelector('a').textContent},
+  time:tr.querySelector('time')&&{iso:tr.querySelector('time').dateTime,txt:tr.querySelector('time').textContent}}));
+out({rows,fmt:rows.filter(x=>x.time).map(x=>BOARD.fmtTime(x.time.iso,'Asia/Ho_Chi_Minh'))});
+""", "#/scope/checkout")
+        names = [x["a"]["n"] for x in r["rows"] if x["a"]]
+        for want in ("tasks/features.md", "ui-design/proto-a.html", "promote.md"):
+            self.assertIn(want, names)
+        for x in r["rows"]:
+            if x["a"]:
+                self.assertEqual((x["a"]["tg"], x["a"]["rel"]), ("_blank", "noopener noreferrer"))
+                self.assertTrue(x["a"]["h"].startswith("/api/file?squad=fix&path="), x)
+        md = [x for x in r["rows"] if x["a"] and x["a"]["n"] == "tasks/features.md"][0]
+        self.assertEqual(md["a"]["md"], "scopes/checkout/tasks/features.md")
+        self.assertEqual([x["time"]["txt"] for x in r["rows"] if x["time"]], r["fmt"])   # shown with the shared BOARD zone function
+
+    def test_T14_AC4_AC5_live_scope_says_no_report_yet_closed_scope_lists_report_and_data(self):
+        live = self.page("await start14();out({t:$('section[data-panel=files]').textContent});", "#/scope/checkout")
+        self.assertIn("no report yet (made at close)", live["t"])
+        done = self.page("await start14();out({t:$('section[data-panel=files]').textContent});", "#/scope/closed-release")
+        self.assertIn("report/report.html", done["t"])
+        self.assertIn("report/data.json", done["t"])
+        self.assertNotIn("no report yet", done["t"])
+
+    def test_T14_AC2_TU3_markdown_is_drawn_readable_and_script_text_stays_text(self):
+        r = self.page(r"""
+await start14();
+const md='# Title\n\nSome **bold** and `code` <img src=x onerror=window.__x=1>\n\n- item <scr'+'ipt>window.__x=2<'+'/script>\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```\nraw # kept\n```\n';
+const host=document.createElement('div');BOARD.renderMd(document,host,md);document.body.appendChild(host);await sleep(100);
+out({tags:Array.from(host.children).map(e=>e.tagName),h1:host.querySelector('h1').textContent,text:host.textContent,x:typeof window.__x,imgs:host.querySelectorAll('img,script').length,b:host.querySelector('strong').textContent});
+""", "#/scope/checkout")
+        self.assertEqual(r["tags"], ["H1", "P", "UL", "TABLE", "PRE"])
+        self.assertEqual((r["h1"], r["b"]), ("Title", "bold"))
+        self.assertNotIn("# Title", r["text"])
+        self.assertIn("<img src=x onerror=window.__x=1>", r["text"])
+        self.assertEqual((r["x"], r["imgs"]), ("undefined", 0))
+
+    def test_T14_TA7_the_board_boots_without_the_files_panel_file(self):
+        r = self.page("await start14();out({ids:BOARD.panels.map(p=>p.id),files:!!$('section[data-panel=files]')});", "#/scope/checkout", HEAD)
+        self.assertNotIn("files", r["ids"])
+        self.assertFalse(r["files"])
+
+
+class Static14(unittest.TestCase):
+    def test_T14_TU3_TU4_TU5_TU9_panel_file_has_no_innerhtml_no_remote_no_write_no_hex(self):
+        js = (TPL / "panel_files.js").read_text(encoding="utf-8")
+        self.assertIsNone(re.search(r"innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|https?://", js))
+        self.assertIsNone(re.search(r"method\s*:", js))
+        self.assertIsNone(re.search(r"#[0-9a-fA-F]{3,8}\b", js))
+
+
 if __name__ == "__main__":
     unittest.main()

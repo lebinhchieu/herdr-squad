@@ -394,7 +394,7 @@ class StaticRules(unittest.TestCase):
         return (TPL / name).read_text(encoding="utf-8")
 
     def test_T10_TA3_TA11_four_files_banner_is_not_a_panel(self):
-        self.assertEqual(sorted(p.name for p in TPL.iterdir()), sorted(FILES + ("panel_scopes.js", "panel_inbox.js", "panel_tasks.js", "panel_agents.js")))  # tickets 11 and 12 add panel files
+        self.assertEqual(sorted(p.name for p in TPL.iterdir()), sorted(FILES + ("panel_scopes.js", "panel_inbox.js", "panel_tasks.js", "panel_agents.js", "panel_files.js")))  # tickets 11, 12 and 14 add panel files
         self.assertNotIn("banner", self.read("layout.js").lower().replace("bannerslot", ""))
 
     def test_T10_TA5_AC11_no_percent_in_page_scripts_or_html(self):
