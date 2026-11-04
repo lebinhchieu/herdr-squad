@@ -40,25 +40,12 @@ def _scandir(d):
         return []
 
 
-def _title(p, limit=80):
-    """First `# ` heading of ticket file `p` (first 12 lines), cut with an ellipsis; the plain ticket text when none."""
-    try:
-        with open(p, encoding="utf-8", errors="replace") as f:
-            for _, line in zip(range(12), f):
-                if line.startswith("# "):
-                    t = line[2:].strip()
-                    return t if len(t) <= limit else t[:limit - 1].rstrip() + "\u2026"
-    except OSError:
-        pass
-    return WHAT["ticket"]
-
-
 class _Walk:
     def __init__(self, squad, home, roots):
         self.squad, self.home, self.roots = squad, home, roots
-        self.rows, self.truncated, self.seen = [], False, 0
+        self.rows, self.truncated, self.seen, self.listed = [], False, 0, set()
 
-    def add(self, p, kind):
+    def add(self, p, kind, what=None):
         """List file `p` (a Path) when it is a regular file inside the allow-list."""
         self.seen += 1
         if len(self.rows) >= MAX_ROWS:
@@ -85,7 +72,10 @@ class _Walk:
             name = p.relative_to(self.home).as_posix()
         except ValueError:
             pass
-        what = _title(real) if kind == "ticket" else WHAT[kind]
+        if str(real) in self.listed:  # a file reached by two rules is one row; the first rule wins
+            return
+        self.listed.add(str(real))
+        what = what or WHAT[kind]
         self.rows.append({"name": name, "kind": kind, "what": what, "scope": self.home.name, "path": path, "mtime": mtime})
 
     def files(self, d, exts, kind_of, depth=1, flat=False):
@@ -133,15 +123,16 @@ def list_files(squad, kind, name, home):
     w = _Walk(squad, Path(home), roots)
     home = Path(home)
     if kind == "scope":
+        # ticket rows: the one reader of ticket 28 (this scope's own tickets only), title in What
+        st = squadtickets.scope_tasks(home, squad.repo_root, name)
+        for t in st["tasks"]:
+            if t.get("abs"):
+                w.add(Path(t["abs"]), "ticket", t["title"] or None)
+        if st["source"] in ("declared", "scratch") and st["dir"]:
+            spec = squad.repo_root / st["dir"] / "spec.md"
+            if spec.is_file():
+                w.add(spec, "ticket", "spec")
         w.files(home / "tasks", {".md"}, lambda n: "ticket" if n[:1].isdigit() else "other", flat=True)
-        # the ticket files of THIS scope's folder only (ticket 28 rule; `tickets:` line, else the scope name)
-        slug = squadtickets.declared_folder(home) or name
-        tdir = squad.repo_root / ".scratch" / str(slug) / "issues"
-        for t in _scandir(tdir):
-            if t.is_file() and t.name[:1].isdigit() and t.name.endswith(".md"):
-                w.add(Path(t.path), "ticket")
-        if (tdir.parent / "spec.md").is_file():
-            w.add(tdir.parent / "spec.md", "ticket")
         w.files(home / "ui-design", {".md", ".html"}, lambda n: "prototype" if n.endswith(".html") else "design")
         if (home / "promote.md").is_file():
             w.add(home / "promote.md", "promote")
@@ -159,8 +150,7 @@ def list_files(squad, kind, name, home):
         w.files(home / "shared", {".md"}, lambda n: "decision" if n == "decisions.md" else "other", flat=True)
     if (home / "escalations.md").is_file():
         w.add(home / "escalations.md", "answer")
-    seen = set()  # a file reached by two rules is one row (the first rule's kind wins; `w.rows` is in rule order)
-    rows = [r for r in w.rows if not (r["path"] in seen or seen.add(r["path"]))]
+    rows = list(w.rows)
     rows.sort(key=lambda r: (-r["mtime"], r["name"]))
     folders = [f for f in (_folder_row(squad.repo_root / ".scratch", ".scratch", "Repo tickets folder", home.name, roots),
                            _folder_row(squad.path, squad.name, "Squad folder", home.name, roots)) if f]

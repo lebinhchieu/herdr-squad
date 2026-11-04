@@ -133,11 +133,17 @@ class Reader(Base):
         rows = sf.read(self.sel())["data"]["rows"]
         by = {r["name"]: r for r in rows}
         self.assertEqual(by[".scratch/checkout-tasks/issues/10-a.md"]["kind"], "ticket")  # AC4
-        self.assertEqual(by[".scratch/checkout-tasks/issues/10-a.md"]["what"], "10 First ticket")  # AC11 title
+        self.assertEqual(by[".scratch/checkout-tasks/issues/10-a.md"]["what"], "First ticket")  # AC11 title
         self.assertEqual(by[".scratch/checkout-tasks/spec.md"]["kind"], "ticket")  # AC9
         self.assertFalse([n for n in by if "/other/" in n])  # AC5
         paths = [r["path"] for r in rows]
         self.assertEqual(len(paths), len(set(paths)))  # TA5: one row per file
+
+    def test_T29_AC4_flat_scope_tasks_list_as_tickets_with_title_when_no_ticket_folder(self):
+        h = self.squad.find("scope", "closed-release")
+        put(h / "tasks" / "01.md", "# 01 Repro: a pane\nStatus: done (ok)\n")
+        rows = {r["name"]: r for r in sf.read(self.sel(name="closed-release"))["data"]["rows"]}
+        self.assertEqual((rows["tasks/01.md"]["kind"], rows["tasks/01.md"]["what"]), ("ticket", "Repro: a pane"))
 
     def test_T14_TA6_listing_writes_nothing(self):
         def snap():
