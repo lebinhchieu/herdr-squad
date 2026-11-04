@@ -160,18 +160,51 @@ class Picker(unittest.TestCase):
         cls.rows = cls.real["squads"]["data"]["squads"][0]
         cls.real["saved"] = None
 
+    def test_T11_design_D1_D9_picker_sort_chips_two_lines_and_combobox(self):
+        r = run_page("""
+await startPage();await sleep(100);
+const rowNames=()=>$$('#view .pr[data-name]').map(x=>x.dataset.name);
+const sortBtns=$$('#view .pkbar .seg button').map(b=>b.textContent+':'+b.getAttribute('aria-pressed'));
+const byLast=rowNames();$$('#view .pkbar .seg button')[2].click();await sleep(30);const byName=rowNames();
+const row=$('#view .pr[data-name]');
+const cells={chip:!!row.querySelector('.chip'),kind:row.querySelector('.kind').textContent,small:!!row.querySelector('.pla small')};
+const expBtn=$('#view [data-exp-all]');const t1=expBtn.textContent;expBtn.click();await sleep(150);const t2=$('#view [data-exp-all]').textContent;
+const subs=$$('#view .pr.sub').length;
+const intro=$('#view .pk p.muted').textContent;
+const hints=$$('#view h3.sec').map(h=>h.textContent);
+$('#selbtn').click();await sleep(60);
+const cb=$('#view .combo');const first=cb.querySelector('.cbo').getBoundingClientRect(),inp=cb.querySelector('input').getBoundingClientRect(),lst=$('#cbl').getBoundingClientRect();
+const heads=$$('#cbl .cbh').map(h=>h.textContent);
+const foot=cb.querySelector('.cbf').textContent;
+out({sortBtns,byLast,byName,cells,t1,t2,subs,intro,hints,heads,foot,clipped:first.top<lst.top-1||first.top<inp.bottom,btn:$('#selbtn').getAttribute('role')});
+""", self.real)
+        self.assertEqual(r["sortBtns"], ["Last active:false", "Needs you:true", "Name:false"])
+        self.assertNotEqual(r["byName"], r["byLast"])
+        self.assertTrue(r["cells"]["chip"] and r["cells"]["small"])
+        self.assertTrue(r["cells"]["kind"].startswith(("scope", "goal")))
+        self.assertEqual((r["t1"], r["t2"]), ("Expand all open goals", "Collapse all goals"))
+        self.assertGreater(r["subs"], 0)
+        self.assertIn("The board shows one goal (with its scopes) or one scope.", r["intro"])
+        self.assertTrue(any("what you opened last" in h or h.startswith("Open") for h in r["hints"]))
+        self.assertEqual(r["heads"][-2:][1][:4], "▸ Do")
+        self.assertIn("Open the picker", r["foot"])
+        self.assertIn("↑ ↓ Enter · Esc", r["foot"])
+        self.assertFalse(r["clipped"])
+        self.assertEqual(r["btn"], "combobox")
+
     def test_T11_AC1_AC2_AC16_TA8_only_the_picker_shows_with_no_all_and_renders_fast(self):
         r = run_page("""
 await startPage();
 const t0=performance.now();BOARD.page.state.squad&&BOARD.ctx.paint();const ms=performance.now()-t0;
-out({rows:$$('#view .plist .pr[data-name]').map(x=>x.dataset.name),done:$('#view .dnd summary').textContent,doneOpen:$('#view .dnd').open,
+out({rows:$$('#view .plist .pr[data-name]').map(x=>x.dataset.name),done:$('#view .dnd summary b').textContent.trim(),doneN:$('#view .dnd summary .chip').textContent,doneLabel:$('#view .dnd summary').getAttribute('aria-label'),doneOpen:$('#view .dnd').open,
  mainHidden:$('main').hidden,panelsShown:$$('section.panel').filter(p=>!p.hidden).length,
  text:document.getElementById('app').textContent,ms,title:document.title,choice:BOARD.page.state.choice});
 """, self.real)
         open_names = [x["name"] for x in self.rows["open"]]
         self.assertEqual(r["rows"][:len(open_names)], open_names)       # needs-you first, as the server sorts
         self.assertEqual(r["rows"][0], "questions")
-        self.assertEqual((r["done"], r["doneOpen"], r["mainHidden"], r["panelsShown"], r["choice"]), ("Done (20)", False, True, 0, None))
+        self.assertEqual((r["doneN"], r["doneLabel"]), ("20", "Done (20)"))
+        self.assertEqual((r["done"], r["doneOpen"], r["mainHidden"], r["panelsShown"], r["choice"]), ("Done", False, True, 0, None))
         self.assertIsNone(re.search(r"\bAll\b", r["text"]))
         self.assertLess(r["ms"], 300)
         self.assertEqual(r["title"], "(1) fix")                          # the squad-wide needs-you count
@@ -198,7 +231,7 @@ out({focused,slashPrevented:slash.defaultPrevented,inputPrevented:inSlash.defaul
         self.assertEqual(r["chosen"]["name"], expected[0])
         self.assertTrue(r["focused"] and r["slashPrevented"])
         self.assertFalse(r["inputPrevented"])
-        self.assertIn("Nothing matches 'xyz'", r["none"])
+        self.assertTrue(any(t.startswith("Nothing matches 'xyz'") for t in r["none"]))
 
     def test_T11_AC6_six_choices_show_the_last_five(self):
         names = [x["name"] for x in self.rows["open"] if x["kind"] == "scope"][:6]
@@ -209,10 +242,10 @@ for(const n of names)p.setChoice('scope:'+n);
 p.setChoice('scope:'+names[5]);
 await sleep(50);
 p.state.choice=null;BOARD.ctx.paint();await sleep(50);
-out({recent:p.state.recent.map(c=>c.name),shown:$$('#view h3').length&&$$('#view .plist')[0].querySelectorAll('.pr[data-name]').length});
+out({recent:p.state.recent.map(c=>c.name),shown:(()=>{const h=$$('#view h3.sec')[0];let n=0,e=h.nextElementSibling;while(e&&e.classList.contains('pr')){n++;e=e.nextElementSibling}return n})(),first:$$('#view h3.sec')[0].firstChild.textContent});
 """ % json.dumps(names), self.real)
         self.assertEqual(r["recent"], names[:0:-1])
-        self.assertEqual(r["shown"], 5)
+        self.assertEqual((r["first"], r["shown"]), ("Recent", 5))
 
 
 @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
@@ -305,7 +338,7 @@ const up=Array.from($$('#view .where button')).map(b=>b.textContent);
 out({head,rows,shown,where1,where2:$('#view .where').textContent,up,choice:BOARD.page.state.choice,hiddenNow:$('section[data-panel=scopes]').hidden});
 """, self.real, "#/goal/alpha")
         self.assertEqual(r["head"], ["Scope", "Brief", "Stage", "Needs you", "Blocked", "Tasks", "Last active"])
-        self.assertEqual((r["rows"], r["shown"], r["where1"]), (4, True, "goal alpha  Fixture goal alpha."))  # name, then the goal brief
+        self.assertEqual((r["rows"], r["shown"], r["where1"]), (4, True, "goal alpha open Fixture goal alpha. · 4 scopes (4 open) · panels show them together"))  # name, then the goal brief
         self.assertTrue(r["where2"].startswith("goal alpha > scope alpha-api"))
         self.assertEqual((r["up"], r["choice"]["name"], r["hiddenNow"]), (["goal alpha"], "alpha-api", True))
 

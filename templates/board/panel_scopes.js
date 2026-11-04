@@ -102,7 +102,8 @@
 
   /* ---------- the Scopes panel (goal only) ---------- */
   var V = { q: "", sheetQ: "", sheetOpen: false, doneOpen: false, exp: {}, kids: {}, kidsBusy: {}, notFound: null, closed: false,
-            scopeRow: null, goalBrief: "", sig: "", ctxSig: "", checking: false, picker: null, bootDone: false };
+            scopeRow: null, goalBrief: "", goalCounts: null, sig: "", ctxSig: "", checking: false, picker: null, bootDone: false,
+            sort: "needs", cbDone: false, ai: -1, shell: null, bar: null, combo: null, slot: null };
   var ctx = null;   /* BOARD.ctx, set by the first hook call */
 
   function el(tag, cls, text) {
@@ -134,20 +135,24 @@
       var rows = d.scopes || [];
       c.setCount(rows.length, rows.some(function (r) { return r.needs_you > 0; }));
       if (!rows.length) { body.appendChild(el("p", "note", d.empty_text || "No scopes in this goal")); return; }
+      V.goalCounts = { n: rows.length, open: rows.filter(function (r) { return r.status !== "done"; }).length };
+      body.appendChild(el("p", "muted sm", "Click a row to look at that scope only. The goal stays one click away in the header."));
       var tb = el("table", "sc");
       var hd = el("tr");
       ["Scope", "Brief", "Stage", "Needs you", "Blocked", "Tasks", "Last active"].forEach(function (h) { hd.appendChild(el("th", null, h)); });
       tb.appendChild(hd);
       rows.forEach(function (r) {
-        var tr = el("tr", r.needs_you > 0 ? "need" : "");
-        var a = el("td"); a.appendChild(link(r.name, function () { openChoice({ kind: "scope", name: r.name }, true); }, "Show scope " + r.name)); tr.appendChild(a);
+        var tr = el("tr", "go" + (r.needs_you > 0 ? " need" : ""));
+        var go = function () { openChoice({ kind: "scope", name: r.name }, true); };
+        tr.addEventListener("click", go);
+        var a = el("td"); a.appendChild(link(r.name, go, "Show scope " + r.name)); tr.appendChild(a);
         tr.appendChild(el("td", "br", r.brief || ""));
-        tr.appendChild(el("td", null, r.status === "done" ? "done" : "open"));
-        var n = el("td"); if (r.needs_you > 0) n.appendChild(el("span", "chip need", r.needs_you + " need" + (r.needs_you === 1 ? "s" : "") + " you")); else n.textContent = r.needs_you == null ? "?" : "nothing";
+        var st = el("td"); st.appendChild(statusChip(r.status === "done")); tr.appendChild(st);
+        var n = el("td"); if (r.needs_you > 0) n.appendChild(chipEl("need", needsText(r.needs_you))); else n.textContent = r.needs_you == null ? "?" : "nothing";
         tr.appendChild(n);
         tr.appendChild(el("td", null, num(r.stuck)));
         tr.appendChild(el("td", null, tasks(r)));
-        tr.appendChild(el("td", null, ago(r.last_active, c.now)));
+        var la = el("td"); la.appendChild(lastCell(r.last_active, c.now, "span")); tr.appendChild(la);
         tb.appendChild(tr);
       });
       body.appendChild(tb);
@@ -291,24 +296,85 @@
     s.id = "view-css";
     s.textContent =
       "#view{padding:0 var(--gutter);position:relative}#view:empty{display:none}" +
-      ".ctxbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;position:relative}" +
-      ".ctxbar .where b{font-weight:700}.lk{border:0;background:none;padding:0;color:var(--ink);text-decoration:underline;text-underline-offset:2px}" +
+      "#view .chip,table.sc .chip{align-items:center;justify-content:center;line-height:1;height:1.65em;box-sizing:border-box}" +
+      ".chip.run{background:var(--t-need2);border-color:var(--mango)}.chip.work{background:var(--t-work);border-color:var(--work)}.chip.idle{background:var(--t-idle)}" +
+      ".ctxwrap{position:relative}.ctxbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0}" +
+      ".ctxbar .where{flex:1;min-width:14em}.ctxbar .where b{font-weight:700}.lk{border:0;background:none;padding:0;color:var(--ink);text-decoration:underline;text-underline-offset:2px}" +
       ".ctxbar .out{border:1px dashed var(--muted);background:var(--bg);border-radius:6px;padding:2px 8px}" +
       ".ctxbar .ro{border:1px solid var(--mango);background:var(--t-need);border-radius:6px;padding:2px 8px;font-weight:600}" +
-      ".sheet{position:absolute;left:0;top:100%;z-index:60;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px var(--shadow);padding:6px;min-width:22em;max-height:26em;overflow:auto}" +
-      ".sheet input,.pkbar input{width:100%;font:inherit;padding:.35em .6em;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--ink)}" +
+      ".selbtn{display:inline-flex;align-items:center;gap:.5em;height:2em;padding:0 .8em;border:2px solid var(--ink);border-radius:.6em;background:var(--bg);font-size:1.08em;max-width:30em}" +
+      ".selbtn:hover{border-color:var(--mango)}.selbtn.none{border-color:var(--mango);background:var(--t-need2)}.selbtn b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      ".kind{font-size:.83em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}.selbtn .car{color:var(--muted)}" +
+      ".combo{position:absolute;left:0;z-index:70;width:min(34em,94vw);background:var(--bg);border:1px solid var(--ink);border-radius:8px;box-shadow:0 8px 24px var(--shadow);padding:6px}" +
+      ".combo input,.pkbar input{width:100%;font:inherit;padding:.35em .6em;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--ink)}" +
+      ".combo input:focus,.pkbar input:focus{outline:2px solid var(--mango);outline-offset:0}" +
+      "#cbl{max-height:22em;overflow:auto;margin-top:5px}" +
+      ".cbh{font-size:.83em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding:5px 6px 1px}.cbh .lk{text-decoration:none;font:inherit;font-weight:700;color:var(--muted)}" +
+      ".cbo{display:flex;gap:6px;align-items:center;padding:3px 8px;border-radius:6px;cursor:pointer}.cbo .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      ".cbo .kind{text-transform:none;letter-spacing:0;font-weight:400}.cbo.sub{padding-left:22px}.cbo.dn{color:var(--muted)}.cbo:hover,.cbo.act{background:var(--t-need)}.cbo.cur .cn b{text-decoration:underline;text-decoration-color:var(--mango)}" +
+      ".cbf{display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid var(--border);margin-top:5px;padding-top:5px}.cbf .hb{height:1.65em;line-height:1}" +
       ".pk{padding:10px 0 30px}.pk h2{font-size:1.4em;margin:2px 0 4px}.pk p{max-width:62em}" +
-      ".pk h3 .chip{margin-left:6px}.pkbar{margin:10px 0 6px;max-width:34em}.pk h3{margin:12px 0 2px;font-size:1em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}" +
+      ".pkbar{display:flex;gap:8px;align-items:center;margin:10px 0 6px;flex-wrap:wrap}.pkbar input{flex:1;min-width:16em;max-width:34em;font-size:1.05em}" +
+      ".pk h3.sec{margin:10px 0 2px;font-size:1em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:flex;gap:6px;align-items:center}.pk h3.sec .t{text-transform:none;letter-spacing:0;font-weight:400}" +
       ".plist{border:1px solid var(--border);border-radius:var(--r);background:var(--panel);padding:2px 8px 8px}" +
-      ".pr{display:grid;grid-template-columns:1.8em minmax(11em,1.3fr) 5em minmax(10em,2.3fr) minmax(8em,1fr) minmax(8em,1fr) 9em;gap:8px;align-items:center;padding:5px 6px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px}" +
-      ".pr.phd{cursor:default;font-size:.83em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border)}.pr.phd:hover{background:none}" +
+      ".pr{display:grid;grid-template-columns:1.8em minmax(11em,1.3fr) 5em minmax(10em,2.3fr) minmax(11em,1.2fr) 8.6em 9.2em;gap:8px;align-items:center;padding:5px 6px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px}" +
+      ".pr.phd{cursor:default;font-size:.83em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding:5px 6px 3px}.pr.phd:hover{background:none}" +
       ".pr:hover{background:var(--t-need3)}.pr.sub{background:var(--bg);border-left:3px solid var(--border);margin-left:1.6em}.pr.dn{color:var(--muted)}" +
-      ".pr .pn,.pr .pbr{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pr .kind{color:var(--muted);margin-left:4px}" +
-      ".chev{border:1px solid transparent;background:none;border-radius:5px;width:1.8em;height:1.8em;padding:0;color:var(--muted)}" +
-      ".dnd{margin-top:10px}.dnd summary{cursor:pointer;padding:4px 6px;text-transform:uppercase;letter-spacing:.05em;font-weight:700}" +
+      ".pr .pn{min-width:0}.pr .pn b{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}" +
+      ".pr .pbr{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pn .kind{display:block;margin-top:1px}" +
+      ".pla small{display:block;color:var(--muted)}.pla b{white-space:nowrap}" +
+      ".chev{border:1px solid transparent;background:none;border-radius:5px;width:1.8em;height:1.8em;padding:0;color:var(--muted)}.chev:hover{border-color:var(--border);background:var(--bg);color:var(--ink)}" +
+      ".dnd{margin-top:10px}.dnd summary{cursor:pointer;padding:4px 6px;font-size:.92em;text-transform:uppercase;letter-spacing:.05em}.dnd summary b{font-weight:700}.dnd summary .muted{text-transform:none;letter-spacing:0}" +
+      ".cp{border:1px solid var(--border);background:var(--bg);border-radius:.825em;padding:0 .6em;height:1.65em;line-height:1}" +
       "table.sc{width:100%;border-collapse:collapse}table.sc th{text-align:left;font-size:.83em;text-transform:uppercase;color:var(--muted);padding:2px 6px}" +
-      "table.sc td{padding:4px 6px;border-top:1px solid var(--border)}table.sc tr.need{background:var(--t-need3)}table.sc td.br{max-width:28em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}";
+      "table.sc td{padding:4px 6px;border-top:1px solid var(--border)}table.sc tr.need{background:var(--t-need3)}table.sc tr.go{cursor:pointer}table.sc tr.go:hover{background:var(--t-need)}" +
+      "table.sc td.br{max-width:28em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}table.sc small{display:block;color:var(--muted)}";
     root.document.head.appendChild(s);
+  }
+
+  function chipEl(cls, text) { return el("span", "chip " + cls, text); }
+  function statusChip(done) { return chipEl(done ? "work" : "run", done ? "done" : "open"); }
+  function needsText(n) { return n + " need" + (n === 1 ? "s" : "") + " you"; }
+  /* the clock under an age: "14:19" today, "Nov 1 14:22" before */
+  function stamp(iso, nowMs) {
+    var t = Date.parse(iso);
+    if (!iso || isNaN(t)) return "";
+    var hm = String(ctx.fmtClock(iso)).slice(0, 5);
+    if (nowMs - t < 86400000) return hm;
+    var d = BOARD.fmtDate(iso, BOARD.readZone()).split("-");
+    var mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][+d[1] - 1];
+    return (mon ? mon + " " + (+d[2]) + " " : "") + hm;
+  }
+  function lastCell(iso, nowMs, tag) {
+    var s = el(tag || "span", "pla");
+    if (!iso) { s.appendChild(el("span", "muted", "no activity")); return s; }
+    s.appendChild(el("b", null, ago(iso, nowMs)));
+    var st = stamp(iso, nowMs);
+    if (st) s.appendChild(el("small", null, st));
+    return s;
+  }
+  function sortRows(rows, mode) {
+    var a = (rows || []).slice();
+    var t = function (r) { var m = Date.parse(r.last_active || ""); return isNaN(m) ? 0 : m; };
+    a.sort(function (x, y) {
+      if (mode === "name") return String(x.name).localeCompare(String(y.name));
+      if (mode === "needs" && (x.needs_you || 0) !== (y.needs_you || 0)) return (y.needs_you || 0) - (x.needs_you || 0);
+      return t(y) - t(x);
+    });
+    return a;
+  }
+  BOARD.sortRows = sortRows;
+  function openTasks(r) { return (typeof r.tasks_total === "number" && typeof r.tasks_done === "number") ? r.tasks_total - r.tasks_done : null; }
+  function workText(r) {
+    if (r.stub) return "";
+    var o = openTasks(r);
+    if (r.kind === "goal") {
+      var n = r.scopes_count, kids = V.kids[r.name], open = kids ? kids.filter(function (k) { return k.status !== "done"; }).length : null;
+      var s = typeof n === "number" ? n + " scope" + (n === 1 ? "" : "s") + (open != null && open !== n ? " (" + open + " open)" : "") : "scopes ?";
+      return s + " · " + (o == null ? "?" : o) + " open task" + (o === 1 ? "" : "s");
+    }
+    return (o == null ? "?" : o) + " open of " + (typeof r.tasks_total === "number" ? r.tasks_total : "?") + " task" + (r.tasks_total === 1 ? "" : "s") +
+      (r.stuck > 0 ? ", " + r.stuck + " blocked" : "");
   }
 
   function rowEl(r, sub, nowMs) {
@@ -324,18 +390,17 @@
       ch.appendChild(b);
     }
     d.appendChild(ch);
-    var pn = el("span", "pn"); pn.appendChild(el("b", null, r.name));
-    pn.appendChild(el("span", "kind", r.kind === "goal" ? "goal" : (r.goal ? "scope · goal " + r.goal : "scope")));
+    var pn = el("span", "pn"); var nb = el("b", null, r.name); nb.title = r.name; pn.appendChild(nb);
+    if (!sub) pn.appendChild(el("span", "kind", r.kind === "goal" ? "goal" : (r.goal ? "scope · goal " + r.goal : "scope · no goal")));
     d.appendChild(pn);
-    d.appendChild(el("span", null, r.status === "done" ? "done" : "open"));
+    var ps = el("span"); ps.appendChild(statusChip(r.status === "done")); d.appendChild(ps);
     d.appendChild(el("span", "pbr", r.brief || ""));
-    var w = el("span"); w.textContent = r.stub ? "" : tasks(r) + " tasks" + (r.stuck > 0 ? ", " + r.stuck + " blocked" : "");
-    d.appendChild(w);
+    d.appendChild(el("span", null, workText(r)));
     var n = el("span");
-    if (r.needs_you > 0) n.appendChild(el("span", "chip need", r.needs_you + " need" + (r.needs_you === 1 ? "s" : "") + " you"));
+    if (r.needs_you > 0) n.appendChild(chipEl("need", needsText(r.needs_you)));
     else if (!r.stub) n.textContent = r.needs_you == null ? "?" : "nothing";
     d.appendChild(n);
-    d.appendChild(el("span", null, r.stub ? "" : ago(r.last_active, nowMs)));
+    d.appendChild(r.stub ? el("span") : lastCell(r.last_active, nowMs));
     d.addEventListener("click", go);
     d.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); go(); } });
     return d;
@@ -353,102 +418,174 @@
     return out.slice(0, RECENT_MAX);
   }
 
-  function listEl() {
-    var l = el("div", "plist"); l.setAttribute("role", "listbox");
+  function headRow() {
     var h = el("div", "pr phd"); h.setAttribute("aria-hidden", "true");
     ["", "Name", "Status", "Brief", "Work", "You", "Last active"].forEach(function (t) { h.appendChild(el("span", null, t)); });
-    l.appendChild(h);
-    return l;
-  }
-
-  function section(title, count) {
-    var h = el("h3", null, title);
-    if (count != null) h.appendChild(el("span", "chip", String(count)));
     return h;
   }
+  function section(title, count, hint) {
+    var h = el("h3", "sec", title);
+    if (count != null) h.appendChild(chipEl("idle", String(count)));
+    if (hint) h.appendChild(el("span", "t muted", hint));
+    return h;
+  }
+  function goalNames(sq) { return (sq.open || []).filter(function (r) { return r.kind === "goal"; }).map(function (r) { return r.name; }); }
 
   function fillList(box, sq, nowMs) {
     box.textContent = "";
-    var frag = root.document.createDocumentFragment();
     var q = V.q.trim();
+    var all = (sq.open || []).length + (sq.done || []).length;
+    if (!all) {
+      var em = el("p", "note"); em.appendChild(el("b", null, "This squad has no goal and no scope. "));
+      em.appendChild(root.document.createTextNode("The Manager creates a scope with squad-spawn; it shows up here at the next refresh."));
+      box.appendChild(em); return;
+    }
+    var frag = root.document.createDocumentFragment();
+    var list = el("div", "plist"); list.setAttribute("role", "listbox"); list.setAttribute("aria-label", "Goals and scopes");
+    list.appendChild(headRow());
     if (q) {
       var vis = filterRows(flatRows(sq, V.kids), q);
-      if (!vis.length) { frag.appendChild(el("p", "note", "Nothing matches '" + q + "'")); }
-      else {
-        var l = listEl();
-        vis.forEach(function (r) { l.appendChild(rowEl(r, false, nowMs)); });
-        frag.appendChild(l);
-      }
+      if (!vis.length) {
+        var nm = el("p", "note", "Nothing matches '" + q + "'. This squad has " + introText(sq).goals + " goals and " + introText(sq).scopes + " scopes. ");
+        var clr = el("button", "cp", "Clear search"); clr.type = "button";
+        clr.addEventListener("click", function () { V.q = ""; V.picker.inp.value = ""; fillList(box, ctx.state.squad, ctx.now()); V.picker.inp.focus(); });
+        nm.appendChild(clr); frag.appendChild(nm);
+      } else vis.forEach(function (r) { list.appendChild(rowEl(r, false, nowMs)); });
+      if (vis.length) frag.appendChild(list);
       box.appendChild(frag);
       return;
     }
     var rec = recentRows(sq);
     if (rec.length) {
-      frag.appendChild(section("Recent"));
-      var lr = listEl();
-      rec.forEach(function (r) { lr.appendChild(rowEl(r, false, nowMs)); });
-      frag.appendChild(lr);
+      list.appendChild(section("Recent", rec.length, "what you opened last"));
+      rec.forEach(function (r) { list.appendChild(rowEl(r, false, nowMs)); });
     }
-    frag.appendChild(section("Open", (sq.open || []).length));
-    var lo = listEl();
-    if (!(sq.open || []).length) lo.appendChild(el("p", "muted", "Nothing open."));
-    (sq.open || []).forEach(function (r) {
-      lo.appendChild(rowEl(r, false, nowMs));
-      if (r.kind === "goal" && V.exp[r.name]) (V.kids[r.name] || []).forEach(function (k) { lo.appendChild(rowEl(k, true, nowMs)); });
+    var open = sortRows(sq.open || [], V.sort);
+    list.appendChild(section("Open", open.length));
+    if (!open.length) list.appendChild(el("p", "muted", "Nothing open. Open the Done list below."));
+    open.forEach(function (r) {
+      list.appendChild(rowEl(r, false, nowMs));
+      if (r.kind === "goal" && V.exp[r.name]) sortRows(V.kids[r.name] || [], V.sort).forEach(function (k) { list.appendChild(rowEl(k, true, nowMs)); });
     });
-    frag.appendChild(lo);
     var dn = el("details", "dnd"); dn.open = V.doneOpen;
-    var sm = el("summary", null, "Done (" + (sq.done || []).length + ")");
+    var done = sortRows(sq.done || [], V.sort);
+    var sm = el("summary"); sm.setAttribute("aria-label", "Done (" + done.length + ")");
+    sm.appendChild(el("b", null, "Done ")); sm.appendChild(chipEl("idle", String(done.length)));
+    sm.appendChild(el("span", "muted", " goals and loose scopes that closed. Their scopes show when you open a goal."));
     dn.appendChild(sm);
     dn.addEventListener("toggle", function () { V.doneOpen = dn.open; });
-    (sq.done || []).forEach(function (r) { dn.appendChild(rowEl(r, false, nowMs)); });
-    frag.appendChild(dn);
+    done.forEach(function (r) { dn.appendChild(rowEl(r, false, nowMs)); });
+    list.appendChild(dn);
+    frag.appendChild(list);
     box.appendChild(frag);
   }
 
+  function introText(sq) {
+    var goals = (sq.open || []).filter(function (r) { return r.kind === "goal"; }).length;
+    var dgoals = (sq.done || []).filter(function (r) { return r.kind === "goal"; });
+    var scopesOpen = (sq.scopes || []).length;
+    var scopesAll = scopesOpen + (sq.done || []).reduce(function (a, r) { return a + (r.kind === "scope" ? 1 : (r.scopes_count || 0)); }, 0);
+    return { goals: goals + dgoals.length, goalsOpen: goals, scopes: scopesAll, scopesOpen: scopesOpen };
+  }
+
   function pickerView(sq, nowMs) {
-    var view = ctx.els.view;
+    var slot = V.slot;
     if (!V.picker || !V.picker.isConnected) {
       var pk = el("div", "pk");
-      pk.appendChild(el("h2", null, "What do you want to look at?"));
       V.picker = pk;
+      pk.appendChild(el("h2", null, "What do you want to look at?"));
       pk.info = el("p", "muted"); pk.appendChild(pk.info);
       pk.note = el("p", "note"); pk.note.hidden = true; pk.note.setAttribute("role", "status"); pk.appendChild(pk.note);
+      pk.unk = el("p", "note"); pk.unk.hidden = true; pk.appendChild(pk.unk);
       var bar = el("div", "pkbar");
       var inp = el("input"); inp.type = "search"; inp.id = "pkq"; inp.autocomplete = "off";
-      inp.placeholder = "Search by name or brief   ( / )"; inp.setAttribute("aria-label", "Search goals and scopes");
-      inp.addEventListener("input", function () { V.q = inp.value; fillList(pk.box, ctx.state.squad, ctx.now()); });
+      inp.placeholder = "Search goals and scopes by name or brief   ( / )"; inp.setAttribute("aria-label", "Search goals and scopes");
+      inp.addEventListener("input", function () { V.q = inp.value; fillList(pk.box, ctx.state.squad, ctx.now()); syncBar(); });
       inp.addEventListener("keydown", function (e) {
         if (e.key !== "Enter") return;
         e.preventDefault();
         var r = topRow(filterRows(flatRows(ctx.state.squad, V.kids), inp.value));
         if (r) openChoice({ kind: r.kind, name: r.name }, true);
       });
-      bar.appendChild(inp); pk.appendChild(bar);
+      bar.appendChild(inp);
+      var seg = el("span", "seg"); seg.setAttribute("role", "group"); seg.setAttribute("aria-label", "Sort");
+      [["last", "Last active"], ["needs", "Needs you"], ["name", "Name"]].forEach(function (s) {
+        var b = el("button", null, s[1]); b.type = "button"; b.dataset.sort = s[0];
+        b.addEventListener("click", function () { V.sort = s[0]; fillList(pk.box, ctx.state.squad, ctx.now()); syncBar(); });
+        seg.appendChild(b);
+      });
+      bar.appendChild(seg);
+      var ex = el("button", "cp"); ex.type = "button"; ex.dataset.expAll = "1";
+      ex.addEventListener("click", function () {
+        var sq2 = ctx.state.squad, any = goalNames(sq2).some(function (n) { return V.exp[n]; });
+        goalNames(sq2).forEach(function (n) { V.exp[n] = !any; if (!any) loadKids(n); });
+        refresh(true);
+      });
+      bar.appendChild(ex);
+      pk.bar = bar; pk.seg = seg; pk.ex = ex; pk.appendChild(bar);
       pk.box = el("div"); pk.appendChild(pk.box);
       pk.inp = inp;
     }
     var pk2 = V.picker;
-    var n = squadNeeds(sq);
-    pk2.info.textContent = "Squad " + sq.name + (n == null ? "" : ": " + n + " need" + (n === 1 ? "s" : "") + " you across the squad") + ".";
+    var it = introText(sq), n = squadNeeds(sq);
+    pk2.info.textContent = "";
+    pk2.info.appendChild(root.document.createTextNode("The board shows "));
+    pk2.info.appendChild(el("b", null, "one goal")); pk2.info.appendChild(root.document.createTextNode(" (with its scopes) "));
+    pk2.info.appendChild(el("b", null, "or one scope")); pk2.info.appendChild(root.document.createTextNode(". Squad "));
+    pk2.info.appendChild(el("code", null, sq.name));
+    pk2.info.appendChild(root.document.createTextNode(": " + it.goals + " goals (" + it.goalsOpen + " open), " + it.scopes + " scopes (" + it.scopesOpen +
+      " open). Needs-you counts cover the whole squad, so you can see where to go first." +
+      (n == null ? "" : " " + n + " need" + (n === 1 ? "s" : "") + " you across the squad.")));
     pk2.note.hidden = !V.notFound; pk2.note.textContent = V.notFound || "";
-    if (pk2.parentNode !== view) { view.textContent = ""; view.appendChild(pk2); }
+    var unk = (sq.open || []).length > 0 && (sq.open || []).every(function (r) { return r.needs_you == null && r.tasks_total == null; });
+    pk2.unk.hidden = !unk;
+    if (unk) { pk2.unk.textContent = ""; pk2.unk.appendChild(el("b", null, "unknown: the ledger and the inbox did not answer. ")); pk2.unk.appendChild(root.document.createTextNode("Names and briefs come from files; counts and last active are not guessed. You can still pick.")); }
+    if (pk2.parentNode !== slot) { slot.textContent = ""; slot.appendChild(pk2); }
     fillList(pk2.box, sq, nowMs);
+    syncBar();
+  }
+  function syncBar() {
+    var pk = V.picker; if (!pk) return;
+    Array.prototype.forEach.call(pk.seg.children, function (b) { b.setAttribute("aria-pressed", String(b.dataset.sort === V.sort)); });
+    var sq = ctx.state.squad, any = goalNames(sq).some(function (n) { return V.exp[n]; });
+    pk.ex.textContent = any ? "Collapse all goals" : "Expand all open goals";
+    pk.ex.hidden = !!V.q.trim() || !goalNames(sq).length;
   }
 
-  function whereText(S) {
-    var c = S.choice;
-    if (c.kind === "goal") return ["goal ", c.name];
-    return null;
-  }
-
-  function contextView(S, sq, nowMs) {
-    var view = ctx.els.view;
+  /* ---------- header: one button + the line next to it; the combobox opens under it ---------- */
+  function ensureShell(view) {
+    if (V.shell && V.shell.parentNode === view) return;
     view.textContent = "";
     V.picker = null;
-    var bar = el("div", "ctxbar");
+    V.shell = el("div", "ctxwrap");
+    V.bar = el("div", "ctxbar");
+    V.combo = el("div", "combo"); V.combo.hidden = true;
+    V.shell.appendChild(V.bar); V.shell.appendChild(V.combo);
+    V.slot = el("div");
+    view.appendChild(V.shell); view.appendChild(V.slot);
+  }
+
+  function selButton(S) {
+    var sw = el("button", "selbtn" + (S.choice ? "" : " none")); sw.type = "button"; sw.id = "selbtn";
+    sw.setAttribute("role", "combobox"); sw.setAttribute("aria-haspopup", "listbox"); sw.setAttribute("aria-controls", "cbl");
+    sw.setAttribute("aria-expanded", V.sheetOpen ? "true" : "false");
+    if (!S.choice) { sw.appendChild(chipEl("need", "pick one")); sw.appendChild(root.document.createTextNode(" Choose a goal or a scope ")); }
+    else { sw.appendChild(el("span", "kind", S.choice.kind)); sw.appendChild(el("b", null, S.choice.name)); sw.appendChild(root.document.createTextNode(" ")); }
+    sw.appendChild(el("span", "car", "▾"));
+    sw.addEventListener("click", function (e) { e.stopPropagation(); toggleSheet(); });
+    return sw;
+  }
+
+  function drawBar(S, sq, nowMs) {
+    var bar = V.bar; bar.textContent = "";
     var c = S.choice;
+    bar.appendChild(selButton(S));
     var wh = el("span", "where");
+    if (!c) {
+      wh.appendChild(el("span", "muted", "Nothing is selected, so no panel shows data. The picker below lists goals and scopes."));
+      bar.appendChild(wh);
+      return;
+    }
     var goal = c.kind === "scope" && V.scopeRow ? V.scopeRow.goal : null;
     if (c.kind === "goal") wh.appendChild(el("b", null, "goal " + c.name));
     else if (goal) {
@@ -459,13 +596,13 @@
       wh.appendChild(el("b", null, "scope " + c.name));
       if (V.scopeRow) wh.appendChild(el("span", "muted", " (no goal)"));
     }
+    wh.appendChild(root.document.createTextNode(" "));
+    wh.appendChild(statusChip(V.closed || statusOf(sq, c) === "closed"));
     var brief = c.kind === "goal" ? V.goalBrief : (V.scopeRow ? V.scopeRow.brief : "");
-    if (brief) wh.appendChild(el("span", "muted", "  " + brief));
-    var sw = el("button", "hb", "Switch ▾"); sw.type = "button"; sw.setAttribute("aria-haspopup", "listbox");
-    sw.setAttribute("aria-expanded", V.sheetOpen ? "true" : "false");
-    sw.addEventListener("click", function (e) { e.stopPropagation(); toggleSheet(); });
-    bar.appendChild(sw); bar.appendChild(wh);
-    bar.appendChild(link("Open the picker", function () { openPicker(true); }));
+    var extra = "";
+    if (c.kind === "goal" && V.goalCounts) extra = " · " + V.goalCounts.n + " scope" + (V.goalCounts.n === 1 ? "" : "s") + " (" + V.goalCounts.open + " open) · panels show them together";
+    if (brief || extra) wh.appendChild(el("span", "muted", " " + brief + extra));
+    bar.appendChild(wh);
     otherNeeds(sq, c, goal).forEach(function (r) {
       var o = el("span", "out");
       o.appendChild(root.document.createTextNode(r.needs_you + " more need" + (r.needs_you === 1 ? "s" : "") + " you in "));
@@ -478,47 +615,111 @@
       ro.appendChild(link("Back to the picker", function () { openPicker(true); }));
       bar.appendChild(ro);
     }
-    view.appendChild(bar);
-    if (V.sheetOpen) view.appendChild(sheetEl(sq, nowMs));
   }
 
-  function sheetEl(sq, nowMs) {
-    var sh = el("div", "sheet"); sh.setAttribute("role", "dialog"); sh.setAttribute("aria-label", "Switch goal or scope");
-    var inp = el("input"); inp.type = "search"; inp.autocomplete = "off"; inp.placeholder = "Search by name or brief";
-    inp.setAttribute("aria-label", "Search goals and scopes"); inp.value = V.sheetQ;
-    var list = el("div"); list.setAttribute("role", "listbox");
-    var paintList = function () {
-      list.textContent = "";
-      var vis = filterRows(flatRows(sq, V.kids), inp.value);
-      if (!vis.length) list.appendChild(el("p", "muted", "Nothing matches '" + inp.value.trim() + "'"));
-      var frag = root.document.createDocumentFragment();
-      vis.forEach(function (r) {
-        var b = el("button", "hb", r.name + (r.kind === "goal" ? " (goal)" : "") + (r.status === "done" ? " (done)" : ""));
-        b.type = "button"; b.style.display = "block"; b.style.width = "100%"; b.style.textAlign = "left";
-        b.addEventListener("click", function () { openChoice({ kind: r.kind, name: r.name }, true); });
-        frag.appendChild(b);
-      });
-      list.appendChild(frag);
-    };
-    inp.addEventListener("input", function () { V.sheetQ = inp.value; paintList(); });
-    inp.addEventListener("keydown", function (e) {
-      if (e.key !== "Enter") return;
-      e.preventDefault();
-      var r = topRow(filterRows(flatRows(sq, V.kids), inp.value));
-      if (r) openChoice({ kind: r.kind, name: r.name }, true);
+  /* groups for the combobox: with text, Goals and Scopes; without, Recent, Open (a goal with its open scopes), Done */
+  function comboGroups(sq, q) {
+    q = q.trim();
+    if (q) {
+      var vis = filterRows(flatRows(sq, V.kids), q);
+      return [{ t: "Goals", rows: vis.filter(function (r) { return r.kind === "goal"; }).map(function (r) { return { r: r }; }) },
+              { t: "Scopes", rows: vis.filter(function (r) { return r.kind === "scope"; }).map(function (r) { return { r: r, ctx: r.goal || "" }; }) }]
+        .filter(function (g) { return g.rows.length; });
+    }
+    var out = [];
+    var rec = recentRows(sq);
+    if (rec.length) out.push({ t: "Recent", rows: rec.map(function (r) { return { r: r, ctx: r.kind === "scope" ? r.goal || "" : "" }; }) });
+    var o = [];
+    (sq.open || []).forEach(function (r) {
+      o.push({ r: r, ctx: r.kind === "scope" ? "" : null, loose: r.kind === "scope" });
+      if (r.kind === "goal") (V.kids[r.name] || []).filter(function (k) { return k.status !== "done"; }).forEach(function (k) { o.push({ r: k, sub: true }); });
     });
-    sh.appendChild(inp); sh.appendChild(list); paintList();
+    out.push({ t: "Open", rows: o });
+    out.push({ t: "Done", done: true, rows: (sq.done || []).map(function (r) { return { r: r }; }) });
+    return out;
+  }
+  function comboRow(x, n, sq, sel) {
+    var r = x.r, cur = sel && sel.kind === r.kind && sel.name === r.name;
+    var d = el("div", "cbo" + (x.sub ? " sub" : "") + (r.status === "done" ? " dn" : "") + (cur ? " cur" : ""));
+    d.setAttribute("role", "option"); d.id = "cbo-" + n; d.dataset.kind = r.kind; d.dataset.name = r.name; d.setAttribute("aria-selected", String(!!cur));
+    var cn = el("span", "cn"); cn.appendChild(el("b", null, r.name));
+    var k = r.kind === "goal" ? "goal" : (x.ctx ? "in " + x.ctx : (x.loose ? "no goal" : ""));
+    if (k) { cn.appendChild(root.document.createTextNode(" ")); cn.appendChild(el("span", "kind", k)); }
+    d.appendChild(cn);
+    if (r.status === "done") d.appendChild(chipEl("work", "done"));
+    if (r.needs_you > 0) d.appendChild(chipEl("need", String(r.needs_you)));
+    var a = r.stub || !r.last_active ? "" : ago(r.last_active, ctx.now()).replace(" ago", "");
+    d.appendChild(el("span", "muted sm nw", a));
+    d.addEventListener("click", function () { openChoice({ kind: r.kind, name: r.name }, true); });
+    return d;
+  }
+  function fillCombo() {
+    var sq = ctx.state.squad, sel = ctx.state.choice, inp = V.combo.querySelector("input"), list = V.combo.querySelector("#cbl");
+    var q = inp.value, n = 0;
+    list.textContent = "";
+    var frag = root.document.createDocumentFragment();
+    comboGroups(sq, q).forEach(function (g) {
+      if (g.done && !q.trim()) {
+        var h = el("div", "cbh"); var b = el("button", "lk", (V.cbDone ? "▾" : "▸") + " Done (" + g.rows.length + ")"); b.type = "button"; b.dataset.cbdone = "1";
+        b.addEventListener("click", function (e) { e.stopPropagation(); V.cbDone = !V.cbDone; fillCombo(); inp.focus(); });
+        h.appendChild(b); frag.appendChild(h);
+        if (V.cbDone) g.rows.forEach(function (x) { frag.appendChild(comboRow(x, n++, sq, sel)); });
+        return;
+      }
+      frag.appendChild(el("div", "cbh", g.t));
+      g.rows.forEach(function (x) { frag.appendChild(comboRow(x, n++, sq, sel)); });
+    });
+    if (!n) frag.appendChild(el("p", "muted", "Nothing matches '" + q.trim() + "'"));
+    list.appendChild(frag);
+    V.ai = q.trim() ? 0 : Math.min(V.ai, n - 1);
+    markAct();
+  }
+  function markAct() {
+    var a = V.combo.querySelectorAll("#cbl .cbo"), inp = V.combo.querySelector("input");
+    Array.prototype.forEach.call(a, function (x, i) { x.classList.toggle("act", i === V.ai); });
+    var c = a[V.ai];
+    if (c) { inp.setAttribute("aria-activedescendant", c.id); if (c.scrollIntoView) c.scrollIntoView({ block: "nearest" }); } else inp.removeAttribute("aria-activedescendant");
+  }
+  function openCombo() {
+    var cb = V.combo;
+    cb.textContent = ""; cb.hidden = false;
+    cb.style.top = (V.bar.offsetHeight + 2) + "px";
+    var inp = el("input"); inp.type = "search"; inp.autocomplete = "off"; inp.setAttribute("role", "combobox");
+    inp.setAttribute("aria-expanded", "true"); inp.setAttribute("aria-controls", "cbl"); inp.setAttribute("aria-autocomplete", "list");
+    inp.placeholder = "Search goals and scopes"; inp.setAttribute("aria-label", "Search goals and scopes"); inp.value = V.sheetQ;
+    var list = el("div"); list.id = "cbl"; list.setAttribute("role", "listbox"); list.setAttribute("aria-label", "Goals and scopes");
+    var ft = el("div", "cbf");
+    var ob = el("button", "hb", "Open the picker (counts, last active)"); ob.type = "button";
+    ob.addEventListener("click", function (e) { e.stopPropagation(); openPicker(true); });
+    ft.appendChild(ob); ft.appendChild(el("span", "muted sm", "↑ ↓ Enter · Esc"));
+    cb.appendChild(inp); cb.appendChild(list); cb.appendChild(ft);
+    V.ai = -1;
+    inp.addEventListener("input", function () { V.sheetQ = inp.value; fillCombo(); });
+    inp.addEventListener("keydown", function (e) {
+      var a = V.combo.querySelectorAll("#cbl .cbo");
+      if (e.key === "ArrowDown") { e.preventDefault(); V.ai = Math.min(a.length - 1, V.ai + 1); markAct(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); V.ai = Math.max(0, V.ai - 1); markAct(); }
+      else if (e.key === "Enter") {
+        e.preventDefault();
+        var c = a[V.ai >= 0 ? V.ai : 0];
+        if (c) openChoice({ kind: c.dataset.kind, name: c.dataset.name }, true);
+      }
+    });
+    fillCombo();
     root.setTimeout(function () { if (V.sheetOpen && inp.isConnected) inp.focus(); }, 0);
-    return sh;
   }
 
   var escFn = null;
   function toggleSheet(force) {
     V.sheetOpen = typeof force === "boolean" ? force : !V.sheetOpen;
     if (V.sheetOpen && !escFn) {
-      escFn = function (e) { if (e.key === "Escape") toggleSheet(false); };
+      escFn = function (e) {
+        if (e.key !== "Escape") return;
+        toggleSheet(false);
+        var b = root.document.getElementById("selbtn"); if (b) b.focus();
+      };
       root.document.addEventListener("keydown", escFn);
-      (ctx.state.squad.open || []).forEach(function (r) { if (r.kind === "goal") loadKids(r.name); });
+      goalNames(ctx.state.squad).forEach(function (g) { loadKids(g); });
     }
     if (!V.sheetOpen && escFn) { root.document.removeEventListener("keydown", escFn); escFn = null; }
     refresh(true);
@@ -530,10 +731,17 @@
     if (!sq) return;
     css();
     var nowMs = ctx.now();
-    var sig = JSON.stringify([S.choice, V.closed, V.notFound, V.scopeRow, V.goalBrief, sq.open, sq.done, V.kids, V.exp, V.sheetOpen, S.recent, Math.floor(nowMs / 60000)]);
+    var sig = JSON.stringify([S.choice, V.closed, V.notFound, V.scopeRow, V.goalBrief, V.goalCounts, sq.open, sq.done, V.kids, V.exp, V.sheetOpen, V.sort, S.recent, Math.floor(nowMs / 60000)]);
     if (!force && sig === V.sig) return;
     V.sig = sig;
-    if (!S.choice) pickerView(sq, nowMs); else contextView(S, sq, nowMs);
+    var view = ctx.els.view;
+    ensureShell(view);
+    drawBar(S, sq, nowMs);
+    if (!S.choice) pickerView(sq, nowMs);
+    else { V.picker = null; V.slot.textContent = ""; }
+    if (V.sheetOpen) {
+      if (V.combo.hidden || !V.combo.firstChild) openCombo(); else fillCombo();
+    } else if (!V.combo.hidden) { V.combo.hidden = true; V.combo.textContent = ""; }
     ctx.paintTitle();
   }
   function paintContext() { refresh(true); }
@@ -549,7 +757,7 @@
   root.document.addEventListener("keydown", onKey);
   root.addEventListener("popstate", onPop);
   root.document.addEventListener("click", function (e) {
-    if (V.sheetOpen && ctx && !(e.target.closest && e.target.closest(".sheet"))) toggleSheet(false);
+    if (V.sheetOpen && ctx && !(e.target.closest && (e.target.closest(".combo") || e.target.closest("#selbtn")))) toggleSheet(false);
   });
   BOARD.viewState = V;
 })(typeof window !== "undefined" ? window : this);
