@@ -1,12 +1,13 @@
 """Saved UI state of the dashboard (ticket 09, architecture.md sections 1 and 1a).
 
 The one file the board writes: `<squad folder>/board-ui.json`. The path comes from the server's squad choice, never
-from a request. Layout is stored as order, column span, hidden and an optional max height per panel: no pixel
-position and no row index (a saved layout then survives a font change or a window resize).
+from a request. Layout is stored per panel as page column `col` (optional, 0..11), `order` (place in the column),
+hidden and an optional max height: no pixel position and no row index. `span` (old row layout) is optional and no
+longer written; a row without `col` is an old layout (the page shows the default place).
 
     {"version": 1, "saved_at": "2026-11-04T10:00:00Z", "font": "normal",
      "choice": {"kind": "scope", "name": "dashboard"} | null, "recent": [<choice>, ...5], "auto": true,
-     "panels": {"<panel id>": {"order": 0, "span": 2, "hidden": false, "max_height": 300}},
+     "panels": {"<panel id>": {"col": 0, "order": 0, "hidden": false, "max_height": 300}},
      "columns": {"<panel id>": ["<column id>", ...]}}
 
 `columns` (ticket 20) is the ordered list of the VISIBLE column ids of each table panel; a hidden column is absent. One
@@ -33,7 +34,8 @@ REPLACE_TRIES = 3
 COLUMN_ID_RE = re.compile(r"^[a-z0-9_]{1,32}$")
 COLUMNS_MAX_PANELS = 20
 COLUMNS_MAX_IDS = 30
-NO_POSITION_KEYS = ("x", "y", "row", "".join(("si", "ze")))  # layout is order and span only (architecture 1a)
+COL_MAX = 11
+NO_POSITION_KEYS = ("x", "y", "row", "".join(("si", "ze")))  # layout is col and order only (architecture 1a)
 
 
 def _no_constant(name):
@@ -98,12 +100,18 @@ def validate(body):
     clean = {}
     for pid, p in panels.items():
         if isinstance(p, dict) and any(k in p for k in NO_POSITION_KEYS):
-            raise ValueError("panel %s: no position keys, use order and span" % pid)
-        if not (isinstance(p, dict) and _int(p.get("order")) and _int(p.get("span"), 1)
+            raise ValueError("panel %s: no position keys, use col and order" % pid)
+        if not (isinstance(p, dict) and _int(p.get("order"))
+                and (p.get("span") is None or _int(p.get("span"), 1))
+                and (p.get("col") is None or (_int(p.get("col")) and p["col"] <= COL_MAX))
                 and isinstance(p.get("hidden", False), bool)
                 and (p.get("max_height") is None or _int(p.get("max_height"), 1))):
-            raise ValueError("panel %s: order and span are integers, hidden a boolean, max_height optional" % pid)
-        row = {"order": p["order"], "span": p["span"], "hidden": p.get("hidden", False)}
+            raise ValueError("panel %s: order is an integer, col 0..%d, hidden a boolean, max_height optional" % (pid, COL_MAX))
+        row = {"order": p["order"], "hidden": p.get("hidden", False)}
+        if p.get("span") is not None:
+            row["span"] = p["span"]
+        if p.get("col") is not None:
+            row["col"] = p["col"]
         if p.get("max_height") is not None:
             row["max_height"] = p["max_height"]
         clean[str(pid)] = row

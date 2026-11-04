@@ -245,8 +245,8 @@
 
   /* ---------- panel registry ---------- */
   var REG = [];
-  /* registerPanel({id, title, route, maxPx, span, spans, render(body, data, ctx), isEmpty(data)})
-     route: the API path the panel reads (e.g. "/api/inbox"); span in twelfths (default 4); maxPx at Normal text. */
+  /* registerPanel({id, title, route, maxPx, render(body, data, ctx), isEmpty(data)})
+     route: the API path the panel reads (e.g. "/api/inbox"); maxPx at Normal text. (span, spans: no longer used.) */
   function registerPanel(def) {
     if (!def || !def.id || REG.some(function (d) { return d.id === def.id; })) return;
     REG.push(def);
@@ -280,7 +280,7 @@
 
     var S = { squads: [], squad: null, token: "", choice: null, recent: [], font: "normal", auto: true,
               needs: null, lastOk: null, status: "loading", saveStatus: "ok", notes: {}, saved_at: null, columns: {} };
-    var P = {};          /* panel id -> {id, def, order, span, hidden, max_height, el, body, hdr, last} */
+    var P = {};          /* panel id -> {id, def, idx, col, order, hidden, max_height, el, body, hdr, last} */
     var engine = null, saveTimer = null, loadedOnce = false, popOpen = false, booted = false, colPop = null;
 
     var els = {};
@@ -309,32 +309,33 @@
       els.hiddenBtn = el("button", "hb", "Panels ▾"); els.hiddenBtn.type = "button";
       els.hiddenBtn.setAttribute("aria-haspopup", "true"); els.hiddenBtn.setAttribute("aria-expanded", "false");
       els.reset = el("button", "hb", "Reset layout"); els.reset.type = "button";
-      fr3.appendChild(els.font); fr3.appendChild(els.hiddenBtn); fr3.appendChild(els.reset); r3.appendChild(fr3);
+      fr3.appendChild(els.font); els.popWrap = el("span", "popwrap"); els.popWrap.appendChild(els.hiddenBtn); fr3.appendChild(els.popWrap); fr3.appendChild(els.reset); r3.appendChild(fr3);
       header.appendChild(r1); header.appendChild(r3);
       els.notes = el("div", "notes"); els.notes.setAttribute("role", "status");
       els.banner = el("div", "bannerslot");   /* the permission banner: not a panel, no hide, no drag */
       els.pick = el("p", "note"); els.pick.hidden = true;
       var main = el("main"); els.canvas = el("div"); els.canvas.id = "canvas"; main.appendChild(els.canvas);
       els.pop = el("div", "pop"); els.pop.hidden = true; els.pop.setAttribute("role", "menu");
+      els.popWrap.appendChild(els.pop);
       els.view = el("div"); els.view.id = "view";   /* the picker and the context line (panel_scopes.js) */
-      [header, els.notes, els.banner, els.pick, els.view, main, els.pop].forEach(function (n) { app.appendChild(n); });
+      [header, els.notes, els.banner, els.pick, els.view, main].forEach(function (n) { app.appendChild(n); });
       els.squad.addEventListener("change", function () { switchSquad(els.squad.value); });
       els.choice.addEventListener("change", function () { setChoice(els.choice.value); });
       els.reset.addEventListener("click", resetLayout);
       els.hiddenBtn.addEventListener("click", function (e) { e.stopPropagation(); togglePop(); });
       doc.addEventListener("click", function () { if (popOpen) togglePop(false); });
-      doc.addEventListener("keydown", function (e) { if (e.key === "Escape" && popOpen) togglePop(false); });
+      doc.addEventListener("keydown", function (e) { if (e.key === "Escape" && popOpen) { togglePop(false); els.hiddenBtn.focus(); } });
     }
 
     /* ---- panels ---- */
-    function defaults(def, i) { return { order: i, span: def.span || 4, hidden: false, max_height: null }; }
+    function defaults(def, i) { return { col: null, order: i, hidden: false, max_height: null }; }
 
     function makePanel(def, i) {
       var d = defaults(def, i);
-      var p = { id: def.id, def: def, order: d.order, span: d.span, hidden: d.hidden, max_height: d.max_height,
-                maxPx: def.maxPx || 400, spans: def.spans || [4, 6, 8, 12] };
+      var p = { id: def.id, def: def, idx: i, col: d.col, order: d.order, hidden: d.hidden, max_height: d.max_height,
+                maxPx: def.maxPx || 400 };
       var sec = el("section", "panel"); sec.dataset.panel = def.id; sec.setAttribute("aria-label", def.title);
-      var ph = el("div", "ph"); ph.tabIndex = 0; ph.setAttribute("aria-label", def.title + ": arrows move, Shift and arrows resize");
+      var ph = el("div", "ph"); ph.tabIndex = 0; ph.setAttribute("aria-label", def.title + ": Up and Down move, Left and Right change column, Shift with Up or Down resizes");
       ph.appendChild(el("span", "grip", "⋮⋮"));
       ph.appendChild(el("h2", null, def.title));
       p.count = el("span", "count"); p.count.hidden = true; ph.appendChild(p.count);
@@ -344,14 +345,14 @@
       if (def.columns) {
         p.cols = el("button", "pbtn", "Columns"); p.cols.type = "button"; p.cols.setAttribute("aria-haspopup", "true");
         p.cols.setAttribute("aria-expanded", "false"); p.colTag = el("span", "chip colhid"); p.colTag.hidden = true; p.cols.appendChild(p.colTag);
-        ph.appendChild(p.cols);
+        p.colWrap = el("span", "popwrap"); p.colWrap.appendChild(p.cols); ph.appendChild(p.colWrap);
         p.cols.addEventListener("click", function (e) { e.stopPropagation(); openColumns(p); });
       }
       p.hide = el("button", "pbtn", "Hide"); p.hide.type = "button"; p.hide.title = "Hide this panel";
       ph.appendChild(p.fit); ph.appendChild(p.hide);
       var pb = el("div", "pb"); p.body = el("div", "pbi"); pb.appendChild(p.body);
       sec.appendChild(ph); sec.appendChild(pb);
-      ["e", "s", "se"].forEach(function (d2) {
+      ["s"].forEach(function (d2) {
         var h = el("div", "rz " + d2); h.addEventListener("pointerdown", function (e) { e.preventDefault(); e.stopPropagation(); engine.resize(p, d2, e); });
         sec.appendChild(h);
       });
@@ -376,9 +377,16 @@
       });
     }
 
+    /* hide, show: panels move up or down in their column; no panel changes column */
     function replan() {
       setFlags();
-      if (S.auto) engine.plan(); else engine.relayout();
+      engine.relayout();
+      setFlags();
+    }
+    /* default place (first load, Reset, new choice, text size): only while the PO has not moved a panel */
+    function replace() {
+      setFlags();
+      engine.plan(!S.auto);
       setFlags();
     }
 
@@ -386,7 +394,8 @@
     function snapshot() {
       var panels = {};
       panelList().forEach(function (p) {
-        var r = { order: p.order, span: p.span, hidden: !!p.hidden && !p.def.byView };
+        var r = { order: p.order, hidden: !!p.hidden && !p.def.byView };
+        if (Number.isInteger(p.col)) r.col = p.col;
         if (p.max_height != null) r.max_height = p.max_height;
         panels[p.id] = r;
       });
@@ -409,7 +418,7 @@
         var r = pan[p.id];
         if (!r) return;
         if (Number.isInteger(r.order)) p.order = r.order;
-        if (Number.isInteger(r.span) && r.span >= 1) p.span = r.span;
+        p.col = Number.isInteger(r.col) && r.col >= 0 && r.col <= 11 ? r.col : null;   /* no col: an old layout, default place */
         p.hidden = !!r.hidden;
         p.max_height = Number.isInteger(r.max_height) ? r.max_height : null;
       });
@@ -467,6 +476,10 @@
       var f = FONTS.filter(function (x) { return x[0] === S.font; })[0] || FONTS[1];
       doc.documentElement.style.setProperty("--u", String(f[2]));
       doc.documentElement.dataset.font = f[0];
+      if (popOpen) placePop();
+      if (colPop) placeColumns();
+      /* the panels move to their new place after a text-size change (they animate 0.12 s): measure again */
+      if (popOpen || colPop) root.setTimeout(function () { if (popOpen) placePop(); if (colPop) placeColumns(); }, 250);
       Array.prototype.forEach.call(els.font.children, function (b) {
         b.setAttribute("aria-pressed", b.dataset.font === S.font ? "true" : "false");
       });
@@ -475,7 +488,7 @@
 
     function setFont(name) {
       if (S.font === name) return;
-      S.font = name; applyFont(); touch(); replan();
+      S.font = name; applyFont(); touch(); replace();
     }
 
     function scale() { return (FONTS.filter(function (x) { return x[0] === S.font; })[0] || FONTS[1])[2]; }
@@ -548,7 +561,8 @@
     function renderPop() {
       els.pop.textContent = "";
       var hid = panelList().filter(function (p) { return p.hidden && !p.def.byView; });
-      els.hiddenBtn.textContent = "Panels" + (hid.length ? " (" + hid.length + " hidden)" : "") + " ▾";
+      els.hiddenBtn.textContent = "Panels" + (hid.length ? " (" + hid.length + " hidden)" : "") + (popOpen ? " ▴" : " ▾");
+      els.pop.appendChild(el("h3", null, "Hidden panels"));
       if (!hid.length) els.pop.appendChild(el("p", "muted", "No hidden panels."));
       hid.forEach(function (p) {
         var b = el("button", "hb", "Show " + p.def.title); b.type = "button"; b.setAttribute("role", "menuitem");
@@ -556,19 +570,45 @@
         els.pop.appendChild(b);
       });
     }
+    /* popPlace(btnRect, popSize, viewport) -> {top, left, maxHeight}: under the button, left edges aligned,
+       moved left to stay inside (8 px margin); if too tall for the room below, it gets a max height and scrolls. */
+    function popPlace(r, size, vp) {
+      var m = 8, left = Math.max(m, Math.min(r.left, vp.w - size.w - m)), top = r.bottom + 4;
+      return { top: top, left: left, maxHeight: Math.max(0, vp.h - r.bottom - 12) };
+    }
+    BOARD.popPlace = popPlace;
+    /* fitBox: place a list under its button. The list keeps a usable height (its own height, at most 280 px);
+       on open, if the room under the button is smaller, the page scrolls the button up (the button stays in view). */
+    function fitBox(box, btn, scrollUp) {
+      var H = root.innerHeight || 800, W = root.innerWidth || 1000;
+      box.style.maxHeight = "";
+      var need = Math.min(box.offsetHeight, 280, H - 16), r = btn.getBoundingClientRect();
+      if (scrollUp) {
+        var room = H - r.bottom - 12, d = Math.min(need - room, r.top - 8);
+        if (room < need && d > 0 && root.scrollBy) { root.scrollBy(0, d); r = btn.getBoundingClientRect(); }
+      }
+      var pl = popPlace(r, { w: box.offsetWidth, h: box.offsetHeight }, { w: W, h: H });
+      box.style.maxHeight = Math.max(pl.maxHeight, need) + "px";
+      box.style.left = (pl.left - r.left) + "px";
+    }
+    function placePop() { if (popOpen) fitBox(els.pop, els.hiddenBtn, false); }
     function togglePop(force) {
+      var was = popOpen;
       popOpen = typeof force === "boolean" ? force : !popOpen;
       renderPop();
       els.pop.hidden = !popOpen;
       els.hiddenBtn.setAttribute("aria-expanded", popOpen ? "true" : "false");
+      if (popOpen && !was) { root.addEventListener("resize", placePop); root.addEventListener("scroll", placePop, true); }
+      if (!popOpen && was) { root.removeEventListener("resize", placePop); root.removeEventListener("scroll", placePop, true); els.hiddenBtn.focus(); }
+      if (popOpen && !was) fitBox(els.pop, els.hiddenBtn, true); else placePop();
     }
 
     function resetLayout() {
       panelList().forEach(function (p) {
         var i = REG.indexOf(p.def), d = defaults(p.def, i);
-        p.order = d.order; p.span = d.span; p.hidden = p.def.byView ? p.hidden : false; p.max_height = null;
+        p.order = d.order; p.col = d.col; p.hidden = p.def.byView ? p.hidden : false; p.max_height = null;
       });
-      S.auto = true; S.columns = resetColumns(S.columns); closeColumns(); touch(); renderPop(); replan(); redrawAll();
+      S.auto = true; S.columns = resetColumns(S.columns); closeColumns(); touch(); renderPop(); replace(); redrawAll();
     }
 
     /* ---- columns (ticket 20): one control for every table panel ---- */
@@ -597,7 +637,7 @@
       var p = colPop.p;
       doc.removeEventListener("keydown", colPop.key, true); doc.removeEventListener("click", colPop.out, true); root.removeEventListener("resize", colPop.place);
       colPop.box.remove(); colPop = null;
-      p.cols.setAttribute("aria-expanded", "false");
+      p.cols.setAttribute("aria-expanded", "false"); p.cols.closest(".panel").classList.remove("popopen");
       if (refocus) p.cols.focus();
     }
     function openColumns(p) {
@@ -611,9 +651,10 @@
       st.place = function () { placeColumns(); };
       doc.addEventListener("keydown", st.key, true); doc.addEventListener("click", st.out, true); root.addEventListener("resize", st.place);
       colPop = st;
-      p.cols.setAttribute("aria-expanded", "true");
-      app().appendChild(box);
+      p.cols.setAttribute("aria-expanded", "true"); p.cols.closest(".panel").classList.add("popopen");
+      p.colWrap.appendChild(box);
       paintColumns();
+      placeColumns(true);
       var first = box.querySelector("input,button");
       if (first) first.focus();
     }
@@ -657,13 +698,7 @@
         if (t) t.focus();
       }
     }
-    function placeColumns() {
-      var box = colPop.box, r = colPop.p.cols.getBoundingClientRect(), W = root.innerWidth || 1000, H = root.innerHeight || 800;
-      box.style.maxHeight = Math.max(120, H - 16) + "px";
-      var bw = box.offsetWidth, bh = box.offsetHeight;
-      var left = Math.min(Math.max(8, r.left), Math.max(8, W - bw - 8)), top = Math.min(Math.max(8, r.bottom + 4), Math.max(8, H - bh - 8));
-      box.style.left = left + "px"; box.style.top = top + "px";
-    }
+    function placeColumns(scrollUp) { if (colPop) fitBox(colPop.box, colPop.p.cols, scrollUp === true); }
     function wireColumnDrag(p) {
       var from = null;
       p.body.addEventListener("dragstart", function (e) {
@@ -804,7 +839,7 @@
       if (n != null) S.needs = n;
       S.status = "ok"; S.lastOk = iso();
       paintFresh(); paintTitle();
-      if (!loadedOnce) { loadedOnce = true; paintPickers(); replan(); }
+      if (!loadedOnce) { loadedOnce = true; paintPickers(); replace(); }
       else engine.request();
     }
 
@@ -865,7 +900,7 @@
       build();
       engine = BOARD.layout.mount({
         canvas: els.canvas,
-        get: function () { return { panels: panelList(), scale: scale() }; },
+        get: function () { return { panels: panelList(), scale: scale(), auto: S.auto }; },
         set: function (id, patch) { Object.keys(patch).forEach(function (k) { P[id][k] = patch[k]; }); },
         changed: function (x) { touch(x); setFlags(); renderPop(); }
       });
@@ -883,7 +918,7 @@
                           shown: function (scope, task, n) { return shownNew(cleared, scope, task, n, S.since); },
                           rowNew: function (n, scopes) { return rowNew(cleared, n, S.since, scopes); } }, fmtClock: function (i) { return fmtClock(i, tz); }, now: nowMs, paintTitle: paintTitle };
     BOARD.page = { state: S, panels: P, poller: poller, engine: engine, paintFresh: paintFresh, setFont: setFont, resetLayout: resetLayout,
-                   replan: replan, snapshot: snapshot, setChoice: setChoice, touch: touch };
+                   replan: replan, replace: replace, snapshot: snapshot, setChoice: setChoice, touch: touch };
     return BOARD.page;
   }
   BOARD.start = start;
