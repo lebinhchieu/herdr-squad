@@ -287,6 +287,7 @@
     function build() {
       var app = doc.getElementById("app");
       app.textContent = "";
+      els.demo = el("div", "demo", "DEMO · sample data, not your squads"); els.demo.setAttribute("role", "note"); els.demo.hidden = !S.demo;   /* ticket 37b: demo only, no controls */
       var header = el("header", "top");
       var r1 = el("div", "r1");
       r1.appendChild(el("h1", null, "squad board"));
@@ -318,7 +319,7 @@
       els.pop = el("div", "pop"); els.pop.hidden = true; els.pop.setAttribute("role", "menu");
       els.popWrap.appendChild(els.pop);
       els.view = el("div"); els.view.id = "view";   /* the picker and the context line (panel_scopes.js) */
-      [header, els.notes, els.banner, els.pick, els.view, main].forEach(function (n) { app.appendChild(n); });
+      [els.demo, header, els.notes, els.banner, els.pick, els.view, main].forEach(function (n) { app.appendChild(n); });
       els.squad.addEventListener("change", function () { switchSquad(els.squad.value); });
       els.choice.addEventListener("change", function () { setChoice(els.choice.value); });
       els.reset.addEventListener("click", resetLayout);
@@ -523,7 +524,7 @@
       els.zone.appendChild(el("b", null, zoneOffset(iso(), tz)));
     }
 
-    function paintTitle() { doc.title = titleFor(S.squad ? S.squad.name : "squad board", S.needs); }
+    function paintTitle() { doc.title = (S.demo ? "[demo] " : "") + titleFor(S.squad ? S.squad.name : "squad board", S.needs); }
 
     function paintPickers() {
       els.squad.textContent = "";
@@ -839,7 +840,7 @@
       var sq = v.squads && v.squads.data;
       if (sq && Array.isArray(sq.squads)) {
         var cur = S.squad && S.squad.key;
-        S.squads = sq.squads;
+        S.squads = sq.squads; S.demo = sq.demo === true; els.demo.hidden = !S.demo;
         S.squad = S.squads.filter(function (s) { return s.key === cur; })[0] || S.squad;
       }
       if (BOARD.hooks.data) BOARD.hooks.data(v.squads, S);
@@ -884,7 +885,7 @@
         return getJson("/api/squads");
       }).then(function (j) {
         var d = j.data || {};
-        S.squads = d.squads || [];
+        S.squads = d.squads || []; S.demo = d.demo === true; els.demo.hidden = !S.demo;
         var ini = d.initial || (BOARD.hooks.flags && BOARD.hooks.flags()) || {};
         S.squad = S.squads.filter(function (s) { return s.key === ini.squad && !s.flat; })[0] || S.squads.filter(function (s) { return !s.flat; })[0] || null;
         if (!S.squad) { paintPickers(); throw new Error("no squad"); }

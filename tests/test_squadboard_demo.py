@@ -1,5 +1,5 @@
 """Ticket 37: `squad-board --demo`. Names carry the business (T37.ACn) or technical (T37.TAn) AC they cover.
-TA4 (the label) waits for 37b: it needs the label step in squadboard.py and board.js (after tickets 34 and 36)."""
+TA4 (the label, step 37b) is in class Label."""
 import hashlib
 import json
 import os
@@ -23,6 +23,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ROOT / "bin"))
 import squadboard  # noqa: E402
 import squadboard_demo  # noqa: E402
+from test_squadboard_page import CHROME, STUB, Server, run_page  # noqa: E402
 
 PREFIX = "squad-board-demo-"
 STAGES = ("todo", "in progress", "returned", "blocked", "checking", "ready for review", "sha changed after PASS", "merged", "done")
@@ -94,9 +95,9 @@ class RunningDemo(unittest.TestCase):
         cls.stop = threading.Event()
         cls.port = free_port()
 
-        def main(argv, stop=None):
+        def main(argv, stop=None, demo=False):
             cls.mains.append(list(argv))
-            return squadboard.main(argv, stop=stop, open_browser=lambda u: None)
+            return squadboard.main(argv, stop=stop, open_browser=lambda u: None, demo=demo)
         cls.rc = []
         cls.thread = threading.Thread(target=lambda: cls.rc.append(squadboard_demo.run(
             ["--demo", "--port", str(cls.port), "--no-open"], main=main, stop=cls.stop)), daemon=True)
@@ -218,7 +219,7 @@ class Flags(unittest.TestCase):
     def test_T37_TA1_copy_removed_when_main_raises(self):
         before = demo_dirs()
 
-        def boom(argv, stop=None):
+        def boom(argv, stop=None, demo=False):
             raise RuntimeError("boom")
         with self.assertRaises(RuntimeError):
             squadboard_demo.run(["--demo", "--port", "0", "--no-open"], main=boom)
@@ -245,6 +246,73 @@ class Flags(unittest.TestCase):
             if p.poll() is None:
                 p.kill()
             p.stdout.close()
+
+
+def css_token(name):
+    """The value of a colour token of board.css, as the rgb() string a browser computes."""
+    m = re.search(r"--%s:\s*#([0-9A-Fa-f]{6})" % name, (ROOT / "templates" / "board" / "board.css").read_text(encoding="utf-8"))
+    assert m, "token --%s not found in board.css" % name
+    h = m.group(1)
+    return "rgb(%d, %d, %d)" % tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+PROBE = """
+mkPanel('1','A',1,4,300);
+BOARD.start({fetch:mkFetch({'1':1}),tz:'UTC',now:()=>Date.parse('2026-11-04T10:00:00Z'),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,storage:mem()});
+await sleep(300);
+const look=()=>{const e=document.querySelector('.demo');if(!e)return null;const c=getComputedStyle(e),r=e.getBoundingClientRect();
+  return {text:e.textContent,shown:!e.hidden&&r.height>0,first:e.parentNode.firstChild===e,role:e.getAttribute('role'),kids:e.children.length,
+  bg:c.backgroundColor,color:c.color,weight:c.fontWeight,ls:c.letterSpacing,fs:c.fontSize,bstyle:c.borderBottomStyle,bw:c.borderBottomWidth,bc:c.borderBottomColor,
+  pos:c.position,top:r.top,h:r.height,headTop:document.querySelector('header.top').getBoundingClientRect().top}};
+const o={first:look(),title1:document.title};
+fakeTimers.splice(0).forEach(t=>t.f());await sleep(300);          // a poll
+o.afterPoll=look();o.title2=document.title;
+[...document.querySelectorAll('button.hb')].filter(b=>b.textContent==='Reset layout')[0].click();await sleep(200);  // a layout change
+o.afterLayout=look();o.title3=document.title;
+out(o);
+"""
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
+class Label(unittest.TestCase):
+    """T37.TA4 (AC6, AC12): the demo flag in /api/squads and the light strip on the page."""
+
+    def page(self, squads_json, session, ui, width=1440):
+        return run_page(STUB + PROBE, {"session": session, "squads": squads_json, "ui": ui}, width=width)
+
+    def test_T37_TA4_AC6_flag_only_in_demo_and_strip_is_light_and_stays(self):
+        normal = Server()
+        self.addCleanup(normal.close)
+        plain = json.loads(normal.get("/api/squads")[1])
+        self.assertNotIn("demo", plain["data"])  # a normal run: no key
+
+        class Demo:  # the demo's payload, built by the same function the server answers with
+            pass
+        srv = Demo()
+        srv.squads, srv.initial, srv.demo = normal.srv.squads, normal.srv.initial, True
+        demo = squadboard._squads_payload(srv)
+        self.assertIs(demo["data"]["demo"], True)
+        session = json.loads(normal.get("/api/session")[1])
+        ui = json.loads(normal.get("/api/ui?squad=" + plain["data"]["squads"][0]["key"])[1])
+        n = self.page(plain, session, ui)
+        for width in (1000, 1440):
+            self.look(self.page(demo, session, ui, width), n, width)
+
+    def look(self, d, n, width):
+        text = "DEMO · sample data, not your squads"
+        panel, ink, muted = css_token("panel"), css_token("ink"), css_token("muted")
+        for step in ("first", "afterPoll", "afterLayout"):
+            s = d[step]
+            self.assertEqual((s["text"], s["shown"], s["first"], s["role"], s["kids"]), (text, True, True, "note", 0), (step, width))
+            self.assertEqual((s["bg"], s["color"], s["bstyle"], s["bw"], s["bc"]), (panel, ink, "dashed", "2px", muted), (step, width))
+            self.assertEqual(s["weight"], "700", (step, width))
+            self.assertAlmostEqual(float(s["ls"][:-2]), 0.05 * float(s["fs"][:-2]), delta=0.02, msg=(step, width))  # .05em
+            self.assertEqual((s["pos"], s["top"]), ("sticky", 0), (step, width))
+            self.assertAlmostEqual(s["headTop"], s["h"], delta=1, msg=(step, width))  # the top bar follows it in flow: nothing overlaps
+        for t in ("title1", "title2", "title3"):
+            self.assertTrue(d[t].startswith("[demo] "), d[t])
+        self.assertFalse(n["first"]["shown"])  # a normal run: hidden, no prefix
+        self.assertFalse(n["title1"].startswith("[demo]"))
 
 
 if __name__ == "__main__":

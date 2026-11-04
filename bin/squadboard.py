@@ -218,6 +218,7 @@ class BoardServer(ThreadingHTTPServer):
         self.put_routes = _collect_put_routes(self.routes)
         self.post_routes = {"/api/open": squadboard_open.post}  # ticket 34: runs the local `code` CLI for a listed path
         self.clock = time.time
+        self.demo = False  # ticket 37b: set by main(demo=True) from squadboard_demo only
 
     @property
     def port(self):
@@ -249,7 +250,10 @@ def _squads_payload(server):
             row["goals"], row["closed_goals"] = s.names("goals")
             row["scopes"], row["closed_scopes"] = s.names("scopes")
         rows.append(row)
-    return {"data": {"squads": rows, "multiple": len(rows) > 1, "initial": server.initial, "read_only": True},
+    data = {"squads": rows, "multiple": len(rows) > 1, "initial": server.initial, "read_only": True}
+    if server.demo:
+        data["demo"] = True  # only in the demo; no key in a normal run
+    return {"data": data,
             "quality": "exact", "unknown": []}
 
 
@@ -468,8 +472,8 @@ def _url(server):
     return "http://127.0.0.1:%d/%s" % (server.port, "?" + q if q else "")
 
 
-def main(argv=None, open_browser=webbrowser.open, stop=None):
-    """Run until Ctrl-C. `stop` (a threading.Event) lets a test end it; `open_browser` is replaceable."""
+def main(argv=None, open_browser=webbrowser.open, stop=None, demo=False):
+    """Run until Ctrl-C. `stop` (a threading.Event) lets a test end it; `open_browser` is replaceable. `demo`: only squadboard_demo sets it (ticket 37b)."""
     squadio.utf8_stdio()
     args = make_parser().parse_args(sys.argv[1:] if argv is None else argv)
     if not 0 <= args.port <= 65535:
@@ -488,6 +492,7 @@ def main(argv=None, open_browser=webbrowser.open, stop=None):
               file=sys.stderr)
         return ERROR
     server.herdr_json = args.herdr_json
+    server.demo = bool(demo)
     url = _url(server)
     for s in squads:
         if s.flat:

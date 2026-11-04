@@ -197,7 +197,7 @@ def run(argv, main=None, stop=None, now=None):
             fwd += ["--port", str(args.port)]
         if args.no_open:
             fwd.append("--no-open")
-        return main(fwd, stop=stop) if stop is not None else main(fwd)
+        return main(fwd, stop=stop, demo=True) if stop is not None else main(fwd, demo=True)
     except KeyboardInterrupt:
         return 0
     finally:
