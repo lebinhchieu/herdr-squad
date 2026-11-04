@@ -86,6 +86,39 @@ def run_page(body, real, scripts=SCRIPTS, tz=None, size="1440,900"):
     return res
 
 
+def png_pixel(data, x, y):
+    """RGB of one pixel of an 8-bit RGB/RGBA PNG (no Pillow on the machine)."""
+    import struct
+    import zlib
+    pos, idat, w = 8, b"", 0
+    while pos < len(data):
+        n, t = struct.unpack(">I4s", data[pos:pos + 8])
+        if t == b"IHDR":
+            w, _h, depth, ctype = struct.unpack(">IIBB", data[pos + 8:pos + 18])
+            assert depth == 8 and ctype in (2, 6), (depth, ctype)
+        if t == b"IDAT":
+            idat += data[pos + 8:pos + 8 + n]
+        pos += 12 + n
+    bpp = 3 if ctype == 2 else 4
+    raw, stride, prev = zlib.decompress(idat), w * bpp, bytearray(w * bpp)
+    for row in range(y + 1):
+        f, line = raw[row * (stride + 1)], bytearray(raw[row * (stride + 1) + 1:(row + 1) * (stride + 1)])
+        for i in range(stride):
+            a = line[i - bpp] if i >= bpp else 0
+            b, c = prev[i], (prev[i - bpp] if i >= bpp else 0)
+            if f == 1:
+                line[i] = (line[i] + a) & 255
+            elif f == 2:
+                line[i] = (line[i] + b) & 255
+            elif f == 3:
+                line[i] = (line[i] + (a + b) // 2) & 255
+            elif f == 4:
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        prev = line
+    return tuple(prev[x * bpp:x * bpp + 3])
+
+
 def read_api(c, gap="15", **params):
     """The real answer of /api/worktime (ticket 15) for a Collected, wrapped as the server wraps it."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -634,6 +667,41 @@ class Static(unittest.TestCase):
         self.assertNotIn("\r", js)
         self.assertFalse(js.startswith("\ufeff"))
         self.assertIn('id: "worktime"', js)
+
+
+    def test_T40_TA7_segment_state_paints_above_the_neighbour(self):
+        """QAB AC6 return: what is painted at the spot (stacking + one pixel), not only the element's own outline."""
+        body = """
+await startPage();
+await sleep(80);
+const tok=n=>{const e=document.createElement('i');e.style.background='var(--'+n+')';document.body.appendChild(e);const c=getComputedStyle(e).backgroundColor;e.remove();return c};
+const sb=$$('.tl-bar .seg button'),seg=$$('.tl-bar .seg'),R=()=>[...seg,...sb].map(e=>{const r=e.getBoundingClientRect();return [r.left,r.top,r.width,r.height]});
+const before=R();sb[0].focus();const after=R(),r0=sb[0].getBoundingClientRect();
+const st=sb.map((e,i)=>{const fo=(i%2?sb[i-1]:sb[i+1]);e.focus();const c=getComputedStyle(e);return {pos:[c.position,c.zIndex],nz:getComputedStyle(fo).zIndex}});
+sb[0].focus();
+for(const ss of document.styleSheets){for(const r of Array.from(ss.cssRules)){if(r.selectorText&&r.selectorText.includes(':hover')){ss.insertRule(r.cssText.replace(/:hover/g,'.__hov'),ss.cssRules.length)}}}
+const hov=[1,3].map(i=>{sb[i].classList.add('__hov');const c=getComputedStyle(sb[i]);const o={bs:c.boxShadow,zi:c.zIndex,pos:c.position};sb[i].classList.remove('__hov');return o});
+out({same:JSON.stringify(before)===JSON.stringify(after),st,hov,ink:tok('ink'),right:r0.right,mid:r0.top+r0.height/2,focus:document.activeElement===sb[0]});
+"""
+        real = {"wt": rich(), "dst": {}, "now": NOW}
+        r = run_page(body, real)
+        self.assertTrue(r["same"] and r["focus"], r)   # focus moves nothing
+        self.assertEqual(len(r["st"]), 4)
+        for i, st in enumerate(r["st"]):
+            self.assertEqual(st["pos"], ["relative", "1"], (i, st))   # state button above its neighbour
+            self.assertIn(st["nz"], ("auto", "0"), (i, st))
+        for h in r["hov"]:
+            self.assertEqual((h["pos"], h["zi"]), ("relative", "1"), h)
+        self.assertEqual([("-1px 0px 0px 0px" in h["bs"], r["ink"] in h["bs"]) for h in r["hov"]], [(True, True), (True, True)])
+        # the pixel one css px right of the focused first button, at middle height, is --ink (the ring, not the neighbour)
+        with tempfile.TemporaryDirectory() as d:
+            page, png = Path(d) / "page.html", Path(d) / "shot.png"
+            page.write_text(HEAD % {"tpl": str(TPL), "real": json.dumps(real), "body": body, "scripts": SCRIPTS % {"tpl": str(TPL)}}, encoding="utf-8")
+            subprocess.run([CHROME, "--headless", "--disable-gpu", "--no-sandbox", "--allow-file-access-from-files",
+                            "--virtual-time-budget=20000", "--window-size=1440,300", "--force-device-scale-factor=4",
+                            "--screenshot=" + str(png), "file://" + str(page)], capture_output=True, timeout=120)
+            rgb = png_pixel(png.read_bytes(), round((r["right"] + 1) * 4), round(r["mid"] * 4))
+        self.assertEqual("rgb(%d, %d, %d)" % rgb, r["ink"], rgb)
 
 
 if __name__ == "__main__":
