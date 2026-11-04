@@ -436,35 +436,65 @@ out({bar:{bg:cs.backgroundColor,bw:cs.borderTopWidth,bc:cs.borderTopColor,rad:px
     def test_T40_TA1_TA2_TA3_pills_and_segments_are_round_and_not_clipped(self):
         body = """
 await startPage();
+%(setup)s
+await sleep(80);
 const px=v=>parseFloat(v),B=$('.tl-bar'),rd=e=>{const c=getComputedStyle(e);return ['TopLeft','TopRight','BottomRight','BottomLeft'].map(k=>px(c['border'+k+'Radius']))};
 const tok=n=>{const e=document.createElement('i');e.style.background='var(--'+n+')';e.style.borderColor='var(--'+n+')';document.body.appendChild(e);const c=getComputedStyle(e);const o={bg:c.backgroundColor,bc:c.borderTopColor};e.remove();return o};
-const chips=$$('.tl-bar .tc').map(e=>({t:e.textContent,h:e.getBoundingClientRect().height,r:rd(e)}));
+const chips=$$('.tl-bar .tc').map(e=>({t:e.textContent,h:e.getBoundingClientRect().height,r:rd(e),on:e.classList.contains('on')}));
 const segs=$$('.tl-bar .seg').map(g=>{const b=g.querySelectorAll('button'),f=b[0],l=b[b.length-1],gc=getComputedStyle(g);
  const walk=[];for(let n=g.parentNode;n&&n!==B.parentNode;n=n.parentNode)walk.push(getComputedStyle(n).overflow);
- return {n:b.length,bw:gc.borderTopWidth,ov:gc.overflow,walk,h:f.getBoundingClientRect().height,fr:rd(f),lr:rd(l),frw:getComputedStyle(f).borderRightWidth,llw:getComputedStyle(l).borderLeftWidth,top:[f.offsetTop,l.offsetTop]}});
+ return {n:b.length,bw:gc.borderTopWidth,ov:gc.overflow,walk,h:f.getBoundingClientRect().height,fr:rd(f),lr:rd(l),frw:getComputedStyle(f).borderRightWidth,llw:getComputedStyle(l).borderLeftWidth,top:[f.offsetTop,l.offsetTop],whole:Math.abs(f.getBoundingClientRect().top-l.getBoundingClientRect().top)<1}});
+const clipper=e=>{for(let n=e.parentNode;n&&n.nodeType===1;n=n.parentNode){if(getComputedStyle(n).overflow!=='visible')return n}return document.documentElement};
+const find=t=>$$('.tl-bar .tc').find(x=>x.textContent===t),sb=$$('.tl-bar .seg button');
 const ring={};
-for(const [k,e] of [['minus',$$('.tl-bar .seg button')[0]],['next',$$('.tl-bar .seg button')[3]],['all',$$('.tl-bar .tc').find(x=>x.textContent==='All')]]){e.focus();const r=e.getBoundingClientRect(),c=getComputedStyle(e),br=B.getBoundingClientRect();
- ring[k]={rad:rd(e),out:c.outlineWidth,h:r.height,inside:r.left-2>=br.left&&r.right+2<=br.right,focus:document.activeElement===e}}
+for(const [k,e] of [['minus',sb[0]],['next',sb[3]],['all',find('All')],['alltasks',find('All tasks')]]){e.focus();const r=e.getBoundingClientRect(),c=getComputedStyle(e),cb=clipper(e).getBoundingClientRect();
+ ring[k]={rad:rd(e),out:c.outlineWidth,h:r.height,inside:r.left-2>=Math.max(cb.left,0)&&r.right+2<=Math.min(cb.right,innerWidth)&&r.top-2>=Math.max(cb.top,0),focus:document.activeElement===e}}
+document.activeElement.blur();
+/* :hover cannot be set from a script: copy every :hover rule of the page to a class and put the class on the control */
+let hovRules=0;for(const ss of document.styleSheets){for(const r of Array.from(ss.cssRules)){if(r.selectorText&&r.selectorText.includes(':hover')){hovRules++;ss.insertRule(r.cssText.replace(/:hover/g,'.__hov'),ss.cssRules.length)}}}
+const hov={};
+for(const [k,e] of [['minus',sb[0]],['plus',sb[1]],['next',sb[3]],['all',find('All')],['alltasks',find('All tasks')]]){e.classList.add('__hov');const c=getComputedStyle(e);
+ hov[k]={rad:rd(e),bc:c.borderTopColor,h:e.getBoundingClientRect().height,ov:getComputedStyle(e.parentNode).overflow};e.classList.remove('__hov')}
 const on=$$('.tl-bar .tc.on')[0],ons=getComputedStyle(on);
 const outside=$$('.seg').filter(x=>!B.contains(x)).map(x=>{const c=getComputedStyle(x);return [c.borderTopLeftRadius,c.overflow]});
-out({chips,segs,ring,active:{bg:ons.backgroundColor,bc:ons.borderTopColor},tok:{need:tok('t-need'),mango:tok('mango')},outside});"""
-        for width in (1440, 1000):  # window sizes: 1440x900, 1000x700
-            r = run_page(body, {"wt": rich(), "dst": {}, "now": NOW}, size="1440,900" if width == 1440 else "1000,700")
-            self.assertGreaterEqual(len(r["chips"]), 8)   # an empty loop cannot pass
+const pw=$('.tl').parentNode.getBoundingClientRect().width;
+out({chips,segs,ring,hov,hovRules,pw,active:{bg:ons.backgroundColor,bc:ons.borderTopColor},tok:{need:tok('t-need'),mango:tok('mango'),ink:tok('ink')},outside});"""
+        # Narrow panel = the Work time panel's parent box set to 330 px, the width T36's one-column handle gives (measured below, <= 360).
+        cases = [("1440,900", "", "1440x900 Normal"), ("1000,700", "", "1000x700 Normal"),
+                 ("1000,700", "$('.tl').style.fontSize='20.8px';", "1000x700 Extra large"),
+                 ("1440,900", "$('.tl').parentNode.style.width='330px';", "1440x900 narrow panel 330 px")]
+        for size, setup, name in cases:
+            r = run_page(body % {"setup": setup}, {"wt": rich(), "dst": {}, "now": NOW}, size=size)
+            self.assertGreaterEqual(len(r["chips"]), 8, name)   # an empty loop cannot pass
             self.assertEqual(len(r["segs"]), 2)
+            if "narrow" in name:
+                self.assertLessEqual(r["pw"], 360, r["pw"])
             for c in r["chips"]:
-                self.assertTrue(all(x >= c["h"] / 2 for x in c["r"]), (c, width))
+                self.assertTrue(all(x >= c["h"] / 2 for x in c["r"]), (c, name))
+            self.assertTrue(any(c["on"] for c in r["chips"]), name)   # the active chip is among the pills checked above
             for g in r["segs"]:
                 h = g["h"] / 2
-                self.assertEqual((g["n"], g["bw"], g["ov"], g["frw"], g["llw"]), (2, "0px", "visible", "1px", "0px"), g)
+                self.assertEqual((g["n"], g["bw"], g["ov"], g["frw"], g["llw"]), (2, "0px", "visible", "1px", "0px"), (g, name))
                 self.assertTrue(all(o == "visible" for o in g["walk"]), g["walk"])   # nothing between the buttons and the bar clips
                 self.assertEqual(g["top"][0], g["top"][1])
+                self.assertTrue(g["whole"], (g, name))   # both buttons on one line
                 self.assertTrue(g["fr"][0] >= h and g["fr"][3] >= h and g["fr"][1] == 0 and g["fr"][2] == 0, g["fr"])
                 self.assertTrue(g["lr"][1] >= h and g["lr"][2] >= h and g["lr"][0] == 0 and g["lr"][3] == 0, g["lr"])
-                self.assertAlmostEqual(g["h"], 26, delta=1)   # 2.2 em at Normal text
+                if "Extra" not in name:
+                    self.assertAlmostEqual(g["h"], 26, delta=1)   # 2.2 em at Normal text
+            self.assertEqual(set(r["ring"]), {"minus", "next", "all", "alltasks"})
             for k, v in r["ring"].items():
-                self.assertTrue(v["focus"] and v["out"] == "2px" and v["inside"], (k, v))
-                self.assertTrue(v["rad"][0] >= v["h"] / 2 if k == "all" else True, (k, v))   # the PO's "All" pill, focused
+                self.assertTrue(v["focus"] and v["out"] == "2px" and v["inside"], (k, v, name))
+                if k in ("all", "alltasks"):   # the PO's "All" pill, focused
+                    self.assertTrue(all(x >= v["h"] / 2 for x in v["rad"]), (k, v, name))
+            self.assertGreaterEqual(r["hovRules"], 1)   # hover rules exist, so the class copy proves something
+            rest = {"minus": r["segs"][0]["fr"], "plus": r["segs"][0]["lr"], "next": r["segs"][1]["lr"]}
+            for k, v in r["hov"].items():
+                self.assertEqual(v["bc"], r["tok"]["ink"]["bc"], (k, v, name))   # the hover rule applied
+                if k in rest:
+                    self.assertEqual((v["rad"], v["ov"]), (rest[k], "visible"), (k, v, name))   # same corners as at rest
+                else:
+                    self.assertTrue(all(x >= v["h"] / 2 for x in v["rad"]), (k, v, name))
             t = r["tok"]
             self.assertEqual((r["active"]["bg"], r["active"]["bc"]), (t["need"]["bg"], t["mango"]["bc"]))
             for o in r["outside"]:
