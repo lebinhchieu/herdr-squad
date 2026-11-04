@@ -841,6 +841,22 @@ out({def,only,noInbox,rows,expanded,noWaits,cells,tag,tip,moved,focusKept,back,o
         self.assertTrue(r["resetOff"])
         self.assertEqual(r["snapAfter"], {})
 
+    def test_T20_TA10_two_hidden_columns_keep_rows_even_and_a_refresh_keeps_columns_and_the_open_control(self):
+        r = self.page(r"""
+const pg=await start20();
+const T='section[data-panel=tasks]';
+colsBtn('tasks').click();await sleep(20);tick('owner',false);tick('stage',false);await sleep(20);
+const even=()=>$$(T+' tr').every(tr=>tr.children.length===heads(T).length);
+const a={heads:heads(T),even:even()};
+pg.poller.now();await sleep(300);
+out({a,heads:heads(T),even:even(),pop:!!$('.cpop'),cols:pg.snapshot().columns,boxes:$$('.cpop input:checked').length});
+""")
+        self.assertEqual(r["a"]["heads"], ["Task", "Title", "Last active", "What happened", "Waits on"])
+        self.assertTrue(r["a"]["even"] and r["even"])   # header and every row have the same number of cells
+        self.assertEqual((r["heads"], r["pop"]), (r["a"]["heads"], True))
+        self.assertEqual(r["cols"], {"tasks": ["task", "title", "last_active", "happened", "waits"]})
+        self.assertEqual(r["boxes"], 5)
+
     def test_T20_AC7_AC10_reset_layout_resets_every_panel_columns_not_font_or_choice(self):
         r = self.page(r"""
 const pg=await start20();
