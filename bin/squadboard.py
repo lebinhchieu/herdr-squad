@@ -272,7 +272,7 @@ def resolve_selection(server, params):
         squad = server.squads[0] if len(server.squads) == 1 else None
     sel = {"squads": server.squads, "squad": squad, "kind": None, "name": None, "home": None,
            "repo_root": squad.repo_root if squad else None, "now": server.clock(), "params": params,
-           "herdr_json": getattr(server, "herdr_json", None)}
+           "herdr_json": getattr(server, "herdr_json", None), "demo": getattr(server, "demo", False)}
     goal, scope = params.get("goal"), params.get("scope")
     if goal and scope:
         return None, _error(400, "give goal or scope, not both")

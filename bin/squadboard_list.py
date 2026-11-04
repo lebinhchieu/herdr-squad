@@ -316,6 +316,8 @@ def picker(sel):
                        "open": _sort_open(rows_open), "done": _sort_done(rows_done),
                        "goals": [p.name for p in open_goals], "scopes": [r["name"] for r in scope_rows if r["status"] == "open"]})
     data = {"squads": squads, "multiple": len(squads) > 1, "read_only": True}
+    if sel.get("demo"):
+        data["demo"] = True  # ticket 37b: only in the demo; no key in a normal run
     chk = (sel.get("params") or {}).get("check")
     if chk:
         data["check"] = check(sel, chk)

@@ -130,6 +130,9 @@ class RunningDemo(unittest.TestCase):
     def api(self, route, view, extra=""):
         return self.get("%s?squad=fix&%s%s" % (route, view, extra))
 
+    def test_T37_TA4_AC6_demo_flag_is_true_in_the_demo(self):
+        self.assertIs(self.get("/api/squads")["data"].get("demo"), True)
+
     def test_T37_TA2_AC2_AC5_every_panel_has_content(self):
         routes = panel_routes()
         gap = {"night": False, "dst": False}
@@ -283,15 +286,11 @@ class Label(unittest.TestCase):
     def test_T37_TA4_AC6_flag_only_in_demo_and_strip_is_light_and_stays(self):
         normal = Server()
         self.addCleanup(normal.close)
+        normal.srv.routes = squadboard.load_routes()[0]  # the real routes: /api/squads is the picker route
         plain = json.loads(normal.get("/api/squads")[1])
         self.assertNotIn("demo", plain["data"])  # a normal run: no key
-
-        class Demo:  # the demo's payload, built by the same function the server answers with
-            pass
-        srv = Demo()
-        srv.squads, srv.initial, srv.demo = normal.srv.squads, normal.srv.initial, True
-        demo = squadboard._squads_payload(srv)
-        self.assertIs(demo["data"]["demo"], True)
+        demo = json.loads(json.dumps(plain))
+        demo["data"]["demo"] = True  # what the demo server answers (checked on the running demo in RunningDemo)
         session = json.loads(normal.get("/api/session")[1])
         ui = json.loads(normal.get("/api/ui?squad=" + plain["data"]["squads"][0]["key"])[1])
         n = self.page(plain, session, ui)
