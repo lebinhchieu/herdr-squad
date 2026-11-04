@@ -58,6 +58,14 @@ class Tasks(unittest.TestCase):
         self.assertEqual(self.rows["03"]["returns"], 3)
         self.assertEqual(self.rows["03"]["last_fail_line"], "reason 3 first line (newest)")
 
+    def test_T30_TA3_wsl_distro_set_and_unset(self):
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"WSL_DISTRO_NAME": "Debian"}):
+            self.assertEqual(bt.read(sel_for(self.fx))["data"]["wsl_distro"], "Debian")
+        with mock.patch.dict(os.environ):
+            os.environ.pop("WSL_DISTRO_NAME", None)
+            self.assertIsNone(bt.read(sel_for(self.fx))["data"]["wsl_distro"])
+
     def test_T07_AC4_checking_words(self):
         self.assertEqual(self.rows["05"]["stage"], "checking, 1 of 2 PASS, waiting on QA blackbox, 40 min")
         self.assertEqual(self.rows["05"]["waits_on"], "QA blackbox")

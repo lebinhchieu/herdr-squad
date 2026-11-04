@@ -22,3 +22,17 @@
 | T30.AC9 | link `title`; `test_T30_AC3_AC7_AC9...` |
 | T30.AC11, AC12 | `sent`, `showStatus`, `copyPath` (status line in the Files panel only); `test_T30_AC3_AC7_AC9...` (status text, Copy path clipboard, gone after the timer) |
 | T30.TA4 | `test_T30_...` blocked row name `<img onerror=x>` shown as text |
+
+## Return 1 (tests only since e89b7c2; no code change)
+Old tests edited: `test_T30_TA2_no_new_tab_code_in_the_panels` (now all `templates/board/*.js`), `test_T30_TA11_AC4_...` (distro `Ubuntu`, one row without abs). New: `test_T30_TA6_TA8_...`, `test_T30_TA7_...` (panels); `test_T30_TA3_wsl_distro_set_and_unset` in test_squadboard_files and test_squadboard_tasks.
+
+| QA-W finding | Test |
+|---|---|
+| 1 TA6 status line | `test_T30_TA6_TA8_second_click_restarts_the_line_redraw_keeps_it_no_alert_no_write` |
+| 2 TA3 distro set/unset | `test_T30_TA3_wsl_distro_set_and_unset` (files, tasks) |
+| 3 TA11 `wsl+<distro>`, no-abs row | `test_T30_TA11_AC4_...` |
+| 4 TA7 File column only | `test_T30_TA7_folder_row_path_line_stays_with_only_the_file_column` |
+| 5 TA8 read-only | same test as 1: every request during clicks and redraw is `GET /api/files`. Open gap: no file-hash of a squad folder (the page runs on stubbed data) |
+| 6 TA2 wide grep | `test_T30_TA2_...` globs `*.js` |
+
+Runs: panels 54, files 14, tasks 17, all OK.

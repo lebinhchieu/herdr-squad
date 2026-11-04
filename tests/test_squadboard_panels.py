@@ -1146,22 +1146,74 @@ out({names:trs.slice(0,2).map(tr=>tr.querySelector('a').textContent),href:link.g
         self.assertIn("<img onerror=x>", r["blockedText"])
         self.assertEqual(r["imgs"], 0)
 
+    def test_T30_TA6_TA8_second_click_restarts_the_line_redraw_keeps_it_no_alert_no_write(self):
+        r = self.page(r"""
+const d=F14.checkout.data;d.wsl_distro='Debian';BOARD.filesStatusMs=600;
+const calls=[];const base=f14;
+BOARD.start({fetch:async(u,o)=>{calls.push((o&&o.method||'GET')+' '+u.split('?')[0]);return base(u,o)},storage:mem(),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,now:()=>Date.parse('2026-11-04T10:00:00Z'),tz:'UTC'});
+await sleep(300);
+const panel=$('section[data-panel=files]');
+panel.addEventListener('click',e=>{if(e.target.closest('a'))e.preventDefault()});
+let alerts=0;window.alert=()=>{alerts++};
+const links=Array.from(panel.querySelectorAll('a[data-abs]'));
+const txt=()=>{const s=panel.querySelector('[role=status]');return s&&s.textContent};
+const layout=JSON.stringify(BOARD.page.snapshot()),n0=calls.length;
+links[0].click();await sleep(300);
+const a=txt();
+links[1].click();
+const b=txt();
+await sleep(450);                                   /* 750 ms: past A's deadline (600), inside B's (900) */
+panel.querySelector('button[data-ff]').click();     /* a panel redraw */
+const redrawn=txt();
+await sleep(400);
+out({a,b,redrawn,gone:txt(),A:links[0].dataset.abs,B:links[1].dataset.abs,alerts,sameLayout:layout===JSON.stringify(BOARD.page.snapshot()),
+ calls:calls.slice(n0),text:panel.textContent});
+""")
+        self.assertEqual(r["a"], "Sent to VS Code: " + r["A"] + " Copy path")
+        self.assertEqual(r["b"], "Sent to VS Code: " + r["B"] + " Copy path")   # TA6: the new path
+        self.assertNotEqual(r["A"], r["B"])
+        self.assertEqual(r["redrawn"], r["b"])   # still there after A's first deadline and after a redraw
+        self.assertIsNone(r["gone"])             # and it ends after the restarted timer
+        self.assertEqual(r["alerts"], 0)
+        self.assertNotRegex(r["text"], r"(?i)error|could not")
+        self.assertTrue(r["sameLayout"])         # TA6: no other state changes
+        # TA8 (browser side): the clicks and the redraw sent no request that could write
+        self.assertEqual([c for c in r["calls"] if not c.startswith("GET /api/files")], [], r["calls"])
+
+    def test_T30_TA7_folder_row_path_line_stays_with_only_the_file_column(self):
+        r = self.page(r"""
+cur.saved={version:1,saved_at:'2026-11-04T09:00:00Z',font:'normal',choice:{kind:'scope',name:'checkout'},recent:[],panels:{},auto:true,columns:{files:['file']}};
+await start14();
+const panel=$('section[data-panel=files]');
+const ths=Array.from(panel.querySelectorAll('table.fl th')).map(t=>t.textContent);
+const tr=panel.querySelector('table.fl tr[data-open]');
+out({ths,tds:tr.querySelectorAll('td').length,path:tr.querySelector('.fpath')&&tr.querySelector('.fpath').textContent,abs:tr.querySelector('a').dataset.abs});
+""")
+        self.assertEqual(r["ths"], ["File"])
+        self.assertEqual(r["tds"], 1)
+        self.assertTrue(r["path"] and r["path"] == r["abs"])
+
     def test_T30_TA2_no_new_tab_code_in_the_panels(self):
-        for f in ("panel_files.js", "panel_tasks.js"):
-            js = (TPL / f).read_text(encoding="utf-8")
-            self.assertIsNone(re.search(r"_blank|window\.open|root\.open|openMarkdown", js), f)
+        for f in sorted(TPL.glob("*.js")):   # TA2 names templates/board/*.js
+            js = f.read_text(encoding="utf-8")
+            self.assertIsNone(re.search(r"_blank|window\.open|root\.open|openMarkdown", js), f.name)
 
     def test_T30_TA11_AC4_tasks_where_file_name_is_a_vscode_link_without_a_tab(self):
         pg = Panels12.__new__(Panels12)
         pg.real = dict(real_payloads(), saved=None, p12=payloads12())
         pg.head = head12(PANELS12 + ("panel_files.js",))
         r = Panels12.page(pg, r"""
+const td=P['tasks:checkout'].data;td.wsl_distro='Ubuntu';td.rows[1].abs='';   /* row 02 has no abs: text only */
 await start12();await sleep(100);
 const wf=Array.from(document.querySelectorAll('section[data-panel=tasks] .wf'));
-out({n:wf.length,links:wf.map(w=>{const a=w.querySelector('a');return a&&{h:a.getAttribute('href'),tg:a.target,t:a.title}}).filter(Boolean)});
+out({n:wf.length,links:wf.map(w=>{const a=w.querySelector('a');return a&&{h:a.getAttribute('href'),tg:a.target,t:a.title}}).filter(Boolean),
+ noAbs:wf.filter(w=>!w.querySelector('a')).map(w=>w.textContent),abs:td.rows.map(r=>r.abs)});
 """, "#/scope/checkout")
         self.assertGreater(len(r["links"]), 0)
+        self.assertEqual(len(r["links"]), len(r["abs"]) - 1)
+        self.assertEqual(len(r["noAbs"]), 1)   # TA11: the row without abs is text only
+        self.assertIn("02-in-progress.md", r["noAbs"][0])
         for x in r["links"]:
-            self.assertTrue(x["h"].startswith("vscode://"), x)
+            self.assertTrue(x["h"].startswith("vscode://vscode-remote/wsl+Ubuntu/"), x)   # TA11: href is vscodeUrl(abs, distro)
             self.assertEqual(x["tg"], "")
             self.assertIn("opens in VS Code", x["t"])

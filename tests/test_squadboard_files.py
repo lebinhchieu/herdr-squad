@@ -180,6 +180,14 @@ class Reader(Base):
         d = sf.read(dict(self.sel(), name="empty", home=empty))["data"]
         self.assertEqual((len(d["folders"]), d["rows"], d["files_seen"], d["truncated"]), (2, [], 0, False))
 
+    def test_T30_TA3_wsl_distro_set_and_unset(self):
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"WSL_DISTRO_NAME": "Debian"}):
+            self.assertEqual(sf.read(self.sel())["data"]["wsl_distro"], "Debian")
+        with mock.patch.dict(os.environ):
+            os.environ.pop("WSL_DISTRO_NAME", None)
+            self.assertIsNone(sf.read(self.sel())["data"]["wsl_distro"])
+
     def test_T14_TA6_listing_writes_nothing(self):
         def snap():
             return sorted((str(p), p.stat().st_mtime_ns, hashlib.sha1(p.read_bytes()).hexdigest()) for p in self.squad.path.rglob("*") if p.is_file())
