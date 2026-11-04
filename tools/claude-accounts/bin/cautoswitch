@@ -5,7 +5,9 @@ Every interval, for each herdr workspace that has a squad agent (a Claude pane w
 process carries SQUAD_NAME): when its default account's 5-hour usage reaches the
 threshold and another account is lower on both 5h and 7d, make that account the
 workspace's default (never the global one), then cswitch every squad agent of the
-workspace that runs off its default, one at a time. Run it in its own herdr tab.
+workspace that runs off its default, one after the other. It waits SHORT_WAIT for each
+pane's result and moves on (at most MAX_INFLIGHT switches run at once); a pane whose cswitch
+`skipped:` or FAILED is retried after 2, 4, 8 ... (at most BACKOFF_CAP) ticks. Run it in its own herdr tab.
 Usage: cautoswitch --interval 300 in a dedicated tab; it retries off-default panes every tick.
 """
 import argparse, datetime, json, os, subprocess, sys, time, urllib.request
@@ -25,6 +27,14 @@ REFRESH_FAILED = {}  # acct -> time of the last failed claude -p refresh
 PENDING_DIR = f"{H}/wake-pending"
 MARKER_MAX_AGE = 1800  # a wake marker older than this is deleted unsent
 OLD_ACCT = {}  # pane -> account it ran on before its last cswitch (for the wake text)
+SHORT_WAIT = 60  # s the loop waits for one pane's result before it moves on (the pane stays pending)
+POLL = 5  # s between two looks at cswitch.log inside that wait
+MAX_INFLIGHT = 2  # switches running at once (sessions must not all restart together)
+BACKOFF_CAP = 10  # a pane that skipped or FAILED is retried after 2, 4, 8 ... but at most this many ticks
+# In-memory state (a restart of cautoswitch forgets it: every pane is tried again at once, which is safe).
+TICKNO = 0
+BACKOFF = {}  # pane -> [consecutive skipped/FAILED results, first tick it may be tried again]
+INFLIGHT = {}  # pane -> (byte offset of cswitch.log when its cswitch started, name): result not seen yet
 
 
 def log(msg):
@@ -149,6 +159,50 @@ def pending(pane):
         return False
 
 
+def result_since(pane, start):
+    """(kind, line) of the pane's last result line in cswitch.log after byte offset `start`, else None.
+    kind: done | fail (FAILED) | skip (` skipped:`, cswitch exit 75)."""
+    res = None
+    try:
+        with open(f"{H}/cswitch.log", encoding="utf-8") as f:
+            f.seek(start)
+            for l in f:
+                if len(w := l.split()) < 2 or w[1] != pane:
+                    continue
+                if "FAILED" in l:
+                    res = ("fail", l)
+                elif " skipped:" in l:
+                    res = ("skip", l)
+                elif " done" in l:
+                    res = ("done", l)
+    except OSError:
+        pass
+    return res
+
+
+def settle(pane, name, kind, line):
+    """A switch ended. done resets the pane's backoff; skip or fail doubles it (2, 4, 8 ... BACKOFF_CAP ticks) and logs why."""
+    INFLIGHT.pop(pane, None)
+    if kind == "done":
+        BACKOFF.pop(pane, None)
+        return
+    fails = BACKOFF.get(pane, [0, 0])[0] + 1
+    delay = min(2 ** min(fails, 10), BACKOFF_CAP)
+    BACKOFF[pane] = [fails, TICKNO + delay]
+    why = (line.split(None, 2) + ["", ""])[2].strip()
+    log(f"backoff: {name}({pane}) {why}; miss {fails}, next try in {delay} ticks (tick {TICKNO + delay})")
+
+
+def collect():
+    """Results that came after the wait window (a skipped or FAILED line of an earlier tick) feed the backoff."""
+    for pane, (start, name) in list(INFLIGHT.items()):
+        r = result_since(pane, start)
+        if r:
+            settle(pane, name, *r)
+        elif not pending(pane):
+            INFLIGHT.pop(pane)  # no result and not pending any more (15 min): give up watching
+
+
 def log_ts(line):
     """Epoch of a cswitch.log line (the leading `date -Is` stamp), else None."""
     try:
@@ -239,6 +293,8 @@ def wake_step(panes, target, back):
 
 
 def tick(threshold, dry):
+    global TICKNO
+    TICKNO += 1
     panes = squad_panes()
     target = {ws: workspace_default(ws) for ws in sorted({p[2] for p in panes.values()})}
     seen = {}
@@ -269,29 +325,37 @@ def tick(threshold, dry):
     print(f"{time.strftime('%H:%M:%S')} ok: {' | '.join(status) or 'no squad panes'}", flush=True)
     wake_on = os.environ.get("CSWITCH_WAKE", "on") != "off"
     back = {p for p, (_, acct, ws) in panes.items() if acct == target[ws] and not pending(p)}
-    # One pane at a time: if every session restarts together, messages between agents fail.
+    # Not all at once, or messages between agents fail. Each pane gets SHORT_WAIT; a pane without a result stays pending
+    # (see pending()) and the loop moves on, with MAX_INFLIGHT switches running at most.
+    if not dry:
+        collect()
     for pane, (name, acct, ws) in panes.items():
         if acct == target[ws]:
             continue
         if dry:
             log(f"[dry-run] would cswitch {name}({pane}) c{acct} -> c{target[ws]}")
             continue
-        if pending(pane):
+        if pending(pane) or BACKOFF.get(pane, [0, 0])[1] > TICKNO:
+            continue
+        if sum(pending(p) for p in panes) >= MAX_INFLIGHT:
+            log(f"deferred: cswitch {name}({pane}); {MAX_INFLIGHT} switches already in flight")
             continue
         log(f"retry: cswitch {name}({pane}) c{acct} -> c{target[ws]}")
         start = os.path.getsize(f"{H}/cswitch.log")
         OLD_ACCT[pane] = acct
+        INFLIGHT[pane] = (start, name)
         run_bin("cswitch", target[ws], pane)
-        deadline = time.time() + 900  # cswitch waits up to 10 min for idle, then restarts
-        while time.time() < deadline:
-            time.sleep(5)
-            with open(f"{H}/cswitch.log", encoding="utf-8") as f:
-                f.seek(start)
-                res = [l for l in f if len(w := l.split()) > 1 and w[1] == pane and (" done" in l or "FAILED" in l)]
-            if res:
-                if " done" in res[-1] and "FAILED" not in res[-1]:
+        deadline = time.time() + SHORT_WAIT
+        while True:
+            r = result_since(pane, start)
+            if r:
+                settle(pane, name, *r)
+                if r[0] == "done":
                     back.add(pane)
                 break
+            if time.time() >= deadline:
+                break
+            time.sleep(POLL)
     if wake_on and not dry:
         wake_step(panes, target, back)
 
