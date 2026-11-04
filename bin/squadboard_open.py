@@ -101,6 +101,8 @@ def open_file(abs_path, env=None):
 
 def post(server, params, body):
     """POST /api/open?squad=<key>, body {"path": "<abs>"} -> (code, payload)."""
+    if getattr(server, "demo", False):   # ticket 39 (D12): the demo never opens a file
+        return 403, {"error": "disabled in the demo"}
     key = params.get("squad")
     squad = server.squad_by_key(key) if key else (server.squads[0] if len(server.squads) == 1 else None)
     if key and squad is None:   # the same answer as /api/file

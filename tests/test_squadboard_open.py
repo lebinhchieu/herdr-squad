@@ -142,6 +142,15 @@ class Route(ts.Base):
         self.assertEqual(c, 404); self.assertIn("unknown squad", j["error"])
         self.assertEqual(self.calls(), 2)
 
+    def test_T39_TA1_demo_refuses_open(self):
+        self.srv.demo = True
+        c, j = self.go(self.f)
+        self.assertEqual((c, j["error"]), (403, "disabled in the demo"))
+        self.assertEqual(self.calls(), 0)
+        self.srv.demo = False
+        self.assertEqual(self.go(self.f)[0], 200)
+        self.assertEqual(self.calls(), 1)
+
     def test_T34_TA8_foreign_origin_refused_before_the_route(self):
         port = self.srv.port
         for origin in ("http://evil.example.com", "null", "http://127.0.0.1:1", "https://127.0.0.1:%d" % port):
@@ -210,10 +219,11 @@ answer={ok:false,why:'no-vscode'};file.dispatchEvent(ev({}));await sleep(100);
 const failFollow=follow.length,failText=panel.textContent;
 const n=posts.length;
 folder.dispatchEvent(ev({}));file.dispatchEvent(ev({ctrlKey:true}));file.dispatchEvent(ev({button:1}));await sleep(50);
-out({okPosts,okFollow,abs:file.dataset.abs,body,hdr,status,failFollow,failText,more:posts.length-n,tabs:document.querySelectorAll('a[target]').length,
+out({toast:document.querySelector('.toast')===null,okPosts,okFollow,abs:file.dataset.abs,body,hdr,status,failFollow,failText,more:posts.length-n,tabs:document.querySelectorAll('a[target]').length,
  imgs:panel.querySelectorAll('img').length});
 """)
         self.assertEqual((r["okPosts"], r["okFollow"]), (1, 0))      # worked: the link is not followed
+        self.assertTrue(r["toast"])                                   # T39.TA4: the real board never creates a .toast
         self.assertEqual(r["body"], {"path": r["abs"]})
         self.assertTrue(r["hdr"])
         self.assertEqual(r["status"], "Sent to VS Code: " + r["abs"] + " Copy path")

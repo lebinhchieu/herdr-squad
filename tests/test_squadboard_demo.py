@@ -49,6 +49,10 @@ def tree_hash(root):
     return h.hexdigest()
 
 
+def real_hashes():
+    return git_status(), tree_hash(HERE / "fixtures" / "board")
+
+
 def panel_routes():
     """The API route of every panel, read from the panel registry files (a fixed pattern; no panel found fails loudly)."""
     text = "".join(p.read_text(encoding="utf-8") for p in sorted((ROOT / "templates" / "board").glob("*.js")))
@@ -380,6 +384,47 @@ class Browser(unittest.TestCase):
             self.assertTrue(text.strip(), label)  # not vacuous
             self.assertIsNone(age.search(text), (label, age.search(text) and age.search(text).group(0)))
         self.assertTrue(any(re.search(r"Pick the payment provider[\s\S]{0,200}\b\d+ min ago", t) for t in views.values()), "E1 reads minutes")
+
+    def test_T39_TA2_TA3_TA5_demo_click_opens_nothing_and_shows_one_toast(self):
+        port = free_port()
+        before = real_hashes()
+        p = self.start(port)
+        try:
+            env = {**os.environ, "PLAYWRIGHT_CORE": str(PW_CORE), "CHROME_BIN": CHROME}
+            r = subprocess.run(["node", str(HERE / "demo_click_browser.js"), "http://127.0.0.1:%d/" % port],
+                               capture_output=True, text=True, encoding="utf-8", timeout=180, env=env)
+            self.assertEqual(r.returncode, 0, r.stderr[-600:])
+            d = json.loads(r.stdout.strip().splitlines()[-1])
+        finally:
+            self.stop(p)
+        TOAST = "Demo: sample file, not opened"
+        for kind in ("file", "folder", "where"):
+            self.assertGreaterEqual(d["counts"][kind], 1, kind)  # an empty loop cannot pass
+        done = {(c["kind"], c["input"]) for c in d["cases"]}
+        self.assertEqual(done, {(k, i) for k in ("file", "folder", "where") for i in ("left", "ctrl", "shift", "middle", "enter")})
+        for c in d["cases"]:
+            self.assertEqual((c["toast"], c["shown"]), (TOAST, True), c)
+            self.assertTrue(c["defaults"] and all(x[1] for x in c["defaults"]), c)  # defaultPrevented
+        self.assertEqual([u for u in d["spy"]["fetch"] + d["spy"]["xhr"] + d["spy"]["open"] + d["seen"]["reqs"] + d["seen"]["popups"] if "/api/open" in u or u.startswith("vscode:")], [])
+        self.assertEqual(d["seen"]["navs"], ["http://127.0.0.1:%d/" % port])  # no navigation after the first load
+        self.assertFalse(d["sent"])  # no "Sent to VS Code:" line
+        self.assertEqual((d["copyCount"], d["copy"]), (0, None))  # the Copy path button lives in the status line, which never shows in the demo
+        def inside(a, b):
+            return a[0] >= b[0] and a[1] >= b[1] and a[2] <= b[2] and a[3] <= b[3]
+        def apart(a, b):
+            return a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1]
+        self.assertEqual([(w["w"], w["h"], w["font"]) for w in d["windows"]], [(1440, 900, None), (1000, 700, None), (1000, 700, "xl")])
+        for w in d["windows"]:
+            for step in ("s300", "s2"):  # visible at 300 ms and at 2 s, one element after 3 clicks
+                s = w[step]
+                self.assertEqual((s["n"], s["shown"], s["role"]), (1, True, "status"), (w["w"], w["font"], step))
+                self.assertEqual((s["bg"], s["color"], s["border"]), (d["tokens"]["bg"], d["tokens"]["color"], d["tokens"]["border"]))
+                self.assertTrue(inside(s["rect"], [0, 0] + s["win"]), s)
+                self.assertTrue(apart(s["rect"], s["demo"]) and apart(s["rect"], s["top"]), s)
+                self.assertEqual(s["panels"], w["before"]["panels"])  # nothing moved
+                self.assertEqual(s["scroll"], w["before"]["scroll"])
+            self.assertFalse(w["s6"]["shown"], w["s6"])  # gone by 6 s
+        self.assertEqual(before, real_hashes())  # T37.AC8: the real files are untouched
 
 
 if __name__ == "__main__":

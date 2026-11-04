@@ -70,13 +70,13 @@ SCRIPTS = ('<script src="file://%(tpl)s/board.js"></script><script src="file://%
            '<script src="file://%(tpl)s/timeline.js"></script>')
 
 
-def run_page(body, real, scripts=SCRIPTS, tz=None):
+def run_page(body, real, scripts=SCRIPTS, tz=None, size="1440,900"):
     with tempfile.TemporaryDirectory() as d:
         page = Path(d) / "page.html"
         page.write_text(HEAD % {"tpl": str(TPL), "real": json.dumps(real), "body": body, "scripts": scripts % {"tpl": str(TPL)}},
                         encoding="utf-8")
         r = subprocess.run([CHROME, "--headless", "--disable-gpu", "--no-sandbox", "--allow-file-access-from-files",
-                            "--virtual-time-budget=20000", "--window-size=1440,900", "--dump-dom", "file://" + str(page)],
+                            "--virtual-time-budget=20000", "--window-size=" + size, "--dump-dom", "file://" + str(page)],
                            capture_output=True, text=True, timeout=120, env=dict(os.environ, TZ=tz) if tz else None)
     assert r.returncode == 0, r.stderr[-500:]
     m = re.search(r'<pre id="out">(.*?)</pre>', r.stdout, re.S)
@@ -84,6 +84,39 @@ def run_page(body, real, scripts=SCRIPTS, tz=None):
     res = json.loads(html.unescape(m.group(1)))
     assert "error" not in res, res["error"]
     return res
+
+
+def png_pixel(data, x, y):
+    """RGB of one pixel of an 8-bit RGB/RGBA PNG (no Pillow on the machine)."""
+    import struct
+    import zlib
+    pos, idat, w = 8, b"", 0
+    while pos < len(data):
+        n, t = struct.unpack(">I4s", data[pos:pos + 8])
+        if t == b"IHDR":
+            w, _h, depth, ctype = struct.unpack(">IIBB", data[pos + 8:pos + 18])
+            assert depth == 8 and ctype in (2, 6), (depth, ctype)
+        if t == b"IDAT":
+            idat += data[pos + 8:pos + 8 + n]
+        pos += 12 + n
+    bpp = 3 if ctype == 2 else 4
+    raw, stride, prev = zlib.decompress(idat), w * bpp, bytearray(w * bpp)
+    for row in range(y + 1):
+        f, line = raw[row * (stride + 1)], bytearray(raw[row * (stride + 1) + 1:(row + 1) * (stride + 1)])
+        for i in range(stride):
+            a = line[i - bpp] if i >= bpp else 0
+            b, c = prev[i], (prev[i - bpp] if i >= bpp else 0)
+            if f == 1:
+                line[i] = (line[i] + a) & 255
+            elif f == 2:
+                line[i] = (line[i] + b) & 255
+            elif f == 3:
+                line[i] = (line[i] + (a + b) // 2) & 255
+            elif f == 4:
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        prev = line
+    return tuple(prev[x * bpp:x * bpp + 3])
 
 
 def read_api(c, gap="15", **params):
@@ -433,6 +466,80 @@ out({bar:{bg:cs.backgroundColor,bw:cs.borderTopWidth,bc:cs.borderTopColor,rad:px
         self.assertTrue(r["real"])
         self.assertEqual(r["tips"], ["Zoom out", "Zoom in", "Earlier", "Later"])
 
+    def test_T40_TA1_TA2_TA3_pills_and_segments_are_round_and_not_clipped(self):
+        body = """
+await startPage();
+%(setup)s
+await sleep(80);
+const px=v=>parseFloat(v),B=$('.tl-bar'),rd=e=>{const c=getComputedStyle(e);return ['TopLeft','TopRight','BottomRight','BottomLeft'].map(k=>px(c['border'+k+'Radius']))};
+const tok=n=>{const e=document.createElement('i');e.style.background='var(--'+n+')';e.style.borderColor='var(--'+n+')';document.body.appendChild(e);const c=getComputedStyle(e);const o={bg:c.backgroundColor,bc:c.borderTopColor};e.remove();return o};
+const chips=$$('.tl-bar .tc').map(e=>({t:e.textContent,h:e.getBoundingClientRect().height,r:rd(e),on:e.classList.contains('on')}));
+const segs=$$('.tl-bar .seg').map(g=>{const b=g.querySelectorAll('button'),f=b[0],l=b[b.length-1],gc=getComputedStyle(g);
+ const walk=[];for(let n=g.parentNode;n&&n!==B.parentNode;n=n.parentNode)walk.push(getComputedStyle(n).overflow);
+ return {n:b.length,bw:gc.borderTopWidth,ov:gc.overflow,walk,h:f.getBoundingClientRect().height,fr:rd(f),lr:rd(l),frw:getComputedStyle(f).borderRightWidth,llw:getComputedStyle(l).borderLeftWidth,top:[f.offsetTop,l.offsetTop],whole:Math.abs(f.getBoundingClientRect().top-l.getBoundingClientRect().top)<1}});
+const clipper=e=>{for(let n=e.parentNode;n&&n.nodeType===1;n=n.parentNode){if(getComputedStyle(n).overflow!=='visible')return n}return document.documentElement};
+const find=t=>$$('.tl-bar .tc').find(x=>x.textContent===t),sb=$$('.tl-bar .seg button');
+const ring={};
+for(const [k,e] of [['minus',sb[0]],['prev',sb[2]],['next',sb[3]],['all',find('All')],['alltasks',find('All tasks')]]){e.focus();const r=e.getBoundingClientRect(),c=getComputedStyle(e),cb=clipper(e).getBoundingClientRect();
+ ring[k]={rad:rd(e),out:c.outlineWidth,h:r.height,inside:r.left-2>=Math.max(cb.left,0)&&r.right+2<=Math.min(cb.right,innerWidth)&&r.top-2>=Math.max(cb.top,0),focus:document.activeElement===e,zi:c.zIndex,nzi:getComputedStyle(e.nextElementSibling||e.previousElementSibling).zIndex}}
+document.activeElement.blur();
+/* :hover cannot be set from a script: copy every :hover rule of the page to a class and put the class on the control */
+let hovRules=0;for(const ss of document.styleSheets){for(const r of Array.from(ss.cssRules)){if(r.selectorText&&r.selectorText.includes(':hover')){hovRules++;ss.insertRule(r.cssText.replace(/:hover/g,'.__hov'),ss.cssRules.length)}}}
+const hov={};
+for(const [k,e] of [['minus',sb[0]],['plus',sb[1]],['next',sb[3]],['all',find('All')],['alltasks',find('All tasks')]]){e.classList.add('__hov');const c=getComputedStyle(e);
+ hov[k]={rad:rd(e),bs:c.boxShadow,zi:c.zIndex,bc:c.borderTopColor,h:e.getBoundingClientRect().height,ov:getComputedStyle(e.parentNode).overflow};e.classList.remove('__hov')}
+const on=$$('.tl-bar .tc.on')[0],ons=getComputedStyle(on);
+const outside=$$('.seg').filter(x=>!B.contains(x)).map(x=>{const c=getComputedStyle(x);return [c.borderTopLeftRadius,c.overflow]});
+const pw=$('.tl').parentNode.getBoundingClientRect().width;
+out({chips,segs,ring,hov,hovRules,pw,active:{bg:ons.backgroundColor,bc:ons.borderTopColor},tok:{need:tok('t-need'),mango:tok('mango'),ink:tok('ink')},outside});"""
+        # Narrow panel = the Work time panel's parent box set to 330 px, the width T36's one-column handle gives (measured below, <= 360).
+        cases = [("1440,900", "", "1440x900 Normal"), ("1000,700", "", "1000x700 Normal"),
+                 ("1000,700", "$('.tl').style.fontSize='20.8px';", "1000x700 Extra large"),
+                 ("1440,900", "$('.tl').parentNode.style.width='330px';", "1440x900 narrow panel 330 px")]
+        for size, setup, name in cases:
+            r = run_page(body % {"setup": setup}, {"wt": rich(), "dst": {}, "now": NOW}, size=size)
+            self.assertGreaterEqual(len(r["chips"]), 8, name)   # an empty loop cannot pass
+            self.assertEqual(len(r["segs"]), 2)
+            if "narrow" in name:
+                self.assertLessEqual(r["pw"], 360, r["pw"])
+            for c in r["chips"]:
+                self.assertTrue(all(x >= c["h"] / 2 for x in c["r"]), (c, name))
+            self.assertTrue(any(c["on"] for c in r["chips"]), name)   # the active chip is among the pills checked above
+            for g in r["segs"]:
+                h = g["h"] / 2
+                self.assertEqual((g["n"], g["bw"], g["ov"], g["frw"], g["llw"]), (2, "0px", "visible", "1px", "0px"), (g, name))
+                self.assertTrue(all(o == "visible" for o in g["walk"]), g["walk"])   # nothing between the buttons and the bar clips
+                self.assertEqual(g["top"][0], g["top"][1])
+                self.assertTrue(g["whole"], (g, name))   # both buttons on one line
+                self.assertTrue(g["fr"][0] >= h and g["fr"][3] >= h and g["fr"][1] == 0 and g["fr"][2] == 0, g["fr"])
+                self.assertTrue(g["lr"][1] >= h and g["lr"][2] >= h and g["lr"][0] == 0 and g["lr"][3] == 0, g["lr"])
+                if "Extra" not in name:
+                    self.assertAlmostEqual(g["h"], 26, delta=1)   # 2.2 em at Normal text
+            self.assertEqual(set(r["ring"]), {"minus", "prev", "next", "all", "alltasks"})
+            for k, v in r["ring"].items():
+                self.assertTrue(v["focus"] and v["out"] == "2px" and v["inside"], (k, v, name))
+                if k in ("minus", "prev", "next"):   # QAB AC6: the ring is painted above the neighbour button, not under it
+                    self.assertTrue(v["zi"] == "1" and v["nzi"] in ("auto", "0"), (k, v, name))
+                if k in ("all", "alltasks"):   # the PO's "All" pill, focused
+                    self.assertTrue(all(x >= v["h"] / 2 for x in v["rad"]), (k, v, name))
+            self.assertGreaterEqual(r["hovRules"], 1)   # hover rules exist, so the class copy proves something
+            rest = {"minus": r["segs"][0]["fr"], "plus": r["segs"][0]["lr"], "next": r["segs"][1]["lr"]}
+            for k, v in r["hov"].items():
+                self.assertEqual(v["bc"], r["tok"]["ink"]["bc"], (k, v, name))   # the hover rule applied
+                if k in ("minus", "plus", "next"):   # QAB AC6: hover edge on top; the inner edge of the last button is drawn in --ink
+                    self.assertEqual(v["zi"], "1", (k, v, name))
+                if k in ("plus", "next"):
+                    self.assertIn(r["tok"]["ink"]["bc"], v["bs"], (k, v, name))
+                if k in rest:
+                    self.assertEqual((v["rad"], v["ov"]), (rest[k], "visible"), (k, v, name))   # same corners as at rest
+                else:
+                    self.assertTrue(all(x >= v["h"] / 2 for x in v["rad"]), (k, v, name))
+            t = r["tok"]
+            self.assertEqual((r["active"]["bg"], r["active"]["bc"]), (t["need"]["bg"], t["mango"]["bc"]))
+            for o in r["outside"]:
+                self.assertEqual(o, ["8px", "hidden"])   # Text size / Sort keep their 8px box
+            self.assertTrue(r["outside"], "no .seg outside the bar found")
+
     def test_T27_TA2_TA3_TA4_three_sizes_narrow_wrap_and_sticky_in_a_scrolling_panel(self):
         r = run_page("""
 await startPage();
@@ -560,6 +667,41 @@ class Static(unittest.TestCase):
         self.assertNotIn("\r", js)
         self.assertFalse(js.startswith("\ufeff"))
         self.assertIn('id: "worktime"', js)
+
+
+    def test_T40_TA7_segment_state_paints_above_the_neighbour(self):
+        """QAB AC6 return: what is painted at the spot (stacking + one pixel), not only the element's own outline."""
+        body = """
+await startPage();
+await sleep(80);
+const tok=n=>{const e=document.createElement('i');e.style.background='var(--'+n+')';document.body.appendChild(e);const c=getComputedStyle(e).backgroundColor;e.remove();return c};
+const sb=$$('.tl-bar .seg button'),seg=$$('.tl-bar .seg'),R=()=>[...seg,...sb].map(e=>{const r=e.getBoundingClientRect();return [r.left,r.top,r.width,r.height]});
+const before=R();sb[0].focus();const after=R(),r0=sb[0].getBoundingClientRect();
+const st=sb.map((e,i)=>{const fo=(i%2?sb[i-1]:sb[i+1]);e.focus();const c=getComputedStyle(e);return {pos:[c.position,c.zIndex],nz:getComputedStyle(fo).zIndex}});
+sb[0].focus();
+for(const ss of document.styleSheets){for(const r of Array.from(ss.cssRules)){if(r.selectorText&&r.selectorText.includes(':hover')){ss.insertRule(r.cssText.replace(/:hover/g,'.__hov'),ss.cssRules.length)}}}
+const hov=[1,3].map(i=>{sb[i].classList.add('__hov');const c=getComputedStyle(sb[i]);const o={bs:c.boxShadow,zi:c.zIndex,pos:c.position};sb[i].classList.remove('__hov');return o});
+out({same:JSON.stringify(before)===JSON.stringify(after),st,hov,ink:tok('ink'),right:r0.right,mid:r0.top+r0.height/2,focus:document.activeElement===sb[0]});
+"""
+        real = {"wt": rich(), "dst": {}, "now": NOW}
+        r = run_page(body, real)
+        self.assertTrue(r["same"] and r["focus"], r)   # focus moves nothing
+        self.assertEqual(len(r["st"]), 4)
+        for i, st in enumerate(r["st"]):
+            self.assertEqual(st["pos"], ["relative", "1"], (i, st))   # state button above its neighbour
+            self.assertIn(st["nz"], ("auto", "0"), (i, st))
+        for h in r["hov"]:
+            self.assertEqual((h["pos"], h["zi"]), ("relative", "1"), h)
+        self.assertEqual([("-1px 0px 0px 0px" in h["bs"], r["ink"] in h["bs"]) for h in r["hov"]], [(True, True), (True, True)])
+        # the pixel one css px right of the focused first button, at middle height, is --ink (the ring, not the neighbour)
+        with tempfile.TemporaryDirectory() as d:
+            page, png = Path(d) / "page.html", Path(d) / "shot.png"
+            page.write_text(HEAD % {"tpl": str(TPL), "real": json.dumps(real), "body": body, "scripts": SCRIPTS % {"tpl": str(TPL)}}, encoding="utf-8")
+            subprocess.run([CHROME, "--headless", "--disable-gpu", "--no-sandbox", "--allow-file-access-from-files",
+                            "--virtual-time-budget=20000", "--window-size=1440,300", "--force-device-scale-factor=4",
+                            "--screenshot=" + str(png), "file://" + str(page)], capture_output=True, timeout=120)
+            rgb = png_pixel(png.read_bytes(), round((r["right"] + 1) * 4), round(r["mid"] * 4))
+        self.assertEqual("rgb(%d, %d, %d)" % rgb, r["ink"], rgb)
 
 
 if __name__ == "__main__":
