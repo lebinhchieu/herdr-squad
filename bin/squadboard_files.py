@@ -23,9 +23,10 @@ BIN = Path(__file__).resolve().parent
 if str(BIN) not in sys.path:
     sys.path.insert(0, str(BIN))
 import squadboard  # noqa: E402  (the allow-list helper `_under` and nothing else)
+import squadtickets  # noqa: E402  (`declared_folder`: the scope's ticket folder, as the Tasks panel names it)
 
-KINDS = ("ticket", "design", "prototype", "promote", "report", "data", "evidence", "decision", "answer", "other")
-WHAT = {"ticket": "ticket plan", "design": "design", "prototype": "prototype", "promote": "promotion", "report": "scope report",
+KINDS = ("folder", "ticket", "design", "prototype", "promote", "report", "data", "evidence", "decision", "answer", "other")
+WHAT = {"folder": "folder", "ticket": "ticket plan", "design": "design", "prototype": "prototype", "promote": "promotion", "report": "scope report",
         "data": "report data", "evidence": "evidence", "decision": "decisions", "answer": "questions and answers", "other": "document"}
 DEPTH = 3
 MAX_ROWS = 500
@@ -96,6 +97,18 @@ class _Walk:
                 continue
 
 
+def _folder_row(p, name, scope, roots):
+    """A folder row for real directory `p` (ticket 29), or None when it is missing, a link out of the allow-list, or unreadable."""
+    try:
+        real = p.resolve(strict=True)
+        if not real.is_dir() or not squadboard._under(real, roots):
+            return None
+        mtime = int(real.stat().st_mtime)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return {"name": name, "kind": "folder", "what": WHAT["folder"], "scope": scope, "path": str(real), "mtime": mtime}
+
+
 def _closed(home):
     return home.parent.name == "_done"
 
@@ -107,6 +120,14 @@ def list_files(squad, kind, name, home):
     home = Path(home)
     if kind == "scope":
         w.files(home / "tasks", {".md"}, lambda n: "ticket" if n[:1].isdigit() else "other", flat=True)
+        # the ticket files of THIS scope's folder only (ticket 28 rule; `tickets:` line, else the scope name)
+        slug = squadtickets.declared_folder(home) or name
+        tdir = squad.repo_root / ".scratch" / str(slug) / "issues"
+        for t in _scandir(tdir):
+            if t.is_file() and t.name[:1].isdigit() and t.name.endswith(".md"):
+                w.add(Path(t.path), "ticket")
+        if (tdir.parent / "spec.md").is_file():
+            w.add(tdir.parent / "spec.md", "ticket")
         w.files(home / "ui-design", {".md", ".html"}, lambda n: "prototype" if n.endswith(".html") else "design")
         if (home / "promote.md").is_file():
             w.add(home / "promote.md", "promote")
@@ -124,8 +145,13 @@ def list_files(squad, kind, name, home):
         w.files(home / "shared", {".md"}, lambda n: "decision" if n == "decisions.md" else "other", flat=True)
     if (home / "escalations.md").is_file():
         w.add(home / "escalations.md", "answer")
-    rows = sorted(w.rows, key=lambda r: (-r["mtime"], r["name"]))
+    seen = set()  # a file reached by two rules is one row (the first rule's kind wins; `w.rows` is in rule order)
+    rows = [r for r in w.rows if not (r["path"] in seen or seen.add(r["path"]))]
+    rows.sort(key=lambda r: (-r["mtime"], r["name"]))
+    folders = [f for f in (_folder_row(squad.repo_root / ".scratch", ".scratch", home.name, roots),
+                           _folder_row(squad.path, ".claude/squads/" + squad.name, home.name, roots)) if f]
     report = next((r for r in rows if r["kind"] == "report"), None)
+    rows = folders + rows  # folder rows first, always; not counted in files_seen or truncated
     return {"rows": rows, "report": report, "report_expected": kind == "scope", "closed": kind == "scope" and _closed(home),
             "truncated": w.truncated, "files_seen": w.seen}
 

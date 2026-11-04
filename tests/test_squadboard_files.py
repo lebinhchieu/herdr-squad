@@ -72,7 +72,8 @@ class Reader(Base):
         for bad in ("inbox.jsonl", "messages.jsonl", "roles/fix-dev-03.notes.md", "ui-design/img/shot.png"):
             self.assertNotIn(bad, got)
         self.assertFalse([n for n in got if "adr" in n])
-        for x in rows:  # a listed path is the one /api/file takes
+        self.assertEqual([x["name"] for x in rows[:2]], [".scratch", ".claude/squads/fix"])  # T29.AC1
+        for x in [y for y in rows if y["kind"] != "folder"]:  # a listed path is the one /api/file takes
             self.assertTrue((self.squad.path / x["path"]).is_file() or Path(x["path"]).is_file(), x)
 
     def test_T14_AC4_AC5_live_scope_has_no_report_closed_scope_lists_report_and_data(self):
@@ -114,7 +115,7 @@ class Reader(Base):
     def test_T14_TA5_cap_sets_truncated_and_a_missing_folder_is_unknown(self):
         with mock.patch.object(sf, "MAX_ROWS", 3):
             d = sf.read(self.sel())["data"]
-        self.assertEqual((len(d["rows"]), d["truncated"]), (3, True))
+        self.assertEqual((len([r for r in d["rows"] if r["kind"] != "folder"]), d["truncated"]), (3, True))
         self.assertFalse(sf.read(self.sel())["data"]["truncated"])
         gone = dict(self.sel(), home=self.home / "nope")
         self.assertEqual(sf.read(gone), {"data": None, "quality": "unknown", "unknown": ["files"]})
@@ -155,7 +156,7 @@ class Served(Base):
         self.assertEqual(code, 200)
         j = json.loads(body)
         self.assertEqual(j["schema_version"], 1)
-        for r in j["data"]["rows"]:
+        for r in [x for x in j["data"]["rows"] if x["kind"] != "folder"]:  # folder rows open in VS Code (ticket 30)
             c, _, _ = self.get("/api/file?squad=fix&path=" + urllib.request.quote(r["path"]))
             self.assertEqual(c, 200, r)
 
