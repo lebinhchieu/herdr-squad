@@ -290,7 +290,7 @@
     var s = el("style");
     s.id = "view-css";
     s.textContent =
-      "#view{padding:0 var(--gutter)}#view:empty{display:none}" +
+      "#view{padding:0 var(--gutter);position:relative}#view:empty{display:none}" +
       ".ctxbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;position:relative}" +
       ".ctxbar .where b{font-weight:700}.lk{border:0;background:none;padding:0;color:var(--ink);text-decoration:underline;text-underline-offset:2px}" +
       ".ctxbar .out{border:1px dashed var(--muted);background:var(--bg);border-radius:6px;padding:2px 8px}" +
