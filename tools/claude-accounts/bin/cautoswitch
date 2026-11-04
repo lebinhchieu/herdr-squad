@@ -337,7 +337,7 @@ def tick(threshold, dry):
             continue
         if pending(pane) or BACKOFF.get(pane, [0, 0])[1] > TICKNO:
             continue
-        if sum(pending(p) for p in panes) >= MAX_INFLIGHT:
+        if sum(pending(p) for p in set(panes) | set(INFLIGHT)) >= MAX_INFLIGHT:  # a pane between /exit and relaunch has no claude process
             log(f"deferred: cswitch {name}({pane}); {MAX_INFLIGHT} switches already in flight")
             continue
         log(f"retry: cswitch {name}({pane}) c{acct} -> c{target[ws]}")
