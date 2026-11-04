@@ -13,10 +13,18 @@ Real server on the ticket-02 fixture (`squad-board --scope checkout`), Chrome 14
 - Data change (FINAL 12): `data.parked_rows` and `data.parked_warnings` added to `/api/inbox` (additive, schema_version 1); files `bin/squadboard_inbox.py` and `tests/test_squadboard_inbox.py` are outside the ticket's touched-files list, approved by the Manager.
 - Registration: no board.js edit. Panels register themselves; `index.html` has one script line per panel.
 
+## Known limits and differences from the design
+- Tab title: `/api/inbox` needs a choice (400 without), so the picker keeps the ticket 11 client sum until a choice is selected. Manager to know.
+- AC3 uses the word "recommended", not "Manager recommends".
+- AC10: no "Park: copy command" button; the command is text with a "copy" button.
+- Not built (no data in the payload): "Agents involved" column, ready-for-review item in Needs you, "Open the picker" button in the others note.
+- "retired" is a button styled as a disclosure.
+- `board.js` diff is 0 lines (TA1 says 3): panels self-register via `BOARD.registerPanel`.
+- Files outside the touched list: `bin/squadboard_inbox.py`, `tests/test_squadboard_inbox.py`, `templates/board/index.html`, `tests/test_squadboard_page.py`.
+- Screens: the empty, inbox-unknown and herdr-unknown states are covered by tests, not new screenshots.
+
 ![all panels, scope checkout](img/checkout-all-panels.png)
-![task 06 ready for review, detail open](img/checkout-ready-detail.png)
 ![Needs you with open item, options, parked row](img/questions-open-parked.png)
-![herdr not running](img/herdr-unknown.png)
 
 ## Tests run
-`test_squadboard_panels`, `test_squadboard_page`, `test_squadboard_inbox`: 59 pass. Grep rule (`templates/board`, `index.html`, `panel_scopes`): hits are these three files plus unrelated report tests (`index.html` of the report), not affected.
+`test_squadboard_panels`, `test_squadboard_page`, `test_squadboard_inbox`: 90 pass (also `test_squadreport_rollup`, `test_squadreport_rollup_ui`, the grep hits). Grep rule (`templates/board`, `index.html`, `panel_scopes`): hits are these three files plus unrelated report tests (`index.html` of the report), not affected.
