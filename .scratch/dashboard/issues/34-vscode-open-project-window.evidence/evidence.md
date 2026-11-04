@@ -11,7 +11,7 @@ A plain left click on a file, ticket or Where link calls `POST /api/open?squad=<
 | T34.AC1-AC2 (file, ticket, Where call; folder none) | panel_files.js `openFile`, panel_tasks.js `.wf a`; test_squadboard_open.py::Page34::test_T34_TA4_click_posts_once_and_falls_back_only_on_failure (file, folder, ctrl, middle) |
 | T34.AC3-AC4 (path intact, no folder arg) | Route::test_T34_TA2_gate (log lines `--goto`, path, `--end`) |
 | T34.AC5 (ctrl/middle none) | Page34 test above |
-| T34.AC6 (gate a-f) | Route::test_T34_TA2_gate |
+| T34.AC6 (gate a-f) | Route::test_T34_TA2_gate; AC6(d) foreign Origin: bin/squadboard.py `_origin_ok`/`_mutating`, Route::test_T34_TA8_foreign_origin_refused_before_the_route |
 | T34.AC7 (20 clicks, hashes) | Route::test_T34_TA3_no_file_written (5 rounds) |
 | T34.AC8 (layout unchanged) | not separately tested; the click only adds the status line as in 30. Open gap |
 | T34.AC9a-d | OpenFile::test_T34_TA1 (nothing, exit 1, refusal text); Page34 fallback; timeout case in TA1. Open gap: AC9c page-side 5.8 s timer has no test |
@@ -22,6 +22,7 @@ A plain left click on a file, ticket or Where link calls `POST /api/open?squad=<
 | T34.TA3 | Route::test_T34_TA3_no_file_written; only `subprocess` is in squadboard_open.py |
 | T34.TA4 | Page34 test; `<img onerror>` text pin: old test Panels30 still passes |
 | T34.TA5, TA6 | QA whitebox / PO live: pending |
+| T34.TA8 (Origin: evil/null/other port/https 403 `origin not allowed`, stub 0 calls; local 127.0.0.1/localhost 200; PUT /api/ui evil 403, route not called) | test_squadboard_open.py::Route::test_T34_TA8_foreign_origin_refused_before_the_route |
 | T34.TA7 | test_windows_safe.py, test_no_bare_bash.py pass; native Windows untested |
 
 ## Old pins edited
