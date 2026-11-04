@@ -284,6 +284,21 @@
     var engine = null, placedOnce = false, saveTimer = null, loadedOnce = false, popOpen = false, booted = false, colPop = null;
 
     var els = {};
+    /* ticket 39 (D12): in the demo no file link opens anything. One capture handler, before every panel handler. */
+    var toastEl = null, toastTimer = null;
+    function demoToast() {
+      if (!toastEl) { toastEl = el("div", "toast", "Demo: sample file, not opened"); toastEl.setAttribute("role", "status"); doc.body.appendChild(toastEl); }
+      toastEl.hidden = false;
+      clearT(toastTimer);
+      toastTimer = setT(function () { toastEl.hidden = true; }, 3500);
+    }
+    function demoGuard(e) {
+      if (!S.demo) return;
+      var a = e.target && e.target.closest && e.target.closest("a[href^='vscode:']");
+      if (!a) return;
+      e.preventDefault(); e.stopPropagation();
+      demoToast();
+    }
     function build() {
       var app = doc.getElementById("app");
       app.textContent = "";
@@ -922,6 +937,7 @@
       poller.start();
     }
 
+    doc.addEventListener("click", demoGuard, true); doc.addEventListener("auxclick", demoGuard, true);
     init();
     BOARD.ctx = { state: S, els: els, setChoice: setChoice, paint: paintPickers, poller: poller, touch: touch, clear: clearPanels,
                   getJson: getJson, withSince: withSince, panels: P,

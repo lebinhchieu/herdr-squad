@@ -219,10 +219,11 @@ answer={ok:false,why:'no-vscode'};file.dispatchEvent(ev({}));await sleep(100);
 const failFollow=follow.length,failText=panel.textContent;
 const n=posts.length;
 folder.dispatchEvent(ev({}));file.dispatchEvent(ev({ctrlKey:true}));file.dispatchEvent(ev({button:1}));await sleep(50);
-out({okPosts,okFollow,abs:file.dataset.abs,body,hdr,status,failFollow,failText,more:posts.length-n,tabs:document.querySelectorAll('a[target]').length,
+out({toast:document.querySelector('.toast')===null,okPosts,okFollow,abs:file.dataset.abs,body,hdr,status,failFollow,failText,more:posts.length-n,tabs:document.querySelectorAll('a[target]').length,
  imgs:panel.querySelectorAll('img').length});
 """)
         self.assertEqual((r["okPosts"], r["okFollow"]), (1, 0))      # worked: the link is not followed
+        self.assertTrue(r["toast"])                                   # T39.TA4: the real board never creates a .toast
         self.assertEqual(r["body"], {"path": r["abs"]})
         self.assertTrue(r["hdr"])
         self.assertEqual(r["status"], "Sent to VS Code: " + r["abs"] + " Copy path")

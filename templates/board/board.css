@@ -19,6 +19,8 @@ a{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
 /* ticket 37b: demo label, a light strip (manager-rulings-iter3-c): panel background, ink text, dashed muted border */
 .demo{position:sticky;top:0;z-index:5;text-align:center;padding:.25em 12px;background:var(--panel);color:var(--ink);font-weight:700;letter-spacing:.05em;border-bottom:2px dashed var(--muted)}
 .demo[hidden]{display:none}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 24px);z-index:60;background:var(--panel);color:var(--ink);border:1px solid var(--border);border-radius:8px;padding:6px 12px}
+.toast[hidden]{display:none}
 header.top{padding:6px var(--gutter) 4px;border-bottom:1px solid var(--border)}
 .r1,.r3{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.r3{margin-top:4px}
 header h1{font-size:1.25em}
