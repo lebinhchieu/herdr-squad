@@ -151,14 +151,11 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
     tokens = sorted({str(r.get("task")) for r in recs if r.get("task")})
     scope_md = _read(home / "scope.md") or ""
     root = _repo_of(home, repo_root)
-    tickets, tdir = _ticket_folder(root, home, name)
-    if tdir is None:
+    found = squadtickets.scope_tasks(home, root, name)
+    by_id = {t["id"]: t for t in found["tasks"]}
+    if found["source"] is None:
         unknown.append("tickets")
-    status = {}
-    if tdir:
-        for f in sorted((root / tdir / "issues").glob("*.md")):
-            status[f.name.split("-", 1)[0]] = (_field(_read(f) or "", "Status") or "").lower()
-    ids = {squadledger.key(i): i for i in list(tickets) + _plan_ids(home)}
+    ids = {squadledger.key(i): i for i in by_id}
     roster = _roster(home)
     roles = {r.get("agent"): r.get("role") for r in roster if r.get("agent")}
     live = [a for a, r in roles.items() if r in QA_ROLES]
@@ -185,7 +182,7 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
         tip = (tips.get(branch) or {}).get("sha") if branch else None
         facts = {"verdicts": led.get("verdicts"), "checkers": checkers, "roles": roles, "sha": led.get("sha"),
                  "tip": tip, "merged": branch in merged, "handin": bool(led.get("handin_from")),
-                 "ticket_status": status.get(tid.zfill(2)) or status.get(tid), "blocked": led.get("blocked"),
+                 "ticket_status": (by_id.get(tid) or {}).get("status", ""), "blocked": led.get("blocked"),
                  "active": bool(msgs), "owner": owner, "wait_s": None}
         if led.get("handin_from"):
             hts = max((parse_iso(r.get("ts")) or 0 for r in msgs if r.get("type") == "HANDIN"), default=None)
@@ -194,30 +191,20 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
         last_ts = max((parse_iso(r.get("ts")) or 0 for r in msgs), default=None)
         fails = [r for r in msgs if r.get("type") == "FAIL"]
         new = _count_new(msgs, since)
-        row = {"id": tid, "title": tickets.get(tid.zfill(2)) or tickets.get(tid) or "", "stage": word, "owner": owner,
+        row = {"id": tid, "title": (by_id.get(tid) or {}).get("title", ""), "stage": word, "owner": owner,
                "waits_on": _waits_on(word, {**facts, "owner": owner}), "last_active": last_ts,
                "last_active_iso": iso(last_ts) if last_ts else None, "returns": led.get("returns") or 0,
                "last_fail_line": _first_line(fails[-1].get("text")) if fails else "",
-               "branch": branch, "tip": tip, "new_count": new, "detail_note": detail}
+               "branch": branch, "tip": tip, "new_count": new, "detail_note": detail,
+               "where": (by_id.get(tid) or {}).get("where", ""), "ticket_status": facts["ticket_status"]}
+        if "abs" in (by_id.get(tid) or {}):
+            row["abs"] = by_id[tid]["abs"]
         if with_detail:
             row["detail"] = _detail(msgs)
         rows.append(row)
         if word == "ready for review":
             ready.append({"task": tid, "branch": branch, "tip": tip})
     return rows, unknown, ready
-
-
-def _ticket_folder(root, home, name):
-    """Same rule as `squadboard_list._tickets` (a test keeps them equal): the `tickets:` line, else
-    `.scratch/<scope>/issues`, else unknown. -> ({NN: title}, relative folder or None).
-    Never the feature-folder guess of `squadtickets`: it can pick another scope's folder."""
-    if root is None:
-        return {}, None
-    slug = squadtickets.declared_folder(home) or name
-    if not (root / ".scratch" / slug / "issues").is_dir():
-        return {}, None
-    files = [f for f in sorted((root / ".scratch" / slug / "issues").glob("*.md")) if re.match(r"^\d+-", f.name)]
-    return squadtickets._titles(files), ".scratch/" + slug
 
 
 def _repo_of(home, repo_root):
