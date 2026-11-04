@@ -1193,6 +1193,37 @@ out({ths,tds:tr.querySelectorAll('td').length,path:tr.querySelector('.fpath')&&t
         self.assertEqual(r["tds"], 1)
         self.assertTrue(r["path"] and r["path"] == r["abs"])
 
+    def test_T29_AC3_empty_note_shows_with_the_folder_rows_and_the_report_placeholder(self):
+        r = self.page(r"""
+const d=F14.checkout.data;d.rows=[];d.report=null;d.closed=false;d.report_expected=true;
+await start14();
+const panel=$('section[data-panel=files]');
+out({note:Array.from(panel.querySelectorAll('p')).map(p=>p.textContent),rows:panel.querySelectorAll('table.fl tr').length});
+""")
+        self.assertIn("No other files yet. Artifacts, reports and evidence appear here.", r["note"])
+        self.assertGreaterEqual(r["rows"], 3)   # header + two folder rows (+ the placeholder)
+
+    def test_T29_AC4_AC11_ticket_row_pill_reads_ticket_and_a_long_title_is_cut_with_an_ellipsis(self):
+        r = self.page(r"""
+const d=F14.checkout.data,long='A very long ticket title '.repeat(6).trim();
+d.rows.push({name:'tasks/77.md',kind:'ticket',what:long,scope:'checkout',path:'tasks/77.md',abs:'/x/tasks/77.md',mtime:1793700000},
+            {name:'tasks/78.md',kind:'ticket',what:'short title',scope:'checkout',path:'tasks/78.md',abs:'/x/tasks/78.md',mtime:1793700000});
+await start14();
+const panel=$('section[data-panel=files]');
+const tr=n=>Array.from(panel.querySelectorAll('table.fl tr')).filter(t=>t.textContent.includes(n))[0];
+const cell=(t,c)=>t.querySelectorAll('td')[c];
+const heads=Array.from(panel.querySelectorAll('table.fl th')).map(h=>h.textContent);
+const k=heads.indexOf('Kind'),w=heads.indexOf('What');
+out({long,pillL:cell(tr('77.md'),k).textContent,whatL:cell(tr('77.md'),w).textContent,titleL:cell(tr('77.md'),w).title,
+     pillS:cell(tr('78.md'),k).textContent,whatS:cell(tr('78.md'),w).textContent,
+     artifacts:(panel.querySelector('button[data-ff=artifact]').click(),!!tr('77.md'))});
+""")
+        self.assertEqual((r["pillL"], r["pillS"]), ("ticket", "ticket"))
+        self.assertTrue(r["whatL"].endswith("…") and len(r["whatL"]) <= 80, r["whatL"])
+        self.assertEqual(r["titleL"], r["long"])   # the full title stays as the tooltip
+        self.assertEqual(r["whatS"], "short title")
+        self.assertTrue(r["artifacts"])   # a ticket row still belongs to the Artifacts filter
+
     def test_T30_TA2_no_new_tab_code_in_the_panels(self):
         for f in sorted(TPL.glob("*.js")):   # TA2 names templates/board/*.js
             js = f.read_text(encoding="utf-8")

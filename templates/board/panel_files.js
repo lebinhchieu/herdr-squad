@@ -8,13 +8,14 @@
 
   /* ---------- pure rules ---------- */
   var GROUP = { report: "report", data: "report", evidence: "evidence" };   /* every other kind is an "artifact" */
+  var TITLE_MAX = 80;
   function groupOf(kind) { return GROUP[kind] || "artifact"; }
   var FILTERS = [["all", "All"], ["artifact", "Artifacts"], ["report", "Reports"], ["evidence", "Evidences"]];
   /* rowsForFiles(data, filter): {rows, total, missing (text or null), truncated}. The report row is missing in a live scope. */
   function rowsForFiles(data, filter) {
     var d = data || {}, all = d.rows || [], f = filter || "all";
     function shape(r, kind) {
-      return { name: r.name, path: r.path, abs: r.abs || null, blocked: !!r.blocked, kind: kind, what: r.what, scope: r.scope, mtime: r.mtime,
+      return { name: r.name, path: r.path, abs: r.abs || null, blocked: !!r.blocked, kind: kind, raw: r.kind, what: r.what, scope: r.scope, mtime: r.mtime,
                iso: typeof r.mtime === "number" ? new Date(r.mtime * 1000).toISOString() : null };
     }
     var rows = all.filter(function (r) { return f === "all" || groupOf(r.kind) === f; }).map(function (r) { return shape(r, groupOf(r.kind)); });
@@ -182,8 +183,10 @@
       tr.dataset.open = "1";
     } else { a.appendChild(el("span", "muted", r.name)); tr.className = "muted"; }
     cell.file = a;
-    var k = el("td"); k.appendChild(chip(r.kind === "report" ? "wait" : r.kind === "evidence" ? "work" : "idle", r.kind)); cell.kind = k;
-    cell.what = el("td", r.blocked ? "muted" : null, r.what);
+    var k = el("td"); k.appendChild(chip(r.kind === "report" ? "wait" : r.kind === "evidence" ? "work" : "idle", r.raw === "ticket" ? "ticket" : r.kind)); cell.kind = k;
+    var wtxt = r.what;   /* T29.AC11: a long ticket title is cut with an ellipsis, the full title is the tooltip */
+    cell.what = el("td", r.blocked ? "muted" : null, r.raw === "ticket" && wtxt && wtxt.length > TITLE_MAX ? wtxt.slice(0, TITLE_MAX - 1).replace(/\s+$/, "") + "\u2026" : wtxt);
+    if (r.raw === "ticket" && wtxt && wtxt.length > TITLE_MAX) cell.what.title = wtxt;
     cell.scope = el("td", null, r.scope);
     var t = el("td", "nw");
     if (r.iso) { var tm = el("time", null, fileTime(r.iso, c.now, c.tz)); tm.dateTime = r.iso; tm.title = r.iso.slice(0, 10) + " " + r.iso.slice(11, 16) + " UTC in the files"; t.appendChild(tm); }
@@ -200,7 +203,7 @@
     body.textContent = "";
     var R = rowsForFiles(d, F);
     c.setCount(R.total, false);
-    var empty = !R.total && !R.missing && !(d && d.report_expected);
+    var empty = !R.total;   /* T29.AC3: the note also shows when only the folder rows and the report placeholder are there */
     var tools = el("div", "ftools");
     FILTERS.forEach(function (f) {
       var b = el("button", null, f[1]); b.type = "button"; b.dataset.ff = f[0]; b.setAttribute("aria-pressed", F === f[0] ? "true" : "false");
