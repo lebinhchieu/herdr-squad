@@ -363,6 +363,7 @@
       els.canvas.appendChild(sec);
       if (def.columns) wireColumnDrag(p);
       engine.observe(p.body);
+      renderPanel(p, undefined);   /* the "Loading" note of a panel that has one */
       return p;
     }
 
@@ -748,19 +749,44 @@
 
     function setBanner(node) { els.banner.textContent = ""; if (node) els.banner.appendChild(node); }
 
+    /* design-v7 s5: a panel with texts here shows a muted "Loading" note until its first answer, and a dashed --err note on a failed answer
+       (resp.error, or an answer with no data and the panel unknown). resp.errors [{file, reason}] adds the note above rows that were read. */
+    var PANEL_TEXT = { tasks: { loading: "Loading tasks\u2026", error: "Could not read the tasks of this scope." } };
+    function stateNote(cls, text, extra) {
+      var n = el("p", "note pstate " + cls, text);
+      if (extra) n.appendChild(el("span", "pwhy", extra));
+      return n;
+    }
+    function failWhy(resp) {
+      if (!resp) return "";
+      var w = [];
+      if (typeof resp.error === "string") w.push(resp.error);
+      (Array.isArray(resp.errors) ? resp.errors : []).forEach(function (e) { if (e) w.push((e.file ? e.file + ": " : "") + (e.reason || "")); });
+      return w.join("; ");
+    }
     function renderPanel(p, resp) {
+      var txt = PANEL_TEXT[p.id];
+      if (txt && resp === undefined) {
+        if (p.last == null) { p.body.textContent = ""; p.body.appendChild(stateNote("pload", txt.loading)); }
+        return;
+      }
       var key = JSON.stringify(resp);
       p.resp = resp;
       if (p.last === key) return;
       p.last = key;
       var v = panelView(resp, p.def);
+      var why = txt ? failWhy(resp) : "";
+      if (txt && (typeof (resp || {}).error === "string" || (v.kind === "unknown" && resp && resp.data == null))) {
+        p.body.textContent = ""; p.body.appendChild(stateNote("perr", txt.error, why || v.sources.join(", "))); p.count.hidden = true; return;
+      }
       p.body.textContent = "";
       p.unk.hidden = v.sources.length === 0;
       p.unk.textContent = v.sources.length ? "unknown: " + v.sources.join(", ") : "";
       if (v.kind === "version") { p.body.appendChild(el("p", "note", "unknown: board version")); p.count.hidden = true; return; }
       if (v.kind === "unknown") { p.body.appendChild(el("p", "note", "unknown: " + v.sources.join(", "))); p.count.hidden = true; return; }
       try { p.def.render(p.body, resp.data, ctxFor(p)); }
-      catch (e) { p.body.textContent = ""; p.body.appendChild(el("p", "note", "unknown: " + p.id)); }
+      catch (e) { p.body.textContent = ""; p.body.appendChild(el("p", "note", "unknown: " + p.id)); return; }
+      if (why) p.body.insertBefore(stateNote("perr", txt.error, why), p.body.firstChild);
     }
 
     function onOk(v) {
@@ -783,6 +809,7 @@
     }
 
     function onFail(n, stale) {
+      panelList().forEach(function (p) { if (PANEL_TEXT[p.id] && p.resp === undefined) renderPanel(p, { error: "the board server did not answer (server error)" }); });
       if (stale) S.status = "stale";
       paintFresh();
     }

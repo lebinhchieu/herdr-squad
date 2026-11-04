@@ -1050,6 +1050,41 @@ out(o);""", "#/scope/checkout")
         self.assertIn("<img src=x onerror=window.__x=1>", r["cells"])   # text, not markup (TU.3)
         self.assertEqual((r["img"], r["x"]), (0, True))
         self.assertIn("No task files found. Looked in:.scratch/checkout/issues.claude/squads/s/scopes/checkout/tasks", r["empty"])
+        saved = {"version": 1, "saved_at": "2026-11-03T10:00:00Z", "choice": {"kind": "scope", "name": "checkout"}, "recent": [],
+                 "panels": {}, "columns": {"tasks": ["id", "title", "stage"]}}   # a list saved before `where` existed
+        r = run_page(PRE12 + r"""
+await start12();await sleep(150);
+const root=$('section[data-panel=tasks]');
+const heads=Array.from(root.querySelectorAll('th')).map(t=>t.textContent);
+root.querySelector('.ph .pbtn').click();await sleep(30);
+const cp=Array.from(document.querySelectorAll('.cpop .cr label')).map(l=>l.textContent);
+out({heads,rows:root.querySelectorAll('tr.r').length,cp});""", dict(self.real, saved=saved), "#/scope/checkout", self.head)
+        self.assertGreater(r["rows"], 0)
+        self.assertNotIn("Where", r["heads"])
+        self.assertTrue(any("Where" in c for c in r["cp"]), r["cp"])
+
+    def test_T28_design_v7_s5_loading_note_then_error_note_and_rows_stay(self):
+        r = self.page(r"""
+const hang=(url,opt)=>/^\/api\/tasks\?/.test(url)?new Promise(()=>{}):f12(url,opt);
+BOARD.start({fetch:hang,storage:mem(),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,now:()=>Date.parse('2026-11-04T10:00:00Z'),tz:'UTC'});
+await sleep(300);
+const o={loading:$('section[data-panel=tasks]').textContent};
+const d=P['tasks:checkout'];
+d.errors=[{file:'tasks/09.md',reason:'not readable'}];
+await start12();await sleep(150);
+let root=$('section[data-panel=tasks]');
+o.keep={note:root.querySelectorAll('.pstate.perr').length,rows:root.querySelectorAll('tr.r').length,txt:root.querySelector('.pstate.perr').textContent};
+delete d.errors;d.data=null;d.unknown=['tasks'];d.error='tasks/01.md: bad utf-8';
+await start12();await sleep(150);
+root=$('section[data-panel=tasks]');
+o.err={note:root.querySelectorAll('.pstate.perr').length,rows:root.querySelectorAll('tr.r').length,txt:root.querySelector('.pstate.perr').textContent};
+out(o);""", "#/scope/checkout")
+        self.assertIn("Loading tasks\u2026", r["loading"])
+        self.assertEqual(r["keep"]["note"], 1)
+        self.assertGreater(r["keep"]["rows"], 0)
+        self.assertIn("Could not read the tasks of this scope.tasks/09.md: not readable", r["keep"]["txt"])
+        self.assertEqual((r["err"]["note"], r["err"]["rows"]), (1, 0))
+        self.assertIn("Could not read the tasks of this scope.tasks/01.md: bad utf-8", r["err"]["txt"])
 
 
 if __name__ == "__main__":

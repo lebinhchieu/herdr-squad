@@ -71,3 +71,5 @@ main{padding:var(--gutter) var(--gutter) 24px}
 .cpop .cf button:disabled{opacity:.45;cursor:default}
 th[draggable=true]{cursor:grab}
 .pbtn{white-space:nowrap}
+.pstate{border:1px dashed var(--border);border-radius:6px;padding:8px 10px;margin:0 0 6px;color:var(--muted)}
+.pstate.perr{border-color:var(--err);color:var(--ink)}.pstate .pwhy{display:block;color:var(--muted);font-size:.92em;overflow-wrap:anywhere}
