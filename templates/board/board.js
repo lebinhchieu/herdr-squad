@@ -309,21 +309,22 @@
       els.hiddenBtn = el("button", "hb", "Panels ▾"); els.hiddenBtn.type = "button";
       els.hiddenBtn.setAttribute("aria-haspopup", "true"); els.hiddenBtn.setAttribute("aria-expanded", "false");
       els.reset = el("button", "hb", "Reset layout"); els.reset.type = "button";
-      fr3.appendChild(els.font); fr3.appendChild(els.hiddenBtn); fr3.appendChild(els.reset); r3.appendChild(fr3);
+      fr3.appendChild(els.font); els.popWrap = el("span", "popwrap"); els.popWrap.appendChild(els.hiddenBtn); fr3.appendChild(els.popWrap); fr3.appendChild(els.reset); r3.appendChild(fr3);
       header.appendChild(r1); header.appendChild(r3);
       els.notes = el("div", "notes"); els.notes.setAttribute("role", "status");
       els.banner = el("div", "bannerslot");   /* the permission banner: not a panel, no hide, no drag */
       els.pick = el("p", "note"); els.pick.hidden = true;
       var main = el("main"); els.canvas = el("div"); els.canvas.id = "canvas"; main.appendChild(els.canvas);
       els.pop = el("div", "pop"); els.pop.hidden = true; els.pop.setAttribute("role", "menu");
+      els.popWrap.appendChild(els.pop);
       els.view = el("div"); els.view.id = "view";   /* the picker and the context line (panel_scopes.js) */
-      [header, els.notes, els.banner, els.pick, els.view, main, els.pop].forEach(function (n) { app.appendChild(n); });
+      [header, els.notes, els.banner, els.pick, els.view, main].forEach(function (n) { app.appendChild(n); });
       els.squad.addEventListener("change", function () { switchSquad(els.squad.value); });
       els.choice.addEventListener("change", function () { setChoice(els.choice.value); });
       els.reset.addEventListener("click", resetLayout);
       els.hiddenBtn.addEventListener("click", function (e) { e.stopPropagation(); togglePop(); });
       doc.addEventListener("click", function () { if (popOpen) togglePop(false); });
-      doc.addEventListener("keydown", function (e) { if (e.key === "Escape" && popOpen) togglePop(false); });
+      doc.addEventListener("keydown", function (e) { if (e.key === "Escape" && popOpen) { togglePop(false); els.hiddenBtn.focus(); } });
     }
 
     /* ---- panels ---- */
@@ -344,7 +345,7 @@
       if (def.columns) {
         p.cols = el("button", "pbtn", "Columns"); p.cols.type = "button"; p.cols.setAttribute("aria-haspopup", "true");
         p.cols.setAttribute("aria-expanded", "false"); p.colTag = el("span", "chip colhid"); p.colTag.hidden = true; p.cols.appendChild(p.colTag);
-        ph.appendChild(p.cols);
+        p.colWrap = el("span", "popwrap"); p.colWrap.appendChild(p.cols); ph.appendChild(p.colWrap);
         p.cols.addEventListener("click", function (e) { e.stopPropagation(); openColumns(p); });
       }
       p.hide = el("button", "pbtn", "Hide"); p.hide.type = "button"; p.hide.title = "Hide this panel";
@@ -547,7 +548,8 @@
     function renderPop() {
       els.pop.textContent = "";
       var hid = panelList().filter(function (p) { return p.hidden && !p.def.byView; });
-      els.hiddenBtn.textContent = "Panels" + (hid.length ? " (" + hid.length + " hidden)" : "") + " ▾";
+      els.hiddenBtn.textContent = "Panels" + (hid.length ? " (" + hid.length + " hidden)" : "") + (popOpen ? " ▴" : " ▾");
+      els.pop.appendChild(el("h3", null, "Hidden panels"));
       if (!hid.length) els.pop.appendChild(el("p", "muted", "No hidden panels."));
       hid.forEach(function (p) {
         var b = el("button", "hb", "Show " + p.def.title); b.type = "button"; b.setAttribute("role", "menuitem");
@@ -555,11 +557,27 @@
         els.pop.appendChild(b);
       });
     }
+    /* popPlace(btnRect, popSize, viewport) -> {top, left, maxHeight}: under the button, left edges aligned,
+       moved left to stay inside (8 px margin); if too tall for the room below, it gets a max height and scrolls. */
+    function popPlace(r, size, vp) {
+      var m = 8, left = Math.max(m, Math.min(r.left, vp.w - size.w - m)), top = r.bottom + 4;
+      return { top: top, left: left, maxHeight: Math.max(0, vp.h - r.bottom - 12) };
+    }
+    BOARD.popPlace = popPlace;
+    function placePop() {
+      if (!popOpen) return;
+      var pl = popPlace(els.hiddenBtn.getBoundingClientRect(), { w: els.pop.offsetWidth, h: els.pop.offsetHeight }, { w: root.innerWidth || 1000, h: root.innerHeight || 800 });
+      els.pop.style.left = (pl.left - els.hiddenBtn.getBoundingClientRect().left) + "px"; els.pop.style.maxHeight = pl.maxHeight + "px";
+    }
     function togglePop(force) {
+      var was = popOpen;
       popOpen = typeof force === "boolean" ? force : !popOpen;
       renderPop();
       els.pop.hidden = !popOpen;
       els.hiddenBtn.setAttribute("aria-expanded", popOpen ? "true" : "false");
+      if (popOpen && !was) { root.addEventListener("resize", placePop); root.addEventListener("scroll", placePop, true); }
+      if (!popOpen && was) { root.removeEventListener("resize", placePop); root.removeEventListener("scroll", placePop, true); els.hiddenBtn.focus(); }
+      placePop();
     }
 
     function resetLayout() {
@@ -596,7 +614,7 @@
       var p = colPop.p;
       doc.removeEventListener("keydown", colPop.key, true); doc.removeEventListener("click", colPop.out, true); root.removeEventListener("resize", colPop.place);
       colPop.box.remove(); colPop = null;
-      p.cols.setAttribute("aria-expanded", "false");
+      p.cols.setAttribute("aria-expanded", "false"); p.cols.closest(".panel").classList.remove("popopen");
       if (refocus) p.cols.focus();
     }
     function openColumns(p) {
@@ -610,8 +628,8 @@
       st.place = function () { placeColumns(); };
       doc.addEventListener("keydown", st.key, true); doc.addEventListener("click", st.out, true); root.addEventListener("resize", st.place);
       colPop = st;
-      p.cols.setAttribute("aria-expanded", "true");
-      app().appendChild(box);
+      p.cols.setAttribute("aria-expanded", "true"); p.cols.closest(".panel").classList.add("popopen");
+      p.colWrap.appendChild(box);
       paintColumns();
       var first = box.querySelector("input,button");
       if (first) first.focus();
@@ -658,10 +676,9 @@
     }
     function placeColumns() {
       var box = colPop.box, r = colPop.p.cols.getBoundingClientRect(), W = root.innerWidth || 1000, H = root.innerHeight || 800;
-      box.style.maxHeight = Math.max(120, H - 16) + "px";
-      var bw = box.offsetWidth, bh = box.offsetHeight;
-      var left = Math.min(Math.max(8, r.left), Math.max(8, W - bw - 8)), top = Math.min(Math.max(8, r.bottom + 4), Math.max(8, H - bh - 8));
-      box.style.left = left + "px"; box.style.top = top + "px";
+      var pl = popPlace(r, { w: box.offsetWidth, h: box.offsetHeight }, { w: W, h: H });
+      box.style.maxHeight = Math.max(120, pl.maxHeight) + "px";
+      box.style.left = (pl.left - r.left) + "px";
     }
     function wireColumnDrag(p) {
       var from = null;

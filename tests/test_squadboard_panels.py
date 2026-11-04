@@ -857,6 +857,20 @@ out({a,heads:heads(T),even:even(),pop:!!$('.cpop'),cols:pg.snapshot().columns,bo
         self.assertEqual(r["cols"], {"tasks": ["task", "title", "last_active", "happened", "waits"]})
         self.assertEqual(r["boxes"], 5)
 
+    def test_T25_AC5_columns_popover_opens_under_columns_button_on_top_and_follows_scroll(self):
+        r = self.page(r"""
+const pg=await start20();
+BOARD.page.setFont('xl');await sleep(200);
+const cb=colsBtn('tasks');cb.click();await sleep(50);
+const cp=$('.cpop'),cr=cp.getBoundingClientRect(),br=cb.getBoundingClientRect();
+const c={gap:cr.top-br.bottom,inside:cr.right<=innerWidth&&cr.bottom<=innerHeight,onTop:cp.contains(document.elementFromPoint(cr.left+20,cr.top+10)),footer:!!cp.querySelector('.cf button')};
+document.body.style.minHeight='3000px';window.scrollTo(0,300);await sleep(300);
+c.scrolled=Math.abs(cp.getBoundingClientRect().top-cb.getBoundingClientRect().bottom);
+out(c);
+""")
+        self.assertTrue(0 <= r["gap"] <= 6 and r["inside"] and r["onTop"] and r["footer"], r)
+        self.assertLessEqual(r["scrolled"], 6, r)
+
     def test_T20_AC7_AC10_reset_layout_resets_every_panel_columns_not_font_or_choice(self):
         r = self.page(r"""
 const pg=await start20();
@@ -1019,6 +1033,36 @@ class Static13(unittest.TestCase):
         for f in ("board.js", "panel_tasks.js", "panel_scopes.js"):
             self.assertIsNone(re.search(r"innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|https?://",
                                         (TPL / f).read_text(encoding="utf-8")), f)
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
+class Popover25(unittest.TestCase):
+    def test_T25_AC1_AC2_AC3_TA1_panels_list_opens_under_its_button_at_3_font_sizes_and_after_scroll(self):
+        r = run_page("""
+const pg=await startPage();
+const out_={};
+const btn=$('.hb[aria-haspopup=true]');
+for(const f of ['small','normal','xl']){
+  BOARD.page.setFont(f);await sleep(150);
+  btn.click();await sleep(30);
+  const b=btn.getBoundingClientRect(),m=$('.pop').getBoundingClientRect();
+  const sc0=window.scrollY;
+  out_[f]={gap:m.top-b.bottom,right:m.right<=innerWidth,left:m.left>=0,open:btn.getAttribute('aria-expanded')};
+  document.body.style.minHeight='3000px';window.scrollTo(0,300);await sleep(300);
+  const b2=btn.getBoundingClientRect(),m2=$('.pop').getBoundingClientRect();
+  out_[f].scrolled=Math.abs(m2.top-b2.bottom);
+  window.scrollTo(0,0);
+  key(document,'Escape');await sleep(20);
+  out_[f].closed=$('.pop').hidden;out_[f].focus=document.activeElement===btn;
+}
+out({r:out_,pure:BOARD.popPlace({left:1300,bottom:40},{w:200,h:100},{w:1440,h:900}),tiny:BOARD.popPlace({left:5,bottom:40},{w:200,h:100},{w:100,h:100})});
+""", real_payloads())
+        for f, v in r["r"].items():
+            self.assertTrue(0 <= v["gap"] <= 4 and v["right"] and v["left"], (f, v))
+            self.assertLessEqual(v["scrolled"], 4, f)
+            self.assertEqual((v["closed"], v["focus"]), (True, True), f)
+        self.assertEqual(r["pure"]["left"], 1232)
+        self.assertGreaterEqual(r["tiny"]["left"], 8)
 
 
 if __name__ == "__main__":
