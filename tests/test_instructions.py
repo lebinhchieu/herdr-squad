@@ -83,7 +83,7 @@ class ManagerInboxTest(unittest.TestCase):
     def test_every_squad_inbox_word_is_a_cli_command(self):
         words = set(re.findall(r"squad-inbox ([a-z]+)", self.text))
         self.assertTrue(words)
-        self.assertLessEqual(words, {"add", "list", "read", "answer", "withdraw", "delivered", "guide"})
+        self.assertLessEqual(words, {"add", "list", "read", "answer", "withdraw", "delivered", "guide", "park"})
 
 
 class CardShapeTest(unittest.TestCase):

@@ -250,6 +250,44 @@ The option whose key the Manager's `--rec` text starts with, exactly one existin
 **Colour meaning**:
 In the inbox green = passed, recommended, delivered; red = blocks work, failed, error; amber = warning, waiting, not verified; dim = metadata. One meaning per colour on every screen, as theme keys (`success`, `error`, `warning`, dim), never RGB; structure is carried by weight and shape, and meaning is never by colour alone. `blocks X` is red while the work is still blocked (open, or answered and waiting) and dim once released (delivered, answered in chat, withdrawn, read).
 
+## Dashboard
+
+**Dashboard**:
+The PO's read-only local page (`squad-board`) for one goal or one scope at a time. It reads the squad's files, git, herdr and transcripts; the one file it writes is `board-ui.json`. Where the PO must act, it shows the command to copy.
+_Avoid_: board (alone; the old live board was removed by 0009), monitor, console
+
+**Picker**:
+The first screen of the dashboard: the list of the squad's open goals and scopes, each with a few facts (needs you, stuck, tasks done, last active), and a Done list. The dashboard shows nothing else until the PO chooses one.
+_Avoid_: home page, overview, all view
+
+**Choice**:
+The one goal or scope the dashboard shows. Squad-wide items (a permission prompt) show under every choice.
+_Avoid_: filter, selection (a filter hides rows; a choice picks the folder that is read)
+
+**Panel**:
+One block of the dashboard (Needs you, Tasks, Agents now, Files, Scopes of this goal, Work time). Its height is its content height, capped; the PO sets only its order, width and visibility.
+_Avoid_: widget, card
+
+**Needs you**:
+The dashboard's squad-wide count of what waits on the PO: open questions, answers to read, tasks ready to merge and permission prompts; items outside the choice show as "N more need you in <name>". A parked question is not counted.
+_Avoid_: notifications, todo list
+
+**Parked question**:
+A question the PO put aside, kept as a `## Q<n>` block in `open-questions.md` of its level (scope, goal or squad). It is not an inbox item; `squad-inbox park|unpark|resolve` is the only writer and the Manager never waits on it.
+_Avoid_: deferred escalation, backlog
+
+**Ready for review**:
+A task whose every checker passed the branch tip and whose branch is not merged yet; the PO alone merges, so it is an action, not a status. A tip that moved after the PASS reads "sha changed after PASS".
+_Avoid_: done (done means every checker passed; it says nothing about the merge)
+
+**Approx**:
+The label on a figure the dashboard derives or models instead of reading it from a record, such as work time per task. "Unknown" is not approx: it means no source records the value.
+_Avoid_: estimate (the report uses "estimated" for dollars)
+
+**Work time**:
+The working, waiting, blocked or idle time of an agent, from transcripts (ADR 0014); the dashboard shows it as swimlanes. A model of "working", not a stopwatch.
+_Avoid_: timesheet, activity
+
 ## Claude accounts
 
 **Account launcher**:
@@ -325,6 +363,9 @@ Every time figure in a report. **Estimated, list price**: every dollar figure. L
 - A **Home** belongs to one **Goal** or **Scope**.
 - An **Inbox** shows the open **Escalations** of its **Home** (answer items) and its own read items; the PO's answer is written into the escalation's Answer cell.
 - Rendering never drops or changes the Manager's or the PO's text: unknown markup shows as plain text and every word stays reachable.
+- The **Dashboard** shows exactly one **Choice** (a **Goal** with its **Scopes**, or one **Scope**) and many **Panels**; its **Picker** lists the choices.
+- A **Parked question** belongs to one level (scope, goal or squad) and is kept apart from the **Inbox**; the **Dashboard** only reads it.
+- A task is **Ready for review** only after it is **Done** by every **Checker** and before the PO merges it.
 - An **Account launcher** starts Claude Code on one account; the **Workspace default**, inside herdr, else the **Global default**, decides which one `c` picks, and the launchers report an **Account token** for the workspace.
 - A **Scope** runs on one **Plugin pin** from start to close.
 - An **Agent** reads its **Composed rules**, built from the plugin's **Rules** and the squad's **Overlay**.

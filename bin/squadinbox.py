@@ -778,6 +778,177 @@ def cmd_delivered(home, args):
     return 0
 
 
+# --- open-questions.md: parked questions (never touches escalations.md or inbox.jsonl) ------------------------------
+
+OQ_FILE = "open-questions.md"
+OQ_KEY_RE = re.compile(r"(status|parked|unparked|blocks|from|resolved):[ \t]*(.*)", re.I)
+OQ_HEAD_RE = re.compile(r"## +Q([0-9]{1,6})[ \t]*")
+FROM_RE = re.compile(r"E[0-9]{1,6}(?: #[0-9]{1,3})?")
+OQ_STATUSES = ("parked", "unparked", "resolved")
+
+
+def oq_blocks(lines):
+    """[(start, end)] of every `## ` block (end exclusive); lines before the first one are the preamble."""
+    starts = [i for i, l in enumerate(lines) if l.startswith("## ")]
+    return [(s, e) for s, e in zip(starts, starts[1:] + [len(lines)])]
+
+
+def parse_oq_block(lines):
+    """One block's lines -> entry dict, or None when it cannot be read (bad number or no valid Status)."""
+    m = OQ_HEAD_RE.fullmatch(lines[0].rstrip())
+    if not m:
+        return None
+    e = {"n": int(m.group(1)), "id": "Q%d" % int(m.group(1)), "status": None, "parked": "", "unparked": "",
+         "blocks": "", "from": "", "resolved": "", "text": ""}
+    text = []
+    for line in lines[1:]:
+        k = OQ_KEY_RE.fullmatch(line.strip())
+        if k:
+            key = k.group(1).lower()
+            if key == "status":
+                e["status"] = k.group(2).strip().lower()
+            elif not e[key]:
+                e[key] = k.group(2).strip()
+        elif line.strip():
+            text.append(line.rstrip())
+    if e["status"] not in OQ_STATUSES:
+        return None
+    e["text"] = "\n".join(text)
+    r = e["resolved"].split(None, 1)
+    e["resolved_ts"], e["answer"] = (r[0], r[1] if len(r) > 1 else "") if r else ("", "")
+    return e
+
+
+def parse_open_questions(text, path=""):
+    """(entries, warnings). A block that cannot be read is skipped with one warning; the others stay. Lenient:
+    blank lines, any-case Status, missing optional lines, several text lines and CRLF are accepted."""
+    lines = text.replace("\r\n", "\n").split("\n")
+    entries, warnings = [], []
+    for s, e in oq_blocks(lines):
+        entry = parse_oq_block(lines[s:e])
+        if entry is None:
+            warnings.append("%s unreadable: %s (%s)" % (OQ_FILE, path, lines[s].strip()))
+        else:
+            entries.append(entry)
+    return entries, warnings
+
+
+def oq_home(args):
+    level = args.level
+    env = {"scope": "SCOPE_DIR", "goal": "GOAL_DIR", "squad": "SQUAD_DIR"}
+    if args.home:
+        return args.home
+    if level is None:
+        level = next((l for l in ("scope", "goal", "squad") if os.environ.get(env[l])), None)
+        if level is None:
+            raise Refused("no folder: pass --home or set SCOPE_DIR / GOAL_DIR / SQUAD_DIR")
+    home = os.environ.get(env[level])
+    if not home:
+        raise Refused("--level %s needs $%s to be set" % (level, env[level]))
+    if not os.path.isdir(home):
+        raise Refused("home %s is not a folder" % home)
+    return home
+
+
+def oq_read(home):
+    """The file as LF text; None when missing."""
+    path = os.path.join(home, OQ_FILE)
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8", errors="replace", newline="") as f:
+        return f.read().replace("\r\n", "\n")
+
+
+def oq_write(home, text):
+    """Atomic: a temp file in the same folder, then os.replace."""
+    fd, tmp = tempfile.mkstemp(dir=home, prefix=".open-questions.", suffix=".tmp")
+    try:
+        with open(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, os.path.join(home, OQ_FILE))
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def oq_find(text, qid):
+    """(lines, (start, end), entry) of block `qid`; Refused when it is missing or unreadable."""
+    lines = text.split("\n")
+    for s, e in oq_blocks(lines):
+        m = OQ_HEAD_RE.fullmatch(lines[s].rstrip())
+        if m and "Q%d" % int(m.group(1)) == qid:
+            entry = parse_oq_block(lines[s:e])
+            if entry is not None:
+                return lines, (s, e), entry
+    raise Refused("no readable question %s in %s" % (qid, OQ_FILE))
+
+
+def oq_one_line(value, what):
+    value = " ".join((value or "").split())
+    if not value:
+        raise Refused("%s is empty" % what)
+    return value
+
+
+def cmd_park(args):
+    text = oq_one_line(args.text, "--text")
+    if OQ_KEY_RE.fullmatch(text) or text.startswith("## "):
+        raise Refused("--text must not start with a field name such as 'Status:' or '## '")
+    frm = " ".join((args.from_ or "").split())
+    if frm and not FROM_RE.fullmatch(frm):
+        raise Refused("--from must read E<n> or 'E<n> #<point>'")
+    blocks = " ".join((args.blocks or "").split())
+    home = oq_home(args)
+    with locked(home):
+        old = oq_read(home) or ""
+        used = [int(m.group(1)) for l in old.split("\n") for m in [OQ_HEAD_RE.fullmatch(l.rstrip())] if m]
+        n = max(used, default=0) + 1
+        block = ["## Q%d" % n, "Status: parked", "Parked: %s" % now(), text]
+        if blocks:
+            block.append("Blocks: %s" % blocks)
+        if frm:
+            block.append("From: %s" % frm)
+        head = old.rstrip("\n")
+        oq_write(home, (head + "\n\n" if head else "") + "\n".join(block) + "\n")
+    print("parked Q%d" % n)
+    return 0
+
+
+def oq_edit(args, new_status, want):
+    qid = args.id
+    if not re.fullmatch(r"Q[0-9]{1,6}", qid or ""):
+        raise Refused("bad id %r: expected Q<n>" % qid)
+    answer = None
+    if new_status == "resolved":
+        answer = oq_one_line(args.answer, "--answer")
+    home = oq_home(args)
+    with locked(home):
+        old = oq_read(home)
+        if old is None:
+            raise Refused("no %s in %s" % (OQ_FILE, home))
+        lines, (s, e), entry = oq_find(old, qid)
+        if entry["status"] not in want:
+            raise Refused("%s is already %s" % (qid, entry["status"]))
+        block = lines[s:e]
+        tail = []
+        while block and not block[-1].strip():
+            tail.append(block.pop())
+        i = next(i for i, l in enumerate(block) if re.fullmatch(r"status:.*", l.strip(), re.I))
+        block[i] = "Status: %s" % new_status
+        if new_status == "unparked":
+            j = next((j for j, l in enumerate(block) if re.match(r"parked:", l.strip(), re.I)), i)
+            block.insert(j + 1, "Unparked: %s" % now())
+        else:
+            block.append("Resolved: %s %s" % (now(), answer))
+        oq_write(home, "\n".join(lines[:s] + block + tail + lines[e:]))
+    print("%s %s" % (qid, new_status))
+    return 0
+
+
 def check_utf8(args):
     """An argument holding a lone surrogate is bad input, not a traceback. A non-UTF-8 locale (cp1252, C)
     smuggles valid UTF-8 argv bytes as surrogates: those are decoded back, the rest is refused."""
@@ -813,6 +984,12 @@ def run(args):
     if args.cmd == "guide":
         return cmd_guide()
     check_utf8(args)
+    if args.cmd == "park":
+        return cmd_park(args)
+    if args.cmd == "unpark":
+        return oq_edit(args, "unparked", ("parked",))
+    if args.cmd == "resolve":
+        return oq_edit(args, "resolved", ("parked", "unparked"))
     home = home_of(args)
     return {"add": cmd_add, "list": cmd_list, "read": cmd_read, "answer": cmd_answer, "withdraw": cmd_withdraw,
             "delivered": cmd_delivered}[args.cmd](home, args)

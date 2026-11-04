@@ -1,6 +1,7 @@
 # The squad board is removed; the PO reads `squad-inbox`
 
 Status: accepted (remove-board)
+Partly superseded by 0020: the "known loss" is answered by a new read-only dashboard.
 
 **Decision:** the plugin has no live board: no `squad-board`, `squad-board-start`, `/squad:squad-board`, recorder, `board` tab or guide. `squad-start` opens the Manager tab only.
 

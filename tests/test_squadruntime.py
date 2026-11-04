@@ -554,7 +554,7 @@ class StartComposedTest(Base):
         (self.squad / "plugin.pin").write_text(f"{self.version} {self.sha}\n", encoding="utf-8")
         r = self.run_bin("squad-start", "do the thing", "--name", "sc1", plugin=clone)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stderr, "")
+        self.assertEqual(r.stderr, "to see it: squad-board --squad t --scope sc1\n")  # no pin warning; only the board command (T03.AC12)
         self.assertIn(f"\nplugin: {self.version} {self.sha}\n", self.scope_md())
         self.assertTrue(self.runtime_dir().is_dir())
 

@@ -54,6 +54,11 @@ def squad_dir(name):
     return found[0].resolve()
 
 
+def print_board_command(squad, kind, name):
+    """The command that opens the dashboard on this scope or goal. Printed on stderr (stdout stays the JSON line); never run (ADR 0020)."""
+    print(f"to see it: squad-board --squad {squad.name} --{kind} {name}", file=sys.stderr)
+
+
 def recorded_overrides(home, manager):
     """{model, effort} from <home>/roles/<manager>.overrides (ADR 0008); {} when absent or unreadable."""
     out = {}
@@ -226,6 +231,7 @@ def resume(squad, a):
         tab = None
     name_workspace(a.resume)
     print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab}))
+    print_board_command(squad, kind, a.resume)
 
 
 def choose_pin(squad, in_goal):
@@ -367,6 +373,7 @@ def main():
     if manager:
         name_workspace(name)
     print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab}))
+    print_board_command(squad, kind, name)
 
 
 if __name__ == "__main__":

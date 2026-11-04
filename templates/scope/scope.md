@@ -4,6 +4,8 @@
 
 goal: {{goal}}
 touches: {{touches}}
+<!-- Optional: tickets: <feature-slug> names the ticket folder `.scratch/<feature-slug>/issues/`; the Manager writes it at plan. -->
+tickets:
 team:
 qa: full
 <!-- Team models: one line per changed role, `model <role>: <model> <effort>`, e.g. `model dev: sonnet medium`. Unlisted roles use their defaults. -->

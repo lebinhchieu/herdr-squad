@@ -1,0 +1,73 @@
+/* squad-board page. Every colour is a token of the light Mango Parrot theme (design-v5.md); no hex outside :root.
+   Mango only marks things that need the PO: count, banner, chip, ready-to-merge. */
+:root{--u:1;--r:10px;--gutter:12px;
+--bg:#FCF8F1;--panel:#F4ECDD;--panel2:#F0E6D6;--border:#E7DBC8;--ink:#3E372E;--muted:#7E705A;--muted2:#A99C86;
+--mango:#E8820E;--work:#368A1E;--wait:#2A6DC0;--block:#DB3B22;--po:#9A40CF;--fail:#CE1D6C;--amber:#9E7A00;--err:#B01010;
+--shadow:#3E372E20;--t-need:#E8820E25;--t-need2:#E8820E18;--t-need3:#E8820E12;--t-edge:#E8820E80;
+--t-work:#368A1E18;--t-bad:#DB3B2212;--t-amber:#9E7A0018;--t-idle:#A99C8625}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{overflow-x:auto}
+body{margin:0;background:var(--bg);color:var(--ink);font:calc(12px*var(--u))/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{min-width:1000px}
+h1,h2{margin:0}p{margin:3px 0}
+button{font:inherit;color:var(--ink);cursor:pointer}
+code{font:.96em ui-monospace,Menlo,Consolas,monospace;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0 .33em;overflow-wrap:anywhere}
+a{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.muted{color:var(--muted)}
+header.top{padding:6px var(--gutter) 4px;border-bottom:1px solid var(--border)}
+.r1,.r3{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.r3{margin-top:4px}
+header h1{font-size:1.25em}
+.pick select{font:inherit;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--ink);padding:1px 4px;max-width:28em}
+.fr{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.fresh{color:var(--muted);white-space:nowrap}
+.fresh .dot{display:inline-block;width:.67em;height:.67em;border-radius:50%;background:var(--work);margin-right:3px}
+.fresh.bad{color:var(--err)}.fresh.bad .dot{background:var(--block)}.fresh.load .dot{background:var(--muted2)}
+.zone{border:1px solid var(--border);border-radius:10px;padding:0 8px;background:var(--bg);white-space:nowrap}
+.hb{border:1px solid var(--border);background:var(--bg);border-radius:6px;padding:1px 9px}
+.hb:hover{border-color:var(--ink)}
+.seg{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--bg);overflow:hidden}
+.seg button{border:0;background:transparent;padding:1px 9px;white-space:nowrap}
+.seg button+button{border-left:1px solid var(--border)}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.note{border:1px dashed var(--muted);background:var(--bg);border-radius:6px;padding:5px 9px;margin:4px var(--gutter)}
+.notes:empty{display:none}
+.bannerslot:empty{display:none}
+.pop{position:absolute;right:var(--gutter);z-index:50;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px var(--shadow);padding:6px;display:flex;flex-direction:column;gap:4px;min-width:12em}
+main{padding:var(--gutter) var(--gutter) 24px}
+#canvas{position:relative}
+.panel{position:absolute;background:var(--panel);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;min-height:0;min-width:0;transition:left .12s,top .12s}
+.panel.drag{transition:none;z-index:30;box-shadow:0 8px 24px var(--shadow);opacity:.95}
+.panel.rsz{transition:none;z-index:30}
+.ghost{position:absolute;border:2px dashed var(--muted);background:var(--t-idle);border-radius:var(--r);pointer-events:none}
+.ph{display:flex;gap:6px;align-items:center;padding:5px 6px 3px 8px;cursor:grab;touch-action:none;user-select:none;border-radius:var(--r) var(--r) 0 0;flex:none}
+.ph:active{cursor:grabbing}
+.ph .grip{color:var(--muted2);letter-spacing:-2px;font-size:.92em}
+.ph h2{font-size:1em;text-transform:uppercase;letter-spacing:.05em}
+.ph .sp{flex:1}
+.pbtn{border:1px solid transparent;background:transparent;border-radius:5px;padding:0 6px;color:var(--muted);line-height:1.5}
+.pbtn:hover{border-color:var(--border);background:var(--bg);color:var(--ink)}
+.count{display:inline-block;min-width:20px;text-align:center;border-radius:10px;background:var(--bg);border:1px solid var(--border);color:var(--muted);font-weight:700;padding:0 6px;font-size:.92em;white-space:nowrap}
+.count.hot{background:var(--t-need);border-color:var(--mango);color:var(--ink)}
+.chip{display:inline-flex;border-radius:.8em;padding:0 .6em;font-size:.92em;font-weight:600;border:1px solid var(--border);background:var(--bg);color:var(--ink);white-space:nowrap}
+.chip.need{background:var(--t-need);border-color:var(--mango)}
+.chip.unk{border:1px dashed var(--muted);color:var(--muted)}
+.pb{overflow:auto;padding:2px 10px 8px;flex:1;min-height:0;border-radius:0 0 calc(var(--r) - 1px) calc(var(--r) - 1px)}
+.rz{position:absolute;z-index:5}
+.rz.e{top:10px;bottom:10px;right:-3px;width:7px;cursor:ew-resize}
+.rz.s{left:10px;right:10px;bottom:-3px;height:7px;cursor:ns-resize}
+.rz.se{right:-3px;bottom:-3px;width:16px;height:16px;cursor:nwse-resize}
+.rz:hover{background:var(--t-idle);border-radius:4px}
+.pbtn .colhid{margin-left:5px;background:var(--t-need);border-color:var(--mango);padding:0 .4em;font-size:.85em}
+.cpop{position:fixed;z-index:60;background:var(--bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px var(--shadow);display:flex;flex-direction:column;width:max-content;max-width:min(340px,calc(100vw - 16px));min-width:14em}
+.cpop h3{margin:0;padding:8px 10px 4px;font-size:.92em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.cpop .cl{overflow-y:auto;padding:2px 10px;min-height:0;flex:1 1 auto}
+.cpop .cr{display:flex;align-items:center;gap:4px;padding:2px 0}.cpop .cr.off{color:var(--muted)}
+.cpop .cr label{flex:1;display:flex;gap:6px;align-items:center;cursor:pointer}.cpop .cr small{color:var(--muted)}
+.cpop .mv{border:1px solid var(--border);background:var(--bg);border-radius:5px;padding:0 6px;line-height:1.5}
+.cpop .mv:disabled{opacity:.35;cursor:default}.cpop .hint{padding:2px 10px;font-size:.92em}
+.cpop .cf{display:flex;gap:6px;justify-content:flex-end;padding:6px 10px 8px;border-top:1px solid var(--border);background:var(--bg);flex:none}
+.cpop .cf button:disabled{opacity:.45;cursor:default}
+th[draggable=true]{cursor:grab}
+.pbtn{white-space:nowrap}

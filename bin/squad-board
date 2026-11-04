@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+"""Local, read-only dashboard of a squad (one goal or scope at a time). Stdlib only; listens on 127.0.0.1.
+
+  squad-board [--squad NAME|PATH]... [--goal G | --scope S] [--port N] [--no-open]
+
+Exit 0 ok, 1 port busy, 2 refused (unknown or ambiguous name, --goal with --scope).
+"""
+import os
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
+
+
+def main(argv=None):
+    squadio.utf8_stdio()
+    import squadboard
+    return squadboard.main(argv)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

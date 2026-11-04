@@ -48,7 +48,9 @@ class StartTest(unittest.TestCase):
         out = json.loads(r.stdout)
         self.assertEqual((out["kind"], out["name"], out["manager"]), ("scope", "sec04", "t-mgr-sec04"))
         self.assertEqual(set(out), {"kind", "name", "dir", "manager", "tab"})
-        self.assertNotIn("board", (r.stdout + r.stderr).replace(str(ROOT), "").lower())
+        self.assertNotIn("board", r.stdout.replace(str(ROOT), "").lower())  # stdout stays the JSON line
+        self.assertIn("squad-board --squad t --scope sec04", r.stderr)  # T03.AC12: prints the command, starts nothing
+        self.assertNotIn("squad-board", self.herdr())
         sc = self.squad / "scopes" / "sec04"
         brief = (sc / "scope.md").read_text(encoding="utf-8")
         self.assertIn("Fix SEC-04: remove the committed default bypass key", brief)
