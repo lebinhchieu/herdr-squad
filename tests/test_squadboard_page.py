@@ -127,6 +127,8 @@ o.needs=[B.needsFrom([{data:{}},{data:{count_squad:3}}]),B.needsFrom([])];
 const hs={inbox:200,tasks:300,agents:150,files:120,worktime:400},ORD=['inbox','tasks','agents','files','worktime'];
 o.cc=[[1440,1],[1800,1],[1799,1],[932,1],[931,1],[1000,1.3],[1920,1.3],[1920,0.9]].map(a=>L.colCount(a[0],a[1]));
 o.place={n1:L.place(ORD,1,hs),n2:L.place(ORD,2,hs),n3:L.place(ORD,3,hs),tie:L.place(['a','b'],2,{a:100,b:100})};
+const hg=Object.assign({scopes:100},hs),ORG=['inbox','tasks','agents','files','scopes','worktime'];
+o.placeG={n2:L.place(ORG,2,hg),n3:L.place(ORG,3,hg)};
 o.norm=L.norm([{id:'a',col:9,order:0,idx:0},{id:'b',col:0,order:1,idx:1},{id:'c',col:0,order:1,idx:0},{id:'d',col:null,order:0,idx:3},{id:'e',col:0,order:0,idx:4,hidden:true}],2);
 // poller: 3 failures stale, no pile-up, success resets, 5 s constant
 const log=[],ft=[];let id=0,fail=true,calls=0,resolve;
@@ -177,6 +179,9 @@ out(o);
         self.assertEqual(set(col("n1").values()), {0})
         self.assertEqual(col("tie"), {"a": 0, "b": 1})
         self.assertEqual(pl["n2"]["worktime"]["pos"], 2)
+        g = {n: {k: v["col"] for k, v in self.res["placeG"][n].items()} for n in ("n2", "n3")}  # goal view: Scopes between Files and Work time
+        self.assertEqual(g["n2"], {"inbox": 0, "tasks": 1, "agents": 0, "files": 1, "scopes": 0, "worktime": 1})
+        self.assertEqual(g["n3"], {"inbox": 0, "tasks": 1, "agents": 2, "files": 2, "scopes": 0, "worktime": 2})
 
     def test_T26_TA1_TA13_norm_clamps_col_skips_hidden_and_no_col_and_ties_by_default_order(self):
         self.assertEqual(self.res["norm"], [["c", "b"], ["a"]])

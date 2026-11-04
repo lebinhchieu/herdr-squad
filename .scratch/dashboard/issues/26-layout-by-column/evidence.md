@@ -16,7 +16,7 @@ Saved: per panel `col` (0..11, optional), `order` (place in the column), `hidden
 | T26.AC10 | counts 2/2/3 in the AC1 test (1440, 1000, 1920); place of each panel: `PureRules.test_T26_TA3_...` (design-v7 s2 case); look is QA blackbox's |
 | T26.TA1, TA13 | `PureRules.test_T26_TA1_TA13_...` (norm); pure, no DOM |
 | T26.TA2 | `PureRules.test_T26_TA2_...` (8 cases) |
-| T26.TA3 | `PureRules.test_T26_TA3_...` (n=1, 2, 3, tie) |
+| T26.TA3 | `PureRules.test_T26_TA3_...` (n=1, 2, 3, tie; goal view with Scopes at n=2, 3: return fix) |
 | T26.TA4 | the AC1 test (12 px, no stretch, no overlap) |
 | T26.TA5, TA12 | the AC7 test (no PUT, `col: 9` kept in the snapshot, mixed rows) |
 | T26.TA6 | page drag/key test (`put` carries `col`, `order`, `auto`); `test_squadboard_ui.py` `test_T26_TA6_...` |
