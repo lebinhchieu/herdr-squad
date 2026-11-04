@@ -1,4 +1,4 @@
-# Evidence 37: squad-board --demo (wrapper, without the label step)
+# Evidence 37: squad-board --demo (wrapper and label step 37b)
 
 ## Behaviour
 `bin/squad-board --demo [--port N] [--no-open]` copies the fixture to `/tmp/squad-board-demo-*` (times = now), extends the copy
@@ -8,8 +8,14 @@ on goal `alpha`. The copy is removed in `finally` (Ctrl-C and SIGTERM). The fixt
 A click in the demo opens a copy file, deleted at exit (the click route is ticket 34; see the open gap).
 Run by hand on port 8791-8793: goal `alpha` and scope `checkout` answer every panel route with rows, `unknown == []`.
 
+## Label (37b)
+`squadboard.main(..., demo=True)` (the only flag, passed by `squadboard_demo.run`) sets `server.demo`; the `/api/squads` picker route
+(`bin/squadboard_list.py:picker`) then adds `"demo": true`; a normal run has no key. `templates/board/board.js` shows one `role=note` line
+`DEMO · sample data, not your squads` (textContent, no control) as the first element of `#app`, and `paintTitle` prefixes `[demo] `.
+`board.css` `.demo`: light strip (`--panel`, `--ink`, bold, `.05em`, `2px dashed var(--muted)`), sticky, in flow, so banner, picker and top bar are not pushed over.
+Shots of the running demo (with the permission banner): ![strip at 1000 px](img/demo-label-1000.png) ![strip at 1440 px](img/demo-label-1440.png)
+
 ## Open gaps (HANDIN)
-- T37.AC6, AC12 (label, page checks) and T37.TA4: wait for the label step (37b, after 34 and 36). Not built.
 - T37.TA5 click line: "a click in the demo opens a copy file deleted at exit" is stated, not run until 34 is merged.
 - SIGKILL leaves the copy in the temp dir (out of scope).
 - `test_squadboard_list::test_T04_AC1_rows_order_and_done_list` fails on the clean base too (last_active 09:30:49 vs 09:30:00); not caused by 37.
@@ -22,18 +28,18 @@ Run by hand on port 8791-8793: goal `alpha` and scope `checkout` answer every pa
 | T37.AC2, AC3 | test_squadboard_demo.py::RunningDemo::test_T37_TA2_AC2_AC5_every_panel_has_content (goal and scope views). Empty-board texts: panel API rows > 0 |
 | T37.AC4 | same test, nine stages in `checkout` |
 | T37.AC5 | same test: question + blocked agent, working/idle/blocked, 11 h gap, DST |
-| T37.AC6 | OPEN (label step) |
+| T37.AC6 | bin/squadboard.py:main(demo), templates/board/board.js (strip, paintTitle), board.css `.demo`; Label::test_T37_TA4_AC6_flag_only_in_demo_and_strip_is_light_and_stays; shots above |
 | T37.AC7 | ::test_T37_TA1_AC7_AC8_nothing_real (REALSQUAD name in no API answer) |
 | T37.AC8 | ::test_T37_TA6_AC8_AC10_read_only_and_cleaned |
 | T37.AC9 | bin/squadboard_demo.py:build (new copy per start); test_T37_TA1_copy_removed_when_main_raises |
 | T37.AC10 | Flags::test_T37_TA5_AC10_sigterm_removes_copy |
 | T37.AC11 | ::test_T37_TA3_AC11_ages_are_recent ("40 min") |
-| T37.AC12 | OPEN (QA blackbox against the running demo; needs 35/36) |
+| T37.AC12 | the two shots in ## Label (1000 and 1440 px); the same test at 1000 and 1440 px (strip first, sticky, top bar starts under it) |
 | T37.TA1 | ::test_T37_TA1_AC7_AC8_nothing_real, Flags::test_T37_TA1_copy_removed_when_main_raises |
 | T37.TA2 | ::test_T37_TA2_AC2_AC5_every_panel_has_content (routes read from templates/board/*.js by pattern, fails if < 6) |
 | T37.TA3 | ::test_T37_TA3_AC11_ages_are_recent |
-| T37.TA4 | OPEN until 37b |
+| T37.TA4 | tests/test_squadboard_demo.py::RunningDemo::test_T37_TA4_AC6_demo_flag_is_true_in_the_demo, ::Label::test_T37_TA4_AC6_flag_only_in_demo_and_strip_is_light_and_stays (no key in a normal run; text; stays after a poll and Reset layout; computed bg/color/border/letter-spacing equal board.css tokens; title prefix) |
 | T37.TA5 | Flags::test_T37_TA5_AC1_exit_codes, ::test_T37_TA5_AC10_sigterm_removes_copy, ::test_T37_TA5_help_documents_demo |
 | T37.TA6 | ::test_T37_TA6_AC8_AC10_read_only_and_cleaned: one PUT /api/ui, `board-ui.json` exists in the copy, then git status, fixture hash, HOME hash equal |
 | T37.TA7 | grep run: test_board_fixtures, test_squadboard_{active,agents,files,inbox,list,server,tasks}, test_squad_{respawn,start}, test_squadruntime, test_squadboard_page (82 tests with panels), test_squadboard_panels (only known red: Panels12 `1 d ago`, fails on main); test_windows_safe, test_no_bare_bash, test_old_language_inventory pass |
-| T37.TAx | Each technical AC above is covered by the test named in its row (a completed action, window and fixture asserted, no always-true assert). TA4: no test until 37b. TA5 click line: no test until 34 is merged |
+| T37.TAx | Each technical AC above is covered by the test named in its row (a completed action, window and fixture asserted, no always-true assert). TA4: tests named in its row. TA5 click line: no test until 34 is merged |
