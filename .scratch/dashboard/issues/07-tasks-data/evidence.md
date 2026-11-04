@@ -9,7 +9,7 @@ Reader `bin/squadboard_tasks.py` (route `/api/tasks`), run on the board fixture 
 - T07.AC9: goal choice adds `scope` to each row; scope choice has none.
 - T07.AC10: `detail=<id>` returns agents and steps in time order with epoch and ISO time; only the FAIL reason line is free text (canary test).
 - T07.AC11: after 01:00, task 03 has 4 new (HANDIN, FAIL, HANDIN, FAIL); no `since` gives 0. Copies within 120 s count once.
-- DECISION 07: `ready_by_scope(sel) -> {scope: n}` for ticket 05; test `test_ready_by_scope` gives `{checkout: 1}`. Squad-wide (no kind) covers every open scope.
+- DECISION 07 (+ FAIL F1): `ready_by_scope(sel) -> {scope: n}` is squad-wide whatever the choice (scope, goal): one key per open scope. Test `test_ready_by_scope` asks from scope checkout, scope questions and goal alpha and gets `checkout: 1` each time.
 - Broken sources (no messages, roster, git, tickets folder): no exception, `unknown:<source>`.
 - Reused: `squadledger.build/read_records/key`, `squadtickets`, `squadboard_git`, `squadboard_time`, `squadreport_tasks.REASON_CUT/DEDUPE_S/iso`. No private helper imported; `squadledger.py` not edited.
 - Also ran: test_windows_safe, test_no_bare_bash, test_old_language_inventory, test_squadreport_tasks, test_squadboard_server: pass. `grep -rl 'squadtickets\|squadboard_tasks' tests/` hits only the two files above.

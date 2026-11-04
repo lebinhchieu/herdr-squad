@@ -7,7 +7,6 @@ Stages come from the ledger (`squadledger.build`, imported, not copied), `messag
 line and git (`squadboard_git`). A row needs a ticket file or a plan-table row: a token like `REV-8` is not a task.
 Free text kept: ticket titles and the first line of the newest FAIL reason (cut `REASON_CUT`); nothing else.
 """
-import json
 import os
 import re
 import sys
@@ -72,7 +71,7 @@ def _plan_ids(home):
     return ids
 
 
-def _first_line(text, ttype):
+def _first_line(text):
     """Reason line of a FAIL: header `FAIL NN:` removed; a bare one-word header (`finding`) gives the next line."""
     lines = [x.strip() for x in (text or "").splitlines() if x.strip()]
     if not lines:
@@ -166,8 +165,6 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
     live = [a for a, r in roles.items() if r in QA_ROLES]
     live = [a for a in live if next((x.get("status") for x in roster if x.get("agent") == a), "") != "retired"]
     checkers = live or [a for a in roles if roles[a] in QA_ROLES] or []
-    for a in checkers:
-        roles[a] = roles.get(a)
     owns = {}
     for r in roster:
         m = re.search(r"ticket\s*#?\s*(\d+)", r.get("owns", ""), re.I)
@@ -201,7 +198,7 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
         row = {"id": tid, "title": tickets.get(tid.zfill(2)) or tickets.get(tid) or "", "stage": word, "owner": owner,
                "waits_on": _waits_on(word, {**facts, "owner": owner}), "last_active": last_ts,
                "last_active_iso": iso(last_ts) if last_ts else None, "returns": led.get("returns") or 0,
-               "last_fail_line": _first_line(fails[-1].get("text"), "FAIL") if fails else "",
+               "last_fail_line": _first_line(fails[-1].get("text")) if fails else "",
                "branch": branch, "tip": tip, "new_count": new, "detail_note": detail}
         if with_detail:
             row["detail"] = _detail(msgs)
@@ -255,7 +252,7 @@ def _detail(msgs):
         t = parse_iso(r.get("ts"))
         step = {"ts": t, "iso": iso(t) if t else None, "agent": r.get("from"), "type": r.get("type")}
         if r.get("type") == "FAIL":
-            step["reason"] = _first_line(r.get("text"), "FAIL")
+            step["reason"] = _first_line(r.get("text"))
         steps.append(step)
     agents = []
     for s in steps:
@@ -279,7 +276,7 @@ def _scopes_of(sel):
         except OSError:
             continue
         for p in names:
-            if every and kind_dir == "scopes" or (_field(_read(p / "scope.md") or "", "goal") or "") == sel.get("name"):
+            if (every and kind_dir == "scopes") or (_field(_read(p / "scope.md") or "", "goal") or "") == sel.get("name"):
                 out.append((p.name, p))
     return out
 
@@ -322,10 +319,10 @@ def read(sel):
 
 
 def ready_by_scope(sel):
-    """-> {scope name: number of tasks ready for review}; every scope of the selection has a key. Never raises."""
+    """-> {scope name: ready-for-review count} for EVERY open scope of the squad, whatever the choice. Never raises."""
     try:
         out = {}
-        for sname, shome in _scopes_of(sel):
+        for sname, shome in _scopes_of(dict(sel, kind=None, name=None)):
             out[sname] = len(read_scope(sel["squad"].name, sname, shome, sel.get("repo_root"), None,
                                         sel.get("now") or time.time())[2])
         return out

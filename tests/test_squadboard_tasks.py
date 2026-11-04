@@ -94,7 +94,10 @@ class Tasks(unittest.TestCase):
         self.assertEqual({r["new_count"] for r in self.rows.values()}, {0})  # no time: 0 new
 
     def test_ready_by_scope(self):
-        self.assertEqual(bt.ready_by_scope(sel_for(self.fx))["checkout"], 1)
+        for kind, name in (("scope", "checkout"), ("scope", "questions"), ("goal", "alpha")):
+            got = bt.ready_by_scope(sel_for(self.fx, kind, name))  # squad-wide, whatever the choice
+            self.assertEqual(got["checkout"], 1, (kind, name))
+            self.assertIn("questions", got)
 
     def test_TA5_missing_tickets_folder_reports_unknown(self):
         scope_md = Path(self.fx.scope) / "scope.md"
