@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "home": "tests/fixtures/board/repo/dot-claude/squads/fix/scopes/search",
+  "now": "2026-11-04T00:56:56Z",
+  "counts": {
+    "answer_open": 0,
+    "read_open": 0,
+    "waiting": 0
+  },
+  "items": [],
+  "errors": []
+}
