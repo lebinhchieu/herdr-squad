@@ -142,6 +142,15 @@ class Route(ts.Base):
         self.assertEqual(c, 404); self.assertIn("unknown squad", j["error"])
         self.assertEqual(self.calls(), 2)
 
+    def test_T39_TA1_demo_refuses_open(self):
+        self.srv.demo = True
+        c, j = self.go(self.f)
+        self.assertEqual((c, j["error"]), (403, "disabled in the demo"))
+        self.assertEqual(self.calls(), 0)
+        self.srv.demo = False
+        self.assertEqual(self.go(self.f)[0], 200)
+        self.assertEqual(self.calls(), 1)
+
     def test_T34_TA8_foreign_origin_refused_before_the_route(self):
         port = self.srv.port
         for origin in ("http://evil.example.com", "null", "http://127.0.0.1:1", "https://127.0.0.1:%d" % port):
