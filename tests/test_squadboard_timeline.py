@@ -70,13 +70,13 @@ SCRIPTS = ('<script src="file://%(tpl)s/board.js"></script><script src="file://%
            '<script src="file://%(tpl)s/timeline.js"></script>')
 
 
-def run_page(body, real, scripts=SCRIPTS, tz=None):
+def run_page(body, real, scripts=SCRIPTS, tz=None, size="1440,900"):
     with tempfile.TemporaryDirectory() as d:
         page = Path(d) / "page.html"
         page.write_text(HEAD % {"tpl": str(TPL), "real": json.dumps(real), "body": body, "scripts": scripts % {"tpl": str(TPL)}},
                         encoding="utf-8")
         r = subprocess.run([CHROME, "--headless", "--disable-gpu", "--no-sandbox", "--allow-file-access-from-files",
-                            "--virtual-time-budget=20000", "--window-size=1440,900", "--dump-dom", "file://" + str(page)],
+                            "--virtual-time-budget=20000", "--window-size=" + size, "--dump-dom", "file://" + str(page)],
                            capture_output=True, text=True, timeout=120, env=dict(os.environ, TZ=tz) if tz else None)
     assert r.returncode == 0, r.stderr[-500:]
     m = re.search(r'<pre id="out">(.*?)</pre>', r.stdout, re.S)
@@ -432,6 +432,44 @@ out({bar:{bg:cs.backgroundColor,bw:cs.borderTopWidth,bc:cs.borderTopColor,rad:px
         self.assertFalse(r["pct"])
         self.assertTrue(r["real"])
         self.assertEqual(r["tips"], ["Zoom out", "Zoom in", "Earlier", "Later"])
+
+    def test_T40_TA1_TA2_TA3_pills_and_segments_are_round_and_not_clipped(self):
+        body = """
+await startPage();
+const px=v=>parseFloat(v),B=$('.tl-bar'),rd=e=>{const c=getComputedStyle(e);return ['TopLeft','TopRight','BottomRight','BottomLeft'].map(k=>px(c['border'+k+'Radius']))};
+const tok=n=>{const e=document.createElement('i');e.style.background='var(--'+n+')';e.style.borderColor='var(--'+n+')';document.body.appendChild(e);const c=getComputedStyle(e);const o={bg:c.backgroundColor,bc:c.borderTopColor};e.remove();return o};
+const chips=$$('.tl-bar .tc').map(e=>({t:e.textContent,h:e.getBoundingClientRect().height,r:rd(e)}));
+const segs=$$('.tl-bar .seg').map(g=>{const b=g.querySelectorAll('button'),f=b[0],l=b[b.length-1],gc=getComputedStyle(g);
+ const walk=[];for(let n=g.parentNode;n&&n!==B.parentNode;n=n.parentNode)walk.push(getComputedStyle(n).overflow);
+ return {n:b.length,bw:gc.borderTopWidth,ov:gc.overflow,walk,h:f.getBoundingClientRect().height,fr:rd(f),lr:rd(l),frw:getComputedStyle(f).borderRightWidth,llw:getComputedStyle(l).borderLeftWidth,top:[f.offsetTop,l.offsetTop]}});
+const ring={};
+for(const [k,e] of [['minus',$$('.tl-bar .seg button')[0]],['next',$$('.tl-bar .seg button')[3]],['all',$$('.tl-bar .tc').find(x=>x.textContent==='All')]]){e.focus();const r=e.getBoundingClientRect(),c=getComputedStyle(e),br=B.getBoundingClientRect();
+ ring[k]={rad:rd(e),out:c.outlineWidth,h:r.height,inside:r.left-2>=br.left&&r.right+2<=br.right,focus:document.activeElement===e}}
+const on=$$('.tl-bar .tc.on')[0],ons=getComputedStyle(on);
+const outside=$$('.seg').filter(x=>!B.contains(x)).map(x=>{const c=getComputedStyle(x);return [c.borderTopLeftRadius,c.overflow]});
+out({chips,segs,ring,active:{bg:ons.backgroundColor,bc:ons.borderTopColor},tok:{need:tok('t-need'),mango:tok('mango')},outside});"""
+        for width in (1440, 1000):  # window sizes: 1440x900, 1000x700
+            r = run_page(body, {"wt": rich(), "dst": {}, "now": NOW}, size="1440,900" if width == 1440 else "1000,700")
+            self.assertGreaterEqual(len(r["chips"]), 8)   # an empty loop cannot pass
+            self.assertEqual(len(r["segs"]), 2)
+            for c in r["chips"]:
+                self.assertTrue(all(x >= c["h"] / 2 for x in c["r"]), (c, width))
+            for g in r["segs"]:
+                h = g["h"] / 2
+                self.assertEqual((g["n"], g["bw"], g["ov"], g["frw"], g["llw"]), (2, "0px", "visible", "1px", "0px"), g)
+                self.assertTrue(all(o == "visible" for o in g["walk"]), g["walk"])   # nothing between the buttons and the bar clips
+                self.assertEqual(g["top"][0], g["top"][1])
+                self.assertTrue(g["fr"][0] >= h and g["fr"][3] >= h and g["fr"][1] == 0 and g["fr"][2] == 0, g["fr"])
+                self.assertTrue(g["lr"][1] >= h and g["lr"][2] >= h and g["lr"][0] == 0 and g["lr"][3] == 0, g["lr"])
+                self.assertAlmostEqual(g["h"], 26, delta=1)   # 2.2 em at Normal text
+            for k, v in r["ring"].items():
+                self.assertTrue(v["focus"] and v["out"] == "2px" and v["inside"], (k, v))
+                self.assertTrue(v["rad"][0] >= v["h"] / 2 if k == "all" else True, (k, v))   # the PO's "All" pill, focused
+            t = r["tok"]
+            self.assertEqual((r["active"]["bg"], r["active"]["bc"]), (t["need"]["bg"], t["mango"]["bc"]))
+            for o in r["outside"]:
+                self.assertEqual(o, ["8px", "hidden"])   # Text size / Sort keep their 8px box
+            self.assertTrue(r["outside"], "no .seg outside the bar found")
 
     def test_T27_TA2_TA3_TA4_three_sizes_narrow_wrap_and_sticky_in_a_scrolling_panel(self):
         r = run_page("""

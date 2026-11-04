@@ -546,7 +546,7 @@
     ".tfl{position:absolute;left:0;top:0;height:2.2em;display:flex;align-items:center;font-weight:700;font-size:.85em;font-variant:small-caps;text-transform:lowercase;letter-spacing:.04em;color:var(--muted)}",
     ".tc,.tl .cp{display:inline-flex;align-items:center;height:2.2em;box-sizing:border-box;line-height:1;border:1px solid var(--border);background:var(--bg);color:var(--ink);border-radius:999px;padding:0 .85em;white-space:nowrap}",
     ".tc:hover,.tl .cp:hover,.tl .seg button:hover{border-color:var(--ink)}.tc.on{background:var(--t-need);color:var(--ink);border-color:var(--mango);font-weight:700}",
-    ".tl .seg{display:inline-flex;gap:0}.tl .seg button{border:1px solid var(--border);background:var(--bg);color:var(--ink);padding:0 .7em;min-width:2.6em;height:2.2em;box-sizing:border-box}",
+    ".tl .seg{display:inline-flex;gap:0;border:0;border-radius:0;overflow:visible;background:none}.tl .seg button{border:1px solid var(--border);background:var(--bg);color:var(--ink);padding:0 .7em;min-width:2.6em;height:2.2em;box-sizing:border-box}",
     ".tl .seg button:first-child{border-radius:999px 0 0 999px}.tl .seg button:last-child{border-radius:0 999px 999px 0;border-left:0}",
     ".tl-gap{margin-left:auto;display:inline-flex;gap:.67em;align-items:center;flex-wrap:wrap;color:var(--muted)}",
     ".tl-gap select{font:inherit;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--ink);padding:0 3px}",
