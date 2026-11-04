@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -280,6 +281,27 @@ class EndToEnd(unittest.TestCase):
         self.assertIsNotNone(r["data"])  # transcript + messages broken; git is absent (repo_root has no repo)
         self.assertIn("git", r["unknown"])
         self.assertEqual(wt.read({"kind": "scope", "squad": object(), "name": "x"})["unknown"], ["worktime"])
+
+    def test_T15_TA10_cache_is_thread_safe(self):
+        homes = []
+        for i in range(wt.CACHE_MAX + 1):
+            home = Path(self.tmp) / ("h%d" % i)
+            home.mkdir()
+            (home / "roster.md").write_text("", encoding="utf-8")
+            homes.append(home)
+        errors = []
+
+        def work():
+            try:
+                for _ in range(3):
+                    for h in homes:
+                        wt.collected(h, Path(self.tmp))
+            except Exception as e:  # noqa: BLE001
+                errors.append(e)
+        ts = [threading.Thread(target=work) for _ in range(4)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        self.assertEqual(errors, [])
 
     def test_T15_TA11_read_only(self):
         home, _ = write_squad(self.tmp)

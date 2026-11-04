@@ -18,6 +18,7 @@ Read-only: nothing is written.
 """
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -27,7 +28,7 @@ if str(BIN) not in sys.path:
 import squadboard_git  # noqa: E402
 import squadreport  # noqa: E402
 import squadtranscript  # noqa: E402
-from squadreport_tasks import DEDUPE_S, EVENT_TYPES, _Ctx, _Resolver, _dedupe, _mtype  # noqa: E402
+from squadreport_tasks import EVENT_TYPES, _Ctx, _Resolver, _dedupe, _mtype  # noqa: E402
 
 GAP_DEFAULT_MIN, GAP_MIN_MIN, GAP_MAX_MIN = 60, 15, 240
 BUCKET_NAME = {"working": "working", "waiting": "waiting", "blocking": "blocked", "idle": "idle"}
@@ -37,6 +38,7 @@ COMMIT_LIMIT = 2000
 CACHE_MAX = 8
 _CACHE = {}  # scope path -> (signature, Collected)
 _PATHS = {}  # scope path -> (key, transcript paths)
+_LOCK = threading.RLock()  # the server is threaded: one lock for both caches; a second cold request waits for the first
 
 
 def _refuse(code, msg):
@@ -74,15 +76,16 @@ def _session_paths(home):
     except OSError:
         dirs = ()
     key = (str(home), str(squadtranscript.config_dir()), _stat(home / "roster.md"), dirs)
-    hit = _PATHS.get(str(home))
-    if hit and hit[0] == key:
-        return hit[1]
-    paths = []
-    for row in squadreport._roster(home / "roster.md"):
-        paths += squadreport._find_sessions(row["name"], row["session"], [])
-    paths = sorted(set(paths))
-    _PATHS[str(home)] = (key, paths)
-    return paths
+    with _LOCK:
+        hit = _PATHS.get(str(home))
+        if hit and hit[0] == key:
+            return hit[1]
+        paths = []
+        for row in squadreport._roster(home / "roster.md"):
+            paths += squadreport._find_sessions(row["name"], row["session"], [])
+        paths = sorted(set(paths))
+        _PATHS[str(home)] = (key, paths)
+        return paths
 
 
 def _signature(home, squad_dir):
@@ -101,17 +104,18 @@ def _signature(home, squad_dir):
 
 
 def collected(home, squad_dir):
-    """squadreport.collect, cached in memory by file mtime + size."""
+    """squadreport.collect, cached in memory by file mtime + size. Thread-safe: the lock is held while collect runs."""
     key = str(home)
-    sig = _signature(home, squad_dir)
-    hit = _CACHE.get(key)
-    if hit and hit[0] == sig:
-        return hit[1]
-    c = squadreport.collect(home, squad_dir, BIN.parent, final=True)
-    while len(_CACHE) >= CACHE_MAX:
-        _CACHE.pop(next(iter(_CACHE)))
-    _CACHE[key] = (sig, c)
-    return c
+    with _LOCK:
+        sig = _signature(home, squad_dir)
+        hit = _CACHE.get(key)
+        if hit and hit[0] == sig:
+            return hit[1]
+        c = squadreport.collect(home, squad_dir, BIN.parent, final=True)
+        while len(_CACHE) >= CACHE_MAX:
+            _CACHE.pop(next(iter(_CACHE)), None)
+        _CACHE[key] = (sig, c)
+        return c
 
 
 def _clip(a, b, lo, hi):
