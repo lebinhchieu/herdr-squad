@@ -245,8 +245,8 @@
 
   /* ---------- panel registry ---------- */
   var REG = [];
-  /* registerPanel({id, title, route, maxPx, span, spans, render(body, data, ctx), isEmpty(data)})
-     route: the API path the panel reads (e.g. "/api/inbox"); span in twelfths (default 4); maxPx at Normal text. */
+  /* registerPanel({id, title, route, maxPx, render(body, data, ctx), isEmpty(data)})
+     route: the API path the panel reads (e.g. "/api/inbox"); maxPx at Normal text. (span, spans: no longer used.) */
   function registerPanel(def) {
     if (!def || !def.id || REG.some(function (d) { return d.id === def.id; })) return;
     REG.push(def);
@@ -280,7 +280,7 @@
 
     var S = { squads: [], squad: null, token: "", choice: null, recent: [], font: "normal", auto: true,
               needs: null, lastOk: null, status: "loading", saveStatus: "ok", notes: {}, saved_at: null, columns: {} };
-    var P = {};          /* panel id -> {id, def, order, span, hidden, max_height, el, body, hdr, last} */
+    var P = {};          /* panel id -> {id, def, idx, col, order, hidden, max_height, el, body, hdr, last} */
     var engine = null, saveTimer = null, loadedOnce = false, popOpen = false, booted = false, colPop = null;
 
     var els = {};
@@ -328,14 +328,14 @@
     }
 
     /* ---- panels ---- */
-    function defaults(def, i) { return { order: i, span: def.span || 4, hidden: false, max_height: null }; }
+    function defaults(def, i) { return { col: null, order: i, hidden: false, max_height: null }; }
 
     function makePanel(def, i) {
       var d = defaults(def, i);
-      var p = { id: def.id, def: def, order: d.order, span: d.span, hidden: d.hidden, max_height: d.max_height,
-                maxPx: def.maxPx || 400, spans: def.spans || [4, 6, 8, 12] };
+      var p = { id: def.id, def: def, idx: i, col: d.col, order: d.order, hidden: d.hidden, max_height: d.max_height,
+                maxPx: def.maxPx || 400 };
       var sec = el("section", "panel"); sec.dataset.panel = def.id; sec.setAttribute("aria-label", def.title);
-      var ph = el("div", "ph"); ph.tabIndex = 0; ph.setAttribute("aria-label", def.title + ": arrows move, Shift and arrows resize");
+      var ph = el("div", "ph"); ph.tabIndex = 0; ph.setAttribute("aria-label", def.title + ": Up and Down move, Left and Right change column, Shift with Up or Down resizes");
       ph.appendChild(el("span", "grip", "⋮⋮"));
       ph.appendChild(el("h2", null, def.title));
       p.count = el("span", "count"); p.count.hidden = true; ph.appendChild(p.count);
@@ -352,7 +352,7 @@
       ph.appendChild(p.fit); ph.appendChild(p.hide);
       var pb = el("div", "pb"); p.body = el("div", "pbi"); pb.appendChild(p.body);
       sec.appendChild(ph); sec.appendChild(pb);
-      ["e", "s", "se"].forEach(function (d2) {
+      ["s"].forEach(function (d2) {
         var h = el("div", "rz " + d2); h.addEventListener("pointerdown", function (e) { e.preventDefault(); e.stopPropagation(); engine.resize(p, d2, e); });
         sec.appendChild(h);
       });
@@ -376,9 +376,16 @@
       });
     }
 
+    /* hide, show: panels move up or down in their column; no panel changes column */
     function replan() {
       setFlags();
-      if (S.auto) engine.plan(); else engine.relayout();
+      engine.relayout();
+      setFlags();
+    }
+    /* default place (first load, Reset, new choice, text size): only while the PO has not moved a panel */
+    function replace() {
+      setFlags();
+      engine.plan(!S.auto);
       setFlags();
     }
 
@@ -386,7 +393,8 @@
     function snapshot() {
       var panels = {};
       panelList().forEach(function (p) {
-        var r = { order: p.order, span: p.span, hidden: !!p.hidden && !p.def.byView };
+        var r = { order: p.order, hidden: !!p.hidden && !p.def.byView };
+        if (Number.isInteger(p.col)) r.col = p.col;
         if (p.max_height != null) r.max_height = p.max_height;
         panels[p.id] = r;
       });
@@ -409,7 +417,7 @@
         var r = pan[p.id];
         if (!r) return;
         if (Number.isInteger(r.order)) p.order = r.order;
-        if (Number.isInteger(r.span) && r.span >= 1) p.span = r.span;
+        p.col = Number.isInteger(r.col) && r.col >= 0 && r.col <= 11 ? r.col : null;   /* no col: an old layout, default place */
         p.hidden = !!r.hidden;
         p.max_height = Number.isInteger(r.max_height) ? r.max_height : null;
       });
@@ -479,7 +487,7 @@
 
     function setFont(name) {
       if (S.font === name) return;
-      S.font = name; applyFont(); touch(); replan();
+      S.font = name; applyFont(); touch(); replace();
     }
 
     function scale() { return (FONTS.filter(function (x) { return x[0] === S.font; })[0] || FONTS[1])[2]; }
@@ -597,9 +605,9 @@
     function resetLayout() {
       panelList().forEach(function (p) {
         var i = REG.indexOf(p.def), d = defaults(p.def, i);
-        p.order = d.order; p.span = d.span; p.hidden = p.def.byView ? p.hidden : false; p.max_height = null;
+        p.order = d.order; p.col = d.col; p.hidden = p.def.byView ? p.hidden : false; p.max_height = null;
       });
-      S.auto = true; S.columns = resetColumns(S.columns); closeColumns(); touch(); renderPop(); replan(); redrawAll();
+      S.auto = true; S.columns = resetColumns(S.columns); closeColumns(); touch(); renderPop(); replace(); redrawAll();
     }
 
     /* ---- columns (ticket 20): one control for every table panel ---- */
@@ -805,7 +813,7 @@
       if (n != null) S.needs = n;
       S.status = "ok"; S.lastOk = iso();
       paintFresh(); paintTitle();
-      if (!loadedOnce) { loadedOnce = true; paintPickers(); replan(); }
+      if (!loadedOnce) { loadedOnce = true; paintPickers(); replace(); }
       else engine.request();
     }
 
@@ -865,7 +873,7 @@
       build();
       engine = BOARD.layout.mount({
         canvas: els.canvas,
-        get: function () { return { panels: panelList(), scale: scale() }; },
+        get: function () { return { panels: panelList(), scale: scale(), auto: S.auto }; },
         set: function (id, patch) { Object.keys(patch).forEach(function (k) { P[id][k] = patch[k]; }); },
         changed: function (x) { touch(x); setFlags(); renderPop(); }
       });
@@ -883,7 +891,7 @@
                           shown: function (scope, task, n) { return shownNew(cleared, scope, task, n, S.since); },
                           rowNew: function (n, scopes) { return rowNew(cleared, n, S.since, scopes); } }, fmtClock: function (i) { return fmtClock(i, tz); }, now: nowMs, paintTitle: paintTitle };
     BOARD.page = { state: S, panels: P, poller: poller, engine: engine, paintFresh: paintFresh, setFont: setFont, resetLayout: resetLayout,
-                   replan: replan, snapshot: snapshot, setChoice: setChoice, touch: touch };
+                   replan: replan, replace: replace, snapshot: snapshot, setChoice: setChoice, touch: touch };
     return BOARD.page;
   }
   BOARD.start = start;
