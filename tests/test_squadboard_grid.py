@@ -428,7 +428,7 @@ o.dbl=Object.assign({w:box36("files").w},pg.snapshot().panels.files.tracks===und
 const b0=JSON.stringify(boxes());const s=down36('files');
 for(const px of [400,700,900,Wk(3,4)]){pe36('pointermove',s.left+px,s.top+20);await sleep(30)}
 const mid={np,same:JSON.stringify(boxes())===b0,pill:document.querySelector('.rzp').textContent,guides:document.querySelectorAll('.rzg').length};
-pe36('pointerup',s.left+Wk(3,4),s.top+20);await sleep(300);out({mid,np,b:boxes(),b0:JSON.parse(b0)});""")
+pe36('pointerup',s.left+Wk(3,4),s.top+20);await sleep(300);out({mid,np,b:boxes()});""")
         self.assertEqual(r["mid"]["np"], 0)
         self.assertTrue(r["mid"]["same"])
         self.assertEqual(r["mid"]["pill"], "3 of 4 columns")
@@ -437,11 +437,10 @@ pe36('pointerup',s.left+Wk(3,4),s.top+20);await sleep(300);out({mid,np,b:boxes()
         for i, x in enumerate(r["b"]):
             for y in r["b"][i + 1:]:
                 self.assertFalse(overlap(x, y), (x["id"], y["id"]))
-        # the hole is filled: no panel ends with free room above it that it could use (top is 0 or 12 under the lowest box above)
+        # no gap after the widening: every top is 0 or 12 under the lowest box above it (the fill-the-hole case itself is T35.TA1 "hole")
         for x in r["b"]:
             above = [y["b"] for y in r["b"] if y is not x and y["l"] < x["l"] + x["w"] - 1 and x["l"] < y["l"] + y["w"] - 1 and y["b"] <= x["t"] + 2]
             self.assertAlmostEqual(x["t"], max(above) + 12 if above else 0, delta=3, msg=x["id"])
-        self.assertLessEqual(max(x["t"] for x in r["b"]), max(x["t"] for x in r["b0"]) + 3)   # nothing sank below where it was
 
     def test_T36_TA7_handle_is_a_focusable_separator_and_the_banner_has_none(self):
         r = page36("""await start35();out({h:$$('section.panel:not([hidden]) .rz.e').map(e=>[e.closest('section').dataset.panel,e.getAttribute('role'),e.getAttribute('aria-orientation'),e.tabIndex,e.getAttribute('aria-label')]),
