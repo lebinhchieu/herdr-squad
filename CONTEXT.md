@@ -268,6 +268,22 @@ _Avoid_: filter, selection (a filter hides rows; a choice picks the folder that 
 One block of the dashboard (Needs you, Tasks, Agents now, Files, Scopes of this goal, Work time). Its height is its content height, capped; the PO sets only its order, width and visibility.
 _Avoid_: widget, card
 
+**Grid column**:
+One column of the dashboard's page grid. The count (2, 4 or 6) follows the window width and text size; the PO does not set it.
+_Avoid_: column (alone; iteration 2 had PO-chosen columns, now retired)
+
+**Span**:
+How many grid columns a panel takes. The PO sets it by dragging the panel's right edge; a panel has a smallest span it cannot go under.
+_Avoid_: width (alone; the saved width is the tracks)
+
+**Tracks**:
+A panel's saved width as twelfths of the row (1..12, in `board-ui.json`), so it keeps its share when the window changes. Written only after the PO resizes the panel; a value above 12 reads as 12, the full width.
+_Avoid_: pixels, columns
+
+**Demo board**:
+`squad-board --demo`: the dashboard on a temporary copy of the test fixture, labelled DEMO, with sample data. Nothing real is read or written, and the copy is removed on exit.
+_Avoid_: sandbox, test board
+
 **Needs you**:
 The dashboard's squad-wide count of what waits on the PO: open questions, answers to read, tasks ready to merge and permission prompts; items outside the choice show as "N more need you in <name>". A parked question is not counted.
 _Avoid_: notifications, todo list
