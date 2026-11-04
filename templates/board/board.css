@@ -70,3 +70,4 @@ main{padding:var(--gutter) var(--gutter) 24px}
 .cpop .cf{display:flex;gap:6px;justify-content:flex-end;padding:6px 10px 8px;border-top:1px solid var(--border);background:var(--bg);flex:none}
 .cpop .cf button:disabled{opacity:.45;cursor:default}
 th[draggable=true]{cursor:grab}
+.pbtn{white-space:nowrap}

@@ -537,7 +537,7 @@
     function closeColumns(refocus) {
       if (!colPop) return;
       var p = colPop.p;
-      doc.removeEventListener("keydown", colPop.key, true); doc.removeEventListener("click", colPop.out, true);
+      doc.removeEventListener("keydown", colPop.key, true); doc.removeEventListener("click", colPop.out, true); root.removeEventListener("resize", colPop.place);
       colPop.box.remove(); colPop = null;
       p.cols.setAttribute("aria-expanded", "false");
       if (refocus) p.cols.focus();
@@ -550,7 +550,8 @@
       var st = { p: p, box: box };
       st.key = function (e) { if (e.key === "Escape") { e.stopPropagation(); closeColumns(true); } };
       st.out = function (e) { if (!box.contains(e.target) && e.target !== p.cols && !p.cols.contains(e.target)) closeColumns(); };
-      doc.addEventListener("keydown", st.key, true); doc.addEventListener("click", st.out, true);
+      st.place = function () { placeColumns(); };
+      doc.addEventListener("keydown", st.key, true); doc.addEventListener("click", st.out, true); root.addEventListener("resize", st.place);
       colPop = st;
       p.cols.setAttribute("aria-expanded", "true");
       app().appendChild(box);
