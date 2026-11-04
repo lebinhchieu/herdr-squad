@@ -49,11 +49,11 @@ Business AC (QA blackbox owns the live check):
 | T36.AC6 neighbours re-place | TA6 test; T35 TA2 geometry |
 | T36.AC7 saved | TA2 test |
 | T36.AC8 window narrower and wider | TA3 test (fixture files6) |
-| T36.AC9 bad saved values | `Grid::test_T35_bad_tracks_...` (fixtures bad-tracks, files6) |
+| T36.AC9 bad saved values | `Grid::test_T35_bad_tracks_values_fall_back_and_files_at_six_twelfths` (0, -2, "wide" = default; 99 = full width, tracks 12) and `Grid::test_T36_AC9_saved_tracks_13_is_full_width`; reader `templates/board/board.js:433`. ![99 draws 1416 px at 1440](img/ac9-tracks-99-full-width.png) |
 | T36.AC10 keyboard | TA5 test |
 | T36.AC11 Reset, hide, show | `Grid::test_T35_AC9_...` (tracks back to default) |
 | T36.AC12 height independent | `Grid::test_T35_AC7_...` (width and side stay) plus TA2 (no max_height in the PUT) |
-| T36.AC13 nothing cut off | open gap: no test; QA blackbox. Shot at 1000: Tasks table scrolls inside its panel (known, from before 35) |
+| T36.AC13 nothing cut off | `Grid::test_T36_AC13_header_buttons_fit_at_1000` (every header button inside its panel at 1000 x 800, Agents at 235 px); `templates/board/board.css:45` `.ph{flex-wrap:wrap}`. ![Hide fits at span 1](img/ac13-header-fits-1000.png) |
 | T36.AC14 matches design-v8 | shots; QA blackbox |
 
 ## Edits to old `.col` pins
