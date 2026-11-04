@@ -142,6 +142,32 @@ const b1=boxes();out({b0,b1,np,nr});""")
         self.assertEqual(r["np"], 0)
         self.assertGreaterEqual(r["nr"], 1)
 
+    def test_T35_TA2b_first_settle_places_after_first_data_of_all_panels_not_on_loading(self):
+        # R3: one panel answers "unknown", all others answer: place runs only after every panel has data, once; a PO action adds one.
+        r = page("""window.__over={};let asked=0;
+for(const k of Object.keys(P))if(/:checkout$/.test(k))window.__over[k]=()=>{asked++;return k.startsWith('agents:')?{data:null,unknown:['x'],quality:'unknown'}:P[k]};
+const L=BOARD.layout,real=L.place,calls=[];L.place=function(){calls.push(asked);return real.apply(this,arguments)};
+BOARD.start({fetch:f35,storage:mem(),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,now:()=>Date.parse('2026-11-04T10:00:00Z'),tz:'UTC'});
+await sleep(100);const pg=BOARD.page;const o={early:calls.length};
+pg.setChoice('scope:checkout');await sleep(1500);o.calls=calls.slice();o.b=boxes();o.asked=asked;
+const n=calls.length;pg.setFont('large');await sleep(300);o.after=calls.length-n;out(o);""")
+        self.assertEqual(r["early"], 0)                      # nothing placed on the empty "loading" state
+        self.assertGreaterEqual(len(r["calls"]), 1)
+        self.assertGreaterEqual(r["calls"][0], 5)            # the first place saw the answers of all five panels
+        self.assertEqual(r["after"], 1)                      # a PO action: exactly one place (the spy works)
+        for i, x in enumerate(r["b"]):
+            for y in r["b"][i + 1:]:
+                self.assertFalse(overlap(x, y), (x["id"], y["id"]))
+        # one panel hangs: the 5 s timer places the grid anyway
+        r = page("""const hang=(url,o)=>/^\\/api\\/tasks\\?/.test(url)?new Promise(()=>{}):f35(url,o);
+const L=BOARD.layout,real=L.place;let np=0;L.place=function(){np++;return real.apply(this,arguments)};
+BOARD.start({fetch:hang,storage:mem(),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,now:()=>Date.parse('2026-11-04T10:00:00Z'),tz:'UTC'});
+await sleep(100);BOARD.page.setChoice('scope:checkout');await sleep(800);const before=np;
+fakeTimers.filter(t=>t.ms===5000).forEach(t=>t.f());await sleep(500);out({before,np,b:boxes()});""")
+        self.assertGreaterEqual(r["np"], 1)
+        self.assertGreater(r["np"], r["before"])
+        self.assertTrue(r["b"])
+
     def test_T35_TA3_dom_order_follows_saved_order_and_hidden_is_out_of_the_grid(self):
         saved = {"version": 1, "saved_at": "2026-11-03T10:00:00.000Z", "font": "normal", "panels": {"inbox": {"order": 2, "hidden": False}, "scopes": {"order": 1, "hidden": False},
                  "tasks": {"order": 0, "hidden": True}, "agents": {"order": 3, "hidden": False}, "files": {"order": 5, "hidden": False},
