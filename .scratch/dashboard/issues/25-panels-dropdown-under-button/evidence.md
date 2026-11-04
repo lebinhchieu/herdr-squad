@@ -15,9 +15,13 @@ The Panels list and the Columns list now sit in a `position:relative` wrapper (`
 | T25.TA6 | no `position:fixed` in `.pop`/`.cpop`; no hex outside `:root` |
 | design-v7 s3 | caret ▴, title HIDDEN PANELS, 4 px, 12 px, no flip |
 
+## Return 1 (QA whitebox findings)
+1. Removed the 120 px floor in `placeColumns` (max height is now window - button bottom - 12). 3. `applyFont` re-places both lists at once and again after 250 ms (panels animate). 2, 4, 5, 6, 7: tests rewritten/extended: `Popover25` (Panels list: 1440x900 and 1000x800, 3 text sizes, scroll 600, open while scrolled, text size while open, Esc/outside close + focus + caret, resize while closed, `popPlace` fits/right/low/tiny) and `Panels20.test_T25_AC2_AC3_AC5_TA2_TA3_TA7...` (Tasks Columns list: same matrix; inside window, footer visible, on top at its bottom, so not cut by the panel). `run_page` and `Panels20.page` got an optional `size` argument.
+
 ## Open gaps
-- Not tested: 1000 px window width (the headless window is 1440), the 600 px scroll (300 px used), and the max-height scroll with a very tall list.
-- The Columns list does not re-measure max height on scroll (it follows the button by layout).
+- When the button has less room below it than the list's fixed parts need (about 100 px: title, hint, footer), the list still passes the window bottom. Tests use 1000x800.
+- At Extra large in a 700 px window the Columns button itself is below the window; the test then checks only the gap.
+- A click on a text-size button closes the list (outside click), as QA blackbox noted; the text-size hook is tested by calling `setFont`.
 
 ## Tests
-Run: test_squadboard_panels (48 ok), test_squadboard_page, test_squadboard_timeline, test_squadboard_worktime (ok). Edited tests: none; added `Popover25` class and one Columns test. Grep `board.css|togglePop|\.pop` hits other than these are `list.pop()` uses in unrelated files.
+Run: test_squadboard_panels (48 ok). Edited existing tests: `test_T25_AC5_columns...` and `test_T25_AC1_...` (both mine, from the first hand-in, renamed and widened).

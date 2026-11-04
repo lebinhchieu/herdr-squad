@@ -467,6 +467,10 @@
       var f = FONTS.filter(function (x) { return x[0] === S.font; })[0] || FONTS[1];
       doc.documentElement.style.setProperty("--u", String(f[2]));
       doc.documentElement.dataset.font = f[0];
+      if (popOpen) placePop();
+      if (colPop) placeColumns();
+      /* the panels move to their new place after a text-size change (they animate 0.12 s): measure again */
+      if (popOpen || colPop) root.setTimeout(function () { if (popOpen) placePop(); if (colPop) placeColumns(); }, 250);
       Array.prototype.forEach.call(els.font.children, function (b) {
         b.setAttribute("aria-pressed", b.dataset.font === S.font ? "true" : "false");
       });
@@ -677,7 +681,7 @@
     function placeColumns() {
       var box = colPop.box, r = colPop.p.cols.getBoundingClientRect(), W = root.innerWidth || 1000, H = root.innerHeight || 800;
       var pl = popPlace(r, { w: box.offsetWidth, h: box.offsetHeight }, { w: W, h: H });
-      box.style.maxHeight = Math.max(120, pl.maxHeight) + "px";
+      box.style.maxHeight = pl.maxHeight + "px";
       box.style.left = (pl.left - r.left) + "px";
     }
     function wireColumnDrag(p) {

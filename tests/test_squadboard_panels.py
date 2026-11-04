@@ -56,12 +56,12 @@ const key=(t,k)=>{const e=new KeyboardEvent('keydown',{key:k,bubbles:true,cancel
 """
 
 
-def run_page(body, real, suffix="", head=None):
+def run_page(body, real, suffix="", head=None, size="1440,900"):
     with tempfile.TemporaryDirectory() as d:
         page = Path(d) / "page.html"
         page.write_text((head or HEAD) % {"tpl": str(TPL), "real": json.dumps(real), "body": body}, encoding="utf-8")
         r = subprocess.run([CHROME, "--headless", "--disable-gpu", "--no-sandbox", "--allow-file-access-from-files",
-                            "--virtual-time-budget=8000", "--window-size=1440,900", "--dump-dom",
+                            "--virtual-time-budget=8000", "--window-size=" + size, "--dump-dom",
                             "file://" + str(page) + suffix], capture_output=True, text=True, timeout=90)
     assert r.returncode == 0, r.stderr[-500:]
     m = re.search(r'<pre id="out">(.*?)</pre>', r.stdout, re.S)
@@ -741,8 +741,8 @@ class Panels20(unittest.TestCase):
     def setUpClass(cls):
         cls.real = dict(real_payloads(), saved=None, p12=payloads12())
 
-    def page(self, body, hash_="#/scope/checkout"):
-        return run_page(PRE20 + body, self.real, hash_, HEAD20)
+    def page(self, body, hash_="#/scope/checkout", size="1440,900"):
+        return run_page(PRE20 + body, self.real, hash_, HEAD20, size)
 
     def test_T20_TA4_AC1_AC5_AC9_pure_rules(self):
         r = self.page(r"""
@@ -857,19 +857,43 @@ out({a,heads:heads(T),even:even(),pop:!!$('.cpop'),cols:pg.snapshot().columns,bo
         self.assertEqual(r["cols"], {"tasks": ["task", "title", "last_active", "happened", "waits"]})
         self.assertEqual(r["boxes"], 5)
 
-    def test_T25_AC5_columns_popover_opens_under_columns_button_on_top_and_follows_scroll(self):
-        r = self.page(r"""
+    def test_T25_AC2_AC3_AC5_TA2_TA3_TA7_columns_list_under_button_inside_window_footer_visible_follows(self):
+        body = r"""
 const pg=await start20();
-BOARD.page.setFont('xl');await sleep(200);
-const cb=colsBtn('tasks');cb.click();await sleep(50);
-const cp=$('.cpop'),cr=cp.getBoundingClientRect(),br=cb.getBoundingClientRect();
-const c={gap:cr.top-br.bottom,inside:cr.right<=innerWidth&&cr.bottom<=innerHeight,onTop:cp.contains(document.elementFromPoint(cr.left+20,cr.top+10)),footer:!!cp.querySelector('.cf button')};
-document.body.style.minHeight='3000px';window.scrollTo(0,300);await sleep(300);
-c.scrolled=Math.abs(cp.getBoundingClientRect().top-cb.getBoundingClientRect().bottom);
-out(c);
-""")
-        self.assertTrue(0 <= r["gap"] <= 6 and r["inside"] and r["onTop"] and r["footer"], r)
-        self.assertLessEqual(r["scrolled"], 6, r)
+document.body.style.minHeight='3000px';
+const cb=colsBtn('tasks'),res={};
+const snap=()=>{const cp=$('.cpop'),c=cp.getBoundingClientRect(),b=cb.getBoundingClientRect(),cl=cp.querySelector('.cf button').getBoundingClientRect();
+  return {vis:b.bottom+12<innerHeight,gap:c.top-b.bottom,inside:c.right<=innerWidth+.5&&c.bottom<=innerHeight+.5&&c.left>=0,footer:cl.bottom<=innerHeight+.5&&cl.top>=0,
+    onTop:cp.contains(document.elementFromPoint(c.left+20,c.top+10))&&cp.contains(document.elementFromPoint(c.left+20,c.bottom-8)),px:Math.round(c.top-b.bottom)}};
+for(const f of ['small','normal','xl']){
+  BOARD.page.setFont(f);await sleep(200);
+  window.scrollTo(0,0);cb.click();await sleep(50);
+  const a=snap();
+  window.scrollTo(0,600);await sleep(300);
+  const sc=snap();
+  window.scrollTo(0,0);await sleep(100);
+  BOARD.page.setFont(f==='xl'?'small':'xl');await sleep(500);
+  const fc=snap();
+  cb.click();await sleep(30);
+  window.scrollTo(0,60);await sleep(100);cb.click();await sleep(50);
+  const ow=snap();
+  cb.click();await sleep(30);
+  res[f]={a,sc,fc,ow,closed:!$('.cpop')};
+}
+out(res);
+"""
+        for size in ("1440,900", "1000,800"):
+            r = self.page(body, size=size)
+            for f, v in r.items():
+                self.assertTrue(0 <= v["sc"]["gap"] <= 6, (size, f, v["sc"]))   # button scrolled away: only the gap is meaningful
+                for k in ("a", "fc", "ow"):
+                    c = v[k]
+                    self.assertTrue(0 <= c["gap"] <= 6, (size, f, k, c))
+                    if c["vis"]:   # button on screen: whole list and footer inside the window
+                        self.assertTrue(c["inside"] and c["footer"] and c["onTop"], (size, f, k, c))
+                if size == "1440,900":
+                    self.assertTrue(v["a"]["vis"], f)
+                self.assertTrue(v["closed"])
 
     def test_T20_AC7_AC10_reset_layout_resets_every_panel_columns_not_font_or_choice(self):
         r = self.page(r"""
@@ -1037,32 +1061,51 @@ class Static13(unittest.TestCase):
 
 @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
 class Popover25(unittest.TestCase):
-    def test_T25_AC1_AC2_AC3_TA1_panels_list_opens_under_its_button_at_3_font_sizes_and_after_scroll(self):
-        r = run_page("""
+    def test_T25_AC1_AC2_AC3_AC4_TA1_TA2_TA3_TA5_panels_list_under_button_inside_window_follows_and_cleans_up(self):
+        body = """
 const pg=await startPage();
-const out_={};
-const btn=$('.hb[aria-haspopup=true]');
+BOARD.page.setFont('normal');
+document.body.style.minHeight='3000px';
+const btn=$('.hb[aria-haspopup=true]'),res={};
+const snap=()=>{const b=btn.getBoundingClientRect(),m=$('.pop').getBoundingClientRect();
+  return {gap:m.top-b.bottom,inside:m.right<=innerWidth+.5&&m.left>=0&&m.bottom<=innerHeight+.5,caret:btn.textContent.slice(-1)}};
 for(const f of ['small','normal','xl']){
   BOARD.page.setFont(f);await sleep(150);
-  btn.click();await sleep(30);
-  const b=btn.getBoundingClientRect(),m=$('.pop').getBoundingClientRect();
-  const sc0=window.scrollY;
-  out_[f]={gap:m.top-b.bottom,right:m.right<=innerWidth,left:m.left>=0,open:btn.getAttribute('aria-expanded')};
-  document.body.style.minHeight='3000px';window.scrollTo(0,300);await sleep(300);
-  const b2=btn.getBoundingClientRect(),m2=$('.pop').getBoundingClientRect();
-  out_[f].scrolled=Math.abs(m2.top-b2.bottom);
-  window.scrollTo(0,0);
+  window.scrollTo(0,0);btn.click();await sleep(30);
+  const a=snap();
+  window.scrollTo(0,600);await sleep(300);
+  const sc=snap();
+  BOARD.page.setFont(f==='xl'?'small':'xl');await sleep(500);
+  const fc=snap();
+  document.body.dispatchEvent(new MouseEvent('click',{bubbles:true}));await sleep(20);
+  const outside={hidden:$('.pop').hidden,focus:document.activeElement===btn,caret:btn.textContent.slice(-1)};
+  window.scrollTo(0,60);await sleep(100);btn.click();await sleep(30);
+  const ow=snap();
   key(document,'Escape');await sleep(20);
-  out_[f].closed=$('.pop').hidden;out_[f].focus=document.activeElement===btn;
+  const esc={hidden:$('.pop').hidden,focus:document.activeElement===btn};
+  const before=$('.pop').getAttribute('style');
+  window.dispatchEvent(new Event('resize'));await sleep(30);
+  res[f]={a,sc,fc,ow,outside,esc,still:before===$('.pop').getAttribute('style')};
 }
-out({r:out_,pure:BOARD.popPlace({left:1300,bottom:40},{w:200,h:100},{w:1440,h:900}),tiny:BOARD.popPlace({left:5,bottom:40},{w:200,h:100},{w:100,h:100})});
-""", real_payloads())
-        for f, v in r["r"].items():
-            self.assertTrue(0 <= v["gap"] <= 4 and v["right"] and v["left"], (f, v))
-            self.assertLessEqual(v["scrolled"], 4, f)
-            self.assertEqual((v["closed"], v["focus"]), (True, True), f)
-        self.assertEqual(r["pure"]["left"], 1232)
-        self.assertGreaterEqual(r["tiny"]["left"], 8)
+const P=BOARD.popPlace;
+out({res,fits:P({left:100,bottom:40},{w:200,h:100},{w:1440,h:900}),right:P({left:1300,bottom:40},{w:200,h:100},{w:1440,h:900}),
+ low:P({left:100,bottom:880},{w:200,h:100},{w:1440,h:900}),neg:P({left:5,bottom:950},{w:200,h:100},{w:100,h:100})});
+"""
+        for size in ("1440,900", "1000,800"):
+            r = run_page(body, real_payloads(), size=size)
+            for f, v in r["res"].items():
+                self.assertTrue(0 <= v["sc"]["gap"] <= 6, (size, f, v["sc"]))
+                for k in ("a", "fc", "ow"):
+                    c = v[k]
+                    self.assertTrue(0 <= c["gap"] <= 6 and c["inside"], (size, f, k, c))
+                self.assertEqual(v["a"]["caret"], "\u25b4")
+                self.assertEqual((v["outside"]["hidden"], v["outside"]["focus"], v["outside"]["caret"]), (True, True, "\u25be"))
+                self.assertEqual((v["esc"]["hidden"], v["esc"]["focus"], v["still"]), (True, True, True), (size, f))
+        self.assertEqual(r["fits"], {"top": 44, "left": 100, "maxHeight": 848})
+        self.assertEqual(r["right"]["left"], 1232)
+        self.assertEqual(r["low"]["maxHeight"], 8)
+        self.assertEqual(r["neg"]["maxHeight"], 0)
+        self.assertGreaterEqual(r["neg"]["left"], 8)
 
 
 if __name__ == "__main__":
