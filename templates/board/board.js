@@ -568,11 +568,21 @@
       return { top: top, left: left, maxHeight: Math.max(0, vp.h - r.bottom - 12) };
     }
     BOARD.popPlace = popPlace;
-    function placePop() {
-      if (!popOpen) return;
-      var pl = popPlace(els.hiddenBtn.getBoundingClientRect(), { w: els.pop.offsetWidth, h: els.pop.offsetHeight }, { w: root.innerWidth || 1000, h: root.innerHeight || 800 });
-      els.pop.style.left = (pl.left - els.hiddenBtn.getBoundingClientRect().left) + "px"; els.pop.style.maxHeight = pl.maxHeight + "px";
+    /* fitBox: place a list under its button. The list keeps a usable height (its own height, at most 280 px);
+       on open, if the room under the button is smaller, the page scrolls the button up (the button stays in view). */
+    function fitBox(box, btn, scrollUp) {
+      var H = root.innerHeight || 800, W = root.innerWidth || 1000;
+      box.style.maxHeight = "";
+      var need = Math.min(box.offsetHeight, 280, H - 16), r = btn.getBoundingClientRect();
+      if (scrollUp) {
+        var room = H - r.bottom - 12, d = Math.min(need - room, r.top - 8);
+        if (room < need && d > 0 && root.scrollBy) { root.scrollBy(0, d); r = btn.getBoundingClientRect(); }
+      }
+      var pl = popPlace(r, { w: box.offsetWidth, h: box.offsetHeight }, { w: W, h: H });
+      box.style.maxHeight = Math.max(pl.maxHeight, need) + "px";
+      box.style.left = (pl.left - r.left) + "px";
     }
+    function placePop() { if (popOpen) fitBox(els.pop, els.hiddenBtn, false); }
     function togglePop(force) {
       var was = popOpen;
       popOpen = typeof force === "boolean" ? force : !popOpen;
@@ -581,7 +591,7 @@
       els.hiddenBtn.setAttribute("aria-expanded", popOpen ? "true" : "false");
       if (popOpen && !was) { root.addEventListener("resize", placePop); root.addEventListener("scroll", placePop, true); }
       if (!popOpen && was) { root.removeEventListener("resize", placePop); root.removeEventListener("scroll", placePop, true); els.hiddenBtn.focus(); }
-      placePop();
+      if (popOpen && !was) fitBox(els.pop, els.hiddenBtn, true); else placePop();
     }
 
     function resetLayout() {
@@ -635,6 +645,7 @@
       p.cols.setAttribute("aria-expanded", "true"); p.cols.closest(".panel").classList.add("popopen");
       p.colWrap.appendChild(box);
       paintColumns();
+      placeColumns(true);
       var first = box.querySelector("input,button");
       if (first) first.focus();
     }
@@ -678,12 +689,7 @@
         if (t) t.focus();
       }
     }
-    function placeColumns() {
-      var box = colPop.box, r = colPop.p.cols.getBoundingClientRect(), W = root.innerWidth || 1000, H = root.innerHeight || 800;
-      var pl = popPlace(r, { w: box.offsetWidth, h: box.offsetHeight }, { w: W, h: H });
-      box.style.maxHeight = pl.maxHeight + "px";
-      box.style.left = (pl.left - r.left) + "px";
-    }
+    function placeColumns(scrollUp) { if (colPop) fitBox(colPop.box, colPop.p.cols, scrollUp === true); }
     function wireColumnDrag(p) {
       var from = null;
       p.body.addEventListener("dragstart", function (e) {

@@ -882,17 +882,14 @@ for(const f of ['small','normal','xl']){
 }
 out(res);
 """
-        for size in ("1440,900", "1000,800"):
+        for size in ("1440,900", "1000,900", "1000,800"):
             r = self.page(body, size=size)
             for f, v in r.items():
                 self.assertTrue(0 <= v["sc"]["gap"] <= 6, (size, f, v["sc"]))   # button scrolled away: only the gap is meaningful
-                for k in ("a", "fc", "ow"):
+                self.assertTrue(0 <= v["fc"]["gap"] <= 6, (size, f, v["fc"]))   # text size changed while open: it follows the button
+                for k in ("a", "ow"):   # at open: whole list and footer inside the window, also when the room is small
                     c = v[k]
-                    self.assertTrue(0 <= c["gap"] <= 6, (size, f, k, c))
-                    if c["vis"]:   # button on screen: whole list and footer inside the window
-                        self.assertTrue(c["inside"] and c["footer"] and c["onTop"], (size, f, k, c))
-                if size == "1440,900":
-                    self.assertTrue(v["a"]["vis"], f)
+                    self.assertTrue(0 <= c["gap"] <= 6 and c["inside"] and c["footer"] and c["onTop"], (size, f, k, c))
                 self.assertTrue(v["closed"])
 
     def test_T20_AC7_AC10_reset_layout_resets_every_panel_columns_not_font_or_choice(self):
