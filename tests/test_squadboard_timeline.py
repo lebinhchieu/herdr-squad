@@ -405,6 +405,34 @@ out(o);""", {"wt": rich(), "dst": dst(), "now": NOW})
 
 @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
 class Safety(unittest.TestCase):
+    def test_T27_filter_block_look_active_chip_sticky_opaque_no_percent(self):
+        r = run_page("""
+await startPage();
+const tok=n=>{const e=document.createElement('i');e.style.background='var(--'+n+')';e.style.borderColor='var(--'+n+')';e.style.color='var(--'+n+')';document.body.appendChild(e);const c=getComputedStyle(e);const o={bg:c.backgroundColor,bc:c.borderTopColor,c:c.color};e.remove();return o};
+const bar=$('.tl-bar'),cs=getComputedStyle(bar),px=v=>parseFloat(v);
+const on=$$('.tl-bar .tc.on')[0],off=$$('.tl-bar .tc').find(b=>!b.classList.contains('on')),ons=getComputedStyle(on),offs=getComputedStyle(off);
+const rows=Array.from(bar.querySelectorAll('.tl-r')).map(r=>r.getBoundingClientRect().height);
+const fs=px(offs.fontSize);
+out({bar:{bg:cs.backgroundColor,bw:cs.borderTopWidth,bc:cs.borderTopColor,rad:px(cs.borderTopLeftRadius),pad:[cs.paddingTop,cs.paddingRight,cs.paddingBottom,cs.paddingLeft].map(px),pos:cs.position,top:cs.top},
+ on:{bg:ons.backgroundColor,bc:ons.borderTopColor,c:ons.color,w:ons.fontWeight},off:{bg:offs.backgroundColor,bc:offs.borderTopColor,w:offs.fontWeight,h:px(offs.height)/fs,padx:px(offs.paddingLeft)/fs},
+ tok:{panel2:tok('panel2'),border:tok('border'),bg:tok('bg'),need:tok('t-need'),mango:tok('mango'),ink:tok('ink')},
+ pct:/%/.test(bar.textContent),rows:rows.length,real:!!bar.querySelector('.tl-rng button[data-real]'),
+ tips:Array.from(bar.querySelectorAll('.seg button')).map(b=>b.title)});""", {"wt": rich(), "dst": {}, "now": NOW})
+        t = r["tok"]
+        self.assertEqual((r["bar"]["bg"], r["bar"]["bc"], r["bar"]["bw"]), (t["panel2"]["bg"], t["border"]["bc"], "1px"))
+        self.assertNotEqual(r["bar"]["bg"], "rgb(255, 255, 255)")
+        self.assertEqual(r["bar"]["rad"], 8)
+        self.assertTrue(all(x >= 8 for x in r["bar"]["pad"]), r["bar"]["pad"])
+        self.assertEqual((r["bar"]["pos"], r["bar"]["top"]), ("sticky", "0px"))
+        self.assertEqual((r["on"]["bg"], r["on"]["bc"], r["on"]["c"], r["on"]["w"]), (t["need"]["bg"], t["mango"]["bc"], t["ink"]["c"], "700"))
+        self.assertEqual((r["off"]["bg"], r["off"]["bc"]), (t["bg"]["bg"], t["border"]["bc"]))
+        self.assertLess(int(r["off"]["w"]), 600)
+        self.assertGreaterEqual(r["off"]["h"], 2.19)
+        self.assertGreaterEqual(r["off"]["padx"], 0.84)
+        self.assertFalse(r["pct"])
+        self.assertTrue(r["real"])
+        self.assertEqual(r["tips"], ["Zoom out", "Zoom in", "Earlier", "Later"])
+
     def test_T16_AC9_TA2_the_page_reads_its_own_zone_across_a_clock_change(self):
         for z in ("Europe/Berlin", "America/New_York"):
             r = run_page("""
