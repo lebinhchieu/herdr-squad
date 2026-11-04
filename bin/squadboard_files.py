@@ -120,7 +120,7 @@ def _folder_row(p, name, what, scope, roots):
         mtime = int(real.stat().st_mtime)
     except (OSError, RuntimeError, ValueError):
         return None
-    return {"name": name, "kind": "folder", "what": what, "scope": scope, "path": str(real), "mtime": mtime}
+    return {"name": name, "kind": "folder", "what": what, "scope": scope, "path": str(real), "abs": str(real), "mtime": mtime}
 
 
 def _closed(home):
@@ -165,8 +165,7 @@ def list_files(squad, kind, name, home):
     folders = [f for f in (_folder_row(squad.repo_root / ".scratch", ".scratch", "Repo tickets folder", home.name, roots),
                            _folder_row(squad.path, squad.name, "Squad folder", home.name, roots)) if f]
     report = next((r for r in rows if r["kind"] == "report"), None)
-    rows = folders + rows  # folder rows first, always; not counted in files_seen or truncated
-    return {"rows": rows, "report": report, "report_expected": kind == "scope", "closed": kind == "scope" and _closed(home),
+    return {"folders": folders, "rows": rows, "report": report, "report_expected": kind == "scope", "closed": kind == "scope" and _closed(home),
             "truncated": w.truncated, "files_seen": w.seen}
 
 
