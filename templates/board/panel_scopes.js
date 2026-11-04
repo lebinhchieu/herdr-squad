@@ -273,7 +273,7 @@
   function loadKids(g) {
     if (V.kidsBusy[g]) return;
     V.kidsBusy[g] = true;
-    ctx.getJson("/api/scopes?squad=" + encodeURIComponent(ctx.state.squad.key) + "&goal=" + encodeURIComponent(g)).then(function (j) {
+    ctx.getJson(ctx.withSince("/api/scopes?squad=" + encodeURIComponent(ctx.state.squad.key) + "&goal=" + encodeURIComponent(g))).then(function (j) {
       V.kidsBusy[g] = false;
       var d = j && j.data;
       if (d && d.kind === "goal") { V.kids[g] = d.scopes || []; refresh(false); }
@@ -383,6 +383,14 @@
       (r.stuck > 0 ? ", " + r.stuck + " blocked" : "");
   }
 
+  /* "N new" of a picker row (ticket 13): the server's count minus what was opened since; a goal row holds its scopes */
+  function newOf(r) {
+    var s = ctx && ctx.seen;
+    if (!s || !(r.new > 0)) return r.new > 0 ? r.new : 0;
+    var scopes = r.kind === "scope" ? [r.name] : (V.kids[r.name] || []).map(function (k) { return k.name; });
+    if (r.kind === "goal" && ctx.state.choice && ctx.state.choice.kind === "goal" && ctx.state.choice.name === r.name) scopes = null;
+    return s.rowNew(r.new, scopes);
+  }
   function rowEl(r, sub, nowMs) {
     var d = el("div", "pr" + (sub ? " sub" : "") + (r.status === "done" ? " dn" : ""));
     d.setAttribute("role", "option"); d.tabIndex = 0; d.dataset.kind = r.kind; d.dataset.name = r.name;
@@ -405,6 +413,7 @@
     var n = el("span");
     if (r.needs_you > 0) n.appendChild(chipEl("need", needsText(r.needs_you)));
     else if (!r.stub) n.textContent = r.needs_you == null ? "?" : "nothing";
+    var nw = newOf(r); if (nw > 0) { n.appendChild(root.document.createTextNode(" ")); n.appendChild(BOARD.newBadge(nw)); }
     d.appendChild(n);
     d.appendChild(r.stub ? el("span") : lastCell(r.last_active, nowMs));
     d.addEventListener("click", go);
@@ -654,6 +663,7 @@
     d.appendChild(cn);
     if (r.status === "done") d.appendChild(chipEl("work", "done"));
     if (r.needs_you > 0) d.appendChild(chipEl("need", String(r.needs_you)));
+    var nw = newOf(r); if (nw > 0) d.appendChild(BOARD.newBadge(nw));
     var a = r.stub || !r.last_active ? "" : ago(r.last_active, ctx.now()).replace(" ago", "");
     d.appendChild(el("span", "muted sm nw", a));
     d.addEventListener("click", function () { openChoice({ kind: r.kind, name: r.name }, true); });
