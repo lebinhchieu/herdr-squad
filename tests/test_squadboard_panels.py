@@ -450,6 +450,19 @@ class Panels12(unittest.TestCase):
     def page(self, body, hash_):
         return run_page(PRE12 + body, self.real, hash_, self.head)
 
+    def test_T12_header_line_and_panel_show_the_same_other_scope_numbers(self):
+        for sc in ("questions", "checkout"):
+            r = self.page(r"""
+await start12();await sleep(100);
+out({head:$$('#view .ctxbar .out').map(e=>e.textContent),panel:$('section[data-panel=inbox] .nb-out').textContent});
+""", "#/scope/" + sc)
+            others = self.real["p12"]["inbox:" + sc]["data"]["others"]
+            want = ["%d more need%s you in %s" % (o["n"], "s" if o["n"] == 1 else "", o["scope"]) for o in others if o["n"] > 0]
+            self.assertTrue(want, sc)
+            self.assertEqual(r["head"], want, sc)
+            for o in others:
+                self.assertIn("%s · %d" % (o["scope"], o["n"]), r["panel"])
+
     def test_T12_AC1_AC3_AC5_AC10_inbox_row_options_recommended_copy_exact_and_no_write_labels(self):
         r = self.page(r"""
 await start12();

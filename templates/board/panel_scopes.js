@@ -82,6 +82,12 @@
   }
   /* open rows that need the PO, other than the current choice and the goal that holds it */
   function otherNeeds(sq, choice, goal) {
+    var io = BOARD.inboxOthers;   /* the Needs you panel's own numbers (/api/inbox "others"): header and panel must agree */
+    if (io && choice && io.key === choice.kind + ":" + choice.name) {
+      return io.others.filter(function (x) { return x.n > 0; }).map(function (x) {
+        return { kind: ((sq && sq.goals) || []).indexOf(x.scope) >= 0 ? "goal" : "scope", name: x.scope, needs_you: x.n };
+      });
+    }
     return ((sq && sq.open) || []).filter(function (r) {
       if (!(r.needs_you > 0)) return false;
       if (choice && r.kind === choice.kind && r.name === choice.name) return false;

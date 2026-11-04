@@ -210,6 +210,12 @@
       p.appendChild(el("code", null, "squad-inbox list"));
       body.appendChild(p);
     }
+    var ch = BOARD.ctx && BOARD.ctx.state.choice;
+    if (ch && d.status !== "unknown") {
+      var prev = JSON.stringify(BOARD.inboxOthers || null);
+      BOARD.inboxOthers = { key: ch.kind + ":" + ch.name, others: d.others || [] };
+      if (JSON.stringify(BOARD.inboxOthers) !== prev && BOARD.ctx.paint) BOARD.ctx.paint();   /* repaint the top line from the same data */
+    }
     var R = rowsForInbox(d), multi = !!(d.rows || []).some(function (r) { return r.scope !== d.rows[0].scope; });
     var others = d.others || [];
     if (others.length) {
