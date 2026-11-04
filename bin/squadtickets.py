@@ -21,6 +21,11 @@ def find_tickets(c, raw_tokens):
         p = p.parent
     if root is None:
         return {}, None
+    declared = declared_folder(c.scope_home)
+    if declared and (root / ".scratch" / declared / "issues").is_dir():
+        files = [f for f in sorted((root / ".scratch" / declared / "issues").glob("*.md")) if re.match(r"^\d+-", f.name)]
+        if files:
+            return _titles(files), ".scratch/" + declared
     best = None
     for fdir in sorted((root / ".scratch").glob("*")):
         files = sorted((fdir / "issues").glob("*.md")) if (fdir / "issues").is_dir() else []
@@ -37,6 +42,23 @@ def find_tickets(c, raw_tokens):
     if best is None:
         return {}, None
     _, fdir, files = best
+    return _titles(files), str(fdir.relative_to(root)).replace("\\", "/")
+
+
+def declared_folder(scope_home):
+    """The `tickets: <feature-slug>` line of scope.md (key case ignored, CRLF ok), or None."""
+    try:
+        text = (Path(str(scope_home)) / "scope.md").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        m = re.match(r"^\s*tickets\s*:\s*(\S+)\s*$", line, re.I)
+        if m and re.match(r"^[\w.-]+$", m.group(1)):
+            return m.group(1)
+    return None
+
+
+def _titles(files):
     out = {}
     for f in files:
         nn = f.name.split("-", 1)[0]
@@ -49,4 +71,4 @@ def find_tickets(c, raw_tokens):
         except OSError:
             pass
         out[nn] = title
-    return out, str(fdir.relative_to(root)).replace("\\", "/")
+    return out

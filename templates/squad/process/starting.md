@@ -180,8 +180,8 @@ topic: start
 
 1. `echo $SQUAD_DIR $SCOPE_DIR $GOAL_DIR $SQUAD_NAME`. With `SCOPE_DIR` set you run a lone scope; with `GOAL_DIR` set and no `SCOPE_DIR` you are a goal Manager. If neither folder exists, tell the PO to run `/squad:squad-start` and stop.
 2. Read `project.md`, then your folder, in this order:
-   - Scope Manager: `$SCOPE_DIR/scope.md` (the PO's brief), `roster.md`, `escalations.md`, the latest `iterations/<n>.md`, and your notes `roles/$SQUAD_NAME.notes.md`.
-   - Goal Manager: `$GOAL_DIR/goal.md`, `shared/decisions.md`, `shared/summaries/`, `roster.md`, `escalations.md`, your notes.
+   - Scope Manager: `$SCOPE_DIR/scope.md` (the PO's brief), `roster.md`, `escalations.md`, `open-questions.md` if present, the latest `iterations/<n>.md`, and your notes `roles/$SQUAD_NAME.notes.md`.
+   - Goal Manager: `$GOAL_DIR/goal.md`, `shared/decisions.md`, `shared/summaries/`, `roster.md`, `escalations.md`, `open-questions.md` if present, your notes.
    - Never read a `_done/` folder.
 3. Check live agents with `herdr agent list` and reconcile `roster.md` with it (mark dead agents, note who needs respawning).
 4. Tell the PO in 3–5 lines: where the work stands, what you do next, anything waiting on them. A brand-new scope has no iteration file yet: that is your first move ([START-19]).
@@ -190,7 +190,7 @@ topic: start
 roles: manager
 topic: starting
 
-- Scope Manager: read the brief, propose the team ([SIZE-1]) with its signals, write the confirmed `team:` into `scope.md`, create `iterations/1.md` with the iteration goal and the plan, and ask the PO to confirm the team and plan before you spawn anyone. When unsure, add the role.
+- Scope Manager: read the brief, propose the team ([SIZE-1]) with its signals, write the confirmed `team:` into `scope.md` (plus `tickets: <feature-slug>`), create `iterations/1.md` with the iteration goal and the plan, and ask the PO to confirm the team and plan before you spawn anyone. When unsure, add the role.
 - Goal Manager: split the brief into scopes. Write them into `goal.md` in order, with what each depends on and what it touches. Propose each scope's team too. Ask the PO to confirm the split, then start the scopes whose dependencies are done ([GOAL-1]).
 
 ## START-20 Architect start

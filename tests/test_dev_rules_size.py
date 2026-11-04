@@ -110,10 +110,10 @@ class DevRulesSize(unittest.TestCase):
                     self.assertNotIn(f"## {rid} ", compose_team(role, team).decode(), f"{role} {team}")
 
     def test_manager_composed_bytes_did_not_grow_vs_90be196(self):
-        # (team, goal) -> bytes of the composed Manager rules at 90be196, fixture home with live-length names
-        base = {((), "yes"): 53799, ((), "no"): 50510, (("tech-lead",), "yes"): 52710, (("team-lead", "designer"), "no"): 48985,
-                (("qa-white", "qa-black", "designer", "architect"), "yes"): 56777,
-                (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"): 50145}
+        # (team, goal) -> bytes of the composed Manager rules at 90be196 plus ticket 06's parked-question rule (+265 B, +253 B with goal+architect), fixture home with live-length names
+        base = {((), "yes"): 54064, ((), "no"): 50775, (("tech-lead",), "yes"): 52975, (("team-lead", "designer"), "no"): 49250,
+                (("qa-white", "qa-black", "designer", "architect"), "yes"): 57030,
+                (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"): 50398}
         for (team, goal), n in base.items():
             with self.subTest(team=team, goal=goal):
                 self.assertLessEqual(len(compose_team("manager", team, goal)), n)

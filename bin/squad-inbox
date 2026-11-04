@@ -7,9 +7,12 @@
   squad-inbox answer E<n> [--option K] [--note N | --text T | stdin] --source pane|chat
   squad-inbox withdraw E<n>|R<n> --reason R
   squad-inbox delivered E<n> --session S
+  squad-inbox park --text T [--from E<n>[ #<p>]] [--blocks B] [--level scope|goal|squad]
+  squad-inbox unpark Q<n> [--level L]
+  squad-inbox resolve Q<n> --answer A [--level L]
   squad-inbox guide    (prints the path of docs/inbox-body-guide.md; needs no home)
 
-The home is --home D, else $SCOPE_DIR, else $GOAL_DIR. Exit 0 ok, 2 refused (bad input, wrong role), 3 already handled.
+The home is --home D, else $SCOPE_DIR, else $GOAL_DIR (park, unpark, resolve: --level picks scope, goal or squad folder). Exit 0 ok, 2 refused (bad input, wrong role), 3 already handled.
 """
 import argparse
 import sys
@@ -52,6 +55,17 @@ def main(argv=None):
     d = sub.add_parser("delivered")
     d.add_argument("id")
     d.add_argument("--session", required=True)
+    pk = sub.add_parser("park")
+    pk.add_argument("--text", required=True)
+    pk.add_argument("--from", dest="from_")
+    pk.add_argument("--blocks")
+    for name in ("unpark", "resolve"):
+        q = sub.add_parser(name)
+        q.add_argument("id")
+        if name == "resolve":
+            q.add_argument("--answer", required=True)
+        q.add_argument("--level", choices=("scope", "goal", "squad"))
+    pk.add_argument("--level", choices=("scope", "goal", "squad"))
     sub.add_parser("guide")
     args = p.parse_args(argv)
     try:

@@ -265,7 +265,8 @@ def resolve_selection(server, params):
     else:
         squad = server.squads[0] if len(server.squads) == 1 else None
     sel = {"squads": server.squads, "squad": squad, "kind": None, "name": None, "home": None,
-           "repo_root": squad.repo_root if squad else None, "now": server.clock(), "params": params}
+           "repo_root": squad.repo_root if squad else None, "now": server.clock(), "params": params,
+           "herdr_json": getattr(server, "herdr_json", None)}
     goal, scope = params.get("goal"), params.get("scope")
     if goal and scope:
         return None, _error(400, "give goal or scope, not both")
@@ -445,6 +446,7 @@ def make_parser():
     p.add_argument("--scope", metavar="S", help="open on this scope (not with --goal)")
     p.add_argument("--port", type=int, default=DEFAULT_PORT, metavar="N",
                    help="port on 127.0.0.1 (default %d; 0 picks a free one)" % DEFAULT_PORT)
+    p.add_argument("--herdr-json", metavar="FILE", help="read herdr agents from this recorded file, not from `herdr`")
     p.add_argument("--no-open", action="store_true", help="print the URL and do not start a browser")
     return p
 
@@ -473,6 +475,7 @@ def main(argv=None, open_browser=webbrowser.open, stop=None):
         print("squad-board: port %d is busy or not allowed (%s). Pick another with --port N" % (args.port, e.strerror or e),
               file=sys.stderr)
         return ERROR
+    server.herdr_json = args.herdr_json
     url = _url(server)
     for s in squads:
         if s.flat:
