@@ -707,7 +707,7 @@
       any = true;
       var dim = hl && (hl === "—" ? (r.task != null || r.bucket === "idle") : r.task !== hl);
       var st = r.bucket === "working" ? "w" : r.bucket === "waiting" ? "a" : r.bucket === "blocked" ? (r.on === "PO" ? "p" : "b") : r.bucket === "idle" ? "i" : "u";
-      var b = el("button", "blk st-" + st + (r.task == null && r.bucket !== "idle" && r.bucket !== "unknown" ? " un" : "") + (dim ? " dim" : "") +
+      var b = el("button", "blk st-" + st + (r.task == null && r.bucket !== "idle" && r.bucket !== "unknown" && r.w >= 6 ? " un" : "") + (dim ? " dim" : "") +
         (V.sel && V.sel.agent === a.agent && V.sel.start === r.start ? " sel" : ""));
       b.type = "button";
       b.style.left = pct(r.fx); b.style.width = pct(r.fw);
@@ -738,7 +738,7 @@
       i.title = (MARK_NAMES[m.kind] || m.kind) + (m.task ? " of " + m.task : "") + (m.sha ? " " + m.sha : "") + " · " + hhmm(t, tz) + " (exact)";
       trk.appendChild(i);
     });
-    if (!any) { var w = el("span", "muted", "no activity in this range"); w.style.cssText = "position:absolute;left:.5em;top:1.3em"; trk.appendChild(w); }
+    if (!any && a.agent !== "commits") { var w = el("span", "muted", "no activity in this range"); w.style.cssText = "position:absolute;left:.5em;top:1.3em"; trk.appendChild(w); }
     row.appendChild(trk);
     return row;
   }
