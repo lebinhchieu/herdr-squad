@@ -1,7 +1,8 @@
-/* squad-board layout engine (ticket 26, design-v7 s2 and s7): page columns.
-   Pure part: BOARD.layout.colCount, place, norm. They touch no DOM, no window, no clock.
-   DOM part: BOARD.layout.mount(): #canvas holds N .col elements; panels are normal blocks in a column.
-   It only edits the state ({id: {col, order, hidden, max_height}}); pixels are never stored. */
+/* squad-board layout engine (tickets 35, 36; design-v8 s2 to s7): a smart grid.
+   Pure part: colCount, place, refresh, recordGrid, migrate, dropIndex, widthToTracks, tracksToWidth, snapTracks.
+   They touch no DOM, no window, no clock.
+   DOM part: BOARD.layout.mount(): #canvas is a CSS grid; each panel gets grid-column / grid-row from place().
+   It only edits the state ({id: {order, width, hidden, max_height}}); pixels are never stored. */
 (function (root) {
   "use strict";
   var BOARD = root.BOARD = root.BOARD || {};
@@ -9,55 +10,17 @@
   var MIN_PX = 76;   /* a panel is never shorter than this at Normal text */
   var ORDER = ["inbox", "tasks", "agents", "files", "scopes", "worktime"];   /* default place order (design-v7 s2) */
 
-  /* number of page columns for a window: W = innerWidth / text scale; 3 from 1800, 2 from 932, else 1 */
-  function colCount(innerWidth, scale) {
-    var w = innerWidth / (scale || 1);
-    return w >= 1800 ? 3 : (w >= 932 ? 2 : 1);
-  }
-
-  /* place(ids, n, heights, base) -> {id: {col, pos}}
-     ids: panel ids in default order (hidden ones left out); heights: {id: px}.
-     Each panel goes to the shortest column at that moment, the leftmost when equal. base: optional
-     [{h, n}] per column (height and panel count already there) for panels placed on top of existing ones. */
-  function place(ids, n, heights, base) {
-    var h = [], cnt = [], out = {}, i;
-    for (i = 0; i < n; i++) { h.push(base && base[i] ? base[i].h : 0); cnt.push(base && base[i] ? base[i].n : 0); }
-    ids.forEach(function (id) {
-      var c = h.indexOf(Math.min.apply(null, h));
-      out[id] = { col: c, pos: cnt[c] };
-      cnt[c]++; h[c] += (heights[id] || 0) + GUTTER;
-    });
-    return out;
-  }
-
-  /* norm(panels, n) -> [[id, ...] per column], for display only. panels: [{id, col, order, idx, hidden}].
-     A hidden panel is skipped; a col above n-1 shows in the last column; a missing or non-integer col is skipped
-     (the caller gives it a default place). Sorted by order, a tie by default order (idx). The state is not changed. */
-  function norm(panels, n) {
-    var by = [], i;
-    for (i = 0; i < n; i++) by.push([]);
-    panels.forEach(function (p) {
-      if (p.hidden || !Number.isInteger(p.col) || p.col < 0) return;
-      by[Math.min(p.col, n - 1)].push(p);
-    });
-    return by.map(function (list) {
-      return list.sort(function (a, b) { return (a.order - b.order) || (a.idx - b.idx); }).map(function (p) { return p.id; });
-    });
-  }
-
   function defaultRank(id, idx) { var k = ORDER.indexOf(id); return k < 0 ? ORDER.length + idx : k; }
 
-  /* ---------------- grid pure part (tickets 35, 36; design-v8 s2, s3) ----------------
-     Added next to the ticket 26 functions. The DOM part still uses the old place/norm until it is rewritten;
-     then these names become place/refresh/colCount (see tasks/notes-grid-36.md). */
+  /* ---------------- pure part (design-v8 s2, s3) ---------------- */
   var SMALLEST = { tasks: 2, worktime: 2 };   /* smallest span; others 1 */
-  function gridCount(innerWidth, scale) {
+  function colCount(innerWidth, scale) {
     var w = innerWidth / (scale || 1);
     return w >= 1800 ? 6 : (w >= 960 ? 4 : 2);
   }
-  /* placeGrid(items, G) -> {id: {x, y}}. items [{id, span, height}] in saved order (height = box height incl. gutter).
+  /* place(items, G) -> {id: {x, y}}. items [{id, span, height}] in saved order (height = box height incl. gutter).
      Each item goes to the highest free spot where its span fits, leftmost when equal. Candidate rows: 0 and every bottom. */
-  function placeGrid(items, G) {
+  function place(items, G) {
     var boxes = [], out = {};
     items.forEach(function (it) {
       var span = Math.max(1, Math.min(it.span, G)), h = it.height || 0, rows = [0], best = null;
@@ -77,9 +40,9 @@
     });
     return out;
   }
-  /* refreshGrid(prev, heights) -> {id: {x, y}}. prev: [{id, x, span, above:[ids]}] in row order of the last place.
+  /* refresh(prev, heights) -> {id: {x, y}}. prev: [{id, x, span, above:[ids]}] in row order of the last place.
      Each panel keeps x; y = lowest bottom of the panels recorded above it (0 when none). */
-  function refreshGrid(prev, heights) {
+  function refresh(prev, heights) {
     var out = {};
     prev.forEach(function (p) {
       var y = 0;
@@ -88,7 +51,7 @@
     });
     return out;
   }
-  /* recordGrid(items, pos, G) -> prev for refreshGrid: row order, x, and the panels above (overlapping columns, ending at or above its top). */
+  /* recordGrid(items, pos, G) -> prev for refresh: row order, x, and the panels above (overlapping columns, ending at or above its top). */
   function recordGrid(items, pos, G) {
     var list = items.map(function (it) { return { id: it.id, x: pos[it.id].x, y: pos[it.id].y, span: Math.min(it.span, G), h: it.height }; });
     list.sort(function (a, b) { return (a.y - b.y) || (a.x - b.x); });
@@ -98,8 +61,8 @@
       }).map(function (q) { return q.id; }) };
     });
   }
-  /* migrateGrid(panels) -> panels sorted by (order, col, default rank), order renumbered 0..k-1, col and span dropped. */
-  function migrateGrid(panels) {
+  /* migrate(panels) -> panels sorted by (order, col, default rank), order renumbered 0..k-1, col and span dropped. */
+  function migrate(panels) {
     var rows = panels.map(function (p, i) { return { p: p, i: i }; });
     rows.sort(function (a, b) {
       var oa = Number.isInteger(a.p.order) ? a.p.order : 1e9, ob = Number.isInteger(b.p.order) ? b.p.order : 1e9;
@@ -135,54 +98,26 @@
     return Math.max(minSpan || 1, Math.min(k, G));
   }
 
-  BOARD.layout = { GUTTER: GUTTER, MIN_PX: MIN_PX, ORDER: ORDER, colCount: colCount, place: place, norm: norm, defaultRank: defaultRank,
-    SMALLEST: SMALLEST, gridCount: gridCount, placeGrid: placeGrid, refreshGrid: refreshGrid, recordGrid: recordGrid,
-    migrateGrid: migrateGrid, dropIndex: dropIndex, widthToTracks: widthToTracks, tracksToWidth: tracksToWidth, snapTracks: snapTracks };
+  BOARD.layout = { GUTTER: GUTTER, MIN_PX: MIN_PX, ORDER: ORDER, SMALLEST: SMALLEST, defaultRank: defaultRank,
+    colCount: colCount, place: place, refresh: refresh, recordGrid: recordGrid, migrate: migrate, dropIndex: dropIndex,
+    widthToTracks: widthToTracks, tracksToWidth: tracksToWidth, snapTracks: snapTracks };
 
   /* ---------------- DOM part ---------------- */
-  /* mount(opts) -> {relayout, plan, request, drag, resize, key, observe, unobserve}
-     opts: canvas (element), get() -> {panels: [{id, col, order, idx, hidden, max_height, el, maxPx, hdr}], scale, auto},
-           set(id, patch) edits the state (col, order, max_height), changed(extra) is called after a user edit. */
+  /* mount(opts) -> {relayout, request, drag, resize, key, observe, unobserve}
+     opts: canvas (element), get() -> {panels: [{id, order, width, idx, hidden, max_height, el, maxPx, hdr}], scale},
+           set(id, patch) edits the state (order, max_height), changed(extra) is called after a user edit.
+     relayout() is a placement moment: it calls BOARD.layout.place. request() is a data refresh: it calls BOARD.layout.refresh
+     (x and order stay). request(true) is a placement moment on the next frame (window or text size change). */
   function mount(opts) {
-    var canvas = opts.canvas, busy = false, raf = 0, lastN = 0, cols = [];
-
-    function count() { var st = opts.get(); return colCount(root.innerWidth, st.scale); }
+    var canvas = opts.canvas, doc = root.document, busy = false, raf = 0, forced = false, G = 0, prev = null;
+    var empty = doc.createElement("div");
+    empty.className = "empty"; empty.hidden = true; empty.textContent = "All panels are hidden. Open Panels ▾ to show them.";
+    canvas.appendChild(empty);
 
     function scaleMax(p, scale) {
       var base = p.max_height != null ? p.max_height : p.maxPx;
       return Math.round(base * scale);
     }
-
-    function buildCols(n) {
-      if (cols.length === n) return;
-      cols.forEach(function (c) { c.remove(); });
-      cols = [];
-      canvas.style.setProperty("--n", String(n));
-      for (var i = 0; i < n; i++) {
-        var c = root.document.createElement("div");
-        c.className = "col"; c.dataset.col = String(i);
-        canvas.appendChild(c); cols.push(c);
-      }
-    }
-
-    /* put the panels of `by` in their column in order, moving a node only when it is not already right */
-    function sync(by, st) {
-      var focus = root.document.activeElement;
-      by.forEach(function (ids, ci) {
-        var c = cols[ci], prev = null;
-        ids.forEach(function (id) {
-          var p = st.panels.filter(function (q) { return q.id === id; })[0], e = p.el;
-          if (e.parentNode !== c || e.previousElementSibling !== prev) c.insertBefore(e, prev ? prev.nextSibling : c.firstChild);
-          prev = e;
-        });
-        var emp = c.querySelector(".empty");
-        if (!ids.length && !emp) {
-          emp = root.document.createElement("div"); emp.className = "empty"; emp.textContent = "Drop a panel here"; c.appendChild(emp);
-        } else if (ids.length && emp) emp.remove();
-      });
-      if (focus && focus !== root.document.activeElement && focus.focus) focus.focus();
-    }
-
     function caps(st) {
       st.panels.forEach(function (p) {
         p.el.hidden = !!p.hidden;
@@ -191,163 +126,174 @@
         p.el.style.height = p.max_height != null ? h + "px" : "";   /* a height set by the PO is the height; else as tall as the content */
       });
     }
+    /* panels in saved order (a tie by default order); hidden ones only when `all` */
+    function ordered(st, all) {
+      return st.panels.filter(function (p) { return all || !p.hidden; })
+        .sort(function (a, b) { return (a.order - b.order) || (a.idx - b.idx); });
+    }
+    function spanOf(p) { return widthToTracks(p.width, G, SMALLEST[p.id] || 1); }
+    function rowH(el) { return Math.ceil((el.getBoundingClientRect().height + GUTTER) / 2) * 2; }
 
-    /* Panels that are shown and have no column (first load of an old file, a panel shown for the first time) get the
-       default place, on top of the panels already there. */
-    function placeNew(st, n, all) {
-      var vis = st.panels.filter(function (p) { return !p.hidden; });
-      var fresh = vis.filter(function (p) { return all || !Number.isInteger(p.col) || p.col < 0; });
-      if (!fresh.length) return false;
-      var keep = vis.filter(function (p) { return fresh.indexOf(p) < 0; });
-      var by = norm(keep, n);
-      /* measure: every fresh panel alone at the end of column 0, at column width, capped */
-      fresh.forEach(function (p) { cols[0].appendChild(p.el); });
-      var heights = {};
-      fresh.forEach(function (p) { heights[p.id] = Math.ceil(p.el.offsetHeight); });
-      sync(by.map(function (ids) { return ids; }), { panels: keep });
-      var base = by.map(function (ids, ci) {
-        var h = 0;
-        ids.forEach(function (id) { var q = keep.filter(function (k) { return k.id === id; })[0]; h += Math.ceil(q.el.offsetHeight) + GUTTER; });
-        return { h: h, n: ids.length };
+    /* the DOM stays in saved order (reading order, Tab order); a node moves only when it is not already right */
+    function syncDom(st) {
+      var focus = doc.activeElement, at = empty;
+      ordered(st, true).forEach(function (p) {
+        if (at.nextSibling !== p.el) canvas.insertBefore(p.el, at.nextSibling);
+        at = p.el;
       });
-      var order = fresh.slice().sort(function (a, b) { return defaultRank(a.id, a.idx) - defaultRank(b.id, b.idx); }).map(function (p) { return p.id; });
-      var res = place(order, n, heights, base);
-      Object.keys(res).forEach(function (id) { opts.set(id, { col: res[id].col, order: res[id].pos }); });
-      return true;
+      if (focus && focus !== doc.activeElement && focus.focus) focus.focus();
     }
 
-    function relayout() {
-      if (busy) return;
-      var st = opts.get(), n = count();
-      caps(st);
-      buildCols(n);
-      var all = lastN && n !== lastN && st.auto;      /* a change of column count re-places while the PO has not moved a panel */
-      lastN = n;
-      placeNew(st, n, all);
-      sync(norm(st.panels, n), st);
+    /* each panel at its final width, no row: its height is the height of the content up to its maximum */
+    function measure(list) {
+      list.forEach(function (p) { p.el.style.gridColumn = "span " + spanOf(p); p.el.style.gridRow = ""; });
+      return list.map(function (p) { return { id: p.id, span: spanOf(p), height: rowH(p.el) }; });
+    }
+    function put(el, x, span, y, h) {
+      el.style.gridColumn = (x + 1) + " / span " + span;
+      el.style.gridRow = (y / 2 + 1) + " / span " + (h / 2);
     }
 
-    /* default place of every shown panel (first load, Reset, text size, new choice); `onlyNew` keeps saved places */
-    function plan(onlyNew) {
-      var st = opts.get(), n = count();
-      caps(st); buildCols(n); lastN = n;
-      st.panels.forEach(function (p) { p.el.hidden = !!p.hidden; });
-      placeNew(st, n, !onlyNew);
-      sync(norm(st.panels, n), st);
+    /* a placement moment: choose tracks and rows for every shown panel */
+    function placeNow() {
+      var st = opts.get();
+      G = colCount(root.innerWidth, st.scale);
+      canvas.style.setProperty("--n", String(G));
+      caps(st); syncDom(st);
+      var vis = ordered(st);
+      empty.hidden = vis.length > 0;
+      if (!vis.length) { prev = null; return; }
+      var items = measure(vis), pos = BOARD.layout.place(items, G);
+      prev = BOARD.layout.recordGrid(items, pos, G);
+      items.forEach(function (it, i) { put(vis[i].el, pos[it.id].x, it.span, pos[it.id].y, it.height); });
     }
+    function relayout() { if (!busy) placeNow(); }
 
-    function request() {
+    /* a data refresh: tracks and order stay, rows follow the heights */
+    function refreshNow() {
+      var st = opts.get();
+      if (!prev || colCount(root.innerWidth, st.scale) !== G) { placeNow(); return; }
+      var vis = ordered(st);
+      if (vis.length !== prev.length || vis.some(function (p) { return !prev.some(function (r) { return r.id === p.id; }); })) { placeNow(); return; }
+      var byId = {}, heights = {};
+      vis.forEach(function (p) { byId[p.id] = p; heights[p.id] = rowH(p.el); });
+      var pos = BOARD.layout.refresh(prev, heights);
+      prev.forEach(function (r) { put(byId[r.id].el, r.x, r.span, pos[r.id].y, heights[r.id]); });
+    }
+    function request(full) {
+      if (full) forced = true;
       if (raf || busy) return;
-      raf = root.requestAnimationFrame(function () { raf = 0; relayout(); });
+      raf = root.requestAnimationFrame(function () {
+        raf = 0;
+        if (busy) return;
+        if (forced) { forced = false; placeNow(); } else refreshNow();
+      });
     }
 
-    /* the panels of a column, in DOM order, as ids */
-    function idsOf(col, skip) {
-      return [].slice.call(col.children).filter(function (k) { return k !== skip && (k.classList.contains("panel") || k.classList.contains("ghost")); })
-        .map(function (k) { return k.classList.contains("ghost") ? null : k.dataset.panel; });
-    }
+    /* renumber the full order (hidden panels included) 0..k-1 */
+    function setOrder(list) { list.forEach(function (q, i) { opts.set(q.id, { order: i }); }); }
 
-    /* ---- drag: header, 4 px; a dashed drop spot shows where it lands; Esc or a drop outside cancels ---- */
+    /* ---- drag: header, 4 px; a dashed drop spot shows where it lands (an item of place); Esc or a drop outside cancels ---- */
     function drag(p, e) {
       if (e.button != null && e.button !== 0) return;
       if (e.target.closest && e.target.closest("button")) return;
-      var el = p.el, sx = e.clientX, sy = e.clientY, r = el.getBoundingClientRect(), moved = false, slot = null, over = null;
+      var el = p.el, sx = e.clientX, sy = e.clientY, r = el.getBoundingClientRect(), moved = false;
+      var slot = null, others = null, oitems = null, rest = null, idx = -1, outside = false, ghost = null;
+      function start() {
+        moved = true; busy = true;
+        var st = opts.get();
+        G = colCount(root.innerWidth, st.scale);
+        ghost = { id: "\u0000ghost", span: spanOf(p), height: Math.ceil((r.height + GUTTER) / 2) * 2 };
+        slot = doc.createElement("div"); slot.className = "ghost"; canvas.appendChild(slot);
+        el.style.width = r.width + "px"; el.classList.add("drag");
+        others = ordered(st).filter(function (q) { return q !== p; });
+        oitems = measure(others);
+        layoutWith(null);
+        var cr = canvas.getBoundingClientRect();
+        rest = others.map(function (q) { var b = q.el.getBoundingClientRect(); return { left: b.left - cr.left, top: b.top - cr.top, width: b.width, height: b.height }; });
+        idx = -1;
+      }
+      /* the page with the drop spot at reading index i (null: no spot, the others at rest) */
+      function layoutWith(i) {
+        var items = oitems.slice();
+        if (i != null) items.splice(i, 0, ghost);
+        var pos = BOARD.layout.place(items, G);
+        items.forEach(function (it) {
+          var q = pos[it.id];
+          put(it === ghost ? slot : others[oitems.indexOf(it)].el, q.x, it.span, q.y, it.height);
+        });
+        slot.hidden = i == null;
+      }
       function mv(ev) {
         var dx = ev.clientX - sx, dy = ev.clientY - sy;
-        if (!moved) {
-          if (Math.hypot(dx, dy) < 4) return;
-          moved = true; busy = true;
-          slot = root.document.createElement("div"); slot.className = "ghost"; slot.style.height = r.height + "px";
-          el.after(slot);
-          el.style.width = r.width + "px"; el.classList.add("drag");
-        }
+        if (!moved) { if (Math.hypot(dx, dy) < 4) return; start(); }
         el.style.left = (r.left + dx) + "px"; el.style.top = (r.top + dy) + "px";
-        var best = null, bestD = Infinity;
-        cols.forEach(function (c) {
-          c.classList.remove("over");
-          var b = c.getBoundingClientRect(), d = ev.clientX < b.left ? b.left - ev.clientX : (ev.clientX > b.right ? ev.clientX - b.right : 0);
-          if (d < bestD) { bestD = d; best = c; }
-        });
-        var first = cols[0].getBoundingClientRect(), last = cols[cols.length - 1].getBoundingClientRect();
-        /* outside every column: left or right of the columns, above them (top bar) or below the window */
-        var outside = ev.clientX < first.left || ev.clientX > last.right || ev.clientY < first.top || ev.clientY > root.innerHeight;
-        if (outside) { slot.remove(); over = null; return; }
-        over = best; best.classList.add("over");
-        var emp = best.querySelector(".empty"); if (emp) emp.hidden = true;
-        slot.remove();   /* decide on the layout at rest: the spot itself must not move the middles */
-        var kids = [].slice.call(best.children).filter(function (k) { return k !== el && k.classList.contains("panel") && !k.hidden; }), at = null;
-        for (var i = 0; i < kids.length; i++) {
-          var b2 = kids[i].getBoundingClientRect();
-          if (ev.clientY < b2.top + b2.height / 2) { at = kids[i]; break; }
+        if (ev.clientY < 40) root.scrollBy(0, -20); else if (ev.clientY > root.innerHeight - 40) root.scrollBy(0, 20);
+        var cr = canvas.getBoundingClientRect();
+        outside = ev.clientX < cr.left || ev.clientX > cr.right || ev.clientY < cr.top || ev.clientY > root.innerHeight;
+        var i = -1;
+        if (!outside) {
+          var rects = rest.map(function (q) { return { left: q.left + cr.left, top: q.top + cr.top, width: q.width, height: q.height }; });
+          var bottom = rects.reduce(function (m, q) { return Math.max(m, q.top + q.height); }, 0);
+          i = !rects.length || ev.clientY > bottom ? rects.length : dropIndex(rects, ev.clientX, ev.clientY);
         }
-        if (at) best.insertBefore(slot, at); else best.appendChild(slot);
+        if (i !== idx) { idx = i; layoutWith(i < 0 ? null : i); }
       }
       function done(cancel) {
-        root.document.removeEventListener("pointermove", mv);
-        root.document.removeEventListener("pointerup", up);
-        root.document.removeEventListener("pointercancel", cp);
-        root.document.removeEventListener("keydown", kd);
-        var save = moved && !cancel && over && slot && slot.parentNode;
-        if (save) {
-          var ci = cols.indexOf(over);
-          idsOf(over, el).forEach(function (id, i) { opts.set(id || p.id, { col: ci, order: i }); });
-        }
+        doc.removeEventListener("pointermove", mv);
+        doc.removeEventListener("pointerup", up);
+        doc.removeEventListener("pointercancel", cp);
+        doc.removeEventListener("keydown", kd);
+        var save = moved && !cancel && !outside && idx >= 0;
         el.classList.remove("drag"); el.style.width = ""; el.style.left = ""; el.style.top = "";
         if (slot) slot.remove();
-        cols.forEach(function (c) { c.classList.remove("over"); var emp = c.querySelector(".empty"); if (emp) emp.hidden = false; });
         busy = false;
         if (save) {
-          /* the column it left closes up: renumber the rest by their order */
-          renumber(opts.get());
-          opts.changed({ auto: false });
+          var st = opts.get(), full = ordered(st, true), before = full.map(function (q) { return q.id; }).join();
+          var rest2 = full.filter(function (q) { return q !== p; }), at;
+          if (idx < others.length) at = rest2.indexOf(others[idx]);
+          else at = others.length ? rest2.indexOf(others[others.length - 1]) + 1 : rest2.length;
+          rest2.splice(at, 0, p);
+          if (rest2.map(function (q) { return q.id; }).join() !== before) { setOrder(rest2); opts.changed(); }
         }
-        relayout();
+        placeNow();
       }
       function up() { done(false); }
       function cp() { done(true); }
       function kd(ev) { if (ev.key === "Escape") done(true); }
-      root.document.addEventListener("pointermove", mv);
-      root.document.addEventListener("pointerup", up);
-      root.document.addEventListener("pointercancel", cp);
-      root.document.addEventListener("keydown", kd);
+      doc.addEventListener("pointermove", mv);
+      doc.addEventListener("pointerup", up);
+      doc.addEventListener("pointercancel", cp);
+      doc.addEventListener("keydown", kd);
     }
 
-    /* positions 0..k-1 in every column, in the order shown (hidden panels keep their own col and order) */
-    function renumber(st) {
-      var n = count();
-      norm(st.panels, n).forEach(function (ids, ci) {
-        ids.forEach(function (id, i) {
-          opts.set(id, { order: i });
-        });
-      });
-    }
-
-    /* ---- resize: the south edge sets the height cap; a width never changes ---- */
+    /* ---- resize: the south edge sets the height cap; the panels below it in its tracks follow live, tracks stay ---- */
     function resize(p, dir, e) {
       var el = p.el, sy = e.clientY, h0 = el.offsetHeight, st = opts.get();
       el.classList.add("rsz"); busy = true;
       function mv(ev) {
         p.max_height = Math.max(MIN_PX, Math.round((h0 + ev.clientY - sy) / st.scale));
         el.style.maxHeight = el.style.height = Math.round(p.max_height * st.scale) + "px";
+        refreshNow();
       }
       function up() {
-        root.document.removeEventListener("pointermove", mv);
-        root.document.removeEventListener("pointerup", up);
-        root.document.removeEventListener("pointercancel", up);
+        doc.removeEventListener("pointermove", mv);
+        doc.removeEventListener("pointerup", up);
+        doc.removeEventListener("pointercancel", up);
         el.classList.remove("rsz"); busy = false;
         opts.set(p.id, { max_height: p.max_height });
-        opts.changed({ auto: false });
-        relayout();
+        opts.changed();
+        placeNow();
       }
-      root.document.addEventListener("pointermove", mv);
-      root.document.addEventListener("pointerup", up);
-      root.document.addEventListener("pointercancel", up);
+      doc.addEventListener("pointermove", mv);
+      doc.addEventListener("pointerup", up);
+      doc.addEventListener("pointercancel", up);
     }
 
-    /* ---- keyboard on a focused panel title: arrows move (Up/Down in the column, Left/Right to the next column),
+    /* ---- keyboard on a focused panel title: Up/Left one place earlier, Down/Right one later (hidden panels are skipped);
        Shift+Up/Down change the height by 80 px; focus stays on the title ---- */
     function key(p, ev) {
-      var st = opts.get(), n = count(), k = ev.key;
+      var st = opts.get(), k = ev.key;
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].indexOf(k) < 0) return;
       ev.preventDefault();
       if (ev.shiftKey) {
@@ -356,29 +302,20 @@
         p.max_height = Math.max(MIN_PX, Math.round((cur + (k === "ArrowDown" ? 80 : -80)) / st.scale));
         opts.set(p.id, { max_height: p.max_height });
       } else {
-        var by = norm(st.panels, n), ci = -1, i = -1;
-        by.forEach(function (ids, c) { var j = ids.indexOf(p.id); if (j >= 0) { ci = c; i = j; } });
-        if (ci < 0) return;
-        var to = ci, at = i;
-        if (k === "ArrowUp") { if (i === 0) return; at = i - 1; }
-        else if (k === "ArrowDown") { if (i === by[ci].length - 1) return; at = i + 1; }
-        else {
-          to = ci + (k === "ArrowLeft" ? -1 : 1);
-          if (to < 0 || to >= n) return;
-          at = Math.min(i, by[to].length);
-        }
-        by[ci].splice(i, 1);
-        by[to].splice(at, 0, p.id);
-        [ci, to].forEach(function (c) { by[c].forEach(function (id, j) { opts.set(id, { col: c, order: j }); }); });
+        var full = ordered(st, true), i = full.indexOf(p), j = i, back = k === "ArrowUp" || k === "ArrowLeft";
+        do { j += back ? -1 : 1; } while (full[j] && full[j].hidden);
+        if (!full[j]) return;
+        full.splice(i, 1); full.splice(j, 0, p);
+        setOrder(full);
       }
-      opts.changed({ auto: false });
-      relayout();
+      opts.changed();
+      placeNow();
       if (p.hdr && p.hdr.focus) p.hdr.focus();
     }
 
-    var ro = root.ResizeObserver ? new root.ResizeObserver(request) : null;
+    var ro = root.ResizeObserver ? new root.ResizeObserver(function () { request(); }) : null;
     return {
-      relayout: relayout, plan: plan, request: request, drag: drag, resize: resize, key: key,
+      relayout: relayout, request: request, drag: drag, resize: resize, key: key,
       observe: function (el) { if (ro) ro.observe(el); },
       unobserve: function (el) { if (ro) ro.unobserve(el); }
     };
