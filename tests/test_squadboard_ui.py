@@ -20,7 +20,7 @@ from test_squadboard_server import make_squad  # noqa: E402
 
 GOOD = {"saved_at": "2026-11-04T10:00:00Z", "font": "xl", "choice": {"kind": "scope", "name": "alpha"},
         "recent": [{"kind": "scope", "name": "alpha"}, {"kind": "goal", "name": "g1"}, {"kind": "scope", "name": "alpha"}],
-        "panels": {"inbox": {"order": 1, "span": 2, "hidden": True, "max_height": 300}}}
+        "panels": {"inbox": {"order": 1, "tracks": 2, "hidden": True, "max_height": 300}}}
 
 
 class Base(unittest.TestCase):
@@ -107,14 +107,21 @@ class SaveTest(Base):
 
 
 class HardeningTest(Base):
-    def test_T26_TA6_col_is_kept_checked_and_span_is_optional(self):
-        row = {"order": 1, "col": 2, "hidden": False}
-        code, r = self.put(dict(GOOD, panels={"a": row}))
+    def test_T36_TA4_tracks_bounds_and_old_keys(self):
+        row = {"order": 1, "hidden": False}
+        for ok in (1, 12):
+            code, r = self.put(dict(GOOD, panels={"a": dict(row, tracks=ok)}))
+            self.assertEqual((code, r["data"]["ui"]["panels"]["a"]["tracks"]), (200, ok))
+        for bad in (0, 13, "2", 2.5, True):
+            code, r = self.put(dict(GOOD, panels={"a": dict(row, tracks=bad)}))
+            self.assertEqual(code, 400, bad)
+            self.assertIn("tracks 1..12", r["error"])   # same error shape as a bad order
+        self.assertEqual(self.put(dict(GOOD, panels={"a": dict(row, order="x")}))[0], 400)
+        # an old body (no tracks, with col or span) is accepted; neither is stored; "auto" is retired
+        code, r = self.put(dict(GOOD, auto=True, panels={"a": dict(row, col=2, span=2)}))
         self.assertEqual(code, 200)
-        self.assertEqual(r["data"]["ui"]["panels"]["a"], {"order": 1, "col": 2, "hidden": False})   # col kept, no span added
-        for bad in (12, -1, "1", 1.5, True):
-            self.assertEqual(self.put(dict(GOOD, panels={"a": dict(row, col=bad)}))[0], 400, bad)
-        self.assertEqual(self.put(dict(GOOD, panels={"a": dict(row, span=2)}))[0], 200)   # an old file still saves
+        self.assertEqual(r["data"]["ui"]["panels"]["a"], row)
+        self.assertNotIn("auto", r["data"]["ui"])
         self.assertEqual(self.put(dict(GOOD, panels={"a": dict(row, row=3)}))[0], 400)    # position keys still refused
 
     def test_T09_position_keys_are_refused(self):

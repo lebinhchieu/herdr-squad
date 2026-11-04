@@ -1,13 +1,13 @@
 """Saved UI state of the dashboard (ticket 09, architecture.md sections 1 and 1a).
 
 The one file the board writes: `<squad folder>/board-ui.json`. The path comes from the server's squad choice, never
-from a request. Layout is stored per panel as page column `col` (optional, 0..11), `order` (place in the column),
-hidden and an optional max height: no pixel position and no row index. `span` (old row layout) is optional and no
-longer written; a row without `col` is an old layout (the page shows the default place).
+from a request. Layout is stored per panel as `order`, hidden, an optional max height and an optional `tracks` (the width as twelfths of the
+row, an integer 1..12, ticket 36): no pixel position and no row index. `col` and `span` (old layouts) are still accepted in
+a PUT but are no longer stored.
 
     {"version": 1, "saved_at": "2026-11-04T10:00:00Z", "font": "normal",
-     "choice": {"kind": "scope", "name": "dashboard"} | null, "recent": [<choice>, ...5], "auto": true,
-     "panels": {"<panel id>": {"col": 0, "order": 0, "hidden": false, "max_height": 300}},
+     "choice": {"kind": "scope", "name": "dashboard"} | null, "recent": [<choice>, ...5],
+     "panels": {"<panel id>": {"order": 0, "tracks": 6, "hidden": false, "max_height": 300}},
      "columns": {"<panel id>": ["<column id>", ...]}}
 
 `columns` (ticket 20) is the ordered list of the VISIBLE column ids of each table panel; a hidden column is absent. One
@@ -34,8 +34,9 @@ REPLACE_TRIES = 3
 COLUMN_ID_RE = re.compile(r"^[a-z0-9_]{1,32}$")
 COLUMNS_MAX_PANELS = 20
 COLUMNS_MAX_IDS = 30
-COL_MAX = 11
-NO_POSITION_KEYS = ("x", "y", "row", "".join(("si", "ze")))  # layout is col and order only (architecture 1a)
+COL_MAX = 11   # an old `col` is still accepted, 0..11
+TRACKS_MAX = 12
+NO_POSITION_KEYS = ("x", "y", "row", "".join(("si", "ze")))  # layout is order and tracks only (architecture 1a)
 
 
 def _no_constant(name):
@@ -73,6 +74,7 @@ def validate(body):
     if bad:
         raise ValueError("no position keys in the layout: %s" % ", ".join(bad))
     ui = {k: v for k, v in body.items() if k not in ("path", "squad")}  # never taken from the request
+    ui.pop("auto", None)   # retired (ticket 36)
     ui["version"] = VERSION
     saved_at = body.get("saved_at")
     if not (isinstance(saved_at, str) and SAVED_AT_RE.match(saved_at)):
@@ -100,18 +102,17 @@ def validate(body):
     clean = {}
     for pid, p in panels.items():
         if isinstance(p, dict) and any(k in p for k in NO_POSITION_KEYS):
-            raise ValueError("panel %s: no position keys, use col and order" % pid)
+            raise ValueError("panel %s: no position keys, use order and tracks" % pid)
         if not (isinstance(p, dict) and _int(p.get("order"))
                 and (p.get("span") is None or _int(p.get("span"), 1))
+                and (p.get("tracks") is None or (_int(p.get("tracks"), 1) and p["tracks"] <= TRACKS_MAX))
                 and (p.get("col") is None or (_int(p.get("col")) and p["col"] <= COL_MAX))
                 and isinstance(p.get("hidden", False), bool)
                 and (p.get("max_height") is None or _int(p.get("max_height"), 1))):
-            raise ValueError("panel %s: order is an integer, col 0..%d, hidden a boolean, max_height optional" % (pid, COL_MAX))
+            raise ValueError("panel %s: order is an integer, tracks 1..%d, hidden a boolean, max_height optional" % (pid, TRACKS_MAX))
         row = {"order": p["order"], "hidden": p.get("hidden", False)}
-        if p.get("span") is not None:
-            row["span"] = p["span"]
-        if p.get("col") is not None:
-            row["col"] = p["col"]
+        if p.get("tracks") is not None:
+            row["tracks"] = p["tracks"]
         if p.get("max_height") is not None:
             row["max_height"] = p["max_height"]
         clean[str(pid)] = row

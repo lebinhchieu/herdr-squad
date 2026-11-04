@@ -278,10 +278,10 @@
     var storage = (function () { try { return env.storage || root.localStorage; } catch (e) { return null; } })();
     var iso = function () { return new Date(nowMs()).toISOString(); };
 
-    var S = { squads: [], squad: null, token: "", choice: null, recent: [], font: "normal", auto: true,
+    var S = { squads: [], squad: null, token: "", choice: null, recent: [], font: "normal",
               needs: null, lastOk: null, status: "loading", saveStatus: "ok", notes: {}, saved_at: null, columns: {} };
     var P = {};          /* panel id -> {id, def, idx, col, order, hidden, max_height, el, body, hdr, last} */
-    var engine = null, saveTimer = null, loadedOnce = false, popOpen = false, booted = false, colPop = null;
+    var engine = null, placedOnce = false, saveTimer = null, loadedOnce = false, popOpen = false, booted = false, colPop = null;
 
     var els = {};
     function build() {
@@ -328,14 +328,14 @@
     }
 
     /* ---- panels ---- */
-    function defaults(def, i) { return { col: null, order: i, hidden: false, max_height: null }; }
+    function defaults(def, i) { return { order: i, tracks: null, hidden: false, max_height: null }; }
 
     function makePanel(def, i) {
       var d = defaults(def, i);
-      var p = { id: def.id, def: def, idx: i, col: d.col, order: d.order, hidden: d.hidden, max_height: d.max_height,
+      var p = { id: def.id, def: def, idx: i, tracks: d.tracks, order: d.order, hidden: d.hidden, max_height: d.max_height,
                 maxPx: def.maxPx || 400 };
       var sec = el("section", "panel"); sec.dataset.panel = def.id; sec.setAttribute("aria-label", def.title);
-      var ph = el("div", "ph"); ph.tabIndex = 0; ph.setAttribute("aria-label", def.title + ": Up and Down move, Left and Right change column, Shift with Up or Down resizes");
+      var ph = el("div", "ph"); ph.tabIndex = 0; ph.setAttribute("aria-label", def.title + ": Up and Left move earlier, Down and Right move later, Shift with Up or Down resizes");
       ph.appendChild(el("span", "grip", "⋮⋮"));
       ph.appendChild(el("h2", null, def.title));
       p.count = el("span", "count"); p.count.hidden = true; ph.appendChild(p.count);
@@ -356,10 +356,16 @@
         var h = el("div", "rz " + d2); h.addEventListener("pointerdown", function (e) { e.preventDefault(); e.stopPropagation(); engine.resize(p, d2, e); });
         sec.appendChild(h);
       });
+      var he = el("div", "rz e"); he.setAttribute("role", "separator"); he.setAttribute("aria-orientation", "vertical"); he.tabIndex = 0;
+      he.setAttribute("aria-label", "Resize width of " + def.title);
+      he.addEventListener("pointerdown", function (e) { e.preventDefault(); e.stopPropagation(); engine.resizeEast(p, e); });
+      he.addEventListener("keydown", function (e) { engine.edgeKey(p, e); });
+      he.addEventListener("dblclick", function (e) { e.preventDefault(); engine.edgeReset(p); });
+      sec.appendChild(he);
       p.el = sec; p.hdr = ph;
       ph.addEventListener("pointerdown", function (e) { engine.drag(p, e); });
       ph.addEventListener("keydown", function (e) { if (e.target === ph) engine.key(p, e); });
-      p.fit.addEventListener("click", function () { p.max_height = null; touch({ auto: false }); engine.relayout(); });
+      p.fit.addEventListener("click", function () { p.max_height = null; touch(); engine.relayout(); });
       p.hide.addEventListener("click", function () { p.hidden = true; touch(); replan(); renderPop(); });
       els.canvas.appendChild(sec);
       if (def.columns) wireColumnDrag(p);
@@ -377,29 +383,24 @@
       });
     }
 
-    /* hide, show: panels move up or down in their column; no panel changes column */
+    /* a placement moment (design-v8 s3): hide, show, Reset, text size, first load. Never a data refresh. */
     function replan() {
       setFlags();
       engine.relayout();
       setFlags();
     }
-    /* default place (first load, Reset, new choice, text size): only while the PO has not moved a panel */
-    function replace() {
-      setFlags();
-      engine.plan(!S.auto);
-      setFlags();
-    }
+    function replace() { placedOnce = true; replan(); }
 
     /* ---- saved state ---- */
     function snapshot() {
       var panels = {};
       panelList().forEach(function (p) {
         var r = { order: p.order, hidden: !!p.hidden && !p.def.byView };
-        if (Number.isInteger(p.col)) r.col = p.col;
+        if (p.tracks != null) r.tracks = p.tracks;
         if (p.max_height != null) r.max_height = p.max_height;
         panels[p.id] = r;
       });
-      var snap = { version: 1, saved_at: S.saved_at, font: S.font, choice: S.choice, recent: S.recent, panels: panels, auto: S.auto, columns: S.columns };
+      var snap = { version: 1, saved_at: S.saved_at, font: S.font, choice: S.choice, recent: S.recent, panels: panels, columns: S.columns };
       if (BOARD.hooks.snapshot) BOARD.hooks.snapshot(snap);   /* a view adds its own saved keys (timeline.js) */
       return snap;
     }
@@ -409,26 +410,35 @@
       if (FONTS.some(function (f) { return f[0] === ui.font; })) S.font = ui.font;
       if (ui.choice && (ui.choice.kind === "goal" || ui.choice.kind === "scope")) S.choice = ui.choice;
       if (Array.isArray(ui.recent)) S.recent = ui.recent.slice(0, RECENT_MAX);
-      if (typeof ui.auto === "boolean") S.auto = ui.auto;
       S.saved_at = ui.saved_at || null;
       S.columns = cleanColumns(ui.columns);
       if (BOARD.hooks.applySaved) BOARD.hooks.applySaved(ui);
-      var pan = ui.panels || {};
-      panelList().forEach(function (p) {
-        var r = pan[p.id];
-        if (!r) return;
-        if (Number.isInteger(r.order)) p.order = r.order;
-        p.col = Number.isInteger(r.col) && r.col >= 0 && r.col <= 11 ? r.col : null;   /* no col: an old layout, default place */
+      /* design-v8 s9: the saved rows are read in memory and put in one order (old col / span are only used to sort, then dropped);
+         the file is not rewritten on load. A panel with no row goes last by its default rank. A bad tracks value = the default. */
+      var pan = ui.panels && typeof ui.panels === "object" ? ui.panels : {};
+      var rows = panelList().map(function (p) {
+        var r = pan[p.id], row = { id: p.id };
+        if (r && typeof r === "object") {
+          if (Number.isInteger(r.order)) row.order = r.order;
+          if (Number.isInteger(r.col)) row.col = r.col;
+        }
+        return row;
+      });
+      BOARD.layout.migrate(rows).forEach(function (row) {
+        var p = P[row.id], r = pan[row.id];
+        p.order = row.order;
+        if (!r || typeof r !== "object") return;
         p.hidden = !!r.hidden;
         p.max_height = Number.isInteger(r.max_height) ? r.max_height : null;
+        /* an integer above 12 is the full width (T36.AC9); anything else bad = the default */
+        p.tracks = Number.isInteger(r.tracks) && r.tracks >= 1 ? Math.min(r.tracks, 12) : null;
       });
     }
 
     function storeKey() { return "squad-board-ui:" + (S.squad ? S.squad.key : ""); }
 
     function touch(extra) {
-      if (extra && typeof extra.auto === "boolean") S.auto = extra.auto;
-      S.saved_at = iso();
+            S.saved_at = iso();
       var snap = snapshot();
       try { if (storage) storage.setItem(storeKey(), JSON.stringify(snap)); S.notes.storage = ""; }
       catch (e) { S.notes.storage = "This browser blocks storage: settings are kept in the squad folder only."; }
@@ -606,9 +616,9 @@
     function resetLayout() {
       panelList().forEach(function (p) {
         var i = REG.indexOf(p.def), d = defaults(p.def, i);
-        p.order = d.order; p.col = d.col; p.hidden = p.def.byView ? p.hidden : false; p.max_height = null;
+        p.order = d.order; p.tracks = d.tracks; p.hidden = p.def.byView ? p.hidden : false; p.max_height = null;
       });
-      S.auto = true; S.columns = resetColumns(S.columns); closeColumns(); touch(); renderPop(); replace(); redrawAll();
+      S.columns = resetColumns(S.columns); closeColumns(); touch(); renderPop(); replace(); redrawAll();
     }
 
     /* ---- columns (ticket 20): one control for every table panel ---- */
@@ -900,13 +910,14 @@
       build();
       engine = BOARD.layout.mount({
         canvas: els.canvas,
-        get: function () { return { panels: panelList(), scale: scale(), auto: S.auto }; },
+        get: function () { return { panels: panelList(), scale: scale() }; },
         set: function (id, patch) { Object.keys(patch).forEach(function (k) { P[id][k] = patch[k]; }); },
-        changed: function (x) { touch(x); setFlags(); renderPop(); }
+        changed: function () { touch(); setFlags(); renderPop(); }
       });
       REG.forEach(function (def, i) { P[def.id] = makePanel(def, i); });
       applyFont(); paintFresh(); showNotes(); redrawAll();
-      root.addEventListener("resize", function () { engine.request(); });
+      root.addEventListener("resize", function () { engine.request(true); });
+      setT(function () { if (!placedOnce) replace(); }, 5000);   /* first load: place after 5 s even if a panel has not answered */
       poller.start();
     }
 
