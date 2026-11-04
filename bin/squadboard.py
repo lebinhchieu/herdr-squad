@@ -37,6 +37,7 @@ BIN = Path(__file__).resolve().parent
 if str(BIN) not in sys.path:
     sys.path.insert(0, str(BIN))
 import squadio  # noqa: E402
+import squadboard_open  # noqa: E402
 
 PLUGIN_ROOT = BIN.parent
 STATIC_DIR = PLUGIN_ROOT / "templates" / "board"
@@ -215,6 +216,7 @@ class BoardServer(ThreadingHTTPServer):
         self.token = secrets.token_urlsafe(24)
         self.routes, self.load_errors = (load_routes() if routes is None else (routes, []))
         self.put_routes = _collect_put_routes(self.routes)
+        self.post_routes = {"/api/open": squadboard_open.post}  # ticket 34: runs the local `code` CLI for a listed path
         self.clock = time.time
 
     @property
@@ -356,6 +358,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"data": {"token": self.server.token, "port": self.server.port}, "quality": "exact", "unknown": []})
         if path == "/api/file":
             return self._file(params)
+        if path in self.server.post_routes:   # ticket 34: a write route has no read use
+            return self._json(405, {"error": "read-only: use POST"})
         route = self.server.routes.get(path)
         if route is None and path == "/api/squads":
             return self._json(200, _squads_payload(self.server))
@@ -372,7 +376,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return
         u = urlsplit(self.path)
-        fn = self.server.put_routes.get(u.path) if self.command == "PUT" else None
+        fn = (self.server.put_routes if self.command == "PUT" else self.server.post_routes if self.command == "POST" else {}).get(u.path)
         if fn is None:
             return self._json(405, {"error": "read-only: no write route"})
         if not secrets.compare_digest(self.headers.get("X-Board-Token", ""), self.server.token):

@@ -713,7 +713,8 @@ class Static14(unittest.TestCase):
     def test_T14_TU3_TU4_TU5_TU9_panel_file_has_no_innerhtml_no_remote_no_write_no_hex(self):
         js = (TPL / "panel_files.js").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"innerHTML|outerHTML|insertAdjacentHTML|document\.write|eval\(|new Function|https?://", js))
-        self.assertIsNone(re.search(r"method\s*:", js))
+        self.assertEqual(re.findall(r"method\s*:\s*\"(\w+)\"", js), ["POST"])   # T34: the one non-GET call is POST /api/open (was: no `method:`)
+        self.assertEqual(js.count("\"/api/open?squad="), 1)
         self.assertIsNone(re.search(r"#[0-9a-fA-F]{3,8}\b", js))
 
 

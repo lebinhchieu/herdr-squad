@@ -222,6 +222,8 @@
     wired = true;
     body.addEventListener("click", function (e) {
       var t = e.target;
+      var wa = t.closest && t.closest(".wf a");   /* ticket 34: the Where link goes through the board, the href is the fallback */
+      if (wa) { if (BOARD.openFile) BOARD.openFile(e, wa, wa.parentNode.getAttribute("data-abs")); return; }
       var f = t.closest && t.closest("[data-tf]");
       if (f) { F = f.dataset.tf; draw(); return; }
       var cp = t.closest && t.closest("button[data-copy]");
