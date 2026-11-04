@@ -1,6 +1,6 @@
 # 28 Tasks from the scope's definition
 Duties: plan-owner=manager, design-notes=tech-lead, tech-ac=tech-lead+qa-white, business-ac=ba, code-check=qa-white, behaviour-check=qa-black, ui-check=qa-black, handin-target=qas, suite-owner=tech-lead, promote-owner=tech-lead, risk-owner=tech-lead, doubt-owner=ba, choice-owner=architect. Also conform to `architecture.md` (Status: final). Hand in to BOTH QAs (whitebox, blackbox); never self-merge. QA checks related tickets together (PO, E10).
-Design: none (the Tasks panel keeps its table; one column is added, see Rules).
+Design: `ui-design/design-v7.md` s5 (final) for the text of the Tasks panel: title, Where cell, empty note, loading, error. The Tasks panel keeps its table; one column is added, see Rules.
 Status: ready-for-agent
 Iteration: 2
 Blocked by: none
@@ -57,8 +57,10 @@ Why the board shows 0: it only reads `.scratch/<slug>/issues/NN-*.md` (or a plan
 - **T28.AC15** Given the scope picker row "tasks x of y" and the header count, then y equals the number of Tasks panel rows (the picker said 0 for the PO too).
 - **T28.AC11** Given the same scope seen from a goal view, then each row also carries its Scope (T07.AC9) and the same Where.
 
+- **T28.AC12** Given the built Tasks panel, then it matches `design-v7.md` s5 in each state it lists: title bold, wrapped, at most 2 lines then an ellipsis (tooltip = whole title); no title shows the file name in italic muted; Where cell = repo-relative path, folder part muted and file name bold, link underlined, a task only in a plan table shows `plan table, plan.md` muted with no link; empty = the dashed note `No task files found.` with `Looked in:` and one line per source, real names filled in; loading = `Loading tasks…`; error = dashed `--err` note `Could not read the tasks of this scope.` with file and reason, readable tasks still in the table; a 3-line title is cut at 2 (QA blackbox checks it).
+
 ## Agreement (REV-8)
-BA: written 2026-11-04. QA blackbox: pending confirmation (`tasks/business-ac-agreement.md`).
+BA: written 2026-11-04. QA blackbox: agreed (PASS AC 25-30, 2026-11-04; `tasks/business-ac-agreement.md`).
 
 ## Fixtures (QA blackbox X1)
 In `tests/fixtures` or the fixture squad of ticket 02, three added scopes: (a) `accounts`-style: flat `tasks/01.md`..`04.md` with the four Status lines above, a `tasks/NN/` evidence folder, `TEMPLATE.md`, a non-numbered file, no `.scratch` ticket file; (b) `tickets: slug` whose folder has no `NN-*.md`; (c) only a plan table (`plan.md`) and no task files. Plus `issues-tech/` next to `issues/` in one of them.

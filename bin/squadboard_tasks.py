@@ -110,6 +110,8 @@ def stage(f):
         return "sha changed after PASS", "PASS on %s, branch tip %s" % (sha[:10], tip[:10])
     if f.get("ticket_status") == "done":
         return "done", ""
+    if f.get("ticket_status") == "blocked" and not f.get("blocked"):
+        return "blocked", ""
     if f.get("blocked"):
         return "blocked", f["blocked"][0]
     if f.get("handin"):
@@ -120,7 +122,7 @@ def stage(f):
         if waiting and f.get("wait_s") is not None and not all_pass:
             word += ", waiting on %s, %s" % (" and ".join(waiting), age_words(f["wait_s"]))
         return word, ""
-    if f.get("active"):
+    if f.get("active") or f.get("ticket_status") in ("in progress", "handed in"):
         return "in progress", ""
     return "todo", ""
 
@@ -141,7 +143,7 @@ class _C:
         self.scope_home, self.name = str(home), name
 
 
-def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_detail=False):
+def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_detail=False, looked=None):
     """-> (rows, unknown list, ready list) for one scope folder."""
     unknown, home = [], Path(home)
     recs = squadledger.read_records(home / "messages.jsonl")
@@ -155,6 +157,8 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
     by_id = {t["id"]: t for t in found["tasks"]}
     if found["source"] is None:
         unknown.append("tickets")
+        if looked is not None:
+            looked.extend(x for x in found["looked"] if x not in looked)
     ids = {squadledger.key(i): i for i in by_id}
     roster = _roster(home)
     roles = {r.get("agent"): r.get("role") for r in roster if r.get("agent")}
@@ -296,10 +300,10 @@ def read(sel):
         now = sel.get("now") or time.time()
         since = _since(sel)
         want = sel.get("params", {}).get("detail")
-        rows, unknown, ready = [], [], []
+        rows, unknown, ready, looked = [], [], [], []
         for sname, shome in _scopes_of(sel):
             r, u, rd = read_scope(squad.name, sname, shome, sel.get("repo_root"), since, now,
-                                  with_detail=bool(want))
+                                  with_detail=bool(want), looked=looked)
             for x in r:
                 if goal:
                     x["scope"] = sname
@@ -311,7 +315,8 @@ def read(sel):
         if goal:
             for x in rows:
                 new_by_scope[x["scope"]] = new_by_scope.get(x["scope"], 0) + x["new_count"]
-        data = {"rows": rows, "ready_for_review": ready, "scope_column": goal, "new_by_scope": new_by_scope}
+        data = {"rows": rows, "ready_for_review": ready, "scope_column": goal, "new_by_scope": new_by_scope,
+                "looked": looked}
         return {"data": data, "quality": "exact" if not unknown else "approx", "unknown": unknown}
     except Exception:  # a reader never raises
         return {"data": None, "quality": "unknown", "unknown": ["tasks"]}

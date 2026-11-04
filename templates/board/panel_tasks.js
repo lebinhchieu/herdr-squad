@@ -27,7 +27,7 @@
       return { key: (r.scope ? r.scope + "/" : "") + r.id, id: r.id, scope: r.scope || "", title: r.title, stage: r.stage, ready: isReady(r.stage),
                done: isDone(r.stage), cls: stageClass(r.stage), owner: r.owner, waits: r.waits_on, lastIso: r.last_active_iso || null,
                last: secs == null ? "no activity recorded" : BOARD.ageWords(secs), returns: r.returns || 0, failLine: r.last_fail_line || "",
-               note: r.detail_note || "", branch: r.branch || "", newCount: r.new_count > 0 ? r.new_count : 0 };
+               note: r.detail_note || "", where: r.where || "", branch: r.branch || "", newCount: r.new_count > 0 ? r.new_count : 0 };
     });
   }
   function filterRows(rows, f) {
@@ -36,7 +36,7 @@
   /* the columns the panel really has (ticket 20); the Columns control in board.js lists these */
   var COLS = [{ id: "task", label: "Task", identity: true }, { id: "title", label: "Title" }, { id: "stage", label: "Stage" },
               { id: "last_active", label: "Last active" }, { id: "happened", label: "What happened" }, { id: "owner", label: "Owner" },
-              { id: "waits", label: "Waits on" }];
+              { id: "waits", label: "Waits on" }, { id: "where", label: "Where it lives" }];
   BOARD.rowsForTasks = rowsForTasks; BOARD.taskStageClass = stageClass; BOARD.taskFilter = filterRows;
 
   /* ---------- drawing ---------- */
@@ -145,7 +145,11 @@
     var all = rowsForTasks(d, c.now), rows = filterRows(all, F);
     var nOpen = all.filter(function (r) { return !r.done; }).length, nReady = all.filter(function (r) { return r.ready; }).length;
     c.setCount(all.length, nReady > 0);
-    if (!all.length) { body.appendChild(el("p", "muted", "No tasks yet. The Manager has not published tickets for this choice.")); return; }
+    if (!all.length) {
+      var lk = (d && d.looked) || [];
+      body.appendChild(el("p", "muted", "No task files found." + (lk.length ? " Looked in: " + lk.join(", ") + "." : "")));
+      return;
+    }
     var tools = el("div", "tools");
     [["all", "All (" + all.length + ")"], ["open", "Open (" + nOpen + ")"], ["review", "Ready for review (" + nReady + ")"],
      ["done", "Done (" + (all.length - nOpen) + ")"]].forEach(function (f) {
@@ -178,6 +182,7 @@
       cell.happened = wh;
       cell.owner = el("td", null, r.owner);
       cell.waits = el("td", null, r.waits);
+      cell.where = el("td", null, r.where);
       cols.forEach(function (k) { tr.appendChild(cell[k.id]); });
       tb.appendChild(tr);
       if (OPEN === r.key) {

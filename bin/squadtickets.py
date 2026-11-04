@@ -59,9 +59,14 @@ def title_of(text, nn, stem=""):
 def status_of(text):
     """`Status:` value in the first 12 lines, lowercase, first word only."""
     for line in (text or "").splitlines()[:12]:
-        m = re.match(r"^Status:[ \t]*(\S*)", line)
+        m = re.match(r"^Status:[ \t]*(.*)$", line)
         if m:
-            return m.group(1).lower().rstrip(",;:")
+            v = m.group(1).strip().lower()
+            for phrase in ("handed in", "in progress"):
+                if v.startswith(phrase):
+                    return phrase
+            w = re.match(r"[^\s,;:(]*", v)
+            return w.group(0)
     return ""
 
 
@@ -119,7 +124,7 @@ def scope_tasks(scope_home, repo_root=None, name=None):
     try:
         return _scope_tasks(scope_home, repo_root, name)
     except Exception:  # a reader never raises
-        return {"tasks": [], "source": None, "dir": None, "tried": []}
+        return {"tasks": [], "source": None, "dir": None, "tried": [], "looked": []}
 
 
 def _scope_tasks(scope_home, repo_root, name):
@@ -158,7 +163,7 @@ def _scope_tasks(scope_home, repo_root, name):
             found = (src, rows, dirr)
             break
     src, rows, dirr = found
-    return {"tasks": rows, "source": src, "dir": dirr, "tried": tried}
+    return {"tasks": rows, "source": src, "dir": dirr, "tried": tried, "looked": tried}
 
 
 def find_tickets(c, raw_tokens):

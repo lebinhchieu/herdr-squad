@@ -7,13 +7,15 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "bin"))
 import board_fixtures  # noqa: E402
 import squadboard  # noqa: E402
-import squadboard_list  # noqa: E402
+import squadboard_list
+import squadtickets  # noqa: E402
 import squadboard_tasks as bt  # noqa: E402
 
 NOW = board_fixtures.REF.timestamp()
@@ -123,15 +125,16 @@ class Tasks(unittest.TestCase):
         self.assertIn("tickets", r["unknown"])
 
     def test_T19_same_folder_rule_as_list(self):
-        """TA3: this reader finds the same ticket files as squadboard_list over every fixture scope."""
+        """T28.TA1: reader and list both call squadtickets.scope_tasks, so they find the same ids over every fixture scope."""
         squad = squadboard.Squad(self.fx.squad, "fix")
         for kind_dir in ("scopes", "scopes/_done"):
             base = Path(squad.path) / kind_dir
             for home in sorted(p for p in base.iterdir() if p.is_dir() and not p.name.startswith("_")) if base.is_dir() else []:
                 text = (home / "scope.md").read_text(encoding="utf-8") if (home / "scope.md").exists() else ""
                 want = squadboard_list._tickets(squad, home, text, None)
-                got, tdir = bt._ticket_folder(squad.repo_root, home, home.name)
-                self.assertEqual(None if want is None else set(want), None if tdir is None else set(got), home.name)
+                r = squadtickets.scope_tasks(home, squad.repo_root, home.name)
+                got = None if r["source"] is None else {t["id"] for t in r["tasks"]}
+                self.assertEqual(None if want is None else set(want), got, home.name)
 
     def test_TA10_broken_sources_never_raise(self):
         fx = board_fixtures.copy_fixture(git=False)
@@ -155,6 +158,32 @@ class Tasks(unittest.TestCase):
             self.assertNotIn("CANARY", out)
         finally:
             board_fixtures.cleanup(fx)
+
+
+class ScopeFilesShape(unittest.TestCase):
+    """T28.TA3/TA4/TA6: the accounts/cswitch-bg shape (flat tasks/NN.md) through the board reader and the list."""
+
+    def test_T28_cswitch_shape_rows_stage_and_list(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td).resolve()
+            (root / ".scratch").mkdir()
+            home = root / ".claude" / "squads" / "accounts" / "scopes" / "cswitch-bg"
+            (home / "tasks").mkdir(parents=True)
+            (home / "tasks" / "01.md").write_text(
+                "# 01 Repro: what cswitch meets on a pane with background work\nStatus: done (Manager-confirmed; QA at the end)\n", encoding="utf-8")
+            (home / "tasks" / "02.md").write_text("# 02 Second\nStatus: handed in e8a7c5f, Manager-confirmed\n", encoding="utf-8")
+            (home / "tasks" / "notes.md").write_text("# n\n", encoding="utf-8")
+            rows, unknown, _ = bt.read_scope("accounts", "cswitch-bg", home, root, None, NOW, git=([], []))
+            self.assertNotIn("tickets", unknown)
+            self.assertEqual([r["id"] for r in rows], ["01", "02"])
+            self.assertEqual((rows[0]["title"], rows[0]["stage"], rows[0]["ticket_status"]),
+                             ("Repro: what cswitch meets on a pane with background work", "done", "done"))
+            self.assertEqual(rows[1]["stage"], "in progress")
+            for k in ("id", "title", "stage", "owner", "where", "ticket_status", "abs"):
+                self.assertIn(k, rows[0])
+            self.assertEqual(rows[0]["where"], ".claude/squads/accounts/scopes/cswitch-bg/tasks/01.md")
+            squad = SimpleNamespace(repo_root=root)
+            self.assertEqual(squadboard_list._tickets(squad, home, "", None), {"01": "done", "02": "handed in"})
 
 
 if __name__ == "__main__":

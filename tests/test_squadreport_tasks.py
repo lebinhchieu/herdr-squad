@@ -42,6 +42,7 @@ def build(tmp, origin=True):
     (issues / "09-nine.md").write_text("# 09: Nine\n", encoding="utf-8")
     home = Path(tmp) / ".claude" / "squads" / "sq" / "scopes" / "sc"
     home.mkdir(parents=True)
+    (home / "scope.md").write_text("tickets: feat\n", encoding="utf-8")  # T28: the line is the rule, no guess
     f1 = "FAIL 07:  one   blocking\n finding, tests only"
     f2 = "FAIL 07 " + "x" * 300
     msgs = [
