@@ -541,16 +541,16 @@
   }
   var CSS = [
     ".tl{position:relative}",
-    ".tl-bar{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--border);padding:4px 0 5px;margin-bottom:6px}",
-    ".tl-r{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:3px}.tl-r:first-child{margin-top:0}",
-    ".tfl{font-weight:700;min-width:2.8em}",
-    ".tc,.tl .cp{display:inline-flex;align-items:center;height:1.6em;line-height:1;border:1px solid var(--border);background:var(--bg);border-radius:.8em;padding:0 .7em;white-space:nowrap}",
-    ".tc:hover{border-color:var(--mango)}.tc.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}",
-    ".tl .seg{display:inline-flex;gap:0}.tl .seg button{border:1px solid var(--border);background:var(--bg);padding:0 .6em;height:1.6em}",
-    ".tl .seg button:first-child{border-radius:.8em 0 0 .8em}.tl .seg button:last-child{border-radius:0 .8em .8em 0;border-left:0}",
-    ".tl-gap{margin-left:auto;display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;color:var(--muted)}",
+    ".tl-bar{position:sticky;top:var(--bt,0px);z-index:30;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:.75em;margin-bottom:6px}",
+    ".tl-r{position:relative;display:flex;gap:.67em;align-items:center;flex-wrap:wrap;margin-top:.6em;padding-left:3.4em}.tl-r:first-child{margin-top:0}",
+    ".tfl{position:absolute;left:0;top:0;height:2.2em;display:flex;align-items:center;font-weight:700;font-size:.85em;font-variant:small-caps;text-transform:lowercase;letter-spacing:.04em;color:var(--muted)}",
+    ".tc,.tl .cp{display:inline-flex;align-items:center;height:2.2em;box-sizing:border-box;line-height:1;border:1px solid var(--border);background:var(--bg);color:var(--ink);border-radius:999px;padding:0 .85em;white-space:nowrap}",
+    ".tc:hover,.tl .cp:hover,.tl .seg button:hover{border-color:var(--ink)}.tc.on{background:var(--t-need);color:var(--ink);border-color:var(--mango);font-weight:700}",
+    ".tl .seg{display:inline-flex;gap:0}.tl .seg button{border:1px solid var(--border);background:var(--bg);color:var(--ink);padding:0 .7em;min-width:2.6em;height:2.2em;box-sizing:border-box}",
+    ".tl .seg button:first-child{border-radius:999px 0 0 999px}.tl .seg button:last-child{border-radius:0 999px 999px 0;border-left:0}",
+    ".tl-gap{margin-left:auto;display:inline-flex;gap:.67em;align-items:center;flex-wrap:wrap;color:var(--muted)}",
     ".tl-gap select{font:inherit;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--ink);padding:0 3px}",
-    ".tl-rng{color:var(--ink)}.tl-rng .muted{font-weight:400}.tfs{margin-left:auto}",
+    ".tl-r.tl-rng{padding-left:0;padding-top:.6em;border-top:1px dashed var(--border);color:var(--ink)}.tl-rng .muted{font-weight:400}.tl-rng .err{color:var(--err);font-weight:400}.tfs{margin-left:auto}",
     ".ap{font-size:.83em;font-style:italic;color:var(--muted);margin-left:3px}",
     ".tl-leg{display:flex;flex-wrap:wrap;gap:2px 11px;color:var(--muted);margin:2px 0 6px;align-items:center}.tl-leg span{display:inline-flex;gap:4px;align-items:center;white-space:nowrap}",
     ".sw{display:inline-block;width:1em;height:.75em;border-radius:2px}",
@@ -561,7 +561,7 @@
     ".brk-sw{background:repeating-linear-gradient(135deg,var(--t-idle) 0 3px,var(--bg) 3px 6px);border:1px solid var(--muted2)}",
     ".tl-chart{position:relative;outline:none}.tl-chart:focus-visible{outline:2px solid var(--mango);outline-offset:2px}",
     ".tl-axis,.tl-row{display:grid;grid-template-columns:var(--lw) 1fr;gap:6px}",
-    ".tl-axis{position:sticky;top:var(--barh,0px);z-index:25;background:var(--bg);border-bottom:1px solid var(--border)}",
+    ".tl-axis{position:sticky;top:calc(var(--barh,0px) + var(--bt,0px));z-index:25;background:var(--bg);border-bottom:1px solid var(--border)}",
     ".tl-axis .pl{position:relative;height:2.9em;user-select:none}",
     ".tl-axis .days{position:absolute;left:0;right:0;top:0;height:1.3em;border-bottom:1px solid var(--border)}",
     ".tl-axis .dy{position:absolute;top:0;bottom:0;border-left:1px solid var(--muted2);padding:0 .35em;font-weight:700;white-space:nowrap;overflow:hidden;display:flex;align-items:center;color:var(--ink)}",
@@ -691,12 +691,14 @@
     sel.addEventListener("change", function () { T.setGap(+sel.value); });
     lab.appendChild(sel); g.appendChild(lab);
     var real = chip("Show real time", V.real, function () { T.setReal(!V.real); }); real.setAttribute("aria-pressed", V.real ? "true" : "false"); real.dataset.real = "1";
-    g.appendChild(real); r2.appendChild(g);
+    g.appendChild(real);
     var r3 = el("div", "tl-r tl-rng"), same = loc(r.from, tz).d === loc(r.to, tz).d && r.to - r.from < DAY;
     r3.appendChild(el("b", null, dayLabel(r.from, tz) + " " + hhmm(r.from, tz) + " → " + (same ? "" : dayLabel(r.to, tz) + " ") + hhmm(r.to, tz)));
     var nb = sc.breaks.length;
     r3.appendChild(el("span", "muted", "· " + durLabel(r.to - r.from) + (V.real ? " · real time" : nb ? " · " + nb + " gap" + (nb === 1 ? "" : "s") + " collapsed" : " · nothing to collapse")
-      + (V.loadingRange ? " · loading" : "") + (V.err ? " · could not load this range" : "")));
+      + (V.loadingRange ? " · loading" : "")));
+    if (V.err) r3.appendChild(el("span", "err", "· could not load this range"));
+    r3.appendChild(g);
     if (V.hl) {
       var f = el("span", "tfs"); f.appendChild(root.document.createTextNode("Following "));
       f.appendChild(el("b", null, V.hl === "—" ? "unattributed time" : "task " + V.hl)); f.appendChild(root.document.createTextNode(" "));
@@ -943,6 +945,10 @@
   /* measure the plot (px) once it is in the page; draw again when it changed, so ticks and labels fit */
   function fit(c) {
     var bar = c.tl.querySelector(".tl-bar");
+    /* the scrolling panel body has top padding; sticky sticks below it, so pull the bar up by that much (no strip above it) */
+    var sp = c.tl.parentNode, pt = 0;
+    while (sp && sp.nodeType === 1) { var cs = getComputedStyle(sp); if (/(auto|scroll)/.test(cs.overflowY)) { pt = parseFloat(cs.paddingTop) || 0; break; } sp = sp.parentNode; }
+    c.tl.style.setProperty("--bt", (-pt) + "px");
     c.tl.style.setProperty("--barh", (bar ? bar.offsetHeight : 0) + "px");
     c.ov.style.top = c.axis.offsetHeight + "px";
     var w = c.ov.clientWidth;
