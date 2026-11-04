@@ -76,6 +76,10 @@ def page(body, size="1440,900", saved=None, hash_="#/scope/checkout"):
     return run_page(PRE + body, real, hash_, HEAD_ALL, size)
 
 
+def fixture(name):
+    return json.loads((HERE / "fixtures" / "board" / "layout-35" / name).read_text(encoding="utf-8"))
+
+
 def overlap(a, b):
     return a["l"] < b["l"] + b["w"] - 1 and b["l"] < a["l"] + a["w"] - 1 and a["t"] < b["b"] - 1 and b["t"] < a["b"] - 1
 
@@ -175,10 +179,7 @@ out(o);""")
         self.assertFalse(r["cols"])
 
     def test_T35_TA5_old_layout_migrates_and_first_save_drops_col_and_span(self):
-        saved = {"version": 1, "saved_at": "2026-11-03T10:00:00.000Z", "font": "normal", "panels": {
-            "inbox": {"col": 0, "order": 0, "hidden": False, "span": 3}, "tasks": {"col": 1, "order": 0, "hidden": False},
-            "agents": {"col": 0, "order": 1, "hidden": False}, "files": {"col": 1, "order": 1, "hidden": False, "max_height": 300},
-            "worktime": {"col": 0, "order": 2, "hidden": False}, "scopes": {"col": 0, "order": 3, "hidden": True}}}
+        saved = fixture("board-ui-iter2.json")
         r = page("""const pg=await start35(cur.saved);const o={dom:$$('#canvas>section.panel').filter(e=>!e.hidden).map(e=>e.dataset.panel),w:boxes().map(b=>b.w)};
 pg.setFont('large');await sleep(300);pg.setFont('normal');await sleep(300);o.snap=pg.snapshot();o.puts=window.__puts||[];out(o);""", saved=saved)
         self.assertEqual(r["dom"], ["inbox", "tasks", "agents", "files", "worktime"])
@@ -206,6 +207,74 @@ out({n:getComputedStyle($('#canvas')).getPropertyValue('--n').trim(),b:boxes(),w
         self.assertEqual(int(r["n"]), 2)
         self.assertTrue(all(x["l"] + x["w"] <= r["w"] for x in r["b"]))
         self.assertEqual(len({x["l"] for x in r["b"]}), 1)   # one full-width panel per row
+
+    def test_T35_AC5_hide_and_show_round_trip_returns_to_the_place(self):
+        r = page("""const pg=await start35();const b0=boxes();
+pg.panels.tasks.hide.click();await sleep(300);const hid=boxes().map(b=>b.id);
+document.querySelector('.hb[aria-haspopup]').click();document.querySelector('.pop button').click();await sleep(300);
+out({b0,hid,b1:boxes(),order:Object.entries(pg.snapshot().panels).sort((a,b)=>a[1].order-b[1].order).map(e=>e[0])});""")
+        self.assertNotIn("tasks", r["hid"])
+        self.assertEqual(r["b1"], r["b0"])                      # same place, same size
+        self.assertEqual(r["order"].index("tasks"), 2)
+
+    def test_T35_AC7_south_edge_changes_height_only_and_fit_returns(self):
+        r = page("""const pg=await start35();const a=pg.panels.tasks,box=()=>boxes().find(b=>b.id==='tasks');
+const b0=box(),s=a.el.querySelector('.rz.s'),sr=s.getBoundingClientRect();
+s.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:sr.left+20,clientY:sr.top+3,button:0}));
+document.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:sr.left+20,clientY:sr.top+103}));
+document.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:sr.left+20,clientY:sr.top+103}));await sleep(300);
+const b1=box(),all1=boxes();a.fit.click();await sleep(300);out({b0,b1,b2:box(),all1,mh:a.max_height,all2:boxes()});""")
+        self.assertGreater(r["b1"]["h"], r["b0"]["h"] + 80)
+        self.assertEqual((r["b1"]["l"], r["b1"]["w"]), (r["b0"]["l"], r["b0"]["w"]))   # width and side stay
+        self.assertIsNone(r["mh"])
+        self.assertAlmostEqual(r["b2"]["h"], r["b0"]["h"], delta=2)
+        for i, x in enumerate(r["all1"]):
+            for y in r["all1"][i + 1:]:
+                self.assertFalse(overlap(x, y), (x["id"], y["id"]))
+
+    def test_T35_AC9_reset_returns_default_order_and_drops_max_height(self):
+        saved = fixture("board-ui-files6.json")
+        saved["panels"]["tasks"].update(order=6, max_height=200)
+        r = page("""const pg=await start35(cur.saved);const o={before:boxes()};
+pg.resetLayout();await sleep(400);const sn=pg.snapshot().panels;
+o.order=Object.entries(sn).sort((a,b)=>a[1].order-b[1].order).map(e=>e[0]);o.mh=Object.values(sn).map(p=>p.max_height);
+o.tr=Object.values(sn).map(p=>p.tracks);o.after=boxes();out(o);""", saved=saved)
+        self.assertEqual(r["order"], ["inbox", "scopes", "tasks", "agents", "files", "worktime"])
+        self.assertTrue(all(m in (None, 0) for m in r["mh"]))
+        self.assertTrue(all(t is None for t in r["tr"]))        # Files at 6 twelfths is back to the default
+        self.assertNotEqual(r["before"], r["after"])
+
+    def test_T35_AC6d_empty_box_when_every_panel_is_hidden(self):
+        saved = fixture("board-ui-files6.json")
+        for p in saved["panels"].values():
+            p["hidden"] = True
+        r = page("""await start35(cur.saved);const e=$('#canvas .empty');
+out({shown:boxes().length,empty:!!e&&!e.hidden,text:e&&e.textContent,n:getComputedStyle($('#canvas')).getPropertyValue('--n').trim()});""", saved=saved)
+        self.assertEqual(r["shown"], 0)
+        self.assertTrue(r["empty"])
+        self.assertIn("Panels", r["text"])
+
+    def test_T35_AC12_goal_view_has_scopes_in_the_grid_and_banner_outside(self):
+        r = page("""const pg=await start35();pg.setChoice('goal:G');await sleep(1500);
+const b=boxes(),sl=document.querySelector('.bannerslot');
+out({ids:b.map(x=>x.id),b,banner:!sl||!sl.closest('#canvas')});""")
+        self.assertIn("scopes", r["ids"])
+        self.assertTrue(r["banner"])
+        for i, x in enumerate(r["b"]):
+            for y in r["b"][i + 1:]:
+                self.assertFalse(overlap(x, y), (x["id"], y["id"]))
+
+    def test_T35_bad_tracks_values_fall_back_and_files_at_six_twelfths(self):
+        for name, files in (("board-ui-bad-tracks.json", 6), ("board-ui-files6.json", 6)):
+            r = page("""const pg=await start35(cur.saved);out({b:boxes(),w:$('#canvas').getBoundingClientRect().width,
+tr:Object.fromEntries(Object.entries(pg.snapshot().panels).map(e=>[e[0],e[1].tracks===undefined?null:e[1].tracks]))});""", saved=fixture(name))
+            w = {x["id"]: x["w"] for x in r["b"]}
+            self.assertEqual(len(w), 5, name)   # Scopes is drawn in a goal view only
+            self.assertAlmostEqual(w["files"], (r["w"] - 12 * 3) / 4 * 2 + 12, delta=3, msg=name)   # 6/12 of 4 tracks = 2 tracks
+            if "bad" in name:
+                for pid in ("inbox", "tasks", "agents"):
+                    self.assertIsNone(r["tr"][pid], (name, pid))       # 0, "wide", 99 (and -2 on Scopes), "wide", 99 are dropped
+                    self.assertLessEqual(w[pid], r["w"], (name, pid))
 
 
 if __name__ == "__main__":

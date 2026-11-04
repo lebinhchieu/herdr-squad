@@ -1,0 +1,39 @@
+{
+ "font": "normal",
+ "panels": {
+  "agents": {
+   "col": 0,
+   "hidden": false,
+   "order": 1
+  },
+  "files": {
+   "col": 1,
+   "hidden": false,
+   "max_height": 300,
+   "order": 1
+  },
+  "inbox": {
+   "col": 0,
+   "hidden": false,
+   "order": 0,
+   "span": 3
+  },
+  "scopes": {
+   "col": 0,
+   "hidden": true,
+   "order": 3
+  },
+  "tasks": {
+   "col": 1,
+   "hidden": false,
+   "order": 0
+  },
+  "worktime": {
+   "col": 0,
+   "hidden": false,
+   "order": 2
+  }
+ },
+ "saved_at": "2026-11-03T10:00:00.000Z",
+ "version": 1
+}
