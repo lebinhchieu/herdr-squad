@@ -15,9 +15,12 @@ Real server on the ticket-02 fixture (`squad-board --scope checkout`), Chrome 14
 
 ## Known limits and differences from the design
 - Tab title: `/api/inbox` needs a choice (400 without), so the picker keeps the ticket 11 client sum until a choice is selected. Manager to know.
-- AC3 uses the word "recommended", not "Manager recommends".
+- AC3 now shows "Manager recommends" (QA blackbox fix).
+- Headline of other scopes counts items (sum of chips); the count line explains branches ready for review.
+- Other scopes are one chip per scope, not per item: the payload `others` has `{scope, n}` only. Added an "Open the picker" button.
+- Approved by the Manager (FINAL 12), data-limited: no "Agents involved" column in Tasks (agents are in the task detail, AC8; ticket 20 drops it from its column list unless data exists); no permission prompt text, "Blocks:", "waiting N min" (banner = agent and pane, AC6).
 - AC10: no "Park: copy command" button; the command is text with a "copy" button.
-- Not built (no data in the payload): "Agents involved" column, ready-for-review item in Needs you, "Open the picker" button in the others note.
+- Not built (no data in the payload): ready-for-review item in Needs you.
 - "retired" is a button styled as a disclosure.
 - `board.js` diff is 0 lines (TA1 says 3): panels self-register via `BOARD.registerPanel`.
 - Files outside the touched list: `bin/squadboard_inbox.py`, `tests/test_squadboard_inbox.py`, `templates/board/index.html`, `tests/test_squadboard_page.py`.

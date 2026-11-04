@@ -16,7 +16,7 @@
 
   function optionRows(opts) {
     return (opts || []).map(function (o, i) {
-      return { key: o.key || "ABCDEFGH".charAt(i), text: o.text, recommended: o.recommended === true, word: o.recommended === true ? "recommended" : "" };
+      return { key: o.key || "ABCDEFGH".charAt(i), text: o.text, recommended: o.recommended === true, word: o.recommended === true ? "Manager recommends" : "" };
     });
   }
 
@@ -214,7 +214,8 @@
     var others = d.others || [];
     if (others.length) {
       var o = el("p", "nb-out");
-      o.appendChild(el("b", null, others.length + " more " + (others.length === 1 ? "needs" : "need") + " you in other goals and scopes: "));
+      var items = others.reduce(function (a, x) { return a + (x.n || 0); }, 0);
+      o.appendChild(el("b", null, items + " more " + (items === 1 ? "item needs" : "items need") + " you in other goals and scopes: "));
       others.forEach(function (x) {
         var b = el("button", "cp", x.scope + " · " + x.n); b.type = "button"; b.title = "Look at " + x.scope;
         b.addEventListener("click", function () {
@@ -223,6 +224,9 @@
         });
         o.appendChild(b); o.appendChild(root.document.createTextNode(" "));
       });
+      var pk = el("button", "cp", "Open the picker"); pk.type = "button";
+      pk.addEventListener("click", function () { var b = root.document.getElementById("selbtn"); if (b) b.click(); });
+      o.appendChild(pk);
       body.appendChild(o);
     }
     var shown = R.open.concat(R.perms).length;
@@ -238,6 +242,7 @@
         R.open.forEach(function (r) { ol.appendChild(openItem(r, multi)); });
         body.appendChild(ol);
       } else body.appendChild(el("p", "muted", "No open question here. The count also holds branches ready for review: see Tasks."));
+      if (shown && d.count_choice > shown) body.appendChild(el("p", "muted", "The count of " + d.count_choice + " also holds " + (d.count_choice - shown) + " branch" + (d.count_choice - shown === 1 ? "" : "es") + " ready for review: see Tasks."));
     }
     section(body, R.parkedLabel, chip("park", "not counted in the tab title"));
     if (R.parked.length) { var pl = el("ol", "nb-items"); R.parked.forEach(function (q) { pl.appendChild(parkedItem(q)); }); body.appendChild(pl); }

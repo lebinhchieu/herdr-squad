@@ -466,8 +466,8 @@ out({title:item.querySelector('b:not(.nb-opts b)').textContent,id:item.dataset.i
         self.assertEqual(r["openLabel"], "Open now (1)")
         self.assertRegex(r["age"], r"\d+ h ago|age unknown")
         self.assertEqual([x[1] for x in r["rec"]], [True, False])
-        self.assertIn("recommended", r["rec"][0][0])
-        self.assertNotIn("recommended", r["rec"][1][0])
+        self.assertIn("Manager recommends", r["rec"][0][0])
+        self.assertNotIn("Manager recommends", r["rec"][1][0])
         self.assertEqual((r["code"], r["clip"], r["copyRet"]), ("squad-inbox answer E1", ["squad-inbox answer E1"], "squad-inbox answer E1"))
         self.assertEqual(r["labels"], [])   # AC10: no control is labelled answer, park, merge, approve, delete
 
