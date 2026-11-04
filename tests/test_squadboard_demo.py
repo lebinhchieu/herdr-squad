@@ -185,8 +185,15 @@ class RunningDemo(unittest.TestCase):
             self.assertIsNone(squad_dir)
 
     def test_T37_TA6_AC8_AC10_read_only_and_cleaned(self):
-        copy = Path(self.mains[0][self.mains[0].index("--squad") + 1]).parents[3]
+        squad = Path(self.mains[0][self.mains[0].index("--squad") + 1])
+        copy = squad.parents[3]
         self.assertTrue(copy.is_dir())
+        token = self.get("/api/session")["data"]["token"]  # the board's one write: PUT /api/ui lands in the copy
+        req = urllib.request.Request("http://127.0.0.1:%d/api/ui?squad=fix" % self.port, method="PUT",
+                                     data=json.dumps({"saved_at": "2026-11-04T10:00:00Z"}).encode(),
+                                     headers={"X-Board-Token": token, "Content-Type": "application/json"})
+        self.assertEqual(urllib.request.urlopen(req, timeout=10).status, 200)
+        self.assertTrue((squad / "board-ui.json").is_file())
         self.stop.set()
         self.thread.join(10)
         self.assertFalse(copy.exists())
