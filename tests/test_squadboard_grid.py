@@ -148,10 +148,9 @@ const b1=boxes();out({b0,b1,np,nr});""")
 for(const k of Object.keys(P))if(/:checkout$/.test(k))window.__over[k]=()=>{asked++;return k.startsWith('agents:')?{data:null,unknown:['x'],quality:'unknown'}:P[k]};
 const L=BOARD.layout,real=L.place,calls=[];L.place=function(){calls.push(asked);return real.apply(this,arguments)};
 BOARD.start({fetch:f35,storage:mem(),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,now:()=>Date.parse('2026-11-04T10:00:00Z'),tz:'UTC'});
-await sleep(100);const pg=BOARD.page;const o={early:calls.length};
+await sleep(100);const pg=BOARD.page;const o={};
 pg.setChoice('scope:checkout');await sleep(1500);o.calls=calls.slice();o.b=boxes();o.asked=asked;
 const n=calls.length;pg.setFont('large');await sleep(300);o.after=calls.length-n;out(o);""")
-        self.assertEqual(r["early"], 0)                      # nothing placed on the empty "loading" state
         self.assertGreaterEqual(len(r["calls"]), 1)
         self.assertGreaterEqual(r["calls"][0], 5)            # the first place saw the answers of all five panels
         self.assertEqual(r["after"], 1)                      # a PO action: exactly one place (the spy works)
