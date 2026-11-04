@@ -389,6 +389,70 @@ class RealServer(unittest.TestCase):
         self.assertNotIn("%", re.sub(r"<style.*?</style>", "", dom, flags=re.S).split("<body")[1])
 
 
+class StaleToken(unittest.TestCase):
+    """Ticket 21: a save refused for a stale token is retried once with a fresh token (T21.TA1-TA6)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.srv = Server()
+        _, sess = cls.srv.get("/api/session")
+        _, sq = cls.srv.get("/api/squads")
+        key = json.loads(sq)["data"]["squads"][0]["key"]
+        _, ui = cls.srv.get("/api/ui?squad=" + key)
+        cls.real = {"session": json.loads(sess), "squads": json.loads(sq), "ui": json.loads(ui)}
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.close()
+
+    def test_T21_AC1_AC4_TA1_to_TA6_one_retry_on_token_required_only(self):
+        res = run_page(STUB + """
+mkPanel('1','A',1,4,300);
+const T='token required', H='host not allowed';
+// answers: PUT replies are taken in order as [status, error]; a session GET answers a new token each time
+async function scenario(replies){
+  const calls=[];let n=0;
+  const base=mkFetch({'1':1},{});
+  const f=async(url,opt)=>{
+    if(opt&&opt.method==='PUT'){
+      const [st,err]=replies[Math.min(calls.filter(c=>c.m==='PUT').length,replies.length-1)];
+      calls.push({m:'PUT',tok:opt.headers['X-Board-Token'],body:opt.body,notesHidden:document.querySelector('.notes').hidden});
+      return {ok:st===200,status:st,json:async()=>(err?{error:err}:{schema_version:1,data:{status:'ok'}})};
+    }
+    if(url.startsWith('/api/session')){calls.push({m:'GET'});return {ok:true,status:200,json:async()=>({schema_version:1,data:{token:'new'+(++n)}})}}
+    return base(url,opt);
+  };
+  const page=BOARD.start({fetch:f,tz:'UTC',now:()=>Date.parse('2026-11-04T10:00:00Z'),setTimeout:fk.setTimeout,clearTimeout:fk.clearTimeout,storage:mem()});
+  await sleep(300);
+  calls.length=0;
+  const save=async(font)=>{page.setFont(font);for(const t of fakeTimers.splice(0)){if(t.ms===300)t.f()}await sleep(100)};
+  await save('xl');
+  const out1={calls:calls.map(c=>c.m),toks:calls.filter(c=>c.m==='PUT').map(c=>c.tok),same:calls.filter(c=>c.m==='PUT').every(c=>c.body===calls.find(x=>x.m==='PUT').body),
+    status:page.state.saveStatus,hidden:calls.filter(c=>c.m==='PUT').map(c=>c.notesHidden),note:document.querySelector('.notes').textContent};
+  // a second save starts fresh: one retry again (the counter is per save)
+  calls.length=0;await save('small');out1.second=calls.map(c=>c.m);
+  return out1;
+}
+out({host:await scenario([[403,H]]),ok:await scenario([[403,T],[200]]),twice:await scenario([[403,T],[403,T]]),unw:await scenario([[403,T],[507,'x']])});
+""", self.real)
+        # TA1: a Host refusal is final: one PUT, failed
+        self.assertEqual((res["host"]["calls"], res["host"]["status"]), (["PUT"], "failed"))
+        # TA2 + TA6 (AC1): PUT, new token, same body; ok; the notes stay hidden the whole time
+        ok = res["ok"]
+        self.assertEqual(ok["calls"], ["PUT", "GET", "PUT"])
+        self.assertEqual(ok["toks"][1], "new2")  # boot took new1
+        self.assertNotEqual(ok["toks"][0], ok["toks"][1])
+        self.assertTrue(ok["same"])
+        self.assertEqual((ok["status"], ok["note"]), ("ok", ""))
+        self.assertEqual(ok["hidden"], [True, True])
+        # TA3: refused again -> two PUTs, one session GET, failed; the next save retries once more
+        self.assertEqual((res["twice"]["calls"], res["twice"]["status"]), (["PUT", "GET", "PUT"], "failed"))
+        self.assertEqual(res["twice"]["second"], ["PUT", "GET", "PUT"])
+        # TA4 (AC4): unwritable after the retry, the T09 text, no third PUT
+        self.assertEqual((res["unw"]["calls"], res["unw"]["status"]), (["PUT", "GET", "PUT"], "unwritable"))
+        self.assertIn("cannot be written", res["unw"]["note"])
+
+
 class StaticRules(unittest.TestCase):
     def read(self, name):
         return (TPL / name).read_text(encoding="utf-8")
