@@ -482,7 +482,7 @@ out({chips,segs,ring,hov,hovRules,pw,active:{bg:ons.backgroundColor,bc:ons.borde
                 self.assertTrue(g["lr"][1] >= h and g["lr"][2] >= h and g["lr"][0] == 0 and g["lr"][3] == 0, g["lr"])
                 if "Extra" not in name:
                     self.assertAlmostEqual(g["h"], 26, delta=1)   # 2.2 em at Normal text
-            self.assertEqual(set(r["ring"]), {"minus", "next", "all", "alltasks"})
+            self.assertEqual(set(r["ring"]), {"minus", "prev", "next", "all", "alltasks"})
             for k, v in r["ring"].items():
                 self.assertTrue(v["focus"] and v["out"] == "2px" and v["inside"], (k, v, name))
                 if k in ("minus", "prev", "next"):   # QAB AC6: the ring is painted above the neighbour button, not under it
