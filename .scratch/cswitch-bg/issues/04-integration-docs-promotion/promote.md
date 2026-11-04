@@ -1,0 +1,1 @@
+Nothing lasting beyond `tools/claude-accounts/HANDOFF.md` and `skill/SKILL.md` (both updated). No glossary term for CONTEXT.md: "skipped", "backoff" and "in flight" are plain words used inside one tool.
