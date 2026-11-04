@@ -124,6 +124,21 @@ class Reader(Base):
         gone = dict(self.sel(), home=self.home / "nope")
         self.assertEqual(sf.read(gone), {"data": None, "quality": "unknown", "unknown": ["files"]})
 
+    def test_T29_AC4_AC5_AC9_TA4_TA5_ticket_rows_of_this_scope_only_with_title_and_each_file_once(self):
+        mine = self.squad.repo_root / ".scratch" / "checkout-tasks"  # the fixture scope.md declares `tickets: checkout-tasks`
+        put(mine / "issues" / "10-a.md", "# 10 First ticket\nStatus: ready\n")
+        put(mine / "spec.md", "# Spec\n")
+        put(self.squad.repo_root / ".scratch" / "other" / "issues" / "01-z.md", "# Z\n")
+        put(self.home / "tasks" / "03-x.md", "# 03 Plan ticket\n")
+        rows = sf.read(self.sel())["data"]["rows"]
+        by = {r["name"]: r for r in rows}
+        self.assertEqual(by[".scratch/checkout-tasks/issues/10-a.md"]["kind"], "ticket")  # AC4
+        self.assertEqual(by[".scratch/checkout-tasks/issues/10-a.md"]["what"], "10 First ticket")  # AC11 title
+        self.assertEqual(by[".scratch/checkout-tasks/spec.md"]["kind"], "ticket")  # AC9
+        self.assertFalse([n for n in by if "/other/" in n])  # AC5
+        paths = [r["path"] for r in rows]
+        self.assertEqual(len(paths), len(set(paths)))  # TA5: one row per file
+
     def test_T14_TA6_listing_writes_nothing(self):
         def snap():
             return sorted((str(p), p.stat().st_mtime_ns, hashlib.sha1(p.read_bytes()).hexdigest()) for p in self.squad.path.rglob("*") if p.is_file())
