@@ -72,7 +72,8 @@ class Reader(Base):
         for bad in ("inbox.jsonl", "messages.jsonl", "roles/fix-dev-03.notes.md", "ui-design/img/shot.png"):
             self.assertNotIn(bad, got)
         self.assertFalse([n for n in got if "adr" in n])
-        self.assertEqual([x["name"] for x in rows[:2]], [".scratch", ".claude/squads/fix"])  # T29.AC1
+        self.assertEqual([x["name"] for x in rows[:2]], [".scratch", "fix"])  # T29.AC1
+        self.assertEqual([x["what"] for x in rows[:2]], ["Repo tickets folder", "Squad folder"])
         for x in [y for y in rows if y["kind"] != "folder"]:  # a listed path is the one /api/file takes
             self.assertTrue((self.squad.path / x["path"]).is_file() or Path(x["path"]).is_file(), x)
 

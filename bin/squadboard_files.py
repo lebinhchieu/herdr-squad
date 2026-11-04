@@ -40,6 +40,19 @@ def _scandir(d):
         return []
 
 
+def _title(p, limit=80):
+    """First `# ` heading of ticket file `p` (first 12 lines), cut with an ellipsis; the plain ticket text when none."""
+    try:
+        with open(p, encoding="utf-8", errors="replace") as f:
+            for _, line in zip(range(12), f):
+                if line.startswith("# "):
+                    t = line[2:].strip()
+                    return t if len(t) <= limit else t[:limit - 1].rstrip() + "\u2026"
+    except OSError:
+        pass
+    return WHAT["ticket"]
+
+
 class _Walk:
     def __init__(self, squad, home, roots):
         self.squad, self.home, self.roots = squad, home, roots
@@ -72,7 +85,8 @@ class _Walk:
             name = p.relative_to(self.home).as_posix()
         except ValueError:
             pass
-        self.rows.append({"name": name, "kind": kind, "what": WHAT[kind], "scope": self.home.name, "path": path, "mtime": mtime})
+        what = _title(real) if kind == "ticket" else WHAT[kind]
+        self.rows.append({"name": name, "kind": kind, "what": what, "scope": self.home.name, "path": path, "mtime": mtime})
 
     def files(self, d, exts, kind_of, depth=1, flat=False):
         """Files of folder `d` with an extension in `exts`; recurse into real (not symlinked) subfolders up to DEPTH."""
@@ -97,7 +111,7 @@ class _Walk:
                 continue
 
 
-def _folder_row(p, name, scope, roots):
+def _folder_row(p, name, what, scope, roots):
     """A folder row for real directory `p` (ticket 29), or None when it is missing, a link out of the allow-list, or unreadable."""
     try:
         real = p.resolve(strict=True)
@@ -106,7 +120,7 @@ def _folder_row(p, name, scope, roots):
         mtime = int(real.stat().st_mtime)
     except (OSError, RuntimeError, ValueError):
         return None
-    return {"name": name, "kind": "folder", "what": WHAT["folder"], "scope": scope, "path": str(real), "mtime": mtime}
+    return {"name": name, "kind": "folder", "what": what, "scope": scope, "path": str(real), "mtime": mtime}
 
 
 def _closed(home):
@@ -148,8 +162,8 @@ def list_files(squad, kind, name, home):
     seen = set()  # a file reached by two rules is one row (the first rule's kind wins; `w.rows` is in rule order)
     rows = [r for r in w.rows if not (r["path"] in seen or seen.add(r["path"]))]
     rows.sort(key=lambda r: (-r["mtime"], r["name"]))
-    folders = [f for f in (_folder_row(squad.repo_root / ".scratch", ".scratch", home.name, roots),
-                           _folder_row(squad.path, ".claude/squads/" + squad.name, home.name, roots)) if f]
+    folders = [f for f in (_folder_row(squad.repo_root / ".scratch", ".scratch", "Repo tickets folder", home.name, roots),
+                           _folder_row(squad.path, squad.name, "Squad folder", home.name, roots)) if f]
     report = next((r for r in rows if r["kind"] == "report"), None)
     rows = folders + rows  # folder rows first, always; not counted in files_seen or truncated
     return {"rows": rows, "report": report, "report_expected": kind == "scope", "closed": kind == "scope" and _closed(home),
