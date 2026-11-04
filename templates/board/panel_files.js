@@ -123,8 +123,8 @@
     var s = el("style");
     s.id = "files-css";
     s.textContent =
-      ".fl{width:100%;border-collapse:collapse}.fl th{text-align:left;font-size:.875em;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:2px 8px 3px 0;border-bottom:1px solid var(--border);white-space:nowrap}" +
-      ".fl td{padding:4px 8px 4px 0;border-bottom:1px solid var(--border);vertical-align:top;overflow-wrap:anywhere}.fl .nw{white-space:nowrap}" +
+      ".fl{width:100%;border-collapse:collapse}.fl th{text-align:left;font-size:.875em;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:2px 8px 3px 0;border-bottom:1px solid var(--border)}" +
+      ".fl td{padding:4px 8px 4px 0;border-bottom:1px solid var(--border);vertical-align:top}.fl td:first-child{overflow-wrap:anywhere}.fl .nw{white-space:nowrap}" +
       ".ftools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 6px}.ftools button{border:1px solid var(--border);background:var(--bg);border-radius:8px;padding:0 9px}" +
       ".ftools button[aria-pressed=true]{background:var(--ink);color:var(--bg)}.chip.work{background:var(--t-work);border-color:var(--work)}" +
       ".chip.wait{border-color:var(--wait)}.chip.idle{background:var(--t-idle);border-color:var(--muted2);color:var(--muted)}";
@@ -156,7 +156,8 @@
     tools.appendChild(el("span", "muted", "Time is the file’s modified time."));
     body.appendChild(tools);
     var tb = el("table", "fl"), hd = el("tr");
-    ["File", "Kind", "What", "Scope", "Changed (file time)"].forEach(function (h) { hd.appendChild(el("th", null, h)); });
+    var showScope = !(d && d.report_expected);   /* one scope selected: every row has the same scope, so the column is left out */
+    ["File", "Kind", "What"].concat(showScope ? ["Scope"] : [], ["Changed"]).forEach(function (h) { var th = el("th", null, h); if (h === "Changed") th.title = "The file\u2019s modified time, in your zone"; hd.appendChild(th); });
     tb.appendChild(hd);
     R.rows.forEach(function (r) {
       var tr = el("tr"), a = el("td"), link = el("a", "of", r.name);
@@ -165,7 +166,7 @@
       a.appendChild(link); tr.appendChild(a);
       var k = el("td"); k.appendChild(chip(r.kind === "report" ? "wait" : r.kind === "evidence" ? "work" : "idle", r.kind)); tr.appendChild(k);
       tr.appendChild(el("td", null, r.what));
-      tr.appendChild(el("td", null, r.scope));
+      if (showScope) tr.appendChild(el("td", null, r.scope));
       var t = el("td", "nw");
       if (r.iso) { var tm = el("time", null, c.fmtTime(r.iso)); tm.dateTime = r.iso; tm.title = r.iso.slice(0, 10) + " " + r.iso.slice(11, 16) + " UTC in the files"; t.appendChild(tm); }
       else t.textContent = "—";
@@ -176,7 +177,7 @@
       n.appendChild(chip("unk", R.missing)); mr.appendChild(n);
       var kd = el("td"); kd.appendChild(chip("wait", "report")); mr.appendChild(kd);
       mr.appendChild(el("td", null, "scope report")); mr.appendChild(el("td", null, "")); mr.appendChild(el("td", null, "—"));
-      tb.appendChild(mr);
+      tb.insertBefore(mr, hd.nextSibling);   /* first, so the missing report is seen without scrolling */
     }
     body.appendChild(tb);
     if (!R.rows.length && !R.missing) body.appendChild(el("p", "muted", "No file in this filter."));
