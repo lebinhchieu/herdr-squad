@@ -166,6 +166,7 @@
       var items = measure(vis), pos = BOARD.layout.place(items, G);
       prev = BOARD.layout.recordGrid(items, pos, G);
       items.forEach(function (it, i) { put(vis[i].el, pos[it.id].x, it.span, pos[it.id].y, it.height); });
+      st.panels.forEach(function (q) { var h = q.el.querySelector(".rz.e"); if (h) h.hidden = (SMALLEST[q.id] || 1) >= G; });
     }
     function relayout() { if (!busy) placeNow(); }
 
@@ -290,12 +291,79 @@
       doc.addEventListener("pointercancel", up);
     }
 
+    /* ---- east edge: the span in whole tracks (design-v8 s6). Only an outline, a pill and guides move; the panels move on release ---- */
+    function minOf(p) { return SMALLEST[p.id] || 1; }
+    function setSpan(p, k) {   /* one save, then a placement moment; nothing when the span is the same */
+      if (k === spanOf(p)) return false;
+      opts.set(p.id, { tracks: tracksToWidth(k, G) });
+      opts.changed();
+      placeNow();
+      return true;
+    }
+    function resizeEast(p, e) {
+      if (e.button != null && e.button !== 0) return;
+      var el = p.el, st = opts.get(), r = el.getBoundingClientRect(), cr = canvas.getBoundingClientRect();
+      var cs = root.getComputedStyle(canvas), pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0;
+      G = colCount(root.innerWidth, st.scale);
+      var trackW = (cr.width - pl - pr - (G - 1) * GUTTER) / G, k = spanOf(p), els = [], handle = e.currentTarget || null;
+      var outline = doc.createElement("div"), pill = doc.createElement("div");
+      outline.className = "rzo"; pill.className = "rzp"; outline.appendChild(pill);
+      outline.style.top = r.top + "px"; outline.style.left = r.left + "px"; outline.style.height = r.height + "px";
+      els.push(outline);
+      for (var i = 0; i < G; i++) {
+        [0, 1].forEach(function (side) {
+          var g = doc.createElement("div"); g.className = "rzg";
+          g.style.left = (cr.left + pl + i * (trackW + GUTTER) + (side ? trackW : 0)) + "px";
+          g.style.top = cr.top + "px"; g.style.height = cr.height + "px"; els.push(g);
+        });
+      }
+      els.forEach(function (n) { doc.body.appendChild(n); });
+      busy = true; el.classList.add("rsz"); 
+      if (handle && handle.setPointerCapture && e.pointerId != null) { try { handle.setPointerCapture(e.pointerId); } catch (x) { /* synthetic event */ } }
+      function show() {
+        outline.style.width = (k * trackW + (k - 1) * GUTTER) + "px";
+        pill.textContent = k + " of " + G + " columns";
+      }
+      show();
+      function mv(ev) { k = snapTracks(ev.clientX - r.left, trackW, GUTTER, G, minOf(p)); show(); }
+      function end(cancel) {
+        doc.removeEventListener("pointermove", mv);
+        doc.removeEventListener("pointerup", up);
+        doc.removeEventListener("pointercancel", cp);
+        doc.removeEventListener("keydown", kd, true);
+        root.removeEventListener("resize", cp);
+        els.forEach(function (n) { n.remove(); });
+        el.classList.remove("rsz"); busy = false;
+        if (!cancel) { if (!setSpan(p, k)) placeNow(); } else placeNow();
+      }
+      function up() { end(false); }
+      function cp() { end(true); }
+      function kd(ev) { if (ev.key === "Escape") { ev.preventDefault(); end(true); } }
+      doc.addEventListener("pointermove", mv);
+      doc.addEventListener("pointerup", up);
+      doc.addEventListener("pointercancel", cp);
+      doc.addEventListener("keydown", kd, true);
+      root.addEventListener("resize", cp);
+    }
+    /* handle keys: Left one track narrower, Right one wider; double-click = default width and no saved width */
+    function edgeKey(p, ev) {
+      if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+      ev.preventDefault(); ev.stopPropagation();
+      var k = Math.max(minOf(p), Math.min(G, spanOf(p) + (ev.key === "ArrowRight" ? 1 : -1)));
+      setSpan(p, k);
+    }
+    function edgeReset(p) {
+      if (p.tracks == null) return;
+      opts.set(p.id, { tracks: null }); opts.changed(); placeNow();
+    }
+
     /* ---- keyboard on a focused panel title: Up/Left one place earlier, Down/Right one later (hidden panels are skipped);
        Shift+Up/Down change the height by 80 px; focus stays on the title ---- */
     function key(p, ev) {
       var st = opts.get(), k = ev.key;
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].indexOf(k) < 0) return;
       ev.preventDefault();
+      if (ev.shiftKey && (k === "ArrowLeft" || k === "ArrowRight")) { edgeKey(p, ev); if (p.hdr && p.hdr.focus) p.hdr.focus(); return; }
       if (ev.shiftKey) {
         if (k !== "ArrowUp" && k !== "ArrowDown") return;
         var cur = (p.max_height != null ? p.max_height : p.maxPx) * st.scale;
@@ -316,6 +384,7 @@
     var ro = root.ResizeObserver ? new root.ResizeObserver(function () { request(); }) : null;
     return {
       relayout: relayout, request: request, drag: drag, resize: resize, key: key,
+      resizeEast: resizeEast, edgeKey: edgeKey, edgeReset: edgeReset,
       observe: function (el) { if (ro) ro.observe(el); },
       unobserve: function (el) { if (ro) ro.unobserve(el); }
     };

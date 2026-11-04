@@ -356,6 +356,12 @@
         var h = el("div", "rz " + d2); h.addEventListener("pointerdown", function (e) { e.preventDefault(); e.stopPropagation(); engine.resize(p, d2, e); });
         sec.appendChild(h);
       });
+      var he = el("div", "rz e"); he.setAttribute("role", "separator"); he.setAttribute("aria-orientation", "vertical"); he.tabIndex = 0;
+      he.setAttribute("aria-label", "Resize width of " + def.title);
+      he.addEventListener("pointerdown", function (e) { e.preventDefault(); e.stopPropagation(); engine.resizeEast(p, e); });
+      he.addEventListener("keydown", function (e) { engine.edgeKey(p, e); });
+      he.addEventListener("dblclick", function (e) { e.preventDefault(); engine.edgeReset(p); });
+      sec.appendChild(he);
       p.el = sec; p.hdr = ph;
       ph.addEventListener("pointerdown", function (e) { engine.drag(p, e); });
       ph.addEventListener("keydown", function (e) { if (e.target === ph) engine.key(p, e); });
