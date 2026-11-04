@@ -447,7 +447,7 @@ pe36('pointerup',s.left+Wk(3,4),s.top+20);await sleep(300);out({mid,np,b:boxes()
     def _flush_right_widen(self, travel=True):
         edge = "innerWidth-1"
         return page36("""await start35();const cs=getComputedStyle($('#canvas')),pr=parseFloat(cs.paddingRight)||0,cr=$('#canvas').getBoundingClientRect();
-const b0=box36('tasks'),o={iw:innerWidth,b0,flush:Math.abs(b0.l+b0.w-(cr.width-pr-(parseFloat(cs.paddingLeft)||0)-0))<40||b0.l+b0.w+pr>=cr.width-2};
+const cw=cr.width-pr-(parseFloat(cs.paddingLeft)||0),b0=box36('tasks'),o={iw:innerWidth,b0,all0:boxes(),flush:Math.abs(b0.l+b0.w-cw)<=2};
 const s=down36('tasks'),h=hnd('tasks').getBoundingClientRect();o.p0=puts36().length;
 if(%s){pe36('pointermove',%s,s.top+20);await sleep(50);
   const ol=document.querySelector('.rzo').getBoundingClientRect();o.pill=document.querySelector('.rzp').textContent;o.ol=[Math.round(ol.left),Math.round(ol.right)];}
@@ -456,27 +456,26 @@ o.cr=[Math.round(cr.left),Math.round(cr.right-pr)];o.b=boxes();o.puts=puts36().s
             "true" if travel else "false", edge, edge if travel else "h.left+6"))
 
     def test_T36_AC3_flush_right_panel_widens_by_mouse_to_the_canvas_edge(self):
-        for beyond in (True,):
-            r = self._flush_right_widen()
-            self.assertEqual(r["iw"], 1440)
-            self.assertEqual(r["pill"], "4 of 4 columns", beyond)
-            self.assertGreaterEqual(r["ol"][0], r["cr"][0] - 1, beyond)    # outline inside the canvas
-            self.assertLessEqual(r["ol"][1], r["cr"][1] + 1, beyond)
-            self.assertFalse(r["outline"])
-            self.assertEqual(len(r["puts"]), 1, beyond)                  # one save
-            self.assertEqual(r["puts"][0]["tasks"]["tracks"], 12, beyond)
-            t = [x for x in r["b"] if x["id"] == "tasks"][0]
-            self.assertAlmostEqual(t["w"], r["wcanvas"], delta=2, msg=beyond)   # all four tracks: the content width of the canvas
-            for i, x in enumerate(r["b"]):
-                for y in r["b"][i + 1:]:
-                    self.assertFalse(overlap(x, y), (beyond, x["id"], y["id"]))
+        r = self._flush_right_widen()
+        self.assertTrue(r["flush"])                                   # precondition: Tasks is flush right before the drag
+        self.assertEqual(r["iw"], 1440)
+        self.assertEqual(r["pill"], "4 of 4 columns")
+        self.assertGreaterEqual(r["ol"][0], r["cr"][0] - 1)    # outline inside the canvas
+        self.assertLessEqual(r["ol"][1], r["cr"][1] + 1)
+        self.assertFalse(r["outline"])
+        self.assertEqual(len(r["puts"]), 1)                  # one save
+        self.assertEqual(r["puts"][0]["tasks"]["tracks"], 12)
+        t = [x for x in r["b"] if x["id"] == "tasks"][0]
+        self.assertAlmostEqual(t["w"], r["wcanvas"], delta=2)   # all four tracks: the content width of the canvas
+        for i, x in enumerate(r["b"]):
+            for y in r["b"][i + 1:]:
+                self.assertFalse(overlap(x, y), (x["id"], y["id"]))
 
     def test_T36_AC3_click_without_travel_on_a_flush_right_panel_changes_nothing(self):
         r = self._flush_right_widen(travel=False)
         self.assertEqual(r["puts"], [])
-        self.assertEqual(r["b"], [dict(x) for x in r["b"]])
-        t = [x for x in r["b"] if x["id"] == "tasks"][0]
-        self.assertEqual((t["l"], t["w"]), (r["b0"]["l"], r["b0"]["w"]))
+        self.assertTrue(r["flush"])
+        self.assertEqual(r["b"], r["all0"])                              # every panel where it was
 
     def test_T36_AC3_grab_on_the_gutter_half_of_the_handle_needs_4px_of_travel(self):
         r = page36("""await start35();const cr=$('#canvas').getBoundingClientRect(),y=$('section[data-panel=tasks]').getBoundingClientRect().top+20;
