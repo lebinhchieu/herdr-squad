@@ -13,3 +13,12 @@ Run: test_squadsettings 25, test_team_lead_perms, test_squadrules, test_sizes, t
 
 ## test_ca_launchers error (asked by the Manager)
 `test_scripts_are_syntactically_valid_bash` passes on a `git archive main` copy and fails in this worktree with `IsADirectoryError ... tools/claude-accounts/bin/__pycache__`. Cause: running the file imports `caproc.py`, which writes an ignored `__pycache__` dir; the test globs `bin/` and reads it. Not from this diff (no `tools/` change); it appears on any tree after the first test run that imports caproc.
+
+## Review
+AC trace:
+AC1 | test_squadsettings::test_scratch_rm_allowed_only_under_mktemp_dirs (no `/tmp/tmp.` in ask, 6 roles) | `cd tests; python3 -m unittest test_squadsettings`
+AC2 | same test (exact 4 allow entries in the 6 roles, none elsewhere) | same
+AC3 | safety.md SAFE-11; test_squadsettings, test_team_lead_perms, test_sizes, test_dev_rules_size, test_squadrules | unittest files; `bin/squad-process lint` rc=0
+AC4 | test_squadsettings::test_safe11_rm_examples_match_allow_and_no_ask (`rm -rf /tmp/tmp.A` in allow, not in ask) | same
+
+Fresh-context reviewer (sonnet, high): AC1-AC4 pass, no defects. Script check vs HEAD~1: exactly the 16 `/tmp/tmp.` entries left `ask` in each of 6 roles; allow byte-identical; Atlassian ask kept. Note: the two-path negative control was removed with the entries (no longer true).
