@@ -113,9 +113,10 @@ class EffectiveTest(Base):
             is_at = lambda e: e.startswith(("mcp__atlassian__", "mcp__claude_ai_Atlassian_Rovo__"))
             self.assertEqual([e for e in perms["deny"] if is_at(e)], [], f.name)
             sets[f.stem] = {e for e in perms.get("ask", []) if is_at(e)}
-            if f.stem != "token-coach":
-                self.assertIn("Bash(git push:*)", perms["deny"], f.name)
+            for g in ("push", "rebase", "reset --hard"):
+                self.assertIn(f"Bash(git {g}:*)", perms["deny"], f.name)
         full = sets["dev"]
+        self.assertEqual(len(full), 18)
         for e in ("mcp__atlassian__createJiraIssue", "mcp__claude_ai_Atlassian_Rovo__createJiraIssue"):
             self.assertIn(e, full)
         for role, s in sets.items():
