@@ -131,11 +131,7 @@ class EffectiveTest(Base):
             rm = [e for e in perms.get("allow", []) if e.startswith(("Bash(rm ", "Bash(rmdir "))]
             if f.stem in roles:
                 self.assertEqual(sorted(rm), sorted(f"Bash({c} /tmp/tmp.*)" for c in ("rm -rf", "rm -r", "rm", "rmdir")), f.name)
-                # ask beats allow: the glob's `*` also matches spaces, `..`, `$(...)` and backticks
-                for e in rm:
-                    cmd = e[len("Bash("):-len(" /tmp/tmp.*)")]
-                    for tail in ("* *", "*..*", "*$*", "*`*"):
-                        self.assertIn(f"Bash({cmd} /tmp/tmp.{tail})", perms["ask"], f"{f.name} {e}")
+                self.assertEqual([e for e in perms.get("ask", []) if "/tmp/tmp." in e], [], f.name)
             else:
                 self.assertEqual(rm, [], f.name)
             for e in rm:
@@ -157,11 +153,10 @@ class EffectiveTest(Base):
         for role in ("dev", "qa-whitebox", "qa-blackbox", "manager", "tech-lead", "team-lead"):
             perms = json.loads((ROOT / f"templates/squad/settings/{role}.json").read_text(encoding="utf-8"))["permissions"]
             for c in cmds:
-                self.assertFalse(hit(perms["ask"], c), f"{role}: ask matches {c}")
+                self.assertFalse(hit(perms.get("ask", []), c), f"{role}: ask matches {c}")
                 if "$" not in c:
                     self.assertTrue(hit(perms["allow"], c), f"{role}: no allow for {c}")
-            self.assertTrue(hit(perms["allow"], "rm -rf /tmp/tmp.A") and not hit(perms["ask"], "rm -rf /tmp/tmp.A"))
-            self.assertTrue(hit(perms["ask"], "rm -rf /tmp/tmp.A /tmp/tmp.B"), role)  # negative control
+            self.assertTrue(hit(perms["allow"], "rm -rf /tmp/tmp.A") and not hit(perms.get("ask", []), "rm -rf /tmp/tmp.A"))
 
     def test_ask_unions_and_other_arrays_are_replaced(self):
         r = ss.merge({"permissions": {"ask": ["a"]}, "l": [1, 2]}, {"permissions": {"ask": ["b"]}, "l": [3]})

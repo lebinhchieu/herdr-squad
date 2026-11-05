@@ -71,4 +71,4 @@ Do not read source code, diffs or the Developer's explanation of how it works; n
 roles: dev, qa-whitebox, qa-blackbox
 topic: safety
 
-Scratch dirs: `mktemp -d` only. `cd` out before `rm`. One path per `rm`, no `$`, backtick or `..` (PO prompt): `rm -rf /tmp/tmp.X`; repeat per dir.
+Scratch dirs: `mktemp -d` only. `cd` out before `rm`. One path per `rm`: `rm -rf /tmp/tmp.X`; repeat per dir.
