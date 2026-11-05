@@ -12,21 +12,7 @@
       "Write(/.claude/squads/*/scopes/*/ui-design/**)",
       "Edit(/.claude/squads/*/scopes/*/ui-design/**)"
     ],
-    "deny": [
-      "Bash(git push:*)",
-      "Bash(git merge:*)",
-      "Bash(git rebase:*)",
-      "Bash(git reset --hard:*)",
-      "Bash(git checkout main:*)",
-      "Bash(git checkout dev:*)",
-      "Write(/.claude/squads/*/*.md)",
-      "Edit(/.claude/squads/*/*.md)",
-      "Write(/.claude/squads/*/scopes/*/*.md)",
-      "Edit(/.claude/squads/*/scopes/*/*.md)",
-      "Write(/.claude/squads/*/goals/*/*.md)",
-      "Edit(/.claude/squads/*/goals/*/*.md)",
-      "Write(/.claude/squads/*/settings/**)",
-      "Edit(/.claude/squads/*/settings/**)",
+    "ask": [
       "mcp__atlassian__createJiraIssue",
       "mcp__atlassian__editJiraIssue",
       "mcp__atlassian__transitionJiraIssue",
@@ -45,6 +31,22 @@
       "mcp__claude_ai_Atlassian_Rovo__updateConfluencePage",
       "mcp__claude_ai_Atlassian_Rovo__createConfluenceFooterComment",
       "mcp__claude_ai_Atlassian_Rovo__createConfluenceInlineComment"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git checkout main:*)",
+      "Bash(git checkout dev:*)",
+      "Write(/.claude/squads/*/*.md)",
+      "Edit(/.claude/squads/*/*.md)",
+      "Write(/.claude/squads/*/scopes/*/*.md)",
+      "Edit(/.claude/squads/*/scopes/*/*.md)",
+      "Write(/.claude/squads/*/goals/*/*.md)",
+      "Edit(/.claude/squads/*/goals/*/*.md)",
+      "Write(/.claude/squads/*/settings/**)",
+      "Edit(/.claude/squads/*/settings/**)"
     ]
   }
 }

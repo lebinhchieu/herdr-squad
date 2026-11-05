@@ -12,11 +12,11 @@ topic: safety
 
 Never push or deploy. Merge only as [MRG-1] allows. Never approve a permission for another agent.
 
-## SAFE-2 No Jira or Confluence writes
+## SAFE-2 Jira, Confluence writes ask
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, token-coach
 topic: safety
 
-No writes to Jira or Confluence. Read only.
+A write needs PO approval; read is free.
 
 ## SAFE-3 Close what you open
 roles: all
@@ -71,4 +71,4 @@ Do not read source code, diffs or the Developer's explanation of how it works; n
 roles: dev, qa-whitebox, qa-blackbox
 topic: safety
 
-Scratch dirs: `mktemp -d` only. `cd` out before `rm`. One path per `rm`, no `$`, backtick or `..` (PO prompt): `rm -rf /tmp/tmp.X`; repeat per dir.
+Scratch dirs: `mktemp -d` only. `cd` out before `rm`. One path per `rm`: `rm -rf /tmp/tmp.X`; repeat per dir.

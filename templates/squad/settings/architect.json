@@ -16,25 +16,7 @@
       "Write(/.claude/squads/*/scopes/*/tasks/**)",
       "Edit(/.claude/squads/*/scopes/*/tasks/**)"
     ],
-    "deny": [
-      "Bash(git push:*)",
-      "Bash(git merge:*)",
-      "Bash(git rebase:*)",
-      "Bash(git reset --hard:*)",
-      "Bash(git checkout main:*)",
-      "Bash(git checkout dev:*)",
-      "Write(/.claude/squads/*/*.md)",
-      "Edit(/.claude/squads/*/*.md)",
-      "Write(/.claude/squads/*/scopes/*/scope.md)",
-      "Write(/.claude/squads/*/scopes/*/roster.md)",
-      "Write(/.claude/squads/*/scopes/*/escalations.md)",
-      "Edit(/.claude/squads/*/scopes/*/scope.md)",
-      "Edit(/.claude/squads/*/scopes/*/roster.md)",
-      "Edit(/.claude/squads/*/scopes/*/escalations.md)",
-      "Write(/.claude/squads/*/goals/*/*.md)",
-      "Edit(/.claude/squads/*/goals/*/*.md)",
-      "Write(/.claude/squads/*/settings/**)",
-      "Edit(/.claude/squads/*/settings/**)",
+    "ask": [
       "mcp__atlassian__createJiraIssue",
       "mcp__atlassian__editJiraIssue",
       "mcp__atlassian__transitionJiraIssue",
@@ -53,6 +35,26 @@
       "mcp__claude_ai_Atlassian_Rovo__updateConfluencePage",
       "mcp__claude_ai_Atlassian_Rovo__createConfluenceFooterComment",
       "mcp__claude_ai_Atlassian_Rovo__createConfluenceInlineComment"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git checkout main:*)",
+      "Bash(git checkout dev:*)",
+      "Write(/.claude/squads/*/*.md)",
+      "Edit(/.claude/squads/*/*.md)",
+      "Write(/.claude/squads/*/scopes/*/scope.md)",
+      "Write(/.claude/squads/*/scopes/*/roster.md)",
+      "Write(/.claude/squads/*/scopes/*/escalations.md)",
+      "Edit(/.claude/squads/*/scopes/*/scope.md)",
+      "Edit(/.claude/squads/*/scopes/*/roster.md)",
+      "Edit(/.claude/squads/*/scopes/*/escalations.md)",
+      "Write(/.claude/squads/*/goals/*/*.md)",
+      "Edit(/.claude/squads/*/goals/*/*.md)",
+      "Write(/.claude/squads/*/settings/**)",
+      "Edit(/.claude/squads/*/settings/**)"
     ]
   }
 }
