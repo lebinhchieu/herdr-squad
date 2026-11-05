@@ -105,6 +105,23 @@ class EffectiveTest(Base):
                 self.assertNotIn("CODE_PATHS_SET_BY_SQUAD_INIT", json.dumps(e))
                 self.assertIn("Bash(git push:*)", e["permissions"]["deny"])
 
+    def test_atlassian_writes_ask_not_deny_and_git_stays_denied(self):
+        paths = sorted((ROOT / "templates/squad/settings").glob("*.json"))
+        sets = {}
+        for f in paths:
+            perms = json.loads(f.read_text(encoding="utf-8"))["permissions"]
+            is_at = lambda e: e.startswith(("mcp__atlassian__", "mcp__claude_ai_Atlassian_Rovo__"))
+            self.assertEqual([e for e in perms["deny"] if is_at(e)], [], f.name)
+            sets[f.stem] = {e for e in perms.get("ask", []) if is_at(e)}
+            if f.stem != "token-coach":
+                self.assertIn("Bash(git push:*)", perms["deny"], f.name)
+        full = sets["dev"]
+        for e in ("mcp__atlassian__createJiraIssue", "mcp__claude_ai_Atlassian_Rovo__createJiraIssue"):
+            self.assertIn(e, full)
+        for role, s in sets.items():
+            if role != "token-coach":
+                self.assertEqual(s, full, role)
+
     def test_scratch_rm_allowed_only_under_mktemp_dirs(self):
         d = ROOT / "templates/squad/settings"
         roles = ("dev", "qa-whitebox", "qa-blackbox", "manager", "tech-lead", "team-lead")

@@ -12,11 +12,11 @@ topic: safety
 
 Never push or deploy. Merge only as [MRG-1] allows. Never approve a permission for another agent.
 
-## SAFE-2 No Jira or Confluence writes
+## SAFE-2 Jira, Confluence writes ask
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, token-coach
 topic: safety
 
-No writes to Jira or Confluence. Read only.
+A write needs PO approval; read is free.
 
 ## SAFE-3 Close what you open
 roles: all
