@@ -2,7 +2,7 @@
 
 ## Behaviour
 
-Method: a real `bin/squad-spawn dev dev-1 --scope s` against the test fake `herdr` (tests/squadtest.py) in a temp squad; the logged `agent start` flags were then run with a real `claude -p "hi" --max-turns 1 --output-format stream-json --verbose` (claude 2.1.319) and the `init` event read with `jq`. The user's own config has 9 user skills, 17 plugins, 3 user agents.
+Method: a real `bin/squad-spawn dev dev-1 --scope s` against the test fake `herdr` (tests/squadtest.py) in a temp squad; the logged `agent start` flags were then run with a real `claude -p "hi" --max-turns 1 --output-format stream-json --verbose` (claude 2.1.319) and the `init` event read with `jq`.
 
 Flags the spawn logged (after `--`):
 `--agent squad:dev --name dev-1 --permission-mode auto --settings <repo>/templates/squad/settings/dev.json --model sonnet --effort medium --setting-sources project,local --add-dir <squad>/roles/dev-1.skills --plugin-dir <repo> --append-system-prompt-file <squad>/roles/dev-1.rules.md`
