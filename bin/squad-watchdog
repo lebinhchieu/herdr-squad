@@ -224,7 +224,7 @@ def suspend_cmd():
     if sys.platform == "darwin":
         return ["pmset", "sleepnow"], False
     try:
-        wsl = os.environ.get("WSL_DISTRO_NAME") or "microsoft" in Path("/proc/version").read_text().lower()
+        wsl = os.environ.get("WSL_DISTRO_NAME") or "microsoft" in Path("/proc/version").read_text(encoding="utf-8", errors="replace").lower()
     except OSError:
         wsl = False
     if wsl:
