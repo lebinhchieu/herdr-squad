@@ -175,11 +175,11 @@ class SpawnDryRunTest(unittest.TestCase):
         return r
 
     # --- ticket 24: a legacy squad (process.md, no process.local.md) gets the running plugin's rules attached
-    def test_legacy_dry_run_has_the_rules_flag_and_no_plugin_dir_and_one_warning(self):
+    def test_legacy_dry_run_has_the_rules_flag_and_the_running_plugin(self):
         r = self.spawn("dev", "--scope", "s", "--prompt", "Task 1.")
         rules = self.squad / "roles" / "x.rules.md"
         self.assertIn(f"--append-system-prompt-file {rules}", r)
-        self.assertNotIn("--plugin-dir", r)
+        self.assertIn(f"--plugin-dir {SCRIPT.parent.parent}", r)  # lean start: the user-level install is not read
         self.assertFalse(rules.exists())  # dry run writes nothing
 
     def test_legacy_dry_run_prints_the_warning_once(self):
@@ -195,7 +195,6 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertTrue(rules.read_text(encoding="utf-8").startswith("# Your process rules"))
         start = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent start"))
         self.assertIn(f"--append-system-prompt-file {rules}", start)
-        self.assertNotIn("--plugin-dir", start)
         self.assertEqual(r.stderr.count("legacy squad: plugin rules attached"), 1)
         tab = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("tab create"))
         self.assertNotIn("SQUAD_PLUGIN_DIR", tab)
@@ -210,6 +209,58 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         prompt = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent prompt"))
         self.assertIn("Task 1. Your process rules are attached to this session", prompt)
+
+    # --- lean start: no user-level plugins, skills or agent types; playwright-cli and claude-accounts kept
+    def _user_skills(self, *names):
+        cfg = Path(self.tmp.name) / "cfg"
+        for n in names:
+            (cfg / "skills" / n).mkdir(parents=True)
+            (cfg / "skills" / n / "SKILL.md").write_text(f"---\nname: {n}\n---\n", encoding="utf-8")
+        self.env["CLAUDE_CONFIG_DIR"] = str(cfg)
+
+    def _start_line(self):
+        return next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent start"))
+
+    def test_lean_dry_run_drops_the_user_source_and_adds_the_kept_skills_dir(self):
+        out = self.spawn("dev", "--scope", "s")
+        lean = self.squad / "roles" / "x.skills"
+        self.assertIn("--setting-sources project,local", out)
+        self.assertIn(f"--add-dir {lean}", out)
+        self.assertFalse(lean.exists())  # dry run writes nothing
+
+    def test_lean_real_spawn_copies_only_the_two_kept_skills(self):
+        self._user_skills("playwright-cli", "claude-accounts", "frontend-design")
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        skills = self.squad / "roles" / "dev-1.skills" / ".claude" / "skills"
+        self.assertEqual(sorted(p.name for p in skills.iterdir()), ["claude-accounts", "playwright-cli"])
+        self.assertTrue((skills / "playwright-cli" / "SKILL.md").is_file())
+        start = self._start_line()
+        self.assertIn("--setting-sources project,local", start)
+        self.assertIn(f"--add-dir {skills.parent.parent}", start)
+        self.assertIn("--settings", start)  # the role's own settings file still goes with it
+
+    def test_lean_real_spawn_skips_a_kept_skill_the_user_lacks_without_noise(self):
+        self._user_skills("playwright-cli")
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual([p.name for p in (self.squad / "roles" / "dev-1.skills" / ".claude" / "skills").iterdir()], ["playwright-cli"])
+        self.assertNotIn("kept skill", r.stderr)
+
+    def test_lean_legacy_spawn_gets_the_running_plugin_by_flag_but_no_env(self):
+        # the user-level source is gone, so an installed squad plugin would vanish: --plugin-dir carries it
+        self.assertEqual(self._real_spawn().returncode, 0)
+        self.assertIn(f"--plugin-dir {SCRIPT.parent.parent}", self._start_line())
+        tab = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("tab create"))
+        self.assertNotIn("SQUAD_PLUGIN_DIR", tab)
+
+    def test_user_config_env_restores_the_old_start(self):
+        self.env["SQUAD_SPAWN_USER_CONFIG"] = "1"
+        self.assertEqual(self._real_spawn().returncode, 0)
+        start = self._start_line()
+        for flag in ("--setting-sources", "--add-dir", "--plugin-dir"):
+            self.assertNotIn(flag, start)
+        self.assertFalse((self.squad / "roles" / "dev-1.skills").exists())
 
     def test_a_squad_folder_with_neither_file_still_exits_1(self):
         (self.squad / "process.md").unlink()

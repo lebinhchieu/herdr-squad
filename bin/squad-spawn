@@ -36,6 +36,8 @@ Env:
   SQUAD             Squad name, same as --squad
   SQUAD_DIR         Squad folder, overrides --squad (must be <project>/.claude/squads/<name>)
   SQUAD_PLUGIN_DIR  Load the plugin from this dir with --plugin-dir (when not installed)
+  SQUAD_SPAWN_USER_CONFIG  1 = start the session with the user's own plugins, skills, hooks and settings
+                   (default: lean, only the squad plugin, playwright-cli and claude-accounts)
 EOF
 }
 
@@ -287,7 +289,27 @@ fi
 claude_args=(--agent "squad:$role" --name "$name" --session-id "$session" --permission-mode auto --settings "$settings")
 [[ -n $model ]] && claude_args+=(--model "$model")
 [[ -n $effort ]] && claude_args+=(--effort "$effort")
-[[ -n $plugin_dir ]] && claude_args+=(--plugin-dir "$plugin_dir")
+# Lean start: no user-level plugins, skills or agent types (a spawned role never uses them; they cost ~14k tokens on
+# every request). `--setting-sources project,local` drops the user source; --settings still applies. The squad plugin
+# comes from --plugin-dir (a legacy squad had it installed at user level, so it gets the running plugin here).
+# Kept: the skills named in lean_keep, copied from the user's skills folder into a per-agent folder given by --add-dir.
+lean_keep=(playwright-cli claude-accounts)
+plugin_flag=$plugin_dir
+if [[ ${SQUAD_SPAWN_USER_CONFIG:-} != 1 ]]; then
+  claude_args+=(--setting-sources project,local)
+  [[ -n $plugin_flag ]] || plugin_flag=$plugin_root
+  lean_dir=$home/roles/$name.skills
+  user_skills=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills
+  if [[ $dry != 1 ]]; then
+    rm -rf "$lean_dir"
+    mkdir -p "$lean_dir/.claude/skills"
+    for sk in "${lean_keep[@]}"; do
+      [[ ! -f $user_skills/$sk/SKILL.md ]] || cp -RL "$user_skills/$sk" "$lean_dir/.claude/skills/$sk"  # a user without it just lacks it
+    done
+  fi
+  claude_args+=(--add-dir "$lean_dir")
+fi
+[[ -n $plugin_flag ]] && claude_args+=(--plugin-dir "$plugin_flag")
 claude_args+=("${rules_args[@]}")
 
 # Without --workspace herdr uses the focused workspace, which may not be the caller's.
