@@ -4,7 +4,7 @@
 roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: cost
 
-A Stop hook (`squad-usage --check`) tells you when rule [COST-3] or [COST-9] fires and logs it to `usage-events.jsonl`. Limits are absolute tokens, never a percent; [COST-3] defines your respawn line. When a Stop-hook message says a cost rule fired, write `$SCOPE_DIR/roles/$SQUAD_NAME.notes.md`, then run `squad-respawn $SQUAD_NAME`.
+A Stop hook (`squad-usage --check`) tells you when rule [COST-3] fires and logs it to `usage-events.jsonl`. Limits are absolute tokens, never a percent; [COST-3] defines your respawn line. When a Stop-hook message says a cost rule fired, write `$SCOPE_DIR/roles/$SQUAD_NAME.notes.md`, then run `squad-respawn $SQUAD_NAME`.
 
 ## COST-2 Reuse
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
