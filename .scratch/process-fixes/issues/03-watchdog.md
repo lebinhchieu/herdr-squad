@@ -30,3 +30,17 @@ Base: main.
 - **Sleep (opt-in, AC3):** reading of "sleep when done" = close the agent's pane and keep worktree and branch, i.e. `squad-retire` (it saves notes first). Off for everyone. `squad-watchdog sleep AGENT` (the Manager runs it only when the PO asks) writes the name in `<home>/watchdog.sleep`; `--off` removes it. A listed agent sleeps when its herdr state is idle for 2 min and its roster `ticket NN` is done. Never the Manager; an agent with no ticket number never sleeps. No file / empty file = never sleeps.
 - **Assumption to confirm:** "sleep" = retire (pane closed). If the PO means something else, only `do_sleep` changes.
 - **Tests:** `tests/test_squad_watchdog.py` (pure decision + tick + CLI with a fake herdr) and 1-2 cases in `tests/test_squad_start.py`.
+
+## Review
+
+AC trace (run from `tests/`: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -q <module>`):
+
+- AC1 | test_squad_watchdog.test_an_idle_start_is_logged_with_every_agents_state_and_the_waiting_tickets; test_squad_start.test_a_scope_and_a_goal_start_a_watchdog_and_a_dry_run_or_an_in_goal_scope_does_not | `python3 -m unittest -q test_squad_watchdog test_squad_start`
+- AC2 | test_squad_watchdog.test_the_manager_is_nudged_once_at_5_and_once_at_15_minutes; test_work_ends_the_spell_and_the_next_spell_nudges_again; test_tick_in_a_process_sends_the_nudge_to_the_manager_through_herdr (real `herdr agent prompt` call) | `python3 -m unittest -q test_squad_watchdog`
+- AC3 | test_nothing_sleeps_unless_the_po_named_the_agent; test_a_named_agent_sleeps_only_with_a_done_ticket_and_after_2_idle_minutes; test_cli_sleep_turns_an_agent_on_and_off | `python3 -m unittest -q test_squad_watchdog`
+- AC4 | text a person reads: `.scratch/process-fixes/issues/03-watchdog/evidence.md` (log and both nudges); tests above pass. Touched test files: test_squad_watchdog, test_squad_start, squadtest (clean_env sets `SQUAD_WATCHDOG=off`). Hits of `grep -rl squad-start tests/` and README: test_instructions, test_old_language_inventory, test_squad_respawn, test_squadboard_server, test_squadruntime, test_team_models, test_templates, test_windows_safe, test_promotion_0_6_0, test_squad_close, test_squad_path_guard, test_no_bare_bash, test_sizes: all pass.
+
+Points for the checkers:
+- "Sleep" is read as `squad-retire` (pane closed, worktree and branch kept). Assumption; only `do_sleep`-like code in `tick` changes if wrong.
+- The Manager learns `squad-watchdog sleep AGENT` from README only; no template or process text was touched (outside this scope's `touches`). Follow-up for the Manager if wanted.
+- Idle uses herdr's `working` status; a blocked agent counts as not working.

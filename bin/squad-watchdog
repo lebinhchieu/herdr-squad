@@ -1,0 +1,301 @@
+#!/usr/bin/env python3
+"""Plugin watchdog of one scope or goal: logs each idle start, nudges the Manager, sleeps agents the PO named.
+
+  squad-watchdog run --home DIR --manager NAME [--interval S]   loop until DIR is gone (squad-start starts it)
+  squad-watchdog tick --home DIR --manager NAME                 one pass (what `run` does every interval)
+  squad-watchdog sleep AGENT [--off] [--home DIR]               opt in (or out) of sleep-when-done for one agent
+  squad-watchdog status [--home DIR]                            print the last state and the log tail
+
+Idle = no live agent of the scope (or of the goal's scopes) is `working` in herdr while a ticket waits (ready, building,
+returned, handed in, checking). The start of an idle spell is logged with every agent's state. After 5 and after 15 minutes
+of the same spell the Manager gets a message (`herdr agent prompt`). The spell ends when someone works or no ticket waits.
+
+Sleep-when-done is OFF. It is on only for an agent named in <home>/watchdog.sleep (`squad-watchdog sleep AGENT`, which the
+Manager runs when the PO asks). Such an agent is retired (`squad-retire`: notes saved, pane closed, worktree and branch
+kept) once its herdr state has been idle for 2 minutes and its roster ticket is done. Without that file nothing sleeps.
+
+Files in <home>: watchdog.log (one line per event, UTC), watchdog.state.json (state and heartbeat), watchdog.sleep.
+Env: SQUAD_WATCHDOG_INTERVAL (seconds between passes, default 60), SQUAD_DIR / SCOPE_DIR / GOAL_DIR (default --home).
+"""
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+PLUGIN = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PLUGIN / "bin"))
+import squadio  # noqa: E402
+import squadboard_active as active  # noqa: E402
+import squadboard_agents as agents_mod  # noqa: E402
+import squadreport  # noqa: E402
+import squadtickets  # noqa: E402
+
+NUDGES = (5, 15)            # minutes of an idle spell
+SLEEP_IDLE_S = 120          # a sleeping agent must be idle this long
+INTERVAL_S = 60
+OPEN = {"ready", "building", "returned", "handed in", "checking", "in progress"}
+DONE = {"done", "resolved", "merged"}
+RETIRED = {"retired", "closed"}
+LOG, STATE, SLEEP = "watchdog.log", "watchdog.state.json", "watchdog.sleep"
+
+
+def iso(t):
+    return datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def hhmm(t):
+    return datetime.fromtimestamp(t, timezone.utc).strftime("%H:%M UTC")
+
+
+def read_state(home):
+    try:
+        o = json.loads((home / STATE).read_text(encoding="utf-8"))
+        return o if isinstance(o, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def write_state(home, st):
+    tmp = home / (STATE + ".tmp")
+    with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(st, fh)
+    os.replace(tmp, home / STATE)
+
+
+def log(home, now, text):
+    with open(home / LOG, "a", encoding="utf-8", newline="\n") as fh:
+        fh.write(f"{iso(now)} {text}\n")
+
+
+def sleep_names(home):
+    try:
+        lines = (home / SLEEP).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return set()
+    return {l.split("#")[0].strip() for l in lines if l.split("#")[0].strip()}
+
+
+def scope_homes(home):
+    """[(label, folder)]: the home itself, and for a goal the scopes that name it."""
+    out = [(home.name, home)]
+    squad = home.parent.parent
+    if home.parent.name == "goals":
+        for sc in sorted((squad / "scopes").glob("*/scope.md")):
+            if squadreport._scope_field(sc, "goal") == home.name:
+                out.append((sc.parent.name, sc.parent))
+    return out
+
+
+def snapshot(home, herdr_json=None):
+    """{ok, why, agents: [{name, role, scope, owns, state}], tickets: [{scope, id, status}]}. state: working | idle |
+    blocked | unknown (herdr gave a word we do not know) | gone (not in herdr) | retired (roster says so)."""
+    got, why = agents_mod.fetch({"herdr_json": herdr_json} if herdr_json else {})
+    agents, tickets = [], []
+    for label, h in scope_homes(home):
+        for r in active.roster_rows(h):
+            if r["status"].lower() in RETIRED:
+                state = "retired"
+            elif got is None:
+                state = "unknown"
+            else:
+                state = got[r["name"]]["status"] if r["name"] in got else "gone"
+            agents.append({"name": r["name"], "role": r["role"], "scope": label, "owns": r["owns"], "state": state})
+        for t in squadtickets.scope_tasks(h)["tasks"]:
+            tickets.append({"scope": label, "id": t["id"], "status": t["status"]})
+    return {"ok": got is not None, "why": why, "agents": agents, "tickets": tickets}
+
+
+def waiting(snap):
+    return [t for t in snap["tickets"] if t["status"] in OPEN]
+
+
+def states_text(snap):
+    return ", ".join(f"{a['name']} {a['state']}" for a in snap["agents"]) or "no agent in the roster"
+
+
+def tickets_text(snap):
+    return ", ".join(f"{t['id']} {t['status']}" + (f" ({t['scope']})" if len({x['scope'] for x in snap['tickets']}) > 1 else "")
+                     for t in waiting(snap))
+
+
+def nudge_text(minutes, since, snap):
+    first = minutes == NUDGES[0]
+    head = (f"WATCHDOG: nobody has worked for {minutes} minutes (since {hhmm(since)}) and work is waiting."
+            if first else f"WATCHDOG: still nobody working after {minutes} minutes (since {hhmm(since)}). This is the last reminder of this spell.")
+    return (f"{head} Waiting: {tickets_text(snap)}. Agents: {states_text(snap)}. "
+            "Message the agent who owns a ticket, or spawn one. If you only wait for the PO's answer, you can ignore this.")
+
+
+def decide(st, snap, now, sleepers):
+    """Pure: (old state, snapshot, now, names that opted in to sleep) -> (new state, [event]).
+    event = ("start", since) | ("nudge", minutes, since) | ("end", minutes) | ("sleep", agent) | ("down", why) | ("up",)"""
+    st = dict(st)
+    events = []
+    if not snap["ok"]:
+        if not st.get("down"):
+            events.append(("down", snap["why"]))
+        st["down"] = True
+        return st, events
+    if st.pop("down", False):
+        events.append(("up",))
+    working = any(a["state"] == "working" for a in snap["agents"])
+    idle = not working and bool(waiting(snap))
+    since = st.get("idle_since")
+    if idle and since is None:
+        since = st["idle_since"] = now
+        st["nudged"] = []
+        events.append(("start", since))
+    elif not idle and since is not None:
+        events.append(("end", int((now - since) // 60)))
+        st["idle_since"], st["nudged"] = None, []
+        since = None
+    if since is not None:
+        for m in NUDGES:
+            if m not in st["nudged"] and now - since >= m * 60:
+                st["nudged"] = st["nudged"] + [m]
+                events.append(("nudge", m, since))
+    # sleep-when-done: only for agents the PO named
+    idle_at = {k: v for k, v in (st.get("agent_idle") or {}).items()}
+    by_ticket = {(t["scope"], str(t["id"]).lstrip("0")): t["status"] for t in snap["tickets"]}
+    new_idle = {}
+    for a in snap["agents"]:
+        if a["state"] == "idle":
+            new_idle[a["name"]] = idle_at.get(a["name"], now)
+    st["agent_idle"] = new_idle
+    for a in snap["agents"]:
+        if a["name"] not in sleepers or a["role"] == "manager" or a["name"] not in new_idle or a["name"] in st.get("slept", []):
+            continue
+        n = active.task_of(a["owns"]) if "ticket" in a["owns"].lower() else None
+        if n and by_ticket.get((a["scope"], n.lstrip("0"))) in DONE and now - new_idle[a["name"]] >= SLEEP_IDLE_S:
+            events.append(("sleep", a["name"]))
+    return st, events
+
+
+def send(manager, text):
+    """-> (ok, reason)."""
+    try:
+        r = subprocess.run(["herdr", "agent", "prompt", manager, text], capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, str(e)
+    return r.returncode == 0, (r.stderr.strip().splitlines() or ["herdr refused"])[-1] if r.returncode else ""
+
+
+def retire(agent):
+    """-> (ok, reason): squad-retire saves the agent's notes, then closes its pane."""
+    try:
+        r = subprocess.run([squadio.need_bash(), (PLUGIN / "bin" / "squad-retire").as_posix(), agent], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=400)
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, str(e)
+    return r.returncode == 0, (r.stderr.strip().splitlines() or ["squad-retire failed"])[-1] if r.returncode else ""
+
+
+def tick(home, manager, now=None, herdr_json=None, send=send, retire=retire):
+    """One pass: read, decide, act, log, save. Returns the events."""
+    now = time.time() if now is None else now
+    snap = snapshot(home, herdr_json)
+    st, events = decide(read_state(home), snap, now, sleep_names(home))
+    for ev in events:
+        kind = ev[0]
+        if kind == "start":
+            log(home, now, f"idle start: nobody works and work waits ({tickets_text(snap)}). Agents: {states_text(snap)}")
+        elif kind == "nudge":
+            text = nudge_text(ev[1], ev[2], snap)
+            ok, why = send(manager, text)
+            log(home, now, f"nudge {ev[1]} min to {manager}: " + ("sent: " if ok else f"NOT sent ({why}): ") + text)
+        elif kind == "end":
+            log(home, now, f"idle end after {ev[1]} min. Agents: {states_text(snap)}")
+        elif kind == "down":
+            log(home, now, f"herdr does not answer ({ev[1]}); no idle check until it does")
+        elif kind == "up":
+            log(home, now, "herdr answers again")
+        elif kind == "sleep":
+            ok, why = retire(ev[1])
+            log(home, now, f"sleep {ev[1]}: its ticket is done and it was idle 2+ min (PO opted in); " +
+                ("retired: pane closed, worktree and branch kept" if ok else f"squad-retire failed ({why})"))
+            st.setdefault("slept", []).append(ev[1])  # one try per agent, a failure is logged and not repeated
+    st["beat"], st["pid"] = now, os.getpid()
+    write_state(home, st)
+    return events
+
+
+def run(home, manager, interval, herdr_json=None):
+    st = read_state(home)
+    if st.get("beat") and time.time() - st["beat"] < 3 * interval:
+        return 0  # another watchdog of this home is alive
+    log(home, time.time(), f"watchdog started for {home.name}; Manager {manager}; every {interval} s")
+    while home.is_dir():
+        try:
+            tick(home, manager, herdr_json=herdr_json)
+        except Exception as e:  # a watchdog that dies is the thing it exists to prevent
+            try:
+                log(home, time.time(), f"pass failed: {type(e).__name__}: {e}")
+            except OSError:
+                pass
+        time.sleep(interval)
+    return 0
+
+
+def home_arg(a):
+    h = a.home or os.environ.get("SCOPE_DIR") or os.environ.get("GOAL_DIR")
+    if not h or not Path(h).is_dir():
+        print("give --home DIR (the scope or goal folder), or run inside an agent with SCOPE_DIR or GOAL_DIR set", file=sys.stderr)
+        sys.exit(2)
+    return Path(h).resolve()
+
+
+def default_manager(home):
+    return f"{home.parent.parent.name}-mgr-{home.name}"
+
+
+def main():
+    squadio.utf8_stdio()
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    for name in ("run", "tick"):
+        s = sub.add_parser(name)
+        s.add_argument("--home")
+        s.add_argument("--manager")
+        s.add_argument("--herdr-json", help="read herdr agents from a recorded file (tests)")
+        if name == "run":
+            s.add_argument("--interval", type=float, default=float(os.environ.get("SQUAD_WATCHDOG_INTERVAL") or INTERVAL_S))
+    s = sub.add_parser("sleep")
+    s.add_argument("agent")
+    s.add_argument("--off", action="store_true")
+    s.add_argument("--home")
+    s = sub.add_parser("status")
+    s.add_argument("--home")
+    a = p.parse_args()
+    home = home_arg(a)
+    if a.cmd in ("run", "tick"):
+        manager = a.manager or default_manager(home)
+        if a.cmd == "run":
+            return run(home, manager, a.interval, a.herdr_json)
+        for ev in tick(home, manager, herdr_json=a.herdr_json):
+            print(ev[0], *ev[1:])
+        return 0
+    if a.cmd == "sleep":
+        names = sleep_names(home)
+        names = names - {a.agent} if a.off else names | {a.agent}
+        with open(home / SLEEP, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("# agents that sleep when done (the PO asked); one name per line\n" + "".join(f"{n}\n" for n in sorted(names)))
+        print(f"sleep-when-done for {a.agent}: {'off' if a.off else 'ON'}; on for: {', '.join(sorted(names)) or 'nobody'}")
+        return 0
+    st = read_state(home)
+    beat = st.get("beat")
+    print(f"last pass: {iso(beat) if beat else 'never'}; idle since: {iso(st['idle_since']) if st.get('idle_since') else '-'}; "
+          f"sleep on for: {', '.join(sorted(sleep_names(home))) or 'nobody'}")
+    try:
+        print("".join((home / LOG).read_text(encoding="utf-8").splitlines(True)[-10:]), end="")
+    except OSError:
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

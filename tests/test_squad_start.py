@@ -3,7 +3,9 @@ import json
 import os
 import shutil
 import subprocess
+import signal
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -31,7 +33,8 @@ class StartTest(unittest.TestCase):
         fake_herdr(fake)
         self.log = self.root / "herdr.log"
         self.env = clean_env()
-        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log), PATH=f"{fake}:{os.environ['PATH']}")
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log), PATH=f"{fake}:{os.environ['PATH']}",
+                        PYTHONDONTWRITEBYTECODE="1")  # clean_env turns the watchdog off; a test that wants it pops SQUAD_WATCHDOG
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -64,6 +67,33 @@ class StartTest(unittest.TestCase):
         self.assertIn(f"SCOPE_DIR={sc}", h)
         self.assertIn("scope.md", next(l for l in h.splitlines() if l.startswith("agent prompt")))
         self.assertIn("| t-mgr-sec04 | manager | sec04 |", (sc / "roster.md").read_text(encoding="utf-8"))
+
+    def watchdog_pid(self, home):
+        """The pid the watchdog wrote in its state file, once it has made a pass (it makes the first at once)."""
+        state = home / "watchdog.state.json"
+        for _ in range(100):
+            if state.exists():
+                try:
+                    return json.loads(state.read_text(encoding="utf-8"))["pid"]
+                except (ValueError, KeyError):
+                    pass
+            time.sleep(0.1)
+        self.fail("the watchdog made no pass")
+
+    def test_a_scope_and_a_goal_start_a_watchdog_and_a_dry_run_or_an_in_goal_scope_does_not(self):
+        self.env.pop("SQUAD_WATCHDOG")
+        self.env["SQUAD_WATCHDOG_INTERVAL"] = "1"
+        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a", "--dry-run").returncode, 0)
+        self.assertFalse((self.squad / "scopes" / "one").exists())
+        for text, kind, name in (("Task one", "scopes", "one"), ("goal: Big", "goals", "big")):
+            home = self.squad / kind / name
+            self.assertEqual(self.start(text, "--name", name, "--touches", name).returncode, 0)
+            pid = self.watchdog_pid(home)
+            self.addCleanup(os.kill, pid, signal.SIGTERM)
+            self.assertRegex((home / "watchdog.log").read_text(encoding="utf-8"), rf"watchdog started for {name}; Manager t-mgr-{name}")
+        self.assertEqual(self.start("Tabs", "--in-goal", "big", "--name", "s1", "--touches", "x", "--yes").returncode, 0)
+        time.sleep(0.5)
+        self.assertFalse((self.squad / "scopes" / "s1" / "watchdog.log").exists())
 
     def test_model_flag_sets_the_managers_model_else_the_role_default_applies(self):
         self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a", "--model", "opus", "--effort", "medium").returncode, 0)
