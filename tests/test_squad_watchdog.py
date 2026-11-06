@@ -1,4 +1,4 @@
-"""squad-watchdog (ticket 03): idle log, nudges at 5 and 15 minutes, sleep only for agents the PO named."""
+"""squad-watchdog (ticket 03): idle log, nudges at 5 and 15 minutes, PC sleep only when the PO switched it on."""
 import json
 import os
 import tempfile
@@ -29,7 +29,7 @@ class WatchdogTest(unittest.TestCase):
         (self.home / "tasks").mkdir(parents=True)
         (self.home / "scope.md").write_text("# s1\n", encoding="utf-8")
         (self.home / "roster.md").write_text(ROSTER, encoding="utf-8")
-        self.sent, self.retired = [], []
+        self.sent, self.suspended = [], []
         self.herdr = Path(self.tmp.name) / "herdr.json"
 
     def tickets(self, **status):
@@ -42,7 +42,7 @@ class WatchdogTest(unittest.TestCase):
 
     def tick(self, minutes):
         return W.tick(self.home, "t-mgr-s1", now=T0 + minutes * MIN, herdr_json=str(self.herdr),
-                      send=lambda m, text: (self.sent.append((m, text)) or (True, "")), retire=lambda a: (self.retired.append(a) or (True, "")))
+                      send=lambda m, text: (self.sent.append((m, text)) or (True, "")), suspend_fn=lambda: (self.suspended.append(1) or (True, "")))
 
     def log(self):
         return (self.home / "watchdog.log").read_text(encoding="utf-8")
@@ -72,7 +72,7 @@ class WatchdogTest(unittest.TestCase):
             (squad / "scopes" / sc / "scope.md").write_text(f"# {sc}\ngoal: g1\ntickets: slug\n", encoding="utf-8")
         (self.home / "tasks" / "03.md").unlink(missing_ok=True)
         self.agents(t_mgr_g1="idle")
-        W.tick(goal, "t-mgr-g1", now=T0, herdr_json=str(self.herdr), send=None, retire=None)
+        W.tick(goal, "t-mgr-g1", now=T0, herdr_json=str(self.herdr), send=None, suspend_fn=None)
         self.assertIn("work waits (03 ready). Agents:", (goal / "watchdog.log").read_text(encoding="utf-8"))
 
     # AC2
@@ -115,44 +115,125 @@ class WatchdogTest(unittest.TestCase):
         self.assertIn("herdr does not answer", self.log())
 
     # AC3
-    def test_nothing_sleeps_unless_the_po_named_the_agent(self):
+    def test_the_pc_never_sleeps_unless_the_switch_is_on(self):
         self.tickets(t03="done", t04="done")
         self.agents(t_mgr_s1="idle", t_dev_s1="idle", t_qa_s1="idle")
-        for m in (0, 3, 30):
+        for m in (0, 6, 60):
             self.tick(m)
-        self.assertEqual(self.retired, [])
-        (self.home / "watchdog.sleep").write_text("t-dev-s1\nt-mgr-s1\n", encoding="utf-8")
-        self.tick(31)
-        self.assertEqual(self.retired, ["t-dev-s1"])  # named and done; the Manager never; t-qa-s1 not named
-        self.tick(40)
-        self.assertEqual(self.retired, ["t-dev-s1"])  # one try per agent
-        self.assertIn("sleep t-dev-s1", self.log())
+        self.assertEqual(self.suspended, [])
+        self.assertFalse(W.sleep_on(self.home))
 
-    def test_a_named_agent_sleeps_only_with_a_done_ticket_and_after_2_idle_minutes(self):
-        (self.home / "watchdog.sleep").write_text("t-dev-s1\n", encoding="utf-8")
-        self.tickets(t03="building")
-        self.agents(t_mgr_s1="working", t_dev_s1="idle")
+    def test_the_pc_sleeps_once_after_5_quiet_minutes_when_every_ticket_is_done(self):
+        W.set_sleep(self.home, True)
+        self.tickets(t03="done", t04="building")
+        self.agents(t_mgr_s1="idle", t_dev_s1="idle")
         self.tick(0)
         self.tick(10)
-        self.assertEqual(self.retired, [])  # idle long enough, ticket not done
-        self.tickets(t03="done")
-        self.agents(t_mgr_s1="working", t_dev_s1="working")
+        self.assertEqual(self.suspended, [])  # a ticket is still open
+        self.tickets(t04="done")
         self.tick(11)
-        self.agents(t_mgr_s1="working", t_dev_s1="idle")
-        self.tick(12)
-        self.tick(13)
-        self.assertEqual(self.retired, [])  # done, idle for 1 min only
-        self.tick(14)
-        self.assertEqual(self.retired, ["t-dev-s1"])
+        self.tick(15)
+        self.assertEqual(self.suspended, [])  # quiet for 4 min only
+        self.tick(16)
+        self.assertEqual(self.suspended, [1])
+        log = self.log().splitlines()
+        self.assertRegex(log[-1], r"^2027-01-15T08:16:00Z sleep pc: every ticket is done and nobody on this machine has worked for 5 min")
+        self.assertFalse(W.sleep_on(self.home))  # one shot
+        self.tick(40)
+        self.assertEqual(self.suspended, [1])  # a wake-up does not sleep again
 
-    def test_cli_sleep_turns_an_agent_on_and_off(self):
-        r = winlaunch.run_script(str(BIN / "squad-watchdog"), ["sleep", "t-dev-s1", "--home", str(self.home)], clean_env(),
-                                 utf8=True, encoding="utf-8", capture_output=True)
+    def test_an_agent_of_another_squad_working_holds_the_sleep_and_restarts_the_clock(self):
+        W.set_sleep(self.home, True)
+        self.tickets(t03="done")
+        self.agents(t_mgr_s1="idle", other_mgr_x="working")  # not in this roster, but on this machine
+        self.tick(0)
+        self.tick(20)
+        self.assertEqual(self.suspended, [])
+        self.agents(t_mgr_s1="idle", other_mgr_x="idle")
+        self.tick(21)
+        self.tick(25)
+        self.assertEqual(self.suspended, [])  # the clock restarted at 21
+        self.tick(26)
+        self.assertEqual(self.suspended, [1])
+
+    def test_a_goal_sleeps_only_when_the_tickets_of_all_its_scopes_are_done(self):
+        squad = self.home.parent.parent
+        goal = squad / "goals" / "g1"
+        goal.mkdir(parents=True)
+        (goal / "goal.md").write_text("# g1\n", encoding="utf-8")
+        (goal / "roster.md").write_text(ROSTER.replace("s1", "g1"), encoding="utf-8")
+        for sc, st in (("s1", "done"), ("s2", "building")):
+            (squad / "scopes" / sc / "tasks").mkdir(parents=True, exist_ok=True)
+            (squad / "scopes" / sc / "scope.md").write_text(f"# {sc}\ngoal: g1\n", encoding="utf-8")
+            (squad / "scopes" / sc / "tasks" / "01.md").write_text(f"# T\n\nStatus: {st}\n", encoding="utf-8")
+        W.set_sleep(goal, True)
+        self.agents(t_mgr_g1="idle")
+        for m in (0, 10):
+            W.tick(goal, "t-mgr-g1", now=T0 + m * MIN, herdr_json=str(self.herdr), send=lambda *a: (True, ""),
+                   suspend_fn=lambda: (self.suspended.append(1) or (True, "")))
+        self.assertEqual(self.suspended, [])
+        (squad / "scopes" / "s2" / "tasks" / "01.md").write_text("# T\n\nStatus: done\n", encoding="utf-8")
+        for m in (11, 16):
+            W.tick(goal, "t-mgr-g1", now=T0 + m * MIN, herdr_json=str(self.herdr), send=lambda *a: (True, ""),
+                   suspend_fn=lambda: (self.suspended.append(1) or (True, "")))
+        self.assertEqual(self.suspended, [1])
+
+    def test_herdr_not_answering_is_no_decision_for_the_sleep(self):
+        W.set_sleep(self.home, True)
+        self.tickets(t03="done")
+        self.agents(t_mgr_s1="idle")
+        self.tick(0)
+        self.herdr.write_text("not json", encoding="utf-8")
+        self.tick(30)
+        self.assertEqual(self.suspended, [])
+
+    def test_cli_sleep_on_and_off_and_status_shows_the_switch(self):
+        def run(*args):
+            return winlaunch.run_script(str(BIN / "squad-watchdog"), [*args, "--home", str(self.home)], clean_env(),
+                                        utf8=True, encoding="utf-8", capture_output=True)
+        r = run("status")
+        self.assertIn("sleep-when-done: off", r.stdout)
+        r = run("sleep", "on")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(W.sleep_names(self.home), {"t-dev-s1"})
-        winlaunch.run_script(str(BIN / "squad-watchdog"), ["sleep", "t-dev-s1", "--off", "--home", str(self.home)], clean_env(),
-                             utf8=True, encoding="utf-8", capture_output=True)
-        self.assertEqual(W.sleep_names(self.home), set())
+        self.assertIn("sleep-when-done: ON", r.stdout)
+        self.assertTrue(W.sleep_on(self.home))
+        self.assertIn("sleep-when-done: ON", run("status").stdout)
+        run("sleep", "off")
+        self.assertFalse(W.sleep_on(self.home))
+        self.assertNotEqual(run("sleep", "mango").returncode, 0)
+
+    # AC3b, AC3c
+    def test_the_suspend_command_comes_from_the_env_or_the_host_and_runs_after_the_log_and_the_switch(self):
+        self.tickets(t03="done")
+        self.agents(t_mgr_s1="idle")
+        W.set_sleep(self.home, True)
+        seen = Path(self.tmp.name) / "seen.txt"
+        state = (self.home / "watchdog.state.json")
+        state.write_text(json.dumps({"quiet_since": 0}), encoding="utf-8")
+        env = clean_env(SQUAD_WATCHDOG_SLEEP_CMD=f'cat "{self.home}/watchdog.log" "{self.home}/watchdog.sleep" > "{seen}"')
+        r = winlaunch.run_script(str(BIN / "squad-watchdog"), ["tick", "--home", str(self.home), "--manager", "t-mgr-s1",
+                                                              "--herdr-json", str(self.herdr)], env, utf8=True, encoding="utf-8", capture_output=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout, "")  # the log is the output, no raw event lines
+        text = seen.read_text(encoding="utf-8")
+        self.assertIn("sleep pc:", text)  # logged first
+        self.assertIn("\noff\n", text)  # and the switch was already off
+        old = (W.sys.platform, os.environ.get("WSL_DISTRO_NAME"), os.environ.pop("SQUAD_WATCHDOG_SLEEP_CMD", None))
+        self.addCleanup(lambda: (setattr(W.sys, "platform", old[0]), os.environ.pop("WSL_DISTRO_NAME", None),
+                                 old[1] and os.environ.__setitem__("WSL_DISTRO_NAME", old[1])))
+        os.environ.pop("WSL_DISTRO_NAME", None)
+        for plat, wsl, want in (("win32", None, "rundll32.exe"), ("darwin", None, "pmset"), ("linux", "Ubuntu", "powershell.exe")):
+            W.sys.platform = plat
+            if wsl:
+                os.environ["WSL_DISTRO_NAME"] = wsl
+            self.assertEqual(W.suspend_cmd()[0][0], want)
+
+    def test_a_name_listed_twice_in_the_roster_shows_once_in_the_log_and_the_nudge(self):
+        (self.home / "roster.md").write_text(ROSTER + "| t-dev-s1 | dev | s1 | ticket 03 | live | b |\n", encoding="utf-8")
+        self.tickets(t03="ready")
+        self.agents(t_mgr_s1="idle", t_dev_s1="idle", t_qa_s1="idle")
+        self.tick(0)
+        self.assertEqual(self.log().count("t-dev-s1"), 1)
 
     def test_tick_in_a_process_sends_the_nudge_to_the_manager_through_herdr(self):
         fake = Path(self.tmp.name) / "bin"
@@ -168,6 +249,7 @@ class WatchdogTest(unittest.TestCase):
         r = winlaunch.run_script(str(BIN / "squad-watchdog"), ["tick", "--home", str(self.home), "--manager", "t-mgr-s1",
                                                               "--herdr-json", str(self.herdr)], env, utf8=True, encoding="utf-8", capture_output=True)
         self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout, "")  # no raw event lines
         calls = log.read_text(encoding="utf-8").splitlines()
         self.assertEqual(len(calls), 2, calls)
         self.assertTrue(all(c.startswith("agent prompt t-mgr-s1 WATCHDOG:") for c in calls), calls)
