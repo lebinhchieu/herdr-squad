@@ -254,12 +254,43 @@ class SpawnDryRunTest(unittest.TestCase):
         tab = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("tab create"))
         self.assertNotIn("SQUAD_PLUGIN_DIR", tab)
 
+    def test_lean_settings_file_merges_the_users_hooks_permissions_env_but_not_plugins(self):
+        self._user_skills("playwright-cli")
+        user = {"enabledPlugins": {"x@y": True}, "extraKnownMarketplaces": {"m": {}}, "env": {"PROBE": "1"}, "model": "opus",
+                "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "rtk hook claude"}]}]},
+                "permissions": {"allow": ["Bash(rtk:*)", "Bash(git status:*)"]}}
+        (Path(self.env["CLAUDE_CONFIG_DIR"]) / "settings.json").write_text(json.dumps(user), encoding="utf-8")
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        merged = self.squad / "roles" / "dev-1.lean-settings.json"
+        self.assertIn(f"--settings {merged}", self._start_line())
+        m = json.loads(merged.read_text(encoding="utf-8"))
+        self.assertNotIn("enabledPlugins", m)
+        self.assertNotIn("extraKnownMarketplaces", m)
+        self.assertEqual(m["env"], {"PROBE": "1"})
+        self.assertEqual(m["hooks"], user["hooks"])
+        self.assertEqual(m["model"], TABLE["dev"][0])  # the role's own scalar wins over the user's
+        allow = m["permissions"]["allow"]
+        self.assertEqual(allow.count("Bash(git status:*)"), 1)  # joined without a duplicate
+        self.assertIn("Bash(rtk:*)", allow)
+        self.assertIn("Bash(git diff:*)", allow)  # from the role's template
+        self.assertIn("Bash(git push:*)", m["permissions"]["deny"])
+
+    def test_lean_settings_skips_an_unparsable_user_file_with_one_warning(self):
+        self._user_skills("playwright-cli")
+        (Path(self.env["CLAUDE_CONFIG_DIR"]) / "settings.json").write_text("{nope", encoding="utf-8")
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stderr.count("is not usable JSON"), 1)
+        self.assertIn("templates/squad/settings/dev.json", self._start_line().replace("\\", "/"))
+
     def test_user_config_env_restores_the_old_start(self):
         self.env["SQUAD_SPAWN_USER_CONFIG"] = "1"
         self.assertEqual(self._real_spawn().returncode, 0)
         start = self._start_line()
         for flag in ("--setting-sources", "--add-dir", "--plugin-dir"):
             self.assertNotIn(flag, start)
+        self.assertNotIn("lean-settings", start)
         self.assertFalse((self.squad / "roles" / "dev-1.skills").exists())
 
     def test_a_squad_folder_with_neither_file_still_exits_1(self):

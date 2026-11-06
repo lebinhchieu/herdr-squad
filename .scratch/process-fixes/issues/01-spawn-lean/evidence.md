@@ -17,9 +17,12 @@ Opt-out: `SQUAD_SPAWN_USER_CONFIG=1` gives the old start line (test `test_user_c
 
 Checked from the worktree as cwd (where a real Developer starts): the repo has no `.claude/settings*.json` with `enabledPlugins` and no `.claude/skills`; the same lean init event gave 26 skills, none of the user's (`mattpocock-skills`, `anthropic-skills`, `graphify`, `herdr`, `visual-answer`, `frontend-design`, `b2be-po-assistant`, `blueprint-*` all absent), 16 agent types, no `jira-*` agent.
 
-What dropping the `user` source costs (tested, claude 2.1.319, cwd = worktree):
-- User `~/.claude/CLAUDE.md`: **still loads**. Asked "what name do you call the user?" with `--setting-sources project,local`: answer "Chieu" (same as a plain start).
-- User hooks, e.g. the RTK `PreToolUse` hook: **dropped**. `claude -p "Run exactly: git log --oneline -3"`: `rtk gain --history` counted 0 `git log` entries after the lean run and 1 after the plain run. A spawned role loses RTK's output shrinking.
-- User permission allow rules and user `env`: dropped with the same source (inherent to the flag). The role's own `--settings` file (permissions in the template) still applies.
+User settings kept (Manager ruling FINAL 01: the brief drops only plugins and skills). `--setting-sources project,local` alone also dropped the user's `settings.json` (RTK hook, permission rules, env; tested). So squad-spawn now writes `<home>/roles/<agent>.lean-settings.json` = the user's `settings.json` without any key matching plugin/skill/marketplace (`enabledPlugins`, `extraKnownMarketplaces`), merged with the role's settings (objects by key, arrays joined without duplicates, the role's scalars win), and passes that as the one `--settings` (a second `--settings` replaces the first: tested with a probe env var, last wins).
 
-Opt back in with `SQUAD_SPAWN_USER_CONFIG=1`. A kept skill the user does not have is skipped without a message.
+Re-run with the real user settings, real spawn flags, cwd = worktree (claude 2.1.319):
+- Merged file: keys include `env`, `hooks` (12 events), `permissions` (44 allow rules = 25 user + role's, deduplicated), no `enabledPlugins`.
+- Init event: 24 skills (no user skills; `claude-accounts`, `playwright-cli` listed), plugins `squad` + 5 built-in `cc-plugin-*`, 16 agent types. Plugin and skill counts stay low.
+- Hook back: `rtk gain --history` counted 1 `git log` entry before and 2 after a `claude -p "Run exactly: git log --oneline -3"` with the lean flags (before this change the count stayed at 0).
+- User `~/.claude/CLAUDE.md` still loads (earlier test: the name "Chieu").
+
+Opt back in to the old start (user source, no merge): `SQUAD_SPAWN_USER_CONFIG=1`. A kept skill the user lacks is skipped without a message. A user `settings.json` that is not JSON: one warning, the role's settings alone.

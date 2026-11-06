@@ -168,7 +168,8 @@ class SpawnTest(Base):
     def setUp(self):
         super().setUp()
         (self.squad / "process.md").write_text("x", encoding="utf-8")
-        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
+        # an empty user config dir: no user settings.json to merge into the lean start, so --settings is the role's file
+        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad), CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "nocfg"))
         self.dir = Path(self.tmp.name)
 
     def spawn(self, role="dev"):
@@ -244,7 +245,8 @@ class ComposedSpawnTest(Base):
         self.bin = Path(self.tmp.name) / "bin"
         self.bin.mkdir()
         fake_herdr(self.bin)
-        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad), PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}")
+        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad), PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}",
+                             CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "nocfg"))  # no user settings.json: --settings stays the role's file
 
     def run_spawn(self, *args):
         return winlaunch.run_script(SPAWN, ["dev", "x", "--scope", "sc1", *args], env=self.env, text=True,

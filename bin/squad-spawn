@@ -286,11 +286,37 @@ if [[ $settings_mode == overlay && $dry != 1 ]]; then
   printf '%s\n' "$eff_json" > "$settings.tmp" && mv "$settings.tmp" "$settings"
 fi
 
+# Lean start, settings half: `--setting-sources project,local` (below) drops the user's settings.json with its plugins, so
+# the user's permission rules, hooks and env come back through the one --settings file (a second --settings replaces the
+# first, so they are merged here). The user's plugin, skill and marketplace keys are left out. Objects merge by key,
+# arrays join (user's first), a scalar from the role's settings wins. No user file, or not JSON: the role's alone.
+if [[ ${SQUAD_SPAWN_USER_CONFIG:-} != 1 ]]; then
+  user_settings=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json
+  if [[ -f $user_settings ]]; then
+    if [[ $settings_mode == overlay ]]; then role_json=$eff_json; else role_json=$(cat "$settings" 2>/dev/null) || role_json="{}"; fi
+    # shellcheck disable=SC2016
+    if lean_json=$(jq -n --argjson role "$role_json" --slurpfile user "$user_settings" '
+        def m(a; b): if (a|type) == "object" and (b|type) == "object"
+                       then reduce (b|keys_unsorted[]) as $k (a; .[$k] = (if has($k) then m(.[$k]; b[$k]) else b[$k] end))
+                     elif (a|type) == "array" and (b|type) == "array" then a + (b - a)
+                     else b end;
+        m($user[0] | with_entries(select(.key | test("plugin|skill|marketplace"; "i") | not)); $role)' 2>/dev/null); then
+      settings=$home/roles/$name.lean-settings.json
+      if [[ $dry != 1 ]]; then
+        mkdir -p "$home/roles"
+        printf '%s\n' "$lean_json" > "$settings.tmp" && mv "$settings.tmp" "$settings"
+      fi
+    else
+      echo "warning: $user_settings is not usable JSON; $name starts without the user's permission rules, hooks and env" >&2
+    fi
+  fi
+fi
+
 claude_args=(--agent "squad:$role" --name "$name" --session-id "$session" --permission-mode auto --settings "$settings")
 [[ -n $model ]] && claude_args+=(--model "$model")
 [[ -n $effort ]] && claude_args+=(--effort "$effort")
 # Lean start: no user-level plugins, skills or agent types (a spawned role never uses them; they cost ~14k tokens on
-# every request). `--setting-sources project,local` drops the user source; --settings still applies. The squad plugin
+# every request). `--setting-sources project,local` drops the user source (its settings come back above). The squad plugin
 # comes from --plugin-dir (a legacy squad had it installed at user level, so it gets the running plugin here).
 # Kept: the skills named in lean_keep, copied from the user's skills folder into a per-agent folder given by --add-dir.
 lean_keep=(playwright-cli claude-accounts)
