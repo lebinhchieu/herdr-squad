@@ -58,6 +58,23 @@ class WatchdogTest(unittest.TestCase):
         self.assertRegex(line, r"^2027-01-15T08:00:00Z idle start: nobody works and work waits \(03 ready\)\. Agents: "
                                r"t-mgr-s1 idle, t-dev-s1 idle, t-qa-s1 blocked$")
 
+    def test_scopes_of_a_goal_that_share_a_ticket_folder_list_each_ticket_once(self):
+        squad = self.home.parent.parent
+        goal = squad / "goals" / "g1"
+        goal.mkdir(parents=True)
+        (goal / "goal.md").write_text("# g1\n", encoding="utf-8")
+        (goal / "roster.md").write_text(ROSTER.replace("s1", "g1"), encoding="utf-8")
+        tickets = Path(self.tmp.name) / ".scratch" / "slug" / "issues"
+        tickets.mkdir(parents=True)
+        (tickets / "03-a.md").write_text("# A\n\nStatus: ready\n", encoding="utf-8")
+        for sc in ("s1", "s2"):
+            (squad / "scopes" / sc).mkdir(exist_ok=True)
+            (squad / "scopes" / sc / "scope.md").write_text(f"# {sc}\ngoal: g1\ntickets: slug\n", encoding="utf-8")
+        (self.home / "tasks" / "03.md").unlink(missing_ok=True)
+        self.agents(t_mgr_g1="idle")
+        W.tick(goal, "t-mgr-g1", now=T0, herdr_json=str(self.herdr), send=None, retire=None)
+        self.assertIn("work waits (03 ready). Agents:", (goal / "watchdog.log").read_text(encoding="utf-8"))
+
     # AC2
     def test_the_manager_is_nudged_once_at_5_and_once_at_15_minutes(self):
         self.tickets(t03="ready")

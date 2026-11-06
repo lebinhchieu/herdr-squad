@@ -2,7 +2,7 @@
 """Plugin watchdog of one scope or goal: logs each idle start, nudges the Manager, sleeps agents the PO named.
 
   squad-watchdog run --home DIR --manager NAME [--interval S]   loop until DIR is gone (squad-start starts it)
-  squad-watchdog tick --home DIR --manager NAME                 one pass (what `run` does every interval)
+  squad-watchdog tick --home DIR --manager NAME [--now UTC]     one pass (what `run` does every interval)
   squad-watchdog sleep AGENT [--off] [--home DIR]               opt in (or out) of sleep-when-done for one agent
   squad-watchdog status [--home DIR]                            print the last state and the log tail
 
@@ -95,7 +95,7 @@ def snapshot(home, herdr_json=None):
     """{ok, why, agents: [{name, role, scope, owns, state}], tickets: [{scope, id, status}]}. state: working | idle |
     blocked | unknown (herdr gave a word we do not know) | gone (not in herdr) | retired (roster says so)."""
     got, why = agents_mod.fetch({"herdr_json": herdr_json} if herdr_json else {})
-    agents, tickets = [], []
+    agents, tickets, seen = [], [], {}
     for label, h in scope_homes(home):
         for r in active.roster_rows(h):
             if r["status"].lower() in RETIRED:
@@ -106,7 +106,12 @@ def snapshot(home, herdr_json=None):
                 state = got[r["name"]]["status"] if r["name"] in got else "gone"
             agents.append({"name": r["name"], "role": r["role"], "scope": label, "owns": r["owns"], "state": state})
         for t in squadtickets.scope_tasks(h)["tasks"]:
-            tickets.append({"scope": label, "id": t["id"], "status": t["status"]})
+            key = t.get("where") or (label, t["id"])  # scopes of a goal may share one ticket folder: one row per file
+            if key in seen:
+                seen[key]["scopes"].append(label)
+            else:
+                seen[key] = {"scope": label, "scopes": [label], "id": t["id"], "status": t["status"]}
+                tickets.append(seen[key])
     return {"ok": got is not None, "why": why, "agents": agents, "tickets": tickets}
 
 
@@ -126,9 +131,9 @@ def tickets_text(snap):
 def nudge_text(minutes, since, snap):
     first = minutes == NUDGES[0]
     head = (f"WATCHDOG: nobody has worked for {minutes} minutes (since {hhmm(since)}) and work is waiting."
-            if first else f"WATCHDOG: still nobody working after {minutes} minutes (since {hhmm(since)}). This is the last reminder of this spell.")
+            if first else f"WATCHDOG: still nobody working after {minutes} minutes (since {hhmm(since)}). This is the last reminder of this idle period.")
     return (f"{head} Waiting: {tickets_text(snap)}. Agents: {states_text(snap)}. "
-            "Message the agent who owns a ticket, or spawn one. If you only wait for the PO's answer, you can ignore this.")
+            "Message the agent who owns a ticket, or spawn one. If you only wait for the PO's answer, or a test run is going, you can ignore this.")
 
 
 def decide(st, snap, now, sleepers):
@@ -161,7 +166,7 @@ def decide(st, snap, now, sleepers):
                 events.append(("nudge", m, since))
     # sleep-when-done: only for agents the PO named
     idle_at = {k: v for k, v in (st.get("agent_idle") or {}).items()}
-    by_ticket = {(t["scope"], str(t["id"]).lstrip("0")): t["status"] for t in snap["tickets"]}
+    by_ticket = {(sc, str(t["id"]).lstrip("0")): t["status"] for t in snap["tickets"] for sc in t["scopes"]}
     new_idle = {}
     for a in snap["agents"]:
         if a["state"] == "idle":
@@ -262,6 +267,7 @@ def main():
         s.add_argument("--home")
         s.add_argument("--manager")
         s.add_argument("--herdr-json", help="read herdr agents from a recorded file (tests)")
+        s.add_argument("--now", help="act as if it were this UTC time, e.g. 2027-01-15T08:05:00Z (tests, demos)")
         if name == "run":
             s.add_argument("--interval", type=float, default=float(os.environ.get("SQUAD_WATCHDOG_INTERVAL") or INTERVAL_S))
     s = sub.add_parser("sleep")
@@ -276,7 +282,8 @@ def main():
         manager = a.manager or default_manager(home)
         if a.cmd == "run":
             return run(home, manager, a.interval, a.herdr_json)
-        for ev in tick(home, manager, herdr_json=a.herdr_json):
+        now = datetime.strptime(a.now, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp() if a.now else None
+        for ev in tick(home, manager, now=now, herdr_json=a.herdr_json):
             print(ev[0], *ev[1:])
         return 0
     if a.cmd == "sleep":

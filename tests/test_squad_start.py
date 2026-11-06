@@ -68,6 +68,13 @@ class StartTest(unittest.TestCase):
         self.assertIn("scope.md", next(l for l in h.splitlines() if l.startswith("agent prompt")))
         self.assertIn("| t-mgr-sec04 | manager | sec04 |", (sc / "roster.md").read_text(encoding="utf-8"))
 
+    @staticmethod
+    def stop(pid):
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass  # it already left: its folder was removed
+
     def watchdog_pid(self, home):
         """The pid the watchdog wrote in its state file, once it has made a pass (it makes the first at once)."""
         state = home / "watchdog.state.json"
@@ -89,7 +96,7 @@ class StartTest(unittest.TestCase):
             home = self.squad / kind / name
             self.assertEqual(self.start(text, "--name", name, "--touches", name).returncode, 0)
             pid = self.watchdog_pid(home)
-            self.addCleanup(os.kill, pid, signal.SIGTERM)
+            self.addCleanup(self.stop, pid)
             self.assertRegex((home / "watchdog.log").read_text(encoding="utf-8"), rf"watchdog started for {name}; Manager t-mgr-{name}")
         self.assertEqual(self.start("Tabs", "--in-goal", "big", "--name", "s1", "--touches", "x", "--yes").returncode, 0)
         time.sleep(0.5)
