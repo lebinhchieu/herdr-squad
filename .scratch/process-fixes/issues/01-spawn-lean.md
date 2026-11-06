@@ -39,4 +39,4 @@ AC trace (evidence: `.scratch/process-fixes/issues/01-spawn-lean/evidence.md`):
 - AC3 | `test_user_config_env_restores_the_old_start`, the unchanged role/settings/roster tests; test_squad_respawn, test_squadruntime and 13 other spawn-related files pass | `cd tests && python3 -m unittest test_squad_spawn test_squad_respawn test_squadruntime ...` (list in evidence.md)
 
 Known: `test_a_failed_agent_start_leaves_the_old_overrides_file` fails on base too (verified on a `git archive HEAD` copy). Not touched.
-Needs Chieu's eye: `--setting-sources project,local` also drops the user's own settings.json for spawned roles (hooks such as RTK, permission rules, env). Opt back in with `SQUAD_SPAWN_USER_CONFIG=1`.
+Needs Chieu's eye (sent as BLOCKED 01): `--setting-sources project,local` also drops the user's settings.json for spawned roles: hooks (RTK confirmed gone), permission rules, env. User CLAUDE.md still loads (tested). Opt back in with `SQUAD_SPAWN_USER_CONFIG=1`. A kept skill the user lacks is skipped silently, so a role can start without playwright-cli and nothing says so.

@@ -15,4 +15,11 @@ Flags the spawn logged (after `--`):
 
 Opt-out: `SQUAD_SPAWN_USER_CONFIG=1` gives the old start line (test `test_user_config_env_restores_the_old_start`).
 
-Trade-off Chieu should know: `--setting-sources project,local` also drops the user's own `~/.claude/settings.json` for a spawned role: user hooks (e.g. the RTK rewrite hook), user permission rules and user `env`. Roles keep the squad's `--settings` file. Set `SQUAD_SPAWN_USER_CONFIG=1` to get them back.
+Checked from the worktree as cwd (where a real Developer starts): the repo has no `.claude/settings*.json` with `enabledPlugins` and no `.claude/skills`; the same lean init event gave 26 skills, none of the user's (`mattpocock-skills`, `anthropic-skills`, `graphify`, `herdr`, `visual-answer`, `frontend-design`, `b2be-po-assistant`, `blueprint-*` all absent), 16 agent types, no `jira-*` agent.
+
+What dropping the `user` source costs (tested, claude 2.1.319, cwd = worktree):
+- User `~/.claude/CLAUDE.md`: **still loads**. Asked "what name do you call the user?" with `--setting-sources project,local`: answer "Chieu" (same as a plain start).
+- User hooks, e.g. the RTK `PreToolUse` hook: **dropped**. `claude -p "Run exactly: git log --oneline -3"`: `rtk gain --history` counted 0 `git log` entries after the lean run and 1 after the plain run. A spawned role loses RTK's output shrinking.
+- User permission allow rules and user `env`: dropped with the same source (inherent to the flag). The role's own `--settings` file (permissions in the template) still applies.
+
+Opt back in with `SQUAD_SPAWN_USER_CONFIG=1`. A kept skill the user does not have is skipped without a message.
