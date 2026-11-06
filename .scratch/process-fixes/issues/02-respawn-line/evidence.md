@@ -17,8 +17,8 @@ AC3. Fixed-line rules found outside the plugin, not edited:
 | `.claude/squads/plugin/process.local.md:25` | SQ-3 (this squad's overlay) | over 100k |
 | `.claude/squads/board/process.local.md:8` | SQ-1 Manager reads usage | over 100k |
 | `.claude/squads/board/process.local.md:10-15` | SQ-2 Developer band | 100k at ticket open, 100k at HANDIN |
-| `.claude/squads/board/process.local.md:29` | SQ-4-style QA line (respawn notice) | never pass 100k |
-| `.claude/squads/board/process.local.md:36` | HANDIN `ctx <n>k` line | over 100k at HANDIN |
+| `.claude/squads/board/process.local.md:29` | SQ-4 QA finishes the check | never pass 100k |
+| `.claude/squads/board/process.local.md:36` | SQ-5 Developer reads its row | over 100k at HANDIN |
 | `.claude/squads/board/process-log.md:8-9` | log of SQ-1, SQ-2 | 100k |
 | `docs/adr/0016-process-composed-per-role.md:63` | Developer retirement (history) | 120k |
 | `.claude/squads/accounts/process-log.md:8` | log line | "120k is COST-3 already" |
