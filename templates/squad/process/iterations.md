@@ -88,8 +88,8 @@ Read `squad-usage`, `usage-events.jsonl` of the folder the Manager names, and ea
 roles: token-coach
 topic: iterations
 
-- Find waste in the table: cache expiries, peak context over the rule thresholds, compactions, a role on a bigger model or effort than its default, many turns for little output.
-- Each proposal has a title, the evidence (the table row by agent name, or the `usage-events.jsonl` line by `ts`), the exact rule change (rule ID and new wording), and the expected saving (tokens or percent, with how you got it). Tune the rule values (120k, 1h, 100k) if the evidence says they are wrong.
+- Find waste in the table: cache expiries, peak context over the respawn line, compactions, a role on a bigger model or effort than its default, many turns for little output.
+- Each proposal has a title, the evidence (the table row by agent name, or the `usage-events.jsonl` line by `ts`), the exact rule change (rule ID and new wording), and the expected saving (tokens or percent, with how you got it). Tune the rule values (respawn line room and cap, 1h) if the evidence says they are wrong.
 
 ## ITER-9 Token Coach limits
 roles: token-coach
