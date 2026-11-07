@@ -34,3 +34,25 @@ No-QA HANDIN runs `squad-evidence check` with no `--base` in the worktree of the
 | T1, T6 | `test_hook_entry_warns_and_never_fails`, `test_w1_to_w8...` | same |
 
 Run: `python3 -m unittest test_squadtask test_squad_ledger` in `tests/`: 32 tests OK.
+
+## QA whitebox review
+
+### QA whitebox, ticket 07 (task 01 rework: no confirmer, no-QA evidence path)
+
+#### Technical AC (agreed text: tasks/design.md s8 after E3/E4, Tech Lead DECISION 01, 07)
+Bar = design.md s8: T1, T2, T3, T4, T5, T6, T8, T11, T12 as written; T13 (parse_handin additive); T14 (only task-events/<slug>.jsonl written, now also by `passed` override); T15, T16, T17; T18 (CLI exit 2, must cover `passed NN` and `pass NN --slot`); T19 (no-QA evidence hook, real temp git repo); T20 (no squad-evidence call with a QA; PASS from manager/team-lead/tech-lead = W4, no event; FAIL from any sender recorded); T21 (Blocked-by leading numbers only); T22 (squad_dir_of for scopes/_done); T23 (tests and hand checks use a temp squad, never the real task-events); T24 (no-QA word `in progress` or `passed`, never `checking`; retired QAs still count; `override` PASS).
+Rules: old os.path code in squadledger.py is not a return reason. No pre-written test points (LC-4). Ticket's own Technical AC line lists only T8, T19, T20, T1, T6; T21-T24 and T14/T18 changes came by DECISION: a gap there is a follow-up, not a FAIL, unless the Developer was handed them (Team Lead's ticket text decides).
+REV-5b live run: once in a temp squad with a temp git repo, no-QA HANDIN calls `squad-evidence check`.
+Per-ticket check: re-check only changed files and AC (LC-3b); base for the diff = 64b0785.
+
+#### Verdict e3459f2 (base 64b0785): PASS
+Run by me: `cd tests; python3 -m unittest test_squadtask test_squad_ledger` = 32 OK (no skips). Diff = bin/squadtask.py, bin/squad-task (docstring), tests/test_squadtask.py, ticket/evidence files; matches the ticket's Files line.
+Code read: confirmer code gone (CONFIRM_ROLES, _team_tokens, squadrules import); checkers/slots/is_passed per D7 (retired-all QAs still count; override PASS); word() never `checking` with no QA; W4 for non-QA PASS, FAIL from any sender recorded; W6 only on override; W7 text; W9 on handin event and in output; evidence_check has no --base, needs HEAD == handed-in sha, never raises; squad-evidence is not started when a QA is on the roster (test stubs it); parse_blocked_by leading numbers; squad_dir_of `_done`.
+REV-5b live (temp SQUAD_DIR, temp git repo as worktree, real `squad-evidence check`): no-QA HANDIN with valid evidence -> `pass` slot evidence, word `passed`, W3 only. `passed abc` and `pass 01 --slot` (no value) exit 2. Only task-events/s1.jsonl (+ .lock) written. Temp dir removed.
+Technical AC: T1, T6, T8, T19, T20 (ticket's own list) ok; T21, T22, T24 ok in code and tests; T23 ok (all tests temp squad).
+
+#### Follow-ups (not blocking, SQ-4)
+1. T18: `test_cli_claim_exit_codes` does not cover `passed NN` / `pass NN --slot` exit 2 (code does it, I ran it by hand). Add one row.
+2. T14: no snapshot test that the `passed` override writes only task-events/<slug>.jsonl (code reads that way).
+3. Still open from 01: T15/T16/T17 tests; 6+ digit number false W5; Tech Lead's call on the dropped tech-lead FAIL is now moot (FAIL from any sender is recorded).
+4. `evidence_check` falls back to the hook's cwd when the worktree dir is not found; HEAD check guards it, fine.
