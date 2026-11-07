@@ -675,6 +675,87 @@ class SpawnScopedTest(unittest.TestCase):
         self.assertNotIn("t-tech-sc1", (self.squad / "scopes" / "sc2" / "roster.md").read_text(encoding="utf-8"))
 
 
+class SpawnTaskClaimTest(unittest.TestCase):
+    """`--task NN` (dev only): a claim event once the pane is up (design 5.2). Warns, never fails the spawn."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.squad = scoped_squad(self.root)
+        self.repo = self.root / "code"
+        self.repo.mkdir()
+        self.git = lambda *a: subprocess.run(
+            ["git", *a], cwd=self.repo, check=True, capture_output=True, text=True, encoding="utf-8",
+            env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                 "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}).stdout.strip()
+        self.git("init", "-q", "-b", "main")
+        self.git("commit", "-q", "--allow-empty", "-m", "init")
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir()
+        fake_herdr(bin_dir)
+        self.env = clean_env()
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.root / "h.log"),
+                        PATH=f"{bin_dir}:{os.environ['PATH']}")
+
+    def spawn(self, *args, role="dev", name="t-dev-sc1-1", env=None):
+        return winlaunch.run_script(SCRIPT, [role, name, "--scope", "sc1", *args], env=env or self.env, text=True,
+                                    encoding="utf-8", capture_output=True, timeout=30)
+
+    def events(self):
+        return [json.loads(l) for f in (self.squad / "task-events").glob("*.jsonl")
+                for l in f.read_text(encoding="utf-8").splitlines()]
+
+    def test_task_claims_the_ticket_for_the_agent_and_its_branch(self):  # AC2, T7
+        r = self.spawn("--repo", str(self.repo), "--task", "03")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["status"], "ready")  # stdout stays the one JSON line
+        (ev,) = self.events()
+        self.assertEqual((ev["ev"], ev["task"], ev["by"], ev["branch"]), ("claim", "03", "t-dev-sc1-1", "squad/t/sc1/t-dev-sc1-1"))
+
+    def test_claim_with_an_open_blocker_is_recorded_with_w1_and_never_refused(self):  # AC8
+        drafts = self.squad / "scopes" / "sc1" / "tasks"
+        drafts.mkdir()
+        (drafts / "ticket-03-x.md").write_text("# 03\n\nStatus: ready-for-agent\nBlocked by: 02\n", encoding="utf-8")
+        r = self.spawn("--repo", str(self.repo), "--task", "03")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["status"], "ready")
+        self.assertIn("W1", r.stderr)
+        (ev,) = self.events()
+        self.assertEqual(ev["ev"], "claim")
+        self.assertTrue(ev["warn"][0].startswith("W1"), ev["warn"])
+
+    def test_env_task_claims_too_and_a_worktree_respawn_does_not_reclaim(self):  # T7
+        r = self.spawn("--repo", str(self.repo), env={**self.env, "SQUAD_SPAWN_TASK": "04"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual([e["task"] for e in self.events()], ["04"])
+        wt = self.root / ".worktrees" / "t" / "sc1" / "t-dev-sc1-1"
+        r = self.spawn("--worktree", str(wt), "--task", "04", name="t-dev-sc1-2")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(self.events()), 1)
+
+    def test_dry_run_plans_the_claim_and_writes_nothing_and_a_non_dev_ignores_task(self):  # T7
+        r = self.spawn("--repo", str(self.repo), "--task", "03", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertRegex(r.stdout, r"would run: squad-task claim 03 --scope-home \S+/scopes/sc1 --owner t-dev-sc1-1 --branch squad/t/sc1/t-dev-sc1-1")
+        self.assertFalse((self.squad / "task-events").exists())
+        r = self.spawn("--task", "03", "--dry-run", role="tech-lead", name="t-tech-sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("--task ignored", r.stderr)
+        self.assertNotIn("squad-task claim", r.stdout)
+
+    def test_a_bad_task_value_is_refused_and_a_claim_failure_never_fails_the_spawn(self):  # T1
+        self.assertEqual(self.spawn("--task", "x3", "--dry-run").returncode, 2)
+        shutil.copytree(BIN, self.root / "p" / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(ROOT / "templates", self.root / "p" / "templates")
+        broken = self.root / "p" / "bin" / "squad-task"
+        broken.write_text("#!/usr/bin/env bash\nexit 9\n", encoding="utf-8")
+        script = self.root / "p" / "bin" / "squad-spawn"
+        r = winlaunch.run_script(script, ["dev", "t-dev-sc1-1", "--scope", "sc1", "--repo", str(self.repo), "--task", "03", "--prompt", "go"],
+                                 env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+
 class SpawnLabelTest(unittest.TestCase):
     """The tab label is "<emoji> <Role>[ n][ · title]"; the address name stays as it is."""
 
@@ -957,6 +1038,16 @@ class SpawnPinnedTest(_GateBase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.calls(), ["squad-spawn qa-whitebox gate-1 --scope sc1 --prompt go --title t one"])
         self.assertEqual(self.created(), [])  # nothing of the new engine's own
+
+    def test_the_hand_off_drops_task_from_the_args_and_passes_it_as_env(self):  # T7: an old runtime rejects --task
+        rt = self.pin("0.5.2")
+        (rt / "bin" / "squad-spawn").write_text(
+            f'#!/usr/bin/env bash\necho "squad-spawn $* task=${{SQUAD_SPAWN_TASK:-}}" >> "{self.record}"\nexit 0\n', encoding="utf-8")
+        r = self.spawn("dev", "gate-1", "--task", "03", "--title", "t")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        (call,) = self.calls()
+        self.assertNotIn("--task", call)
+        self.assertTrue(call.endswith("--title t task=03"), call)
 
     def test_the_hand_off_also_happens_from_an_agent_session_and_for_a_dry_run(self):
         self.pin("0.5.2")

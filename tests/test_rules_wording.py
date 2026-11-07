@@ -142,5 +142,21 @@ class ManagerInboxWordingTest(unittest.TestCase):
             self.assertIn(s, self.CARRIES)
 
 
+class TaskStageWordsTest(unittest.TestCase):
+    """Ticket 05 (task-claim-gates): process text uses passed/merged, no confirmer, gates warn."""
+
+    def test_no_stage_called_done_and_no_confirmer_pass(self):
+        core = composed("dev", "M").split("## CORE-1 ")[1].split(" ## ")[0]
+        self.assertIn("checking → passed", core)
+        self.assertNotIn("→ done", core)
+        rev = (ROOT / "templates/squad/process/review.md").read_text()
+        self.assertIn("Send no `PASS`", rev)
+        self.assertIn("never `PASS`", rev)
+        lc = rule("LC-27")
+        for s in ("only `merged` is done", "Gates warn, never block", "squad-task", "`squad-evidence check`"):
+            self.assertIn(s, lc)
+        self.assertIn("squad-task merged NN", rule("MRG-4"))
+
+
 if __name__ == "__main__":
     unittest.main()

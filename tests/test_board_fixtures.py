@@ -51,7 +51,7 @@ class FixtureGivens(unittest.TestCase):
                                        text=True, encoding="utf-8").stdout.strip()
         merged = subprocess.run(["git", "branch", "--merged", "main"], cwd=self.fx.repo, capture_output=True, text=True,
                                 encoding="utf-8").stdout
-        self.assertIn(tip("06"), by("PASS", "06")[0]["text"])                   # ready for review: tip = passed sha
+        self.assertIn(tip("06"), by("PASS", "06")[0]["text"])                   # passed: tip = passed sha
         self.assertNotIn(tip("07"), by("PASS", "07")[0]["text"])                # sha changed after PASS
         self.assertIn(branch("08"), merged)                                     # merged
         self.assertNotIn(branch("06"), merged)

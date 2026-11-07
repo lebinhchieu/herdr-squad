@@ -7,7 +7,7 @@
     python3 tests/board_fixtures.py append-message DIR --scope checkout --type FAIL --task 03 --sender fix-qaw-checkout --text "FAIL 03: x"
 
 No board logic here. Git branches (the fixture folder cannot hold a .git) are built in the copy: they give
-`ready for review`, `sha changed after PASS` and `merged` their real commit ids, put into {{sha:KEY}} in messages.jsonl.
+`passed`, `sha changed after PASS` and `merged` their real commit ids, put into {{sha:KEY}} in messages.jsonl.
 """
 import argparse
 import json

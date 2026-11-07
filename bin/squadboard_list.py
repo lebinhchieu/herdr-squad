@@ -23,6 +23,7 @@ import squadboard_git
 import squadboard_time
 import squadinbox
 import squadledger
+import squadtask
 import squadtickets
 
 NAME_OK = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -181,18 +182,23 @@ def scope_row(squad, home, status, ctx):
         tickets = {}
     if ctx["merged"] is None:
         unknown.append("git")
+    # task events (design s3): a ticket with events counts by its state, else by the ledger
+    states = squadtask.fold(squadtask.read_events(squadtask.squad_dir_of(home), squadtask.slug_of(home)))
     done_keys = {squadledger.key(k) for k, s in tickets.items() if s.startswith("done")}
     for r in ledger:
         if ctx["merged"] and r.get("branch") in ctx["merged"]:
             done_keys.add(squadledger.key(r["task"]))
+    for k, st in states.items():
+        if st["merged_ts"] or (st["sha"] and ctx["merged"] and st["branch"] in ctx["merged"]):
+            done_keys.add(k)
     all_keys = {squadledger.key(k) for k in tickets}
+    facts = {squadledger.key(r["task"]): (r.get("blocked"), r.get("returns"), r.get("verdicts")) for r in ledger}
+    facts.update({k: (st["blocked_open"], st["returns"], st["verdicts"]) for k, st in states.items()})
     stuck = 0
-    for r in ledger:
-        k = squadledger.key(r["task"])
+    for k, (blocked, returns, v) in facts.items():
         if k in done_keys:
             continue
-        v = r.get("verdicts") or {}
-        if r.get("blocked") or (r.get("returns") and not (v and all(x == "PASS" for x in v.values()))):
+        if blocked or (returns and not (v and all(x == "PASS" for x in v.values()))):
             stuck += 1
     # needs you: open questions and unread items of this scope (inbox files only)
     needs = None

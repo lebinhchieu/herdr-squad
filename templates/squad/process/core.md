@@ -4,7 +4,7 @@
 roles: all
 topic: lifecycle
 
-`ready → building → (blocked ↔ building) → handed in → checking → done | returned → building`.
+`ready → building → (blocked ↔ building) → handed in → checking → passed | returned → building`.
 
 ## CORE-2 Message types
 roles: all

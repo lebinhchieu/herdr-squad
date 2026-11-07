@@ -6,11 +6,11 @@ Route `GET /api/inbox` (goal= or scope=). Read-only: the only inbox call is `squ
     data = {rows, count_choice, count_squad, others: [{scope, n}], banner: {entries|None, reason}, parked, status}
     row  = {id, title, age_s, blocks, options: [{key, text, recommended}], kind ("open" question | "answer" to read), scope}
 
-Needs-you = open questions + items to read + ready-for-review branches + permission prompts. A question parked whole
+Needs-you = open questions + items to read + passed branches + permission prompts. A question parked whole
 (`From: E<n>`, Status: parked) is not counted and not a row; a point parked (`From: E<n> #<p>`) leaves the item in. The
 banner comes from `squadboard_agents.banner` (herdr, one call per read). herdr unknown gives `banner.entries None` and
-`unknown: ["herdr"]`, never `[]`. Ready-for-review branches come from ticket 07 (`squadboard_tasks.ready_by_scope(sel)`
--> {scope: n}) or `sel["ready_for_review"]`; with neither, `unknown` names "ready_for_review" and they count 0.
+`unknown: ["herdr"]`, never `[]`. Passed branches come from ticket 07 (`squadboard_tasks.ready_by_scope(sel)`
+-> {scope: n}) or `sel["passed"]`; with neither, `unknown` names "passed" and they count 0.
 Cost: one CLI call per open scope/goal/squad folder that has an inbox file. Never raises.
 """
 import json
@@ -151,8 +151,8 @@ def _homes(sel):
 
 
 def _ready(sel):
-    """-> ({scope: n}, ok). `sel["ready_for_review"]` is a test hook; else ticket 07's `ready_by_scope`."""
-    fn = sel.get("ready_for_review") or squadboard_tasks.ready_by_scope
+    """-> ({scope: n}, ok). `sel["passed"]` is a test hook; else ticket 07's `ready_by_scope`."""
+    fn = sel.get("passed") or squadboard_tasks.ready_by_scope
     try:
         return {k: int(v) for k, v in (fn(sel) or {}).items()}, True
     except Exception:
@@ -181,7 +181,7 @@ def read(sel):
         parked_n = sum(len(parked_from(h)) for _, h in allh)
         ready, ok_ready = _ready(sel)
         if not ok_ready:
-            unknown.append("ready_for_review")
+            unknown.append("passed")
         for k, n in ready.items():
             per_scope[k] = per_scope.get(k, 0) + n
         b = squadboard_agents.banner(sel)

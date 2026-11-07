@@ -9,13 +9,13 @@ topic: owners
 |---|---|---|---|
 | Plan, task order, Developer spawning | Manager | Manager | Deadline or budget overrun |
 
-## WHO-1b Task done
+## WHO-1b Task passed
 roles: manager, ba, team-lead, tech-lead
 topic: owners
 
 | Topic | Owner | Breaks a dispute | Always goes to PO |
 |---|---|---|---|
-| Task done | Every checker on the team (`duties:`); with none, the Manager confirms the Developer's evidence and review | Manager | n/a |
+| Task passed | Every checker on the team (`duties:`); with none, the HANDIN evidence check (`squad-evidence check` exits 0) | Manager | n/a |
 
 ## WHO-1c Business owner, BA
 roles: manager, ba, tech-lead

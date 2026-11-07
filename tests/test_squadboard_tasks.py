@@ -47,8 +47,8 @@ class Tasks(unittest.TestCase):
         board_fixtures.cleanup(cls.fx)
 
     def test_T07_AC1_AC2_AC3_stage_per_task(self):
-        want = {"01": "todo", "02": "in progress", "03": "returned", "04": "blocked", "06": "ready for review",
-                "07": "sha changed after PASS", "08": "merged", "09": "done"}
+        want = {"01": "todo", "02": "in progress", "03": "returned", "04": "blocked", "06": "passed",
+                "07": "sha changed after PASS", "08": "merged", "09": "passed"}
         for k, v in want.items():
             self.assertEqual(self.rows[k]["stage"], v, k)
         for r in self.rows.values():
@@ -71,9 +71,11 @@ class Tasks(unittest.TestCase):
         self.assertEqual(self.rows["05"]["waits_on"], "QA blackbox")
 
     def test_T07_AC5_AC6_ready_list(self):
-        rd = self.res["data"]["ready_for_review"]
-        self.assertEqual([x["task"] for x in rd], ["06"])
-        self.assertEqual(rd[0]["tip"], self.rows["06"]["tip"])
+        """`ready for review` is gone: the data key is dropped, `passed` with a branch tip is what the Inbox counts."""
+        self.assertNotIn("ready_for_review", self.res["data"])
+        self.assertNotIn("ready for review", {r["stage"] for r in self.rows.values()})
+        self.assertEqual(self.rows["06"]["waits_on"], "PO")
+        self.assertEqual(bt.ready_by_scope(sel_for(self.fx))["checkout"], 1)  # 06; 09 is `passed` by label, no branch
 
     def test_T07_AC7_AC8_no_row_for_rule_token_and_tickets_line(self):
         self.assertNotIn("REV-8", self.rows)
@@ -198,8 +200,8 @@ class ScopeFilesShape(unittest.TestCase):
         rows = self.rows()
         self.assertEqual([r["id"] for r in rows], ["01", "02", "04"])
         self.assertEqual((rows[0]["title"], rows[0]["stage"], rows[0]["ticket_status"]),
-                         ("Repro: what cswitch meets on a pane with background work", "done", "done"))
-        self.assertEqual((rows[1]["stage"], rows[2]["title"], rows[2]["stage"]), ("in progress", "Integration, docs, promotion", "done"))
+                         ("Repro: what cswitch meets on a pane with background work", "passed", "done"))
+        self.assertEqual((rows[1]["stage"], rows[2]["title"], rows[2]["stage"]), ("in progress", "Integration, docs, promotion", "passed"))
         self.assertTrue(self.KEYS <= set(rows[0]) and "abs" in rows[0])
         self.assertEqual(rows[0]["where"], ".claude/squads/accounts/scopes/cswitch-bg/tasks/01.md")
         squad = SimpleNamespace(repo_root=self.root)
@@ -233,6 +235,184 @@ class ScopeFilesShape(unittest.TestCase):
         r = bt.read({"squad": squad, "kind": "goal", "name": "g1", "home": self.home, "repo_root": self.root, "now": NOW, "params": {}})
         rows = r["data"]["rows"]
         self.assertEqual([(x["id"], x["scope"], x["where"].rsplit("/", 1)[1]) for x in rows], [("01", "cswitch-bg", "01.md")])   # no REV-8 row
+
+
+class StoreReader(unittest.TestCase):
+    """Ticket 03: the reader folds `task-events/<slug>.jsonl` first, the ledger second (design s6; states.md AC1, AC3-AC9)."""
+    SQUAD = "accounts"
+
+    def setUp(self):
+        self.td = tempfile.TemporaryDirectory()
+        self.root = Path(self.td.name).resolve()
+        self.sq = self.root / ".claude" / "squads" / self.SQUAD
+        for n, extra in (("01", ""), ("02", ""), ("03", "Blocked by: 02\n"), ("04", "")):
+            self.put(self.root / ".scratch" / "tf" / "issues" / (n + "-t.md"), "# %s T\nStatus: ready-for-agent\n%s" % (n, extra))
+        self.home = self.scope("s1", qa=True)
+
+    def tearDown(self):
+        self.td.cleanup()
+
+    def put(self, path, text):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def scope(self, name, qa):
+        home = self.sq / "scopes" / name
+        rows = ["| %s-dev | dev | %s |  | live | x |" % (name, name)]
+        if qa:
+            rows += ["| %s-qaw | qa-whitebox | %s |  | live | x |" % (name, name), "| %s-qab | qa-blackbox | %s |  | live | x |" % (name, name)]
+        rows.append("| %s-mgr | manager | %s |  | live | x |" % (name, name))
+        self.put(home / "roster.md", "| Agent | Role | Scope | Owns | Status | Session |\n| --- | --- | --- | --- | --- | --- |\n" + "\n".join(rows) + "\n")
+        self.put(home / "scope.md", "tickets: tf\n")
+        return home
+
+    def events(self, *evs):
+        lines = []
+        for i, e in enumerate(evs):
+            d = {"v": 1, "ts": "2026-11-04T09:%02d:00.000Z" % i, "task": "01", "by": "s1-dev", "role": "", "scope": "s1",
+                 "sha": None, "branch": None, "slot": None, "why": None, "warn": [], "msg_id": None}
+            d.update(e)
+            lines.append(json.dumps(d))
+        self.put(self.sq / "task-events" / "tf.jsonl", "\n".join(lines) + "\n")
+
+    def rows(self, git=([], []), home=None):
+        return {r["id"]: r for r in bt.read_scope(self.SQUAD, (home or self.home).name, home or self.home, self.root, None, NOW, git=git)[0]}
+
+    BR = "squad/accounts/s1/s1-dev"
+
+    def test_AC1_AC7_AC8_AC9_todo_blocked_claim_on_blocker_wontfix(self):
+        r = self.rows()
+        self.assertEqual((r["01"]["stage"], r["01"]["owner"], r["01"]["last_active"]), ("todo", "unassigned", None))
+        self.assertEqual((r["03"]["stage"], r["03"]["waits_on"]), ("blocked", "ticket 02"))
+        self.events({"ev": "claim", "task": "03", "branch": self.BR, "warn": ["W1 started while ticket 02 is not yet passed"]},
+                    {"ev": "handin", "task": "02", "sha": "a1b2c3d4", "branch": self.BR},
+                    {"ev": "pass", "task": "02", "sha": "a1b2c3d4", "slot": "s1-qaw"},
+                    {"ev": "pass", "task": "02", "sha": "a1b2c3d4", "slot": "s1-qab"})
+        r = self.rows()
+        self.assertEqual(r["02"]["stage"], "passed")
+        self.assertEqual((r["03"]["stage"], r["03"]["owner"], r["03"]["detail_note"]), ("in progress", "s1-dev", "W1 started while ticket 02 is not yet passed"))
+        self.put(self.root / ".scratch" / "tf" / "issues" / "04-t.md", "# 04 T\nStatus: wontfix\nBlocked by: 01\n")
+        r = self.rows()["04"]  # wontfix and blocked: wontfix, waits on nobody
+        self.assertEqual((r["stage"], r["waits_on"]), ("wontfix", "nobody"))
+        self.events({"ev": "handin", "task": "02", "sha": "a1b2c3d4", "branch": self.BR},  # no claim on 03
+                    {"ev": "pass", "task": "02", "sha": "a1b2c3d4", "slot": "s1-qaw"},
+                    {"ev": "pass", "task": "02", "sha": "a1b2c3d4", "slot": "s1-qab"})
+        self.assertEqual(self.rows()["03"]["stage"], "todo")  # 02 passed: 03 turns todo by itself
+        self.events()
+        self.assertEqual(self.rows()["03"]["stage"], "blocked")
+
+    def test_AC3_AC5_checking_then_passed_manager_pass_not_counted(self):
+        sha = "a1b2c3d4"
+        self.events({"ev": "claim", "branch": self.BR}, {"ev": "handin", "sha": sha, "branch": self.BR},
+                    {"ev": "pass", "sha": sha, "slot": "s1-qaw"}, {"ev": "pass", "sha": sha, "slot": "s1-mgr", "by": "s1-mgr"})
+        r = self.rows()["01"]
+        self.assertTrue(r["stage"].startswith("checking, 1 of 2 PASS, waiting on QA blackbox"), r["stage"])
+        self.assertEqual((r["waits_on"], r["last_active_iso"]), ("QA blackbox", "2026-11-04T09:03:00Z"))  # newest event
+        self.events({"ev": "handin", "sha": sha, "branch": self.BR}, {"ev": "pass", "sha": sha, "slot": "s1-qaw"},
+                    {"ev": "pass", "sha": sha, "slot": "s1-qab"})
+        r = self.rows(git=([{"branch": self.BR, "sha": sha + "ffff", "ts": 1.0}], []))["01"]
+        self.assertEqual((r["stage"], r["waits_on"]), ("passed", "PO"))
+        r = self.rows(git=([{"branch": self.BR, "sha": "9999999", "ts": 1.0}], []))["01"]  # tip moved: AC12
+        self.assertEqual(r["stage"], "sha changed after PASS")
+
+    def test_AC4_no_qa_team_passed_by_evidence_or_in_progress_with_w9(self):
+        home = self.scope("s1", qa=False)
+        sha = "a1b2c3d4"
+        self.events({"ev": "handin", "sha": sha, "branch": self.BR, "warn": ["W9 evidence check failed: missing image"]})
+        r = self.rows(home=home)["01"]
+        self.assertEqual((r["stage"], r["detail_note"], r["waits_on"]), ("in progress", "W9 evidence check failed: missing image", "s1-dev"))
+        self.events({"ev": "handin", "sha": sha, "branch": self.BR},
+                    {"ev": "pass", "sha": sha, "slot": "evidence", "by": "hook", "role": "hook"})
+        r = self.rows(home=home)["01"]
+        self.assertEqual((r["stage"], r["waits_on"]), ("passed", "PO"))
+        self.assertNotIn("0 of 0", json.dumps(r))
+
+    def test_T24_override_pass_and_retired_qas_still_slots(self):
+        sha = "a1b2c3d4"
+        self.events({"ev": "handin", "sha": sha, "branch": self.BR}, {"ev": "pass", "sha": sha, "slot": "override", "by": "manual"})
+        self.assertEqual(self.rows()["01"]["stage"], "passed")
+        roster = self.home / "roster.md"
+        roster.write_text(roster.read_text(encoding="utf-8").replace("| live |", "| retired |"), encoding="utf-8")
+        self.events({"ev": "handin", "sha": sha, "branch": self.BR})
+        self.assertTrue(self.rows()["01"]["stage"].startswith("checking, 0 of 2 PASS"))  # M does not drop to 0 or to `evidence`
+
+    def test_AC6_T9_merged_and_branch_of_the_other_scope(self):
+        other = "squad/accounts/other/o-dev"
+        self.events({"ev": "claim", "by": "o-dev", "scope": "other", "branch": other}, {"ev": "handin", "by": "o-dev", "scope": "other", "sha": "a1b2c3d4", "branch": other})
+        refs = ([{"branch": other, "sha": "a1b2c3d4ee", "ts": 1.0}], [{"branch": other, "sha": "a1b2c3d4ee", "ts": 1.0}])
+        r = self.rows(git=refs)["01"]
+        self.assertEqual((r["stage"], r["owner"], r["branch"], r["tip"]), ("merged", "o-dev", other, "a1b2c3d4ee"))
+        self.assertEqual(self.rows(git=(refs[0], []))["01"]["tip"], "a1b2c3d4ee")  # the tip is found by the recorded branch
+
+    def test_D8_no_events_ledger_of_a_sibling_scope_with_the_same_ticket_folder(self):
+        self.scope("s2", qa=True)
+        self.put(self.sq / "scopes" / "s2" / "messages.jsonl", json.dumps(
+            {"ts": "2026-11-04T08:00:00.000Z", "from": "s2-dev", "to": "x", "type": "HANDIN", "task": "01", "text": "HANDIN 01: commit a1b2c3d4"}) + "\n")
+        r = self.rows()["01"]
+        self.assertEqual((r["owner"], r["branch"], r["last_active_iso"]), ("s2-dev", "squad/accounts/s2/s2-dev", "2026-11-04T08:00:00Z"))
+        self.assertTrue(r["stage"].startswith("checking, 0 of 2 PASS"), r["stage"])  # M from the roster of the scope that built it
+
+    def test_T10_bad_or_missing_store_never_raises(self):
+        self.put(self.sq / "task-events" / "tf.jsonl", "not json\n{\"ev\": 5}\n[]\n")
+        self.assertEqual(self.rows()["01"]["stage"], "todo")
+        self.assertEqual(bt.read({"squad": SimpleNamespace(name=self.SQUAD, path=self.sq), "kind": "scope", "name": "s1", "home": self.home,
+                                  "repo_root": self.root, "now": NOW, "params": {}})["quality"], "approx")  # git unknown, no crash
+
+
+class EvidenceTip(StoreReader):
+    """Ticket 10 (T25, T26): a commit that touches only the ticket's evidence folder keeps the PASS valid."""
+    BR = "squad/accounts/s1/s1-dev"
+
+    def git(self, *a):
+        import subprocess
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=str(self.root), check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def passed_sha(self):
+        self.git("init", "-q")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "code")
+        sha = self.git("rev-parse", "HEAD")
+        self.events({"ev": "handin", "sha": sha, "branch": self.BR}, {"ev": "pass", "sha": sha, "slot": "s1-qaw"},
+                    {"ev": "pass", "sha": sha, "slot": "s1-qab"})
+        return sha
+
+    def commit(self, rel):
+        self.put(self.root / rel, "x\n")
+        self.git("add", rel)
+        self.git("commit", "-q", "-m", rel)
+        return self.git("rev-parse", "HEAD")
+
+    def stage(self, tip):
+        return self.rows(git=([{"branch": self.BR, "sha": tip, "ts": 1.0}], []))["01"]["stage"]
+
+    def test_T25_evidence_only_commit_passes_other_path_and_git_error_do_not(self):
+        self.passed_sha()
+        tip = self.commit(".scratch/tf/issues/01-t/evidence.md")
+        self.assertEqual(self.stage(tip), "passed")
+        tip = self.commit(".scratch/tf/issues/01-t.evidence/a.md")  # the old folder name
+        self.assertEqual(self.stage(tip), "passed")
+        tip = self.commit("bin/x")
+        self.assertEqual(self.stage(tip), "sha changed after PASS")
+        self.assertEqual(self.stage("f" * 40), "sha changed after PASS")  # not in the repo: git fails, no raise
+
+    def test_T26_no_git_call_when_tip_matches(self):
+        sha = self.passed_sha()
+        calls = []
+        orig = bt.squadboard_git._git
+        bt.squadboard_git._git = lambda *a: calls.append(a) or orig(*a)
+        try:
+            self.assertEqual(self.stage(sha), "passed")
+            self.assertEqual(calls, [])
+            self.commit(".scratch/tf/issues/01-t/evidence.md")
+            self.stage(self.git("rev-parse", "HEAD"))
+            self.assertTrue(calls)
+        finally:
+            bt.squadboard_git._git = orig
+
+
+for _n in [n for n in dir(StoreReader) if n.startswith("test_")]:
+    setattr(EvidenceTip, _n, None)  # reuse the fixture only, not the parent's tests
 
 
 if __name__ == "__main__":
