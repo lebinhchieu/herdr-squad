@@ -13,7 +13,7 @@ aware: manager
 when: suite-owner = qa-white
 topic: suites
 
-You own the full suite for the scope; Developers and QA blackbox run only the test files they touch. Your default is targeted tests, and a full run, once, on the final sha, needs the ask and yes of [SUITE-1]. `project.md` may redefine the default and name the runner.
+You own the full suite for the scope; Developers and QA blackbox run only the test files they touch. Your default is targeted tests. A full run, once, on the final sha, needs your `ASK <task>: full suite? <why>` to the Manager and Chieu's yes ([SUITE-1]). `project.md` may redefine the default and name the runner.
 
 ## SUITE-2a Suites, Developer
 roles: dev
@@ -34,7 +34,7 @@ roles: dev
 when: suite-owner = dev
 topic: suites
 
-Run the test files you touched plus their `grep -rl` hits. A full suite needs the ask and Chieu's yes of [SUITE-1] first; then run it once on your final sha, in the background, till its notice (never `pgrep -f`/`pkill -f`); commit fixes first, never restart; receipt in `$SCOPE_DIR/evidence/`: `sha <git rev-parse HEAD> clean=<yes|no>`, OK last.
+Run the test files you touched plus `grep -rl` hits. A full suite needs `ASK <task>: full suite? <why>` to the Manager and Chieu's yes ([SUITE-1]); then once on your final sha, in the background till its notice (never `pgrep -f`/`pkill -f`); commit fixes first, never restart; receipt in `$SCOPE_DIR/evidence/`: `sha <git rev-parse HEAD> clean=<yes|no>`, OK last.
 
 ## SUITE-2b QA suites
 roles: qa-whitebox, qa-blackbox
