@@ -37,7 +37,20 @@ Env:
   SQUAD_DIR         Squad folder, overrides --squad (must be <project>/.claude/squads/<name>)
   SQUAD_PLUGIN_DIR  Load the plugin from this dir with --plugin-dir (when not installed)
   SQUAD_SPAWN_USER_CONFIG  1 = start the session with the user's own plugins, skills, hooks and settings
-                   (default: lean, only the squad plugin, playwright-cli and claude-accounts)
+                   (default: lean, only the squad plugin, playwright-cli and claude-accounts); lean.json is then ignored
+
+Lean start, per squad: <squad>/settings/lean.json (optional) says what every role of that squad keeps:
+  {"skills": ["playwright-cli"], "plugins": ["reply-style"], "mcp": ["atlassian"]}
+  skills   names copied from the user's skills folder (<config dir>/skills). Default when the key or the file is
+           absent: playwright-cli and claude-accounts. [] keeps none.
+  plugins  user plugins to keep enabled: a name from enabledPlugins in the user's settings.json, with or without
+           @marketplace. Default: none. The squad plugin itself always loads and is not listed.
+  mcp      MCP servers to keep, found in the user's .claude.json (user or local scope) or the project's .mcp.json.
+           Key absent: no MCP flag (the user's servers are dropped by the lean start). Key present, even []: the
+           role gets --strict-mcp-config with a generated --mcp-config holding only these servers, which also shuts
+           out claude.ai connectors (they arrive late) and a project .mcp.json not listed.
+  A name that does not exist warns once and is skipped. Bad JSON, a wrong type or a bad name refuses (exit 2)
+  before anything starts. An unknown key warns.
 EOF
 }
 
@@ -183,6 +196,34 @@ if [[ -n $scope_dir && -f $scope_dir/scope.md ]]; then
   done < "$scope_dir/scope.md"
 fi
 
+# settings/lean.json (optional): what the lean start keeps, for every role of this squad. Checked here, before compose, worktree,
+# label or herdr, so a bad file leaves nothing behind. Not read at all when SQUAD_SPAWN_USER_CONFIG=1 (the old start).
+lean_skills=() lean_plugins=() lean_mcp=() lean_has_skills=0 lean_has_mcp=0
+lean_file=$squad_dir/settings/lean.json
+if [[ ${SQUAD_SPAWN_USER_CONFIG:-} != 1 && -f $lean_file ]]; then
+  # shellcheck disable=SC2016
+  lean_out=$(jq -r '
+    if type != "object" then error("the top level must be an object") else . end
+    | ((["skills","plugins","mcp"][] as $k
+        | if has($k) then
+            (if (.[$k] | type) == "array" and (.[$k] | all(type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._@-]*$")))
+             then ("has\t" + $k), (.[$k][] | $k + "\t" + .)
+             else error("\($k) must be an array of names ([A-Za-z0-9][A-Za-z0-9._@-]*)") end)
+          else empty end),
+       (keys_unsorted[] | select(IN("skills","plugins","mcp") | not) | "unknown\t" + .))' "$lean_file" 2>&1) \
+    || { echo "squad-spawn: cannot use $lean_file: ${lean_out#jq: }" >&2; exit 2; }
+  while IFS=$'\t' read -r lk lv || [[ -n $lk ]]; do
+    lv=${lv%$'\r'} lk=${lk%$'\r'}
+    case $lk in
+      has) [[ $lv != skills ]] || lean_has_skills=1; [[ $lv != mcp ]] || lean_has_mcp=1 ;;
+      skills) lean_skills+=("$lv") ;;
+      plugins) lean_plugins+=("$lv") ;;
+      mcp) lean_mcp+=("$lv") ;;
+      unknown) echo "warning: $lean_file: unknown key '$lv' (ignored; keys are skills, plugins, mcp)" >&2 ;;
+    esac
+  done <<<"$lean_out"
+fi
+
 # Composed mode: the pinned runtime and this agent's composed rules come first, before any herdr call, worktree or
 # label, so a refusal (no pin: exit 2, runtime missing: exit 1, compose error: exit 2) leaves nothing behind.
 plugin_dir=${SQUAD_PLUGIN_DIR:-} rules_args=() runtime_env=()
@@ -292,15 +333,33 @@ fi
 # arrays join (user's first), a scalar from the role's settings wins. No user file, or not JSON: the role's alone.
 if [[ ${SQUAD_SPAWN_USER_CONFIG:-} != 1 ]]; then
   user_settings=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json
+  # lean.json plugins: only a name the user has enabled goes back (as enabledPlugins in the merged file); the rest warns once.
+  keep_plugins=() seen=" "
+  for pn in "${lean_plugins[@]}"; do
+    [[ $seen != *" $pn "* ]] || continue
+    seen+="$pn "
+    if [[ $pn == squad || $pn == squad@* ]]; then
+      echo "warning: $lean_file: plugin '$pn' skipped, the squad plugin always loads by --plugin-dir" >&2
+    # shellcheck disable=SC2016
+    elif [[ -f $user_settings ]] && jq -e --arg n "$pn" '(.enabledPlugins // {}) | to_entries | any(.value == true and (.key == $n or (.key | startswith($n + "@"))))' "$user_settings" >/dev/null 2>&1; then
+      keep_plugins+=("$pn")
+    else
+      echo "warning: $lean_file: plugin '$pn' is not enabled in $user_settings; skipped" >&2
+    fi
+  done
+  keep_json=$(for pn in "${keep_plugins[@]}"; do printf '%s\n' "$pn"; done | jq -R . | jq -sc .)
   if [[ -f $user_settings ]]; then
     if [[ $settings_mode == overlay ]]; then role_json=$eff_json; else role_json=$(cat "$settings" 2>/dev/null) || role_json="{}"; fi
     # shellcheck disable=SC2016
-    if lean_json=$(jq -n --argjson role "$role_json" --slurpfile user "$user_settings" '
+    if lean_json=$(jq -n --argjson role "$role_json" --argjson keep "$keep_json" --slurpfile user "$user_settings" '
         def m(a; b): if (a|type) == "object" and (b|type) == "object"
                        then reduce (b|keys_unsorted[]) as $k (a; .[$k] = (if has($k) then m(.[$k]; b[$k]) else b[$k] end))
                      elif (a|type) == "array" and (b|type) == "array" then a + (b - a)
                      else b end;
-        m($user[0] | with_entries(select(.key | test("plugin|skill|marketplace"; "i") | not)); $role)' 2>/dev/null); then
+        m($user[0] | with_entries(select(.key | test("plugin|skill|marketplace"; "i") | not))
+          + (if ($keep | length) > 0 and ($user[0].enabledPlugins | type) == "object"
+             then {enabledPlugins: ($user[0].enabledPlugins | with_entries(select(.value == true and (.key as $k | $keep | any(. as $n | $k == $n or ($k | startswith($n + "@")))))))}
+             else {} end); $role)' 2>/dev/null); then
       settings=$home/roles/$name.lean-settings.json
       if [[ $dry != 1 ]]; then
         mkdir -p "$home/roles"
@@ -320,6 +379,7 @@ claude_args=(--agent "squad:$role" --name "$name" --session-id "$session" --perm
 # comes from --plugin-dir (a legacy squad had it installed at user level, so it gets the running plugin here).
 # Kept: the skills named in lean_keep, copied from the user's skills folder into a per-agent folder given by --add-dir.
 lean_keep=(playwright-cli claude-accounts)
+[[ $lean_has_skills != 1 ]] || lean_keep=("${lean_skills[@]}")
 plugin_flag=$plugin_dir
 if [[ ${SQUAD_SPAWN_USER_CONFIG:-} != 1 ]]; then
   claude_args+=(--setting-sources project,local)
@@ -329,11 +389,45 @@ if [[ ${SQUAD_SPAWN_USER_CONFIG:-} != 1 ]]; then
   if [[ $dry != 1 ]]; then
     rm -rf "$lean_dir"
     mkdir -p "$lean_dir/.claude/skills"
-    for sk in "${lean_keep[@]}"; do
-      [[ ! -f $user_skills/$sk/SKILL.md ]] || cp -RL "$user_skills/$sk" "$lean_dir/.claude/skills/$sk"  # a user without it just lacks it
-    done
   fi
+  seen=" "
+  for sk in "${lean_keep[@]}"; do
+    [[ $seen != *" $sk "* ]] || continue
+    seen+="$sk "
+    if [[ -f $user_skills/$sk/SKILL.md ]]; then
+      [[ $dry == 1 ]] || cp -RL "$user_skills/$sk" "$lean_dir/.claude/skills/$sk"
+    elif [[ $lean_has_skills == 1 ]]; then
+      echo "warning: $lean_file: skill '$sk' not found in $user_skills; skipped" >&2
+    fi  # the default list: a user without it just lacks it
+  done
   claude_args+=(--add-dir "$lean_dir")
+  # lean.json mcp: a key (even an empty list) restricts the role to exactly these servers. claude.ai connectors arrive after
+  # start and a project .mcp.json loads, so only --strict-mcp-config shuts them out. The file may hold tokens: mode 600.
+  mcp_file=$home/roles/$name.mcp.json
+  [[ $dry == 1 ]] || rm -f "$mcp_file"
+  if [[ $lean_has_mcp == 1 ]]; then
+    if [[ -n ${CLAUDE_CONFIG_DIR:-} ]]; then user_cfg=$CLAUDE_CONFIG_DIR/.claude.json; else user_cfg=$HOME/.claude.json; fi
+    mcp_json='{"mcpServers":{}}' seen=" "
+    for sv in "${lean_mcp[@]}"; do
+      [[ $seen != *" $sv "* ]] || continue
+      seen+="$sv "
+      # shellcheck disable=SC2016
+      def=$(jq -c --arg n "$sv" --arg cwd "$cwd" '.mcpServers[$n] // .projects[$cwd].mcpServers[$n] // empty' "$user_cfg" 2>/dev/null) || def=""
+      # shellcheck disable=SC2016
+      [[ -n $def ]] || def=$(jq -c --arg n "$sv" '.mcpServers[$n] // empty' "$cwd/.mcp.json" 2>/dev/null) || def=""
+      if [[ -z $def ]]; then
+        echo "warning: $lean_file: MCP server '$sv' not found in $user_cfg or $cwd/.mcp.json; skipped" >&2
+      else
+        # shellcheck disable=SC2016
+        mcp_json=$(jq -c --arg n "$sv" --argjson d "$def" '.mcpServers[$n] = $d' <<<"$mcp_json")
+      fi
+    done
+    if [[ $dry != 1 ]]; then
+      mkdir -p "$home/roles"
+      (umask 077; printf '%s\n' "$mcp_json" > "$mcp_file.tmp") && mv "$mcp_file.tmp" "$mcp_file"
+    fi
+    claude_args+=(--strict-mcp-config --mcp-config "$mcp_file")
+  fi
 fi
 [[ -n $plugin_flag ]] && claude_args+=(--plugin-dir "$plugin_flag")
 claude_args+=("${rules_args[@]}")

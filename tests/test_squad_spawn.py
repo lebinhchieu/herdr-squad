@@ -293,6 +293,91 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertNotIn("lean-settings", start)
         self.assertFalse((self.squad / "roles" / "dev-1.skills").exists())
 
+    # --- settings/lean.json: what the lean start keeps (skills, plugins, mcp)
+    def _lean_json(self, data):
+        (self.squad / "settings").mkdir(exist_ok=True)
+        (self.squad / "settings" / "lean.json").write_text(data if isinstance(data, str) else json.dumps(data), encoding="utf-8")
+
+    def _cfg(self, **files):
+        cfg = Path(self.tmp.name) / "cfg"
+        (cfg / "skills").mkdir(parents=True, exist_ok=True)
+        for name, data in files.items():
+            (cfg / name).write_text(json.dumps(data), encoding="utf-8")
+        self.env["CLAUDE_CONFIG_DIR"] = str(cfg)
+        return cfg
+
+    def test_lean_without_a_lean_json_keeps_the_lean_spawn_flag_list(self):
+        self._cfg()  # no user settings.json: --settings stays the template file
+        out = self.spawn("dev", "--model", "m", "--effort", "low").replace("\\", "/")
+        flags = out.split(" -- ", 1)[1].strip()
+        sq, root = str(self.squad).replace("\\", "/"), str(ROOT).replace("\\", "/")
+        want = (f"--agent squad:dev --name x --session-id <S> --permission-mode auto --settings {root}/templates/squad/settings/dev.json "
+                f"--model m --effort low --setting-sources project,local --add-dir {sq}/roles/x.skills --plugin-dir {root} "
+                f"--append-system-prompt-file {sq}/roles/x.rules.md")
+        self.assertEqual(re.sub(UUID, "<S>", flags), want)
+
+    def test_lean_json_keeps_exactly_the_listed_skills_and_warns_once_for_an_unknown_one(self):
+        self._user_skills("playwright-cli", "claude-accounts", "frontend-design")
+        self._lean_json({"skills": ["frontend-design", "nope", "claude-accounts", "nope"]})
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        skills = self.squad / "roles" / "dev-1.skills" / ".claude" / "skills"
+        self.assertEqual(sorted(p.name for p in skills.iterdir()), ["claude-accounts", "frontend-design"])
+        self.assertEqual(r.stderr.count("skill 'nope' not found"), 1, r.stderr)
+        self.assertNotIn("--strict-mcp-config", self._start_line())  # no mcp key, no MCP flag
+
+    def test_a_bad_lean_json_refuses_before_any_file_or_herdr_call(self):
+        for bad in ("{nope", "[]", '{"skills": "playwright-cli"}', '{"mcp": [1]}', '{"plugins": ["../x"]}'):
+            with self.subTest(bad=bad):
+                self._lean_json(bad)
+                r = self._real_spawn()
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn("lean.json", r.stderr)
+                self.assertFalse((self.squad / "roles").exists())
+                self.assertNotIn("tab create", self.log.read_text(encoding="utf-8") if self.log.exists() else "")
+                dry = self._spawn_any()
+                self.assertEqual(dry.returncode, 2)  # a dry run refuses too
+
+    def test_user_config_env_does_not_read_lean_json(self):
+        self._lean_json("{nope")
+        self.env["SQUAD_SPAWN_USER_CONFIG"] = "1"
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("--setting-sources", self._start_line())
+
+    def test_lean_json_plugins_come_back_only_when_the_user_enabled_them(self):
+        self._cfg(**{"settings.json": {"enabledPlugins": {"reply-style@m": True, "off@m": False, "other@m": True}}})
+        self._lean_json({"plugins": ["reply-style", "off", "nope", "squad@x", "nope"]})
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        merged = json.loads((self.squad / "roles" / "dev-1.lean-settings.json").read_text(encoding="utf-8"))
+        self.assertEqual(merged["enabledPlugins"], {"reply-style@m": True})
+        self.assertEqual(r.stderr.count("plugin 'nope'"), 1, r.stderr)
+        self.assertEqual(r.stderr.count("plugin 'off'"), 1, r.stderr)
+        self.assertEqual(r.stderr.count("plugin 'squad@x' skipped"), 1, r.stderr)
+
+    def test_lean_json_mcp_restricts_the_role_to_the_listed_servers(self):
+        cfg = self._cfg(**{".claude.json": {"mcpServers": {"a": {"type": "http", "url": "https://a"}, "b": {"command": "b"}}}})
+        self._lean_json({"mcp": ["a", "zzz"]})
+        dry = self.spawn("dev", "--scope", "s")  # a dry run prints the flags and writes nothing
+        mcp = self.squad / "roles" / "x.mcp.json"
+        self.assertIn(f"--strict-mcp-config --mcp-config {mcp}", dry)
+        self.assertFalse(mcp.exists())
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        file = self.squad / "roles" / "dev-1.mcp.json"
+        self.assertEqual(json.loads(file.read_text(encoding="utf-8")), {"mcpServers": {"a": {"type": "http", "url": "https://a"}}})
+        self.assertEqual(r.stderr.count("MCP server 'zzz' not found"), 1, r.stderr)
+        self.assertIn(f"--strict-mcp-config --mcp-config {file}", self._start_line())
+        if os.name != "nt":
+            self.assertEqual(file.stat().st_mode & 0o777, 0o600)
+        self._lean_json({"mcp": []})  # a present, empty key still restricts: nothing loads
+        self.assertEqual(self._real_spawn(name="dev-2").returncode, 0)
+        self.assertEqual(json.loads((self.squad / "roles" / "dev-2.mcp.json").read_text(encoding="utf-8")), {"mcpServers": {}})
+        self._lean_json({"skills": []})  # key dropped on a respawn: the stale file goes
+        self.assertEqual(self._real_spawn(name="dev-1").returncode, 0)
+        self.assertFalse(file.exists())
+
     def test_a_squad_folder_with_neither_file_still_exits_1(self):
         (self.squad / "process.md").unlink()
         r = self._spawn_any("--scope", "s")
