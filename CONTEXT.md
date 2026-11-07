@@ -186,7 +186,7 @@ The step after build and verify where the Manager collects friction. The Token C
 _Avoid_: retrospective meeting
 
 **Task**:
-One piece of work for one Developer. It moves ready → building → handed in → checking → done or returned.
+One piece of work for one Developer. It moves ready → building → handed in → checking → passed or returned, and a passed task is merged.
 _Avoid_: ticket (a ticket lives in the project's own tracker), story
 
 **AC**:
