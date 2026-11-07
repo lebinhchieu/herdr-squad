@@ -193,9 +193,15 @@ _Avoid_: ticket (a ticket lives in the project's own tracker), story
 Acceptance criteria a task must pass. **Business AC** is agreed by the BA and QA blackbox; **technical AC** by the Tech Lead and QA whitebox.
 _Avoid_: requirements, definition of done
 
-**Done**:
-A task is done when every checker on the team has passed it; with no QA on the team, the Developer's checks, `evidence.md` and the review subagent's `## Review` exist and the code-check owner confirms them.
-_Avoid_: finished, complete
+**Passed**:
+A task is passed when every non-retired QA on the team sent `PASS` for its current sha; with no QA on the team, when the `HANDIN` evidence check (`squad-evidence check`) exits 0. No role confirms it. Passed is not done: only a merged task is done. A tip that moved after the PASS reads "sha changed after PASS"; a commit that touches only the ticket's evidence folder does not move it.
+_Avoid_: done, finished, complete, ready for review
+
+**Merged**:
+A passed task whose branch is in `main`. The board derives it from git; `squad-merge-record` or `squad-task merged NN` records it when git cannot show it.
+
+**Task event**:
+A fact about one ticket (claim, handin, pass, fail, blocked, decision, merged), appended to `task-events/<slug>.jsonl` by the `squad-task` module; the board derives every state word from the events.
 
 **Evidence**:
 A file that proves a task works, such as a QA report or a Developer's run output.
@@ -292,10 +298,6 @@ _Avoid_: notifications, todo list
 A question the PO put aside, kept as a `## Q<n>` block in `open-questions.md` of its level (scope, goal or squad). It is not an inbox item; `squad-inbox park|unpark|resolve` is the only writer and the Manager never waits on it.
 _Avoid_: deferred escalation, backlog
 
-**Ready for review**:
-A task whose every checker passed the branch tip and whose branch is not merged yet; the PO alone merges, so it is an action, not a status. A tip that moved after the PASS reads "sha changed after PASS".
-_Avoid_: done (done means every checker passed; it says nothing about the merge)
-
 **Approx**:
 The label on a figure the dashboard derives or models instead of reading it from a record, such as work time per task. "Unknown" is not approx: it means no source records the value.
 _Avoid_: estimate (the report uses "estimated" for dollars)
@@ -374,14 +376,13 @@ Every time figure in a report. **Estimated, list price**: every dollar figure. L
 - A **Squad** holds many **Scopes** and **Goals** over time, each with its own folder and fresh **Manager** (a **Goal** has one **goal Manager** for all its **Scopes**).
 - A **Pod** delivers exactly one **Scope**; the **Scope**'s **Team** decides which **Roles** the **Pod** has.
 - A **Scope** is split into **Tasks**; one **Developer** builds one **Task**.
-- A **Task** is **Done** only when every **Checker** on the **Team** has passed it.
+- A **Task** is **Passed** only when every **Checker** on the **Team** has passed it.
 - Each duty has one **Duty owner** on the **Team**.
 - A **Home** belongs to one **Goal** or **Scope**.
 - An **Inbox** shows the open **Escalations** of its **Home** (answer items) and its own read items; the PO's answer is written into the escalation's Answer cell.
 - Rendering never drops or changes the Manager's or the PO's text: unknown markup shows as plain text and every word stays reachable.
 - The **Dashboard** shows exactly one **Choice** (a **Goal** with its **Scopes**, or one **Scope**) and many **Panels**; its **Picker** lists the choices.
 - A **Parked question** belongs to one level (scope, goal or squad) and is kept apart from the **Inbox**; the **Dashboard** only reads it.
-- A task is **Ready for review** only after it is **Done** by every **Checker** and before the PO merges it.
 - An **Account launcher** starts Claude Code on one account; the **Workspace default**, inside herdr, else the **Global default**, decides which one `c` picks, and the launchers report an **Account token** for the workspace.
 - A **Scope** runs on one **Plugin pin** from start to close.
 - An **Agent** reads its **Composed rules**, built from the plugin's **Rules** and the squad's **Overlay**.
