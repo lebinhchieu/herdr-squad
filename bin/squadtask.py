@@ -339,6 +339,8 @@ def _record(scope_home, nn, ev, fields):
     sd, slug = squad_dir_of(scope_home), slug_of(scope_home)
     path = store_path(sd, slug)
     event = _event(scope_home, nn, ev, fields)
+    if ev == "pass" and event["slot"] is None:
+        return None, check(event, None, {})  # W4: not counted, nothing written, no store touched
     with _locked(path):
         states = fold(read_events(sd, slug))
         before = states.get(squadledger.key(nn))
@@ -352,8 +354,6 @@ def _record(scope_home, nn, ev, fields):
             ids = parse_blocked_by(text)
             ctx["open_blockers"] = open_blockers(ids, states, {i: chk for i in ids})
         warns = check(event, before, ctx)
-        if ev == "pass" and event["slot"] is None:
-            return None, warns  # W4: not counted, nothing written
         event["warn"] = warns
         with open(path, "a", encoding="utf-8", newline="\n") as fh:
             fh.write(json.dumps(event, ensure_ascii=False) + "\n")
@@ -369,6 +369,9 @@ def _named_sha(text, events):
         for k in known:
             if _same_sha(k, w):
                 return k
+    for w in HEX.findall((text or "").lower()):  # a sha no hand-in has: check() warns W5
+        if re.search(r"\d", w):
+            return w
     return None
 
 
@@ -376,6 +379,8 @@ def from_message(scope_home, rec, role=None):
     """One messages.jsonl record -> events (design 4.1). -> [warning]. ASK, ANSWER, STATUS, evidence hand-ins and
     records with no task id write nothing."""
     typ, nn, text = rec.get("type"), rec.get("task"), rec.get("text") or ""
+    if not isinstance(nn, str) or not isinstance(text, str):
+        return []
     if not nn or typ not in ("HANDIN", "PASS", "FAIL", "BLOCKED", "DECISION"):
         return []
     role = os.environ.get("SQUAD_ROLE", "") if role is None else role

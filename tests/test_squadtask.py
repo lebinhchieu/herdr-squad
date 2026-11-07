@@ -117,6 +117,9 @@ class Warnings(Base):
         _, w = self.rec("03", "handin", by="dev-c", sha="aaaaaaa")
         self.assertEqual(w, ["W3 handed in without a claim; owner taken from sender"])
         self.assertEqual(self.state("03")["owner"], "dev-c")
+        w = squadtask.from_message(self.home, {"from": "qaw", "type": "PASS", "task": "03", "text": "PASS 03: sha 1234567 ok"},
+                                   role="qa-whitebox")  # W5 through the hook path: a sha never handed in
+        self.assertEqual(w, ["W5 PASS on a sha that is not the current hand-in"])
         n = len(self.events())
         _, w = self.rec("03", "pass", by="mgr", role="dev", slot=None)  # W4: other role, nothing written
         self.assertEqual(w, ["W4 not a checker; not counted"])
