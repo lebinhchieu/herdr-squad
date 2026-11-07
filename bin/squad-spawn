@@ -30,19 +30,44 @@ Options:
   --prompt TEXT    First message to send once the session is ready
   --model M        Model override (default: scope.md "model <role>: <model> <effort>", else settings/<role>.json "model", else Claude's default)
   --effort E       Effort override (low|medium|high|xhigh|max; default: scope.md line, else settings/<role>.json "effortLevel")
+  --task NN        dev only: claim ticket NN for this Developer once it is up (squad-task claim, so the board shows
+                   it `in progress`). Also read from env SQUAD_SPAWN_TASK. A claim problem warns, never fails the spawn.
+                   Another role: warning, ignored. No claim with --worktree (a respawn).
   --dry-run        Print what would run, start nothing
 
 Env:
   SQUAD             Squad name, same as --squad
   SQUAD_DIR         Squad folder, overrides --squad (must be <project>/.claude/squads/<name>)
   SQUAD_PLUGIN_DIR  Load the plugin from this dir with --plugin-dir (when not installed)
+  SQUAD_SPAWN_USER_CONFIG  1 = start the session with the user's own plugins, skills, hooks and settings
+                   (default: lean, only the squad plugin, playwright-cli and claude-accounts); lean.json is then ignored
+
+Lean start, per squad: <squad>/settings/lean.json (optional) says what every role of that squad keeps:
+  {"skills": ["playwright-cli"], "plugins": ["reply-style"], "mcp": ["atlassian"]}
+  skills   names copied from the user's skills folder (<config dir>/skills). Default when the key or the file is
+           absent: playwright-cli and claude-accounts. [] keeps none.
+  plugins  user plugins to keep enabled: a name from enabledPlugins in the user's settings.json, with or without
+           @marketplace. Default: none. The squad plugin itself always loads and is not listed.
+  mcp      MCP servers to keep, found in the user's .claude.json (user or local scope) or the project's .mcp.json.
+           Key absent (or no file): [], no MCP servers and no claude.ai connectors. List a server to keep it. Every
+           lean role gets --strict-mcp-config with a generated --mcp-config holding only the listed servers, which
+           also shuts out claude.ai connectors (they arrive late) and a project .mcp.json not listed.
+  A name that does not exist warns once and is skipped. Bad JSON, a wrong type or a bad name refuses (exit 2)
+  before anything starts. An unknown key warns.
 EOF
 }
 
 [[ $# -lt 2 || $1 == -h || $1 == --help ]] && { usage; exit 2; }
 orig_args=("$@")  # for the hand-off to a pinned runtime (D7)
+# The hand-off gets --task as env SQUAD_SPAWN_TASK instead: an older pinned runtime rejects an unknown option (exit 2).
+handoff_args=() skip_next=0
+for a in "${orig_args[@]}"; do
+  if [[ $skip_next == 1 ]]; then skip_next=0; continue; fi
+  if [[ $a == --task ]]; then skip_next=1; continue; fi
+  handoff_args+=("$a")
+done
 role=$1 name=$2; shift 2
-squad=${SQUAD:-} scope="" goal="" repo="" base="" worktree="" prompt="" title="" model="" effort="" dry=0
+squad=${SQUAD:-} scope="" goal="" repo="" base="" worktree="" prompt="" title="" model="" effort="" dry=0 task="" claim_branch=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --squad) squad=$2; shift 2 ;;
@@ -55,6 +80,7 @@ while [[ $# -gt 0 ]]; do
     --title) title=$2; shift 2 ;;
     --model) model=$2; shift 2 ;;
     --effort) effort=$2; shift 2 ;;
+    --task) [[ $# -ge 2 ]] || { echo "--task needs a ticket number" >&2; exit 2; }; task=$2; shift 2 ;;
     --dry-run) dry=1; shift ;;
     *) echo "unknown option: $1" >&2; usage; exit 2 ;;
   esac
@@ -66,6 +92,9 @@ case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-c
 [[ ${SQUAD_ROLE:-} != team-lead || $role == dev || ( $role == team-lead && $name == "${SQUAD_NAME:-}" ) ]] || { echo "a Team Lead may only spawn dev" >&2; exit 2; }
 [[ $role == manager || -n $prompt ]] || echo "warning: $role $name spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)" >&2
 [[ -z $base || -n $repo ]] || { echo "--base needs --repo" >&2; exit 2; }
+task=${task:-${SQUAD_SPAWN_TASK:-}}
+[[ -z $task || $task =~ ^[0-9]+$ ]] || { echo "bad --task value: $task (a ticket number, digits only)" >&2; exit 2; }
+if [[ -n $task && $role != dev ]]; then echo "warning: --task ignored, only a dev claims a ticket (role $role)" >&2; task=""; fi
 for v in "$model" "$effort"; do
   [[ -z $v || $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad --model/--effort value: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
 done
@@ -123,10 +152,11 @@ if [[ -d $squad_dir/scopes ]]; then
          && [[ $(readlink -f "$runtime/bin/squad-spawn" 2>/dev/null) != "$(readlink -f "$0")" ]]; then
         [[ -f $runtime/bin/squad-spawn ]] || { echo "warning: pinned runtime $runtime (plugin $pin_ver) has no bin/squad-spawn; refusing, nothing created (the running engine would reject size: in $scope_dir/scope.md)" >&2; exit 1; }
         if [[ $dry == 1 ]]; then
-          echo "would hand off to the pinned runtime: $runtime/bin/squad-spawn ${orig_args[*]}"
+          echo "would hand off to the pinned runtime: ${task:+SQUAD_SPAWN_TASK=$task }$runtime/bin/squad-spawn ${handoff_args[*]}"
           exit 0
         fi
-        exec "$runtime/bin/squad-spawn" "${orig_args[@]}"
+        if [[ -n $task ]]; then export SQUAD_SPAWN_TASK=$task; fi
+        exec "$runtime/bin/squad-spawn" "${handoff_args[@]}"
       fi
     fi
     # Team gate: a role not on the team is refused before any worktree, label or herdr call. Only the Manager may be
@@ -179,6 +209,34 @@ if [[ -n $scope_dir && -f $scope_dir/scope.md ]]; then
       exit 2
     fi
   done < "$scope_dir/scope.md"
+fi
+
+# settings/lean.json (optional): what the lean start keeps, for every role of this squad. Checked here, before compose, worktree,
+# label or herdr, so a bad file leaves nothing behind. Not read at all when SQUAD_SPAWN_USER_CONFIG=1 (the old start).
+lean_skills=() lean_plugins=() lean_mcp=() lean_has_skills=0 lean_has_mcp=1  # mcp: no key means [] (no servers)
+lean_file=$squad_dir/settings/lean.json
+if [[ ${SQUAD_SPAWN_USER_CONFIG:-} != 1 && -f $lean_file ]]; then
+  # shellcheck disable=SC2016
+  lean_out=$(jq -r '
+    if type != "object" then error("the top level must be an object") else . end
+    | ((["skills","plugins","mcp"][] as $k
+        | if has($k) then
+            (if (.[$k] | type) == "array" and (.[$k] | all(type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._@-]*$")))
+             then ("has\t" + $k), (.[$k][] | $k + "\t" + .)
+             else error("\($k) must be an array of names ([A-Za-z0-9][A-Za-z0-9._@-]*)") end)
+          else empty end),
+       (keys_unsorted[] | select(IN("skills","plugins","mcp") | not) | "unknown\t" + .))' "$lean_file" 2>&1) \
+    || { echo "squad-spawn: cannot use $lean_file: ${lean_out#jq: }" >&2; exit 2; }
+  while IFS=$'\t' read -r lk lv || [[ -n $lk ]]; do
+    lv=${lv%$'\r'} lk=${lk%$'\r'}
+    case $lk in
+      has) [[ $lv != skills ]] || lean_has_skills=1; [[ $lv != mcp ]] || lean_has_mcp=1 ;;
+      skills) lean_skills+=("$lv") ;;
+      plugins) lean_plugins+=("$lv") ;;
+      mcp) lean_mcp+=("$lv") ;;
+      unknown) echo "warning: $lean_file: unknown key '$lv' (ignored; keys are skills, plugins, mcp)" >&2 ;;
+    esac
+  done <<<"$lean_out"
 fi
 
 # Composed mode: the pinned runtime and this agent's composed rules come first, before any herdr call, worktree or
@@ -243,7 +301,7 @@ elif [[ -n $repo ]]; then
     if [[ $dry == 1 ]]; then echo "would run: git -C $repo worktree add $wt -b $branch ${base}"
     else git -C "$repo" worktree add "$wt" -b "$branch" ${base:+"$base"} >&2; fi
   fi
-  cwd=$wt
+  cwd=$wt claim_branch=$branch
 fi
 
 # Overrides given now are what squad-respawn replays; none given means no file (a stale one is removed).
@@ -284,10 +342,109 @@ if [[ $settings_mode == overlay && $dry != 1 ]]; then
   printf '%s\n' "$eff_json" > "$settings.tmp" && mv "$settings.tmp" "$settings"
 fi
 
+# Lean start, settings half: `--setting-sources project,local` (below) drops the user's settings.json with its plugins, so
+# the user's permission rules, hooks and env come back through the one --settings file (a second --settings replaces the
+# first, so they are merged here). The user's plugin, skill and marketplace keys are left out. Objects merge by key,
+# arrays join (user's first), a scalar from the role's settings wins. No user file, or not JSON: the role's alone.
+if [[ ${SQUAD_SPAWN_USER_CONFIG:-} != 1 ]]; then
+  user_settings=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json
+  # lean.json plugins: only a name the user has enabled goes back (as enabledPlugins in the merged file); the rest warns once.
+  keep_plugins=() seen=" "
+  for pn in "${lean_plugins[@]}"; do
+    [[ $seen != *" $pn "* ]] || continue
+    seen+="$pn "
+    if [[ $pn == squad || $pn == squad@* ]]; then
+      echo "warning: $lean_file: plugin '$pn' skipped, the squad plugin always loads by --plugin-dir" >&2
+    # shellcheck disable=SC2016
+    elif [[ -f $user_settings ]] && jq -e --arg n "$pn" '(.enabledPlugins // {}) | to_entries | any(.value == true and (.key == $n or (.key | startswith($n + "@"))))' "$user_settings" >/dev/null 2>&1; then
+      keep_plugins+=("$pn")
+    else
+      echo "warning: $lean_file: plugin '$pn' is not enabled in $user_settings; skipped" >&2
+    fi
+  done
+  keep_json=$(for pn in "${keep_plugins[@]}"; do printf '%s\n' "$pn"; done | jq -R . | jq -sc .)
+  if [[ -f $user_settings ]]; then
+    if [[ $settings_mode == overlay ]]; then role_json=$eff_json; else role_json=$(cat "$settings" 2>/dev/null) || role_json="{}"; fi
+    # shellcheck disable=SC2016
+    if lean_json=$(jq -n --argjson role "$role_json" --argjson keep "$keep_json" --slurpfile user "$user_settings" '
+        def m(a; b): if (a|type) == "object" and (b|type) == "object"
+                       then reduce (b|keys_unsorted[]) as $k (a; .[$k] = (if has($k) then m(.[$k]; b[$k]) else b[$k] end))
+                     elif (a|type) == "array" and (b|type) == "array" then a + (b - a)
+                     else b end;
+        m($user[0] | with_entries(select(.key | test("plugin|skill|marketplace"; "i") | not))
+          + (if ($keep | length) > 0 and ($user[0].enabledPlugins | type) == "object"
+             then {enabledPlugins: ($user[0].enabledPlugins | with_entries(select(.value == true and (.key as $k | $keep | any(. as $n | $k == $n or ($k | startswith($n + "@")))))))}
+             else {} end); $role)' 2>/dev/null); then
+      settings=$home/roles/$name.lean-settings.json
+      if [[ $dry != 1 ]]; then
+        mkdir -p "$home/roles"
+        printf '%s\n' "$lean_json" > "$settings.tmp" && mv "$settings.tmp" "$settings"
+      fi
+    else
+      echo "warning: $user_settings is not usable JSON; $name starts without the user's permission rules, hooks and env" >&2
+    fi
+  fi
+fi
+
 claude_args=(--agent "squad:$role" --name "$name" --session-id "$session" --permission-mode auto --settings "$settings")
 [[ -n $model ]] && claude_args+=(--model "$model")
 [[ -n $effort ]] && claude_args+=(--effort "$effort")
-[[ -n $plugin_dir ]] && claude_args+=(--plugin-dir "$plugin_dir")
+# Lean start: no user-level plugins, skills or agent types (a spawned role never uses them; they cost ~14k tokens on
+# every request). `--setting-sources project,local` drops the user source (its settings come back above). The squad plugin
+# comes from --plugin-dir (a legacy squad had it installed at user level, so it gets the running plugin here).
+# Kept: the skills named in lean_keep, copied from the user's skills folder into a per-agent folder given by --add-dir.
+lean_keep=(playwright-cli claude-accounts)
+[[ $lean_has_skills != 1 ]] || lean_keep=("${lean_skills[@]}")
+plugin_flag=$plugin_dir
+if [[ ${SQUAD_SPAWN_USER_CONFIG:-} != 1 ]]; then
+  claude_args+=(--setting-sources project,local)
+  [[ -n $plugin_flag ]] || plugin_flag=$plugin_root
+  lean_dir=$home/roles/$name.skills
+  user_skills=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills
+  if [[ $dry != 1 ]]; then
+    rm -rf "$lean_dir"
+    mkdir -p "$lean_dir/.claude/skills"
+  fi
+  seen=" "
+  for sk in "${lean_keep[@]}"; do
+    [[ $seen != *" $sk "* ]] || continue
+    seen+="$sk "
+    if [[ -f $user_skills/$sk/SKILL.md ]]; then
+      [[ $dry == 1 ]] || cp -RL "$user_skills/$sk" "$lean_dir/.claude/skills/$sk"
+    elif [[ $lean_has_skills == 1 ]]; then
+      echo "warning: $lean_file: skill '$sk' not found in $user_skills; skipped" >&2
+    fi  # the default list: a user without it just lacks it
+  done
+  claude_args+=(--add-dir "$lean_dir")
+  # lean.json mcp: the role gets exactly these servers; no key = []. claude.ai connectors arrive after start and a project
+  # .mcp.json loads, so only --strict-mcp-config shuts them out. The file may hold tokens: mode 600.
+  mcp_file=$home/roles/$name.mcp.json
+  [[ $dry == 1 ]] || rm -f "$mcp_file"
+  if [[ $lean_has_mcp == 1 ]]; then
+    if [[ -n ${CLAUDE_CONFIG_DIR:-} ]]; then user_cfg=$CLAUDE_CONFIG_DIR/.claude.json; else user_cfg=$HOME/.claude.json; fi
+    mcp_json='{"mcpServers":{}}' seen=" "
+    for sv in "${lean_mcp[@]}"; do
+      [[ $seen != *" $sv "* ]] || continue
+      seen+="$sv "
+      # shellcheck disable=SC2016
+      def=$(jq -c --arg n "$sv" --arg cwd "$cwd" '.mcpServers[$n] // .projects[$cwd].mcpServers[$n] // empty' "$user_cfg" 2>/dev/null) || def=""
+      # shellcheck disable=SC2016
+      [[ -n $def ]] || def=$(jq -c --arg n "$sv" '.mcpServers[$n] // empty' "$cwd/.mcp.json" 2>/dev/null) || def=""
+      if [[ -z $def ]]; then
+        echo "warning: $lean_file: MCP server '$sv' not found in $user_cfg or $cwd/.mcp.json; skipped" >&2
+      else
+        # shellcheck disable=SC2016
+        mcp_json=$(jq -c --arg n "$sv" --argjson d "$def" '.mcpServers[$n] = $d' <<<"$mcp_json")
+      fi
+    done
+    if [[ $dry != 1 ]]; then
+      mkdir -p "$home/roles"
+      (umask 077; printf '%s\n' "$mcp_json" > "$mcp_file.tmp") && mv "$mcp_file.tmp" "$mcp_file"
+    fi
+    claude_args+=(--strict-mcp-config --mcp-config "$mcp_file")
+  fi
+fi
+[[ -n $plugin_flag ]] && claude_args+=(--plugin-dir "$plugin_flag")
 claude_args+=("${rules_args[@]}")
 
 # Without --workspace herdr uses the focused workspace, which may not be the caller's.
@@ -324,6 +481,7 @@ if [[ $dry == 1 ]]; then
   echo "would run: herdr tab create --cwd $cwd --label $label --no-focus ${ws_args[*]} ${env_args[*]}"
   echo "would run: squad-usage --squad-dir $home --set-session $name $session --role $role --scope $scope"
   echo "would run: herdr agent start $name --kind claude --pane <pane> -- ${claude_args[*]}"
+  [[ -z $task || -z $claim_branch ]] || echo "would run: squad-task claim $task --scope-home $home --owner $name${claim_branch:+ --branch $claim_branch}"
   exit 0
 fi
 
@@ -366,6 +524,12 @@ start_err=$(herdr agent start "$name" --kind claude --pane "$pane" --timeout 120
 }
 
 "$plugin_root/bin/squad-usage" --squad-dir "$home" --set-session "$name" "$session" --role "$role" --scope "$scope"
+
+# Claim the ticket (design 5.2): the first task-state event. Warnings go to stderr, stdout stays the one JSON line.
+# No branch (--worktree, a respawn): no claim, so a respawn never re-claims. A failure never fails the spawn.
+if [[ -n $task && -n $claim_branch ]]; then
+  "$plugin_root/bin/squad-task" claim "$task" --scope-home "$home" --owner "$name" --branch "$claim_branch" >&2 || true
+fi
 
 ovr_file=$home/roles/$name.overrides
 rm -f "$ovr_file"

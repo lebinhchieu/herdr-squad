@@ -1,0 +1,15 @@
+{
+  "auto": false,
+  "choice": {"kind": "scope", "name": "checkout"},
+  "columns": {"tasks": ["task", "stage"]},
+  "font": "normal",
+  "panels": {
+    "1": {"hidden": false, "order": 2, "span": 4},
+    "2": {"hidden": true, "order": 0, "span": 8},
+    "3": {"hidden": false, "max_height": 200, "order": 1, "span": 6},
+    "4": {"hidden": false, "order": 3, "span": 4}
+  },
+  "recent": [{"kind": "scope", "name": "checkout"}],
+  "saved_at": "2026-11-03T10:00:00Z",
+  "version": 1
+}

@@ -2,7 +2,7 @@
 """Token usage per squad agent, read from Claude Code transcripts.
 
   squad-usage [--squad-dir DIR]                 table for every roster.md row with a session id
-  squad-usage --check SESSION [--transcript F]  print the cost rule that fired (fresh|idle), or nothing
+  squad-usage --check SESSION [--transcript F]  print `fresh` when the session is past its respawn line, or nothing
   squad-usage --get NAME                        print "role<TAB>scope<TAB>session" of a roster row
   squad-usage --set-session NAME SESSION [--role R --scope S]
                                                 record a session id in roster.md (adds the column)
@@ -12,15 +12,39 @@ Env: SCOPE_DIR, else GOAL_DIR, else SQUAD_DIR: the folder holding roster.md. CLA
 import argparse
 import os
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadio  # noqa: E402
-from squadtranscript import CACHE_TTL_S, agent_sessions, find_transcript, is_expiry, read_session  # noqa: E402
+from squadtranscript import TOKEN_FIELDS, agent_sessions, find_transcript, is_expiry, read_lines, read_session  # noqa: E402
 
-FRESH_CTX = 120_000          # process.md: fresh when context is over 120k
-IDLE_CTX = 100_000           # process.md: idle over 1h and context over 100k
+ROOM = 50_000                # [COST-3]: a session may grow this much past its first action
+CAP = 180_000                # hard upper bound of the line, and the line before a first action exists
+ACTION_TOOLS = ("Edit", "Write", "NotebookEdit", "SendMessage")  # a call that edits, writes or sends a message
+
+
+def first_action_ctx(path):
+    """Context on the first main-thread call that edits, writes or sends a message, or None before one exists."""
+    first = None
+    for o in read_lines(path):
+        m = o.get("message")
+        if o.get("type") != "assistant" or o.get("isSidechain") or not isinstance(m, dict):
+            continue
+        content = m.get("content")
+        if first is None and isinstance(content, list) and any(
+                isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") in ACTION_TOOLS for b in content):
+            first = m.get("id") or o.get("uuid")
+            ctx = 0
+        if first is not None and (m.get("id") or o.get("uuid")) == first and isinstance(m.get("usage"), dict):
+            # a message spans several lines whose usage only grows: keep the max
+            ctx = max(ctx, sum(m["usage"].get(f, 0) for f in TOKEN_FIELDS[:3]))
+    return ctx if first is not None else None
+
+
+def respawn_line(s):
+    """The session's one respawn line: its context at first action + 50k, never above 180k."""
+    first = s["first_action"]
+    return CAP if first is None else min(first + ROOM, CAP)
 
 
 def summarize(path):
@@ -35,7 +59,7 @@ def summarize(path):
             "subagents": sum(t["out"] for t in every if t["side"]),
             "peak": max(t["ctx"] for t in rows), "last": last["ctx"], "out": sum(t["out"] for t in every),
             "expiries": expiries, "compactions": compactions, "last_ts": last["ts"],
-            "just_expired": len(rows) > 1 and is_expiry(rows[-2], last)}
+            "just_expired": len(rows) > 1 and is_expiry(rows[-2], last), "first_action": first_action_ctx(path)}
 
 
 def summarize_agent(paths):
@@ -47,14 +71,11 @@ def summarize_agent(paths):
     return {**newest, **{k: sum(s[k] for s in ss) for k in ("turns", "subagents", "out", "expiries", "compactions")}}
 
 
-def check(s, now=None):
-    now = now or datetime.now(timezone.utc)
-    if s["compactions"] or s["last"] > FRESH_CTX:
+def check(s):
+    """"fresh" when the session is past its one line (or was compacted), else None. An idle session past the line
+    (cache gone) is the same signal: there is no second, idle line."""
+    if s["compactions"] or s["last"] > respawn_line(s):
         return "fresh"
-    # The Stop hook runs right after a turn, so "now - last_ts" is ~0 there: the gap shows in the last two turns.
-    idle = (now - s["last_ts"]).total_seconds() > CACHE_TTL_S or s["just_expired"]
-    if idle and s["last"] > IDLE_CTX:
-        return "idle"
     return None
 
 

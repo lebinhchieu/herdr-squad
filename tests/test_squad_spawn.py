@@ -175,11 +175,11 @@ class SpawnDryRunTest(unittest.TestCase):
         return r
 
     # --- ticket 24: a legacy squad (process.md, no process.local.md) gets the running plugin's rules attached
-    def test_legacy_dry_run_has_the_rules_flag_and_no_plugin_dir_and_one_warning(self):
+    def test_legacy_dry_run_has_the_rules_flag_and_the_running_plugin(self):
         r = self.spawn("dev", "--scope", "s", "--prompt", "Task 1.")
         rules = self.squad / "roles" / "x.rules.md"
         self.assertIn(f"--append-system-prompt-file {rules}", r)
-        self.assertNotIn("--plugin-dir", r)
+        self.assertIn(f"--plugin-dir {SCRIPT.parent.parent}", r)  # lean start: the user-level install is not read
         self.assertFalse(rules.exists())  # dry run writes nothing
 
     def test_legacy_dry_run_prints_the_warning_once(self):
@@ -195,7 +195,6 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertTrue(rules.read_text(encoding="utf-8").startswith("# Your process rules"))
         start = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent start"))
         self.assertIn(f"--append-system-prompt-file {rules}", start)
-        self.assertNotIn("--plugin-dir", start)
         self.assertEqual(r.stderr.count("legacy squad: plugin rules attached"), 1)
         tab = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("tab create"))
         self.assertNotIn("SQUAD_PLUGIN_DIR", tab)
@@ -210,6 +209,179 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         prompt = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent prompt"))
         self.assertIn("Task 1. Your process rules are attached to this session", prompt)
+
+    # --- lean start: no user-level plugins, skills or agent types; playwright-cli and claude-accounts kept
+    def _user_skills(self, *names):
+        cfg = Path(self.tmp.name) / "cfg"
+        for n in names:
+            (cfg / "skills" / n).mkdir(parents=True)
+            (cfg / "skills" / n / "SKILL.md").write_text(f"---\nname: {n}\n---\n", encoding="utf-8")
+        self.env["CLAUDE_CONFIG_DIR"] = str(cfg)
+
+    def _start_line(self):
+        return next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent start"))
+
+    def test_lean_dry_run_drops_the_user_source_and_adds_the_kept_skills_dir(self):
+        out = self.spawn("dev", "--scope", "s")
+        lean = self.squad / "roles" / "x.skills"
+        self.assertIn("--setting-sources project,local", out)
+        self.assertIn(f"--add-dir {lean}", out)
+        self.assertFalse(lean.exists())  # dry run writes nothing
+
+    def test_lean_real_spawn_copies_only_the_two_kept_skills(self):
+        self._user_skills("playwright-cli", "claude-accounts", "frontend-design")
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        skills = self.squad / "roles" / "dev-1.skills" / ".claude" / "skills"
+        self.assertEqual(sorted(p.name for p in skills.iterdir()), ["claude-accounts", "playwright-cli"])
+        self.assertTrue((skills / "playwright-cli" / "SKILL.md").is_file())
+        start = self._start_line()
+        self.assertIn("--setting-sources project,local", start)
+        self.assertIn(f"--add-dir {skills.parent.parent}", start)
+        self.assertIn("--settings", start)  # the role's own settings file still goes with it
+
+    def test_lean_real_spawn_skips_a_kept_skill_the_user_lacks_without_noise(self):
+        self._user_skills("playwright-cli")
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual([p.name for p in (self.squad / "roles" / "dev-1.skills" / ".claude" / "skills").iterdir()], ["playwright-cli"])
+        self.assertNotIn("kept skill", r.stderr)
+
+    def test_lean_legacy_spawn_gets_the_running_plugin_by_flag_but_no_env(self):
+        # the user-level source is gone, so an installed squad plugin would vanish: --plugin-dir carries it
+        self.assertEqual(self._real_spawn().returncode, 0)
+        self.assertIn(f"--plugin-dir {SCRIPT.parent.parent}", self._start_line())
+        tab = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("tab create"))
+        self.assertNotIn("SQUAD_PLUGIN_DIR", tab)
+
+    def test_lean_settings_file_merges_the_users_hooks_permissions_env_but_not_plugins(self):
+        self._user_skills("playwright-cli")
+        user = {"enabledPlugins": {"x@y": True}, "extraKnownMarketplaces": {"m": {}}, "env": {"PROBE": "1"}, "model": "opus",
+                "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "rtk hook claude"}]}]},
+                "permissions": {"allow": ["Bash(rtk:*)", "Bash(git status:*)"]}}
+        (Path(self.env["CLAUDE_CONFIG_DIR"]) / "settings.json").write_text(json.dumps(user), encoding="utf-8")
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        merged = self.squad / "roles" / "dev-1.lean-settings.json"
+        self.assertIn(f"--settings {merged}", self._start_line())
+        m = json.loads(merged.read_text(encoding="utf-8"))
+        self.assertNotIn("enabledPlugins", m)
+        self.assertNotIn("extraKnownMarketplaces", m)
+        self.assertEqual(m["env"], {"PROBE": "1"})
+        self.assertEqual(m["hooks"], user["hooks"])
+        self.assertEqual(m["model"], TABLE["dev"][0])  # the role's own scalar wins over the user's
+        allow = m["permissions"]["allow"]
+        self.assertEqual(allow.count("Bash(git status:*)"), 1)  # joined without a duplicate
+        self.assertIn("Bash(rtk:*)", allow)
+        self.assertIn("Bash(git diff:*)", allow)  # from the role's template
+        self.assertIn("Bash(git push:*)", m["permissions"]["deny"])
+
+    def test_lean_settings_skips_an_unparsable_user_file_with_one_warning(self):
+        self._user_skills("playwright-cli")
+        (Path(self.env["CLAUDE_CONFIG_DIR"]) / "settings.json").write_text("{nope", encoding="utf-8")
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stderr.count("is not usable JSON"), 1)
+        self.assertIn("templates/squad/settings/dev.json", self._start_line().replace("\\", "/"))
+
+    def test_user_config_env_restores_the_old_start(self):
+        self.env["SQUAD_SPAWN_USER_CONFIG"] = "1"
+        self.assertEqual(self._real_spawn().returncode, 0)
+        start = self._start_line()
+        for flag in ("--setting-sources", "--add-dir", "--plugin-dir"):
+            self.assertNotIn(flag, start)
+        self.assertNotIn("lean-settings", start)
+        self.assertFalse((self.squad / "roles" / "dev-1.skills").exists())
+        self.assertNotIn("--strict-mcp-config", start)
+        self.assertFalse((self.squad / "roles" / "dev-1.mcp.json").exists())
+
+    # --- settings/lean.json: what the lean start keeps (skills, plugins, mcp)
+    def _lean_json(self, data):
+        (self.squad / "settings").mkdir(exist_ok=True)
+        (self.squad / "settings" / "lean.json").write_text(data if isinstance(data, str) else json.dumps(data), encoding="utf-8")
+
+    def _cfg(self, **files):
+        cfg = Path(self.tmp.name) / "cfg"
+        (cfg / "skills").mkdir(parents=True, exist_ok=True)
+        for name, data in files.items():
+            (cfg / name).write_text(json.dumps(data), encoding="utf-8")
+        self.env["CLAUDE_CONFIG_DIR"] = str(cfg)
+        return cfg
+
+    def test_lean_without_a_lean_json_defaults_to_no_mcp_servers(self):
+        self._cfg()  # no user settings.json: --settings stays the template file
+        out = self.spawn("dev", "--model", "m", "--effort", "low").replace("\\", "/")
+        flags = out.split(" -- ", 1)[1].strip()
+        sq, root = str(self.squad).replace("\\", "/"), str(ROOT).replace("\\", "/")
+        want = (f"--agent squad:dev --name x --session-id <S> --permission-mode auto --settings {root}/templates/squad/settings/dev.json "
+                f"--model m --effort low --setting-sources project,local --add-dir {sq}/roles/x.skills "
+                f"--strict-mcp-config --mcp-config {sq}/roles/x.mcp.json --plugin-dir {root} --append-system-prompt-file {sq}/roles/x.rules.md")
+        self.assertEqual(re.sub(UUID, "<S>", flags), want)
+        r = self._real_spawn()  # a real start writes the empty server list
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads((self.squad / "roles" / "dev-1.mcp.json").read_text(encoding="utf-8")), {"mcpServers": {}})
+
+    def test_lean_json_keeps_exactly_the_listed_skills_and_warns_once_for_an_unknown_one(self):
+        self._user_skills("playwright-cli", "claude-accounts", "frontend-design")
+        self._lean_json({"skills": ["frontend-design", "nope", "claude-accounts", "nope"]})
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        skills = self.squad / "roles" / "dev-1.skills" / ".claude" / "skills"
+        self.assertEqual(sorted(p.name for p in skills.iterdir()), ["claude-accounts", "frontend-design"])
+        self.assertEqual(r.stderr.count("skill 'nope' not found"), 1, r.stderr)
+        self.assertIn("--strict-mcp-config", self._start_line())  # no mcp key: strict with no servers
+
+    def test_a_bad_lean_json_refuses_before_any_file_or_herdr_call(self):
+        for bad in ("{nope", "[]", '{"skills": "playwright-cli"}', '{"mcp": [1]}', '{"plugins": ["../x"]}'):
+            with self.subTest(bad=bad):
+                self._lean_json(bad)
+                r = self._real_spawn()
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn("lean.json", r.stderr)
+                self.assertFalse((self.squad / "roles").exists())
+                self.assertNotIn("tab create", self.log.read_text(encoding="utf-8") if self.log.exists() else "")
+                dry = self._spawn_any()
+                self.assertEqual(dry.returncode, 2)  # a dry run refuses too
+
+    def test_user_config_env_does_not_read_lean_json(self):
+        self._lean_json("{nope")
+        self.env["SQUAD_SPAWN_USER_CONFIG"] = "1"
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("--setting-sources", self._start_line())
+
+    def test_lean_json_plugins_come_back_only_when_the_user_enabled_them(self):
+        self._cfg(**{"settings.json": {"enabledPlugins": {"reply-style@m": True, "off@m": False, "other@m": True}}})
+        self._lean_json({"plugins": ["reply-style", "off", "nope", "squad@x", "nope"]})
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        merged = json.loads((self.squad / "roles" / "dev-1.lean-settings.json").read_text(encoding="utf-8"))
+        self.assertEqual(merged["enabledPlugins"], {"reply-style@m": True})
+        self.assertEqual(r.stderr.count("plugin 'nope'"), 1, r.stderr)
+        self.assertEqual(r.stderr.count("plugin 'off'"), 1, r.stderr)
+        self.assertEqual(r.stderr.count("plugin 'squad@x' skipped"), 1, r.stderr)
+
+    def test_lean_json_mcp_restricts_the_role_to_the_listed_servers(self):
+        cfg = self._cfg(**{".claude.json": {"mcpServers": {"a": {"type": "http", "url": "https://a"}, "b": {"command": "b"}}}})
+        self._lean_json({"mcp": ["a", "zzz"]})
+        dry = self.spawn("dev", "--scope", "s")  # a dry run prints the flags and writes nothing
+        mcp = self.squad / "roles" / "x.mcp.json"
+        self.assertIn(f"--strict-mcp-config --mcp-config {mcp}", dry)
+        self.assertFalse(mcp.exists())
+        r = self._real_spawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        file = self.squad / "roles" / "dev-1.mcp.json"
+        self.assertEqual(json.loads(file.read_text(encoding="utf-8")), {"mcpServers": {"a": {"type": "http", "url": "https://a"}}})
+        self.assertEqual(r.stderr.count("MCP server 'zzz' not found"), 1, r.stderr)
+        self.assertIn(f"--strict-mcp-config --mcp-config {file}", self._start_line())
+        if os.name != "nt":
+            self.assertEqual(file.stat().st_mode & 0o777, 0o600)
+        self._lean_json({"mcp": []})  # a present, empty key still restricts: nothing loads
+        self.assertEqual(self._real_spawn(name="dev-2").returncode, 0)
+        self.assertEqual(json.loads((self.squad / "roles" / "dev-2.mcp.json").read_text(encoding="utf-8")), {"mcpServers": {}})
+        self._lean_json({"skills": []})  # key dropped on a respawn: the stale server list goes, the file holds none
+        self.assertEqual(self._real_spawn(name="dev-1").returncode, 0)
+        self.assertEqual(json.loads(file.read_text(encoding="utf-8")), {"mcpServers": {}})
 
     def test_a_squad_folder_with_neither_file_still_exits_1(self):
         (self.squad / "process.md").unlink()
@@ -503,6 +675,87 @@ class SpawnScopedTest(unittest.TestCase):
         self.assertNotIn("t-tech-sc1", (self.squad / "scopes" / "sc2" / "roster.md").read_text(encoding="utf-8"))
 
 
+class SpawnTaskClaimTest(unittest.TestCase):
+    """`--task NN` (dev only): a claim event once the pane is up (design 5.2). Warns, never fails the spawn."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.squad = scoped_squad(self.root)
+        self.repo = self.root / "code"
+        self.repo.mkdir()
+        self.git = lambda *a: subprocess.run(
+            ["git", *a], cwd=self.repo, check=True, capture_output=True, text=True, encoding="utf-8",
+            env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                 "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}).stdout.strip()
+        self.git("init", "-q", "-b", "main")
+        self.git("commit", "-q", "--allow-empty", "-m", "init")
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir()
+        fake_herdr(bin_dir)
+        self.env = clean_env()
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.root / "h.log"),
+                        PATH=f"{bin_dir}:{os.environ['PATH']}")
+
+    def spawn(self, *args, role="dev", name="t-dev-sc1-1", env=None):
+        return winlaunch.run_script(SCRIPT, [role, name, "--scope", "sc1", *args], env=env or self.env, text=True,
+                                    encoding="utf-8", capture_output=True, timeout=30)
+
+    def events(self):
+        return [json.loads(l) for f in (self.squad / "task-events").glob("*.jsonl")
+                for l in f.read_text(encoding="utf-8").splitlines()]
+
+    def test_task_claims_the_ticket_for_the_agent_and_its_branch(self):  # AC2, T7
+        r = self.spawn("--repo", str(self.repo), "--task", "03")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["status"], "ready")  # stdout stays the one JSON line
+        (ev,) = self.events()
+        self.assertEqual((ev["ev"], ev["task"], ev["by"], ev["branch"]), ("claim", "03", "t-dev-sc1-1", "squad/t/sc1/t-dev-sc1-1"))
+
+    def test_claim_with_an_open_blocker_is_recorded_with_w1_and_never_refused(self):  # AC8
+        drafts = self.squad / "scopes" / "sc1" / "tasks"
+        drafts.mkdir()
+        (drafts / "ticket-03-x.md").write_text("# 03\n\nStatus: ready-for-agent\nBlocked by: 02\n", encoding="utf-8")
+        r = self.spawn("--repo", str(self.repo), "--task", "03")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["status"], "ready")
+        self.assertIn("W1", r.stderr)
+        (ev,) = self.events()
+        self.assertEqual(ev["ev"], "claim")
+        self.assertTrue(ev["warn"][0].startswith("W1"), ev["warn"])
+
+    def test_env_task_claims_too_and_a_worktree_respawn_does_not_reclaim(self):  # T7
+        r = self.spawn("--repo", str(self.repo), env={**self.env, "SQUAD_SPAWN_TASK": "04"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual([e["task"] for e in self.events()], ["04"])
+        wt = self.root / ".worktrees" / "t" / "sc1" / "t-dev-sc1-1"
+        r = self.spawn("--worktree", str(wt), "--task", "04", name="t-dev-sc1-2")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(self.events()), 1)
+
+    def test_dry_run_plans_the_claim_and_writes_nothing_and_a_non_dev_ignores_task(self):  # T7
+        r = self.spawn("--repo", str(self.repo), "--task", "03", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertRegex(r.stdout, r"would run: squad-task claim 03 --scope-home \S+/scopes/sc1 --owner t-dev-sc1-1 --branch squad/t/sc1/t-dev-sc1-1")
+        self.assertFalse((self.squad / "task-events").exists())
+        r = self.spawn("--task", "03", "--dry-run", role="tech-lead", name="t-tech-sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("--task ignored", r.stderr)
+        self.assertNotIn("squad-task claim", r.stdout)
+
+    def test_a_bad_task_value_is_refused_and_a_claim_failure_never_fails_the_spawn(self):  # T1
+        self.assertEqual(self.spawn("--task", "x3", "--dry-run").returncode, 2)
+        shutil.copytree(BIN, self.root / "p" / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(ROOT / "templates", self.root / "p" / "templates")
+        broken = self.root / "p" / "bin" / "squad-task"
+        broken.write_text("#!/usr/bin/env bash\nexit 9\n", encoding="utf-8")
+        script = self.root / "p" / "bin" / "squad-spawn"
+        r = winlaunch.run_script(script, ["dev", "t-dev-sc1-1", "--scope", "sc1", "--repo", str(self.repo), "--task", "03", "--prompt", "go"],
+                                 env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+
 class SpawnLabelTest(unittest.TestCase):
     """The tab label is "<emoji> <Role>[ n][ · title]"; the address name stays as it is."""
 
@@ -785,6 +1038,16 @@ class SpawnPinnedTest(_GateBase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.calls(), ["squad-spawn qa-whitebox gate-1 --scope sc1 --prompt go --title t one"])
         self.assertEqual(self.created(), [])  # nothing of the new engine's own
+
+    def test_the_hand_off_drops_task_from_the_args_and_passes_it_as_env(self):  # T7: an old runtime rejects --task
+        rt = self.pin("0.5.2")
+        (rt / "bin" / "squad-spawn").write_text(
+            f'#!/usr/bin/env bash\necho "squad-spawn $* task=${{SQUAD_SPAWN_TASK:-}}" >> "{self.record}"\nexit 0\n', encoding="utf-8")
+        r = self.spawn("dev", "gate-1", "--task", "03", "--title", "t")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        (call,) = self.calls()
+        self.assertNotIn("--task", call)
+        self.assertTrue(call.endswith("--title t task=03"), call)
 
     def test_the_hand_off_also_happens_from_an_agent_session_and_for_a_dry_run(self):
         self.pin("0.5.2")

@@ -569,7 +569,7 @@ class CswitchTest(Base):
 
         # order of the herdr calls of the detached part
         kinds = [c[:2] for c in self.e.herdr_calls() if c[0] in ("agent", "pane")]
-        self.assertEqual(kinds[:3], [["pane", "get"], ["agent", "list"], ["agent", "wait"]])
+        self.assertEqual(kinds[:4], [["pane", "get"], ["agent", "list"], ["agent", "get"], ["agent", "wait"]])
         self.assertEqual(self.herdr_calls("agent", "wait"), [["agent", "wait", PANE, "--until", "idle", "--until", "done", "--timeout", "600000"]])
         self.assertEqual(self.herdr_calls("agent", "prompt"), [["agent", "prompt", PANE, "/exit"]])
         self.assertEqual(self.herdr_calls("agent", "rename"), [["agent", "rename", PANE, "plugin-tech-ca-repo"]])
@@ -630,27 +630,85 @@ class CswitchTest(Base):
         self.assertNotIn("FAILED", text)
 
 
-class CswitchBlockedTest(Base):
-    """The wait before /exit is `--until idle --until done`: a blocked pane (permission dialog) is waited on."""
+class CswitchBusyTest(Base):
+    """A pane with background work or a dialog is skipped (exit 75, a ' skipped:' log line); /exit is never typed."""
+    SKIP = r"^\S+ " + re.escape(PANE) + r" skipped: busy \(%s\)$"
 
-    def test_blocked_pane_gets_no_exit_until_it_is_idle(self):
+    def start(self, status, wait_ms=None):
         self.e.set_pane()
         self.e.set_agents()
         self.e.set_workspaces_real()
-        self.e.spawn_claude(PANE, ["--agent", "x"])
-        self.e.set_status(PANE, "blocked")
-        r = self.e.popen([str(self.e.acct / "bin" / "cswitch"), "2"], session=True,
-                         env=dict(HERDR, HERDR_PANE_ID=PANE, CLAUDE_STUB_MODE="sleep", CSWITCH_WAKE="off"),
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
+        self.claude = self.e.spawn_claude(PANE, ["--agent", "x"])
+        self.e.set_status(PANE, status)
+        env = dict(HERDR, HERDR_PANE_ID=PANE, CLAUDE_STUB_MODE="sleep", CSWITCH_WAKE="off")
+        if wait_ms:
+            env["CSWITCH_WAIT_MS"] = str(wait_ms)
+        return self.e.popen([str(self.e.acct / "bin" / "cswitch"), "2"], session=True, env=env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
+
+    def log_skip(self, what):
+        log = self.e.acct / "cswitch.log"
+        pat = re.compile(self.SKIP % re.escape(what), re.M)
+        self.e.wait_for(lambda: log.exists() and pat.search(log.read_text(encoding="utf-8")),
+                        "no skip line in cswitch.log: " + (log.read_text(encoding="utf-8") if log.exists() else "<no log>"))
+
+    def assert_untouched(self):
+        self.assertEqual(self.herdr_calls("agent", "prompt"), [])  # no /exit
+        self.assertEqual(self.herdr_calls("pane", "run"), [])
+        self.assertTrue(live(self.claude.pid))
+
+    def test_background_shell_at_start_is_skipped_synchronously(self):
+        self.e.set_bg(PANE, "⏵ 1 shell")
+        r = self.start("done")
+        out, err = r.communicate(timeout=30)
+        self.assertEqual(r.returncode, 75, err)
+        self.assertRegex(out.strip(), self.SKIP % re.escape("done, ⏵ 1 shell"))
+        self.log_skip("done, ⏵ 1 shell")
+        self.assertEqual(self.herdr_calls("agent", "wait"), [])  # nothing detached
+        self.assert_untouched()
+
+    def test_blocked_pane_at_start_is_skipped_synchronously(self):
+        r = self.start("blocked")
+        out, _ = r.communicate(timeout=30)
+        self.assertEqual(r.returncode, 75)
+        self.assertRegex(out.strip(), self.SKIP % re.escape("blocked, -"))
+        self.assert_untouched()
+
+    def test_wait_timeout_is_a_skip_and_no_exit_is_typed(self):
+        r = self.start("working", wait_ms=300)  # e.g. a subagent keeps it working
+        self.assertEqual(r.communicate(timeout=30)[0].split(" on account")[0][:20], "will resume session ")  # detached: rc 0
+        self.log_skip("working, -")
+        self.assertEqual(len(self.herdr_calls("agent", "wait")), 1)
+        self.assert_untouched()
+
+    def test_background_work_started_during_the_wait_is_skipped_before_exit(self):
+        r = self.start("working", wait_ms=5000)
         r.communicate(timeout=30)
         self.e.wait_for(lambda: self.herdr_calls("agent", "wait"), "cswitch never waited")
-        time.sleep(1.5)
-        self.assertEqual(self.herdr_calls("agent", "prompt"), [])  # still blocked: no /exit typed
-        self.e.set_status(PANE, "done")
-        self.e.wait_for(lambda: self.herdr_calls("agent", "prompt") == [["agent", "prompt", PANE, "/exit"]],
-                        "no /exit after the pane reached done")
-        wait = self.herdr_calls("agent", "wait")[0]
-        self.assertEqual(wait, ["agent", "wait", PANE, "--until", "idle", "--until", "done", "--timeout", "600000"])
+        self.e.set_bg(PANE, "⏵ 1 monitor")
+        self.e.set_status(PANE, "idle")
+        self.log_skip("idle, ⏵ 1 monitor")
+        self.assert_untouched()
+
+    def test_dialog_after_exit_gets_escape_and_a_skip(self):
+        self.e.set_flag("exit.dialog")
+        r = self.start("done")
+        r.communicate(timeout=30)
+        self.log_skip("done, -")
+        self.assertEqual(self.herdr_calls("agent", "prompt"), [["agent", "prompt", PANE, "/exit"]])
+        self.assertEqual(self.herdr_calls("pane", "send-keys"), [["pane", "send-keys", PANE, "Escape"]])  # never 1 or 2
+        self.assertEqual(self.herdr_calls("pane", "run"), [])
+        self.assertTrue(live(self.claude.pid))
+
+    def test_agent_blocked_on_the_prompt_is_a_skip(self):
+        self.e.set_flag("prompt.blocked")
+        r = self.start("done")
+        r.communicate(timeout=30)
+        self.log_skip("done, -")
+        self.assertEqual(self.herdr_calls("pane", "send-keys"), [])
+        self.assertEqual(self.herdr_calls("pane", "run"), [])
+        self.assertTrue(live(self.claude.pid))
+        self.assertNotIn("FAILED", (self.e.acct / "cswitch.log").read_text(encoding="utf-8"))
 
 
 class CwakeTest(Base):

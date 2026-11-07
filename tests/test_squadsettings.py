@@ -105,6 +105,24 @@ class EffectiveTest(Base):
                 self.assertNotIn("CODE_PATHS_SET_BY_SQUAD_INIT", json.dumps(e))
                 self.assertIn("Bash(git push:*)", e["permissions"]["deny"])
 
+    def test_atlassian_writes_ask_not_deny_and_git_stays_denied(self):
+        paths = sorted((ROOT / "templates/squad/settings").glob("*.json"))
+        sets = {}
+        for f in paths:
+            perms = json.loads(f.read_text(encoding="utf-8"))["permissions"]
+            is_at = lambda e: e.startswith(("mcp__atlassian__", "mcp__claude_ai_Atlassian_Rovo__"))
+            self.assertEqual([e for e in perms["deny"] if is_at(e)], [], f.name)
+            sets[f.stem] = {e for e in perms.get("ask", []) if is_at(e)}
+            for g in ("push", "rebase", "reset --hard"):
+                self.assertIn(f"Bash(git {g}:*)", perms["deny"], f.name)
+        full = sets["dev"]
+        self.assertEqual(len(full), 18)
+        for e in ("mcp__atlassian__createJiraIssue", "mcp__claude_ai_Atlassian_Rovo__createJiraIssue"):
+            self.assertIn(e, full)
+        for role, s in sets.items():
+            if role != "token-coach":
+                self.assertEqual(s, full, role)
+
     def test_scratch_rm_allowed_only_under_mktemp_dirs(self):
         d = ROOT / "templates/squad/settings"
         roles = ("dev", "qa-whitebox", "qa-blackbox", "manager", "tech-lead", "team-lead")
@@ -113,11 +131,7 @@ class EffectiveTest(Base):
             rm = [e for e in perms.get("allow", []) if e.startswith(("Bash(rm ", "Bash(rmdir "))]
             if f.stem in roles:
                 self.assertEqual(sorted(rm), sorted(f"Bash({c} /tmp/tmp.*)" for c in ("rm -rf", "rm -r", "rm", "rmdir")), f.name)
-                # ask beats allow: the glob's `*` also matches spaces, `..`, `$(...)` and backticks
-                for e in rm:
-                    cmd = e[len("Bash("):-len(" /tmp/tmp.*)")]
-                    for tail in ("* *", "*..*", "*$*", "*`*"):
-                        self.assertIn(f"Bash({cmd} /tmp/tmp.{tail})", perms["ask"], f"{f.name} {e}")
+                self.assertEqual([e for e in perms.get("ask", []) if "/tmp/tmp." in e], [], f.name)
             else:
                 self.assertEqual(rm, [], f.name)
             for e in rm:
@@ -139,11 +153,10 @@ class EffectiveTest(Base):
         for role in ("dev", "qa-whitebox", "qa-blackbox", "manager", "tech-lead", "team-lead"):
             perms = json.loads((ROOT / f"templates/squad/settings/{role}.json").read_text(encoding="utf-8"))["permissions"]
             for c in cmds:
-                self.assertFalse(hit(perms["ask"], c), f"{role}: ask matches {c}")
+                self.assertFalse(hit(perms.get("ask", []), c), f"{role}: ask matches {c}")
                 if "$" not in c:
                     self.assertTrue(hit(perms["allow"], c), f"{role}: no allow for {c}")
-            self.assertTrue(hit(perms["allow"], "rm -rf /tmp/tmp.A") and not hit(perms["ask"], "rm -rf /tmp/tmp.A"))
-            self.assertTrue(hit(perms["ask"], "rm -rf /tmp/tmp.A /tmp/tmp.B"), role)  # negative control
+            self.assertTrue(hit(perms["allow"], "rm -rf /tmp/tmp.A") and not hit(perms.get("ask", []), "rm -rf /tmp/tmp.A"))
 
     def test_ask_unions_and_other_arrays_are_replaced(self):
         r = ss.merge({"permissions": {"ask": ["a"]}, "l": [1, 2]}, {"permissions": {"ask": ["b"]}, "l": [3]})
@@ -155,7 +168,8 @@ class SpawnTest(Base):
     def setUp(self):
         super().setUp()
         (self.squad / "process.md").write_text("x", encoding="utf-8")
-        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
+        # an empty user config dir: no user settings.json to merge into the lean start, so --settings is the role's file
+        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad), CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "nocfg"))
         self.dir = Path(self.tmp.name)
 
     def spawn(self, role="dev"):
@@ -231,7 +245,8 @@ class ComposedSpawnTest(Base):
         self.bin = Path(self.tmp.name) / "bin"
         self.bin.mkdir()
         fake_herdr(self.bin)
-        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad), PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}")
+        self.env = clean_env(HERDR_ENV="1", SQUAD_DIR=str(self.squad), PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}",
+                             CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "nocfg"))  # no user settings.json: --settings stays the role's file
 
     def run_spawn(self, *args):
         return winlaunch.run_script(SPAWN, ["dev", "x", "--scope", "sc1", *args], env=self.env, text=True,

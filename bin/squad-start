@@ -15,6 +15,8 @@ the overlaps and exits 3 without creating anything; the PO decides, and --yes go
 scope.md lines `model <role>: <model> <effort>` set a role's model for every spawn in that scope (flags and a recorded override win; settings and template lose).
 --model and --effort set the Manager's model and effort (default: the model and effort in settings/manager.json); it does not change the roles the Manager spawns.
 --dry-run prints the Manager's model and effort and where each came from (flag, recorded override on --resume, scope.md `model manager:` on --resume, squad settings, template).
+A scope or goal that gets a Manager also gets a watchdog (bin/squad-watchdog), started detached: it logs idle spells and nudges
+the Manager after 5 and 15 minutes when nobody works. SQUAD_WATCHDOG=off starts none.
 Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
 """
 import argparse
@@ -52,6 +54,11 @@ def squad_dir(name):
     if len(found) != 1:
         die(f"pick a squad with --squad (found: {' '.join(p.name for p in found)})", 2)
     return found[0].resolve()
+
+
+def print_board_command(squad, kind, name):
+    """The command that opens the dashboard on this scope or goal. Printed on stderr (stdout stays the JSON line); never run (ADR 0020)."""
+    print(f"to see it: squad-board --squad {squad.name} --{kind} {name}", file=sys.stderr)
 
 
 def recorded_overrides(home, manager):
@@ -150,6 +157,18 @@ def name_workspace(name):
         print(f"workspace not renamed: {reason}", file=sys.stderr)
 
 
+def start_watchdog(home, manager):
+    """Start bin/squad-watchdog detached for this scope or goal; a failure only warns (the work does not depend on it)."""
+    if os.environ.get("SQUAD_WATCHDOG", "").lower() in ("off", "0", "no"):
+        return
+    cmd = [sys.executable, (PLUGIN / "bin" / "squad-watchdog").as_posix(), "run", "--home", str(home), "--manager", manager]
+    kw = {"creationflags": 0x00000008 | 0x00000200} if os.name == "nt" else {"start_new_session": True}
+    try:
+        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kw)
+    except OSError as e:
+        print(f"watchdog not started: {e}", file=sys.stderr)
+
+
 def derive_name(text):
     ticket = re.search(r"\b[A-Z][A-Z0-9]*-\d+\b", text)
     if ticket:
@@ -225,7 +244,9 @@ def resume(squad, a):
     except ValueError:
         tab = None
     name_workspace(a.resume)
+    start_watchdog(target, manager)
     print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab}))
+    print_board_command(squad, kind, a.resume)
 
 
 def choose_pin(squad, in_goal):
@@ -366,7 +387,9 @@ def main():
             pass
     if manager:
         name_workspace(name)
+        start_watchdog(target, manager)
     print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab}))
+    print_board_command(squad, kind, name)
 
 
 if __name__ == "__main__":

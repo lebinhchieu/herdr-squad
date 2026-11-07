@@ -18,6 +18,22 @@ sid=$(jq -er '.result.pane.agent_session.value' <<<"$info") \
 name=$(herdr agent list | jq -r --arg p "$pane" '.result.agents[] | select(.pane_id==$p) | .name // empty')
 sid=${sid//$'\r'/}; name=${name//$'\r'/}  # a Windows jq may end its lines with CRLF
 
+# Busy check (also run in the watcher): sets st (agent status) and bg (.tokens.bg: "⏵ 1 shell", "⏵ 1 monitor").
+# Background work never ends by itself and /exit would stop it (a shell can look idle/done to herdr); a blocked pane
+# is in a permission dialog. A failed lookup is "not busy": cswitch then works as before.
+probe() {
+  local j; j=$(herdr agent get "$pane" 2>/dev/null) || return 1
+  st=$(jq -r '.result.agent.agent_status // empty' <<<"$j" 2>/dev/null); bg=$(jq -r '.result.agent.tokens.bg // empty' <<<"$j" 2>/dev/null)
+  st=${st//$'\r'/}; bg=${bg//$'\r'/}
+}
+busy() { probe && { [ -n "$bg" ] || [ "$st" = blocked ]; }; }
+# The one result line; exit 75 (EX_TEMPFAIL) tells cautoswitch to back off, not to retry at once.
+skip() { st=; bg=; probe; echo "$(date -Is) $pane skipped: busy (${st:-?}, ${bg:--})"; exit 75; }
+if busy; then
+  line=$(skip)  # skip exits 75 in the subshell
+  echo "$line" >>"$ACCT_HOME/cswitch.log"; echo "$line"; exit 75
+fi
+
 # The pane's claude process carries the original args; find it by its HERDR_PANE_ID.
 # Skip "claude daemon run" children (argv[1]=daemon); other users' processes are unreadable, so ask for ours only.
 tuipid() {
@@ -60,15 +76,27 @@ fi
 # Detached: when called from the agent being switched, its own exit must not kill this.
 nohup bash -c '
   pane=$0 cmd=$1 name=$2
-  # idle or done only: a blocked pane (permission dialog) is waited on, so /exit never lands in the dialog.
-  herdr agent wait "$pane" --until idle --until done --timeout 600000 >/dev/null
+  eval "$3"  # probe, busy, skip
+  # idle or done only, so /exit never lands in a permission dialog. A timeout (blocked, or a subagent keeps it working) is a skip.
+  herdr agent wait "$pane" --until idle --until done --timeout "${CSWITCH_WAIT_MS:-600000}" >/dev/null || skip
+  # Background work started meanwhile: the wait result alone does not show a shell or monitor.
+  busy && skip
   # Pending-work sample (clauses 1 and 3) while the pane is quiet and still on the old account; no-op when CSWITCH_WAKE=off.
   [ "${CSWITCH_WAKE:-on}" = off ] || "$HOME/.claude-accounts/bin/cwake" --mark "$pane" --clauses 13 >/dev/null 2>&1
   # herdr can drop "agent" before claude has exited; typing then loses the command, so watch the process itself.
   tuipid() { if [ "$CA_WIN" = 1 ]; then python3 "$CAPROC" pane-pid "$pane" 2>/dev/null; return; fi; for p in $(pgrep -u "$(id -u)" -x claude); do a1=$({ tr "\0" "\n" <"/proc/$p/cmdline" | sed -n 2p; } 2>/dev/null); [ "$a1" = daemon ] && continue; { tr "\0" "\n" <"/proc/$p/environ" | grep -qx "HERDR_PANE_ID=$pane"; } 2>/dev/null && { echo "$p"; return 0; }; done; return 1; }
   alive() { tuipid >/dev/null; }
-  herdr agent prompt "$pane" "/exit" >/dev/null
-  for i in $(seq 240); do alive || break; sleep 0.5; done
+  # agent_blocked (a dialog opened since the check): /exit was never typed.
+  herdr agent prompt "$pane" "/exit" >/dev/null || skip
+  for i in $(seq 240); do
+    alive || break
+    # "Background work is running": Escape = "Stay". Never 1 or 2 (they stop the work or detach the session).
+    if herdr pane read "$pane" --source visible --lines 14 2>/dev/null | grep -q "Background work is running"; then
+      herdr pane send-keys "$pane" Escape >/dev/null
+      skip
+    fi
+    sleep 0.5
+  done
   alive && { echo "$(date -Is) $pane FAILED: claude did not exit"; exit 1; }
   sleep 1
   ok=""
@@ -89,6 +117,6 @@ nohup bash -c '
     herdr agent rename "$pane" "$name" >/dev/null
   fi
   echo "$(date -Is) $pane ${name:-?} done"
-' "$pane" "$cmd" "$name" >>"$ACCT_HOME/cswitch.log" 2>&1 &
+' "$pane" "$cmd" "$name" "$(declare -f probe busy skip)" >>"$ACCT_HOME/cswitch.log" 2>&1 &
 echo "$(date -Is) $pane ${name:-?} -> account $acct: $cmd" >>"$ACCT_HOME/cswitch.log"
 echo "will resume session $sid on account $acct in pane $pane once idle"

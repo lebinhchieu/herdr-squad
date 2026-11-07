@@ -247,26 +247,26 @@ topic: lifecycle
 
 Build inside `$SCOPE_DIR/architecture.md`; a difference: `ASK` the Architect; unsettled after 2 rounds: the Manager.
 
-## LC-20a Done, Manager
+## LC-20a Passed, Manager
 roles: dev
 when: handin-target = manager
 topic: lifecycle
 
-Done when the Manager sent `PASS`. Tell the Manager and wait; it retires you.
+Passed at `HANDIN`. Tell the Manager and wait; it retires you.
 
-## LC-20b Done, QAs
+## LC-20b Passed, QAs
 roles: dev
 when: handin-target = qas
 topic: lifecycle
 
-Done when every checker sent `PASS`. Tell the plan owner and wait; it retires you.
+Passed on every checker's `PASS`. Tell the plan owner and wait; it retires you.
 
-## LC-20e Done, Team Lead alone
+## LC-20e Passed, Team Lead alone
 roles: dev
 when: handin-target = team-lead
 topic: lifecycle
 
-Done on the Team Lead's `PASS`: tell it and wait; it retires you.
+Passed at `HANDIN`. Tell it and wait; it retires you.
 
 ## LC-21 QA light mode
 roles: qa-whitebox, qa-blackbox
@@ -315,3 +315,12 @@ roles: manager, tech-lead
 topic: lifecycle
 
 Before an irreversible design choice, consult the advisor and leave the [LC-25] note. Otherwise you decide when to consult it.
+
+## LC-27 Task record and gates
+roles: manager, team-lead, tech-lead, qa-whitebox, qa-blackbox
+topic: lifecycle
+
+- A hook records each ticket's state; only `merged` is done, `passed` is not. Gates warn, never block: fix the cause of a warning.
+- `passed` = every QA on the roster sent `PASS` for the current sha. A `PASS` from anyone else warns and is not counted.
+- No QA on the team: the `HANDIN` hook runs `squad-evidence check`. Exit 0 is `passed`; else a warning, and the ticket stays `in progress`.
+- A step the hook missed: `squad-task claim|handin|pass|fail|blocked|merged NN`; `squad-task passed NN` overrides and warns.

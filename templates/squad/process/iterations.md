@@ -39,6 +39,7 @@ topic: iterations
 - The body goes in a quoted heredoc, `squad-inbox add ... <<'EOF' … EOF`; no pipe and no unquoted heredoc (the body would show in chat).
 - One `squad-inbox add` per Bash call, never two. After an add, also after a failed one (fix and retry), your reply is the printed line and nothing else: no body, options or recommendation.
 - A question that blocks nothing takes `--blocks ""` and waits for the check-in.
+- A question the PO parks is `squad-inbox park --text "<q>" [--from E<n>[ #<p>]] [--blocks "<work>"] [--level scope|goal|squad]`, later `unpark|resolve Q<n>`. Never wait on a parked one; raise it when its `Blocks:` work is all that is left.
 - A note with nothing to decide goes through `squad-inbox add --kind read`, never a hand-written row in `escalations.md`; only `--kind answer` makes a row, and the command writes it.
 - A resolved question is withdrawn (`squad-inbox withdraw E<n> --reason "<why>"`), not left open. A chat reply to the PO never lists steps for the PO: the steps go in the inbox item, and the reply is the printed line (or one line pointing at it).
 
@@ -87,8 +88,8 @@ Read `squad-usage`, `usage-events.jsonl` of the folder the Manager names, and ea
 roles: token-coach
 topic: iterations
 
-- Find waste in the table: cache expiries, peak context over the rule thresholds, compactions, a role on a bigger model or effort than its default, many turns for little output.
-- Each proposal has a title, the evidence (the table row by agent name, or the `usage-events.jsonl` line by `ts`), the exact rule change (rule ID and new wording), and the expected saving (tokens or percent, with how you got it). Tune the rule values (120k, 1h, 100k) if the evidence says they are wrong.
+- Find waste in the table: cache expiries, peak context over the respawn line, compactions, a role on a bigger model or effort than its default, many turns for little output.
+- Each proposal has a title, the evidence (the table row by agent name, or the `usage-events.jsonl` line by `ts`), the exact rule change (rule ID and new wording), and the expected saving (tokens or percent, with how you got it). Tune the rule values (respawn line room and cap, 1h) if the evidence says they are wrong.
 
 ## ITER-9 Token Coach limits
 roles: token-coach

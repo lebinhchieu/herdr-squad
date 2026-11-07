@@ -439,7 +439,7 @@ class SpawnComposedTest(Base):
         start = self.calls("agent start")[0]
         rules = self.squad / "scopes" / "sc1" / "roles" / "t-dev-sc1.rules.md"
         self.assertIn(f"--append-system-prompt-file {Path(rules).as_posix()}", start)
-        self.assertNotIn("--plugin-dir", start)
+        self.assertIn("--plugin-dir", start)  # lean start: the running plugin by flag; still no pinned runtime or PATH
         self.assertNotIn("PATH=", self.calls("tab create")[0])
         self.assertEqual(self.calls("agent prompt")[0], "agent prompt t-dev-sc1 Read process.md then go. "
                          f"Your process rules are attached to this session ({Path(rules).as_posix()}); read no other process file.")
@@ -554,7 +554,7 @@ class StartComposedTest(Base):
         (self.squad / "plugin.pin").write_text(f"{self.version} {self.sha}\n", encoding="utf-8")
         r = self.run_bin("squad-start", "do the thing", "--name", "sc1", plugin=clone)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stderr, "")
+        self.assertEqual(r.stderr, "to see it: squad-board --squad t --scope sc1\n")  # no pin warning; only the board command (T03.AC12)
         self.assertIn(f"\nplugin: {self.version} {self.sha}\n", self.scope_md())
         self.assertTrue(self.runtime_dir().is_dir())
 

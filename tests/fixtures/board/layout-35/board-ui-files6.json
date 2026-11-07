@@ -1,0 +1,32 @@
+{
+ "font": "normal",
+ "panels": {
+  "agents": {
+   "hidden": false,
+   "order": 3
+  },
+  "files": {
+   "hidden": false,
+   "order": 4,
+   "tracks": 6
+  },
+  "inbox": {
+   "hidden": false,
+   "order": 0
+  },
+  "scopes": {
+   "hidden": false,
+   "order": 1
+  },
+  "tasks": {
+   "hidden": false,
+   "order": 2
+  },
+  "worktime": {
+   "hidden": false,
+   "order": 5
+  }
+ },
+ "saved_at": "2026-11-03T10:00:00.000Z",
+ "version": 1
+}

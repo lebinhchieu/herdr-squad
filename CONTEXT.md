@@ -86,7 +86,7 @@ The role that owns one duty (plan, business AC, code check, behaviour check, sui
 _Avoid_: responsible role
 
 **Checker**:
-A role on the team that checks a task before it is done: QA whitebox, QA blackbox, and the Designer's built-UI check. With none on the team the code-check owner confirms the Developer's evidence.
+A role on the team that checks a task before it is done: QA whitebox, QA blackbox, and the Designer's built-UI check. With none on the team the HANDIN evidence check (squad-evidence check) decides; no role confirms.
 _Avoid_: reviewer, approver
 
 **Risk flag**:
@@ -186,16 +186,22 @@ The step after build and verify where the Manager collects friction. The Token C
 _Avoid_: retrospective meeting
 
 **Task**:
-One piece of work for one Developer. It moves ready → building → handed in → checking → done or returned.
+One piece of work for one Developer. It moves ready → building → handed in → checking → passed or returned, and a passed task is merged.
 _Avoid_: ticket (a ticket lives in the project's own tracker), story
 
 **AC**:
 Acceptance criteria a task must pass. **Business AC** is agreed by the BA and QA blackbox; **technical AC** by the Tech Lead and QA whitebox.
 _Avoid_: requirements, definition of done
 
-**Done**:
-A task is done when every checker on the team has passed it; with no QA on the team, the Developer's checks, `evidence.md` and the review subagent's `## Review` exist and the code-check owner confirms them.
-_Avoid_: finished, complete
+**Passed**:
+A task is passed when every non-retired QA on the team sent `PASS` for its current sha; with no QA on the team, when the `HANDIN` evidence check (`squad-evidence check`) exits 0. No role confirms it. Passed is not done: only a merged task is done. A tip that moved after the PASS reads "sha changed after PASS"; a commit that touches only the ticket's evidence folder does not move it.
+_Avoid_: done, finished, complete, ready for review
+
+**Merged**:
+A passed task whose branch is in `main`. The board derives it from git; `squad-merge-record` or `squad-task merged NN` records it when git cannot show it.
+
+**Task event**:
+A fact about one ticket (claim, handin, pass, fail, blocked, decision, merged), appended to `task-events/<slug>.jsonl` by the `squad-task` module; the board derives every state word from the events.
 
 **Evidence**:
 A file that proves a task works, such as a QA report or a Developer's run output.
@@ -249,6 +255,56 @@ The option whose key the Manager's `--rec` text starts with, exactly one existin
 
 **Colour meaning**:
 In the inbox green = passed, recommended, delivered; red = blocks work, failed, error; amber = warning, waiting, not verified; dim = metadata. One meaning per colour on every screen, as theme keys (`success`, `error`, `warning`, dim), never RGB; structure is carried by weight and shape, and meaning is never by colour alone. `blocks X` is red while the work is still blocked (open, or answered and waiting) and dim once released (delivered, answered in chat, withdrawn, read).
+
+## Dashboard
+
+**Dashboard**:
+The PO's read-only local page (`squad-board`) for one goal or one scope at a time. It reads the squad's files, git, herdr and transcripts; the one file it writes is `board-ui.json`. Where the PO must act, it shows the command to copy.
+_Avoid_: board (alone; the old live board was removed by 0009), monitor, console
+
+**Picker**:
+The first screen of the dashboard: the list of the squad's open goals and scopes, each with a few facts (needs you, stuck, tasks done, last active), and a Done list. The dashboard shows nothing else until the PO chooses one.
+_Avoid_: home page, overview, all view
+
+**Choice**:
+The one goal or scope the dashboard shows. Squad-wide items (a permission prompt) show under every choice.
+_Avoid_: filter, selection (a filter hides rows; a choice picks the folder that is read)
+
+**Panel**:
+One block of the dashboard (Needs you, Tasks, Agents now, Files, Scopes of this goal, Work time). Its height is its content height, capped; the PO sets only its order, width and visibility.
+_Avoid_: widget, card
+
+**Grid column**:
+One column of the dashboard's page grid. The count (2, 4 or 6) follows the window width and text size; the PO does not set it.
+_Avoid_: column (alone; iteration 2 had PO-chosen columns, now retired)
+
+**Span**:
+How many grid columns a panel takes. The PO sets it by dragging the panel's right edge; a panel has a smallest span it cannot go under.
+_Avoid_: width (alone; the saved width is the tracks)
+
+**Tracks**:
+A panel's saved width as twelfths of the row (1..12, in `board-ui.json`), so it keeps its share when the window changes. Written only after the PO resizes the panel; a value above 12 reads as 12, the full width.
+_Avoid_: pixels, columns
+
+**Demo board**:
+`squad-board --demo`: the dashboard on a temporary copy of the test fixture, labelled DEMO, with sample data. Nothing real is read or written, and the copy is removed on exit.
+_Avoid_: sandbox, test board
+
+**Needs you**:
+The dashboard's squad-wide count of what waits on the PO: open questions, answers to read, tasks ready to merge and permission prompts; items outside the choice show as "N more need you in <name>". A parked question is not counted.
+_Avoid_: notifications, todo list
+
+**Parked question**:
+A question the PO put aside, kept as a `## Q<n>` block in `open-questions.md` of its level (scope, goal or squad). It is not an inbox item; `squad-inbox park|unpark|resolve` is the only writer and the Manager never waits on it.
+_Avoid_: deferred escalation, backlog
+
+**Approx**:
+The label on a figure the dashboard derives or models instead of reading it from a record, such as work time per task. "Unknown" is not approx: it means no source records the value.
+_Avoid_: estimate (the report uses "estimated" for dollars)
+
+**Work time**:
+The working, waiting, blocked or idle time of an agent, from transcripts (ADR 0014); the dashboard shows it as swimlanes. A model of "working", not a stopwatch.
+_Avoid_: timesheet, activity
 
 ## Claude accounts
 
@@ -320,11 +376,13 @@ Every time figure in a report. **Estimated, list price**: every dollar figure. L
 - A **Squad** holds many **Scopes** and **Goals** over time, each with its own folder and fresh **Manager** (a **Goal** has one **goal Manager** for all its **Scopes**).
 - A **Pod** delivers exactly one **Scope**; the **Scope**'s **Team** decides which **Roles** the **Pod** has.
 - A **Scope** is split into **Tasks**; one **Developer** builds one **Task**.
-- A **Task** is **Done** only when every **Checker** on the **Team** has passed it.
+- A **Task** is **Passed** only when every **Checker** on the **Team** has passed it.
 - Each duty has one **Duty owner** on the **Team**.
 - A **Home** belongs to one **Goal** or **Scope**.
 - An **Inbox** shows the open **Escalations** of its **Home** (answer items) and its own read items; the PO's answer is written into the escalation's Answer cell.
 - Rendering never drops or changes the Manager's or the PO's text: unknown markup shows as plain text and every word stays reachable.
+- The **Dashboard** shows exactly one **Choice** (a **Goal** with its **Scopes**, or one **Scope**) and many **Panels**; its **Picker** lists the choices.
+- A **Parked question** belongs to one level (scope, goal or squad) and is kept apart from the **Inbox**; the **Dashboard** only reads it.
 - An **Account launcher** starts Claude Code on one account; the **Workspace default**, inside herdr, else the **Global default**, decides which one `c` picks, and the launchers report an **Account token** for the workspace.
 - A **Scope** runs on one **Plugin pin** from start to close.
 - An **Agent** reads its **Composed rules**, built from the plugin's **Rules** and the squad's **Overlay**.

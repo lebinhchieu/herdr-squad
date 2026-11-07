@@ -3,7 +3,7 @@
 
 Acts only when SQUAD_ROLE=manager and the command starts with `squad-spawn` or `squad-inbox add` (never in the
 middle of the PO's conversation: a Stop-hook nudge would cut into it, so squad-usage-hook exempts the Manager).
-Triggers (COST-8): context over 100k, a compaction, or a cache expiry. Each trigger event gives one notice per
+Triggers (COST-8): context over the session's respawn line (squad-usage respawn_line), a compaction, or a cache expiry. Each trigger event gives one notice per
 session, logged to usage-events.jsonl like the Stop hook. The notice goes out as hookSpecificOutput.additionalContext
 on stdout; the tool call is never blocked. Exit 0 always: any tooling problem (no squad-usage, unreadable
 transcript or log, bad payload) is silent. Python, so no jq dependency."""
@@ -21,7 +21,6 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
 from squadio import utf8_stdio  # noqa: E402
 
-CTX_LIMIT = 100_000
 QUIET = re.compile(r"^\s*(?:\S*[/\\])?squad-(?:spawn\b|inbox\s+add\b)")
 
 
@@ -37,11 +36,11 @@ def load_usage():
     return mod
 
 
-def events(s, ttl, now):
+def events(s, ttl, now, line):
     """Trigger events of a session summary, each a stable key: the same event never fires twice."""
     out = {}
-    if s["last"] > CTX_LIMIT:
-        out["ctx"] = "over 100k"
+    if s["last"] > line:
+        out["ctx"] = f"over its {round(line / 1000)}k line"
     if s["compactions"]:
         out[f"compaction-{s['compactions']}"] = "after a compaction"
     if s["just_expired"] or (now - s["last_ts"]).total_seconds() > ttl:
@@ -116,7 +115,7 @@ def decide(env, payload, now=None):
     if not s:
         return None
     now = now or datetime.now(timezone.utc)
-    ev = events(s, CACHE_TTL_S, now)
+    ev = events(s, CACHE_TTL_S, now, usage.respawn_line(s))
     log = os.path.join(home, "usage-events.jsonl")
     name = env["SQUAD_NAME"]
     action = f"write roles/{name}.notes.md, then run: squad-respawn {name}"

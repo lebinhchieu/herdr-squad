@@ -5,14 +5,14 @@ roles: manager
 when: handin-target = manager
 topic: review
 
-On `HANDIN`: open the Developer's `evidence.md` (design shots too); confirm `## Behaviour` and `## Review` ([REV-22]) are there, with the suite receipt in `$SCOPE_DIR/evidence/` ([SUITE-2d]). `squad-evidence check` on its folder must pass, so an unembedded shot fails. Send `PASS` or `FAIL` to the Developer; a missing or unverified item is a `FAIL`. You do not redo the Developer's checks ([SIZE-7a]).
+On `HANDIN`: open the Developer's `evidence.md` (design shots too); confirm `## Behaviour` and `## Review` ([REV-22]) are there, with the suite receipt in `$SCOPE_DIR/evidence/` ([SUITE-2d]). `squad-evidence check` on its folder must pass. Send no `PASS` ([LC-27]); a missing or unverified item is a `FAIL`. No redo of the Developer's checks ([SIZE-7a]).
 
 ## REV-1b Confirmation, Team Lead
 roles: team-lead
 when: handin-target = team-lead
 topic: review
 
-On `HANDIN`: make the confirmation of [REV-1] (`## Behaviour` and `## Review` in `evidence.md`, suite receipt, `squad-evidence check` passing) and send `PASS` or `FAIL` to the Developer; you do not redo the Developer's checks.
+On `HANDIN`: make the confirmation of [REV-1] (`## Behaviour` and `## Review` in `evidence.md`, suite receipt, `squad-evidence check` passing) and send `FAIL` to the Developer on a problem, never `PASS` ([LC-27]); you do not redo the Developer's checks.
 
 ## REV-2 QA whitebox review
 roles: qa-whitebox
@@ -95,7 +95,7 @@ roles: qa-blackbox
 when: qa-black = yes
 topic: review
 
-On `HANDIN`, test the running app the way `project.md` says (for example Playwright against the dev server, with the Developer's branch deployed or served locally). Walk every business AC, plus the obvious unhappy paths a real user would hit.
+On `HANDIN`, check each business AC first from the Developer's committed shots and text in `evidence.md` `## Behaviour` ([EVID-2a]). Run the app the way `project.md` says only for an AC whose shot is missing, unclear or shows the wrong state, and for the obvious unhappy paths no shot covers.
 
 ## REV-10 QA whitebox findings
 roles: qa-whitebox
@@ -109,7 +109,7 @@ roles: qa-blackbox
 when: qa-black = yes
 topic: review
 
-Write evidence to `$SCOPE_DIR/evidence/<task>/qa-b.md`: each AC → what you did → what you saw → pass/fail, with each screenshot embedded as `![alt](path)` (absolute, or relative to the file); the Developer's `squad-evidence add` copies it.
+Write evidence to `$SCOPE_DIR/evidence/<task>/qa-b.md`: each AC → `shot` or `live` (checked from a committed shot, or by a live run) → what you did (live only) → what you saw → pass/fail, with each screenshot embedded as `![alt](path)` (absolute, or relative to the file); the Developer's `squad-evidence add` copies it.
 
 ## REV-12 Verdict
 roles: qa-whitebox, qa-blackbox
@@ -123,28 +123,28 @@ roles: dev
 when: handin-target = manager
 topic: review
 
-`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to the Manager.
+`HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it` to the Manager.
 
 ## REV-13c Hand in, Team Lead
 roles: dev
 when: handin-target = team-lead
 topic: review
 
-`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to the Team Lead.
+`HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it` to the Team Lead.
 
 ## REV-13b Hand in, both QAs
 roles: dev
 when: qa-white = yes and qa-black = yes
 topic: review
 
-`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA whitebox and QA blackbox.
+`HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it` to QA whitebox and QA blackbox.
 
 ## REV-13d Hand in, QA blackbox alone
 roles: dev
 when: qa-white = no and qa-black = yes
 topic: review
 
-`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA blackbox only.
+`HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it` to QA blackbox only.
 
 ## REV-14a Diff check
 roles: dev
@@ -194,14 +194,14 @@ roles: dev
 when: qa-white = yes and qa-black = no
 topic: review
 
-`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA whitebox only.
+`HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it` to QA whitebox only.
 
 ## REV-20 Behaviour check, QA whitebox
 roles: qa-whitebox
 when: behaviour-check = qa-white
 topic: review
 
-There is no QA blackbox: on `HANDIN` also check each business AC against the Developer's `## Behaviour` (command, output, screenshot if a screen exists), re-running a command when its claim is not clear. Record each AC → seen → pass/fail in `qa-w.md`. Your `PASS` is Done.
+There is no QA blackbox: on `HANDIN` also check each business AC against the Developer's `## Behaviour` (command, output, screenshot if a screen exists), re-running a command when its claim is not clear. Record each AC → seen → pass/fail in `qa-w.md`. Your `PASS` passes the task.
 
 ## REV-21 Business AC, BA alone
 roles: ba

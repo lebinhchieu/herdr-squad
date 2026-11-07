@@ -31,7 +31,8 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(len(cfg["allow"]), len(TL_ALLOW))
         for d in ("git push", "git merge", "git rebase", "git reset --hard", "git checkout main", "git checkout dev"):
             self.assertIn(f"Bash({d}:*)", cfg["deny"])
-        self.assertTrue(any("Atlassian" in d or "atlassian" in d for d in cfg["deny"]))
+        self.assertTrue(any("Atlassian" in d or "atlassian" in d for d in cfg["ask"]))
+        self.assertFalse(any("Atlassian" in d or "atlassian" in d for d in cfg["deny"]))
 
 
 class GateTest(unittest.TestCase):

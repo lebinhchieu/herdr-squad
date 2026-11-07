@@ -43,7 +43,7 @@
 
 **Rule (PO, E1): every off-default squad pane moves to the new account silently; only a pane with pending work is woken, once, after its workspace's batch is back.** A bare `--resume` sends no prompt, so an idle pane is not asked anything.
 
-- **Move:** `cautoswitch` runs `cswitch` on each off-default squad pane, one at a time (unchanged). `cswitch` never wakes. It now waits for `--until idle --until done`, so `/exit` is never typed into a `blocked` permission dialog; a blocked pane is waited on (up to the 10 min `cswitch` already allows).
+- **Move:** `cautoswitch` runs `cswitch` on each off-default squad pane, one after the other, at most `MAX_INFLIGHT` at once (see "Skipped panes" below). `cswitch` never wakes. It waits for `--until idle --until done`, so `/exit` is never typed into a `blocked` permission dialog; a pane that does not get idle/done in `CSWITCH_WAIT_MS` (2 min from `cautoswitch`, 10 min manual) is skipped, not exited.
 - **Pending work** is sampled by `cwake --mark` from the pane's session transcript (`~/.claude*/projects/<cwd>/<session>.jsonl`, last 200 lines), herdr `agent get` and `messages.jsonl`. A pane is pending when ANY of:
   1. **Cut off:** herdr says `blocked`, or the last assistant record is a `tool_use`, or a user record follows the last `end_turn`. Sampled by `cswitch`'s detached block right after the pane went idle/done and before `/exit`, so a pane that was only mid-turn when the tick started (it finishes its turn first) is not marked.
   2. **Failed send:** the pane's own transcript has a `SendMessage` whose result failed (`toolUseResult.success == false`, or the result text is JSON with `success:false`, or `is_error:true`) since the batch started (first `-> account` line of the workspace in `cswitch.log`, at most 30 min old), with no later successful `SendMessage` to the same recipient. Sampled by `cautoswitch` after the batch, because failures happen while other panes are down.
@@ -71,6 +71,19 @@
 5. Clause 2 live sample: from a squad pane (the sender) message a pane that is down during the batch (the send fails with "not reachable"). The marker is deleted at the wake and the `wake sent` line carries no reason, so prove clause 2 one of two ways: (a) any time after the batch (the transcript survives the wake), run `cwake --mark <sender pane> --clauses 2 --since <epoch of the first `-> account` line in cswitch.log>` and `cat ~/.claude-accounts/wake-pending/<sender pane>`: it must end in `failed-send`; then `rm` that marker, or the next tick wakes the sender again; or (b) after the real tick, read the sender's transcript for the failed `SendMessage` (`toolUseResult.success:false`) and check the sender's pane received the wake prompt while it had no cut-off turn or unanswered message (otherwise `wake sent` could come from clause 1 or 3). Report whether it fired.
 6. Rollback if wrong: restart `cautoswitch` with `CSWITCH_WAKE=off`.
 
+## Skipped panes: background work, prompts, stuck panes (built 2026-11-04)
+
+**`cswitch` never `/exit`s a pane that is busy. It logs `skipped:` and exits 75 (EX_TEMPFAIL); `cautoswitch` retries it later with a backoff.**
+
+- **`cswitch` check, before it detaches:** `herdr agent get` is busy when `agent_status` is `blocked` or `.tokens.bg` is not empty (`⏵ 1 shell`, `⏵ 1 monitor`). Busy = log `<ts> <pane> skipped: busy (<status>, <bg>)` (`-` when bg is empty, `?` when the lookup failed), print it, exit 75. No `-> account` line and no restart. A failed lookup counts as not busy (the old behaviour).
+- **In the watcher (after it detaches):** the same check runs again after the wait. `herdr agent wait` timing out (a subagent keeps the pane `working`, or it is `blocked`) also skips. The wait is `CSWITCH_WAIT_MS`: 120000 (2 min) when `cautoswitch` started the `cswitch` (it sets the env from its `SWITCH_WAIT_MS`), 600000 (10 min) for a manual `cswitch`. The watcher's exit code is not seen by anyone; the log line is the result.
+- **Dialog net:** `herdr agent prompt "/exit"` failing (`agent_blocked`) = skip. While waiting for claude to exit, if `herdr pane read` shows `Background work is running`, `cswitch` sends **Escape** ("Stay") and skips. It never answers 1 (stops the work) or 2 (detaches the session).
+- **`cautoswitch` loop:** `SHORT_WAIT = 60` s per pane (looks at `cswitch.log` every 5 s), then it moves on; the pane stays pending. `MAX_INFLIGHT = 2` switches at once (a pane between `/exit` and relaunch counts); the rest log `deferred: ... 2 switches already in flight`.
+- **Backoff:** a pane whose result is `skipped:` or `FAILED` is retried after 2, 4, 8 ... ticks, at most 10 (`BACKOFF_CAP`); the loop logs `backoff: <name>(<pane>) <why>; miss N, next try in D ticks`. A `done` resets it. A result that comes after the 60 s window (the 2 min timeout skip) is read at the start of the next tick, so it counts too. The state is in memory only: restarting `cautoswitch` tries every off-default pane at once, which is safe (`pending()` still guards a running switch).
+- **Side effect on the wake step:** `wake_step` skips a workspace while any of its panes is still `pending()` (15 min window), so one hung pane holds the wake of its workspace, not the loop. A skip before `/exit` writes no wake marker (it comes before `cwake --mark`); a skip at the dialog net comes after it, so that pane may keep a marker until the 30 min expiry.
+- **Short wait for `cautoswitch`:** a pane that stays `working` (a subagent) holds its slot for `SWITCH_WAIT_MS` = 120000 (2 min), not 10 min; then the watcher logs `skipped: busy (working, -)` (exit 75), the slot is free, the next pane switches, and the backoff retries the skipped pane. A manual `cswitch` still waits 10 min. A `blocked` pane is skipped at once, so it takes no slot.
+- **Read it:** `grep -E 'skipped|backoff|deferred' ~/.claude-accounts/cswitch.log`.
+
 ## Agent skill
 
 **The `claude-accounts` skill teaches any agent what c1 / c2 mean**, so "switch to c2" or "make c2 the default" just works.
@@ -97,9 +110,39 @@
 - **`python3`** instead of `python`; no `cygpath`/`mklink`.
 - **No PowerShell launchers.** Windows also has `~/.claude-accounts/claude-accounts.ps1` (dot-sourced from both PowerShell profiles; no `cswitch`). WSL only needs bash.
 
+## Background work (repro 2026-11-04)
+
+claude 2.1.318, herdr 0.9.5, auto mode. Throwaway panes `repro-*` only (split from the dev pane, cwd a `mktemp -d`, all closed after; no cswitch run on any pane). Evidence: scope `tasks/01/evidence.md`.
+Commands: `herdr pane split --pane $HERDR_PANE_ID --direction right --cwd $D --no-focus`; `herdr agent start repro-X --kind claude --pane $P [-- --permission-mode auto]`; `herdr agent prompt $P "<text>"`; `herdr agent get $P | jq .result.agent`; `herdr agent wait $P --until idle --until done --timeout N`; `herdr pane read $P --source visible --lines 14`; `herdr pane send-keys $P Enter|Escape|Down`.
+
+| Case | herdr status at prompt | `agent get` .tokens.bg | `agent wait idle/done` | `/exit` typed |
+|---|---|---|---|---|
+| Monitor (quiet) | idle (flaps working/idle/done if it emits events) | `"⏵ 1 monitor"` | exit 0, 0 s | dialog, status `blocked` |
+| Background shell | done | `"⏵ 1 shell"` | exit 0, 0 s | dialog, status `blocked` |
+| Subagent | `working` (steady) | null | timeout, exit 1 | `prompt` accepted, dialog, status stays `working` |
+| Permission prompt | `blocked` | null | timeout, exit 1 | `agent prompt` fails: `agent_blocked`, `/exit` never typed |
+
+Cause A is real for blocked panes and a running subagent (wait times out, cswitch goes on). Cause B is real for all three kinds of background work: the docs said a shell shows no dialog; it does. Cause C follows from A and B (log: 9 x `agent_blocked`, then 120 s `did not exit`).
+Wait on timeout: stdout `{"error":{"code":"timeout",...}}`, exit 1. cswitch discards both.
+
+### Background-work dialog
+Text: `Background work is running` / `The following will stop when you exit:` then one line per task (`monitor · ...`, `shell · ...`, `subagent · ...`) / `1. Exit and stop tasks` `2. Move to background and exit` `3. Stay` / `Enter to confirm · Esc to cancel`.
+- Enter (1): claude exits at once, rc 0; the shell/monitor/subagent is stopped. This is the data loss of the 2026-11-04 live case. `pgrep` showed the task's sleep process gone within 3 s (monitor and subagent cases).
+- Down Enter (2): pane returns to the shell, prints `backgrounded · <id>`; the session lives on as a `claude agents` background session and the shell keeps running. `claude --resume <sid>` then shows `1 shell` again, but its `/exit` lands in the agents view (`describe a task for a new session`), not at the shell. `claude stop <id>` stopped the session and left the shell child running (killed by PID). Not usable for cswitch.
+- Esc (3, "Stay"): dialog closes, status back to `done`, shell still alive. This is the safe answer.
+- Dialog status: `blocked` for shell/monitor, `working` for a subagent. Status alone does not show it; `pane read` does.
+
+### Detection (what the repro recommended; `cswitch` now does it, see "Skipped panes")
+1. After the wait, `herdr agent get $pane`: busy if `.result.agent.agent_status` is not idle/done, or `.result.agent.tokens.bg` is non-empty (`⏵ 1 shell`, `⏵ 1 monitor`; subagent shows as `working`). The wait result (exit 1) alone also means busy. Not the process tree: a shell is a child of claude (`pgrep -P`), but so are MCP servers and foreground tools.
+2. Net after `herdr agent prompt "/exit"`: if it fails (`agent_blocked`) or `herdr pane read $pane --source visible --lines 14` contains `Background work is running`, send `Escape`, log, skip. Never answer 1 or 2.
+3. Log `skipped: busy (<status>, <bg>)`; exit 75. `cswitch` returns before its watcher runs (nohup), so check 1 also runs synchronously before detaching and returns 75 there; `cautoswitch` reads the `skipped:` line from the log.
+4. Status is racy: a Monitor that emits events flipped working/idle/done and one `wait` returned `done` while the monitor ran. Check 1 can pass wrongly; check 2 is the net.
+
+Untested: the same dialog on account 2/3 (not touched, no cswitch run); a Monitor/shell started while the `/exit` is typed (race).
+
 ## Notes
 
 - **WSL's `~/.claude` is separate from Windows'.** Your skills, `CLAUDE.md`, settings and memory are not there yet. Copy them first (e.g. `cp -r /mnt/c/Users/84084/.claude/{CLAUDE.md,settings.json,skills,output-styles} ~/.claude/`), then run the installer. Windows paths inside `settings.json` (status line, hooks) will need rewriting for Linux.
 - **Per-account leftovers:** MCP servers added later via `claude mcp add` (user scope) live in each account's `.claude.json`, so they don't sync. Since `settings.json` is shared, `model` / `env` in it apply to both accounts.
-- **`cswitch` is untested end-to-end.** Try it on a throwaway pane first; it logs to `~/.claude-accounts/cswitch.log`.
+- **`cswitch` and `cautoswitch` are tested against stub `herdr`/`claude`, not on a live switch.** The busy cases (shell, monitor, subagent, permission prompt) were seen live in the repro below; a full account switch on a live pane was not re-run after the skip change. Try it on a throwaway pane first; it logs to `~/.claude-accounts/cswitch.log`.
 - **Terms of service:** using two subscriptions to get around usage limits may get either account flagged — your call.

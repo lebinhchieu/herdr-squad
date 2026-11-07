@@ -15,6 +15,10 @@
       {
         "matcher": "SendMessage",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-log-message\"" }]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-merge-record\"" }]
       }
     ],
     "Stop": [

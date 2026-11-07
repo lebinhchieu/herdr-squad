@@ -5,7 +5,7 @@ roles: tech-lead
 when: suite-owner = tech-lead
 topic: suites
 
-Only the Tech Lead runs the full suite. `project.md` may name the runner; it locks only its browser files and skips phases the diff cannot affect.
+Only the Tech Lead runs the full suite. The default is targeted tests: touched files plus `grep -rl` hits over `tests/`. For a full run, send the Manager `ASK <task>: full suite? <why targeted tests are not enough>`; run it only after Chieu said yes ([ITER-4]), never before. `project.md` may redefine the default and name the runner.
 
 ## SUITE-1b Who runs the full suite, QA whitebox
 roles: qa-whitebox
@@ -13,7 +13,7 @@ aware: manager
 when: suite-owner = qa-white
 topic: suites
 
-You run the full suite for the scope, once, on the final sha; Developers and QA blackbox run only the test files they touch. `project.md` may name the runner.
+You own the full suite for the scope; Developers and QA blackbox run only the test files they touch. Your default is targeted tests. A full run, once, on the final sha, needs your `ASK <task>: full suite? <why>` to the Manager and Chieu's yes ([SUITE-1]). `project.md` may redefine the default and name the runner.
 
 ## SUITE-2a Suites, Developer
 roles: dev
@@ -34,7 +34,7 @@ roles: dev
 when: suite-owner = dev
 topic: suites
 
-Run the test files you touched, then the full suite once on your final sha, in the background, till its notice (never `pgrep -f`/`pkill -f`); commit fixes first, never restart; receipt in `$SCOPE_DIR/evidence/`: `sha <git rev-parse HEAD> clean=<yes|no>`, OK last.
+Run the test files you touched plus `grep -rl` hits. A full suite needs `ASK <task>: full suite? <why>` to the Manager and Chieu's yes ([SUITE-1]); then once on your final sha, in the background till its notice (never `pgrep -f`/`pkill -f`); commit fixes first, never restart; receipt in `$SCOPE_DIR/evidence/`: `sha <git rev-parse HEAD> clean=<yes|no>`, OK last.
 
 ## SUITE-2b QA suites
 roles: qa-whitebox, qa-blackbox
@@ -62,21 +62,21 @@ roles: tech-lead
 when: suite-owner = tech-lead
 topic: suites
 
-You decide when the full suite runs: once for a batch of tasks, or at the end of the scope or iteration. A scope reaches the PO only with a passing run (`--tz` where `project.md` names it) on its integration sha.
+Once [SUITE-1] allows it, you decide when the full suite runs: once for a batch of tasks, or at the end of the scope or iteration. A scope reaches the PO only with a passing run (`--tz` where `project.md` names it, a full run: Chieu is asked at the merge) on its integration sha.
 
 ## SUITE-4 Running and receipt
 roles: tech-lead
 when: suite-owner = tech-lead
 topic: suites
 
-Run it in the background and wait for its completion notice (never `pgrep -f` or `pkill -f`). Commit every fix first; never restart a run. Save a receipt in `$SCOPE_DIR/evidence/`: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the OK line.
+When [SUITE-1] allows a full run, run it in the background and wait for its completion notice (never `pgrep -f` or `pkill -f`). Commit every fix first; never restart a run. Save a receipt in `$SCOPE_DIR/evidence/`: first line `sha <git rev-parse HEAD> clean=<yes|no>`, tail the OK line.
 
 ## SUITE-4b Running and receipt, QA whitebox
 roles: qa-whitebox
 when: suite-owner = qa-white
 topic: suites
 
-Start the run in the background and wait for its completion notice (never `pgrep -f` or `pkill -f`); commit each fix before a run and never restart one. Save the receipt in `$SCOPE_DIR/evidence/`: first line `sha <git rev-parse HEAD> clean=<yes|no>`, ending in the OK line.
+When [SUITE-1b] allows a full run, start it in the background and wait for its completion notice (never `pgrep -f` or `pkill -f`); commit each fix before a run and never restart one. Save the receipt in `$SCOPE_DIR/evidence/`: first line `sha <git rev-parse HEAD> clean=<yes|no>`, ending in the OK line.
 
 ## SUITE-5 A failing run
 roles: tech-lead
@@ -98,7 +98,7 @@ roles: qa-whitebox
 when: suite-owner = qa-white
 topic: suites
 
-Run it once every task of the scope has passed, on the scope's final sha (`--tz` where `project.md` names it): a scope reaches the PO only with a passing run.
+Once every task of the scope has passed and [SUITE-1b] allows a full run, run it on the scope's final sha (`--tz` where `project.md` names it, a full run: Chieu is asked at the merge): a scope reaches the PO only with a passing run.
 
 ## SUITE-6 Reading the receipt
 roles: qa-whitebox, qa-blackbox

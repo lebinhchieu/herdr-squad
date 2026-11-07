@@ -3,10 +3,14 @@
 fill(data, c) completes data.json from a Collected. Pure python, read-only.
 Free text kept: ticket/escalation titles (cut 120) and FAIL reasons (cut 200); nothing else from messages.
 """
+import os
 import re
+import sys
 from bisect import bisect_right
 from datetime import datetime, timezone
-from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from squadtickets import find_tickets as _find_tickets  # noqa: E402
 
 TOKEN_FIELDS = ("input", "cache_read", "cache_write", "output")
 BUCKETS = ("working", "waiting", "blocking", "idle")
@@ -46,52 +50,6 @@ def _mtype(m):
 
 def _recipients(m):
     return [x for x in re.split(r"[,\s]+", m.to or "") if x]
-
-
-# ---- tickets -------------------------------------------------------------
-
-def _find_tickets(c, raw_tokens):
-    """-> ({NN: title}, relative feature dir or None)."""
-    root = None
-    p = Path(str(c.scope_home)).resolve()
-    for _ in range(10):
-        if (p / ".scratch").is_dir():
-            root = p
-            break
-        if p.parent == p:
-            break
-        p = p.parent
-    if root is None:
-        return {}, None
-    best = None
-    for fdir in sorted((root / ".scratch").glob("*")):
-        files = sorted((fdir / "issues").glob("*.md")) if (fdir / "issues").is_dir() else []
-        files = [f for f in files if re.match(r"^\d+-", f.name)]
-        if not files:
-            continue
-        stems = {f.stem for f in files}
-        nns = {f.name.split("-", 1)[0] for f in files}
-        slug = sum(1 for t in raw_tokens if t in stems)
-        cover = sum(1 for t in raw_tokens if t in nns)
-        score = (slug, 1 if fdir.name == c.name else 0, cover)
-        if best is None or score > best[0]:
-            best = (score, fdir, files)
-    if best is None:
-        return {}, None
-    _, fdir, files = best
-    out = {}
-    for f in files:
-        nn = f.name.split("-", 1)[0]
-        title = f.stem.split("-", 1)[1] if "-" in f.stem else f.stem
-        try:
-            for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
-                if line.startswith("# "):
-                    title = re.sub(r"^\d+\s*[:.-]\s*", "", line[2:].strip())
-                    break
-        except OSError:
-            pass
-        out[nn] = title
-    return out, str(fdir.relative_to(root)).replace("\\", "/")
 
 
 # ---- message parsing -----------------------------------------------------

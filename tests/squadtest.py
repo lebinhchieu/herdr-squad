@@ -31,8 +31,10 @@ def load_cli(name):
 
 
 def clean_env(**extra):
-    """os.environ without the agent variables (SQUAD*, SCOPE_DIR, GOAL_DIR, HERDR*), plus `extra`."""
+    """os.environ without the agent variables (SQUAD*, SCOPE_DIR, GOAL_DIR, HERDR*), plus `extra`. SQUAD_WATCHDOG=off: a
+    squad-start run in a test starts no watchdog (a test of the watchdog passes its own value)."""
     env = {k: v for k, v in os.environ.items() if not k.startswith(_AGENT_ENV)}
+    env["SQUAD_WATCHDOG"] = "off"
     env.update(extra)
     return env
 

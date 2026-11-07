@@ -71,7 +71,7 @@ class DevRulesSize(unittest.TestCase):
                 "MSG-3": "`NN` alone",
                 "LC-18": "squad-label",
                 {"S": "LC-20a", "M": "LC-20b", "L": "LC-20b"}[size]: "Tell the Manager" if size == "S" else "Tell the plan owner",
-                "REV-13a" if size == "S" else "REV-13b": "HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it",
+                "REV-13a" if size == "S" else "REV-13b": "HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it",
                 "REV-14a": "After a PASS, a later commit goes to",
                 {"S": "REV-22", "M": "EVID-2d", "L": "EVID-2b"}[size]: "squad-evidence check",
                 "COST-5" if size == "L" else "COST-5a": "no `squad-respawn`",
@@ -110,10 +110,10 @@ class DevRulesSize(unittest.TestCase):
                     self.assertNotIn(f"## {rid} ", compose_team(role, team).decode(), f"{role} {team}")
 
     def test_manager_composed_bytes_did_not_grow_vs_90be196(self):
-        # (team, goal) -> bytes of the composed Manager rules at 90be196, fixture home with live-length names
-        base = {((), "yes"): 53799, ((), "no"): 50510, (("tech-lead",), "yes"): 52710, (("team-lead", "designer"), "no"): 48985,
-                (("qa-white", "qa-black", "designer", "architect"), "yes"): 56777,
-                (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"): 50145}
+        # (team, goal) -> bytes of the composed Manager rules at 90be196 plus ticket 06's parked-question rule (+265 B, +253 B with goal+architect) and the respawn-line rules of fix 2 (+118 to +132 B) and task 11 worktree reuse in SPAWN-5a (+291 B) and task 12 suite policy in SUITE-1b (+156 B) and task 13 GOAL-6b ask (+59 B) and task-claim-gates 05 passed/merged text and LC-27 (+678 to +742 B), fixture home with live-length names
+        base = {((), "yes"): 55244, ((), "no"): 51955, (("tech-lead",), "yes"): 54155, (("team-lead", "designer"), "no"): 50169,
+                (("qa-white", "qa-black", "designer", "architect"), "yes"): 58350,
+                (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"): 51253}
         for (team, goal), n in base.items():
             with self.subTest(team=team, goal=goal):
                 self.assertLessEqual(len(compose_team("manager", team, goal)), n)

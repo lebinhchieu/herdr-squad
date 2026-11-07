@@ -15,11 +15,12 @@ T0 = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
 NOW = datetime.now(timezone.utc)
 
 
-def turn(minutes, msg_id, ctx=(2, 1000, 0), out=100, model="claude-sonnet-5-5", effort="medium", base=T0, **extra):
+def turn(minutes, msg_id, ctx=(2, 1000, 0), out=100, model="claude-sonnet-5-5", effort="medium", base=T0, tool=None, **extra):
     inp, read, write = ctx
     return {"type": "assistant", "timestamp": (base + timedelta(minutes=minutes)).isoformat().replace("+00:00", "Z"),
             "effort": effort, "sessionId": "s",
             "message": {"id": msg_id, "model": model,
+                        "content": [{"type": "tool_use", "name": tool, "input": {}}] if tool else [],
                         "usage": {"input_tokens": inp, "cache_read_input_tokens": read,
                                   "cache_creation_input_tokens": write, "output_tokens": out}}, **extra}
 
@@ -107,44 +108,55 @@ class UsageTest(UsageBase):
         (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n| dev-1 | sid-1 |\n", encoding="utf-8")
         self.assertEqual(self.run_cli("--squad-dir", str(self.squad)).stdout.splitlines()[1].split()[-2], "1")
 
-    def test_check_fresh_over_120k(self):
-        self.transcript("hot", [turn(0, "a", ctx=(2, 100_000, 21_000), base=NOW)])    # 121k
-        self.transcript("ok", [turn(0, "a", ctx=(2, 100_000, 19_000), base=NOW)])     # 119k
-        self.assertEqual(self.run_cli("--check", "hot").stdout.strip(), "fresh")
-        self.assertEqual(self.run_cli("--check", "ok").stdout, "")
+    def check(self, sid, *turns):
+        self.transcript(sid, list(turns))
+        return self.run_cli("--check", sid).stdout.strip()
 
-    def test_check_idle_needs_gap_and_big_context(self):
-        old = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat().replace("+00:00", "Z")
-        big, small = turn(0, "a", ctx=(2, 110_000, 0)), turn(0, "a", ctx=(2, 90_000, 0))
-        big["timestamp"] = small["timestamp"] = old
-        self.transcript("big", [big])
-        self.transcript("small", [small])
-        self.assertEqual(self.run_cli("--check", "big").stdout.strip(), "idle")
-        self.assertEqual(self.run_cli("--check", "small").stdout, "")
+    def test_check_fresh_at_first_action_plus_50k(self):
+        act = turn(0, "a", ctx=(2, 60_000, 0), tool="Write", base=NOW)          # first action at 60k: line 110k
+        self.assertEqual(self.check("hot", act, turn(1, "b", ctx=(2, 111_000, 0), base=NOW)), "fresh")
+        self.assertEqual(self.check("ok", act, turn(1, "b", ctx=(2, 109_000, 0), base=NOW)), "")
+        # a fixed 100k or 120k line would have decided both of these the other way
+        late = turn(0, "a", ctx=(2, 99_000, 0), tool="Edit", base=NOW)          # first action at 99k: line 149k
+        self.assertEqual(self.check("late", late, turn(1, "b", ctx=(2, 140_000, 0), base=NOW)), "")
 
-    def test_check_idle_after_a_gap_that_expired_the_cache(self):
-        # what the Stop hook sees: the turn that just ended came after a >1h gap and re-wrote the cache
-        self.transcript("big", [turn(0, "a", ctx=(2, 100_000, 0), base=NOW - timedelta(hours=3)),
-                                turn(0, "b", ctx=(2, 0, 110_000), base=NOW)])
-        self.transcript("small", [turn(0, "a", ctx=(2, 40_000, 0), base=NOW - timedelta(hours=3)),
-                                  turn(0, "b", ctx=(2, 0, 50_000), base=NOW)])
-        self.transcript("survived", [turn(0, "a", ctx=(2, 100_000, 0), base=NOW - timedelta(hours=3)),
-                                     turn(0, "b", ctx=(2, 110_000, 500), base=NOW)])
-        self.assertEqual(self.run_cli("--check", "big").stdout.strip(), "idle")
-        self.assertEqual(self.run_cli("--check", "small").stdout, "")
-        self.assertEqual(self.run_cli("--check", "survived").stdout, "")
+    def test_the_first_action_is_the_first_edit_write_or_send_not_a_read(self):
+        reads = turn(0, "r", ctx=(2, 30_000, 0), tool="Read", base=NOW)         # a read is not an action
+        act = turn(1, "a", ctx=(2, 80_000, 0), tool="SendMessage", base=NOW)    # line 130k
+        later = turn(2, "b", ctx=(2, 120_000, 0), tool="Write", base=NOW)       # a later action does not move the line
+        self.assertEqual(self.check("s", reads, act, later, turn(3, "c", ctx=(2, 129_000, 0), base=NOW)), "")
+        self.assertEqual(self.check("t", reads, act, later, turn(3, "c", ctx=(2, 131_000, 0), base=NOW)), "fresh")
+
+    def test_the_line_never_passes_180k(self):
+        act = turn(0, "a", ctx=(2, 150_000, 0), tool="Write", base=NOW)         # 150k + 50k would be 200k
+        self.assertEqual(self.check("cap", act, turn(1, "b", ctx=(2, 179_000, 0), base=NOW)), "")
+        self.assertEqual(self.check("capped", act, turn(1, "b", ctx=(2, 181_000, 0), base=NOW)), "fresh")
+
+    def test_before_a_first_action_only_the_cap_applies(self):
+        self.assertEqual(self.check("r1", turn(0, "a", ctx=(2, 170_000, 0), tool="Read", base=NOW)), "")
+        self.assertEqual(self.check("r2", turn(0, "a", ctx=(2, 181_000, 0), tool="Read", base=NOW)), "fresh")
+
+    def test_a_subagent_action_does_not_set_the_line(self):
+        side = turn(0, "s", ctx=(2, 20_000, 0), tool="Write", base=NOW, isSidechain=True)
+        self.assertEqual(self.check("sub", side, turn(1, "b", ctx=(2, 100_000, 0), base=NOW)), "")  # no own action: cap 180k
+
+    def test_an_idle_session_past_its_line_is_fresh_there_is_no_idle_line(self):
+        old = NOW - timedelta(hours=3)
+        act = turn(0, "a", ctx=(2, 60_000, 0), tool="Write", base=old)           # line 110k
+        self.assertEqual(self.check("idle-over", act, turn(0, "b", ctx=(2, 0, 115_000), base=NOW)), "fresh")
+        self.assertEqual(self.check("idle-under", act, turn(0, "b", ctx=(2, 0, 105_000), base=NOW)), "")
 
     def test_check_unknown_session_prints_nothing(self):
         r = self.run_cli("--check", "nope")
         self.assertEqual((r.returncode, r.stdout), (0, ""))
 
     def test_the_limit_is_the_same_on_a_1m_model(self):
-        self.transcript("big", [turn(0, "a", ctx=(2, 130_000, 0), model="claude-opus-5-5[1m]", base=NOW)])
+        self.transcript("big", [turn(0, "a", ctx=(2, 190_000, 0), model="claude-opus-5-5[1m]", base=NOW)])
         self.assertEqual(self.run_cli("--check", "big").stdout.strip(), "fresh")
 
     def test_check_with_explicit_transcript(self):
         p = Path(self.tmp.name) / "elsewhere.jsonl"
-        p.write_text(json.dumps(turn(0, "a", ctx=(2, 150_000, 0))) + "\n", encoding="utf-8")
+        p.write_text(json.dumps(turn(0, "a", ctx=(2, 190_000, 0))) + "\n", encoding="utf-8")
         self.assertEqual(self.run_cli("--check", "x", "--transcript", str(p)).stdout.strip(), "fresh")
 
     def test_set_session_updates_row_adds_column_and_appends(self):
@@ -245,7 +257,7 @@ class UndercountTest(UsageBase):
         self.assertIn("could not be told", r.stdout)
 
     def test_two_paths_for_one_session_id_take_the_sorted_first(self):
-        for d, ctx in (("-b-cwd", 5000), ("-a-cwd", 150_000)):
+        for d, ctx in (("-b-cwd", 5000), ("-a-cwd", 190_000)):
             (self.cfg / "projects" / d).mkdir()
             (self.cfg / "projects" / d / "dup.jsonl").write_text(json.dumps(turn(0, "a", ctx=(2, ctx, 0), base=NOW)) + "\n", encoding="utf-8")
         self.assertEqual(self.run_cli("--check", "dup").stdout.strip(), "fresh")   # -a-cwd wins
@@ -258,9 +270,9 @@ class UndercountTest(UsageBase):
         self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "0k", "0", "0", "0"])
 
     def test_check_ignores_other_sessions_and_subagents(self):
-        self.named("old", "dev-1", [turn(0, "a", ctx=(2, 150_000, 0), base=NOW)])
+        self.named("old", "dev-1", [turn(0, "a", ctx=(2, 190_000, 0), base=NOW)])
         self.named("new", "dev-1", [turn(0, "b", ctx=(2, 5000, 0), base=NOW)])
-        self.sub("new", "agent-a", [turn(0, "x", ctx=(2, 150_000, 0), base=NOW, isSidechain=True)])
+        self.sub("new", "agent-a", [turn(0, "x", ctx=(2, 190_000, 0), base=NOW, isSidechain=True)])
         self.assertEqual(self.run_cli("--check", "new").stdout, "")
         self.assertEqual(self.run_cli("--check", "old").stdout.strip(), "fresh")
 

@@ -19,12 +19,12 @@ The Manager proposes every optional role, picks and non-picks, in one table in o
 - **Risk flags:** DB migration or data change, breaking API or contract change, security or permissions: Tech Lead and QA whitebox. Anything another team will see: also the BA. A business doubt: the BA. The PO may confirm without them; log that override in the iteration file.
 - **A request for a role in the brief** counts as a confirmed pick and still appears in the table. A bigger job than one scope can finish under the Developer cap is a goal, not a bigger team.
 
-## SIZE-2 Done, both QAs
+## SIZE-2 Passed, both QAs
 roles: manager, ba, team-lead, tech-lead
 when: qa-white = yes and qa-black = yes
 topic: sizes
 
-Done = every checker on the team has passed the task: QA whitebox PASS and QA blackbox PASS, and with a Designer the built-UI check ([SIZE-10b]). One PASS is never enough, nor are the Developer's own checks. Link each task's `evidence.md` in the plan.
+Passed = every checker on the team has passed the task: QA whitebox PASS and QA blackbox PASS, and with a Designer the built-UI check ([SIZE-10b]). One PASS is never enough, nor are the Developer's own checks. Link each task's `evidence.md` in the plan.
 
 ## SIZE-5a Business AC, ticket
 roles: manager
