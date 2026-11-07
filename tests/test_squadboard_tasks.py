@@ -291,9 +291,14 @@ class StoreReader(unittest.TestCase):
         r = self.rows()
         self.assertEqual(r["02"]["stage"], "passed")
         self.assertEqual((r["03"]["stage"], r["03"]["owner"], r["03"]["detail_note"]), ("in progress", "s1-dev", "W1 started while ticket 02 is not yet passed"))
-        self.put(self.root / ".scratch" / "tf" / "issues" / "04-t.md", "# 04 T\nStatus: wontfix\n")
-        self.assertEqual(self.rows()["04"]["stage"], "wontfix")
-        self.events()  # 03 blocked by 02, 02 has no events: 03 is `blocked` again, and `todo` once 02 passed
+        self.put(self.root / ".scratch" / "tf" / "issues" / "04-t.md", "# 04 T\nStatus: wontfix\nBlocked by: 01\n")
+        r = self.rows()["04"]  # wontfix and blocked: wontfix, waits on nobody
+        self.assertEqual((r["stage"], r["waits_on"]), ("wontfix", "nobody"))
+        self.events({"ev": "handin", "task": "02", "sha": "a1b2c3d4", "branch": self.BR},  # no claim on 03
+                    {"ev": "pass", "task": "02", "sha": "a1b2c3d4", "slot": "s1-qaw"},
+                    {"ev": "pass", "task": "02", "sha": "a1b2c3d4", "slot": "s1-qab"})
+        self.assertEqual(self.rows()["03"]["stage"], "todo")  # 02 passed: 03 turns todo by itself
+        self.events()
         self.assertEqual(self.rows()["03"]["stage"], "blocked")
 
     def test_AC3_AC5_checking_then_passed_manager_pass_not_counted(self):
@@ -321,6 +326,15 @@ class StoreReader(unittest.TestCase):
         r = self.rows(home=home)["01"]
         self.assertEqual((r["stage"], r["waits_on"]), ("passed", "PO"))
         self.assertNotIn("0 of 0", json.dumps(r))
+
+    def test_T24_override_pass_and_retired_qas_still_slots(self):
+        sha = "a1b2c3d4"
+        self.events({"ev": "handin", "sha": sha, "branch": self.BR}, {"ev": "pass", "sha": sha, "slot": "override", "by": "manual"})
+        self.assertEqual(self.rows()["01"]["stage"], "passed")
+        roster = self.home / "roster.md"
+        roster.write_text(roster.read_text(encoding="utf-8").replace("| live |", "| retired |"), encoding="utf-8")
+        self.events({"ev": "handin", "sha": sha, "branch": self.BR})
+        self.assertTrue(self.rows()["01"]["stage"].startswith("checking, 0 of 2 PASS"))  # M does not drop to 0 or to `evidence`
 
     def test_AC6_T9_merged_and_branch_of_the_other_scope(self):
         other = "squad/accounts/other/o-dev"

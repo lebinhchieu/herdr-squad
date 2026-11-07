@@ -27,7 +27,7 @@ import squadboard_demo  # noqa: E402
 from test_squadboard_page import CHROME, STUB, Server, run_page  # noqa: E402
 
 PREFIX = "squad-board-demo-"
-STAGES = ("todo", "in progress", "returned", "blocked", "checking", "ready for review", "sha changed after PASS", "merged", "done")
+STAGES = ("todo", "in progress", "returned", "blocked", "checking", "passed", "sha changed after PASS", "merged")
 VIEWS = ("goal=alpha", "scope=checkout")
 
 

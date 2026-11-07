@@ -528,11 +528,11 @@ const afterEsc=$$('section[data-panel=tasks] tr.x').length;
 out({cells,ready,det,steps,closed,afterEsc,calls,count:sec.querySelector('.count').textContent,tools:$$('section[data-panel=tasks] .tools button').map(b=>b.textContent)});
 """, "#/scope/checkout")
         stages = [c[3] for c in r["cells"]]
-        for word in ("todo", "in progress", "returned", "blocked", "checking, 1 of 2 PASS", "ready for review", "sha changed after PASS", "merged", "done"):
+        for word in ("todo", "in progress", "returned", "blocked", "checking, 1 of 2 PASS", "passed", "sha changed after PASS", "merged"):
             self.assertTrue(any(s.startswith(word) for s in stages), word)
-        self.assertEqual(r["ready"], ["06"])
+        self.assertEqual(r["ready"], [])   # ticket 03 dropped the word `ready for review`; the panel flag (ticket 04) reads it until 04 renames it
         self.assertEqual(len(r["cells"][0]), 8)   # id, title, stage, last active, what happened, owner, waits on, where
-        self.assertIn("Ready for review (1)", r["tools"])
+        self.assertIn("Ready for review (0)", r["tools"])   # ticket 04 renames the filter
         self.assertIn("FAIL: reason 3 first line (newest)", r["det"])
         times = [s.split(" ")[1] for s in r["steps"]]
         self.assertEqual(times, sorted(times))

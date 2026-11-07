@@ -128,12 +128,12 @@ def stage(f):
         return word, note
     if f.get("claimed") or f.get("active") or status in ("claimed", "in progress", "handed in"):
         return "in progress", note
+    if f.get("wontfix"):
+        return "wontfix", ""  # waits on nobody, even with an open `Blocked by:`
     if f.get("blocked_by_open"):
         return "blocked", "waiting on ticket " + ", ".join(f["blocked_by_open"])
     if status == "blocked":
         return "blocked", ""
-    if f.get("wontfix"):
-        return "wontfix", ""
     return "todo", ""
 
 
@@ -222,7 +222,9 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
             owns.setdefault(squadledger.key(m.group(1)), r.get("agent"))
     refs = git
     if refs is None:
-        refs = cache.setdefault("refs", _git_refs(root, squad_name))
+        if "refs" not in cache:
+            cache["refs"] = _git_refs(root, squad_name)
+        refs = cache["refs"]
     if refs is None:
         unknown.append("git")
     tips = {} if refs is None else {r["branch"]: r for r in refs[0]}
