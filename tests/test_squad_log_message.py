@@ -152,11 +152,17 @@ class LogMessageTest(unittest.TestCase):
         self.assertEqual(self.records(), [])
 
 
+    def qa_roster(self, scope, rows="| qa-w | qa-whitebox | sc1 |  | live | s |\n"):
+        """A scope roster: with a QA row the task-state hook does not run the evidence check (design D9)."""
+        head = "| Agent | Role | Scope | Owns | Status | Session |\n| --- | --- | --- | --- | --- | --- |\n"
+        (scope / "roster.md").write_text(head + rows, encoding="utf-8")
+
     # ---- 3rd return notice: Team Lead iff `team-lead` is on the team, else Manager (AC 12) ----
     def third_fail_notice(self, scope_md):
         scope = self.squad / "scopes" / "sc1"
         scope.mkdir(parents=True, exist_ok=True)
         (scope / "scope.md").write_text(scope_md, encoding="utf-8", newline="")
+        self.qa_roster(scope)
         lines = [payload("HANDIN 07: branch b, commit aaa1111", msg_id="h1"), payload("FAIL 07: a", msg_id="f1"),
                  payload("HANDIN 07: branch b, commit bbb2222", msg_id="h2"), payload("FAIL 07: b", msg_id="f2"),
                  payload("HANDIN 07: branch b, commit ccc3333", msg_id="h3")]
@@ -184,12 +190,13 @@ class LogMessageTest(unittest.TestCase):
         scope = self.squad / "scopes" / "sc1"
         scope.mkdir(parents=True, exist_ok=True)
         (scope / "scope.md").write_text("team: team-lead\n", encoding="utf-8")
+        self.qa_roster(scope)
         seq = [("HANDIN 07: branch b, commit aaa1111", False), ("FAIL 07: a", False), ("FAIL 07: a again", False),
                ("FAIL 07: a thrice", False), ("HANDIN 07: branch b, commit bbb2222", False), ("FAIL 07: b", False),
                ("HANDIN 07: branch b, commit ccc3333", False), ("FAIL 07: c", True)]
         for i, (text, notice) in enumerate(seq):
             r = self.run_hook_in({"SCOPE_DIR": str(scope)}, payload(text, msg_id=f"m{i}"))
-            self.assertEqual(bool(r.stdout.strip()), notice, (text, r.stdout))
+            self.assertEqual("has 3 returns" in r.stdout, notice, (text, r.stdout))  # a task-state warning (W3) may share stdout
             if notice:
                 ctx = json.loads(r.stdout)["hookSpecificOutput"]
                 self.assertEqual(ctx["hookEventName"], "PostToolUse")
@@ -207,6 +214,99 @@ class LogMessageTest(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(len(self.records()), n)
             self.assertFalse(lock.exists())
+
+    # ---- task state (ticket 02): the hook hands each record to squad-task ----
+    def task_hook(self, text, sender="dev-1", msg_id="m", env_extra=None):
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
+        env.update(SQUAD_NAME=sender, SQUAD_DIR=str(self.sd), SCOPE_DIR=str(self.sc), **(env_extra or {}))
+        r = winlaunch.run_script(SCRIPT, input=json.dumps(payload(text, msg_id=msg_id)), text=True, encoding="utf-8",
+                                 env=env, capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)  # T1: always exit 0
+        ctx = json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"] if r.stdout.strip() else ""
+        return ctx
+
+    def task_events(self):
+        f = self.sd / "task-events" / "sc1.jsonl"
+        return [json.loads(l) for l in f.read_text(encoding="utf-8").splitlines()] if f.exists() else []
+
+    def project(self, rows):
+        """<project>/.claude/squads/sq/scopes/sc1 with the roster `rows`; the Developer worktree is <project>/.worktrees/sq/sc1/dev-1."""
+        self.proj = Path(self.tmp.name) / "proj"
+        self.sd = self.proj / ".claude" / "squads" / "sq"
+        self.sc = self.sd / "scopes" / "sc1"
+        self.sc.mkdir(parents=True)
+        self.qa_roster(self.sc, rows)
+
+    def test_qa_team_records_handin_pass_fail_blocked_and_warns_by_context(self):  # AC3, AC5, T5
+        self.project("| dev-1 | dev | sc1 |  | live | s |\n| qa-w | qa-whitebox | sc1 |  | live | s |\n")
+        ctx = self.task_hook("HANDIN 02: branch squad/sq/sc1/dev-1, commit abc1234", msg_id="h")
+        self.assertIn("W3", ctx)  # no claim on record
+        self.assertEqual([e["ev"] for e in self.task_events()], ["handin"])  # QA on the roster: no evidence check, no pass
+        self.assertEqual(self.task_hook("PASS 02: ok", sender="qa-w", msg_id="p"), "")
+        self.assertIn("W4", self.task_hook("PASS 02: ok", sender="mgr", msg_id="p2"))  # not a checker: no event
+        self.task_hook("BLOCKED 02: waiting on 01", msg_id="b")
+        evs = self.task_events()
+        self.assertEqual([(e["ev"], e["by"]) for e in evs], [("handin", "dev-1"), ("pass", "qa-w"), ("blocked", "dev-1")])
+        self.assertEqual(evs[1]["slot"], "qa-w")
+        self.assertTrue(evs[0]["warn"][0].startswith("W3"))  # saved in the event (D4)
+
+    def test_pass_with_no_sha_and_ask_and_evidence_sha_handin_write_what_they_should(self):  # T5
+        self.project("| qa-w | qa-whitebox | sc1 |  | live | s |\n")
+        self.task_hook("HANDIN 02: branch b, commit abc1234", msg_id="h")
+        self.task_hook("ASK 02: which file?", msg_id="a")
+        self.task_hook("HANDIN 02: evidence sha def5678", msg_id="e")
+        self.task_hook("PASS 02: idle, no sha named", sender="qa-w", msg_id="p")
+        self.assertEqual([e["ev"] for e in self.task_events()], ["handin", "pass"])
+        self.assertIsNone(self.task_events()[1]["sha"])
+
+    def test_the_third_return_notice_and_the_task_warning_share_one_context(self):
+        self.project("| qa-w | qa-whitebox | sc1 |  | live | s |\n")
+        (self.sc / "scope.md").write_text("team: team-lead\n", encoding="utf-8")
+        for i, sha in enumerate(("aaa1111", "bbb2222", "ccc3333")):
+            self.task_hook(f"HANDIN 07: branch b, commit {sha}", msg_id=f"h{i}")
+            if i < 2:
+                self.task_hook(f"FAIL 07: bad {sha}", sender="qa-w", msg_id=f"f{i}")
+        ctx = self.task_hook("FAIL 07: bad ccc3333", sender="qa-w", msg_id="f2")
+        self.assertIn("task 07 has 3 returns", ctx)
+
+    def test_no_qa_team_valid_evidence_passes_and_a_missing_image_is_w9(self):  # T19, AC4
+        self.project("| dev-1 | dev | sc1 |  | live | s |\n")
+        wt = self.proj / ".worktrees" / "sq" / "sc1" / "dev-1"
+        folder = wt / ".scratch" / "sc1" / "issues" / "02-x"
+        (folder / "img").mkdir(parents=True)
+        (folder.parent / "02-x.md").write_text("# 02\n", encoding="utf-8")
+        git = lambda *a: subprocess.run(["git", "-C", str(wt), *a], capture_output=True, text=True, check=True).stdout.strip()
+        git("init", "-q")
+        git("config", "user.email", "t@t")
+        git("config", "user.name", "t")
+
+        def commit(body, image):
+            if image:
+                (folder / "img" / "a.png").write_bytes(b"png")
+            (folder / "evidence.md").write_text(body, encoding="utf-8")
+            git("add", "-A")
+            git("commit", "-qm", "c")
+            return git("rev-parse", "HEAD")
+
+        bad = commit("## Behaviour\n![a](img/gone.png)\n", False)
+        ctx = self.task_hook(f"HANDIN 02: branch squad/sq/sc1/dev-1, commit {bad}", msg_id="h1")
+        self.assertIn("W9 evidence check failed", ctx)
+        self.assertEqual([e["ev"] for e in self.task_events()], ["handin"])
+        good = commit("## Behaviour\n![a](img/a.png)\n", True)
+        self.task_hook(f"HANDIN 02: branch squad/sq/sc1/dev-1, commit {good}", msg_id="h2")
+        last = self.task_events()[-1]
+        self.assertEqual((last["ev"], last["slot"], last["by"]), ("pass", "evidence", "hook"))
+
+    def test_a_store_that_cannot_be_written_still_exits_0_and_a_goal_manager_is_skipped(self):  # T1
+        self.project("| qa-w | qa-whitebox | sc1 |  | live | s |\n")
+        (self.sd / "task-events").write_text("a file, not a folder", encoding="utf-8")
+        self.task_hook("HANDIN 02: branch b, commit abc1234")
+        self.assertEqual(len((self.sc / "messages.jsonl").read_text(encoding="utf-8").splitlines()), 1)  # still logged
+        goal = self.sd / "goals" / "g1"
+        goal.mkdir(parents=True)
+        (self.sd / "task-events").unlink()
+        self.run_hook_in({"GOAL_DIR": str(goal)}, payload("HANDIN 02: branch b, commit abc1234"))
+        self.assertFalse((self.sd / "task-events").exists())
 
 
 if __name__ == "__main__":
