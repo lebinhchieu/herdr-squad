@@ -123,28 +123,28 @@ roles: dev
 when: handin-target = manager
 topic: review
 
-`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to the Manager.
+`HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it` to the Manager.
 
 ## REV-13c Hand in, Team Lead
 roles: dev
 when: handin-target = team-lead
 topic: review
 
-`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to the Team Lead.
+`HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it` to the Team Lead.
 
 ## REV-13b Hand in, both QAs
 roles: dev
 when: qa-white = yes and qa-black = yes
 topic: review
 
-`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA whitebox and QA blackbox.
+`HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it` to QA whitebox and QA blackbox.
 
 ## REV-13d Hand in, QA blackbox alone
 roles: dev
 when: qa-white = no and qa-black = yes
 topic: review
 
-`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA blackbox only.
+`HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it` to QA blackbox only.
 
 ## REV-14a Diff check
 roles: dev
@@ -194,7 +194,7 @@ roles: dev
 when: qa-white = yes and qa-black = no
 topic: review
 
-`HANDIN <task>: branch squad/<squad>/$SQUAD_SCOPE/$SQUAD_NAME, commit <sha>, how to run it` to QA whitebox only.
+`HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it` to QA whitebox only.
 
 ## REV-20 Behaviour check, QA whitebox
 roles: qa-whitebox
