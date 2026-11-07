@@ -66,7 +66,7 @@ Plan one integration task at the end of the scope: one Developer branches from t
 roles: manager, tech-lead
 topic: goal
 
-An integration task merges the scope's passed branches into the Developer's own branch, runs the targeted tests for the changed files and is handed in; the suite owner runs the full suite after ([WHO-2b], [WHO-2c], [WHO-2f]).
+An integration task merges the scope's passed branches into the Developer's own branch, runs the targeted tests for the changed files and is handed in; the suite owner then follows [SUITE-1]: targeted tests by default, a full run only after Chieu's yes ([WHO-2b], [WHO-2c], [WHO-2f]).
 
 ## GOAL-6c Integration task, next scope
 roles: manager
