@@ -49,6 +49,14 @@ def _sha(text):
     return m.group(1) if m else None
 
 
+def parse_handin(text):
+    """-> {sha, branch, evidence} of a HANDIN text: the sha of `..<sha>` or `commit|sha <sha>`, the `branch <b>`
+    name, and whether it is an `evidence sha` hand-in to the Tech Lead. Each is None / False when absent."""
+    text = text or ""
+    b = BRANCH.search(text)
+    return {"sha": _sha(text), "branch": b.group(1) if b else None, "evidence": bool(EVIDENCE.search(text))}
+
+
 def _canon(sha, known):
     """Shas compare by prefix (HANDIN short, FAIL long): map to the known one."""
     sha = sha.lower()
@@ -68,14 +76,14 @@ def build(records):
         st = tasks.setdefault(t, {"task": r["task"], "handin": None, "cur": None, "verdicts": {},
                                   "fail_shas": [], "fail_messages": 0, "blocked": [], "asks": []})
         text = r.get("text") or ""
-        if typ == "HANDIN" and EVIDENCE.search(text):
+        hand = parse_handin(text) if typ == "HANDIN" else None
+        if hand and hand["evidence"]:
             continue  # evidence handin to the Tech Lead: keeps the passed sha and its verdicts
         if typ == "HANDIN":
-            sha = _sha(text)
+            sha = hand["sha"]
             sha = _canon(sha, st["verdicts"]) if sha else st["cur"]
-            b = BRANCH.search(text)
             st["cur"] = sha
-            st["handin"] = {"sha": sha, "branch": b.group(1) if b else (st["handin"] or {}).get("branch"),
+            st["handin"] = {"sha": sha, "branch": hand["branch"] or (st["handin"] or {}).get("branch"),
                             "from": r.get("from"), "ts": r.get("ts")}
             if sha:  # a new sha starts with no verdicts
                 st["verdicts"].setdefault(sha, {})
