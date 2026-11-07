@@ -1,5 +1,5 @@
 # Evidence 02
-
+sha: 6d12987
 ## Behaviour
 
 `squad-spawn dev <name> --repo R --task 03` writes one `claim` event after the pane is up (temp squad, fake herdr). `squad-log-message` hands each message record to `squad-task from-message` and joins its warnings into `additionalContext`.
@@ -36,3 +36,41 @@ Pinned hand-off: the args passed to an old runtime have no `--task`; env `SQUAD_
 Changed existing test: `test_the_notice_is_stdout_json_on_the_third_failing_sha_only` now asserts `has 3 returns` in stdout instead of empty stdout, because task-state warnings (W3) share that output by design (D4); both 3rd-return tests also got a QA roster row.
 
 Known, not mine: `test_squad_spawn.SpawnDryRunTest.test_a_failed_agent_start_leaves_the_old_overrides_file` fails on 125e654 too (checked with my diff reverted).
+
+## QA whitebox review
+
+### QA whitebox 02 (6d12987): PASS
+Diff read (bin/squad-log-message, bin/squad-spawn, 2 test files) against design.md 5.1, 5.2, s8 T1 T5 T7 T11 T19.
+- squad-log-message: squad-task found by readlink -f dirname (same plugin copy); runs after the lock; failure leaves task_ctx empty; warnings join `notice` with a blank line; exit 0 always.
+- squad-spawn: --task digits only, dev only, env SQUAD_SPAWN_TASK fallback; handoff_args drops --task and exports env; claim after set-session, only with a branch (no --worktree), `|| true`, stderr; dry-run prints the claim line.
+Ran in worktree tcg-3: test_squad_log_message + test_squad_spawn: 125 run, 1 fail = SpawnDryRunTest.test_a_failed_agent_start_leaves_the_old_overrides_file; also fails on a full archive of 125e654 (checked).
+Live run, temp squad (QA roster, temp SQUAD_DIR): HANDIN with no claim -> W3 in additionalContext, handin event; qa-w PASS -> pass event slot qa-w; mgr PASS -> W4, no event; qa-b FAIL -> fail event; ASK -> nothing; `squad-task show` = returned, returns 1. Unwritable task-events dir: exit 0, message still logged. Real task-events not touched.
+Follow-up (not FAIL): the changed existing 3rd-return test now needs a QA roster row; fine under D4. Dev did not run test_squadboard_inbox (hung, untouched by diff).
+
+## QA blackbox review
+
+### QA blackbox 02 (sha 6d12987)
+
+Method: `live` for the hook path; `shot`-equivalent (Dev's committed fake-herdr test, run by me) for the spawn claim, because a real `squad-spawn` would start a real agent session. Temp squad (`/tmp/tmp.9f9ajfjrt1`, QA scope s1, no-QA scope s2), real `bin/squad-log-message` of the branch fed PostToolUse SendMessage JSON, `squad-task show` and the board API to read results. Real store untouched. Judged on states.md s9 (AC2-AC5, AC8, AC10, AC11, AC13, AC14, AC20, R5-R9, R11).
+
+| AC | Mode | What I did | What I saw | Result |
+|---|---|---|---|---|
+| AC2 spawn claims | test run | `python3 -m unittest test_squad_spawn.SpawnTaskClaimTest` (5 tests, fake herdr) | OK 5: claim has owner + branch, env `SQUAD_SPAWN_TASK`, no claim on `--worktree`, bad task / claim failure never fails the spawn | pass (not live: a real spawn starts a real agent; dry-run needs a full squad-init folder) |
+| AC3 | live | QA whitebox PASS, then Manager PASS, then QA blackbox PASS on one sha | `checking, 1 of 2 PASS` -> Manager PASS: `W4 not a checker; not counted`, still 1 of 2 -> `passed` | pass |
+| AC5/R7 | live | Manager PASS by message | W4 text in `additionalContext`, exit 0, no state change | pass |
+| AC10 | live | QA FAIL (2 lines), then Dev HANDIN | `returned`, returns 1, first FAIL line `AC1 shows wrong text on the board` on the board row; HANDIN -> `checking, 0 of 2` | pass |
+| AC11 | live | BLOCKED by Dev; DECISION by Manager | `blocked`; DECISION returns it to `checking` | pass |
+| AC4/R8 | live | no-QA scope, HANDIN with valid evidence.md | `passed` (never `checking`) | pass |
+| AC4/R9/R11 | live | no-QA, HANDIN with a missing image / no evidence.md | `in progress`, `W9 evidence check failed: <file:line problem>` in hook `additionalContext` and in the row; next HANDIN with fixed evidence -> `passed` | pass |
+| AC13 W3/W4/W9 | live | as above | each short text given, record written | pass |
+| AC14 | live | store folder read-only, HANDIN | exit 0, message still logged | pass |
+| ASK | live | `ASK 02` | nothing written to the store | pass |
+| AC8 | test run | claim with open `Blocked by:` (test) | recorded with W1, not refused | pass |
+
+#### Follow-ups (not fails)
+1. A second HANDIN by the same Developer, with no claim ever, repeats W3 each time.
+2. A store that cannot be written is silent: the sender gets no warning line (exit 0, message logged). A one-line `warning:` would help.
+3. Old ones still open: unknown `--slot` silent; `pass --slot manager|team-lead` no W4 via squad-task; `show` lacks the first FAIL line (the board has it).
+4. Dev note: `run_suite --if-changed` hung 59 min on `test_squadboard_inbox` (seen in task 03 too: hangs under a pipe). Worth a ticket.
+
+Verdict: PASS.
