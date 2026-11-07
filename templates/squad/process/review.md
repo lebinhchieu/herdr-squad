@@ -95,7 +95,7 @@ roles: qa-blackbox
 when: qa-black = yes
 topic: review
 
-On `HANDIN`, test the running app the way `project.md` says (for example Playwright against the dev server, with the Developer's branch deployed or served locally). Walk every business AC, plus the obvious unhappy paths a real user would hit.
+On `HANDIN`, check each business AC first from the Developer's committed shots and text in `evidence.md` `## Behaviour` ([EVID-2a]). Run the app the way `project.md` says only for an AC whose shot is missing, unclear or shows the wrong state, and for unhappy paths no shot covers.
 
 ## REV-10 QA whitebox findings
 roles: qa-whitebox
@@ -109,7 +109,7 @@ roles: qa-blackbox
 when: qa-black = yes
 topic: review
 
-Write evidence to `$SCOPE_DIR/evidence/<task>/qa-b.md`: each AC → what you did → what you saw → pass/fail, with each screenshot embedded as `![alt](path)` (absolute, or relative to the file); the Developer's `squad-evidence add` copies it.
+Write evidence to `$SCOPE_DIR/evidence/<task>/qa-b.md`: each AC → `shot` or `live` (checked from a committed shot, or by a live run) → what you saw → pass/fail, with each screenshot embedded as `![alt](path)` (absolute, or relative to the file); the Developer's `squad-evidence add` copies it.
 
 ## REV-12 Verdict
 roles: qa-whitebox, qa-blackbox
