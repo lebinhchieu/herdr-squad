@@ -7,7 +7,9 @@ threshold and another account is lower on both 5h and 7d, make that account the
 workspace's default (never the global one), then cswitch every squad agent of the
 workspace that runs off its default, one after the other. It waits SHORT_WAIT for each
 pane's result and moves on (at most MAX_INFLIGHT switches run at once); a pane whose cswitch
-`skipped:` or FAILED is retried after 2, 4, 8 ... (at most BACKOFF_CAP) ticks. Run it in its own herdr tab.
+`skipped:` or FAILED is retried after 2, 4, 8 ... (at most BACKOFF_CAP) ticks. Each cswitch it starts waits
+SWITCH_WAIT_MS (2 min) for its pane to go idle (env CSWITCH_WAIT_MS on the call); a pane that stays `working`
+(a subagent) is then skipped and frees its slot. A manual cswitch keeps its own 10 min wait. Run it in its own herdr tab.
 Usage: cautoswitch --interval 300 in a dedicated tab; it retries off-default panes every tick.
 """
 import argparse, datetime, json, os, subprocess, sys, time, urllib.request
@@ -29,6 +31,7 @@ MARKER_MAX_AGE = 1800  # a wake marker older than this is deleted unsent
 OLD_ACCT = {}  # pane -> account it ran on before its last cswitch (for the wake text)
 SHORT_WAIT = 60  # s the loop waits for one pane's result before it moves on (the pane stays pending)
 POLL = 5  # s between two looks at cswitch.log inside that wait
+SWITCH_WAIT_MS = 120000  # ms a cswitch started here waits for its pane to go idle (a manual cswitch waits 600000) before it skips the pane
 MAX_INFLIGHT = 2  # switches running at once (sessions must not all restart together)
 BACKOFF_CAP = 10  # a pane that skipped or FAILED is retried after 2, 4, 8 ... but at most this many ticks
 # In-memory state (a restart of cautoswitch forgets it: every pane is tried again at once, which is safe).
@@ -344,7 +347,7 @@ def tick(threshold, dry):
         start = os.path.getsize(f"{H}/cswitch.log")
         OLD_ACCT[pane] = acct
         INFLIGHT[pane] = (start, name)
-        run_bin("cswitch", target[ws], pane)
+        run_bin("cswitch", target[ws], pane, env=dict(os.environ, CSWITCH_WAIT_MS=str(SWITCH_WAIT_MS)))
         deadline = time.time() + SHORT_WAIT
         while True:
             r = result_since(pane, start)

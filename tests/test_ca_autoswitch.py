@@ -450,6 +450,8 @@ class AutoswitchTest(Base):
         self.assertRegex(log, re.compile(rf" {re.escape(pane)} plugin-tech-ca-repo done$", re.M))
         self.assertNotIn("FAILED", log)
         self.assertIn("retry: cswitch plugin-tech-ca-repo(" + pane + ") c1 -> c2", log)
+        # AC1: the real cswitch started by cautoswitch waits 2 min, not the manual 10
+        self.assertEqual([c for c in self.e.herdr_calls() if c[:2] == ["agent", "wait"]], [["agent", "wait", pane, "--until", "idle", "--until", "done", "--timeout", "120000"]])
 
 
 # stands in for the real cswitch like CSWITCH, but also writes the '-> account' line first, samples pending work
@@ -457,6 +459,7 @@ class AutoswitchTest(Base):
 # skip = the contract of cswitch (task 02): a busy pane makes the synchronous check print the skip line, log it, exit 75.
 CSWITCH_W = """#!/usr/bin/env bash
 echo "$1 $2" >> "$HOME/cswitch.calls"
+echo "$2 ${CSWITCH_WAIT_MS:-unset}" >> "$HOME/cswitch.waits"
 if [ "$(cat "$HOME/mode.$2" 2>/dev/null)" = skip ]; then
   echo "$(date -Is) $2 skipped: busy (blocked, -)" | tee -a "$HOME/.claude-accounts/cswitch.log"; exit 75
 fi
@@ -746,6 +749,38 @@ class WakeTest(Base):
         self.tick(mod=mod, fake_clock=True)
         self.assertEqual(self.switch_calls().count("3 p1"), 1)
         self.assertIn("backoff: dev-a(p1) skipped: busy (working, -); miss 1, next try in 2 ticks (tick 5)", self.log())
+
+    def waits(self):
+        p = self.e.home / "cswitch.waits"
+        return p.read_text(encoding="utf-8").splitlines() if p.exists() else []
+
+    def test_pane_that_stays_working_is_skipped_after_the_short_wait_and_frees_its_slot(self):
+        for i in (1, 2, 3):
+            self.squad(f"dev-{i}", f"p{i}", IDLE)
+        self.mode("p1", "hang")  # '-> account' line, no result: stays working
+        self.mode("p2", "hang")
+        mod = self.tick(fake_clock=True)
+        self.assertEqual(self.waits(), ["p1 120000", "p2 120000"])  # AC1: cautoswitch passes SWITCH_WAIT_MS
+        self.assertEqual(mod.SWITCH_WAIT_MS, 120000)
+        self.assertIn("deferred: cswitch dev-3(p3); 2 switches already in flight", self.log())
+        # after 2 min (not 10) the watchers log their skip; no real wait in the test
+        with open(self.H / "cswitch.log", "a", encoding="utf-8") as f:
+            for p in ("p1", "p2"):
+                f.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {p} skipped: busy (working, -)\n")
+        self.mode("p3", "done")
+        self.tick(mod=mod, fake_clock=True)
+        self.assertEqual(self.switch_calls(), ["3 p1", "3 p2", "3 p3"])  # AC2: p3 got a slot
+        self.assertRegex(self.log(), re.compile(r" p3 stub done$", re.M))
+        # AC3: p1 and p2 are in backoff (miss 1, 2 ticks), then retried and moved once idle
+        self.assertIn("backoff: dev-1(p1) skipped: busy (working, -); miss 1, next try in 2 ticks (tick 4)", self.log())
+        self.mode("p1", "done")
+        self.mode("p2", "done")
+        self.tick(mod=mod, fake_clock=True)  # tick 3: still waiting
+        self.assertEqual(self.switch_calls().count("3 p1"), 1)
+        self.tick(mod=mod, fake_clock=True)  # tick 4: due
+        self.assertEqual(self.switch_calls().count("3 p1"), 2)
+        self.assertRegex(self.log(), re.compile(r" p1 stub done$", re.M))
+        self.assertNotIn("p1", mod.BACKOFF)
 
     def test_at_most_two_switches_in_flight(self):
         for i in (1, 2, 3):
