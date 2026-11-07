@@ -43,9 +43,9 @@ Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root.
 
 ## Running tests
 
-- The size's suite owner runs the full suite once, on the final sha: S the Developer, M QA whitebox, L the Tech Lead; everyone else runs the test files they touched.
+- The default is targeted tests: the test files touched plus the hits of `grep -rl` over `tests/`. The size's suite owner (S the Developer, M QA whitebox, L the Tech Lead) runs the full suite once, on the final sha, only after asking Chieu through the Manager (`ASK <task>: full suite? <why targeted tests are not enough>`) and getting yes; everyone else runs the test files they touched. A project may redefine this in `project.md`.
 - A Developer whose diff touches `templates/` or text a `bin/` tool prints must, before HANDIN, run `grep -rl '<touched path or changed string>' tests/` and run every hit (goldens included), even test files it did not edit.
-- Runner: `python3 tests/run_suite.py --receipt <dir> --if-changed <task base>`. Integration and promotion tasks and the sha the PO merges use `--tz` instead: nothing skipped.
+- Runner: `python3 tests/run_suite.py --receipt <dir> --if-changed <task base>`. Integration and promotion tasks and the sha the PO merges use `--tz` instead: nothing skipped, a full run (Chieu is asked at the merge).
 - Start it in the background and wait as in `process.md` → Safety → Suites. Never `pgrep -f` or `pkill -f run_suite`: it kills other agents' runs.
 - Commit every fix before a run; never kill and restart one.
 - Browser tests: never poll for a transient state (a stub stream that ends and reconnects shows `live` for milliseconds). Latch it with an init script, or wait for a state that stays; a wait's failure message names the page state.

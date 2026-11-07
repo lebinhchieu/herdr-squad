@@ -4,7 +4,7 @@
 roles: dev
 topic: safety
 
-Commit only to your own `squad/<squad>/<scope>/<agent>` branch; `git merge` only inside it. Never push, rebase or touch another worktree.
+Commit only to the branch of your worktree (`git branch --show-current`); `git merge` only inside it. Never push, rebase or touch another worktree.
 
 ## SAFE-1b No push or deploy, Manager
 roles: manager

@@ -54,12 +54,16 @@ topic: spawning
 
 Developers always get `--repo <code repo>` so they work in their own git worktree `.worktrees/<squad>/<scope>/<agent>` on branch `squad/<squad>/<scope>/<agent>`. Take the repo from the task's `repos` and `project.md`. `--base <passed branch or commit>` starts the branch from work that is passed but not merged ([GOAL-5]).
 
+Reuse: a Developer's next task in the same scope, with no parallel task running, reuses the previous Developer's worktree and branch: `squad-spawn dev <name> --scope <scope> --repo <repo> --worktree <previous worktree>` (no `--base`). Only a task that runs in parallel gets a new worktree.
+
 ## SPAWN-5b Developers, Team Lead
 roles: team-lead
 when: plan-owner = team-lead
 topic: spawning
 
 Spawn a Developer with `squad-spawn dev <squad>-dev-<scope>-<n> --scope <scope> --repo <repo> [--base <ref>] --title "<id> words" --prompt "<briefing>"`; the name is at most 32 characters. Pass `--base` only with the ref the Manager checked and named in the iteration file ([GOAL-5]).
+
+Reuse: when a Developer's next task in the scope has no parallel task running, give it the previous Developer's worktree and branch with `--worktree <previous worktree>` instead of `--repo` and `--base`. A task that runs in parallel gets a new worktree.
 
 ## SPAWN-6 The first prompt
 roles: manager, team-lead
