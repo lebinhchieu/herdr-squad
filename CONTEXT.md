@@ -86,7 +86,7 @@ The role that owns one duty (plan, business AC, code check, behaviour check, sui
 _Avoid_: responsible role
 
 **Checker**:
-A role on the team that checks a task before it is done: QA whitebox, QA blackbox, and the Designer's built-UI check. With none on the team the code-check owner confirms the Developer's evidence.
+A role on the team that checks a task before it is done: QA whitebox, QA blackbox, and the Designer's built-UI check. With none on the team the HANDIN evidence check (squad-evidence check) decides; no role confirms.
 _Avoid_: reviewer, approver
 
 **Risk flag**:
