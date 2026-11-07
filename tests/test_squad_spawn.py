@@ -292,6 +292,8 @@ class SpawnDryRunTest(unittest.TestCase):
             self.assertNotIn(flag, start)
         self.assertNotIn("lean-settings", start)
         self.assertFalse((self.squad / "roles" / "dev-1.skills").exists())
+        self.assertNotIn("--strict-mcp-config", start)
+        self.assertFalse((self.squad / "roles" / "dev-1.mcp.json").exists())
 
     # --- settings/lean.json: what the lean start keeps (skills, plugins, mcp)
     def _lean_json(self, data):
@@ -306,15 +308,18 @@ class SpawnDryRunTest(unittest.TestCase):
         self.env["CLAUDE_CONFIG_DIR"] = str(cfg)
         return cfg
 
-    def test_lean_without_a_lean_json_keeps_the_lean_spawn_flag_list(self):
+    def test_lean_without_a_lean_json_defaults_to_no_mcp_servers(self):
         self._cfg()  # no user settings.json: --settings stays the template file
         out = self.spawn("dev", "--model", "m", "--effort", "low").replace("\\", "/")
         flags = out.split(" -- ", 1)[1].strip()
         sq, root = str(self.squad).replace("\\", "/"), str(ROOT).replace("\\", "/")
         want = (f"--agent squad:dev --name x --session-id <S> --permission-mode auto --settings {root}/templates/squad/settings/dev.json "
-                f"--model m --effort low --setting-sources project,local --add-dir {sq}/roles/x.skills --plugin-dir {root} "
-                f"--append-system-prompt-file {sq}/roles/x.rules.md")
+                f"--model m --effort low --setting-sources project,local --add-dir {sq}/roles/x.skills "
+                f"--strict-mcp-config --mcp-config {sq}/roles/x.mcp.json --plugin-dir {root} --append-system-prompt-file {sq}/roles/x.rules.md")
         self.assertEqual(re.sub(UUID, "<S>", flags), want)
+        r = self._real_spawn()  # a real start writes the empty server list
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads((self.squad / "roles" / "dev-1.mcp.json").read_text(encoding="utf-8")), {"mcpServers": {}})
 
     def test_lean_json_keeps_exactly_the_listed_skills_and_warns_once_for_an_unknown_one(self):
         self._user_skills("playwright-cli", "claude-accounts", "frontend-design")
@@ -324,7 +329,7 @@ class SpawnDryRunTest(unittest.TestCase):
         skills = self.squad / "roles" / "dev-1.skills" / ".claude" / "skills"
         self.assertEqual(sorted(p.name for p in skills.iterdir()), ["claude-accounts", "frontend-design"])
         self.assertEqual(r.stderr.count("skill 'nope' not found"), 1, r.stderr)
-        self.assertNotIn("--strict-mcp-config", self._start_line())  # no mcp key, no MCP flag
+        self.assertIn("--strict-mcp-config", self._start_line())  # no mcp key: strict with no servers
 
     def test_a_bad_lean_json_refuses_before_any_file_or_herdr_call(self):
         for bad in ("{nope", "[]", '{"skills": "playwright-cli"}', '{"mcp": [1]}', '{"plugins": ["../x"]}'):
@@ -374,9 +379,9 @@ class SpawnDryRunTest(unittest.TestCase):
         self._lean_json({"mcp": []})  # a present, empty key still restricts: nothing loads
         self.assertEqual(self._real_spawn(name="dev-2").returncode, 0)
         self.assertEqual(json.loads((self.squad / "roles" / "dev-2.mcp.json").read_text(encoding="utf-8")), {"mcpServers": {}})
-        self._lean_json({"skills": []})  # key dropped on a respawn: the stale file goes
+        self._lean_json({"skills": []})  # key dropped on a respawn: the stale server list goes, the file holds none
         self.assertEqual(self._real_spawn(name="dev-1").returncode, 0)
-        self.assertFalse(file.exists())
+        self.assertEqual(json.loads(file.read_text(encoding="utf-8")), {"mcpServers": {}})
 
     def test_a_squad_folder_with_neither_file_still_exits_1(self):
         (self.squad / "process.md").unlink()
