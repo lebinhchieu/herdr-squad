@@ -713,6 +713,18 @@ class SpawnTaskClaimTest(unittest.TestCase):
         (ev,) = self.events()
         self.assertEqual((ev["ev"], ev["task"], ev["by"], ev["branch"]), ("claim", "03", "t-dev-sc1-1", "squad/t/sc1/t-dev-sc1-1"))
 
+    def test_claim_with_an_open_blocker_is_recorded_with_w1_and_never_refused(self):  # AC8
+        drafts = self.squad / "scopes" / "sc1" / "tasks"
+        drafts.mkdir()
+        (drafts / "ticket-03-x.md").write_text("# 03\n\nStatus: ready-for-agent\nBlocked by: 02\n", encoding="utf-8")
+        r = self.spawn("--repo", str(self.repo), "--task", "03")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["status"], "ready")
+        self.assertIn("W1", r.stderr)
+        (ev,) = self.events()
+        self.assertEqual(ev["ev"], "claim")
+        self.assertTrue(ev["warn"][0].startswith("W1"), ev["warn"])
+
     def test_env_task_claims_too_and_a_worktree_respawn_does_not_reclaim(self):  # T7
         r = self.spawn("--repo", str(self.repo), env={**self.env, "SQUAD_SPAWN_TASK": "04"})
         self.assertEqual(r.returncode, 0, r.stderr)

@@ -258,6 +258,13 @@ class LogMessageTest(unittest.TestCase):
         self.task_hook("PASS 02: idle, no sha named", sender="qa-w", msg_id="p")
         self.assertEqual([e["ev"] for e in self.task_events()], ["handin", "pass"])
         self.assertIsNone(self.task_events()[1]["sha"])
+        # real messages from the repo's own scopes (REV-4): a HANDIN `..sha` and a FAIL naming a sha, from non-roster senders
+        self.task_hook("HANDIN 03: diff check 90dbd7c..148a5f9. One line in bin/squad-watchdog (read of /proc/version gets encoding).",
+                       sender="plugin-dev-watchdog-2", msg_id="r1")
+        self.task_hook("FAIL 06: one finding, AC4 evidence. The screenshots were made at 1b59666; 210876f changed palette.",
+                       sender="plugin-mgr-process-audit", msg_id="r2")
+        evs = self.task_events()
+        self.assertEqual([(e["ev"], e["task"], e["sha"]) for e in evs[-2:]], [("handin", "03", "148a5f9"), ("fail", "06", "1b59666")])
 
     def test_the_third_return_notice_and_the_task_warning_share_one_context(self):
         self.project("| qa-w | qa-whitebox | sc1 |  | live | s |\n")
@@ -291,6 +298,7 @@ class LogMessageTest(unittest.TestCase):
         bad = commit("## Behaviour\n![a](img/gone.png)\n", False)
         ctx = self.task_hook(f"HANDIN 02: branch squad/sq/sc1/dev-1, commit {bad}", msg_id="h1")
         self.assertIn("W9 evidence check failed", ctx)
+        self.assertIn("gone.png", ctx)  # the check ran and named the image, not the "not checked" fallback
         self.assertEqual([e["ev"] for e in self.task_events()], ["handin"])
         good = commit("## Behaviour\n![a](img/a.png)\n", True)
         self.task_hook(f"HANDIN 02: branch squad/sq/sc1/dev-1, commit {good}", msg_id="h2")
