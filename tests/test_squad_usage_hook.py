@@ -14,9 +14,10 @@ SCRIPT = BIN / "squad-usage-hook"
 NOW = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def line(ctx_read):
+def line(ctx_read, tool=None, mid="m"):
     return {"type": "assistant", "timestamp": NOW, "effort": "medium",
-            "message": {"id": "m", "model": "claude-sonnet-5-5",
+            "message": {"id": mid, "model": "claude-sonnet-5-5",
+                        "content": [{"type": "tool_use", "name": tool, "input": {}}] if tool else [],
                         "usage": {"input_tokens": 2, "cache_read_input_tokens": ctx_read,
                                   "cache_creation_input_tokens": 0, "output_tokens": 10}}}
 
@@ -35,7 +36,9 @@ class HookTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def transcript(self, sid, ctx):
-        (self.proj / f"{sid}.jsonl").write_text(json.dumps(line(ctx)) + "\n", encoding="utf-8")
+        # first action at 60k, so the respawn line is 110k
+        rows = [line(60_000, "Write", "first"), line(ctx)]
+        (self.proj / f"{sid}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
 
     def run_hook(self, sid="sid-1", role="dev", squad_session=True, **payload):
         env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
@@ -46,11 +49,13 @@ class HookTest(unittest.TestCase):
         return winlaunch.run_script(SCRIPT, input=json.dumps(data), text=True, encoding="utf-8", env=env,
                               capture_output=True, timeout=10)
 
-    def test_fixture_over_120k_gives_fresh_message_and_event(self):
+    def test_fixture_over_the_line_gives_fresh_message_and_event(self):
         self.transcript("sid-1", 130_000)
         r = self.run_hook()
         self.assertEqual(r.returncode, 2)
         self.assertIn("'fresh'", r.stderr)
+        self.assertIn("respawn line", r.stderr)
+        self.assertNotIn("120k", r.stderr)
         self.assertIn("tell the Team Lead and stop ([COST-5], no squad-respawn)", r.stderr)
         self.assertIn("mid-ticket, run once: squad-respawn dev-1", r.stderr)
         [ev] = [json.loads(l) for l in self.events.read_text(encoding="utf-8").splitlines()]
@@ -101,7 +106,7 @@ class HookTest(unittest.TestCase):
 
     def test_uses_transcript_path_from_payload(self):
         p = Path(self.tmp.name) / "elsewhere.jsonl"
-        p.write_text(json.dumps(line(130_000)) + "\n", encoding="utf-8")
+        p.write_text(json.dumps(line(190_000)) + "\n", encoding="utf-8")  # no first action: only the 180k cap
         self.assertEqual(self.run_hook(sid="unlisted", transcript_path=str(p)).returncode, 2)
 
     def test_garbage_stdin_exits_zero(self):

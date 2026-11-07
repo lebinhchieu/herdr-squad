@@ -4,19 +4,19 @@
 roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: cost
 
-A Stop hook (`squad-usage --check`) tells you when rule [COST-3] or [COST-9] fires and logs it to `usage-events.jsonl`. Limits are absolute tokens, never a percent. When a Stop-hook message says a cost rule fired, write `$SCOPE_DIR/roles/$SQUAD_NAME.notes.md`, then run `squad-respawn $SQUAD_NAME`.
+A Stop hook (`squad-usage --check`) tells you when rule [COST-3] fires and logs it to `usage-events.jsonl`. Limits are absolute tokens, never a percent; [COST-3] defines your respawn line. When a Stop-hook message says a cost rule fired, write `$SCOPE_DIR/roles/$SQUAD_NAME.notes.md`, then run `squad-respawn $SQUAD_NAME`.
 
 ## COST-2 Reuse
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: cost
 
-Reuse a session while it stays on the same task and context is at most 120k.
+Reuse a session on the same task until `fresh` fires ([COST-3]).
 
 ## COST-3 Fresh start
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: cost
 
-Start fresh when context is over 120k, after a compaction, on a new task, or when a Stop-hook message says a cost rule fired: write `roles/<you>.notes.md`, then `squad-respawn <you>`.
+`squad-usage --check` fires `fresh` at your respawn line: your context at first action (first edit, write or message) + 50k, at most 180k. Start fresh then, after a compaction, on a new task, or when a Stop-hook message says a cost rule fired: write `roles/<you>.notes.md`, then `squad-respawn <you>`.
 
 ## COST-4a Tech Lead splits
 roles: tech-lead
@@ -44,28 +44,28 @@ roles: dev
 when: plan-owner = team-lead
 topic: cost
 
-Retire (no `squad-respawn`) at 120k with the ticket merged-ready, or when no open ticket touches your files. Mid-ticket respawn once; the Team Lead splits the rest. Never reuse a retired name.
+Retire (no `squad-respawn`) when the hook says `fresh` with the ticket merged-ready, or when no open ticket touches your files. Mid-ticket respawn once; the Team Lead splits the rest. Never reuse a retired name.
 
 ## COST-5a Developer retires, Manager
 roles: dev
 when: plan-owner = manager
 topic: cost
 
-At 120k with the ticket merged-ready, or when no open ticket touches your files, retire (no `squad-respawn`). Mid-ticket respawn once; the Manager splits the rest. Never reuse a retired name.
+On the hook's `fresh` with the ticket merged-ready, or when no open ticket touches your files, retire (no `squad-respawn`). Mid-ticket respawn once; the Manager splits the rest. Never reuse a retired name.
 
 ## COST-6a Ticket assignment, Manager
 roles: manager
 when: plan-owner = manager
 topic: cost
 
-A ticket touching at most 2 files goes to a live Developer under 80k before a new spawn. A ticket on files a live Developer already changed goes to it while under 120k.
+A ticket touching at most 2 files goes to a live Developer under 80k before a new spawn. A ticket on files a live Developer already changed goes to it while it has no `fresh` signal.
 
 ## COST-6b Ticket assignment, Team Lead
 roles: team-lead
 when: plan-owner = team-lead
 topic: cost
 
-Before spawning for a ticket touching at most 2 files, give it to a live Developer under 80k. Give a ticket on files a live Developer already changed to that Developer while it is under 120k.
+Before spawning for a ticket touching at most 2 files, give it to a live Developer under 80k. Give a ticket on files a live Developer already changed to that Developer while it has no `fresh` signal.
 
 ## COST-7 After a respawn
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
@@ -77,13 +77,13 @@ After a respawn read your notes and the files they name; your rules are already 
 roles: manager
 topic: cost
 
-The Manager is not exempt: after every DONE, every PO message and before every spawn read your `squad-usage` row. Over 100k, after a compaction or a cache expiry: write notes, run `squad-respawn` before your next spawn or PO reply. A hook adds one `context <n>k` notice to the result of your next `squad-spawn` or `squad-inbox add`; act on it then.
+The Manager is not exempt: after every DONE, every PO message and before every spawn read your `squad-usage` row. On `fresh`, after a compaction or a cache expiry: write notes, run `squad-respawn` before your next spawn or PO reply. A hook adds one `context <n>k` notice to the result of your next `squad-spawn` or `squad-inbox add`; act on it then.
 
 ## COST-9 Idle
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: cost
 
-Idle over 1h with context over 100k: start fresh from notes.
+Idle over 1h and over your respawn line ([COST-3]): start fresh from notes.
 
 ## COST-10a PO wait, Manager plans
 roles: manager
