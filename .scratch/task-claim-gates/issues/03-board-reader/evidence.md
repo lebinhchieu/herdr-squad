@@ -105,3 +105,7 @@ Method: `live`. Dev's evidence.md has no shots, so I ran the board (`bin/squad-b
 4. Dev note: `test_squadboard_list` 1 failure also on base (not judged by me).
 
 Verdict: PASS.
+
+## Board screenshot
+
+![Board Tasks panel on the QA blackbox fixture](img/board-checkout.png)
