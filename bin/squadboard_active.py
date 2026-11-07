@@ -21,7 +21,9 @@ if str(BIN) not in sys.path:
     sys.path.insert(0, str(BIN))
 import squadboard_git  # noqa: E402
 import squadboard_time  # noqa: E402
+import squadledger  # noqa: E402
 import squadreport  # noqa: E402
+import squadtask  # noqa: E402
 import squadtranscript  # noqa: E402
 
 QUIET_S = 3600  # fixed: no setting, no env (T08 rules)
@@ -125,6 +127,19 @@ def _branch_times(sel, squad_name):
     return out
 
 
+def event_times(scope_home):
+    """-> {key(task): (newest event epoch, task as written)} of the scope's task events (a missing or bad file gives {})."""
+    out = {}
+    try:
+        for e in squadtask.read_events(squadtask.squad_dir_of(scope_home), squadtask.slug_of(scope_home)):
+            t, k = squadboard_time.parse_iso(e.get("ts")), squadledger.key(e.get("task")) if isinstance(e.get("task"), str) else None
+            if t is not None and k:
+                out[k] = (max(out.get(k, (0,))[0], t), e["task"])
+    except OSError:
+        pass
+    return out
+
+
 def _scope_entry(scope_home, scope_name, branches, now, with_tasks):
     rows = roster_rows(scope_home)
     msgs = messages(Path(scope_home) / "messages.jsonl")
@@ -145,11 +160,14 @@ def _scope_entry(scope_home, scope_name, branches, now, with_tasks):
             n = task_of(r["owns"]) if "ticket" in r["owns"].lower() else None
             if n:
                 owners.setdefault(n, []).append(r)
+        evs = event_times(scope_home)
         nums = set(owners) | {t for _, t in msgs or [] if t}
+        have = {squadledger.key(n) for n in nums}
+        nums |= {raw for k, (_, raw) in evs.items() if k not in have}
         for n in sorted(nums):
             own = owners.get(n, [])
             live = [r for r in own if r["status"] == "live"]
-            tmsg = _newest(t for t, k in msgs or [] if k == n)
+            tmsg = _newest([t for t, k in msgs or [] if k == n] + [evs.get(squadledger.key(n), (None,))[0]])
             tcommit = _newest(tips.get(r["name"]) for r in own)
             ttr, tmiss = _live_transcripts(live)
             tpart = [p for p in partial if p != "transcript"] + (["transcript"] if tmiss else [])

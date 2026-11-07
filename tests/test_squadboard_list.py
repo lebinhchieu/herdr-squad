@@ -130,6 +130,19 @@ class PickerTests(Base):
         self.assertEqual((gone["exists"], gone["message"]), (False, "saved choice no-such not found"))
         self.assertFalse(L.check(s, "../x")["exists"])
 
+    def test_T03_task_events_feed_tasks_done_and_stuck(self):
+        """A `merged` event counts its ticket as done; an open `blocked` event counts it as stuck (design s6)."""
+        store = self.fx.squad / "task-events" / "checkout-tasks.jsonl"
+        base = L.read(self.sel("scope", "checkout"))["data"]["scope"]
+        ev = lambda n, ev: json.dumps({"v": 1, "ts": "2026-11-04T09:00:00.000Z", "task": n, "ev": ev, "by": "d", "scope": "checkout", "why": "x"})
+        store.parent.mkdir(exist_ok=True)
+        try:
+            store.write_text(ev("01", "merged") + "\n" + ev("02", "blocked") + "\n", encoding="utf-8")
+            row = L.read(self.sel("scope", "checkout"))["data"]["scope"]
+        finally:
+            store.unlink()
+        self.assertEqual((row["tasks_done"], row["stuck"]), (base["tasks_done"] + 1, base["stuck"] + 1))
+
 
 class TechnicalTests(Base):
     def test_T04_TA2_cheap_two_git_calls_no_transcript_no_write(self):

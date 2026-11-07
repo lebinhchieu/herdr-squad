@@ -102,6 +102,15 @@ class Active(unittest.TestCase):
                 mock.patch.object(ac.squadtranscript, "read_session", side_effect=AssertionError("parsed")):
             self.assertEqual(ac.transcript_mtime("s-dev02"), NOW - 7)
 
+    def test_T03_task_event_is_last_active_of_its_ticket(self):
+        """A task event (a claim) counts as a record about the ticket: last active = the newest event (design s6)."""
+        store = self.fx.squad / "task-events" / "checkout-tasks.jsonl"
+        self.assertNotIn("01", ac.read(self.sel())["data"]["tasks"])  # 01 has no owner, no message, no commit
+        store.parent.mkdir(exist_ok=True)
+        store.write_text('{"v":1,"ts":"2026-11-04T09:59:00.000Z","task":"01","ev":"claim","by":"fix-dev-01","scope":"checkout"}\nbad\n', encoding="utf-8")
+        t = ac.read(self.sel())["data"]["tasks"]["01"]
+        self.assertEqual((t["ts"], t["source"]), (NOW - 60, "messages"))
+
     def test_T08_TA10_read_only_and_never_raises(self):
         before = snapshot(self.fx.squad)
         ac.read(self.sel())
