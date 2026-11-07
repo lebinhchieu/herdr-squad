@@ -115,7 +115,7 @@ class RespawnTest(unittest.TestCase):
         rules = self.squad / "roles" / "dev-1.rules.md"
         start = next(l for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent start dev-1"))
         self.assertIn(f"--append-system-prompt-file {Path(rules).as_posix()}", start)
-        self.assertNotIn("--plugin-dir", start)
+        self.assertIn("--setting-sources project,local", start)  # a respawn starts lean too (squad-spawn builds the line)
         self.assertTrue(rules.read_text(encoding="utf-8").startswith("# Your process rules"))
         self.assertEqual(r.stderr.count("legacy squad: plugin rules attached"), 1)
 
