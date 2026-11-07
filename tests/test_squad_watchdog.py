@@ -187,6 +187,22 @@ class WatchdogTest(unittest.TestCase):
         self.tick(30)
         self.assertEqual(self.suspended, [])
 
+    def test_a_herdr_outage_restarts_the_quiet_clock_so_the_pc_does_not_sleep_at_the_first_check_after_it(self):
+        W.set_sleep(self.home, True)
+        self.tickets(t03="done")
+        self.agents(t_mgr_s1="idle")
+        self.tick(0)
+        self.tick(4)  # quiet for 4 of 5 minutes
+        self.herdr.write_text("not json", encoding="utf-8")
+        self.tick(10)
+        self.agents(t_mgr_s1="idle")
+        self.tick(11)  # herdr is back, machine quiet: the clock starts here
+        self.assertEqual(self.suspended, [])
+        self.tick(15)
+        self.assertEqual(self.suspended, [])  # 4 min since the outage ended
+        self.tick(16)
+        self.assertEqual(self.suspended, [1])
+
     def test_cli_sleep_on_and_off_and_status_shows_the_switch(self):
         def run(*args):
             return winlaunch.run_script(str(BIN / "squad-watchdog"), [*args, "--home", str(self.home)], clean_env(),
