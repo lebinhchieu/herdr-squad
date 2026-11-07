@@ -1,25 +1,25 @@
 # Team variants
 
-## TEAM-1 Done, QA whitebox alone
+## TEAM-1 Passed, QA whitebox alone
 roles: manager, ba, team-lead, tech-lead
 when: qa-white = yes and qa-black = no
 topic: teams
 
-Done = every checker on the team has passed the task: QA whitebox PASS, and with a Designer the built-UI check. QA whitebox checks the Developer's `## Behaviour` against the business AC, so one PASS is enough here and no other is awaited.
+Passed = every checker on the team has passed the task: QA whitebox PASS, and with a Designer the built-UI check. QA whitebox checks the Developer's `## Behaviour` against the business AC, so one PASS is enough here and no other is awaited.
 
-## TEAM-2 Done, QA blackbox alone
+## TEAM-2 Passed, QA blackbox alone
 roles: manager, ba, team-lead, tech-lead
 when: qa-black = yes and qa-white = no
 topic: teams
 
-Done = every checker on the team has passed the task: QA blackbox PASS, and the Developer's `## Review` confirmed by its owner ([SIZE-22]). With a Designer, also the built-UI check.
+Passed = every checker on the team has passed the task: QA blackbox PASS and, with a Designer, the built-UI check. The Developer's `## Review` is confirmed by its owner ([SIZE-22]), who sends no PASS.
 
-## TEAM-3 Done, no QA
+## TEAM-3 Passed, no QA
 roles: manager, ba, team-lead, tech-lead
 when: qa-white = no and qa-black = no
 topic: teams
 
-Done = the Developer's checks, `evidence.md` and `## Review` exist, and the code-check owner ([SIZE-22]) confirms both. There is no QA PASS to wait for.
+Passed = the HANDIN evidence check exits 0 ([LC-27]): `evidence.md` and `## Review` exist. The code-check owner ([SIZE-22]) still reads both and sends `FAIL` on a problem, never `PASS`. There is no QA PASS to wait for.
 
 ## TEAM-4 Behaviour check, QA whitebox
 roles: qa-whitebox

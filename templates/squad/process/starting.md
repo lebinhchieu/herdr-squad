@@ -14,9 +14,9 @@ roles: manager
 when: plan-owner = manager
 topic: developers
 
-- **Developer cap:** 3 at once. Spawn one Developer per ready task, up to the cap, and queue the rest. A task is ready when its dependencies are done, its AC are agreed and it touches no file another running task touches; the cap is the brief's, else this one.
+- **Developer cap:** 3 at once. Spawn one Developer per ready task, up to the cap, and queue the rest. A task is ready when its dependencies are passed, its AC are agreed and it touches no file another running task touches; the cap is the brief's, else this one.
 - In a goal the goal Manager divides the cap among running scopes in their briefings.
-- You decide which tasks are ready in parallel (dependencies done, AC agreed, no shared files); the Developers' design notes in the task files show what each touches.
+- You decide which tasks are ready in parallel (dependencies passed, AC agreed, no shared files); the Developers' design notes in the task files show what each touches.
 
 ## START-2b Developer cap, Team Lead
 roles: team-lead
@@ -40,7 +40,7 @@ roles: tech-lead
 when: plan-owner = team-lead
 topic: developers
 
-Tell the Manager which tasks are ready in parallel (dependencies done, AC agreed, no shared files); the Team Lead spawns one Developer per such task.
+Tell the Manager which tasks are ready in parallel (dependencies passed, AC agreed, no shared files); the Team Lead spawns one Developer per such task.
 
 ## START-3 Starting a scope
 roles: manager

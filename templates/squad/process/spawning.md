@@ -4,7 +4,7 @@
 roles: manager, team-lead
 topic: spawning
 
-Spawn with the `squad-spawn` command (on your PATH from this plugin): `squad-spawn <role> <agent-name> --scope <scope> [--repo DIR [--base REF]] [--title "<text>"] [--prompt "first message"]`. The scope is yours (`$SQUAD_SCOPE`), or the scope you are running inside the goal.
+Spawn with the `squad-spawn` command (on your PATH from this plugin): `squad-spawn <role> <agent-name> --scope <scope> [--repo DIR [--base REF]] [--title "<text>"] [--task NN] [--prompt "first message"]`. The scope is yours (`$SQUAD_SCOPE`), or the scope you are running inside the goal.
 
 ## SPAWN-2a Roles the Manager spawns, Manager plans
 roles: manager
@@ -61,7 +61,7 @@ roles: team-lead
 when: plan-owner = team-lead
 topic: spawning
 
-Spawn a Developer with `squad-spawn dev <squad>-dev-<scope>-<n> --scope <scope> --repo <repo> [--base <ref>] --title "<id> words" --prompt "<briefing>"`; the name is at most 32 characters. Pass `--base` only with the ref the Manager checked and named in the iteration file ([GOAL-5]).
+Spawn a Developer with `squad-spawn dev <squad>-dev-<scope>-<n> --scope <scope> --repo <repo> [--base <ref>] --title "<id> words" --task <id> --prompt "<briefing>"`; `--task` claims the ticket for the Developer ([LC-27]); the name is at most 32 characters. Pass `--base` only with the ref the Manager checked and named in the iteration file ([GOAL-5]).
 
 Reuse: when a Developer's next task in the scope has no parallel task running, give it the previous Developer's worktree and branch with `--worktree <previous worktree>` instead of `--repo` and `--base`. A task that runs in parallel gets a new worktree.
 

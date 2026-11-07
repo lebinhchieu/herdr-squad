@@ -25,7 +25,7 @@ topic: merge
 roles: manager
 topic: merge
 
-Quote `git log --oneline -1` and the result to the PO; note it in the iteration file.
+Quote `git log --oneline -1` and the result to the PO; note it in the iteration file. The hook records `merged`; for a ticket it did not record, run `squad-task merged NN`.
 
 ## MRG-5 Untracked files before the merge
 roles: manager
