@@ -9,7 +9,7 @@ Route `GET /api/inbox` (goal= or scope=). Read-only: the only inbox call is `squ
 Needs-you = open questions + items to read + passed branches + permission prompts. A question parked whole
 (`From: E<n>`, Status: parked) is not counted and not a row; a point parked (`From: E<n> #<p>`) leaves the item in. The
 banner comes from `squadboard_agents.banner` (herdr, one call per read). herdr unknown gives `banner.entries None` and
-`unknown: ["herdr"]`, never `[]`. Ready-for-review branches come from ticket 07 (`squadboard_tasks.ready_by_scope(sel)`
+`unknown: ["herdr"]`, never `[]`. Passed branches come from ticket 07 (`squadboard_tasks.ready_by_scope(sel)`
 -> {scope: n}) or `sel["passed"]`; with neither, `unknown` names "passed" and they count 0.
 Cost: one CLI call per open scope/goal/squad folder that has an inbox file. Never raises.
 """

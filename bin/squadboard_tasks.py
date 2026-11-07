@@ -103,7 +103,7 @@ def stage(f):
     passed = [c for c in checkers if verd.get(c) == "PASS"]
     tip, sha = f.get("tip"), f.get("sha")
     all_pass = bool(sha) and (verd.get("override") == "PASS" or (bool(checkers) and len(passed) == len(checkers)))
-    tip_match = bool(tip and sha and (tip.startswith(sha) or sha.startswith(tip)))
+    tip_match = bool(tip and sha and (tip.startswith(sha) or sha.startswith(tip))) or bool(f.get("evidence_only"))
     note = "; ".join(f.get("warns") or [])
     status = f.get("ticket_status") or ""
     if f.get("merged"):
@@ -258,11 +258,12 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
         slots, has_qa, roles, has_tl = _checkers_of(index.get(scope_of) or home, cache)
         tip = (tips.get(branch) or {}).get("sha") if branch else None
         owner = owner or "unassigned"
+        where = (by_id.get(tid) or {}).get("where", "")
         facts = {"verdicts": verd, "checkers": slots, "qa": has_qa, "roles": roles, "has_tl": has_tl, "sha": sha, "tip": tip,
                  "merged": merged_ts or bool(branch in merged and sha), "handin": bool(sha), "blocked": blocked,
                  "blocked_by_open": [], "ticket_status": label, "wontfix": status == "wontfix", "claimed": claimed,
                  "active": bool(msgs) and not st, "owner": owner, "wait_s": max(0, now - handin_ts) if handin_ts else None,
-                 "warns": warns}
+                 "warns": warns, "evidence_only": _evidence_only(root, where, sha, tip, cache)}
         tickets.append([key, tid, st, msgs, facts, branch, tip, returns, ev_ts, status])
     word_of = {t[0]: stage(t[4])[0] for t in tickets}
     rows, ready = [], []
@@ -292,6 +293,22 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
         if word == "passed" and tip:
             ready.append({"task": tid, "branch": branch, "tip": tip})
     return rows, unknown, ready
+
+
+def _evidence_only(root, where, sha, tip, cache):
+    """True when the tip is `sha` plus commits that touch only the ticket's evidence folder (`<ticket>/` or
+    `<ticket>.evidence/`). Git runs only when tip and sha differ; any git failure or other path gives False."""
+    if not (root and sha and tip and where.endswith(".md")) or tip.startswith(sha) or sha.startswith(tip):
+        return False
+    key = ("evidence_only", sha, tip, where)
+    if key not in cache:
+        names = None
+        if squadboard_git._git(root, "merge-base", "--is-ancestor", sha, tip) is not None:
+            names = squadboard_git._git(root, "diff", "--name-only", sha, tip)
+        stem = where[:-3]
+        cache[key] = names is not None and all(
+            n.startswith((stem + "/", stem + ".evidence/")) for n in names.splitlines() if n)
+    return cache[key]
 
 
 def _repo_of(home, repo_root):

@@ -174,8 +174,8 @@ def fold(events):
 
 
 def word(state, chk, blocked_by_open=(), ticket_status=""):
-    """Board word of one ticket (states.md s2 precedence, first match). No git here: `sha changed after PASS` and
-    `ready for review` need the branch tip and stay with the board reader."""
+    """Board word of one ticket (states.md s2 precedence, first match). No git here: `sha changed after PASS` needs
+    the branch tip and stays with the board reader."""
     if not state:
         if ticket_status == "wontfix":
             return "wontfix"

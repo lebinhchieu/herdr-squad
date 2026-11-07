@@ -359,5 +359,61 @@ class StoreReader(unittest.TestCase):
                                   "repo_root": self.root, "now": NOW, "params": {}})["quality"], "approx")  # git unknown, no crash
 
 
+class EvidenceTip(StoreReader):
+    """Ticket 10 (T25, T26): a commit that touches only the ticket's evidence folder keeps the PASS valid."""
+    BR = "squad/accounts/s1/s1-dev"
+
+    def git(self, *a):
+        import subprocess
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=str(self.root), check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def passed_sha(self):
+        self.git("init", "-q")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "code")
+        sha = self.git("rev-parse", "HEAD")
+        self.events({"ev": "handin", "sha": sha, "branch": self.BR}, {"ev": "pass", "sha": sha, "slot": "s1-qaw"},
+                    {"ev": "pass", "sha": sha, "slot": "s1-qab"})
+        return sha
+
+    def commit(self, rel):
+        self.put(self.root / rel, "x\n")
+        self.git("add", rel)
+        self.git("commit", "-q", "-m", rel)
+        return self.git("rev-parse", "HEAD")
+
+    def stage(self, tip):
+        return self.rows(git=([{"branch": self.BR, "sha": tip, "ts": 1.0}], []))["01"]["stage"]
+
+    def test_T25_evidence_only_commit_passes_other_path_and_git_error_do_not(self):
+        self.passed_sha()
+        tip = self.commit(".scratch/tf/issues/01-t/evidence.md")
+        self.assertEqual(self.stage(tip), "passed")
+        tip = self.commit(".scratch/tf/issues/01-t.evidence/a.md")  # the old folder name
+        self.assertEqual(self.stage(tip), "passed")
+        tip = self.commit("bin/x")
+        self.assertEqual(self.stage(tip), "sha changed after PASS")
+        self.assertEqual(self.stage("f" * 40), "sha changed after PASS")  # not in the repo: git fails, no raise
+
+    def test_T26_no_git_call_when_tip_matches(self):
+        sha = self.passed_sha()
+        calls = []
+        orig = bt.squadboard_git._git
+        bt.squadboard_git._git = lambda *a: calls.append(a) or orig(*a)
+        try:
+            self.assertEqual(self.stage(sha), "passed")
+            self.assertEqual(calls, [])
+            self.commit(".scratch/tf/issues/01-t/evidence.md")
+            self.stage(self.git("rev-parse", "HEAD"))
+            self.assertTrue(calls)
+        finally:
+            bt.squadboard_git._git = orig
+
+
+for _n in [n for n in dir(StoreReader) if n.startswith("test_")]:
+    setattr(EvidenceTip, _n, None)  # reuse the fixture only, not the parent's tests
+
+
 if __name__ == "__main__":
     unittest.main()
