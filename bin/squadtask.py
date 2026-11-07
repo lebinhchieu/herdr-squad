@@ -97,6 +97,15 @@ def _team_tokens(scope_home):
     return None
 
 
+def role_of(scope_home, name):
+    """Role of the message sender: the roster row of `name`; else $SQUAD_ROLE when `name` is this process's agent;
+    else "" (unknown). The hook runs in the sender's pane, but a manual `from-message` run must not borrow its role."""
+    for agent, role, _ in _roster_rows(scope_home):
+        if agent == name:
+            return role
+    return os.environ.get("SQUAD_ROLE", "") if name and name == os.environ.get("SQUAD_NAME") else ""
+
+
 def checkers(scope_home):
     """-> {"qa": [agent...], "confirmer": "Manager" | "Team Lead"}. M = len(qa) + 1, never 0."""
     rows = [r for r in _roster_rows(scope_home) if not r[2].startswith("retired")]
@@ -208,6 +217,8 @@ def word(state, chk, blocked_by_open=(), ticket_status=""):
 def ticket_text(scope_home, repo_root, nn):
     """Text of ticket NN: the merged file in `.scratch/<slug>/issues/`, else a draft in `<scope>/tasks/`."""
     home = Path(str(scope_home))
+    if not str(nn).isdigit():
+        return None
     root = repo_root or squadtickets._repo_of(home)
     dirs = []
     if root:
@@ -383,7 +394,7 @@ def from_message(scope_home, rec, role=None):
         return []
     if not nn or typ not in ("HANDIN", "PASS", "FAIL", "BLOCKED", "DECISION"):
         return []
-    role = os.environ.get("SQUAD_ROLE", "") if role is None else role
+    role = role_of(scope_home, rec.get("from")) if role is None else role
     base = {"by": rec.get("from"), "role": role, "ts": rec.get("ts"), "msg_id": rec.get("msg_id")}
     if typ == "HANDIN":
         h = squadledger.parse_handin(text)
@@ -487,8 +498,8 @@ def run(argv):
             if len(args) > 1:
                 raise ValueError("show takes at most one task")
             return _show(home, args[0] if args else None, "json" in flags)
-        if len(args) != 1 or not re.match(r"^[\w.-]+$", args[0]):
-            raise ValueError("%s needs one task id" % cmd)
+        if len(args) != 1 or not args[0].isdigit():
+            raise ValueError("%s needs one ticket number (digits), got %r" % (cmd, " ".join(args)))
         nn = args[0]
         if cmd == "claim" and not opts.get("owner"):
             raise ValueError("claim needs --owner")
@@ -497,7 +508,11 @@ def run(argv):
         ev = {"passed": "pass"}.get(cmd, cmd)
         if ev == "claim":
             opts["by"] = opts.pop("owner")
-        if ev in ("pass", "fail"):
+        if ev == "pass" and "slot" not in opts:  # a manual PASS counts as the sender's own role would
+            role = os.environ.get("SQUAD_ROLE", "")
+            opts["slot"] = (opts.get("by") or os.environ.get("SQUAD_NAME") or "manual") if role in QA_ROLES else \
+                "confirmer" if role in CONFIRM_ROLES or not role else None
+        elif ev == "fail":
             opts.setdefault("slot", "confirmer")
         if ev == "merged" and not (opts.get("sha") or opts.get("branch")) and not (
                 fold(read_events(squad_dir_of(home), slug_of(home))).get(squadledger.key(nn)) or {}).get("branch"):

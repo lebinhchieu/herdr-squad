@@ -172,9 +172,9 @@ class StoreAndHook(Base):
 
     def test_hook_entry_warns_and_never_fails(self):  # T1
         env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
-        env["SQUAD_ROLE"] = "dev"  # a Developer sending PASS: W4
+        env.update(SQUAD_ROLE="dev", SQUAD_NAME="dev")  # a Developer sending PASS: W4
         p = subprocess.run([sys.executable, str(CLI), "from-message", "--scope-home", str(self.home)],
-                           input=json.dumps(P_IDLE), text=True, capture_output=True, env=env, timeout=20)
+                           input=json.dumps(dict(P_IDLE, **{"from": "dev"})), text=True, capture_output=True, env=env, timeout=20)
         self.assertEqual(p.returncode, 0)
         self.assertIn("W4 not a checker", json.loads(p.stdout)["hookSpecificOutput"]["additionalContext"])
         p = subprocess.run([sys.executable, str(CLI), "from-message", "--scope-home", str(self.home)],
@@ -184,6 +184,24 @@ class StoreAndHook(Base):
         (self.sd / "task-events").write_text("a file, not a folder", encoding="utf-8")  # the store cannot be written
         self.assertEqual(self.rec("01", "claim", by="dev"), (None, []))  # logged, never raised
 
+    def test_sender_role_comes_from_the_roster_not_the_running_pane(self):  # QA blackbox findings 1, 2
+        env = {"SQUAD_ROLE": "qa-blackbox", "SQUAD_NAME": "qab"}  # a manual run in another agent's pane
+        old = {k: os.environ.get(k) for k in env}
+        os.environ.update(env)
+        try:
+            msg = lambda frm, typ: {"from": frm, "type": typ, "task": "01", "text": typ + " 01"}  # noqa: E731
+            squadtask.from_message(self.home, dict(msg("dev", "HANDIN"), text="HANDIN 01: commit aaaaaaa"))
+            self.assertEqual(squadtask.from_message(self.home, msg("stranger", "PASS")), ["W4 not a checker; not counted"])
+            squadtask.from_message(self.home, msg("qaw", "PASS"))
+            squadtask.from_message(self.home, msg("qab", "PASS"))
+            self.assertEqual(squadtask.word(self.state(), squadtask.checkers(self.home)), "checking, 2 of 3 PASS")
+            self.assertEqual(squadtask.from_message(self.home, msg("mgr", "PASS")), [])  # Manager fills the confirmer slot
+            self.assertEqual(squadtask.word(self.state(), squadtask.checkers(self.home)), "passed")
+            self.assertEqual({e["by"]: e["role"] for e in self.events()}["mgr"], "manager")
+        finally:
+            for k, v in old.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
     def test_cli_claim_exit_codes(self):  # T1: warning exits 0, usage error 2
         def run(*a):
             return subprocess.run([sys.executable, str(CLI), *a, "--scope-home", str(self.home)], text=True,
@@ -192,6 +210,9 @@ class StoreAndHook(Base):
         self.assertEqual(p.returncode, 0)
         self.assertIn("warning: W1", p.stdout)
         self.assertEqual(run("claim", "02").returncode, 2)
+        p = run("claim", "abc", "--owner", "dev")  # a bad ticket number is a usage error (AC15)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("ticket number", p.stderr)
         self.assertEqual(run("merged", "09").returncode, 2)
         self.assertEqual(run("show", "02", "--json").returncode, 0)
 
