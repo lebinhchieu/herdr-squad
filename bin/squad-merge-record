@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# PostToolUse hook for Bash: a Manager `git merge squad/...` records `merged` for the tickets of that branch
+# (tasks/design.md s5.3). The record is an event in $SQUAD_DIR/task-events/<slug>.jsonl, written through squadtask.
+# Gates warn, never block: a warning (W7 merged before it passed) goes back as additionalContext. Always exits 0.
+# Git is the truth (the board derives `merged` from it too); this only makes the time and sha exact.
+set -uo pipefail
+
+[[ ${SQUAD_ROLE:-} == manager ]] || exit 0
+input=$(cat) || exit 0
+# Cheap prefilter: python starts only for a command that looks like a merge of a squad branch.
+[[ $input == *"git merge"* && $input == *"squad/"* ]] || exit 0
+command -v python3 >/dev/null || exit 0
+here=$(dirname "$(readlink -f "$0")")
+
+SQUAD_MR_PAYLOAD=$input SQUAD_MR_BIN=$here python3 -B - <<'PY' 2>/dev/null
+import json, os, re, subprocess, sys
+from pathlib import Path
+
+try:
+    sys.path.insert(0, os.environ["SQUAD_MR_BIN"])
+    import squadledger, squadtask
+    payload = json.loads(os.environ["SQUAD_MR_PAYLOAD"])
+    cmd = ((payload.get("tool_input") or {}).get("command")) or ""
+    if not isinstance(cmd, str) or not re.search(r"\bgit\s+(?:-\S+\s+\S+\s+)*merge\b", cmd):
+        raise SystemExit(0)
+    resp = payload.get("tool_response")
+    cwd = payload.get("cwd") or None
+    sd = os.environ.get("SQUAD_DIR") or ""
+    if not sd and os.environ.get("SCOPE_DIR"):
+        sd = str(squadtask.squad_dir_of(os.environ["SCOPE_DIR"]))
+    sd = Path(sd)
+    if not sd.is_dir():
+        raise SystemExit(0)
+
+    def git(*a):
+        try:
+            return subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            return None
+
+    def failed():
+        """True when the response shows a failed merge (exit status, or git's own failure text)."""
+        if not isinstance(resp, dict):
+            return False
+        for k in ("exit_code", "exitCode", "returncode", "status"):
+            if isinstance(resp.get(k), int) and resp[k] != 0:
+                return True
+        out = "%s\n%s" % (resp.get("stdout") or "", resp.get("stderr") or "")
+        return bool(re.search(r"^(?:fatal|error):|CONFLICT|Automatic merge failed|not something we can merge|Already up to date", out, re.M))
+
+    def merged_in_head(branch):
+        """True or False from git; None when the branch ref is gone (deleted after the merge)."""
+        if git("rev-parse", "--verify", "--quiet", "refs/heads/" + branch) is None or \
+           git("rev-parse", "--verify", "--quiet", "refs/heads/" + branch).returncode != 0:
+            return None
+        r = git("merge-base", "--is-ancestor", branch, "HEAD")
+        return None if r is None else r.returncode == 0
+
+    branches = []
+    for tok in re.findall(r"squad/[A-Za-z0-9._/-]+", cmd):
+        tok = tok.rstrip("./-")
+        if tok not in branches:
+            branches.append(tok)
+    head = git("rev-parse", "HEAD")
+    sha = head.stdout.strip() if head is not None and head.returncode == 0 else None
+    by = os.environ.get("SQUAD_NAME") or "manager"
+    warns = []
+    for branch in branches:
+        ok = merged_in_head(branch)
+        if ok is False or (ok is None and failed()):
+            continue
+        for f in sorted((sd / "task-events").glob("*.jsonl")):
+            slug, tasks = f.stem, {}
+            for e in squadledger.read_records(f):
+                if e.get("branch") == branch and e.get("task"):
+                    tasks[squadledger.key(e["task"])] = e
+            states = squadtask.fold(squadtask.read_events(sd, slug)) if tasks else {}
+            for k, e in tasks.items():
+                if (states.get(k) or {}).get("merged_ts"):
+                    continue  # already recorded
+                home = None
+                for base in (sd / "scopes", sd / "scopes" / "_done", sd / "goals"):
+                    cand = base / str(e.get("scope") or "")
+                    if e.get("scope") and cand.is_dir() and squadtask.slug_of(cand) == slug:
+                        home = cand
+                        break
+                home = home or sd / "scopes" / slug  # no scope folder found: the file is still named by slug
+                warns += squadtask.record(home, e["task"], "merged", by=by, role="manager", sha=sha, branch=branch)[1]
+    out = squadtask.hook_output(warns)
+    if out:
+        print(out)
+except SystemExit:
+    pass
+except Exception as exc:  # a hook never fails
+    print("squad-merge-record: %s" % exc, file=sys.stderr)
+PY
+exit 0
