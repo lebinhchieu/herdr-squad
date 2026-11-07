@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ticket state events: claim, handin, pass, fail, blocked, merged; warnings W1-W8; gates warn, never block.
+"""Ticket state events: claim, handin, pass, fail, blocked, merged; warnings W1-W9; gates warn, never block.
 
   squad-task claim|handin|pass|fail|blocked|merged NN ...   squad-task show [NN]   squad-task from-message
 

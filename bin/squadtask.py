@@ -4,13 +4,14 @@ State is not written into the ticket file. Events are appended to `<squad dir>/t
 per ticket folder (slug = the scope's `tickets:` folder, else the scope name). Words are derived at read time
 (`fold`, `word`); the store holds facts only: claim, handin, pass, fail, blocked, decision, merged.
 
-Gates warn, never block: `record` always writes the event and returns the warnings W1-W8 (also saved in the event
+Gates warn, never block: `record` always writes the event and returns the warnings W1-W9 (also saved in the event
 as `warn`). Nothing here raises to a hook. Stdlib only; `fcntl` is optional (mkdir lock when it is missing).
 """
 import contextlib
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -22,12 +23,10 @@ except ImportError:  # Windows
     fcntl = None
 
 import squadledger
-import squadrules
 import squadtickets
 
 EVENTS = ("claim", "handin", "pass", "fail", "blocked", "decision", "merged")
 QA_ROLES = ("qa-whitebox", "qa-blackbox")
-CONFIRM_ROLES = ("manager", "team-lead")
 # The ticket `Status:` label table (states.md s5): read for a ticket with no events, never written.
 LABELS = {"needs-triage": "todo", "needs-info": "todo", "ready-for-agent": "todo", "ready-for-human": "todo",
           "claimed": "in progress", "done": "passed", "wontfix": "wontfix"}
@@ -44,6 +43,8 @@ def slug_of(scope_home):
 
 def squad_dir_of(scope_home):
     p = Path(str(scope_home))
+    if p.parent.name == "_done" and p.parent.parent.name == "scopes":  # a finished scope: scopes/_done/<scope>
+        return p.parent.parent.parent
     return p.parent.parent if p.parent.name in ("scopes", "goals") else p
 
 
@@ -82,21 +83,6 @@ def _roster_rows(scope_home):
     return rows
 
 
-def _team_tokens(scope_home):
-    try:
-        text = (Path(str(scope_home)) / "scope.md").read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
-    for line in text.splitlines():
-        m = re.match(r"^team:[ \t]*(.*?)[ \t]*(?:\([^)]*\))?[ \t]*$", line)
-        if m:
-            try:
-                return squadrules.parse_team(m.group(1))
-            except ValueError:
-                return None
-    return None
-
-
 def role_of(scope_home, name):
     """Role of the message sender: the roster row of `name`; else $SQUAD_ROLE when `name` is this process's agent;
     else "" (unknown). The hook runs in the sender's pane, but a manual `from-message` run must not borrow its role."""
@@ -107,22 +93,23 @@ def role_of(scope_home, name):
 
 
 def checkers(scope_home):
-    """-> {"qa": [agent...], "confirmer": "Manager" | "Team Lead"}. M = len(qa) + 1, never 0."""
-    rows = [r for r in _roster_rows(scope_home) if not r[2].startswith("retired")]
-    qa = [a for a, role, _ in rows if role in QA_ROLES]
-    team = _team_tokens(scope_home)
-    lead = ("team-lead" in team) if team is not None else any(role == "team-lead" for _, role, _ in rows)
-    return {"qa": qa, "confirmer": "Team Lead" if lead else "Manager"}
+    """-> {"qa": [agent...]}: the QA agents on the roster that are not retired; when every QA row is retired, all of
+    them (a QA retired after its PASS must not shrink M). No QA row at all: [] (the slot is `evidence`, see `slots`)."""
+    rows = _roster_rows(scope_home)
+    qa = [a for a, role, st in rows if role in QA_ROLES and not st.startswith("retired")] \
+        or [a for a, role, _ in rows if role in QA_ROLES]
+    return {"qa": qa}
 
 
 def slots(chk):
-    """The verdict slots of M: each QA agent and `confirmer`."""
-    return list(chk["qa"]) + ["confirmer"]
+    """The verdict slots of M: each QA agent, or the one slot `evidence` for a team with no QA (D7)."""
+    return list(chk["qa"]) or ["evidence"]
 
 
 def is_passed(state, chk):
     v = (state or {}).get("verdicts") or {}
-    return bool(state) and state.get("sha") is not None and all(v.get(s) == "PASS" for s in slots(chk))
+    return bool(state) and state.get("sha") is not None and (
+        v.get("override") == "PASS" or all(v.get(s) == "PASS" for s in slots(chk)))
 
 
 # ---- fold (pure) ---------------------------------------------------------------------------------------------
@@ -204,6 +191,8 @@ def word(state, chk, blocked_by_open=(), ticket_status=""):
     v = state["verdicts"]
     if state["sha"] and any(x == "FAIL" for x in v.values()):
         return "returned"
+    if state["sha"] and not chk["qa"]:
+        return "in progress"  # no QA: never `checking` (states.md s4); the evidence PASS makes it `passed`
     if state["sha"]:
         n = sum(1 for s in slots(chk) if v.get(s) == "PASS")
         return "checking, %d of %d PASS" % (n, len(slots(chk)))
@@ -242,7 +231,8 @@ def parse_blocked_by(text):
     for line in (text or "").splitlines()[:30]:
         m = re.match(r"^Blocked by:[ \t]*(.*)$", line, re.I)
         if m:
-            return re.findall(r"\d+", m.group(1))
+            lead = re.match(r"\s*#?\d+(?:\s*(?:,|and|&)\s*#?\d+)*", m.group(1), re.I)  # leading numbers only (T21)
+            return re.findall(r"\d+", lead.group(0)) if lead else []
     return []
 
 
@@ -267,7 +257,7 @@ def check(event, before, ctx):
     open_blockers (ids), ticket_status (str)."""
     ev, w = event["ev"], []
     before = before or {}
-    chk = ctx.get("checkers") or {"qa": [], "confirmer": "Manager"}
+    chk = ctx.get("checkers") or {"qa": []}
     v = before.get("verdicts") or {}
     if ev == "claim":
         for i in ctx.get("open_blockers") or []:
@@ -279,18 +269,22 @@ def check(event, before, ctx):
     elif ev == "handin" and not before.get("claimed"):
         w.append("W3 handed in without a claim; owner taken from sender")
     elif ev == "pass":
-        if event.get("slot") is None:
+        slot = event.get("slot")
+        if slot is None:
             w.append("W4 not a checker; not counted")
-        else:
+        elif slot == "override":
+            if chk["qa"]:
+                got = sum(1 for q in chk["qa"] if v.get(q) == "PASS")
+                if got < len(chk["qa"]):
+                    w.append("W6 passed by hand; %d of %d QAs PASS" % (got, len(chk["qa"])))
+            elif v.get("evidence") != "PASS":
+                w.append("W6 passed by hand; evidence check not ok")
+        elif slot != "evidence":
             sha = event.get("sha")
             if not before.get("sha") or (sha and not _same_sha(sha, before["sha"])):
                 w.append("W5 PASS on a sha that is not the current hand-in")
-            if event["slot"] == "confirmer":
-                got = sum(1 for s in chk["qa"] if v.get(s) == "PASS")
-                if got < len(chk["qa"]):
-                    w.append("W6 confirmed early; %d of %d checkers PASS" % (got, len(chk["qa"])))
     elif ev == "merged" and not (before.get("merged_ts") or is_passed(before, chk)):
-        w.append("W7 merged without every checker PASS")
+        w.append("W7 merged before it passed")
     return w
 
 
@@ -364,11 +358,63 @@ def _record(scope_home, nn, ev, fields):
             ctx["ticket_status"] = squadtickets.status_of(text)
             ids = parse_blocked_by(text)
             ctx["open_blockers"] = open_blockers(ids, states, {i: chk for i in ids})
-        warns = check(event, before, ctx)
+        warns = check(event, before, ctx) + list(fields.get("extra_warn") or [])
         event["warn"] = warns
         with open(path, "a", encoding="utf-8", newline="\n") as fh:
             fh.write(json.dumps(event, ensure_ascii=False) + "\n")
     return event, warns
+
+
+# ---- no-QA evidence check (D9) ---------------------------------------------------------------------------------
+
+def _git_head(folder):
+    try:
+        r = subprocess.run(["git", "-C", str(folder), "rev-parse", "HEAD"], capture_output=True, encoding="utf-8", timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def _worktree_of(scope_home, branch):
+    """`squad/<squad>/<scope>/<agent>` -> `<project>/.worktrees/<squad>/<scope>/<agent>` when it exists, else the cwd."""
+    parts = (branch or "").split("/")
+    root = squadtickets._repo_of(Path(str(scope_home)))
+    if root and len(parts) == 4 and parts[0] == "squad":
+        wt = Path(str(root)) / ".worktrees" / parts[1] / parts[2] / parts[3]
+        if wt.is_dir():
+            return wt
+    return Path.cwd()
+
+
+def evidence_check(scope_home, nn, branch, sha):
+    """D9. -> (ok, problem|None). Runs `squad-evidence check <ticket evidence folder>` (no --base) in the Developer's
+    worktree; its HEAD must be the handed-in sha. Never raises; timeout 20 s."""
+    try:
+        wt = _worktree_of(scope_home, branch)
+        head = _git_head(wt)
+        if not head or not _same_sha(head, sha):
+            return False, "not checked (worktree HEAD %s is not the handed-in sha)" % ((head or "unknown")[:7])
+        issues = wt / ".scratch" / slug_of(scope_home) / "issues"
+        ticket = None
+        for f in sorted(issues.iterdir()) if issues.is_dir() else []:
+            m = TICKET_FILE.match(f.name)
+            if m and f.is_file() and int(m.group(1)) == int(nn):
+                ticket = f
+                break
+        if ticket is None:
+            return False, "not run (no ticket file for %s in %s)" % (nn, issues)
+        folder = ticket.with_suffix("")
+        if not folder.is_dir():
+            old = Path(str(folder) + ".evidence")
+            folder = old if old.is_dir() else folder
+        r = subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "squad-evidence"), "check", str(folder)],
+                           capture_output=True, encoding="utf-8", timeout=20)
+        if r.returncode == 0:
+            return True, None
+        lines = [x for x in (r.stdout + r.stderr).splitlines() if x.strip()]
+        return False, lines[0] if lines else "exit %d" % r.returncode
+    except Exception as exc:  # a hook must never fail
+        return False, "not run (%s)" % exc
 
 
 # ---- the hook entry --------------------------------------------------------------------------------------------
@@ -400,14 +446,20 @@ def from_message(scope_home, rec, role=None):
         h = squadledger.parse_handin(text)
         if h["evidence"] or not h["sha"]:
             return []
-        return record(scope_home, nn, "handin", sha=h["sha"], branch=h["branch"], **base)[1]
+        extra, ok = [], False
+        if not checkers(scope_home)["qa"]:  # no QA on the roster: the evidence check is the one slot. With a QA it never runs.
+            ok, problem = evidence_check(scope_home, nn, h["branch"], h["sha"])
+            if not ok:
+                extra = ["W9 evidence check failed: " + problem]
+        ev, warns = record(scope_home, nn, "handin", sha=h["sha"], branch=h["branch"], extra_warn=extra, **base)
+        if ok and ev is not None:
+            warns += record(scope_home, nn, "pass", sha=h["sha"], slot="evidence", by="hook", role="hook", ts=None, msg_id=rec.get("msg_id"))[1]
+        return warns
     if typ == "DECISION":
         return record(scope_home, nn, "decision", **base)[1]
     if typ == "BLOCKED":
         return record(scope_home, nn, "blocked", why=text, **base)[1]
-    slot = rec.get("from") if role in QA_ROLES else "confirmer" if role in CONFIRM_ROLES else None
-    if typ == "FAIL" and slot is None:
-        return []
+    slot = rec.get("from") if (role in QA_ROLES or typ == "FAIL") else None  # PASS from a non-QA: W4, no event; FAIL: any sender
     sd = squad_dir_of(scope_home)
     sha = _named_sha(text, read_events(sd, slug_of(scope_home)))
     return record(scope_home, nn, typ.lower(), sha=sha, slot=slot, **base)[1]
@@ -508,12 +560,13 @@ def run(argv):
         ev = {"passed": "pass"}.get(cmd, cmd)
         if ev == "claim":
             opts["by"] = opts.pop("owner")
-        if ev == "pass" and "slot" not in opts:  # a manual PASS counts as the sender's own role would
-            role = os.environ.get("SQUAD_ROLE", "")
-            opts["slot"] = (opts.get("by") or os.environ.get("SQUAD_NAME") or "manual") if role in QA_ROLES else \
-                "confirmer" if role in CONFIRM_ROLES or not role else None
+        if cmd == "passed":  # the manual override (BA): slot `override`
+            opts["slot"] = "override"
+        elif ev == "pass" and "slot" not in opts:  # a QA's PASS by hand; any other sender gets W4
+            opts["slot"] = (opts.get("by") or os.environ.get("SQUAD_NAME") or "manual") \
+                if os.environ.get("SQUAD_ROLE", "") in QA_ROLES else None
         elif ev == "fail":
-            opts.setdefault("slot", "confirmer")
+            opts.setdefault("slot", opts.get("by") or os.environ.get("SQUAD_NAME") or "manual")
         if ev == "merged" and not (opts.get("sha") or opts.get("branch")) and not (
                 fold(read_events(squad_dir_of(home), slug_of(home))).get(squadledger.key(nn)) or {}).get("branch"):
             raise ValueError("merged needs --sha or --branch (no branch on record)")

@@ -65,19 +65,21 @@ class Base(unittest.TestCase):
 
     def passes(self, nn="01", sha="aaaaaaa"):
         self.rec(nn, "handin", by="dev", sha=sha)
-        for slot in ("qaw", "qab", "confirmer"):
+        for slot in ("qaw", "qab"):
             self.rec(nn, "pass", by=slot, slot=slot)
 
 
 class CheckersAndWords(Base):
-    def test_checkers_m_never_zero_and_confirmer(self):  # T8, AC "M never 0"
+    def test_checkers_and_slots(self):  # T8, T24
         c = squadtask.checkers(self.home)
-        self.assertEqual(c, {"qa": ["qaw", "qab"], "confirmer": "Team Lead"})  # retired QA left out
-        (self.home / "roster.md").write_text("| Agent | Role | Scope | Owns | Status | Session |\n| --- | --- | --- | --- | --- | --- |\n", encoding="utf-8")
-        (self.home / "scope.md").write_text("team: ba\n", encoding="utf-8")
+        self.assertEqual(c, {"qa": ["qaw", "qab"]})  # retired QA left out while a QA is live
+        self.assertEqual(squadtask.slots(c), ["qaw", "qab"])
+        rows = "| Agent | Role | Scope | Owns | Status | Session |\n| --- | --- | --- | --- | --- | --- |\n"
+        (self.home / "roster.md").write_text(rows + "| qaold | qa-blackbox | s1 | x | retired | e |\n", encoding="utf-8")
+        self.assertEqual(squadtask.checkers(self.home), {"qa": ["qaold"]})  # all retired: still the slots, M not 0
+        (self.home / "roster.md").write_text(rows + "| dev | dev | s1 |  | live | f |\n", encoding="utf-8")
         c = squadtask.checkers(self.home)
-        self.assertEqual(c, {"qa": [], "confirmer": "Manager"})
-        self.assertEqual(squadtask.slots(c), ["confirmer"])
+        self.assertEqual((c, squadtask.slots(c)), ({"qa": []}, ["evidence"]))
 
     def test_words_and_label_table(self):  # states.md s2 precedence, s5 label table
         c = squadtask.checkers(self.home)
@@ -88,14 +90,14 @@ class CheckersAndWords(Base):
         self.rec("01", "claim", by="dev")
         self.assertEqual(squadtask.word(self.state(), c), "in progress")
         self.rec("01", "handin", by="dev", sha="aaaaaaa")
-        self.assertEqual(squadtask.word(self.state(), c), "checking, 0 of 3 PASS")
+        self.assertEqual(squadtask.word(self.state(), c), "checking, 0 of 2 PASS")
         self.rec("01", "fail", by="qaw", slot="qaw")
         self.assertEqual(squadtask.word(self.state(), c), "returned")
         self.rec("01", "blocked", by="dev", why="stuck")
         self.assertEqual(squadtask.word(self.state(), c), "blocked")  # a BLOCKED message beats returned
         self.rec("01", "decision", by="tl")
         self.rec("01", "handin", by="dev", sha="bbbbbbb")
-        for s in ("qaw", "qab", "confirmer"):
+        for s in ("qaw", "qab"):
             self.rec("01", "pass", by=s, slot=s)
         self.assertEqual(squadtask.word(self.state(), c), "passed")
         self.rec("01", "merged", by="mgr", sha="cccccc1")
@@ -128,10 +130,12 @@ class Warnings(Base):
         self.assertEqual(w, ["W5 PASS on a sha that is not the current hand-in"])
         _, w = self.rec("03", "pass", by="qaw", slot="qaw", sha="zzzzzzz")
         self.assertEqual(w, ["W5 PASS on a sha that is not the current hand-in"])
-        _, w = self.rec("03", "pass", by="mgr", slot="confirmer")  # W6: QAs missing
-        self.assertEqual(w, ["W6 confirmed early; 1 of 2 checkers PASS"])
+        _, w = self.rec("03", "pass", by="mgr", slot="override")  # W6: manual override, QAs missing
+        self.assertEqual(w, ["W6 passed by hand; 1 of 2 QAs PASS"])
+        self.assertEqual(squadtask.word(self.state("03"), squadtask.checkers(self.home)), "passed")
+        self.rec("03", "handin", by="dev-c", sha="bbbbbbb")
         _, w = self.rec("03", "merged", by="mgr", sha="cccccc1")  # W7
-        self.assertEqual(w, ["W7 merged without every checker PASS"])
+        self.assertEqual(w, ["W7 merged before it passed"])
         self.assertTrue(last("merged"))
         self.ticket(5, "Blocked by: none", status="Status: wontfix")
         _, w = self.rec("05", "claim", by="dev")
@@ -193,14 +197,36 @@ class StoreAndHook(Base):
             squadtask.from_message(self.home, dict(msg("dev", "HANDIN"), text="HANDIN 01: commit aaaaaaa"))
             self.assertEqual(squadtask.from_message(self.home, msg("stranger", "PASS")), ["W4 not a checker; not counted"])
             squadtask.from_message(self.home, msg("qaw", "PASS"))
+            self.assertEqual(squadtask.word(self.state(), squadtask.checkers(self.home)), "checking, 1 of 2 PASS")
             squadtask.from_message(self.home, msg("qab", "PASS"))
-            self.assertEqual(squadtask.word(self.state(), squadtask.checkers(self.home)), "checking, 2 of 3 PASS")
-            self.assertEqual(squadtask.from_message(self.home, msg("mgr", "PASS")), [])  # Manager fills the confirmer slot
-            self.assertEqual(squadtask.word(self.state(), squadtask.checkers(self.home)), "passed")
-            self.assertEqual({e["by"]: e["role"] for e in self.events()}["mgr"], "manager")
+            self.assertEqual(squadtask.word(self.state(), squadtask.checkers(self.home)), "passed")  # both QAs, no Manager
+            self.assertEqual({e["by"]: e["role"] for e in self.events()}["qaw"], "qa-whitebox")
         finally:
             for k, v in old.items():
                 os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+    def test_blocked_by_leading_numbers_and_done_scope(self):  # T21, T22
+        for line, ids in (("Blocked by: 02, 03", ["02", "03"]), ("Blocked by: #2 and 3", ["2", "3"]),
+                          ("Blocked by: 02 (needs 3 tests)", ["02"]), ("Blocked by: none", [])):
+            self.assertEqual(squadtask.parse_blocked_by(line), ids)
+        sq = Path("/x/sq")
+        self.assertEqual([squadtask.squad_dir_of(sq / d) for d in ("scopes/_done/a", "scopes/a", "goals/g")], [sq, sq, sq])
+
+    def test_pass_from_non_qa_is_w4_and_fail_from_anyone_counts(self):  # T20, AC5, R7
+        self.rec("01", "handin", by="dev", sha="aaaaaaa")
+        for who, role in (("mgr", "manager"), ("tl", "team-lead"), ("tech", "tech-lead")):
+            n = len(self.events())
+            w = squadtask.from_message(self.home, {"from": who, "type": "PASS", "task": "01", "text": "PASS 01"}, role=role)
+            self.assertEqual((w, len(self.events())), (["W4 not a checker; not counted"], n))
+        squadtask.from_message(self.home, {"from": "tech", "type": "FAIL", "task": "01", "text": "FAIL 01"}, role="tech-lead")
+        self.assertEqual(self.state()["verdicts"], {"tech": "FAIL"})
+        self.assertEqual(squadtask.word(self.state(), squadtask.checkers(self.home)), "returned")
+        # with a QA on the roster squad-evidence is never started (T20)
+        orig, squadtask.evidence_check = squadtask.evidence_check, lambda *a: self.fail("evidence check started")
+        try:
+            squadtask.from_message(self.home, H_COMMIT | {"task": "01"}, role="dev")
+        finally:
+            squadtask.evidence_check = orig
 
     def test_cli_claim_exit_codes(self):  # T1: warning exits 0, usage error 2
         def run(*a):
@@ -233,6 +259,74 @@ class StoreAndHook(Base):
             squadtask.fcntl = saved
         self.assertEqual(self.events()[-1]["ev"], "claim")
         self.assertFalse(os.path.exists(str(squadtask.store_path(self.sd, "s1")) + ".lock.d"))
+
+
+class NoQaEvidence(Base):
+    """D9, T19, T24, AC4, AC20: no QA on the roster; a real temp git repo with a Developer worktree."""
+    def setUp(self):
+        super().setUp()
+        rows = "| Agent | Role | Scope | Owns | Status | Session |\n| --- | --- | --- | --- | --- | --- |\n"
+        (self.home / "roster.md").write_text(rows + "| dev | dev | s1 |  | live | f |\n", encoding="utf-8")
+        self.repo = self.sd / "proj"
+        self.wt = self.repo / ".worktrees" / "sq" / "s1" / "dev"
+        self.wt.mkdir(parents=True)
+        orig = squadtask.squadtickets._repo_of  # the temp project is the repo the worktree path hangs under
+        squadtask.squadtickets._repo_of = lambda home: self.repo
+        self.addCleanup(setattr, squadtask.squadtickets, "_repo_of", orig)
+        self.git = lambda *a: subprocess.run(["git", "-C", str(self.wt), *a], capture_output=True, text=True, check=True).stdout.strip()
+        self.git("init", "-q")
+        self.git("config", "user.email", "t@t")
+        self.git("config", "user.name", "t")
+        self.folder = self.wt / ".scratch" / "s1" / "issues" / "01-x"
+        (self.folder / "img").mkdir(parents=True)
+        (self.folder.parent / "01-x.md").write_text("# 01\n", encoding="utf-8")
+
+    def commit(self, body, image=True):
+        if image:
+            (self.folder / "img" / "a.png").write_bytes(b"png")
+        (self.folder / "evidence.md").write_text(body, encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "c")
+        return self.git("rev-parse", "HEAD")
+
+    def handin(self, sha, **kw):
+        txt = "HANDIN 01: branch squad/sq/s1/dev, commit %s" % sha
+        return squadtask.from_message(self.home, {"from": "dev", "type": "HANDIN", "task": "01", "text": txt}, role="dev")
+
+    def word(self):
+        return squadtask.word(self.state(), squadtask.checkers(self.home))
+
+    def test_valid_evidence_passes_with_no_message(self):  # AC4
+        w = self.handin(self.commit("## Behaviour\n![a](img/a.png)\n"))
+        self.assertEqual(w, ["W3 handed in without a claim; owner taken from sender"])
+        e = self.events()
+        self.assertEqual([x["ev"] for x in e], ["handin", "pass"])
+        self.assertEqual((e[1]["slot"], e[1]["by"], e[1]["role"], e[1]["sha"]), ("evidence", "hook", "hook", e[0]["sha"]))
+        self.assertEqual(self.word(), "passed")
+
+    def test_missing_image_is_w9_on_event_and_output_no_pass(self):  # AC4, R9
+        w = self.handin(self.commit("![a](img/gone.png)\n", image=False))
+        self.assertTrue(any(x.startswith("W9 evidence check failed: ") and "gone.png" in x for x in w))
+        e = self.events()
+        self.assertEqual([x["ev"] for x in e], ["handin"])
+        self.assertTrue(any(x.startswith("W9") for x in e[0]["warn"]))
+        self.assertEqual(self.word(), "in progress")  # never `checking, 0 of 0`
+        self.assertIn("W9", squadtask.hook_output(w))
+
+    def test_head_not_the_handed_in_sha_is_w9_not_checked(self):
+        old = self.commit("![a](img/a.png)\n")
+        self.commit("![a](img/a.png)\nmore\n")
+        w = self.handin(old)
+        self.assertTrue(any("W9 evidence check failed: not checked" in x for x in w))
+        self.assertNotIn("pass", [x["ev"] for x in self.events()])
+
+    def test_override_and_tip_moves_check_again(self):  # W6, AC20 (the board derives `sha changed`; the next HANDIN re-checks)
+        self.handin(self.commit("![a](img/gone.png)\n", image=False))
+        _, w = self.rec("01", "pass", by="mgr", slot="override")
+        self.assertEqual(w, ["W6 passed by hand; evidence check not ok"])
+        self.assertEqual(self.word(), "passed")
+        self.handin(self.commit("![a](img/a.png)\n"))
+        self.assertEqual(self.events()[-1]["slot"], "evidence")
 
 
 if __name__ == "__main__":
