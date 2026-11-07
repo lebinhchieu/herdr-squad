@@ -2,7 +2,7 @@
 
 Duties: design notes: Developer (here, in this file); technical AC: QA whitebox with the Developer; business AC: the ticket as written; `promote.md`: none (goal promotes later); full suite: QA whitebox, only after Chieu agrees (this scope's own rule; the Manager asks him). A risk flag, user-visible change or business doubt: `BLOCKED NN`. Run `grep -rl` over `tests/` for each changed string or path and run every hit (CLAUDE.md "Running tests"). `## Review` starts with an AC trace (SQ-2), one line per AC: `AC<n> | test or capture file | how run`.
 
-Status: ready (after 11, same worktree)
+Status: handed in
 Source: Chieu E14: prefer targeted tests; the full suite only after asking the PO with an explanation; each project often redefines this, so `project.md` may set the default.
 Files: templates/squad/process/suites.md, CLAUDE.md ("Running tests"), .claude-plugin/plugin.json (version), tests that quote the changed rules or pin the version (`tests/test_rules_contract.py`, `tests/test_rules_wording.py`, `tests/test_team_cli.py`, `tests/test_squadscaffold.py`, others by grep)
 Ticket: commit this file's content as `.scratch/process-fixes/issues/12-suite-policy.md` in your first commit.

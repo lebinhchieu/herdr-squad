@@ -62,11 +62,11 @@ class ComposedRulesTest(unittest.TestCase):
         """suite-owner = tech-lead > qa-white > dev: the owner's rule composes for the owner and the Developer names it."""
         for team, dev_line in (("tech-lead, qa-white, qa-black", "the full suite is the Tech Lead's"),
                                ("qa-white, qa-black", "the full suite is QA whitebox's"),
-                               ("team-lead, qa-black", "then the full suite once on your final sha")):
+                               ("team-lead, qa-black", "then run it once on your final sha")):
             self.assertIn(dev_line, composed("dev", team=team), team)
         self.assertIn("Only the Tech Lead runs the full suite.", composed("tech-lead", team="tech-lead"))
-        self.assertNotIn("You run the full suite for the scope", composed("qa-whitebox", team="tech-lead, qa-white"))
-        self.assertIn("You run the full suite for the scope", composed("qa-whitebox", team="qa-white"))
+        self.assertNotIn("You own the full suite for the scope", composed("qa-whitebox", team="tech-lead, qa-white"))
+        self.assertIn("You own the full suite for the scope", composed("qa-whitebox", team="qa-white"))
         self.assertIn("QA whitebox owns the full suite", composed("qa-blackbox", team="qa-white, qa-black"))
         self.assertIn("the full suite is the Tech Lead's", composed("qa-whitebox", team="tech-lead, qa-white"))
 
@@ -74,9 +74,9 @@ class ComposedRulesTest(unittest.TestCase):
         self.assertIn("Only the Tech Lead runs the full suite.", composed("tech-lead", "L"))
         self.assertIn("the full suite is the Tech Lead's", composed("dev", "L"))
         self.assertIn("the full suite is QA whitebox's", composed("dev", "M"))
-        self.assertIn("You run the full suite for the scope, once, on the final sha", composed("qa-whitebox", "M"))
+        self.assertIn("You own the full suite for the scope", composed("qa-whitebox", "M"))
         self.assertIn("never run the suite", composed("qa-blackbox", "M"))
-        self.assertIn("then the full suite once on your final sha", composed("dev", "S"))
+        self.assertIn("then run it once on your final sha", composed("dev", "S"))
 
     def test_qa_blackbox_gets_a_suites_rule_on_every_team_with_a_dev_owner(self):  # SUITE-2f, over the 128 teams
         n = 0

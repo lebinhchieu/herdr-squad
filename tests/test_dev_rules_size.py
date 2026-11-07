@@ -110,9 +110,9 @@ class DevRulesSize(unittest.TestCase):
                     self.assertNotIn(f"## {rid} ", compose_team(role, team).decode(), f"{role} {team}")
 
     def test_manager_composed_bytes_did_not_grow_vs_90be196(self):
-        # (team, goal) -> bytes of the composed Manager rules at 90be196 plus ticket 06's parked-question rule (+265 B, +253 B with goal+architect) and the respawn-line rules of fix 2 (+118 to +132 B) and task 11 worktree reuse in SPAWN-5a (+291 B), fixture home with live-length names
+        # (team, goal) -> bytes of the composed Manager rules at 90be196 plus ticket 06's parked-question rule (+265 B, +253 B with goal+architect) and the respawn-line rules of fix 2 (+118 to +132 B) and task 11 worktree reuse in SPAWN-5a (+291 B) and task 12 suite policy in SUITE-1b (+109 B), fixture home with live-length names
         base = {((), "yes"): 54487, ((), "no"): 51198, (("tech-lead",), "yes"): 53398, (("team-lead", "designer"), "no"): 49368,
-                (("qa-white", "qa-black", "designer", "architect"), "yes"): 57453,
+                (("qa-white", "qa-black", "designer", "architect"), "yes"): 57562,
                 (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"): 50516}
         for (team, goal), n in base.items():
             with self.subTest(team=team, goal=goal):
