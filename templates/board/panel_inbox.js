@@ -247,8 +247,8 @@
         R.perms.forEach(function (l) { ol.appendChild(permItem(l)); });
         R.open.forEach(function (r) { ol.appendChild(openItem(r, multi)); });
         body.appendChild(ol);
-      } else body.appendChild(el("p", "muted", "No open question here. The count also holds branches ready for review: see Tasks."));
-      if (shown && d.count_choice > shown) body.appendChild(el("p", "muted", "The count of " + d.count_choice + " also holds " + (d.count_choice - shown) + " branch" + (d.count_choice - shown === 1 ? "" : "es") + " ready for review: see Tasks."));
+      } else body.appendChild(el("p", "muted", "No open question here. The count also holds passed branches: see Tasks."));
+      if (shown && d.count_choice > shown) body.appendChild(el("p", "muted", "The count of " + d.count_choice + " also holds " + (d.count_choice - shown) + " passed branch" + (d.count_choice - shown === 1 ? "" : "es") + ": see Tasks."));
     }
     section(body, R.parkedLabel, chip("park", "not counted in the tab title"));
     if (R.parked.length) { var pl = el("ol", "nb-items"); R.parked.forEach(function (q) { pl.appendChild(parkedItem(q)); }); body.appendChild(pl); }

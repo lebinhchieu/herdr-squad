@@ -7,8 +7,8 @@
   var BOARD = root.BOARD = root.BOARD || {};
 
   /* ---------- pure rules ---------- */
-  var DONE = { done: 1, merged: 1 };
-  function isReady(stage) { return stage === "ready for review"; }
+  var DONE = { merged: 1 };
+  function isReady(stage) { return stage === "passed"; }
   function isDone(stage) { return !!DONE[stage]; }
   function stageClass(stage) {
     if (isReady(stage)) return "need";
@@ -161,8 +161,8 @@
       return;
     }
     var tools = el("div", "tools");
-    [["all", "All (" + all.length + ")"], ["open", "Open (" + nOpen + ")"], ["review", "Ready for review (" + nReady + ")"],
-     ["done", "Done (" + (all.length - nOpen) + ")"]].forEach(function (f) {
+    [["all", "All (" + all.length + ")"], ["open", "Open (" + nOpen + ")"], ["review", "Passed (" + nReady + ")"],
+     ["done", "Merged (" + (all.length - nOpen) + ")"]].forEach(function (f) {
       var b = el("button", f[0] === F ? "on" : "", f[1]); b.type = "button"; b.dataset.tf = f[0]; b.setAttribute("aria-pressed", f[0] === F ? "true" : "false");
       tools.appendChild(b);
     });

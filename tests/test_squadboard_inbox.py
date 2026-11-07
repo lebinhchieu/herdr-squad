@@ -126,11 +126,11 @@ class Squadwide(Base):
         self.assertIn("herdr not running", down["data"]["banner"]["reason"])
         self.assertIn("herdr", down["unknown"])
 
-    def test_T05_AC6_AC8_others_and_ready_for_review(self):
+    def test_T05_AC6_AC8_others_and_passed(self):
         append(self.home("checkout") / "escalations.md",
                "| 1 | 2026-11-04 | Other scope question<br>x | (a) y; (b) n | (a) | nothing |  |\n")
         ready = {"checkout": 1}
-        d = self.read("questions", ready_for_review=lambda sel: ready)["data"]
+        d = self.read("questions", passed=lambda sel: ready)["data"]
         # choice: E1. squad: E1 + S3 question + S3 ready branch + S3 permission prompt
         self.assertEqual((d["count_choice"], d["count_squad"]), (1, 4))
         self.assertEqual(d["others"], [{"scope": "checkout", "n": 3}])
@@ -139,13 +139,13 @@ class Squadwide(Base):
         subprocess.run([sys.executable, str(BIN / "squad-inbox"), "--home", str(self.home("checkout")), "answer", "E1",
                         "--option", "a", "--source", "chat"], check=True, capture_output=True,
                        env={**__import__("os").environ, "SQUAD_ROLE": "manager"})
-        d = self.read("questions", ready_for_review=lambda sel: ready)["data"]
+        d = self.read("questions", passed=lambda sel: ready)["data"]
         self.assertEqual((d["count_squad"], d["others"]), (3, [{"scope": "checkout", "n": 2}]))
 
     def test_T19_wiring_real_ready_by_scope(self):
         """T05.AC8 with the real squadboard_tasks: no stub, S3's ready branch counts under 'others'."""
         r = self.read("questions")
-        self.assertNotIn("ready_for_review", r["unknown"])
+        self.assertNotIn("passed", r["unknown"])
         self.assertEqual(next(o["n"] for o in r["data"]["others"] if o["scope"] == "checkout"),
                          1 + 1)  # ready branch + permission prompt (herdr)
 

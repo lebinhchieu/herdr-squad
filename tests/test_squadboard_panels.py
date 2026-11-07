@@ -530,9 +530,10 @@ out({cells,ready,det,steps,closed,afterEsc,calls,count:sec.querySelector('.count
         stages = [c[3] for c in r["cells"]]
         for word in ("todo", "in progress", "returned", "blocked", "checking, 1 of 2 PASS", "passed", "sha changed after PASS", "merged"):
             self.assertTrue(any(s.startswith(word) for s in stages), word)
-        self.assertEqual(r["ready"], [])   # ticket 03 dropped the word `ready for review`; the panel flag (ticket 04) reads it until 04 renames it
+        self.assertEqual(len(r["ready"]), 2)   # the panel flag reads `passed` (04): 06 and 09 (passed by label) in the fixture; none reads `ready for review`
         self.assertEqual(len(r["cells"][0]), 8)   # id, title, stage, last active, what happened, owner, waits on, where
-        self.assertIn("Ready for review (0)", r["tools"])   # ticket 04 renames the filter
+        self.assertIn("Passed (2)", r["tools"])   # filter button named after the word
+        self.assertFalse(any("Ready for review" in t or t.startswith("Done") for t in r["tools"]))   # no `done` stage word on the board
         self.assertIn("FAIL: reason 3 first line (newest)", r["det"])
         times = [s.split(" ")[1] for s in r["steps"]]
         self.assertEqual(times, sorted(times))

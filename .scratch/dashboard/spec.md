@@ -13,7 +13,7 @@ Value = how much the PO needs it to act or to know. Only what the PO really need
 | 3 | Tasks | Who is stuck? What happened to each task? | high | keep | 1 |
 | 12 | Last active | What went quiet? | high | keep | 1 |
 | 4 | Goal view and scope view | What is in this goal or scope? | high | keep | 1 |
-| 7a | Ready for review (flag in Tasks) | What can I review and merge now? | high | keep (replaces the worktree list) | 1 |
+| 7a | Passed (flag in Tasks) | What can I review and merge now? | high | keep (replaces the worktree list) | 1 |
 | 16 | New since I last looked (dot and count) | What happened while I was away? | high | keep (PO: yes) | 1 |
 | 6 | Open the board (`squad-board` flags, `--squad PATH`) | How do I get here from a goal start? | high | keep; other repos by path only; `squad-start` prints the command only | 1 |
 | 13 | Parked questions | Which question can wait? | medium | keep | 1 |
@@ -26,7 +26,7 @@ Value = how much the PO needs it to act or to know. Only what the PO really need
 | 10 | Work time (swimlanes = timeline option 1) | Where did the time go? | medium | keep, trimmed | 2 |
 
 ## Cut by the PO (E7, 2026-11-04). Not built.
-Exact time per task · artifact-to-slice marks · worktree and branch per slice · goal status derived from scopes (the Scopes table cells show as written) · tokens, cost, idle share, parallelism, respawn and cache counts · PO's own time · ADR list panel (9) · worktree list panel (7b: only the "ready for review" flag stays) · scan of other repos for the picker · median review wait · column picker (my cut under "all recommendations"; the Manager may restore it) · timeline options 2 and 3 (option 2 later as a tab only if the PO asks).
+Exact time per task · artifact-to-slice marks · worktree and branch per slice · goal status derived from scopes (the Scopes table cells show as written) · tokens, cost, idle share, parallelism, respawn and cache counts · PO's own time · ADR list panel (9) · worktree list panel (7b: only the "passed" flag stays) · scan of other repos for the picker · median review wait · column picker (my cut under "all recommendations"; the Manager may restore it) · timeline options 2 and 3 (option 2 later as a tab only if the PO asks).
 
 ## Report review (point 4): what `squad-report` offers
 Read: `bin/squadreport_digest.py` (12 signal kinds), the existing report of 2026-10-29 for a real closed scope (not re-run; a newer schema would not change the value calls) `.claude/squads/plugin/scopes/_done/po-inbox-tui/report/data.json` (1 scope, 11 agents, 14 h), `bin/squadreport.py`. The report is a **retro** (time and cost after the fact); the board is **live** (who needs me now). Most signals answer a retro question.
@@ -43,7 +43,7 @@ Read: `bin/squadreport_digest.py` (12 signal kinds), the existing report of 2026
 | Parallelism, respawn gap, stalled time, tokens, sessions, iterations table, per-role totals | No | low | **ignore** |
 Facts the report lacks and the PO needs live (new, all from data already read, no new squad input):
 - **Needs me count per goal and scope** (picker, feature 11): open questions + answers to read + ready to merge.
-- **Ready for review** (7a): every checker PASS on the branch tip, not merged. The PO alone merges, so this is an action, not a status.
+- **Passed** (7a): every checker PASS on the branch tip, not merged. The PO alone merges, so this is an action, not a status.
 - **New since I last looked** (16): events (HANDIN, FAIL, PASS, BLOCKED, DECISION in `messages.jsonl`) after the time the PO last had this page open, shown as a count and a dot on a task or picker row. Not a feed: no text list.
 - **Quiet**: an in-progress task whose live owner has no activity for a long time shows its age as plain text "quiet 3 h" (feature 12 data; the limit is a setting, default 60 min).
 ## Ignore list (accepted by the PO, E7). Not built
@@ -98,10 +98,10 @@ Cost in USD and tokens · idle share and parallelism · median review wait · re
 ## 3. Tasks
 - **Why:** every task, and what happened to it. **Data (verified):** `squad-ledger --json` (sha, handin_from, verdicts, returns, open BLOCKED), `messages.jsonl` (HANDIN, FAIL with reason, PASS, BLOCKED, DECISION; ts, from), `roster.md` Owns, ticket files (title, `Status:`).
 - A row is a task only if it has a ticket file or a plan-table row (not a token like `REV-8`). Sources: `.scratch/<feature>/issues/NN-*.md` and drafts in `$SCOPE_DIR/tasks/`.
-- **Stage (facts, derived):** todo, in progress, returned (a FAIL on the current sha), blocked (open BLOCKED), done (every checker PASS on the current sha), e.g. "checking, 1 of 2 PASS, waiting on QA blackbox". **Ready for review** (7a): every checker PASS on the branch tip and not merged; a moved tip shows "sha changed after PASS"; merged shows "merged". Branch = git branch whose agent name matches the owner (not the ledger `branch` text).
+- **Stage (facts, derived):** todo, in progress, returned (a FAIL on the current sha), blocked (open BLOCKED), passed (every checker PASS on the current sha, not in `main`), e.g. "checking, 1 of 2 PASS, waiting on QA blackbox". **Passed** is also the 7a flag: every checker PASS on the branch tip and not merged; a moved tip shows "sha changed after PASS"; merged shows "merged". Branch = git branch whose agent name matches the owner (not the ledger `branch` text).
 - **Detail (click):** agents involved, steps in time order with the FAIL reason, first line only; no feed.
 - **Gap:** the scope-to-ticket-folder link is not stored (`squadreport_tasks.py:_find_tickets` guesses): Manager decision below.
-- **AC1.** Tasks in all stages: each row has id, title, stage, owner, who it waits on, last active, "N new". **AC2.** A task with 3 FAIL shas shows "3 returns", the reason readable. **AC3.** One checker PASS, one missing: the row names the missing checker, not "done". **AC4.** Given all checkers PASS the tip and the branch is unmerged, then the row shows "ready for review". **AC5.** Opening a task lists agents and steps.
+- **AC1.** Tasks in all stages: each row has id, title, stage, owner, who it waits on, last active, "N new". **AC2.** A task with 3 FAIL shas shows "3 returns", the reason readable. **AC3.** One checker PASS, one missing: the row names the missing checker, not "passed". **AC4.** Given all checkers PASS the tip and the branch is unmerged, then the row shows "passed". **AC5.** Opening a task lists agents and steps.
 
 ## 5. Agents now (small panel)
 - **Data (verified):** `herdr agent list` (working, idle, blocked, done, unknown) joined to `roster.md` (role, owns, live or retired); last activity = newest transcript record or message. Of the choice only.
@@ -111,7 +111,7 @@ Cost in USD and tokens · idle share and parallelism · median review wait · re
 - **Why:** open it from the start of a goal or scope (PO answer 1). New CLI (ADR 0009 removed the old one): `squad-board [--squad NAME|PATH] [--goal G | --scope S] [--port N] [--no-open]`. `--squad` = a folder under `<git root>/.claude/squads/` or a path to any squad folder, also in another repo (repeatable); one squad here = that one; several and none named = refuse and list. Server on 127.0.0.1. `--goal/--scope`: feature 11 (flag wins). Per-scope squads only (ADR 0004): a flat squad shows "flat squad: not supported". `squad-start` does not open it: it prints the command (PO decision A = no, so ADR 0009's "Manager tab only" line stays). Other repos: by `--squad PATH` only, never scanned.
 - **AC1.** `squad-board --squad plugin` opens `plugin` on its picker or saved choice; a squad switch is in the header. **AC2.** `--squad <path in another repo>` opens that squad. **AC3.** An unknown squad lists squads and starts no server.
 
-## 7. Worktrees and branches: only "ready for review" (7a, in Tasks; 7b cut)
+## 7. Worktrees and branches: only "passed" (7a, in Tasks; 7b cut)
 - Data (verified): `git branch`, `git worktree list`, ledger verdicts; Developer branch `squad/<squad>/<scope>/<agent>` (`bin/squad-spawn`). Merged = reachable from main. The list of worktree paths and "ahead by N" (7b) is cut (value low); the PO needs only the flag in Tasks (feature 3, AC4). Branches of other scopes never show under this choice.
 
 ## 8. Files (iteration 2; absorbs the goal and scope decisions of old feature 9)
