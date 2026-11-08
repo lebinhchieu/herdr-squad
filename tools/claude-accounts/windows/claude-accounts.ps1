@@ -179,6 +179,8 @@ function cdefault {
 
 # Plain `claude` follows the default account in shells opened after cdefault.
 switch (Get-ClaudeDefaultAccount) {
+    # Account 1 is the bare ~/.claude: clear what a parent (the herdr server) left behind. Never set it to ~/.claude.
+    '1' { Remove-Item Env:CLAUDE_CONFIG_DIR -ErrorAction Ignore }
     '2' { $env:CLAUDE_CONFIG_DIR = Join-Path $HOME '.claude-2' }
     '3' { $env:CLAUDE_CONFIG_DIR = Join-Path $HOME '.claude-3' }
 }

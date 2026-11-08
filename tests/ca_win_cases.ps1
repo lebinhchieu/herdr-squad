@@ -517,6 +517,22 @@ Case 'BashrcLineTest.test_default_picks_config_dir' {
     . $Ps1
     Eq $env:CLAUDE_CONFIG_DIR $null 'startup with no default file'
 }
+Case 'ps.startup_default_1_clears_an_inherited_config_dir' {
+    foreach ($inherited in (CfgOf 3), (CfgOf 2)) {
+        $env:CLAUDE_CONFIG_DIR = $inherited
+        . $Ps1
+        Eq $env:CLAUDE_CONFIG_DIR $null "default 1, inherited <$inherited>"
+    }
+    # silent when already unset
+    GlobalFile '1'; Remove-Item Env:CLAUDE_CONFIG_DIR -ErrorAction Ignore; $Error.Clear()
+    . $Ps1
+    Eq $env:CLAUDE_CONFIG_DIR $null 'unset stays unset'
+    Eq $Error.Count 0 'errors recorded'
+    # the workspace default still wins over the global one
+    GlobalFile '1'; WsFile 'w26' "3`n"; InHerdr; $env:CLAUDE_CONFIG_DIR = (CfgOf 2)
+    . $Ps1
+    Eq $env:CLAUDE_CONFIG_DIR (CfgOf 3) 'ws 3 beats global 1'
+}
 Case 'ps.startup_block_in_a_herdr_pane_uses_the_workspaces_default' {
     GlobalFile '2'; WsFile 'w26' "3`n"
     InHerdr
