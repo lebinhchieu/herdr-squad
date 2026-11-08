@@ -45,3 +45,16 @@ Base: main. Repo: /home/chieule/workspace/squad.
 - TA8 Run `python3 -m unittest` (or the repo runner on) `tests/test_squad_watchdog.py` plus the `grep -rl` hits of `squad-watchdog` in `tests/`, all green, nothing newly skipped. No full suite.
 - TA9 Real-sample rule ([REV-4]) does not apply: no new parsing of another tool's output.
 - Not a FAIL, but I will list under Follow-ups: the README row for `squad-watchdog` (README.md:46) still describes the old rule; the promotion task owns it.
+
+## Review
+AC trace (run: `cd tests && python3 -m unittest test_squad_watchdog` → 18 tests OK)
+- AC1 | test_the_pc_sleeps_after_5_quiet_minutes_with_open_tickets..., ..._every_ticket_is_passed, test_a_goal_sleeps_when_the_machine_is_quiet... | unittest above
+- AC2 | ..._every_ticket_is_passed (tickets only `passed`) | unittest above
+- AC3 | same two tests assert the log tail; one-shot asserted; log-before-switch: test_the_suspend_command_comes_from_the_env... | unittest above
+- AC4 | test_a_working_agent_resets_the_quiet_timer..., test_the_pc_never_sleeps_with_the_switch_off..., test_an_agent_of_another_squad_working..., herdr-outage tests | unittest above
+- AC5 | docstring lines 13-19; `sleep on` print in main(); test_cli_sleep_on_and_off... | unittest above
+- AC6 | the tests listed; old sleep test (:126) and goal test (:159) rewritten in place | unittest above
+
+TA2 hits of DONE/all_done: line 47 (DONE), 165-166 (all_done), 171 (docstring), 202 (the sleep event). Nothing else reads them.
+TA3 final text: `sleep pc: all tickets passed; nobody on this machine has worked for N min (the PO asked for sleep-when-idle); the switch goes off, then the computer suspends` and the same with `team idle with open tickets`.
+TA5 grep `every ticket`: only line 16, inside the `all tickets passed` reason explanation. TA7: only the two files plus ticket/evidence; no version change. TA8: no other test file references the watchdog text (grep hits are only HANDIN text samples).
