@@ -11,6 +11,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
+
 WATCHDOG = Path(os.path.dirname(os.path.realpath(__file__))) / "squad-watchdog"
 AWAY_RE = re.compile(r"^i(?: am|'m|\u2019m) away\b", re.I)
 BACK_RE = re.compile(r"^i(?: am|'m|\u2019m) back\b", re.I)
@@ -22,23 +25,30 @@ BACK_TEXT = ("Chieu is back: sleep and away mode are off. Read the parked questi
 
 
 def switch(home, on):
-    """Run squad-watchdog sleep on|off. Returns an error text, or None."""
+    """Run squad-watchdog sleep on|off, then write or delete <home>/away whatever the result.
+    Returns an error text, or None."""
+    err = None
     try:
         r = subprocess.run([sys.executable, str(WATCHDOG), "sleep", "on" if on else "off", "--home", str(home)],
-                           capture_output=True, text=True, timeout=20)
+                           capture_output=True, encoding="utf-8", errors="replace", timeout=20)
         if r.returncode != 0:
-            return (r.stderr or r.stdout or "exit %d" % r.returncode).strip()
-        away = Path(home) / "away"
+            err = (r.stderr or r.stdout or "exit %d" % r.returncode).strip()
+    except (OSError, subprocess.SubprocessError) as e:
+        err = str(e)
+    away = Path(home) / "away"
+    try:
         if on:
-            away.write_text("on\n", encoding="utf-8", newline="\n")
+            with open(away, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write("on\n")
         else:
             away.unlink(missing_ok=True)
-    except (OSError, subprocess.SubprocessError) as e:
-        return str(e)
-    return None
+    except OSError as e:
+        err = err or str(e)
+    return err
 
 
 def main():
+    squadio.utf8_stdio()
     try:
         prompt = str(json.load(sys.stdin).get("prompt") or "").strip()
     except (ValueError, AttributeError, OSError):

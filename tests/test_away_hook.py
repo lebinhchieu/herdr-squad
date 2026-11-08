@@ -60,7 +60,7 @@ class AwayHookTest(unittest.TestCase):
         (gone / "watchdog.sleep").mkdir()  # set_sleep cannot write a file here
         out = json.loads(run(gone, "I am away"))
         self.assertIn("FAILED", out["hookSpecificOutput"]["additionalContext"])
-        self.assertFalse((gone / "away").exists())
+        self.assertTrue((gone / "away").exists())  # away file is written whatever the switch says
 
 
 if __name__ == "__main__":
