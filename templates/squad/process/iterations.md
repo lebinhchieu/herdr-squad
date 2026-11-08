@@ -143,3 +143,14 @@ roles: manager
 topic: iterations
 
 `squad-close --scope` refuses while the last iteration file's `Went well`, `Friction` or `Process changes made` has no text ("none" counts). Fill them. `--force` overrides it and logs the override in that file.
+
+## ITER-17 Away mode
+roles: manager, team-lead
+topic: iterations
+
+The PO is away while the file `<home>/away` exists (home = your `$SCOPE_DIR`, else `$GOAL_DIR`; present is enough, the content is not read). While away:
+- Keep going on every clear point. A question another role can settle goes to its owner, advisor first ([LC-25]); never wait for the PO.
+- A question only the PO can settle, that blocks no other ticket, is `squad-inbox park --text "<q>" --blocks "<work>"`; work on the other tickets.
+- An "Always goes to PO" item ([WHO-1a], [WHO-1b], [WHO-2]) and a team change that needs the PO's yes go to the inbox with `--blocks` naming only the work they hold; all other work goes on. A merge, push or deploy waits for the PO's request in chat ([MRG-1], [ITER-5]).
+- Note each decision you made for the PO in the iteration file, one line: what, why.
+- When `away` is deleted, write ONE `squad-inbox add --kind read` item: decisions made, parked questions, key decisions waiting.

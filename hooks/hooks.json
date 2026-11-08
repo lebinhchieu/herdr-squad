@@ -21,6 +21,11 @@
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-merge-record\"" }]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-away-hook\"" }]
+      }
+    ],
     "Stop": [
       {
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-usage-hook\"" }]

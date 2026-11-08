@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""Claude UserPromptSubmit hook: "I am away" / "I am back" in a Manager session.
+
+Away: `squad-watchdog sleep on` and write <home>/away. Back: `sleep off` and delete <home>/away.
+<home> is SCOPE_DIR, else GOAL_DIR. Any other session or prompt: prints nothing, exits 0.
+Never blocks the prompt: a failing switch is reported in additionalContext."""
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
+
+WATCHDOG = Path(os.path.dirname(os.path.realpath(__file__))) / "squad-watchdog"
+AWAY_RE = re.compile(r"^i(?: am|'m|\u2019m) away\b", re.I)
+BACK_RE = re.compile(r"^i(?: am|'m|\u2019m) back\b", re.I)
+
+AWAY_TEXT = ("Away mode is ON: Chieu is away and sleep is on. Follow rule ITER-17 (`squad-process rule ITER-17`). "
+             "Tell Chieu in one line that sleep and away mode are on.")
+BACK_TEXT = ("Chieu is back: sleep and away mode are off. Read the parked questions and write ONE inbox read item "
+             "listing what was decided while away (decisions, parked questions, key decisions waiting).")
+
+
+def switch(home, on):
+    """Run squad-watchdog sleep on|off, then write or delete <home>/away whatever the result.
+    Returns an error text, or None."""
+    err = None
+    try:
+        r = subprocess.run([sys.executable, str(WATCHDOG), "sleep", "on" if on else "off", "--home", str(home)],
+                           capture_output=True, encoding="utf-8", errors="replace", timeout=20)
+        if r.returncode != 0:
+            err = (r.stderr or r.stdout or "exit %d" % r.returncode).strip()
+    except (OSError, subprocess.SubprocessError) as e:
+        err = str(e)
+    away = Path(home) / "away"
+    try:
+        if on:
+            with open(away, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write("on\n")
+        else:
+            away.unlink(missing_ok=True)
+    except OSError as e:
+        err = err or str(e)
+    return err
+
+
+def main():
+    squadio.utf8_stdio()
+    try:
+        prompt = str(json.load(sys.stdin).get("prompt") or "").strip()
+    except (ValueError, AttributeError, OSError):
+        return
+    home = os.environ.get("SCOPE_DIR") or os.environ.get("GOAL_DIR")
+    if os.environ.get("SQUAD_ROLE") != "manager" or not home or not os.path.isdir(home):
+        return
+    away = bool(AWAY_RE.match(prompt))
+    if not (away or BACK_RE.match(prompt)):
+        return
+    err = switch(home, away)
+    text = (AWAY_TEXT if away else BACK_TEXT) if err is None else \
+        "Switching sleep and away mode %s FAILED (%s). The away file was still updated; tell Chieu the sleep switch may be wrong." % (
+            "on" if away else "off", err[:200])
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text}}))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        pass
+    sys.exit(0)
