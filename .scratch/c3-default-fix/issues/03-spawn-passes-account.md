@@ -23,3 +23,13 @@ T3. Quoting: a dir with a space (Windows `C:\Users\...` home) reaches `herdr tab
 T4. If the default is read by parsing a file or tool output (the workspace/global default), `evidence.md` holds two real samples, including the unset/idle case (REV-4), and the code handles a missing file and an unknown value without crashing the spawn.
 T5. `--dry-run` output for a default-1 spawn is identical to base (diff in `evidence.md`); for 2/3 the only difference is the new env. A test in an existing squad-spawn test file fails on base, passes on handin (SQ-1).
 T6. Run every hit of `grep -rl 'squad-spawn\|squad-respawn' tests/` (targeted only). `python3 bin/processlint.py` exits 0.
+
+## Design note (Developer)
+Decision: option (b), no change to `bin/squad-spawn` or `bin/squad-respawn`. 0 changed lines.
+Reasons:
+1. The new pane starts a shell, and that shell loads the profile. After ticket 01 the profile sets `CLAUDE_CONFIG_DIR` for 2/3 and clears it for 1 from the effective default (workspace file first, else global), using the pane's own `HERDR_WORKSPACE_ID`. `--env` is set first and the profile then overwrites it, so a passed value would change nothing once the profile is installed.
+2. `--env` cannot unset, so account 1 still needs the profile fix. Passing 2/3 only would make the pane depend on two mechanisms.
+3. squad-spawn would have to read the account default itself: the PO's `~/.claude-accounts` files, outside the plugin. It would be a second copy of the default rule in two places (spawn and respawn) and could drift from `lib.sh` and the `.ps1`. Also the spawner's workspace may differ from the pane's.
+4. Passing the account to every squad role would change how every spawned session starts on non-Windows too; the ticket says to block on that.
+AC1 holds through the profile: a pane in a workspace with default 2/3 gets that dir, even if the server env holds another one (ticket 01 test `ps.startup_block_in_a_herdr_pane_uses_the_workspaces_default` and `ps.startup_default_1_clears_an_inherited_config_dir`). AC2: `--dry-run` output is unchanged, since no code changed.
+Checked: `grep -n "CLAUDE_CONFIG_DIR" bin/squad-spawn bin/squad-respawn` hits only lines 350, 403, 424 (read the spawner's own dir for user settings, skills, MCP). Nothing sets it for the pane.
