@@ -123,24 +123,54 @@ class WatchdogTest(unittest.TestCase):
         self.assertEqual(self.suspended, [])
         self.assertFalse(W.sleep_on(self.home))
 
-    def test_the_pc_sleeps_once_after_5_quiet_minutes_when_every_ticket_is_done(self):
+    def test_the_pc_sleeps_once_after_5_quiet_minutes_when_every_ticket_is_passed(self):
         W.set_sleep(self.home, True)
-        self.tickets(t03="done", t04="building")
+        self.tickets(t03="passed", t04="passed")
         self.agents(t_mgr_s1="idle", t_dev_s1="idle")
         self.tick(0)
-        self.tick(10)
-        self.assertEqual(self.suspended, [])  # a ticket is still open
-        self.tickets(t04="done")
-        self.tick(11)
-        self.tick(15)
+        self.tick(4)
         self.assertEqual(self.suspended, [])  # quiet for 4 min only
-        self.tick(16)
+        self.tick(5)
         self.assertEqual(self.suspended, [1])
-        log = self.log().splitlines()
-        self.assertRegex(log[-1], r"^2027-01-15T08:16:00Z sleep pc: every ticket is done and nobody on this machine has worked for 5 min")
+        self.assertRegex(self.log().splitlines()[-1], r"^2027-01-15T08:05:00Z sleep pc: all tickets passed; nobody on this machine has worked for 5 min")
         self.assertFalse(W.sleep_on(self.home))  # one shot
         self.tick(40)
         self.assertEqual(self.suspended, [1])  # a wake-up does not sleep again
+
+    def test_the_pc_sleeps_after_5_quiet_minutes_with_open_tickets_and_names_that_reason(self):
+        W.set_sleep(self.home, True)
+        self.tickets(t03="passed", t04="building")
+        self.agents(t_mgr_s1="idle", t_dev_s1="idle")
+        self.tick(0)
+        self.tick(4)
+        self.assertEqual(self.suspended, [])
+        self.tick(5)
+        self.assertEqual(self.suspended, [1])
+        self.assertRegex(self.log().splitlines()[-1], r"sleep pc: team idle with open tickets; nobody on this machine has worked for 5 min")
+        self.assertFalse(W.sleep_on(self.home))
+
+    def test_a_working_agent_resets_the_quiet_timer_even_with_open_tickets(self):
+        W.set_sleep(self.home, True)
+        self.tickets(t03="building")
+        self.agents(t_mgr_s1="idle", t_dev_s1="idle")
+        self.tick(0)
+        self.tick(4)
+        self.agents(t_mgr_s1="idle", t_dev_s1="working")
+        self.tick(5)
+        self.agents(t_mgr_s1="idle", t_dev_s1="idle")
+        self.tick(6)
+        self.tick(10)
+        self.assertEqual(self.suspended, [])  # the timer restarted at 6
+        self.tick(11)
+        self.assertEqual(self.suspended, [1])
+
+    def test_the_pc_never_sleeps_with_the_switch_off_however_long_the_team_is_idle(self):
+        W.set_sleep(self.home, False)
+        self.tickets(t03="building")
+        self.agents(t_mgr_s1="idle", t_dev_s1="idle")
+        for m in (0, 6, 600):
+            self.tick(m)
+        self.assertEqual(self.suspended, [])
 
     def test_an_agent_of_another_squad_working_holds_the_sleep_and_restarts_the_clock(self):
         W.set_sleep(self.home, True)
@@ -156,7 +186,7 @@ class WatchdogTest(unittest.TestCase):
         self.tick(26)
         self.assertEqual(self.suspended, [1])
 
-    def test_a_goal_sleeps_only_when_the_tickets_of_all_its_scopes_are_done(self):
+    def test_a_goal_sleeps_when_the_machine_is_quiet_whatever_the_tickets_of_its_scopes_say(self):
         squad = self.home.parent.parent
         goal = squad / "goals" / "g1"
         goal.mkdir(parents=True)
@@ -171,12 +201,8 @@ class WatchdogTest(unittest.TestCase):
         for m in (0, 10):
             W.tick(goal, "t-mgr-g1", now=T0 + m * MIN, herdr_json=str(self.herdr), send=lambda *a: (True, ""),
                    suspend_fn=lambda: (self.suspended.append(1) or (True, "")))
-        self.assertEqual(self.suspended, [])
-        (squad / "scopes" / "s2" / "tasks" / "01.md").write_text("# T\n\nStatus: done\n", encoding="utf-8")
-        for m in (11, 16):
-            W.tick(goal, "t-mgr-g1", now=T0 + m * MIN, herdr_json=str(self.herdr), send=lambda *a: (True, ""),
-                   suspend_fn=lambda: (self.suspended.append(1) or (True, "")))
-        self.assertEqual(self.suspended, [1])
+        self.assertEqual(self.suspended, [1])  # s2 is still building: the goal's tickets do not hold the sleep
+        self.assertIn("team idle with open tickets", (goal / "watchdog.log").read_text(encoding="utf-8"))
 
     def test_herdr_not_answering_is_no_decision_for_the_sleep(self):
         W.set_sleep(self.home, True)
