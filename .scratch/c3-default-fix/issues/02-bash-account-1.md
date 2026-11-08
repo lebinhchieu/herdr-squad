@@ -22,3 +22,13 @@ T2. Where code changes: default 1 ends with the variable unset (`unset CLAUDE_CO
 T3. Nothing outside the repo is edited or run against: no write to `~/.bashrc`, no `install.sh` on the live `~/.claude-accounts`. Tests use the temp HOME harness `tests/ca_stubs.py`.
 T4. Each changed path has a test in an existing file (test_ca_launchers / test_ca_install / test_ca_autoswitch as fits) that fails on base, passes on handin (SQ-1 receipts). If no code changes, `evidence.md` holds the exact `~/.bashrc` snippet for the PO and the reason.
 T5. Run the touched test files and every hit of `grep -rl '<changed string>' tests/` (targeted only). `python3 bin/processlint.py` exits 0.
+
+## Design note (Developer)
+Command: `grep -rn CLAUDE_CONFIG_DIR tools/claude-accounts`. Hits, classified:
+- Sets for 2/3 at startup: `windows/claude-accounts.ps1` (final switch; case 1 added in ticket 01). Nothing in bash.
+- Sets for one launch only: `lib.sh:110` (`CLAUDE_CONFIG_DIR=... claude` for 2/3, as a command prefix) and the `.ps1` launcher function. Not startup.
+- Unsets: `lib.sh:109` (`env -u` for account 1), `.ps1` lines 12, 176, 183.
+- Reads only: `bin/cautoswitch:134`, `bin/caproc.py`, `record-usage.sh:7`.
+- Docs only: README, HANDOFF, skill/SKILL.md.
+`install.sh` writes no shell startup block (README: "The install never edits .bashrc"). Repo-owned bash startup path: none found. The recommended `.bashrc` line is already tested in `test_ca_launchers.BashrcLineTest` and has `*) unset CLAUDE_CONFIG_DIR`.
+Result: no code change. The PO's own `~/.bashrc` is the gap (see evidence.md).
