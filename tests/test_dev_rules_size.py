@@ -110,10 +110,10 @@ class DevRulesSize(unittest.TestCase):
                     self.assertNotIn(f"## {rid} ", compose_team(role, team).decode(), f"{role} {team}")
 
     def test_manager_composed_bytes_did_not_grow_vs_90be196(self):
-        # (team, goal) -> bytes of the composed Manager rules at 90be196 plus ticket 06's parked-question rule (+265 B, +253 B with goal+architect) and the respawn-line rules of fix 2 (+118 to +132 B) and task 11 worktree reuse in SPAWN-5a (+291 B) and task 12 suite policy in SUITE-1b (+156 B) and task 13 GOAL-6b ask (+59 B) and task-claim-gates 05 passed/merged text and LC-27 (+678 to +742 B), fixture home with live-length names
-        base = {((), "yes"): 55244, ((), "no"): 51955, (("tech-lead",), "yes"): 54155, (("team-lead", "designer"), "no"): 50169,
-                (("qa-white", "qa-black", "designer", "architect"), "yes"): 58350,
-                (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"): 51253}
+        # (team, goal) -> bytes of the composed Manager rules at 90be196 plus ticket 06's parked-question rule (+265 B, +253 B with goal+architect) and the respawn-line rules of fix 2 (+118 to +132 B) and task 11 worktree reuse in SPAWN-5a (+291 B) and task 12 suite policy in SUITE-1b (+156 B) and task 13 GOAL-6b ask (+59 B) and task-claim-gates 05 passed/merged text and LC-27 (+678 to +742 B) and wd2-away 03 away rule ITER-17 (+951 B), fixture home with live-length names
+        base = {((), "yes"): 56195, ((), "no"): 52906, (("tech-lead",), "yes"): 55106, (("team-lead", "designer"), "no"): 51120,
+                (("qa-white", "qa-black", "designer", "architect"), "yes"): 59301,
+                (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"): 52204}
         for (team, goal), n in base.items():
             with self.subTest(team=team, goal=goal):
                 self.assertLessEqual(len(compose_team("manager", team, goal)), n)
