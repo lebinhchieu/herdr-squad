@@ -14,3 +14,5 @@ Status: accepted (claude-accounts)
 - Known limit: NTFS is case-insensitive, so two herdr ids differing only in case would share one file. Ids seen (`w26`, `w2H`, `w2J`, `w6`) never do.
 
 **Alternative rejected:** port `lib.sh` to PowerShell as a module or run it in Git bash for every call (a Git-bash start on each `c1` and a second source of truth for the herdr JSON rules).
+
+**Addendum 2026-11-08 (c3-default-fix):** a new pane's account comes only from the shell profile (workspace default first, else global); the profile now also clears an inherited `CLAUDE_CONFIG_DIR` for account 1. `squad-spawn` and `squad-respawn` do not pass `--env CLAUDE_CONFIG_DIR`: the profile would overwrite it, `herdr tab create --env` cannot unset a variable, and a copy of the default rule in spawn would be a second source that can drift. This does not change the Decision or Consequences above.

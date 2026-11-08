@@ -34,6 +34,8 @@ The install never edits `.bashrc` or the statusline. It touches the herdr config
 
 `cswitch`, `cautoswitch` and `cwake` run on Git Bash too. Git Bash has no `/proc`, so `bin/caproc.py` asks `herdr pane process-info` for the pane's `claude` (pid, argv, shell) and reads its environment (`SQUAD_NAME`, `CLAUDE_CONFIG_DIR`) from the process memory (same user only). `cswitch` restarts a bash pane with the launcher's full path (a non-login bash has no PATH entry for it) and a PowerShell pane with the bare function name. Wake markers are stored as `wake-pending/w1_p2` (a file name cannot hold a colon). Needs `python3` on PATH.
 
+A new PowerShell shell clears an inherited `CLAUDE_CONFIG_DIR` when its default account is 1, so a pane opened by a herdr server that was started from c2 or c3 still runs on account 1. The profile never sets `CLAUDE_CONFIG_DIR` to `~/.claude`.
+
 ## Commands added by autoswitch
 
 | Command | Does |
