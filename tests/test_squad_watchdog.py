@@ -149,6 +149,14 @@ class WatchdogTest(unittest.TestCase):
         self.assertRegex(self.log().splitlines()[-1], r"sleep pc: team idle with open tickets; nobody on this machine has worked for 5 min")
         self.assertFalse(W.sleep_on(self.home))
 
+    def test_with_no_ticket_at_all_the_log_does_not_say_open_tickets(self):
+        W.set_sleep(self.home, True)
+        self.agents(t_mgr_s1="idle")
+        self.tick(0)
+        self.tick(5)
+        self.assertRegex(self.log().splitlines()[-1], r"sleep pc: team idle; nobody on this machine")
+        self.assertNotIn("open tickets", self.log().splitlines()[-1])
+
     def test_a_working_agent_resets_the_quiet_timer_even_with_open_tickets(self):
         W.set_sleep(self.home, True)
         self.tickets(t03="building")
@@ -234,12 +242,12 @@ class WatchdogTest(unittest.TestCase):
             return winlaunch.run_script(str(BIN / "squad-watchdog"), [*args, "--home", str(self.home)], clean_env(),
                                         utf8=True, encoding="utf-8", capture_output=True)
         r = run("status")
-        self.assertIn("sleep-when-done: off", r.stdout)
+        self.assertIn("sleep-when-idle: off", r.stdout)
         r = run("sleep", "on")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("sleep-when-done: ON", r.stdout)
+        self.assertIn("sleep-when-idle: ON", r.stdout)
         self.assertTrue(W.sleep_on(self.home))
-        self.assertIn("sleep-when-done: ON", run("status").stdout)
+        self.assertIn("sleep-when-idle: ON", run("status").stdout)
         run("sleep", "off")
         self.assertFalse(W.sleep_on(self.home))
         self.assertNotEqual(run("sleep", "mango").returncode, 0)

@@ -15,17 +15,20 @@ the overlaps and exits 3 without creating anything; the PO decides, and --yes go
 scope.md lines `model <role>: <model> <effort>` set a role's model for every spawn in that scope (flags and a recorded override win; settings and template lose).
 --model and --effort set the Manager's model and effort (default: the model and effort in settings/manager.json); it does not change the roles the Manager spawns.
 --dry-run prints the Manager's model and effort and where each came from (flag, recorded override on --resume, scope.md `model manager:` on --resume, squad settings, template).
-A scope or goal that gets a Manager also gets a watchdog (bin/squad-watchdog), started detached: it logs idle spells and nudges
-the Manager after 5 and 15 minutes when nobody works. SQUAD_WATCHDOG=off starts none.
+A scope or goal that gets a Manager also gets a watchdog (bin/squad-watchdog), started in its own herdr tab (label `watchdog`, no focus, only the
+watchdog, one per home) or, outside herdr or when the tab fails, detached: it logs idle spells and nudges the Manager after
+5 and 15 minutes when nobody works. SQUAD_WATCHDOG=off starts none.
 Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
 """
 import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 PLUGIN = Path(__file__).resolve().parent.parent
@@ -157,14 +160,66 @@ def name_workspace(name):
         print(f"workspace not renamed: {reason}", file=sys.stderr)
 
 
+def watchdog_alive(home):
+    """True when this home's watchdog has a fresh heartbeat (the guard `squad-watchdog run` uses itself)."""
+    try:
+        beat = json.loads((Path(home) / "watchdog.state.json").read_text(encoding="utf-8")).get("beat")
+        interval = float(os.environ.get("SQUAD_WATCHDOG_INTERVAL") or 60)
+        return isinstance(beat, (int, float)) and time.time() - beat < 3 * interval
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def pane_command(argv, windows=None):
+    """The one command line `herdr pane run` types into a new tab's shell. POSIX: `exec` replaces the shell, so the tab
+    closes when the watchdog ends. PowerShell: call it, then `exit`."""
+    if os.name == "nt" if windows is None else windows:
+        return "& " + " ".join("'" + a.replace("'", "''") + "'" for a in argv) + "; exit"
+    return "exec " + shlex.join(argv)
+
+
+def herdr_json(args):
+    """Run herdr with a list argv and a timeout -> parsed JSON; raises OSError, SubprocessError or ValueError."""
+    r = subprocess.run(["herdr", *args], capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
+    if r.returncode != 0:
+        raise OSError((r.stderr.strip().splitlines() or ["herdr refused"])[-1])
+    return json.loads(r.stdout) if r.stdout.strip() else {}
+
+
+def start_watchdog_tab(home, argv):
+    """Open a `watchdog` tab (no focus) in the Manager's workspace and run the watchdog in it. Raises on any failure;
+    a half-made tab is closed first."""
+    ws = os.environ.get("HERDR_WORKSPACE_ID")
+    create = ["tab", "create", "--cwd", str(home), "--label", "watchdog", "--no-focus"]
+    j = herdr_json(create + (["--workspace", ws] if ws else []))
+    pane, tab = j["result"]["root_pane"]["pane_id"], j["result"]["tab"]["tab_id"]
+    try:
+        herdr_json(["pane", "run", pane, pane_command(argv)])
+    except (OSError, subprocess.SubprocessError, ValueError):
+        try:
+            herdr_json(["tab", "close", tab])
+        except (OSError, subprocess.SubprocessError, ValueError):
+            pass
+        raise
+
+
 def start_watchdog(home, manager):
-    """Start bin/squad-watchdog detached for this scope or goal; a failure only warns (the work does not depend on it)."""
+    """Run bin/squad-watchdog for this scope or goal: in its own herdr tab when inside herdr, else (or when the tab fails)
+    as a detached process. A failure only warns (the work does not depend on it)."""
     if os.environ.get("SQUAD_WATCHDOG", "").lower() in ("off", "0", "no"):
         return
-    cmd = [sys.executable, (PLUGIN / "bin" / "squad-watchdog").as_posix(), "run", "--home", str(home), "--manager", manager]
+    if watchdog_alive(home):
+        return  # one watchdog per home; `run` would exit at once anyway
+    argv = [sys.executable, (PLUGIN / "bin" / "squad-watchdog").as_posix(), "run", "--home", str(home), "--manager", manager]
+    if os.environ.get("HERDR_ENV") == "1":
+        try:
+            start_watchdog_tab(home, argv)
+            return
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as e:
+            print(f"watchdog tab not opened ({e}); starting it detached", file=sys.stderr)
     kw = {"creationflags": 0x00000008 | 0x00000200} if os.name == "nt" else {"start_new_session": True}
     try:
-        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kw)
+        subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kw)
     except OSError as e:
         print(f"watchdog not started: {e}", file=sys.stderr)
 
