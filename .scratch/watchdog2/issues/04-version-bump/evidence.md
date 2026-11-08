@@ -25,4 +25,4 @@ AC trace:
 - AC2 | grep outputs above | the grep in AC2, before and after
 - AC3 | unittest output above | the unittest command in AC3
 
-Findings: see below (fresh-context review).
+Findings (fresh-context sonnet review): none. One-line diff, JSON valid, no other 0.7.6 pin, marketplace.json has no version field. The `0.7.0` strings in test_team_cli.py and test_squadscaffold.py are fixtures, not the plugin version.
