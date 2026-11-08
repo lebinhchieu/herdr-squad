@@ -36,6 +36,8 @@ class AwayHookTest(unittest.TestCase):
         out = json.loads(run(self.home, "  I am away for the night"))
         self.assertEqual(out["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
         self.assertIn("Away mode is ON", out["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("ITER-17", out["hookSpecificOutput"]["additionalContext"])
+        self.assertEqual(subprocess.run([sys.executable, str(ROOT / "bin" / "squad-process"), "rule", "ITER-17"], capture_output=True).returncode, 0)
         self.assertEqual((self.home / "away").read_text(), "on\n")
         self.assertIn("\non\n", self.sleep_file())
         out = json.loads(run(self.home, "i'm BACK!"))

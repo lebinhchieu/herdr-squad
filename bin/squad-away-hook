@@ -18,7 +18,7 @@ WATCHDOG = Path(os.path.dirname(os.path.realpath(__file__))) / "squad-watchdog"
 AWAY_RE = re.compile(r"^i(?: am|'m|\u2019m) away\b", re.I)
 BACK_RE = re.compile(r"^i(?: am|'m|\u2019m) back\b", re.I)
 
-AWAY_TEXT = ("Away mode is ON: Chieu is away and sleep is on. Follow the away rule in your Manager rules. "
+AWAY_TEXT = ("Away mode is ON: Chieu is away and sleep is on. Follow rule ITER-17 (`squad-process rule ITER-17`). "
              "Tell Chieu in one line that sleep and away mode are on.")
 BACK_TEXT = ("Chieu is back: sleep and away mode are off. Read the parked questions and write ONE inbox read item "
              "listing what was decided while away (decisions, parked questions, key decisions waiting).")
@@ -61,8 +61,8 @@ def main():
         return
     err = switch(home, away)
     text = (AWAY_TEXT if away else BACK_TEXT) if err is None else \
-        "Switching sleep and away mode %s FAILED (%s). Tell Chieu; do not assume it is %s." % (
-            "on" if away else "off", err[:200], "on" if away else "off")
+        "Switching sleep and away mode %s FAILED (%s). The away file was still updated; tell Chieu the sleep switch may be wrong." % (
+            "on" if away else "off", err[:200])
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text}}))
 
 
