@@ -9,7 +9,7 @@ Ticket: commit this file's content as `.scratch/watchdog2/issues/06-promotion.md
 Base: the task 05 passed sha 651f5c5 (branch `squad/plugin/wd2-pane/plugin-dev-wd2-pane-1`); reuse its worktree (no parallel task). Repo: /home/chieule/workspace/squad.
 
 ## AC
-- AC1 The README `bin/squad-watchdog` row says the new sleep rule (sleep on: once, when nobody on this machine works for N minutes, whatever the tickets say; the log names the reason), the name `sleep-when-idle`, the watchdog tab (own herdr tab labelled `watchdog`, one per workspace, detached fallback), as `promote.md` words it. A new README row names `bin/squad-away-hook` ("I am away" / "I am back", the `away` file, rule ITER-17).
+- AC1 The README `bin/squad-watchdog` row says the new sleep rule (sleep on: once, when nobody on this machine works for N minutes, whatever the tickets say; the log names the reason), the name `sleep-when-idle`, the watchdog tab (own herdr tab labelled `watchdog`, one per home (scope or goal), detached fallback), as `promote.md` words it. A new README row names `bin/squad-away-hook` ("I am away" / "I am back", the `away` file, rule ITER-17).
 - AC2 `CONTEXT.md` gets the glossary terms `promote.md` lists, in the file's style (a term not in the glossary stays out).
 - AC3 One short ADR `docs/adr/0022-<slug>.md` (Context, Decision, Consequences, like 0021) for "idle for any reason" and away mode. It states nothing the goal did not decide.
 - AC4 Every claim in the new text matches the code on this branch (QA checks with `grep`); no mention of Sleep-when-done as the name.

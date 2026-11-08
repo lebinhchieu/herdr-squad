@@ -182,7 +182,7 @@ The opt-in switch of the **Watchdog** (`squad-watchdog sleep on|off`, off by def
 _Avoid_: sleep-when-done
 
 **Watchdog**:
-`bin/squad-watchdog`, one per **Home**. It logs idle spells, nudges the **Manager**, and runs **Sleep-when-idle**. Inside herdr it runs alone in its own tab labelled `watchdog`; elsewhere it is a detached process.
+`bin/squad-watchdog`, one per **Home**. It logs idle spells, nudges the **Manager**, and runs **Sleep-when-idle**. Inside herdr it runs alone in its own tab labelled `watchdog`; when the tab cannot be opened it falls back to a detached process.
 _Avoid_: monitor, supervisor
 
 **Goal check**:
