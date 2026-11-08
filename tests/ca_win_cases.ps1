@@ -523,6 +523,11 @@ Case 'ps.startup_default_1_clears_an_inherited_config_dir' {
         . $Ps1
         Eq $env:CLAUDE_CONFIG_DIR $null "default 1, inherited <$inherited>"
     }
+    # silent when already unset
+    Remove-Item Env:CLAUDE_CONFIG_DIR -ErrorAction Ignore; $Error.Clear()
+    . $Ps1
+    Eq $env:CLAUDE_CONFIG_DIR $null 'unset stays unset'
+    Eq $Error.Count 0 'errors recorded'
     # the workspace default still wins over the global one
     GlobalFile '1'; WsFile 'w26' "3`n"; InHerdr; $env:CLAUDE_CONFIG_DIR = (CfgOf 2)
     . $Ps1
