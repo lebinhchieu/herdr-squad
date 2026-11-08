@@ -1,4 +1,5 @@
 """squad-start: text in, scope or goal folder + brief + fresh Manager out."""
+import io
 import json
 import os
 import shutil
@@ -7,6 +8,7 @@ import signal
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import winlaunch
@@ -90,6 +92,9 @@ class StartTest(unittest.TestCase):
     def test_a_scope_and_a_goal_start_a_watchdog_and_a_dry_run_or_an_in_goal_scope_does_not(self):
         self.env.pop("SQUAD_WATCHDOG")
         self.env["SQUAD_WATCHDOG_INTERVAL"] = "1"
+        f = self.root / "fakebin" / "herdr"  # a herdr that cannot run a command in the tab: the detached fallback starts the watchdog
+        head, _ = f.read_text(encoding="utf-8").rsplit("exit 0\n", 1)
+        f.write_text(head + '[[ "$1 $2" == "pane run" ]] && exit 1\nexit 0\n', encoding="utf-8", newline="\n")
         self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a", "--dry-run").returncode, 0)
         self.assertFalse((self.squad / "scopes" / "one").exists())
         for text, kind, name in (("Task one", "scopes", "one"), ("goal: Big", "goals", "big")):
@@ -535,6 +540,75 @@ class InstructionsTest(unittest.TestCase):
         self.assertIn("then do step 5a", text)
         for word in ("keep", "change model", "change effort", "`--model`", "`--effort`", "`opus`", "`max`", ".overrides"):
             self.assertIn(word, text)
+
+
+class WatchdogTabTest(unittest.TestCase):
+    """The watchdog runs in its own herdr tab; every herdr call is a stub, no real tab or watchdog is made (T2)."""
+    TAB = (ROOT / "tests" / "fixtures" / "herdr" / "tab-create.json").read_text(encoding="utf-8")  # real capture, herdr tab create
+
+    def setUp(self):
+        self.mod = load_squad_start()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.home = Path(self.tmp.name) / "scopes" / "one"
+        self.home.mkdir(parents=True)
+        self.calls, self.popen = [], []
+        self.env = {"HERDR_ENV": "1", "HERDR_WORKSPACE_ID": "w4G"}
+        self.env_patch = mock.patch.dict(os.environ, self.env)
+        self.env_patch.start()
+        os.environ.pop("SQUAD_WATCHDOG", None)
+        self.addCleanup(self.env_patch.stop)
+        self.addCleanup(self.tmp.cleanup)
+
+    def herdr_stub(self, fail_on=None, exc=None):
+        def run(cmd, **kw):
+            self.calls.append((cmd, kw))
+            if exc and cmd[2] == fail_on:
+                raise exc
+            rc = 1 if cmd[2] == fail_on else 0
+            return subprocess.CompletedProcess(cmd, rc, self.TAB if cmd[2] == "create" else "{}", "boom" if rc else "")
+        return mock.patch.object(self.mod.subprocess, "run", run), mock.patch.object(
+            self.mod.subprocess, "Popen", lambda cmd, **kw: self.popen.append(cmd))
+
+    def start(self, **kw):
+        a, b = self.herdr_stub(**kw)
+        with a, b, mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            self.mod.start_watchdog(self.home, "t-mgr-one")
+        return err.getvalue()
+
+    def test_a_tab_is_made_in_the_workspace_and_runs_only_the_watchdog(self):
+        self.assertEqual(self.start(), "")
+        (create, kw), (run, _) = self.calls
+        self.assertEqual(create, ["herdr", "tab", "create", "--cwd", str(self.home), "--label", "watchdog", "--no-focus", "--workspace", "w4G"])
+        self.assertLessEqual(kw["timeout"], 10)
+        self.assertEqual(run[:4], ["herdr", "pane", "run", "w4G:pD"])
+        self.assertRegex(run[4], r"^exec .*squad-watchdog run --home .*one --manager t-mgr-one$")  # exec: the tab closes when it ends
+        self.assertEqual(self.popen, [])
+
+    def test_windows_types_a_powershell_command_that_exits(self):
+        cmd = self.mod.pane_command(["C:\\Py thon\\python.exe", "it's", "run"], windows=True)
+        self.assertEqual(cmd, "& 'C:\\Py thon\\python.exe' 'it''s' 'run'; exit")
+
+    def test_a_failing_tab_or_run_falls_back_to_the_detached_process_with_one_warning(self):
+        for step, exc in (("create", None), ("run", None), ("create", subprocess.TimeoutExpired("herdr", 10)), ("create", FileNotFoundError("herdr"))):
+            self.calls.clear(), self.popen.clear()
+            err = self.start(fail_on=step, exc=exc)
+            self.assertEqual(len(self.popen), 1, step)
+            self.assertEqual(err.count("watchdog tab not opened"), 1, err)
+        self.start(fail_on="run")
+        self.assertEqual(self.calls[-1][0][:3], ["herdr", "tab", "close"])  # a half-made tab is not left behind
+
+    def test_outside_herdr_the_detached_process_runs_and_no_herdr_call_is_made(self):
+        os.environ["HERDR_ENV"] = "0"
+        self.assertEqual(self.start(), "")
+        self.assertEqual((self.calls, len(self.popen)), ([], 1))
+
+    def test_off_starts_nothing_and_a_live_watchdog_gets_no_second_one(self):
+        os.environ["SQUAD_WATCHDOG"] = "off"
+        self.start()
+        del os.environ["SQUAD_WATCHDOG"]
+        (self.home / "watchdog.state.json").write_text(json.dumps({"beat": time.time()}), encoding="utf-8")
+        self.start()
+        self.assertEqual((self.calls, self.popen), ([], []))
 
 
 if __name__ == "__main__":

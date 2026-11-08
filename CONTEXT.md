@@ -173,6 +173,18 @@ _Avoid_: merge task
 One work cycle inside a scope: goal check, plan, build and verify, retro, check-in. A scope can have several.
 _Avoid_: sprint
 
+**Away mode**:
+The state of a **Home** while the file `<home>/away` exists, set by the PO saying "I am away" to a **Manager** and cleared by "I am back". The team keeps working on clear points and leaves only key decisions to the PO (the "Always goes to PO" items, merge, push, deploy); unclear questions are parked. It also turns **Sleep-when-idle** on. Rule ITER-17.
+_Avoid_: vacation mode, offline mode
+
+**Sleep-when-idle**:
+The opt-in switch of the **Watchdog** (`squad-watchdog sleep on|off`, off by default). While on, the computer suspends once when no agent on the machine has worked for N minutes (default 5), for any reason and whatever the tickets say; the log names the reason. It switches itself off after one sleep.
+_Avoid_: sleep-when-done
+
+**Watchdog**:
+`bin/squad-watchdog`, one per **Home**. It logs idle spells, nudges the **Manager**, and runs **Sleep-when-idle**. Inside herdr it runs alone in its own tab labelled `watchdog`; when the tab cannot be opened it falls back to a detached process.
+_Avoid_: monitor, supervisor
+
 **Goal check**:
 The start of an iteration, where the Manager and PO agree the iteration's goal and the PO confirms the scope's team.
 _Avoid_: kickoff
@@ -379,6 +391,7 @@ Every time figure in a report. **Estimated, list price**: every dollar figure. L
 - A **Task** is **Passed** only when every **Checker** on the **Team** has passed it.
 - Each duty has one **Duty owner** on the **Team**.
 - A **Home** belongs to one **Goal** or **Scope**.
+- A **Home** has at most one **Watchdog** running; the PO's "I am away" turns on **Away mode** and **Sleep-when-idle** together.
 - An **Inbox** shows the open **Escalations** of its **Home** (answer items) and its own read items; the PO's answer is written into the escalation's Answer cell.
 - Rendering never drops or changes the Manager's or the PO's text: unknown markup shows as plain text and every word stays reachable.
 - The **Dashboard** shows exactly one **Choice** (a **Goal** with its **Scopes**, or one **Scope**) and many **Panels**; its **Picker** lists the choices.

@@ -3,7 +3,7 @@
 
   squad-watchdog run --home DIR --manager NAME [--interval S]   loop until DIR is gone (squad-start starts it)
   squad-watchdog tick --home DIR --manager NAME [--now UTC]     one pass (what `run` does every interval)
-  squad-watchdog sleep on|off [--home DIR]                      the opt-in switch for sleep-when-done (off by default)
+  squad-watchdog sleep on|off [--home DIR]                      the opt-in switch for sleep-when-idle (off by default)
   squad-watchdog status [--home DIR]                            print the switch, the last state and the log tail
 
 Idle = no live agent of the scope (or of the goal's scopes) is `working` in herdr while a ticket waits (ready, building,
@@ -14,8 +14,8 @@ Sleep-when-idle is OFF. `squad-watchdog sleep on` turns it on; the Manager runs 
 the watchdog suspends the computer once, when no agent anywhere on this machine has been `working` in herdr for
 SQUAD_WATCHDOG_SLEEP_AFTER minutes (default 5), for any reason and whatever the tickets say (the whole `herdr agent
 list`: other squads run here too). The log line names the reason: `all tickets passed` (every ticket of the home, for a goal
-of its scopes, is passed or later) or `team idle with open tickets`. It logs `sleep pc`, switches itself off (one shot: a wake-up does not sleep again), then
-runs the suspend command. Nothing is retired. Suspend command by host: WSL powershell SetSuspendState, Linux `systemctl
+of its scopes, is passed or later), `team idle with open tickets`, or `team idle` when the home has no ticket. It logs
+`sleep pc`, switches itself off (one shot: a wake-up does not sleep again), then runs the suspend command. Nothing is retired. Suspend command by host: WSL powershell SetSuspendState, Linux `systemctl
 suspend`, macOS `pmset sleepnow`, Windows `rundll32.exe powrprof.dll,SetSuspendState 0,1,0`; SQUAD_WATCHDOG_SLEEP_CMD
 (a shell command) replaces it (tests use it).
 
@@ -90,7 +90,7 @@ def sleep_on(home):
 
 def set_sleep(home, on):
     with open(home / SLEEP, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write("# sleep-when-done switch (the PO asked for it); `on` or `off`\n" + ("on\n" if on else "off\n"))
+        fh.write("# sleep-when-idle switch (the PO asked for it); `on` or `off`\n" + ("on\n" if on else "off\n"))
 
 
 def sleep_after_s():
@@ -264,7 +264,7 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None):
         elif kind == "up":
             log(home, now, "herdr answers again")
         elif kind == "sleep":
-            why = "all tickets passed" if ev[2] else "team idle with open tickets"
+            why = "all tickets passed" if ev[2] else "team idle with open tickets" if snap["tickets"] else "team idle"
             log(home, now, f"sleep pc: {why}; nobody on this machine has worked for {ev[1]} min (the PO asked for sleep-when-idle); "
                            "the switch goes off, then the computer suspends")
             set_sleep(home, False)  # one shot: a wake-up does not sleep again
@@ -335,14 +335,14 @@ def main():
         return 0
     if a.cmd == "sleep":
         set_sleep(home, a.switch == "on")
-        print(f"sleep-when-done: {a.switch.upper() if a.switch == 'on' else 'off'}"
+        print(f"sleep-when-idle: {a.switch.upper() if a.switch == 'on' else 'off'}"
               + ("; the PC suspends once, when nobody on this machine works for "
                  f"{sleep_after_s() / 60:g} min, for any reason (all tickets passed or team idle with open tickets)" if a.switch == "on" else ""))
         return 0
     st = read_state(home)
     beat = st.get("beat")
     print(f"last pass: {iso(beat) if beat else 'never'}; idle since: {iso(st['idle_since']) if st.get('idle_since') else '-'}; "
-          f"sleep-when-done: {'ON' if sleep_on(home) else 'off'}")
+          f"sleep-when-idle: {'ON' if sleep_on(home) else 'off'}")
     try:
         print("".join((home / LOG).read_text(encoding="utf-8").splitlines(True)[-10:]), end="")
     except OSError:
