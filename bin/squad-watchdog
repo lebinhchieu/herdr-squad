@@ -14,8 +14,8 @@ Sleep-when-idle is OFF. `squad-watchdog sleep on` turns it on; the Manager runs 
 the watchdog suspends the computer once, when no agent anywhere on this machine has been `working` in herdr for
 SQUAD_WATCHDOG_SLEEP_AFTER minutes (default 5), for any reason and whatever the tickets say (the whole `herdr agent
 list`: other squads run here too). The log line names the reason: `all tickets passed` (every ticket of the home, for a goal
-of its scopes, is passed or later) `team idle with open tickets`, or `team idle` when the home has no ticket. It logs `sleep pc`, switches itself off (one shot: a wake-up does not sleep again), then
-runs the suspend command. Nothing is retired. Suspend command by host: WSL powershell SetSuspendState, Linux `systemctl
+of its scopes, is passed or later), `team idle with open tickets`, or `team idle` when the home has no ticket. It logs
+`sleep pc`, switches itself off (one shot: a wake-up does not sleep again), then runs the suspend command. Nothing is retired. Suspend command by host: WSL powershell SetSuspendState, Linux `systemctl
 suspend`, macOS `pmset sleepnow`, Windows `rundll32.exe powrprof.dll,SetSuspendState 0,1,0`; SQUAD_WATCHDOG_SLEEP_CMD
 (a shell command) replaces it (tests use it).
 

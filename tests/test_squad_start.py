@@ -542,10 +542,6 @@ class InstructionsTest(unittest.TestCase):
             self.assertIn(word, text)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class WatchdogTabTest(unittest.TestCase):
     """The watchdog runs in its own herdr tab; every herdr call is a stub, no real tab or watchdog is made (T2)."""
     TAB = (ROOT / "tests" / "fixtures" / "herdr" / "tab-create.json").read_text(encoding="utf-8")  # real capture, herdr tab create
@@ -613,3 +609,7 @@ class WatchdogTabTest(unittest.TestCase):
         (self.home / "watchdog.state.json").write_text(json.dumps({"beat": time.time()}), encoding="utf-8")
         self.start()
         self.assertEqual((self.calls, self.popen), ([], []))
+
+
+if __name__ == "__main__":
+    unittest.main()
