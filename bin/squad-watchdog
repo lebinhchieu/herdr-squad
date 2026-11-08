@@ -10,10 +10,11 @@ Idle = no live agent of the scope (or of the goal's scopes) is `working` in herd
 returned, handed in, checking). The start of an idle spell is logged with every agent's state. After 5 and after 15 minutes
 of the same spell the Manager gets a message (`herdr agent prompt`). The spell ends when someone works or no ticket waits.
 
-Sleep-when-done is OFF. `squad-watchdog sleep on` turns it on; the Manager runs that only when the PO asks. While it is on,
-the watchdog suspends the computer once, when for SQUAD_WATCHDOG_SLEEP_AFTER minutes (default 5) every ticket of the home
-(for a goal: of its scopes) is done and no agent anywhere on this machine is `working` in herdr (the whole `herdr agent
-list`: other squads run here too). It logs `sleep pc`, switches itself off (one shot: a wake-up does not sleep again), then
+Sleep-when-idle is OFF. `squad-watchdog sleep on` turns it on; the Manager runs that only when the PO asks. While it is on,
+the watchdog suspends the computer once, when no agent anywhere on this machine has been `working` in herdr for
+SQUAD_WATCHDOG_SLEEP_AFTER minutes (default 5), for any reason and whatever the tickets say (the whole `herdr agent
+list`: other squads run here too). The log line names the reason: `all tickets passed` (every ticket of the home, for a goal
+of its scopes, is passed or later) or `team idle with open tickets`. It logs `sleep pc`, switches itself off (one shot: a wake-up does not sleep again), then
 runs the suspend command. Nothing is retired. Suspend command by host: WSL powershell SetSuspendState, Linux `systemctl
 suspend`, macOS `pmset sleepnow`, Windows `rundll32.exe powrprof.dll,SetSuspendState 0,1,0`; SQUAD_WATCHDOG_SLEEP_CMD
 (a shell command) replaces it (tests use it).
@@ -40,10 +41,10 @@ import squadreport  # noqa: E402
 import squadtickets  # noqa: E402
 
 NUDGES = (5, 15)            # minutes of an idle spell
-SLEEP_AFTER_MIN = 5         # minutes everything must be done and quiet before the PC sleeps
+SLEEP_AFTER_MIN = 5         # minutes the whole machine must be quiet before the PC sleeps
 INTERVAL_S = 60
 OPEN = {"ready", "building", "returned", "handed in", "checking", "in progress"}
-DONE = {"done", "resolved", "merged"}
+DONE = {"passed", "done", "resolved", "merged"}
 RETIRED = {"retired", "closed"}
 WSL_PS = ("Add-Type -AssemblyName System.Windows.Forms; "
           "[System.Windows.Forms.Application]::SetSuspendState('Suspend',$false,$false)")
@@ -167,7 +168,7 @@ def all_done(snap):
 
 def decide(st, snap, now, sleep_enabled, sleep_after=SLEEP_AFTER_MIN * 60):
     """Pure: (old state, snapshot, now, switch on?, seconds) -> (new state, [event]).
-    event = ("start", since) | ("nudge", minutes, since) | ("end", minutes) | ("sleep", minutes) | ("down", why) | ("up",)"""
+    event = ("start", since) | ("nudge", minutes, since) | ("end", minutes) | ("sleep", minutes, all_done) | ("down", why) | ("up",)"""
     st = dict(st)
     events = []
     if not snap["ok"]:
@@ -194,11 +195,11 @@ def decide(st, snap, now, sleep_enabled, sleep_after=SLEEP_AFTER_MIN * 60):
             if m not in st["nudged"] and now - since >= m * 60:
                 st["nudged"] = st["nudged"] + [m]
                 events.append(("nudge", m, since))
-    # sleep-when-done: all tickets done and nobody on the machine working, for sleep_after seconds, switch on
-    if all_done(snap) and not snap["machine_working"]:
+    # sleep-when-idle: nobody on the machine working for sleep_after seconds, switch on; the tickets do not matter
+    if not snap["machine_working"]:
         quiet = st["quiet_since"] = st.get("quiet_since") if st.get("quiet_since") is not None else now
         if sleep_enabled and now - quiet >= sleep_after:
-            events.append(("sleep", int((now - quiet) // 60)))
+            events.append(("sleep", int((now - quiet) // 60), all_done(snap)))
             st["quiet_since"] = None
     else:
         st["quiet_since"] = None
@@ -263,7 +264,8 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None):
         elif kind == "up":
             log(home, now, "herdr answers again")
         elif kind == "sleep":
-            log(home, now, f"sleep pc: every ticket is done and nobody on this machine has worked for {ev[1]} min (the PO asked for sleep-when-done); "
+            why = "all tickets passed" if ev[2] else "team idle with open tickets"
+            log(home, now, f"sleep pc: {why}; nobody on this machine has worked for {ev[1]} min (the PO asked for sleep-when-idle); "
                            "the switch goes off, then the computer suspends")
             set_sleep(home, False)  # one shot: a wake-up does not sleep again
             st["beat"], st["pid"] = now, os.getpid()
@@ -334,8 +336,8 @@ def main():
     if a.cmd == "sleep":
         set_sleep(home, a.switch == "on")
         print(f"sleep-when-done: {a.switch.upper() if a.switch == 'on' else 'off'}"
-              + ("; the PC suspends once, when every ticket is done and nobody on this machine works for "
-                 f"{sleep_after_s() / 60:g} min" if a.switch == "on" else ""))
+              + ("; the PC suspends once, when nobody on this machine works for "
+                 f"{sleep_after_s() / 60:g} min, for any reason (all tickets passed or team idle with open tickets)" if a.switch == "on" else ""))
         return 0
     st = read_state(home)
     beat = st.get("beat")
