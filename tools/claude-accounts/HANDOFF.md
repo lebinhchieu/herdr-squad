@@ -39,6 +39,21 @@
 - **Panel token, not observed:** the spaces panel itself, and whether a cold herdr restart drops the tokens (they would come back at each workspace's next default write). A workspace with no default write yet shows nothing.
 - **In herdr, `cdefault N` changes only the global file**, not the current workspace; use `cdefault --ws N` (current workspace) or `cdefault --ws <ws> N`.
 
+## Autoswitch: which account is next (rule decided 2026-11)
+
+Trigger is unchanged: the workspace default's 5h usage is `>=` the threshold (default 90). The choice is made by `pick_next()` in `bin/cautoswitch`, among the other accounts:
+
+1. **Weekly ranking.** An account is in it only if its 7d used is `<= 95%` and its weekly reset time is known. A reset time in the past counts as 1 hour; a missing one (`r7` = `0`, or no `resets_at`) gives no weekly score, so the account is only in step 3.
+2. **Score** = `(100 - 7d) / hours until the weekly reset`, highest first. Example: 50% left with 25 h to reset (2.0 per hour) beats 100% left with 100 h (1.0 per hour). If the top account has 5h `< 60%`, switch to it.
+3. **5h order.** Otherwise take the account with the lowest 5h among all other accounts, even when every 5h is above 60%. It skips accounts with 7d at 100% or more; an account with 7d above 95% can only win here.
+
+- **Guard:** never switch to an account whose 5h is not lower than the current account's 5h (it also holds for step 2). If none is lower, stay and log `... but no other account has a lower 5h and a 7d under 100%; staying.`
+- **Ties:** higher score, then lower 5h, then lower account number.
+- **Log:** the `setting` / `[dry-run] would set` line names the reason: `weekly rank, score X.XX/h` or `5h order`.
+- **Data:** `usage()` returns `(5h, 7d, week reset epoch or None)`: live from `seven_day.resets_at` (ISO string), cache from field `r7` of `usage-N` (`0` = unknown).
+- The Windows tool `windows/autoswitch.py` keeps its own old rule.
+- A running `cautoswitch` keeps the old rule until it is restarted (see Hazards).
+
 ## Autoswitch: who is woken after a switch (built 2026-10-23)
 
 **Rule (PO, E1): every off-default squad pane moves to the new account silently; only a pane with pending work is woken, once, after its workspace's batch is back.** A bare `--resume` sends no prompt, so an idle pane is not asked anything.
