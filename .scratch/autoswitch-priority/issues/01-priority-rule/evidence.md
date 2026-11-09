@@ -24,4 +24,4 @@ Real cache lines (`f5 r5 f7 r7 at`), `~/.claude-accounts/usage-N`:
 - (b) live `seven_day.resets_at` is an ISO string; `usage-popup.sh` parses it with `datetime.fromisoformat` and maps null to 0. `iso_epoch()` does the same and maps null/bad to None. Unknown case: `r7` = `0` gives None (test `test_usage_returns_week_reset_from_cache`). No real idle `0` line existed on this machine today.
 
 ## Review
-Checks: `python3 -m py_compile` clean; `tests/test_ca_autoswitch.py` 58 tests OK. `tests/test_ca_install.py` and `tests/test_ca_launchers.py` (grep hits) fail the same way on the base commit 4e9b310 (environment, not this change). Two old tests encoding "lower on both" were rewritten, none skipped. `windows/autoswitch.py` untouched.
+Checks: `python3 -m py_compile` clean; `tests/test_ca_autoswitch.py` 58 tests OK. `tests/test_ca_install.py` and `tests/test_ca_launchers.py` (grep hits) pass with `PYTHONPATH=tests` (QA whitebox run; they need it to import `winlaunch`). Two old tests encoding "lower on both" were rewritten, none skipped. `windows/autoswitch.py` untouched.
