@@ -300,13 +300,23 @@ class AutoswitchTest(Base):
         self.assertIn("ok: w1 -> c1 5h 50% 7d 20%", clean.stdout)
         self.assertIn("ok: w1 -> c1 5h 50% 7d 20%", bad.stdout)
 
-    def test_over_threshold_picks_the_lowest_5h_of_the_better_accounts(self):
+    def test_over_threshold_weekly_rank_wins_over_lower_5h(self):
+        now = int(time.time())
         self.usage_file(1, 95, 80)
-        self.usage_file(2, 30, 10)
-        self.usage_file(3, 20, 20)
+        self.usage_file(2, 30, 50, r7=str(now + 25 * 3600))  # 50% left in 25 h: 2.0/h
+        self.usage_file(3, 20, 0, r7=str(now + 100 * 3600))  # 100% left in 100 h: 1.0/h, lower 5h
         self.pane("dev-1", "p1", "w1", "1")
         self.auto("--dry-run")
-        self.assertIn("[dry-run] would set w1 default to c3: c1 5h 95% 7d 80%; c3 5h 20% 7d 20%", self.log())
+        self.assertRegex(self.log(), r"would set w1 default to c2 \(weekly rank, score 2\.0\d/h\): c1 5h 95% 7d 80%; c2 5h 30% 7d 50%")
+
+    def test_over_threshold_falls_back_to_5h_order_when_weekly_top_is_busy(self):
+        now = int(time.time())
+        self.usage_file(1, 95, 80)
+        self.usage_file(2, 70, 10, r7=str(now + 10 * 3600))  # weekly top, but 5h >= 60
+        self.usage_file(3, 80, 10, r7=0)  # no reset time: step 4 only
+        self.pane("dev-1", "p1", "w1", "1")
+        self.auto("--dry-run")
+        self.assertIn("would set w1 default to c2 (5h order): c1 5h 95% 7d 80%; c2 5h 70% 7d 10%", self.log())
 
     def test_at_threshold_counts_as_over(self):
         self.usage_file(1, 90, 80)
@@ -315,13 +325,46 @@ class AutoswitchTest(Base):
         self.auto("--dry-run")
         self.assertIn("would set w1 default to c2", self.log())
 
-    def test_other_account_must_be_lower_on_both_windows(self):
+    def test_pick_next_rules(self):
+        with mock.patch.dict(os.environ, self.e.env):
+            pick = self.module().pick_next
+        now, h = 1_000_000.0, 3600
+        r = lambda hrs: now + hrs * h
+        # step 1: 7d 95 is in the ranking, 95.1 is not; step 4 still takes the 95.1 account when 5h is the lowest
+        self.assertEqual(pick(99, {"2": (10, 95, r(10)), "3": (5, 95.1, r(1))}, now)[0], "2")
+        self.assertEqual(pick(99, {"3": (5, 95.1, r(1)), "2": (10, 100, r(1))}, now), ("3", "5h order"))
+        # reset in the past counts as 1 h; unknown reset has no score
+        self.assertEqual(pick(99, {"2": (10, 50, now - 5 * h), "3": (10, 0, None)}, now), ("2", "weekly rank, score 50.00/h"))
+        self.assertEqual(pick(99, {"2": (40, 0, None), "3": (30, 90, None)}, now), ("3", "5h order"))
+        # step 3 is 5h < 60 (59.9 yes, 60 no); step 4 works when every 5h is above 60
+        self.assertEqual(pick(99, {"2": (59.9, 10, r(10))}, now)[0], "2")
+        self.assertEqual(pick(99, {"2": (60, 10, r(10)), "3": (80, 10, r(1))}, now), ("2", "5h order"))
+        # guard: the weekly top is not replaced by the 2nd in step 3; step 4 only takes a lower 5h; none lower: stay
+        self.assertEqual(pick(50, {"2": (55, 0, r(1)), "3": (20, 50, r(10))}, now), ("3", "5h order"))
+        self.assertIsNone(pick(50, {"2": (55, 0, r(1)), "3": (50, 10, r(1))}, now)[0])
+        # step 4 skips locked accounts and accounts without usage
+        self.assertIsNone(pick(99, {"2": (10, 100, r(1)), "3": None}, now)[0])
+        # ties: lower 5h, then lower account number
+        self.assertEqual(pick(99, {"3": (20, 50, r(10)), "2": (30, 50, r(10))}, now)[0], "3")
+        self.assertEqual(pick(99, {"3": (20, 50, r(10)), "2": (20, 50, r(10))}, now)[0], "2")
+
+    def test_usage_returns_week_reset_from_cache(self):
+        self.usage_file(2, 10, 20, r7="1794300000")
+        self.usage_file(3, 10, 20, r7="0")
+        with mock.patch.dict(os.environ, self.e.env):
+            m = self.module()
+        self.assertEqual(m.usage("2"), (10.0, 20.0, 1794300000.0))
+        self.assertEqual(m.usage("3"), (10.0, 20.0, None))
+        self.assertIsNone(m.iso_epoch(None))
+        self.assertEqual(m.iso_epoch("2026-11-10T00:00:00Z"), 1794268800.0)
+
+    def test_over_threshold_stays_when_no_other_5h_is_lower(self):
         self.usage_file(1, 95, 10)
-        self.usage_file(2, 20, 50)  # lower 5h, higher 7d
-        self.usage_file(3, 99, 5)  # lower 7d, higher 5h
+        self.usage_file(2, 96, 5)
+        self.usage_file(3, 99, 5)
         self.pane("dev-1", "p1", "w1", "1")
         self.auto("--dry-run")
-        self.assertIn("w1 c1 over 90% but no other account is lower on both; staying", self.log())
+        self.assertIn("w1 c1 over 90% but no other account has a lower 5h and a 7d under 100%; staying", self.log())
         self.assertNotIn("would set", self.log())
 
     def test_threshold_option(self):

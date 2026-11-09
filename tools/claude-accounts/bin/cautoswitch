@@ -3,7 +3,7 @@
 
 Every interval, for each herdr workspace that has a squad agent (a Claude pane whose
 process carries SQUAD_NAME): when its default account's 5-hour usage reaches the
-threshold and another account is lower on both 5h and 7d, make that account the
+threshold and another account ranks better (weekly score, else lowest 5h; see pick_next), make that account the
 workspace's default (never the global one), then cswitch every squad agent of the
 workspace that runs off its default, one after the other. It waits SHORT_WAIT for each
 pane's result and moves on (at most MAX_INFLIGHT switches run at once); a pane whose cswitch
@@ -17,6 +17,8 @@ from pathlib import Path
 
 H = os.path.expanduser("~/.claude-accounts")
 CFG = {"1": os.path.expanduser("~/.claude"), "2": os.path.expanduser("~/.claude-2"), "3": os.path.expanduser("~/.claude-3")}
+WEEK_OK = 95  # an account with 7d above this is out of the weekly ranking
+FIVE_OK = 60  # the top of the weekly ranking is taken only when its 5h is under this
 CACHE_MAX_AGE = 900  # status-line cache older than this is too stale to act on
 if os.name == "nt":  # Git Bash: no /proc, no pgrep, no exec of extensionless scripts; caproc.py stands in
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -86,8 +88,35 @@ def refresh_token(acct):
         log(f"c{acct} token still expired after claude -p (rc={rc})")
 
 
+def iso_epoch(s):
+    """Epoch seconds of an ISO-8601 time, None when missing or unreadable."""
+    try:
+        return datetime.datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+    except (AttributeError, ValueError):
+        return None
+
+
+def pick_next(cur5, others, now):
+    """The next account for a workspace whose default is at 5h `cur5`. `others`: {acct: (5h, 7d, week reset epoch or None)}.
+    Returns (acct, reason) or (None, why). Weekly rank first (7d <= WEEK_OK, reset known): score (100-7d)/hours to reset,
+    highest first; its top is taken when its 5h < FIVE_OK. Else the lowest 5h of all (7d < 100). Never an account whose
+    5h is not lower than cur5."""
+    live = {a: u for a, u in others.items() if u}
+    score = {a: (100 - u[1]) / max(1.0, (u[2] - now) / 3600) for a, u in live.items() if u[1] <= WEEK_OK and u[2]}
+    if score:
+        top = min(score, key=lambda a: (-score[a], live[a][0], a))  # ties: lower 5h, then lower account number
+        if live[top][0] < FIVE_OK and live[top][0] < cur5:
+            return top, f"weekly rank, score {score[top]:.2f}/h"
+    ok = {a: u for a, u in live.items() if u[0] < cur5}
+    free = {a: u for a, u in ok.items() if u[1] < 100}
+    if free:
+        a = min(free, key=lambda a: (free[a][0], a))
+        return a, "5h order"
+    return None, "no other account has a lower 5h and a 7d under 100%"
+
+
 def usage(acct):
-    """(five_pct, week_pct) from the live usage endpoint, else a fresh cache, else None."""
+    """(five_pct, week_pct, week_reset_epoch or None) from the live usage endpoint, else a fresh cache, else None."""
     try:
         c = read_creds(acct)
         if c.get("expiresAt", 0) / 1000 <= time.time() + 60:
@@ -97,13 +126,13 @@ def usage(acct):
             req = urllib.request.Request("https://api.anthropic.com/api/oauth/usage", headers={
                 "Authorization": "Bearer " + c["accessToken"], "anthropic-beta": "oauth-2025-04-20"})
             d = json.loads(urllib.request.urlopen(req, timeout=8).read())
-            return d["five_hour"]["utilization"], d["seven_day"]["utilization"]
+            return d["five_hour"]["utilization"], d["seven_day"]["utilization"], iso_epoch(d["seven_day"].get("resets_at"))
     except Exception:
         pass
     try:
-        f5, _, f7, _, at = open(f"{H}/usage-{acct}").read().split()
+        f5, _, f7, r7, at = open(f"{H}/usage-{acct}").read().split()
         if time.time() - float(at) < CACHE_MAX_AGE:
-            return float(f5), float(f7)
+            return float(f5), float(f7), float(r7) or None  # r7 is 0 when idle
     except (OSError, ValueError):
         pass
     return None
@@ -316,13 +345,12 @@ def tick(threshold, dry):
         status.append(f"{ws} -> c{t} {fmt(ut)}")
         if ut is None or ut[0] < threshold:
             continue
-        better = {o: use(o) for o in CFG if o != t}
-        better = {o: u for o, u in better.items() if u and u[0] < ut[0] and u[1] < ut[1]}
-        if not better:
-            log(f"{ws} c{t} over {threshold}% but no other account is lower on both; staying. c{t} {fmt(ut)}")
+        others = {o: use(o) for o in CFG if o != t}
+        other, why = pick_next(ut[0], others, time.time())
+        if other is None:
+            log(f"{ws} c{t} over {threshold}% but {why}; staying. c{t} {fmt(ut)}")
             continue
-        other = min(better, key=lambda o: better[o][0])
-        log(f"{'[dry-run] would set' if dry else 'setting'} {ws} default to c{other}: c{t} {fmt(ut)}; c{other} {fmt(better[other])}")
+        log(f"{'[dry-run] would set' if dry else 'setting'} {ws} default to c{other} ({why}): c{t} {fmt(ut)}; c{other} {fmt(others[other])}")
         if not dry:
             run_bin("cdefault", "--ws", ws, other, check=True)
             target[ws] = other
