@@ -1,5 +1,5 @@
 
-sha: e0eacd0
+sha: 85f7829
 ## Behaviour
 Docs and one version string only. Base: 11 passed sha ec5ebc0.
 
@@ -75,3 +75,43 @@ Follow-ups (not blocking, wording only)
 - T7 no "Chieu" in CONTEXT.md / ADR 0023-0025.
 - EVID-2c: `squad-evidence check .scratch/fable-advisor/issues/12-promotion --base e0eacd0` rc 0 (evidence is in e0eacd0; accept again if later commits are evidence-only).
 Verdict: PASS (Tech Lead). QAs give their own.
+
+## qa-b 12
+
+### QA blackbox 12 (suite fix), sha 85f7829 (light check, LC-21)
+Diff vs fb6fb1a: bin/squadmergecheck.py (1 line), tests/test_instructions.py, tests/test_utf8_helpers.py, evidence.md. No other bin/ change.
+
+| Check | Mode | What I did | Saw | Result |
+|---|---|---|---|---|
+| AC1 test_windows_safe | live | `cd tests; PYTHONPATH=. python3 -m unittest test_windows_safe` in the dev worktree | 14 tests OK | pass |
+| AC2 test_utf8_helpers | live | same, `test_utf8_helpers` | 14 tests OK | pass |
+| AC3 test_instructions | live | same, `test_instructions` | 16 tests OK | pass |
+| squad-merge-check --help | live | ran at 85f7829 and at fb6fb1a (git archive) | rc 0, output identical | pass |
+| squad-spawn token-coach token-coach-x --scope fable-advisor --prompt hello --dry-run | live | ran at both shas | rc 0 both; stderr identical (empty); stdout identical except the random session UUID | pass |
+
+No behaviour change seen. Dry run left no files in the scope.
+
+## qa-w 12
+
+### QA whitebox: 12 promotion, sha e0eacd0 (base ec5ebc0)
+Verdict: PASS. Checked in a detached worktree, read-only.
+
+- T1 `grep -rn "<fill>" CONTEXT.md docs/adr README.md skills/squad-process-update/changelog.md`: 0 hits.
+- T2 figures re-measured on the tip: `grep -n "^phase:" templates/squad/process/*.md` = 8 (MRG-2..5, CLOSE-2/4/5, ITER-6c) as ADR 0023 says; LIMIT 5440; composing manager and tech-lead with this scope's team (tech-lead, qa-white, qa-black, qa full) gives manager 566 lines 47048 B index 20, tech-lead 277 lines index 24: matches ADR 0023.
+- T3 `"version": "0.8.0"` (the only change in plugin.json); `grep -rIn '0\.7\.7'` (excluding .git .worktrees .scratch __pycache__) prints nothing; changelog `## v12 — 2026-11-11`, first line "Plugin 0.8.0."
+- T4 `git diff ec5ebc0..HEAD --name-only` has no bin/, templates/ or tests/ path; only CONTEXT.md, docs/adr/0023-0025, README.md, changelog, plugin.json and the 11/12 ticket and evidence files.
+- T5 `--help` of squad-merge-check and squad-review-pack match the README usage; squad-task-prompt usage (its error line) matches; squad-evidence has path/add/check/checks as the README says.
+- T6 `squad-process lint --plugin-root .` exit 0. Tests (grep hits): old_language_inventory 2, processlint 31, promotion_0_6_0 3, squad_respawn 21, squadruntime 68, squad_start 49, squadupgrade 29: OK. squad_spawn 106: 1 failure, the known pre-existing `test_a_failed_agent_start_leaves_the_old_overrides_file`.
+- T7 `grep -n Chieu CONTEXT.md docs/adr/002[345]*`: nothing. ADRs have the title, Status: accepted, Context, Decision, Consequences.
+
+Follow-ups (not blocking, wording only)
+- README.md `bin/squad-close` row: "none is deleted It prints the close-phase rules" has no full stop; `bin/squad-process` row: "drives it `phase <name>`..." has no separator.
+- CONTEXT.md "Passed" says "the watchdog and the board read..."; the Dashboard entry says avoid "board" (0009). Say "dashboard".
+- 12 evidence `## Review` stat lists 7 of 9 files (the 0024 ADR line is missing).
+### 12 (return) QA whitebox, sha 85f7829: PASS
+Diff checked: bin/squadmergecheck.py (1 line), tests/test_instructions.py, tests/test_utf8_helpers.py (+ evidence.md line). Rerun in a clean detached worktree (removed): test_windows_safe 14 OK, test_utf8_helpers 14 OK, test_instructions 16 OK, test_squad_close 79 OK, test_squad_merge_check 9 OK, test_small_files_equivalence 2 OK, test_squad_spawn 106 with 1 failure = the known main failure (old_overrides_file).
+- AC1: `encoding="utf-8"` added at squadmergecheck.py:226. Met.
+- AC2: rule text and squad-spawn unchanged. Test allows ITER-6c on stderr for token-coach non-dry only, and still asserts returncode 0. Met.
+- AC3: the `--goal` token is no longer asserted on the Manager text; the test now asserts it in closing.md (line 44). `squad-close <squad> --scope` stays in the attached-text check, so "closes through squad-close" is still proved. Met.
+#### Follow-ups (not findings)
+- AC2 read literally says "match squad-close/squad-merge-check if they print to stdout". They do (squad-close:196, squadmergecheck.py:243). The Developer kept stderr because squad-spawn's stdout is one JSON line. That is the sound choice and the AC's "else" branch is the allowed fallback; Chieu may want the ticket wording to say so.
