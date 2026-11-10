@@ -30,7 +30,7 @@ Options:
   --prompt TEXT    First message to send once the session is ready
   --model M        Model override (default: scope.md "model <role>: <model> <effort>", else settings/<role>.json "model", else Claude's default)
   --effort E       Effort override (low|medium|high|xhigh|max; default: scope.md line, else settings/<role>.json "effortLevel")
-  --task NN        dev only: claim ticket NN for this Developer once it is up (squad-task claim, so the board shows
+  --task NN        builds the first prompt from the ticket (dev and checkers); a dev also claims ticket NN for this Developer once it is up (squad-task claim, so the board shows
                    it `in progress`). Also read from env SQUAD_SPAWN_TASK. A claim problem warns, never fails the spawn.
                    Another role: warning, ignored. No claim with --worktree (a respawn).
   --dry-run        Print what would run, start nothing
@@ -90,11 +90,11 @@ case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-c
   *) echo "unknown role: $role" >&2; exit 2 ;; esac
 # A Team Lead respawning itself (squad-respawn) is team-lead under its own name; nothing else passes.
 [[ ${SQUAD_ROLE:-} != team-lead || $role == dev || ( $role == team-lead && $name == "${SQUAD_NAME:-}" ) ]] || { echo "a Team Lead may only spawn dev" >&2; exit 2; }
-[[ $role == manager || -n $prompt ]] || echo "warning: $role $name spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)" >&2
+[[ $role == manager || -n $prompt || -n ${task:-${SQUAD_SPAWN_TASK:-}} ]] || echo "warning: $role $name spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)" >&2
 [[ -z $base || -n $repo ]] || { echo "--base needs --repo" >&2; exit 2; }
 task=${task:-${SQUAD_SPAWN_TASK:-}}
 [[ -z $task || $task =~ ^[0-9]+$ ]] || { echo "bad --task value: $task (a ticket number, digits only)" >&2; exit 2; }
-if [[ -n $task && $role != dev ]]; then echo "warning: --task ignored, only a dev claims a ticket (role $role)" >&2; task=""; fi
+[[ -z $task || $role == dev || $role == qa-whitebox || $role == qa-blackbox ]] || { echo "warning: --task ignored for role $role (a dev claims it; a checker gets the prompt)" >&2; task=""; }
 for v in "$model" "$effort"; do
   [[ -z $v || $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad --model/--effort value: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }
 done
@@ -186,6 +186,16 @@ if [[ -d $squad_dir/scopes ]]; then
       goal_dir=$squad_dir/goals/$in_goal
       [[ -d $goal_dir ]] || { echo "scope $scope names goal $in_goal, but $goal_dir does not exist" >&2; exit 1; }
     fi
+  fi
+fi
+
+# --task builds the first prompt from the ticket, scope.md and roster.md (squad-task-prompt). It refuses before any
+# worktree, label or herdr call; --prompt text comes after the built part.
+if [[ -n $task ]]; then
+  if [[ -z $scope_dir ]]; then echo "warning: --task builds no prompt outside a scope" >&2
+  else
+    built=$("$plugin_root/bin/squad-task-prompt" "$task" --role "$role" --name "$name" --scope-home "$scope_dir" --repo-root "$project_dir") || exit 2
+    prompt="$built${prompt:+ $prompt}"
   fi
 fi
 
@@ -481,6 +491,7 @@ if [[ $dry == 1 ]]; then
   echo "would run: herdr tab create --cwd $cwd --label $label --no-focus ${ws_args[*]} ${env_args[*]}"
   echo "would run: squad-usage --squad-dir $home --set-session $name $session --role $role --scope $scope"
   echo "would run: herdr agent start $name --kind claude --pane <pane> -- ${claude_args[*]}"
+  [[ -z $task ]] || echo "would run: herdr agent prompt $name ${prompt%% Your process rules*}"
   [[ -z $task || -z $claim_branch ]] || echo "would run: squad-task claim $task --scope-home $home --owner $name${claim_branch:+ --branch $claim_branch}"
   exit 0
 fi
@@ -542,3 +553,8 @@ fi
 
 jq -n --arg name "$name" --arg role "$role" --arg scope "$scope" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" --arg session "$session" \
   '{name:$name, role:$role, scope:$scope, tab:$tab, pane:$pane, cwd:$cwd, session:$session, status:"ready"}'
+
+# After a Token Coach spawn: print the coach-phase rules (ITER-6c) on stderr; stdout stays the one JSON line.
+if [[ $role == token-coach ]]; then
+  python3 "$plugin_root/bin/squad-process" phase coach --home "$home" >&2 || true
+fi

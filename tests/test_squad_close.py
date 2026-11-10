@@ -121,6 +121,7 @@ class CloseTest(unittest.TestCase):
         before = (self.squad / "roster.md").read_text(encoding="utf-8")
         r = self.close("--scope", "x", "--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("## CLOSE-2", r.stdout)  # 10: the close-phase rules print first
         self.assertEqual((self.squad / "roster.md").read_text(encoding="utf-8"), before)
         self.assertTrue(self.wts["t-dev-x-1"].exists())
 

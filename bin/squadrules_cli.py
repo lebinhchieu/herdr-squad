@@ -4,6 +4,7 @@
   squad-process compose <role> --home D [--agent A] [--out F] [--plugin-root R] [--squad-dir D] [--now ISO]
   squad-process rule <ID> [--squad-dir D] [--plugin-root R]
   squad-process who <ID> [--squad-dir D] [--plugin-root R]
+  squad-process phase <merge|close|coach> --home D [--role R] [--plugin-root R] [--squad-dir D]
   squad-process team --home D [--has ROLE]
 """
 import argparse
@@ -83,6 +84,34 @@ def cmd_compose(a):
     return 0
 
 
+def _runtime_root(a, info):
+    """The plugin root compose uses for this home: the pinned runtime or the running plugin."""
+    root, pin = a.plugin_root, info["pin"]
+    if pin is not None and root is None and pin[0] != sc.running_version():
+        raise sc.ComposeError(
+            f"pin is plugin {pin[0]} but the running plugin is {sc.running_version()}; "
+            "pass --plugin-root <that version's plugin folder>")
+    return root or sc.DEFAULT_ROOT
+
+
+def cmd_phase(a):
+    """Print the rules of one phase (merge, close, coach) for a role (default manager) and the home's facts."""
+    try:
+        if a.phase not in sr.PHASES:
+            raise sc.ComposeError(f"phase: unknown phase {a.phase!r} (one of {', '.join(sr.PHASES)})")
+        if a.role not in sr.ROLES:
+            raise sc.ComposeError(f"phase: unknown role {a.role!r} (one of {', '.join(sr.ROLES)})")
+        info = sc.read_home(a.home)
+        if info["team_source"] == "old":
+            raise sc.old_format_error(a.home)
+        rules, _n = sc.load_rules(_runtime_root(a, info), _overlay(a))
+        got = sc.phase_rules(rules, a.role, info["facts"], a.phase)
+    except sc.ComposeError as e:
+        return _fail(e)
+    print("\n".join(f"## {e.id} {e.title}\n{e.body}\n" for e in got), end="")
+    return 0
+
+
 def cmd_rule(a):
     try:
         print(sc.rule_text(sc.find_rule(a.plugin_root or sc.DEFAULT_ROOT, _overlay(a), a.id)), end="")
@@ -143,6 +172,10 @@ def main(argv=None):
     cp.add_argument("--agent")
     cp.add_argument("--out")
     cp.add_argument("--now")
+    pp = sub.add_parser("phase", help="print the rules that belong to one phase: merge, close or coach")
+    pp.add_argument("phase")
+    pp.add_argument("--home", required=True)
+    pp.add_argument("--role", default="manager")
     tp = sub.add_parser("team", help="print the scope's team; --has ROLE exits 0/1")
     tp.add_argument("--home", required=True)
     tp.add_argument("--has", metavar="ROLE")
@@ -151,11 +184,11 @@ def main(argv=None):
                                "keys in its when: (ba, team-lead, tech-lead, qa-white, qa-black, plan-owner, ...)")):
         p = sub.add_parser(name, help=text, description=text)
         p.add_argument("id")
-    for p in (cp, sub.choices["rule"], sub.choices["who"]):
+    for p in (cp, pp, sub.choices["rule"], sub.choices["who"]):
         p.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
         p.add_argument("--plugin-root", default=None)
     a = ap.parse_args(argv)
-    return {"lint": cmd_lint, "compose": cmd_compose, "rule": cmd_rule, "who": cmd_who, "team": cmd_team}[a.cmd](a)
+    return {"lint": cmd_lint, "compose": cmd_compose, "phase": cmd_phase, "rule": cmd_rule, "who": cmd_who, "team": cmd_team}[a.cmd](a)
 
 
 if __name__ == "__main__":

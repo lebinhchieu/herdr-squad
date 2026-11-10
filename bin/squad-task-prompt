@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""squad-task-prompt: the first prompt of a role for ticket NN (used by `squad-spawn --task`).
+
+  squad-task-prompt NN --role ROLE --name AGENT --scope-home DIR [--repo-root DIR]
+
+Prints the prompt on stdout. Exit 0 ok, 2 with a one-line message on stderr when the ticket, its Duties:/Files:
+lines or a roster row is missing. Read-only.
+"""
+import os
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
+
+
+def main(argv=None):
+    squadio.utf8_stdio()
+    argv = list(sys.argv[1:] if argv is None else argv)
+    import squadtaskprompt
+    return squadtaskprompt.run(argv)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

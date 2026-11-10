@@ -8,27 +8,32 @@ topic: merge
 - Do not offer to merge in place of asking the PO: name the branch or sha (checked) and let them say so.
 - Take each task's passed sha and checkers from `iterations/<n>.summary.md` or the task files, never from messages.
 - Merge only what the PO names, into the branch checked out in the project root; never switch branches.
+- Run `squad-merge-check <branch>` first; it prints the merge rules.
 
 ## MRG-2 Before the merge
 roles: manager
 topic: merge
+phase: merge
 
 Check the target as in [GOAL-7] and that both checkers passed the sha, or the evidence sha after it (a later sha whose diff to the passed sha touches only a ticket's `<stem>/evidence.md` and `img/`, as `squad-evidence check --base` shows). Refuse, with the reason, if the project root has uncommitted changes or the sha is neither. Use `git merge --no-ff`.
 
 ## MRG-3 Conflict or failure
 roles: manager
 topic: merge
+phase: merge
 
 `git merge --abort`, then tell the PO the files in conflict. The Manager never resolves a conflict and never uses `--force`, `rebase`, `reset --hard` or `push`.
 
 ## MRG-4 After the merge
 roles: manager
 topic: merge
+phase: merge
 
 Quote `git log --oneline -1` and the result to the PO; note it in the iteration file. The hook records `merged`; for a ticket it did not record, run `squad-task merged NN`.
 
 ## MRG-5 Untracked files before the merge
 roles: manager
 topic: merge
+phase: merge
 
 Before a merge, run `git status --porcelain --untracked-files=all` in the project root and tell the PO about every untracked file outside `.claude/squads/` (a draft that was written there, [FILE-11]); `squad-close --scope` prints the same list.

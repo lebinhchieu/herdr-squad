@@ -506,6 +506,16 @@ def scoped_squad(root, goal_of_sc2="g1", team=ALL_ROLES_TEAM):
     return squad
 
 
+def add_task_fixtures(scope, nns, duties="design-notes=dev, tech-ac=qa-white", files="`bin/squad-spawn`"):
+    """Tickets `tasks/NN-t.md` with the Duties:/Files: lines, and the manager and both QA rows `--task` needs."""
+    (scope / "tasks").mkdir(exist_ok=True)
+    for nn in nns:
+        (scope / "tasks" / f"{nn}-t.md").write_text(f"# {nn}: t\nStatus: ready-for-agent\nDuties: {duties}\nFiles: {files}\n", encoding="utf-8")
+    with (scope / "roster.md").open("a", encoding="utf-8") as fh:
+        fh.write("| t-mgr | manager | sc1 |  | live | s1 |\n| t-qaw | qa-whitebox | sc1 |  | live | s2 |\n"
+                 "| t-qab | qa-blackbox | sc1 |  | live | s3 |\n")
+
+
 class SpawnScopedTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -675,6 +685,90 @@ class SpawnScopedTest(unittest.TestCase):
         self.assertNotIn("t-tech-sc1", (self.squad / "scopes" / "sc2" / "roster.md").read_text(encoding="utf-8"))
 
 
+class SpawnTaskPromptTest(unittest.TestCase):
+    """`--task NN` builds the first prompt (ticket 06): HANDIN target by team, refusals before any side effect."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        fake_herdr(self.bin)
+        self.log = self.root / "h.log"
+
+    def scope(self, team, ticket_lines="Duties: tech-ac=qa-white\nFiles: `bin/x`\n", rows=""):
+        shutil.rmtree(self.root / ".claude", ignore_errors=True)
+        squad = scoped_squad(self.root, team=team)
+        self.squad = squad
+        sc = squad / "scopes" / "sc1"
+        add_task_fixtures(sc, ())
+        (sc / "tasks").mkdir(exist_ok=True)
+        (sc / "tasks" / "07-t.md").write_text(f"# 07: t\nStatus: ready-for-agent\n{ticket_lines}", encoding="utf-8")
+        with (sc / "roster.md").open("a", encoding="utf-8") as fh:
+            fh.write(rows)
+        self.env = clean_env()
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(squad), HERDR_LOG=str(self.log), PATH=f"{self.bin}:{os.environ['PATH']}")
+        return sc
+
+    def spawn(self, *args, role="dev", dry=True):
+        return winlaunch.run_script(SCRIPT, [role, "t-dev-sc1-1", "--scope", "sc1", *args, *(["--dry-run"] if dry else [])],
+                                    env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=30)
+
+    def prompt_of(self, r):
+        self.assertEqual(r.returncode, 0, r.stderr)
+        (line,) = [l for l in r.stdout.splitlines() if l.startswith("would run: herdr agent prompt")]
+        return line
+
+    def test_a_qa_team_hands_in_to_both_qas(self):  # AC1, AC2
+        self.scope("qa-white, qa-black")
+        p = self.prompt_of(self.spawn("--task", "07", "--prompt", "EXTRA"))
+        self.assertIn("HANDIN to t-qaw and t-qab", p)
+        self.assertIn("Ticket 07 of scope sc1", p)
+        self.assertTrue(p.endswith(" EXTRA"), p)  # --prompt text comes after the built part
+
+    def test_a_no_qa_team_hands_in_to_the_team_lead_else_the_manager(self):  # AC2
+        self.scope("team-lead", rows="| t-tl | team-lead | sc1 |  | live | s4 |\n")
+        self.assertIn("HANDIN to t-tl.", self.prompt_of(self.spawn("--task", "07", "--prompt", "x")))
+        self.scope("none")
+        self.assertIn("HANDIN to t-mgr.", self.prompt_of(self.spawn("--task", "07", "--prompt", "x")))
+
+    def refused(self, *args, msg):
+        r = self.spawn(*args, dry=False)
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn(msg, r.stderr)
+        self.assertFalse(self.log.exists() and self.log.read_text(encoding="utf-8").strip(), "herdr was called")
+        self.assertFalse((self.root / ".worktrees").exists())
+
+    def test_a_ticket_with_a_missing_field_or_roster_row_stops_the_spawn(self):  # AC3, T1
+        self.scope("qa-white, qa-black", ticket_lines="Files: x\n")
+        self.refused("--task", "07", msg="no Duties: line")
+        self.scope("qa-white, qa-black", ticket_lines="Duties: a=b\n")
+        self.refused("--task", "07", msg="no Files: line")
+        self.refused("--task", "99", msg="no ticket file for task 99")
+        self.refused("--task", "../x", msg="bad --task value")
+        self.scope("team-lead")  # a Team Lead on the team but no roster row
+        self.refused("--task", "07", msg="no team-lead row")
+        self.assertEqual(self.spawn("--task", "07", "--dry-run", dry=False).returncode, 2)
+
+    def test_ticket_lines_are_quoted_data_and_nothing_runs(self):  # T4
+        evil = "`a` \"q\" $(touch pwned) ; touch pwned2 \\n"
+        self.scope("qa-white, qa-black", ticket_lines=f"Duties: x\nFiles: {evil}\n")
+        p = self.prompt_of(self.spawn("--task", "07"))
+        self.assertIn(json.dumps(evil.strip()), p)
+        self.assertFalse(list(self.root.rglob("pwned*")))
+
+    def test_a_checker_gets_a_prompt_and_claims_nothing(self):  # T6
+        self.scope("qa-white, qa-black")
+        r = self.spawn("--task", "07", role="qa-whitebox")
+        p = self.prompt_of(r)
+        self.assertIn("the Developer who owns the ticket", p)
+        self.assertNotIn("warning", r.stderr.replace("legacy squad", ""))
+        self.assertNotIn("squad-task claim", r.stdout)
+        self.scope("qa-white, qa-black", rows="| t-dev-z | dev | sc1 | ticket 07 | live | s9 |\n")
+        self.assertIn("when t-dev-z sends HANDIN", self.prompt_of(self.spawn("--task", "07", role="qa-blackbox")))
+
+
 class SpawnTaskClaimTest(unittest.TestCase):
     """`--task NN` (dev only): a claim event once the pane is up (design 5.2). Warns, never fails the spawn."""
 
@@ -694,6 +788,7 @@ class SpawnTaskClaimTest(unittest.TestCase):
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
         fake_herdr(bin_dir)
+        add_task_fixtures(self.squad / "scopes" / "sc1", ("03", "04"))  # --task now builds a prompt: it needs a ticket and roster
         self.env = clean_env()
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.root / "h.log"),
                         PATH=f"{bin_dir}:{os.environ['PATH']}")
@@ -715,8 +810,8 @@ class SpawnTaskClaimTest(unittest.TestCase):
 
     def test_claim_with_an_open_blocker_is_recorded_with_w1_and_never_refused(self):  # AC8
         drafts = self.squad / "scopes" / "sc1" / "tasks"
-        drafts.mkdir()
-        (drafts / "ticket-03-x.md").write_text("# 03\n\nStatus: ready-for-agent\nBlocked by: 02\n", encoding="utf-8")
+        drafts.mkdir(exist_ok=True)
+        (drafts / "03-t.md").write_text("# 03\n\nStatus: ready-for-agent\nBlocked by: 02\nDuties: tech-ac=qa-white\nFiles: x\n", encoding="utf-8")
         r = self.spawn("--repo", str(self.repo), "--task", "03")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)["status"], "ready")
@@ -743,6 +838,14 @@ class SpawnTaskClaimTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("--task ignored", r.stderr)
         self.assertNotIn("squad-task claim", r.stdout)
+
+    def test_a_token_coach_spawn_prints_the_coach_rules_and_other_roles_do_not(self):  # 10 T5
+        r = self.spawn("--prompt", "go", role="token-coach", name="t-coach-sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["status"], "ready")  # stdout stays the one JSON line
+        self.assertIn("## ITER-6c", r.stderr)
+        r = self.spawn("--prompt", "go", role="tech-lead", name="t-tech-sc1")
+        self.assertNotIn("ITER-6c", r.stderr + r.stdout)
 
     def test_a_bad_task_value_is_refused_and_a_claim_failure_never_fails_the_spawn(self):  # T1
         self.assertEqual(self.spawn("--task", "x3", "--dry-run").returncode, 2)

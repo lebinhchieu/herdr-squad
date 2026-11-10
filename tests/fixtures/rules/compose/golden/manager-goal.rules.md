@@ -17,9 +17,5 @@ The Manager sends the Tech Lead every answer to a status question.
 The Manager sends the Team Lead every answer to a status question.
 
 ## Index of other rules
-- MSG-3 Manager relays design questions (manager)
-- REV-3 One verdict per final sha (qa-whitebox, qa-blackbox)
-- REV-7a Tech Lead reviews alone (tech-lead)
-- REV-7b Both QAs review (qa-whitebox, qa-blackbox)
-- REV-8 Screenshot per design state (dev)
-- SQ-1 Style contract (tech-lead)
+Text: `squad-process rule <ID>`; roles: `squad-process who <ID>`
+MSG-3 REV-3 REV-7a REV-7b REV-8 SQ-1

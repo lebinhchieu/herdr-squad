@@ -56,7 +56,7 @@ class NoLeakTest(unittest.TestCase):
 
     def test_with_the_flag_the_index_lists_the_architecture_rules_not_chosen(self):
         idx = composed("manager", "L", architecture="yes").split("## Index of other rules")[1]
-        self.assertIn("- SIZE-9a Architecture (architect)", idx)
+        self.assertIn("SIZE-9a", idx.split())
 
     def test_the_flag_only_adds_rules(self):
         for role in ALL_ROLES:

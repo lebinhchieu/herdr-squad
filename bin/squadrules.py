@@ -57,7 +57,8 @@ WHEN_KEYS = {"design": ("yes", "no"), "architecture": ("yes", "no"), "qa": ("ful
 # A `when:` that uses a key of the team language holds at most one PRIMARY key; the rest are EXTRA (orthogonal).
 PRIMARY_KEYS = frozenset(DUTIES) | {"ba", "team-lead", "tech-lead", "qa-white"}
 EXTRA_KEYS = frozenset({"goal", "qa", "design", "architecture", "qa-black"})
-PLUGIN_ATTRS = ("roles", "aware", "when", "topic")
+PLUGIN_ATTRS = ("roles", "aware", "when", "topic", "phase")
+PHASES = ("merge", "close", "coach")
 OVERLAY_ATTRS = PLUGIN_ATTRS + ("why", "upstream")
 UPSTREAM = ("proposed", "local-only", "rejected")
 CORE_MAX_LINES = 40
@@ -73,8 +74,9 @@ _CITE = re.compile(rf"\[({_ID})\]")
 
 
 class Rule:
-    def __init__(self, id, title, roles, aware, when, topic, body, file, line, attr_text, body_line=0):
+    def __init__(self, id, title, roles, aware, when, topic, body, file, line, attr_text, body_line=0, phase=""):
         self.id, self.title, self.roles, self.aware, self.when, self.topic = id, title, roles, aware, when, topic
+        self.phase = phase
         self.body, self.file, self.line, self.attr_text, self.body_line = body, file, line, attr_text, body_line
 
     @property
@@ -317,10 +319,10 @@ def parse_rule_file(text, relpath, problems):
                 order.append(key)
                 vals[key] = value
         if order != [k for k in PLUGIN_ATTRS if k in seen]:
-            problems.append(f"{relpath}:{n}: attribute lines out of order (expected roles, aware, when, topic)")
+            problems.append(f"{relpath}:{n}: attribute lines out of order (expected roles, aware, when, topic, phase)")
         rules.append(Rule(m.group(1), m.group(2).strip(), _roles(vals.get("roles", "")), _roles(vals.get("aware", "")),
                           vals.get("when", ""), vals.get("topic", ""), body, relpath, n,
-                          "\n".join(a[3] for a in attrs), body_line))
+                          "\n".join(a[3] for a in attrs), body_line, vals.get("phase", "")))
     return rules
 
 
@@ -437,6 +439,8 @@ def _check_attrs(vals, rel, n, out, need, rid=None):
                 out.append(f"{rel}:{n}: {rid + ': ' if rid else ''}{e}")
     if vals.get("topic") and not _TOPIC.match(vals["topic"]):
         out.append(f"{rel}:{n}: topic {vals['topic']!r} is not [a-z][a-z0-9-]*")
+    if vals.get("phase") and vals["phase"] not in PHASES:
+        out.append(f"{rel}:{n}: phase {vals['phase']!r} is not one of {', '.join(PHASES)}")
 
 
 def _structure(rules, tombs, out):
@@ -455,7 +459,7 @@ def _structure(rules, tombs, out):
                 out.append(f"{t.file}:{t.line}: replaced_by names missing ID {rb}")
     for r in rules:
         raw = {k: v for k, v in (("roles", ", ".join(r.roles)), ("aware", ", ".join(r.aware)),
-                                 ("when", r.when), ("topic", r.topic)) if v}
+                                 ("when", r.when), ("topic", r.topic), ("phase", r.phase)) if v}
         # an empty `roles:` line = on demand, attached to no role (ADR 0016); a missing line stays an error
         has_roles = any(a.startswith("roles:") for a in r.attr_text.split("\n"))
         _check_attrs(raw, r.file, r.line, out, ("topic",) if has_roles else ("roles", "topic"), r.id)
