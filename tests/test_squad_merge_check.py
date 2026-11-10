@@ -135,6 +135,15 @@ class MergeCheck(unittest.TestCase):
         self.g("checkout", "-q", "main")
         self.assertEqual(self.run_tool(BR)[0], 1)
 
+    def test_no_merge_base_refuses(self):  # fail closed (QAW follow-up)
+        self.passed()
+        self.g("checkout", "-q", "--orphan", "other")
+        self.g("commit", "-q", "--allow-empty", "-m", "unrelated")
+        self.g("checkout", "-q", "main")
+        code, out, _ = self.run_tool(BR, "--base", "other")
+        self.assertEqual(code, 1, out)
+        self.assertIn("no merge base", out.splitlines()[-1])
+
     def test_usage_errors_and_no_injection(self):  # T2, T7
         for args in ([], ["--nope"], ["nosuchref"], ["x;touch pwned"], ["--base"]):
             code, out, err = self.run_tool(*args)

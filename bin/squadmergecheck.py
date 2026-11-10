@@ -41,6 +41,11 @@ def is_ancestor(a, b):
     return git("merge-base", "--is-ancestor", a, b).returncode == 0
 
 
+def merge_base(a, b):
+    r = git("merge-base", a, b)
+    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
+
+
 def changed(a, b):
     return set(out("diff", "--name-only", a + ".." + b))
 
@@ -166,7 +171,12 @@ def check(target, base_ref, scope):
     if is_ancestor(base, sha):
         lines.append("main-moved: no")
     else:
-        mb = git("merge-base", base, sha).stdout.strip()
+        mb = merge_base(base, sha)
+        if not mb:  # fail closed: unrelated histories are never "none related"
+            lines.append("main-moved: yes, no merge base")
+            reasons.append("no merge base with %s" % base_ref)
+            lines.append("VERDICT: refuse: " + "; ".join(reasons))
+            return lines, False
         on_base, on_sha = changed(mb, base), changed(mb, sha)
         shared = sorted(on_base & on_sha)
         hits = test_hits(on_base, base) & test_hits(on_sha, sha)
@@ -179,7 +189,7 @@ def check(target, base_ref, scope):
 
     # SQ-6: related passed siblings that are not ancestors
     mine_branches = {s.get("branch") for s in mine} | {target}
-    my_files = changed(git("merge-base", base, sha).stdout.strip(), sha)
+    my_files = changed(merge_base(base, sha) or base, sha)
     my_hits = test_hits(my_files, sha)
     related = []
     for st in states.values():
@@ -189,7 +199,7 @@ def check(target, base_ref, scope):
         tip = resolve_quiet(br)
         if not tip or is_ancestor(tip, sha) or is_ancestor(sha, tip):
             continue
-        f = changed(git("merge-base", base, tip).stdout.strip(), tip)
+        f = changed(merge_base(base, tip) or base, tip)
         if (f & my_files) or (test_hits(f, tip) & my_hits):
             if br not in related:
                 related.append(br)
