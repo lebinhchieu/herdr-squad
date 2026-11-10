@@ -1,4 +1,4 @@
-"""Ticket 22: the composed Developer rules fit 5400 B at every size x design x goal, keep every duty, and
+"""Ticket 22: the composed Developer rules fit LIMIT B at every size x design x goal, keep every duty, and
 anything left out stays one `squad-process rule <ID>` away."""
 import re
 import sys
@@ -12,7 +12,8 @@ from squadtest import BIN
 sys.path.insert(0, str(BIN))
 from rulesview import ROOT, ROLES, run, shape_team, who
 
-LIMIT = 5400
+# ticket 09 (check table rule); the Developer gets no rule index, so ticket 10 does not lower this
+LIMIT = 5440
 NOW = "2026-10-22T10:00:00Z"
 KEYS = ("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect")
 TEAMS = [tuple(k for i, k in enumerate(KEYS) if m >> i & 1) for m in range(128)]
@@ -116,10 +117,10 @@ class DevRulesSize(unittest.TestCase):
                 self.assertTrue(r.stdout.startswith(f"## {rid} "), r.stdout)
 
     def test_manager_composed_bytes_did_not_grow_vs_90be196(self):
-        # (team, goal) -> bytes of the composed Manager rules at 90be196 plus ticket 06's parked-question rule (+265 B, +253 B with goal+architect) and the respawn-line rules of fix 2 (+118 to +132 B) and task 11 worktree reuse in SPAWN-5a (+291 B) and task 12 suite policy in SUITE-1b (+156 B) and task 13 GOAL-6b ask (+59 B) and task-claim-gates 05 passed/merged text and LC-27 (+678 to +742 B) and wd2-away 03 away rule ITER-17 (+951 B), and fable-advisor 01 passed wording and queued-run text (+18 to +135 B) and 02 wording B (+20 to +335 B), and 03 bundle, long-wait, experiment rules (+842 B), fixture home with live-length names
-        base = {((), "yes"): 57550, ((), "no"): 54250, (("tech-lead",), "yes"): 56430, (("team-lead", "designer"), "no"): 52080,
-                (("qa-white", "qa-black", "designer", "architect"), "yes"): 60300,
-                (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"): 53110}
+        # (team, goal) -> bytes of the composed Manager rules at 90be196 plus ticket 06's parked-question rule (+265 B, +253 B with goal+architect) and the respawn-line rules of fix 2 (+118 to +132 B) and task 11 worktree reuse in SPAWN-5a (+291 B) and task 12 suite policy in SUITE-1b (+156 B) and task 13 GOAL-6b ask (+59 B) and task-claim-gates 05 passed/merged text and LC-27 (+678 to +742 B) and wd2-away 03 away rule ITER-17 (+951 B), and fable-advisor 01 passed wording and queued-run text (+18 to +135 B) and 02 wording B (+20 to +335 B), and 03 bundle, long-wait, experiment rules (+842 B) and 09 check table rules (+200 to +260 B), fixture home with live-length names
+        base = {((), "yes"): 57840, ((), "no"): 54540, (("tech-lead",), "yes"): 56720, (("team-lead", "designer"), "no"): 52280,
+                (("qa-white", "qa-black", "designer", "architect"), "yes"): 60500,
+                (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"): 53310}
         for (team, goal), n in base.items():
             with self.subTest(team=team, goal=goal):
                 self.assertLessEqual(len(compose_team("manager", team, goal)), n)

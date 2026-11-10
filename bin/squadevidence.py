@@ -3,6 +3,10 @@
   squad-evidence path <ticket.md>
   squad-evidence add <ticket.md> --heading H --from review.md [--root DIR] [--sha SHA]
   squad-evidence check <evidence.md|folder> [--base SHA]
+  squad-evidence checks <checks.md> | --template
+
+`checks` verifies a check table (`| AC | Dev | QA whitebox | QA blackbox |`; a cell is a command and its result or a capture path): the header, no repeated AC id, no empty Dev cell.
+`check` also runs the table check on a `## Checks` section when evidence.md has one, and then every QA cell must be filled (`-` is allowed).
 
 Layout: <ticket>.md -> <ticket minus .md>/evidence.md + <ticket minus .md>/img/<name>.
 An old <ticket minus .md>.evidence/ folder is still read and written while the new folder does not exist.
@@ -262,6 +266,68 @@ def cmd_add(args):
     return 0
 
 
+# ---------------------------------------------------------------- checks
+
+TABLE_HEAD = ("ac", "dev", "qa whitebox", "qa blackbox")
+
+
+def cells(line):
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def check_table(text, where, final=False, first_line=1):
+    """Problems of the check table in `text` as `where:line: problem`; `final` also wants every QA cell filled."""
+    problems = []
+    rows = [(no, cells(line)) for no, line, in_fence in scan(text) if not in_fence and line.lstrip().startswith("|")]
+    if not rows:
+        return [f"{where}:{first_line}: no check table"]
+    no, head = rows[0]
+    names = [re.split(r"[:]", c)[0].strip().lower() for c in head]
+    if len(head) != 4 or tuple(names) != TABLE_HEAD:
+        problems.append(f"{where}:{no + first_line - 1}: header must be | AC | Dev | QA whitebox | QA blackbox |")
+    seen = set()
+    for no, row in rows[1:]:
+        at = no + first_line - 1
+        if all(re.fullmatch(r":?-{3,}:?", c) for c in row):
+            continue
+        if len(row) != 4:
+            problems.append(f"{where}:{at}: row has {len(row)} cells, want 4")
+            continue
+        rid = row[0]
+        if rid in seen:
+            problems.append(f"{where}:{at}: {rid}: repeated row id")
+        seen.add(rid)
+        if row[1] in ("", "-"):
+            problems.append(f"{where}:{at}: {rid}: empty Dev cell")
+        if final:
+            for name, c in zip(("QA whitebox", "QA blackbox"), row[2:]):
+                if not c:
+                    problems.append(f"{where}:{at}: {rid}: empty {name} cell")
+    return problems
+
+
+TEMPLATE = ("<!-- Save as $SCOPE_DIR/evidence/<NN>/checks.md. One row per AC; fill your own column with a command and its result "
+            "(`-` if no such role). `## Review` points at `## Checks`. After every PASS: "
+            "squad-evidence add <ticket> --heading Checks --from checks.md -->\n"
+            "| AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |\n"
+            "|---|---|---|---|\n"
+            "| AC1 |  |  |  |\n")
+
+
+def cmd_checks(args):
+    if args.template:
+        print(TEMPLATE, end="")
+        return 0
+    if not args.file:
+        raise Usage("checks needs a file or --template")
+    problems = check_table(read(args.file), args.file)
+    for line in problems:
+        print(line)
+    if not problems:
+        print(f"ok: {args.file}")
+    return 1 if problems else 0
+
+
 # ---------------------------------------------------------------- check
 
 def is_evidence_path(top, p):
@@ -322,6 +388,14 @@ def cmd_check(args):
         for mm in MENTION.finditer(rest):
             bad(ev_path, no, f"image named but not embedded (use ![alt](img/name)): {mm.group(0)}")
 
+    _pre, sections = split_sections(text)
+    for head, chunk in sections:
+        if head == "Checks":
+            at = text.index(chunk)
+            for line in check_table(chunk, ev_path, True, text.count("\n", 0, at) + 1):
+                if line not in problems:
+                    problems.append(line)
+
     img_dir = os.path.join(folder, "img")
     if os.path.isdir(img_dir):
         for root, _dirs, files in os.walk(img_dir):
@@ -377,13 +451,16 @@ def build():
     a = sub.add_parser("check", help="verify evidence.md (and, with --base, that the diff is evidence-only)")
     a.add_argument("target")
     a.add_argument("--base", default=None)
+    a = sub.add_parser("checks", help="verify a check table file (header, row ids, Dev cells)")
+    a.add_argument("file", nargs="?")
+    a.add_argument("--template", action="store_true", help="print an empty table to start from")
     return p
 
 
 def run(argv):
     try:
         args = build().parse_args(argv)
-        return {"path": cmd_path, "add": cmd_add, "check": cmd_check}[args.cmd](args)
+        return {"path": cmd_path, "add": cmd_add, "check": cmd_check, "checks": cmd_checks}[args.cmd](args)
     except Usage as e:
         print(f"squad-evidence: {e}", file=sys.stderr)
         return 2

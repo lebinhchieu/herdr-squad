@@ -233,5 +233,21 @@ class SmallRulesTest(unittest.TestCase):
         self.assertIn("remove the rule", t)
 
 
+class CheckTableRulesTest(unittest.TestCase):
+    def test_rules_reach_the_right_roles(self):
+        dev = composed("dev", team=("qa-white",))
+        self.assertIn("checks --template", dev)
+        qab = ("qa-black",)  # tech-ac = dev, a QA blackbox: the Developer assembles, the Manager accepts
+        self.assertIn("## EVID-9c ", composed("dev", team=qab))
+        self.assertIn("## EVID-9e ", composed("manager", team=qab))
+        for team in ((), ("qa-white", "qa-black")):
+            self.assertNotIn("## EVID-9c ", composed("dev", team=team))
+            self.assertNotIn("## EVID-9e ", composed("manager", team=team))
+        self.assertIn("## EVID-9d ", composed("manager", team=()))
+        self.assertNotIn("## EVID-9d ", composed("manager", team=("qa-white",)))
+        for role, team in (("qa-whitebox", ("qa-white",)), ("qa-blackbox", qab)):
+            self.assertIn("`squad-evidence checks", composed(role, team=team))
+
+
 if __name__ == "__main__":
     unittest.main()

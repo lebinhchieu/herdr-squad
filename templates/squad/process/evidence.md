@@ -12,7 +12,7 @@ roles: dev
 when: handin-target = qas
 topic: evidence
 
-Write `## Behaviour` in the ticket's `evidence.md`, commit with your code, shots as `![alt](img/<file>)`.
+Add `## Behaviour` to `evidence.md` (shots `![alt](img/<file>)`); commit with code.
 
 ## EVID-2b Assemble evidence
 roles: dev
@@ -62,7 +62,7 @@ roles: dev
 when: behaviour-check = manager
 topic: evidence
 
-Commit `## Behaviour` with the code: Playwright or API checks per AC (run, seen), shots `![alt](img/<file>)` under the AC.
+Commit `## Behaviour` with the code: Playwright or API checks, shots `![alt](img/<file>)`.
 
 ## EVID-5 Design shots
 roles: dev
@@ -76,7 +76,7 @@ roles: dev
 when: behaviour-check = qa-white
 topic: evidence
 
-In `## Behaviour` record for each business AC what you ran (command) and what you saw (output); screenshots only if a screen exists. QA whitebox checks it.
+In `## Behaviour` give each business AC its command and output; shots only for a screen. QA whitebox checks it.
 
 ## EVID-7 Reviewer file, QA whitebox alone
 roles: qa-whitebox
@@ -93,3 +93,36 @@ when: qa-black = yes and qa-white = no
 topic: evidence
 
 `qa-b.md` is the only reviewer file; no `qa-w.md` is expected.
+
+## EVID-9 Checks
+roles: dev
+topic: evidence
+
+Create `checks.md` with `squad-evidence checks --template`; fill your Dev column.
+
+## EVID-9b Check table, QAs
+roles: qa-whitebox, qa-blackbox
+topic: evidence
+
+Fill only your column of `checks.md`: commands, never code; `## Review` points at `## Checks`. Refuse a `HANDIN` when `squad-evidence checks <file>` fails.
+
+## EVID-9d Check table, Manager
+roles: manager
+when: handin-target = manager
+topic: evidence
+
+With no QA on the team, refuse a `HANDIN` when `squad-evidence checks <file>` fails.
+
+## EVID-9c Evidence
+roles: dev
+when: tech-ac = dev and qa-black = yes
+topic: evidence
+
+Assemble and `HANDIN` as [EVID-2d], to the Manager.
+
+## EVID-9e Check the evidence commit, Manager
+roles: manager
+when: tech-ac = dev and qa-black = yes
+topic: evidence
+
+Accept the Developer's `HANDIN <task>: evidence sha <sha>` only when `squad-evidence check <folder> --base <passed sha>` exits 0.
