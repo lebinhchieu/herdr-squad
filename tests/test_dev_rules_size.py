@@ -20,7 +20,7 @@ COMBOS = [("S", "no", "no"), ("M", "yes", "no"), ("L", "yes", "yes")]  # one per
 
 
 def compose(role, size, design="no", goal="no", architecture="no", name="role-cards-upgrade", agent="plugin-dev-role-cards-upgrade-12"):
-    """The raw composed bytes for a pinned and fable-advisor 01 passed wording and queued-run text (+18 to +135 B), fixture home with live-length names; no --plugin-root, time injected."""
+    """The raw composed bytes for a pinned fixture home with live-length names; no --plugin-root, time injected."""
     import squadcompose
     pin = (squadcompose.running_version(), "0123456789abcdef0123456789abcdef01234567")
     team = shape_team(size, "yes", design, architecture)  # the converter's mapping of the old shape
@@ -51,7 +51,7 @@ class DevRulesSize(unittest.TestCase):
             for goal, qa in product(("yes", "no"), ("full", "light")):
                 yield team, goal, qa, len(compose_team("dev", team, goal, qa))
 
-    def test_every_team_set_fits_5_kib(self):
+    def test_every_team_set_fits_the_limit(self):
         for team, goal, qa, n in self.sweep():
             self.assertLessEqual(n, LIMIT, f"dev, team {team}, goal {goal}, qa {qa} is {n} B")
 
@@ -99,10 +99,21 @@ class DevRulesSize(unittest.TestCase):
                 for size, (acting, aware) in who(rid).items():
                     self.assertNotIn("dev", acting + aware, f"{rid} at {size}")
 
-    def test_live_run_and_design_shots_attach_to_dev(self):
-        # task 01 (fable-advisor): REV-22 and LC-19 send the Developer here, so the rules are attached
+    def test_live_run_and_design_shots_attach_to_dev_only(self):
+        # task 01 (fable-advisor): REV-22 and LC-19 send the Developer here, so dev gets them and no other role does
         for rid in ("REV-5a", "EVID-5"):
-            self.assertTrue(any("dev" in acting for acting, _ in who(rid).values()), rid)
+            with self.subTest(rule=rid):
+                w = who(rid)
+                self.assertTrue(any("dev" in acting for acting, _ in w.values()))
+                for acting, aware in w.values():
+                    self.assertTrue(set(acting + aware) <= {"dev"}, f"{rid}: {acting} {aware}")
+                for team in ((), ("tech-lead",), ("team-lead", "designer")):
+                    for role in ROLES:
+                        if role != "dev":
+                            self.assertNotIn(f"## {rid} ", compose_team(role, team).decode(), f"{role} {team}")
+                r = run("rule", rid)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertTrue(r.stdout.startswith(f"## {rid} "), r.stdout)
 
     def test_manager_composed_bytes_did_not_grow_vs_90be196(self):
         # (team, goal) -> bytes of the composed Manager rules at 90be196 plus ticket 06's parked-question rule (+265 B, +253 B with goal+architect) and the respawn-line rules of fix 2 (+118 to +132 B) and task 11 worktree reuse in SPAWN-5a (+291 B) and task 12 suite policy in SUITE-1b (+156 B) and task 13 GOAL-6b ask (+59 B) and task-claim-gates 05 passed/merged text and LC-27 (+678 to +742 B) and wd2-away 03 away rule ITER-17 (+951 B), and fable-advisor 01 passed wording and queued-run text (+18 to +135 B), fixture home with live-length names
