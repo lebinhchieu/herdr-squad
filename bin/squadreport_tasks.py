@@ -20,6 +20,12 @@ DEDUPE_S = 120
 TITLE_CUT = 120
 REASON_CUT = 200
 FLAG_RETURNS = 3
+PHASES = ("spawn", "build", "handin", "check_qa_whitebox", "check_qa_blackbox", "returns", "other")
+PHASES_NOTE = ("Phases are time windows cut by messages, not recorded markers. spawn = dev turns before the first "
+               "message on the ticket that the dev sent or received (all of them if there is none); build = then until the first HANDIN; handin = dev turns after it; "
+               "check_* = QA turns; returns = any turns between a FAIL and the next HANDIN; other = the rest "
+               "(also turns a null phase could not place). null = n/a: no record for that ticket. "
+               "Harness start-up before the first turn is not measured.")
 MIN_SEGMENT_DEFAULT = 30
 
 _MSG_RE = re.compile(r"^\s*\S+\s+([^\s()]+)(?:\s+\(([^)\s]+)\))?")
@@ -246,6 +252,7 @@ def fill(data, c, redact=False):
                     attributed += b - a
                 out.append((a, b, sg.bucket, on, task))
     turn_rows = []   # (task, ts, cost)
+    turn_full = []   # (task, ts, agent, tokens, cost)
     total_cost = 0.0
     attr_cost = 0.0
     for name, tl in c.agents.items():
@@ -259,6 +266,7 @@ def fill(data, c, redact=False):
             if task:
                 attr_cost += t.cost
             turn_rows.append((task, t.ts, t.cost))
+            turn_full.append((task, t.ts, name, t.tokens or {}, t.cost))
 
     # -- messages per task
     by_task = {}
@@ -320,6 +328,7 @@ def fill(data, c, redact=False):
             else:
                 waits.append({"handin_at": iso(h.ts), "verdict_at": None, "verdict": "none",
                               "wait_s": max(0, w1 - h.ts)})
+        phases = _phases(tid, turn_full, c.agents, ms, handins, merged)
         cs = [cell for (t, _a), cell in cells.items() if t == tid]
         bs = {k: sum(x["b"][k] for x in cs) for k in BUCKETS}
         tok = {k: sum(x["tok"][k] for x in cs) for k in TOKEN_FIELDS}
@@ -342,9 +351,10 @@ def fill(data, c, redact=False):
                        "end": iso(last) if last is not None else None},
             "cycle_s": cyc, "buckets_s": bs, "tokens": tok, "cost_usd": round(cost, 4),
             "returns": len(fails), "flag": len(fails) >= FLAG_RETURNS,
-            "returns_list": rl, "rework_s": rework_s, "rework_cost_usd": round(rework_cost, 4),
+            "returns_list": rl, "phases": phases, "rework_s": rework_s, "rework_cost_usd": round(rework_cost, 4),
             "review_waits": waits})
     data["tasks"] = tasks
+    data["phases_note"] = PHASES_NOTE
 
     # -- matrix
     matrix = []
@@ -441,6 +451,47 @@ def fill(data, c, redact=False):
         if "no_origin" not in reasons:
             reasons.append("no_origin")
         sc["partial"] = True
+
+
+def _phase_of(role, ts, first_dev, first_handin, in_rework):
+    role = (role or "").lower()
+    if in_rework:
+        return "returns"
+    if "qa" in role:
+        return "check_qa_blackbox" if "black" in role else "check_qa_whitebox" if "white" in role else "other"
+    if "dev" in role:
+        if first_dev is None or ts < first_dev:
+            return "spawn"
+        if first_handin is None or ts < first_handin:
+            return "build"
+        return "handin"
+    return "other"
+
+
+def _phases(tid, turn_full, agents, ms, handins, merged):
+    """Every turn of ticket tid lands in exactly one phase; a phase with no turn is None (n/a), never 0."""
+    def is_dev(n):
+        return "dev" in (getattr(agents.get(n), "role", "") or "").lower()
+    first_dev = min((m.ts for m in ms if is_dev(m.frm) or any(is_dev(r) for r in _recipients(m))), default=None)
+    first_handin = handins[0].ts if handins else None
+    acc = {}
+    for (t, ts, name, tokens, cost) in turn_full:
+        if t != tid:
+            continue
+        ph = _phase_of(getattr(agents.get(name), "role", ""), ts, first_dev, first_handin,
+                       any(a <= ts < b for a, b in merged))
+        cell = acc.setdefault(ph, {"turns": 0, "tokens": {k: 0 for k in TOKEN_FIELDS}, "cost_usd": 0.0})
+        cell["turns"] += 1
+        for k in TOKEN_FIELDS:
+            cell["tokens"][k] += int(tokens.get(k, 0) or 0)
+        cell["cost_usd"] += cost
+    out = {}
+    for ph in PHASES:
+        cell = acc.get(ph)
+        if cell:
+            cell["cost_usd"] = round(cell["cost_usd"], 4)
+        out[ph] = cell
+    return out
 
 
 def _segments(pcs, w0, min_seg):

@@ -1,7 +1,7 @@
 """squad-report query: compact lines (or JSON) from a scope's data.json only. Pure python, ASCII, no ANSI.
 
   squad-report query <scope|data.json> <what> [--task X] [--role R] [--top N] [--json] [--refresh] [--squad S]
-  what: digest totals tasks roles task role matrix blocks returns iterations
+  what: digest phases totals tasks roles task role matrix blocks returns iterations
 Exit 0 ok, 2 refused (unknown what, no data, bad name), 1 error.
 """
 import argparse
@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadreport_build as bd  # noqa: E402
 import squadreport_digest as dg  # noqa: E402
 
-WHAT = ("digest", "totals", "tasks", "roles", "task", "role", "matrix", "blocks", "returns", "iterations")
+WHAT = ("digest", "phases", "totals", "tasks", "roles", "task", "role", "matrix", "blocks", "returns", "iterations")
 BLOCKS_DEFAULT = 3
 
 
@@ -122,6 +122,9 @@ def answer(data, what, a):
         rows = data.get("digest", [])[:top]
         return rows, ["%s %s %s -> %s %s" % (d["id"], d["value"], d["unit"], d["target"]["view"], d["target"].get("id") or "-")
                       + " | " + d["text"] for d in rows]
+    if what == "phases":
+        rows = (data.get("digest_phases") or dg.phase_table(data))[:top]
+        return rows, dg.phase_lines(rows)
     if what == "totals":
         t = data["totals"]
         lines = ["elapsed %s agent-time %s parallelism %s" % (_dur(t["wall_s"]), _dur(t["agent_s"]), t["parallelism"]),

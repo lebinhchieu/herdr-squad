@@ -88,6 +88,7 @@ def build(home, sdir, plugin_root=PLUGIN_ROOT, final=False, redact=False, deadli
     data = sr.base_data(c)
     tasks.fill(data, c, redact=redact)
     data["digest"] = dg.digest(data)
+    data["digest_phases"] = dg.phase_table(data)
     data["scope"]["generated_at"] = tasks.iso(int(time.time() if now is None else now))
     return data
 

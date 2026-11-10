@@ -30,6 +30,20 @@ def data(**kw):
     return d
 
 
+class PhaseTable(unittest.TestCase):
+    def test_table_matches_tasks_and_old_data_is_na(self):
+        ph = {"build": {"turns": 2, "tokens": {"input": 3, "cache_read": 0, "cache_write": 0, "output": 4}, "cost_usd": 1.0}}
+        d = data(tasks=[dict(task("07", 1.0), phases=ph), task("08", 1.0)])   # 08: data file from before phases
+        rows = dg.phase_table(d)
+        self.assertEqual(rows[0]["phases"]["build"], ph["build"])
+        self.assertEqual(list(rows[1]["phases"]), list(dg.PHASES))
+        self.assertTrue(all(v is None for v in rows[1]["phases"].values()))
+        self.assertEqual(len(dg.digest(d)) <= dg.MAX_ITEMS, True)
+        lines = dg.phase_lines(rows)
+        self.assertIn("build 2 turns 7 tok", lines[0])
+        self.assertIn("build n/a", lines[1])
+
+
 class Digest(unittest.TestCase):
     def test_hand_computed_ranking(self):
         d = data(tasks=[task("07", 6.0, returns=3, rework=1.0, waits=(50, 100, 150)), task("08", 2.0, returns=1)],
