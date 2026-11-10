@@ -29,9 +29,10 @@ class ComposeError(Exception):
 class Eff:
     """One effective rule: plugin rule or added rule, overlay applied."""
 
-    def __init__(self, id, title, roles, aware, when, topic, body, tag=""):
+    def __init__(self, id, title, roles, aware, when, topic, body, tag="", phase=""):
         self.id, self.title, self.roles, self.aware, self.when, self.topic, self.body, self.tag = (
             id, title, roles, aware, when, topic, body, tag)
+        self.phase = phase
 
 
 def running_version(root=DEFAULT_ROOT):
@@ -153,7 +154,7 @@ def effective_rules(plugin_root, overlay_path):
     if stale:
         raise ComposeError(*stale)
 
-    eff = {r.id: Eff(r.id, r.title, list(r.roles), list(r.aware), r.when, r.topic, r.body) for r in rules}
+    eff = {r.id: Eff(r.id, r.title, list(r.roles), list(r.aware), r.when, r.topic, r.body, phase=r.phase) for r in rules}
     adds = []
     for o in ops:
         a = o.attrs
@@ -169,12 +170,14 @@ def effective_rules(plugin_root, overlay_path):
                 e.when = a["when"]
             if "topic" in a:
                 e.topic = a["topic"]
+            if "phase" in a:
+                e.phase = a["phase"]
             if o.title:
                 e.title = o.title
             e.body, e.tag = o.body, "[squad: replaced]"
         else:
             adds.append(Eff(o.id, o.title, sr._roles(a.get("roles", "")), sr._roles(a.get("aware", "")),
-                            a.get("when", ""), a.get("topic", ""), o.body, "[squad: added]"))
+                            a.get("when", ""), a.get("topic", ""), o.body, "[squad: added]", a.get("phase", "")))
     out = [eff[r.id] for r in rules if r.id in eff] + adds
     for e in out:
         try:
@@ -219,6 +222,27 @@ def choose(rules, role, facts):
     return [e for e in rules if role_in(e, role) and sr.matches(e.when, facts)]
 
 
+def phase_rules(rules, role, facts, phase):
+    """The rules a role gets for these facts that print only when `phase` starts. Pure."""
+    return [e for e in choose(rules, role, facts) if e.phase == phase]
+
+
+def attached(rules, role, facts, with_phases=False):
+    """`choose` minus the phase rules (they print when their phase starts); with_phases=True keeps them."""
+    return [e for e in choose(rules, role, facts) if with_phases or not e.phase]
+
+
+def _wrap_ids(ids, width=100):
+    lines, cur = [], ""
+    for i in ids:
+        if cur and len(cur) + 1 + len(i) > width:
+            lines.append(cur)
+            cur = i
+        else:
+            cur = f"{cur} {i}" if cur else i
+    return lines + ([cur] if cur else [])
+
+
 def duties_line(info):
     """`duties:` header line: the owner of each duty for the home's team (`undecided` when there is none)."""
     if info["team"] is None:
@@ -233,7 +257,7 @@ def _team_text(info):
     return ", ".join(info["team"]) or "none"
 
 
-def compose(role, home, plugin_root, overlay_path, agent, now, pinned=None):
+def compose(role, home, plugin_root, overlay_path, agent, now, pinned=None, with_phases=False):
     """The composed rules text for one role. `pinned` is (version, sha) or None (unpinned: running version)."""
     info = read_home(home)
     if info["team_source"] == "old":
@@ -243,7 +267,7 @@ def compose(role, home, plugin_root, overlay_path, agent, now, pinned=None):
                            "the Manager writes the `team:` line (after the PO's reply)")
     facts = info["facts"]
     rules, n_ops = load_rules(plugin_root, overlay_path)
-    chosen = choose(rules, role, facts)
+    chosen = attached(rules, role, facts, with_phases)
     if pinned:
         plugin_line = f"plugin: {pinned[0]} {pinned[1]}"
     else:
@@ -266,8 +290,9 @@ def compose(role, home, plugin_root, overlay_path, agent, now, pinned=None):
         got = {e.id for e in chosen}
         out += ["", "## Index of other rules"]
         on = facts.get("architecture") == "yes"  # architecture rules and the architect name stay out of a scope without it
-        out += [f"- {e.id} {e.title} ({', '.join(r for r in e.roles if on or r != 'architect')})"
-                for e in rules if e.id not in got and (on or "architecture" not in (e.when or ""))]
+        out.append("Text: `squad-process rule <ID>`; roles: `squad-process who <ID>`")
+        out += _wrap_ids([e.id for e in rules
+                          if e.id not in got and (on or "architecture" not in (e.when or ""))])
     return "\n".join(out) + "\n"
 
 

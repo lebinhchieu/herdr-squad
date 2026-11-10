@@ -553,3 +553,8 @@ fi
 
 jq -n --arg name "$name" --arg role "$role" --arg scope "$scope" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" --arg session "$session" \
   '{name:$name, role:$role, scope:$scope, tab:$tab, pane:$pane, cwd:$cwd, session:$session, status:"ready"}'
+
+# After a Token Coach spawn: print the coach-phase rules (ITER-6c) on stderr; stdout stays the one JSON line.
+if [[ $role == token-coach ]]; then
+  python3 "$plugin_root/bin/squad-process" phase coach --home "$home" >&2 || true
+fi

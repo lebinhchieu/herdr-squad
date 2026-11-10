@@ -218,6 +218,19 @@ def resolve_quiet(ref):
     return r.stdout.strip() if r.returncode == 0 else None
 
 
+def merge_rules_block(scope):
+    """The merge-phase rules (`squad-process phase merge`), or one pointer line when the reader fails. Never raises."""
+    pointer = "merge rules: squad-process phase merge --home %s" % scope
+    try:
+        r = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.realpath(__file__)), "squad-process"),
+                            "phase", "merge", "--home", scope], capture_output=True, text=True, timeout=30)
+    except Exception:
+        return [pointer]
+    if r.returncode != 0 or not r.stdout.strip():
+        return [pointer]
+    return r.stdout.rstrip("\n").split("\n")
+
+
 def run(argv):
     try:
         target, base, scope = parse(argv)
@@ -225,5 +238,7 @@ def run(argv):
     except Usage as e:
         print("squad-merge-check: %s" % e, file=sys.stderr)
         return 2
+    if lines and lines[-1].startswith("VERDICT:"):  # the rules print before the verdict; VERDICT stays last
+        lines = lines[:-1] + [""] + merge_rules_block(scope) + [""] + lines[-1:]
     print("\n".join(lines))
     return 0 if ok else 1

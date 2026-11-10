@@ -61,6 +61,7 @@ Spawn the Token Coach with `squad-spawn token-coach <squad>-coach-<scope> --scop
 ## ITER-6c Wait for the Token Coach
 roles: manager
 topic: iterations
+phase: coach
 
 After the spawn, do other work or end the turn and wait for the Coach's message; never loop, sleep or poll for the file. Run `herdr agent list` on its pane only when no message came after the 10-minute health-check idle window ([MSG-8a]).
 
