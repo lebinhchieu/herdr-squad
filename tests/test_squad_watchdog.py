@@ -303,3 +303,148 @@ class WatchdogTest(unittest.TestCase):
         calls = log.read_text(encoding="utf-8").splitlines()
         self.assertEqual(len(calls), 2, calls)
         self.assertTrue(all(c.startswith("agent prompt t-mgr-s1 WATCHDOG:") for c in calls), calls)
+
+
+class WakeTest(WatchdogTest):
+    """Ticket 08: one message to the Manager per event (passed, 3rd return, pane blocked 10 min); never repeated."""
+
+    def msgs(self, *rows):
+        with open(self.home / "messages.jsonl", "a", encoding="utf-8") as fh:
+            for typ, frm, text in rows:
+                fh.write(json.dumps({"ts": "2026-11-10T10:00:00.000Z", "from": frm, "to": "x", "type": typ, "task": "03",
+                                     "text": text}) + "\n")
+
+    def wakes(self):
+        return [t for _m, t in self.sent if t.startswith("WAKE")]
+
+    def work(self, **kw):
+        self.agents(**dict(dict(t_mgr_s1="working", t_dev_s1="idle", t_qa_s1="working"), **kw))
+
+    def test_passed_once_and_baseline_is_silent(self):
+        self.work()
+        self.msgs(("HANDIN", "t-dev-s1", "HANDIN 03: commit abc1234 ok"))
+        self.tickets(t03="passed", t04="checking")
+        self.tick(0)  # first pass: baseline, nothing for the ticket that is already passed
+        self.assertEqual(self.wakes(), [])
+        self.tickets(t03="passed", t04="passed")
+        self.tick(1)
+        self.tick(2)  # same state again: no repeat
+        self.assertEqual(len(self.wakes()), 1, self.wakes())
+        self.assertIn("WAKE passed 04", self.wakes()[0])
+        self.tick(3)
+        self.assertEqual(len(self.wakes()), 1)
+        self.assertTrue(all(m == "t-mgr-s1" for m, _ in self.sent))
+
+    def test_passed_from_pass_messages_when_the_label_is_empty(self):
+        """QA whitebox FAIL at 3675aa1: a pass is never written to the ticket label, only PASS messages."""
+        with open(self.home / "roster.md", "a", encoding="utf-8") as fh:
+            fh.write("| t-qb-s1 | qa-blackbox | s1 | ticket 03 | live | d |\n")
+        self.work()
+        self.tickets(t03="")
+        self.msgs(("HANDIN", "t-dev-s1", "HANDIN 03: commit abc1234 ok"), ("PASS", "t-qa-s1", "PASS 03: abc1234"))
+        self.tick(0)  # baseline: one of two checkers passed
+        self.tick(1)
+        self.assertEqual(self.wakes(), [])
+        self.msgs(("PASS", "t-qb-s1", "PASS 03: abc1234"))
+        self.tick(2)
+        self.tick(3)
+        self.assertEqual(len(self.wakes()), 1, self.wakes())
+        self.assertIn("WAKE passed 03", self.wakes()[0])
+        self.assertIn("abc1234", self.wakes()[0])
+
+    def test_third_return_counts_like_the_ledger_and_sends_once(self):
+        import squadledger
+        self.work()
+        self.tickets(t03="building")
+        self.tick(0)
+        for n in (1, 2):  # two checkers fail each sha: still one return per sha
+            self.msgs(("HANDIN", "t-dev-s1", f"HANDIN 03: commit aaa{n}111"), ("FAIL", "t-qa-s1", f"FAIL 03: aaa{n}111 x"),
+                      ("FAIL", "t-qb-s1", f"FAIL 03: aaa{n}111 y"))
+        self.tick(1)
+        self.assertEqual(self.wakes(), [])
+        self.msgs(("HANDIN", "t-dev-s1", "HANDIN 03: commit aaa3111"), ("FAIL", "t-qa-s1", "FAIL 03: aaa3111 z"))
+        rows = squadledger.build(squadledger.read_records(self.home / "messages.jsonl"))
+        self.assertEqual(rows[0]["returns"], 3)
+        self.tick(2)
+        self.tick(3)
+        self.msgs(("HANDIN", "t-dev-s1", "HANDIN 03: commit aaa4111"), ("FAIL", "t-qa-s1", "FAIL 03: aaa4111 w"))
+        self.tick(4)  # a 4th return sends nothing more
+        self.assertEqual(len(self.wakes()), 1, self.wakes())
+        self.assertIn("returns3 03", self.wakes()[0])
+        self.assertIn("aaa3111", self.wakes()[0])
+
+    def test_blocked_pane_wakes_once_after_10_minutes_and_never_relays(self):
+        self.work(t_dev_s1="blocked")
+        self.tickets(t03="building")
+        self.tick(0)
+        self.tick(9)
+        self.assertEqual(self.wakes(), [])
+        self.tick(10)
+        self.tick(20)
+        self.assertEqual(len(self.wakes()), 1)
+        self.assertIn("Chieu's to answer", self.wakes()[0])
+        self.assertIn("t-dev-s1", self.wakes()[0])
+        self.work(t_dev_s1="working")  # unblocked, then blocked again: a new spell, a new message
+        self.tick(21)
+        self.work(t_dev_s1="blocked")
+        self.tick(22)
+        self.tick(33)
+        self.assertEqual(len(self.wakes()), 2)
+
+    def test_no_wake_into_a_blocked_manager_pane_and_a_failed_send_is_retried(self):
+        self.work()
+        self.tickets(t03="building")
+        self.tick(0)
+        self.tickets(t03="passed")
+        self.work(t_mgr_s1="blocked")
+        self.tick(1)
+        self.assertEqual(self.wakes(), [])  # a prompt may be open: nothing sent, key not stored
+        self.work()
+        fails = []
+        W.tick(self.home, "t-mgr-s1", now=T0 + 2 * MIN, herdr_json=str(self.herdr), send=lambda m, t: (fails.append(t) or (False, "no")))
+        self.tick(3)  # retried and sent
+        self.tick(4)
+        self.assertEqual((len(fails), len(self.wakes())), (1, 1))
+
+    def test_switch_off_and_old_state_file(self):
+        self.work()
+        self.tickets(t03="passed")
+        self.msgs(*[x for n in (1, 2, 3) for x in (("HANDIN", "t-dev-s1", f"HANDIN 03: commit bbb{n}111"), ("FAIL", "t-qa-s1", f"FAIL 03: bbb{n}111 x"))])
+        (self.home / "watchdog.state.json").write_text(json.dumps({"beat": 1, "idle_since": None}), encoding="utf-8")  # before this feature
+        self.tick(0)
+        self.assertEqual(self.wakes(), [])  # baseline: no flood after a restart, the 3 returns are already known
+        W.set_wake(self.home, False)
+        self.assertFalse(W.wake_on(self.home))
+        self.tickets(t03="building")
+        self.tick(1)
+        self.tickets(t03="passed")
+        self.tick(2)
+        self.assertEqual(self.wakes(), [])
+        W.set_wake(self.home, True)
+        self.tickets(t03="building")
+        self.tick(3)
+        self.tickets(t03="passed")
+        self.tick(4)
+        self.assertEqual(len(self.wakes()), 1)
+
+    def test_roster_text_is_one_capped_line(self):
+        self.assertEqual(W.clean("a\x1b[31m\nb" + "x" * 200).count("\n"), 0)
+        self.assertLessEqual(len(W.clean("x" * 200)), 80)
+        self.assertNotIn("\x1b", W.clean("a\x1b[31mb"))
+        self.work(t_dev_s1="blocked")
+        r = (self.home / "roster.md").read_text(encoding="utf-8").replace("ticket 03", "ticket 03 " + "y" * 200)
+        (self.home / "roster.md").write_text(r, encoding="utf-8")
+        self.tickets(t03="building")
+        self.tick(0)
+        self.tick(11)
+        self.assertTrue(all(len(t) < 300 and "\n" not in t for t in self.wakes()) and self.wakes())
+
+    def test_cli_wake_switch_and_status(self):
+        env = clean_env(PYTHONDONTWRITEBYTECODE="1")
+        def run(*a):
+            return winlaunch.run_script(str(BIN / "squad-watchdog"), list(a) + ["--home", str(self.home)], env, utf8=True,
+                                        encoding="utf-8", capture_output=True)
+        self.assertEqual(run("wake", "off").returncode, 0)
+        self.assertIn("wake-ups: off", run("status").stdout)
+        run("wake", "on")
+        self.assertIn("wake-ups: on", run("status").stdout)

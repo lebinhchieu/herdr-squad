@@ -119,6 +119,24 @@ class TasksTest(unittest.TestCase):
         self.assertEqual(self.t["09"]["dev"], "dev2")
         self.assertEqual(self.t["T5"]["status"], "open")
 
+    def test_phases_partition_ticket_turns(self):
+        # 07: ASSIGN to dev at 100 (first dev message) so dev t500 = build; HANDIN at 1000; qa t1100 = check_qa_whitebox;
+        # FAIL 1500->HANDIN 2000 holds dev t1700, FAIL 2600->HANDIN 3000 holds qa t2650 = returns (0.5+0.25 = rework cost).
+        ph = self.t["07"]["phases"]
+        self.assertEqual(list(ph), list(st.PHASES))
+        self.assertEqual({k: (v["turns"], v["cost_usd"]) for k, v in ph.items() if v},
+                         {"build": (1, 2.0), "check_qa_whitebox": (1, 0.25), "returns": (2, 0.75)})
+        self.assertEqual([k for k, v in ph.items() if v is None], ["spawn", "handin", "check_qa_blackbox", "other"])
+        self.assertEqual(ph["build"]["tokens"], {"input": 10, "cache_read": 0, "cache_write": 0, "output": 5})
+        # 09 has turns but no message: dev2's turn lands in spawn, never hidden by a null phase.
+        self.assertEqual(self.t["09"]["phases"]["spawn"]["turns"], 1)
+        for t in self.d["tasks"]:   # every row has every key; phases partition the ticket totals
+            self.assertEqual(list(t["phases"]), list(st.PHASES))
+            self.assertAlmostEqual(sum(v["cost_usd"] for v in t["phases"].values() if v), t["cost_usd"], places=3)
+            for k in ("input", "output"):
+                self.assertEqual(sum(v["tokens"][k] for v in t["phases"].values() if v), t["tokens"][k])
+        self.assertIn("not recorded markers", self.d["phases_note"])
+
     def test_totals(self):
         tot = self.d["totals"]
         self.assertEqual((tot["returns"], tot["tasks_passed"]), (2, 2))

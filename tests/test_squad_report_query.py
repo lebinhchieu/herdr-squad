@@ -55,6 +55,17 @@ class Query(Base):
         self.assertEqual(ids, [d["id"] for d in self.data["digest"]][:5])
         self.assertEqual(ids[0], "top_cost_role")
 
+    def test_phases_lines_and_old_data(self):
+        rc, out, _ = self.cli("sc", "phases")
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(out.splitlines()), len(self.data["tasks"]))
+        self.assertIn("build", out.splitlines()[0])
+        for t in self.data["tasks"]:   # a data file from before phases still answers, all n/a
+            t.pop("phases", None)
+        self.data.pop("digest_phases", None)
+        rows, lines = q.answer(self.data, "phases", type("A", (), {"top": 50})())
+        self.assertTrue(lines and all("n/a" in l and " 0 turns" not in l for l in lines))
+
     def test_top_bounds(self):
         rc, out, _ = self.cli("sc", "digest", "--top", "2")
         self.assertEqual(len(out.splitlines()), 2)

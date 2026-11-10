@@ -40,6 +40,21 @@ def _median(xs):
     return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) // 2
 
 
+PHASES = ("spawn", "build", "handin", "check_qa_whitebox", "check_qa_blackbox", "returns", "other")
+
+
+def phase_table(data):
+    """One row per ticket: its phases in the same shape as task["phases"] (None = n/a). A ticket from an older
+    data file (no phases) gets all-None, never zeros."""
+    return [{"id": t["id"], "phases": {p: (t.get("phases") or {}).get(p) for p in PHASES}} for t in data.get("tasks", [])]
+
+
+def phase_lines(rows):
+    def cell(v):
+        return "n/a" if v is None else "%d turns %d tok" % (v["turns"], sum(v["tokens"].values()))
+    return ["%s | " % r["id"] + " | ".join("%s %s" % (p, cell(r["phases"][p])) for p in PHASES) for r in rows]
+
+
 def digest(data):
     t = data.get("totals", {})
     cost = t.get("cost_usd") or 0
