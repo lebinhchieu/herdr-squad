@@ -1,5 +1,5 @@
 ## Behaviour
-Merged `plugin-dev-fable-c` (b35c5d0) then `plugin-dev-fable-b` (b54f582) into the 09 branch (tip 136f92f). Both merges ran clean, no conflicts. Merged tip: 2da9234.
+Merged `plugin-dev-fable-c` (b35c5d0) then `plugin-dev-fable-b` (b54f582) into the 09 branch (tip 136f92f). Both merges ran clean, no conflicts. Merged tip: 2da9234 (the HANDIN sha ec5ebc0 is 2da9234 plus this evidence file).
 
 - AC1: `git merge-base --is-ancestor <sha> HEAD` is true for 136f92f, b35c5d0, b54f582, d0a112f, 52da3ef, 07a7be3, ea90150.
 - AC2: no conflicts. Measured max composed Developer rules after merge is 5433 B, rounded up to 20 B = 5440, so `LIMIT` stays 5440 (cap 5480).
