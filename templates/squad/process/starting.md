@@ -7,7 +7,7 @@ topic: defaults
 Every scope and goal starts with these; its brief may override them.
 
 - **Budget:** the Manager checks in with the PO at each iteration's end and after 3 returns on one task.
-- **Done means:** the team's passed rule ([SIZE-2]), evidence saved, branches ready for PO review.
+- **Passed means:** the team's passed rule ([SIZE-2]), evidence saved, branches ready for PO review.
 
 ## START-2a Developer cap, Manager plans
 roles: manager

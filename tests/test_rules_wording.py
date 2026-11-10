@@ -151,7 +151,7 @@ class WordingATest(unittest.TestCase):
         return (self.PROC / name).read_text()
 
     def test_passed_is_not_called_done(self):
-        for name, old in (("lifecycle.md", "never enough for done"), ("sizes.md", "counts as done"), ("starting.md", "Done rule"),
+        for name, old in (("lifecycle.md", "never enough for done"), ("sizes.md", "counts as done"), ("starting.md", "Done rule"), ("starting.md", "Done means"),
                           ("starting.md", "dependencies are done"), ("teams.md", "new Done"), ("spawning.md", "task is done"),
                           ("goal.md", "scope is done"), ("cost.md", "after every DONE"), ("iterations.md", "what is done")):
             with self.subTest(old=old):

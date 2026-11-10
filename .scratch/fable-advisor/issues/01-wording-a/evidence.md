@@ -13,7 +13,7 @@
 | lifecycle.md:227 (LC-18) project "done" tests | keep: project's own test |
 | lifecycle.md:311 (LC-25) "what was done" | keep: not a stage word |
 | lifecycle.md:323 (LC-27) "only `merged` is done" | keep: means merged |
-| starting.md:10 "Done means: the team's passed rule" | keep: scope done = checks passed, evidence, branch ready |
+| starting.md:10 "Done means" | changed to "Passed means" (QA blackbox return 2) |
 | starting.md:156 "definition-of-done rules `project.md` lists" | keep: project's own |
 | `_done/` folder names (iterations, goal, notes, closing, promotion, safety, starting) | keep: folder name |
 All other hits (LC-1, SIZE-16, SIZE-17c, START-19, TEAM-7, SPAWN-8a/8b, GOAL-3b/3c, COST-8, iterations l.12/24/31/112/113) changed.
