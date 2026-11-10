@@ -142,6 +142,34 @@ class ManagerInboxWordingTest(unittest.TestCase):
             self.assertIn(s, self.CARRIES)
 
 
+class WordingATest(unittest.TestCase):
+    """Task 01 (fable-advisor): done means merged; attached rules; one session per run; no dead clause."""
+
+    PROC = ROOT / "templates/squad/process"
+
+    def text(self, name):
+        return (self.PROC / name).read_text()
+
+    def test_passed_is_not_called_done(self):
+        for name, old in (("lifecycle.md", "never enough for done"), ("sizes.md", "counts as done"), ("starting.md", "Done rule"),
+                          ("starting.md", "dependencies are done"), ("teams.md", "new Done"), ("spawning.md", "task is done"),
+                          ("goal.md", "scope is done"), ("cost.md", "after every DONE"), ("iterations.md", "what is done")):
+            with self.subTest(old=old):
+                self.assertNotIn(old, self.text(name))
+
+    def test_live_run_and_design_shots_roles_are_not_empty(self):
+        for name, rid in (("review.md", "REV-5a"), ("evidence.md", "EVID-5")):
+            self.assertIn(f"## {rid} ", self.text(name))
+            self.assertRegex(self.text(name), rf"## {rid} [^\n]*\nroles: dev\n")
+
+    def test_developer_session_may_run_a_queue(self):
+        self.assertIn("queued run of tasks in one area", self.text("starting.md"))
+
+    def test_no_dead_suggest_clause(self):
+        for f in self.PROC.glob("*.md"):
+            self.assertNotIn("never suggest it to the PO", f.read_text())
+
+
 class TaskStageWordsTest(unittest.TestCase):
     """Ticket 05 (task-claim-gates): process text uses passed/merged, no confirmer, gates warn."""
 

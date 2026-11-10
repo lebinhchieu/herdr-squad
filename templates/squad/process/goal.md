@@ -31,14 +31,14 @@ roles: qa-whitebox
 when: goal = yes
 topic: goal
 
-Before either scope is done, check both sides' code against `$GOAL_DIR/shared/contracts/<name>.md` and record it in `qa-w.md`.
+Before either scope passes, check both sides' code against `$GOAL_DIR/shared/contracts/<name>.md` and record it in `qa-w.md`.
 
 ## GOAL-3c Contracts, Manager
 roles: manager
 when: goal = yes and tech-lead = no
 topic: goal
 
-Write each shared contract in `$GOAL_DIR/shared/contracts/<name>.md` before either scope builds on it. With no QA whitebox on the team, have the Developer's `## Review` name both sides' match to it before the scope is done.
+Write each shared contract in `$GOAL_DIR/shared/contracts/<name>.md` before either scope builds on it. With no QA whitebox on the team, have the Developer's `## Review` name both sides' match to it before the scope has passed.
 
 ## GOAL-4 Lone scope base
 roles: manager

@@ -38,14 +38,14 @@ roles: manager
 when: design = yes
 topic: spawning
 
-Spawn the Designer only when `designer` is on `team:`, and never suggest it to the PO. Spawn it after the plan names the UI tasks and before their Developers; retire it once every design is final ([START-5]).
+Spawn the Designer only when `designer` is on `team:`. Spawn it after the plan names the UI tasks and before their Developers; retire it once every design is final ([START-5]).
 
 ## SPAWN-4a Architect
 roles: manager
 when: architecture = yes
 topic: spawning
 
-Besides the roles of [SPAWN-2a] and [SPAWN-2b], spawn `architect` only when `architect` is on `team:`, and never suggest it to the PO. Spawn it after the goal check and before the plan: before your task split or the plan. Retire it once `architecture.md` is `Status: final`; respawn it for a question on it.
+Besides the roles of [SPAWN-2a] and [SPAWN-2b], spawn `architect` only when `architect` is on `team:`. Spawn it after the goal check and before the plan: before your task split or the plan. Retire it once `architecture.md` is `Status: final`; respawn it for a question on it.
 
 ## SPAWN-5a Developers, Manager plans
 roles: manager
@@ -84,14 +84,14 @@ roles: manager
 when: plan-owner = manager
 topic: spawning
 
-Retire with `squad-retire <agent-name>`: it asks the agent to save its notes, then closes its pane. Developers retire after their task is done; their branch stays for the PO.
+Retire with `squad-retire <agent-name>`: it asks the agent to save its notes, then closes its pane. Developers retire after their task has passed; their branch stays for the PO.
 
 ## SPAWN-8b Retiring, Team Lead plans
 roles: team-lead
 when: plan-owner = team-lead
 topic: spawning
 
-Retire a Developer with `squad-retire <agent-name>` after its task is done: it asks the agent to save its notes, then closes its pane; its branch stays for the PO.
+Retire a Developer with `squad-retire <agent-name>` after its task has passed: it asks the agent to save its notes, then closes its pane; its branch stays for the PO.
 
 ## SPAWN-9 Team Lead spawns only Developers
 roles: team-lead

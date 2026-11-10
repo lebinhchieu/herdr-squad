@@ -164,7 +164,7 @@ roles: manager
 topic: sizes
 
 - **Handover on adding a role:** the Manager writes a `## Handover` section in the scope plan (decided, built, open); a joining role starts from it, and the Manager's briefing to each joining role points at it.
-- Built work passes the new team's checks before it counts as done.
+- Built work passes the new team's checks before it counts as passed.
 - The Manager logs every team change in `scope.md` and the iteration file.
 
 ## SIZE-17a Joining a team, BA
@@ -186,7 +186,7 @@ roles: qa-whitebox
 when: qa-white = yes
 topic: sizes
 
-Joining a scope already under way: work already built goes through your full check before it counts as done. Start from the plan's `## Handover` section.
+Joining a scope already under way: work already built goes through your full check before it counts as passed. Start from the plan's `## Handover` section.
 
 ## SIZE-17d Joining a team, QA blackbox
 roles: qa-blackbox

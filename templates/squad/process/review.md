@@ -55,7 +55,7 @@ topic: review
 Code that parses another tool's output (pane text, logs, an API) needs two real samples, including the constant or idle case, before a pattern is trusted. The technical AC require them.
 
 ## REV-5a Live run
-roles:
+roles: dev
 when: qa-white = no
 topic: review
 

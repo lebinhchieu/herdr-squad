@@ -65,7 +65,7 @@ topic: evidence
 Commit `## Behaviour` with the code: Playwright or API checks per AC (run, seen), shots `![alt](img/<file>)` under the AC.
 
 ## EVID-5 Design shots
-roles:
+roles: dev
 when: ui-check = manager and design = yes
 topic: evidence
 

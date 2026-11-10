@@ -9,7 +9,7 @@ Each iteration has `iterations/<n>.md`.
 2. **Plan:** the roles on the team talk freely; requirements, AC and tasks land in files.
 3. **Build and verify:** event-driven; Developers build, QA checks, gaps go to owners.
 4. **Retro:** the Manager writes the friction (loops, blocked panes, returns, unclear ownership) into the iteration file.
-5. **Check-in:** the Manager shows the PO what is done, open escalations and proposed role-instruction changes; each answered escalation's outcome goes into the iteration file and its row leaves `escalations.md`.
+5. **Check-in:** the Manager shows the PO what has passed, open escalations and proposed role-instruction changes; each answered escalation's outcome goes into the iteration file and its row leaves `escalations.md`.
 
 ## ITER-2 Escalating to the PO
 roles: manager
@@ -21,14 +21,14 @@ Escalate only what the rules say always goes to the PO ([WHO-1a], [WHO-1b], [WHO
 roles: team-lead
 topic: iterations
 
-Write `iterations/<n>.summary.md` at iteration end: tasks done with a link to each ticket's `evidence.md`, each task's final passed sha, the checkers that passed it and the returns per task (all three from `squad-ledger`), friction, open items, at most 40 lines. It carries one line naming the residual risk "the cap is a rule, not a lock".
+Write `iterations/<n>.summary.md` at iteration end: tasks passed with a link to each ticket's `evidence.md`, each task's final passed sha, the checkers that passed it and the returns per task (all three from `squad-ledger`), friction, open items, at most 40 lines. It carries one line naming the residual risk "the cap is a rule, not a lock".
 
 ## ITER-3b Pod summary, Manager
 roles: manager
 when: team-lead = no and qa-black = yes
 topic: iterations
 
-When you own the plan (the Team Lead is not on the team), write `iterations/<n>.summary.md` at iteration end, at most 40 lines: tasks done with each ticket's `evidence.md` link, final passed sha and returns (`squad-ledger`), friction, open items.
+When you own the plan (the Team Lead is not on the team), write `iterations/<n>.summary.md` at iteration end, at most 40 lines: tasks passed with each ticket's `evidence.md` link, final passed sha and returns (`squad-ledger`), friction, open items.
 
 ## ITER-4 Inbox
 roles: manager
@@ -109,8 +109,8 @@ roles: manager
 topic: iterations
 
 - Send the check-in at the end of each iteration as ONE `squad-inbox add` item (`--kind read`; `--kind answer` when it asks the PO to choose), never as a chat report. Unless a question blocks the squad now, bring it to the next check-in.
-- It lists each step the PO must take (clean-up, checklist, close confirmation, open choices) next to: what is done, what is next, any task at 3 returns (one budget line), open escalations, proposed role-instruction changes.
-- What is done carries evidence links: per ticket, the link to its `evidence.md` (a path in the repo or on the Dev branch, not a folder), the Dev branch and the evidence sha.
+- It lists each step the PO must take (clean-up, checklist, close confirmation, open choices) next to: what has passed, what is next, any task at 3 returns (one budget line), open escalations, proposed role-instruction changes.
+- What has passed carries evidence links: per ticket, the link to its `evidence.md` (a path in the repo or on the Dev branch, not a folder), the Dev branch and the evidence sha.
 - Then copy each answered escalation's outcome into the iteration file and delete its row from `escalations.md`.
 
 ## ITER-12 Reset after a check-in

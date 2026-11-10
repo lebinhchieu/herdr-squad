@@ -1,11 +1,11 @@
 # Task lifecycle
 
-## LC-1 Own checks are not done
+## LC-1 Own checks are not passed
 roles: manager
 aware: tech-lead
 topic: lifecycle
 
-A Developer's own checks are required but never enough for done ([SIZE-2]).
+A Developer's own checks are required but never enough to pass ([SIZE-2]).
 
 ## LC-2 UI ticket waits for its design
 roles: team-lead
