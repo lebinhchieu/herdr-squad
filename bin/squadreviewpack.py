@@ -159,8 +159,9 @@ def run(argv):
         full_md, blind = build(nn, sha, base, scope, maxl)
         d = Path(scope) / "evidence" / nn
         d.mkdir(parents=True, exist_ok=True)
-        (d / "pack.md").write_text(full_md, encoding="utf-8", newline="\n")
-        (d / "pack-blackbox.md").write_text(blind, encoding="utf-8", newline="\n")
+        for name, body in (("pack.md", full_md), ("pack-blackbox.md", blind)):
+            with open(d / name, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(body)
     except Usage as e:
         print("squad-review-pack: %s" % e, file=sys.stderr)
         return 2
