@@ -85,7 +85,7 @@ Run the pod's health checks with `herdr agent list` and `herdr agent read`. Neve
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: messages
 
-`DECISION` goes only to roles whose open task it changes, named in the first line (`DECISION SET-13, SET-14: ...`); others read the file at their next ticket.
+`DECISION` goes only to roles whose open task it changes, named in the first line (`DECISION 13, 14: ...`); others read the file at their next ticket.
 
 ## MSG-10 Permission prompts
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect

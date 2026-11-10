@@ -116,10 +116,10 @@ class DevRulesSize(unittest.TestCase):
                 self.assertTrue(r.stdout.startswith(f"## {rid} "), r.stdout)
 
     def test_manager_composed_bytes_did_not_grow_vs_90be196(self):
-        # (team, goal) -> bytes of the composed Manager rules at 90be196 plus ticket 06's parked-question rule (+265 B, +253 B with goal+architect) and the respawn-line rules of fix 2 (+118 to +132 B) and task 11 worktree reuse in SPAWN-5a (+291 B) and task 12 suite policy in SUITE-1b (+156 B) and task 13 GOAL-6b ask (+59 B) and task-claim-gates 05 passed/merged text and LC-27 (+678 to +742 B) and wd2-away 03 away rule ITER-17 (+951 B), and fable-advisor 01 passed wording and queued-run text (+18 to +135 B), fixture home with live-length names
-        base = {((), "yes"): 56340, ((), "no"): 53050, (("tech-lead",), "yes"): 55250, (("team-lead", "designer"), "no"): 51180,
-                (("qa-white", "qa-black", "designer", "architect"), "yes"): 59380,
-                (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"): 52230}
+        # (team, goal) -> bytes of the composed Manager rules at 90be196 plus ticket 06's parked-question rule (+265 B, +253 B with goal+architect) and the respawn-line rules of fix 2 (+118 to +132 B) and task 11 worktree reuse in SPAWN-5a (+291 B) and task 12 suite policy in SUITE-1b (+156 B) and task 13 GOAL-6b ask (+59 B) and task-claim-gates 05 passed/merged text and LC-27 (+678 to +742 B) and wd2-away 03 away rule ITER-17 (+951 B), and fable-advisor 01 passed wording and queued-run text (+18 to +135 B) and 02 wording B (+20 to +335 B), fixture home with live-length names
+        base = {((), "yes"): 56700, ((), "no"): 53400, (("tech-lead",), "yes"): 55580, (("team-lead", "designer"), "no"): 51230,
+                (("qa-white", "qa-black", "designer", "architect"), "yes"): 59450,
+                (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"): 52260}
         for (team, goal), n in base.items():
             with self.subTest(team=team, goal=goal):
                 self.assertLessEqual(len(compose_team("manager", team, goal)), n)

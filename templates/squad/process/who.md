@@ -63,7 +63,7 @@ topic: owners
 | Topic | Owner | Breaks a dispute | Always goes to PO |
 |---|---|---|---|
 | Design notes, technical AC | Developer in the task file; agreed with QA whitebox when it is on the team | Manager | Irreversible tech choice (data model, new dependency, vendor) |
-| Irreversible design choice | Manager, after an advisor call | Manager | The PO-listed items stay with the PO |
+| Irreversible design choice | Manager recommends, after an advisor call | Manager | The PO decides; PO-listed items stay with the PO |
 
 ## WHO-2e Architecture owner
 roles: manager, tech-lead, architect

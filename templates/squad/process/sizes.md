@@ -95,7 +95,7 @@ roles: qa-blackbox
 when: behaviour-check = qa-black
 topic: sizes
 
-QA blackbox checks the behaviour of every task on the running app.
+QA blackbox checks the behaviour of every task on the running app; the Developer's shots are a starting point ([REV-9]).
 
 ## SIZE-9 UI design
 roles: designer
@@ -193,7 +193,7 @@ roles: qa-blackbox
 when: qa-black = yes
 topic: sizes
 
-Joining a scope already under way: test everything already built against the business AC; the Developer's `evidence.md` `## Behaviour` does not count as your check.
+Joining a scope already under way: test everything already built against the business AC; the Developer's `evidence.md` `## Behaviour` and shots are a starting point, not your check.
 
 ## SIZE-17e Joining a team, Tech Lead
 roles: tech-lead
@@ -234,9 +234,9 @@ The first present role in each chain owns the duty. Every chain ends at the Mana
 | Full suite, `promote.md` | Tech Lead, then QA whitebox, then Developer |
 | Migration, contract change, risk flag | Tech Lead, then Manager (adds the Tech Lead) |
 | Business doubt, outside question | BA, then Manager (adds the BA) |
-| Irreversible design choice | Architect, then Tech Lead, then Manager propose; the PO decides every time |
+| Irreversible design choice | Architect, then Tech Lead, then Manager recommend; the PO decides |
 
-You escalate each irreversible choice to the PO ([WHO-2e]).
+Escalate each irreversible choice to the PO ([ITER-2]).
 
 ## SIZE-23b Technical AC, QA whitebox
 roles: qa-whitebox
@@ -264,4 +264,4 @@ roles: qa-whitebox
 when: promote-owner = qa-white
 topic: sizes
 
-Keep `promote.md` as in [PROMO-2], including the lasting business rules and glossary terms the ticket and the tests show.
+Keep `promote.md` in your scope folder: each lasting decision, glossary term, business rule or ADR candidate the ticket and tests show, with its `project.md` target file and exact wording.

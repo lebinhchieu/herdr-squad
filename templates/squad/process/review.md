@@ -95,7 +95,7 @@ roles: qa-blackbox
 when: qa-black = yes
 topic: review
 
-On `HANDIN`, check each business AC first from the Developer's committed shots and text in `evidence.md` `## Behaviour` ([EVID-2a]). Run the app the way `project.md` says only for an AC whose shot is missing, unclear or shows the wrong state, and for the obvious unhappy paths no shot covers.
+On `HANDIN`, read the Developer's shots and `## Behaviour` in `evidence.md` ([EVID-2a]) as a starting point. Run the app the way `project.md` says for every AC a shot does not clearly prove (missing, unclear or wrong state) and for the obvious unhappy paths; never sign off from shots alone.
 
 ## REV-10 QA whitebox findings
 roles: qa-whitebox
@@ -150,7 +150,7 @@ topic: review
 roles: dev
 topic: review
 
-After a PASS, a later commit goes to the same checkers as `HANDIN <task>: diff check <passed sha>..<new sha>`; tell the plan owner after every checker passes it.
+After a PASS, a later commit goes to the same checkers as `HANDIN <task>: diff check <passed sha>..<new sha>`; tell the plan owner after every checker passes it. An evidence-only commit ([MRG-2]) needs none.
 
 ## REV-15 Report deliverables
 roles: manager

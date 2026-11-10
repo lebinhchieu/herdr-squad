@@ -170,6 +170,42 @@ class WordingATest(unittest.TestCase):
             self.assertNotIn("never suggest it to the PO", f.read_text())
 
 
+class WordingBTest(unittest.TestCase):
+    """Task 02 (fable-advisor): one verdict rule, shots as a starting point, PO decides, when-keys, citations."""
+
+    PROC = ROOT / "templates/squad/process"
+
+    def head(self, name, rid):
+        t = (self.PROC / name).read_text()
+        return t.split(f"## {rid} ")[1].split("\n## ")[0]
+
+    def test_manager_confirmation_is_not_a_pass(self):
+        self.assertNotIn("your `PASS`", self.head("evidence.md", "EVID-3a"))
+
+    def test_blackbox_never_signs_off_from_shots_alone(self):
+        self.assertIn("never sign off from shots alone", self.head("review.md", "REV-9"))
+        self.assertIn("starting point", self.head("sizes.md", "SIZE-17d"))
+        self.assertNotIn("does not count", self.head("sizes.md", "SIZE-17d"))
+
+    def test_the_po_decides_irreversible_choices(self):
+        self.assertNotIn("decides every time", self.head("sizes.md", "SIZE-22"))
+        self.assertIn("[ITER-2]", self.head("sizes.md", "SIZE-22"))
+
+    def test_when_keys(self):
+        self.assertNotIn("qa-black", self.head("iterations.md", "ITER-3b").split("\n\n")[0])
+        self.assertIn("[MRG-2]", self.head("review.md", "REV-14a"))
+
+    def test_citations_and_small_items(self):
+        for name, rid in (("iterations.md", "ITER-2"), ("iterations.md", "ITER-17"), ("core.md", "CORE-3")):
+            self.assertNotIn("[WHO-1b]", self.head(name, rid))
+        self.assertNotIn("[WHO-2b]", self.head("goal.md", "GOAL-6b"))
+        self.assertNotIn("[PROMO-2]", self.head("sizes.md", "SIZE-24b"))
+        self.assertIn("10 minutes", self.head("spawning.md", "SPAWN-10a"))
+        self.assertIn("`DECISION 13, 14:", self.head("messages.md", "MSG-9"))
+        for f in self.PROC.glob("*.md"):
+            self.assertNotIn("Chieu", f.read_text(), f.name)
+
+
 class TaskStageWordsTest(unittest.TestCase):
     """Ticket 05 (task-claim-gates): process text uses passed/merged, no confirmer, gates warn."""
 

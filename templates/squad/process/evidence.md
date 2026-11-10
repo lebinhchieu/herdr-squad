@@ -47,7 +47,7 @@ roles: manager
 when: handin-target = manager
 topic: evidence
 
-With no QA on the team there is no reviewer file: `## Review` in the ticket's `evidence.md` ([REV-22]) is the review record, and your `PASS` is the verdict.
+With no QA on the team there is no reviewer file: `## Review` in the ticket's `evidence.md` ([REV-22]) is the review record, and your confirmation (no `PASS`, [LC-27]) is the verdict.
 
 ## EVID-3b Reviewer files, both QAs
 roles: qa-blackbox, qa-whitebox

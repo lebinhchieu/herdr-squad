@@ -107,7 +107,7 @@ topic: spawning
 
 Check every time you get a message and at least between iterations:
 - `herdr agent list`: who is `working`, `idle`, `blocked`, or gone.
-- Idle with work assigned → send `ASK <name>: STATUS?`.
+- Idle with work assigned for 10 minutes ([MSG-8a]) → send `ASK <name>: STATUS?`.
 - Looping (the same two agents exchanging messages on one topic past 2 rounds) → step in, decide or route to the owner.
 - Context filling (a long-running agent getting confused or repeating itself) → ask it to update its notes, retire it, respawn with the same name and a briefing that points at its notes.
 
