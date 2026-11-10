@@ -31,14 +31,14 @@ roles: qa-whitebox
 when: goal = yes
 topic: goal
 
-Before either scope is done, check both sides' code against `$GOAL_DIR/shared/contracts/<name>.md` and record it in `qa-w.md`.
+Before either scope passes, check both sides' code against `$GOAL_DIR/shared/contracts/<name>.md` and record it in `qa-w.md`.
 
 ## GOAL-3c Contracts, Manager
 roles: manager
 when: goal = yes and tech-lead = no
 topic: goal
 
-Write each shared contract in `$GOAL_DIR/shared/contracts/<name>.md` before either scope builds on it. With no QA whitebox on the team, have the Developer's `## Review` name both sides' match to it before the scope is done.
+Write each shared contract in `$GOAL_DIR/shared/contracts/<name>.md` before either scope builds on it. With no QA whitebox on the team, have the Developer's `## Review` name both sides' match to it before the scope has passed.
 
 ## GOAL-4 Lone scope base
 roles: manager
@@ -66,7 +66,7 @@ Plan one integration task at the end of the scope: one Developer branches from t
 roles: manager, tech-lead
 topic: goal
 
-An integration task merges the scope's passed branches into the Developer's own branch, runs the targeted tests for the changed files and is handed in; the suite owner then follows [SUITE-1]: targeted tests by default, a full run only after Chieu's yes ([WHO-2b], [WHO-2c], [WHO-2f]).
+An integration task merges the scope's passed branches into the Developer's own branch, runs the targeted tests for the changed files and is handed in; the suite owner then follows [SUITE-1]: targeted tests by default, a full run only after the PO's yes ([SUITE-1], [SUITE-1b], [SUITE-2d]).
 
 ## GOAL-6c Integration task, next scope
 roles: manager

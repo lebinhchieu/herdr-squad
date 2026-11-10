@@ -1,11 +1,11 @@
 # Task lifecycle
 
-## LC-1 Own checks are not done
+## LC-1 Own checks are not passed
 roles: manager
 aware: tech-lead
 topic: lifecycle
 
-A Developer's own checks are required but never enough for done ([SIZE-2]).
+A Developer's own checks are required but never enough to pass ([SIZE-2]).
 
 ## LC-2 UI ticket waits for its design
 roles: team-lead
@@ -69,6 +69,12 @@ when: plan-owner = manager
 topic: lifecycle
 
 Give a Developer the next ticket in its area while it stays under the [COST-5] limit.
+
+## LC-6c Bundle small tickets
+roles: manager, team-lead
+topic: lifecycle
+
+The plan owner may give one Developer 2-3 tickets of at most 2 files each, all different files. One `HANDIN` lists each ticket and sha; both QAs check every ticket in one pass and send one verdict line per ticket. A `FAIL` returns only the failed ticket.
 
 ## LC-7a Three returns, Manager
 roles: manager

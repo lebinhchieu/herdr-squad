@@ -1,3 +1,26 @@
+## v12 — 2026-11-11
+
+Plugin 0.8.0. New tools and rules; nothing breaks. A pinned squad keeps its own runtime until it re-pins; the 8 phase rules change hash, so `squad-process upgrade --check` names an overlay that replaced one.
+
+added:
+- COST-8b: the Manager respawns before its next spawn or reply after a PO wait longer than the cache lifetime. why: a cold cache costs more than a fresh session
+- LC-6c: the plan owner may bundle 2-3 small tickets into one Developer session. why: one session per tiny ticket costs a fresh start each
+- ITER-18: a rule added to an overlay names its metric and baseline; the Coach reads it at close. why: a rule that moves no number gets removed
+- EVID-9, EVID-9b, EVID-9c, EVID-9d, EVID-9e: the check table (`evidence/<NN>/checks.md`) and who assembles evidence when `tech-ac = dev` and a QA blackbox is on the team. why: one table replaces the SQ-2 trace and QAs cannot write to the Developer's worktree
+
+changed:
+- LC-1, SIZE-16, SIZE-17c, START-1, START-19, TEAM-7, SPAWN-8a, SPAWN-8b, GOAL-3b, GOAL-3c, COST-8: "done" means merged; where a rule meant checked-and-passed it says "passed". why: done and passed were mixed
+- EVID-3a, REV-9, SIZE-8b, SIZE-17d, START-13, ITER-3b, EVID-2b, EVID-2d, EVID-2e, REV-14a: the Manager's confirmation is the verdict, shots are a starting point for QA blackbox, the PO decides each irreversible choice, the `when:` keys match. why: rules contradicted each other
+- MRG-2, MRG-3, MRG-4, MRG-5, CLOSE-2, CLOSE-4, CLOSE-5, ITER-6c: tagged `phase:`; the tool that starts the phase prints them and they are no longer attached to the Manager. why: the Manager's start-up fell from 779 to 566 lines
+
+removed:
+none
+
+retargeted:
+none
+
+The overlay rule SQ-2 (AC trace) is replaced by the check-table rules (EVID-9 to EVID-9e); the Manager removes SQ-2 from `process.local.md` after the re-pin (WHO-6).
+
 ## v11 — 2026-11-04
 
 Plugin 0.6.0 stays. Rule text only; no settings change.

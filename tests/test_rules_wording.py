@@ -142,6 +142,70 @@ class ManagerInboxWordingTest(unittest.TestCase):
             self.assertIn(s, self.CARRIES)
 
 
+class WordingATest(unittest.TestCase):
+    """Task 01 (fable-advisor): done means merged; attached rules; one session per run; no dead clause."""
+
+    PROC = ROOT / "templates/squad/process"
+
+    def text(self, name):
+        return (self.PROC / name).read_text()
+
+    def test_passed_is_not_called_done(self):
+        for name, old in (("lifecycle.md", "never enough for done"), ("sizes.md", "counts as done"), ("starting.md", "Done rule"), ("starting.md", "Done means"),
+                          ("starting.md", "dependencies are done"), ("teams.md", "new Done"), ("spawning.md", "task is done"),
+                          ("goal.md", "scope is done"), ("cost.md", "after every DONE"), ("iterations.md", "what is done")):
+            with self.subTest(old=old):
+                self.assertNotIn(old, self.text(name))
+
+    def test_live_run_and_design_shots_roles_are_not_empty(self):
+        for name, rid in (("review.md", "REV-5a"), ("evidence.md", "EVID-5")):
+            self.assertIn(f"## {rid} ", self.text(name))
+            self.assertRegex(self.text(name), rf"## {rid} [^\n]*\nroles: dev\n")
+
+    def test_developer_session_may_run_a_queue(self):
+        self.assertIn("queued run of tasks in one area", self.text("starting.md"))
+
+    def test_no_dead_suggest_clause(self):
+        for f in self.PROC.glob("*.md"):
+            self.assertNotIn("never suggest it to the PO", f.read_text())
+
+
+class WordingBTest(unittest.TestCase):
+    """Task 02 (fable-advisor): one verdict rule, shots as a starting point, PO decides, when-keys, citations."""
+
+    PROC = ROOT / "templates/squad/process"
+
+    def head(self, name, rid):
+        t = (self.PROC / name).read_text()
+        return t.split(f"## {rid} ")[1].split("\n## ")[0]
+
+    def test_manager_confirmation_is_not_a_pass(self):
+        self.assertNotIn("your `PASS`", self.head("evidence.md", "EVID-3a"))
+
+    def test_blackbox_never_signs_off_from_shots_alone(self):
+        self.assertIn("never sign off from shots alone", self.head("review.md", "REV-9"))
+        self.assertIn("starting point", self.head("sizes.md", "SIZE-17d"))
+        self.assertNotIn("does not count", self.head("sizes.md", "SIZE-17d"))
+
+    def test_the_po_decides_irreversible_choices(self):
+        self.assertNotIn("decides every time", self.head("sizes.md", "SIZE-22"))
+        self.assertIn("[ITER-2]", self.head("sizes.md", "SIZE-22"))
+
+    def test_when_keys(self):
+        self.assertNotIn("qa-black", self.head("iterations.md", "ITER-3b").split("\n\n")[0])
+        self.assertIn("[MRG-2]", self.head("review.md", "REV-14a"))
+
+    def test_citations_and_small_items(self):
+        for name, rid in (("iterations.md", "ITER-2"), ("iterations.md", "ITER-17"), ("core.md", "CORE-3")):
+            self.assertNotIn("[WHO-1b]", self.head(name, rid))
+        self.assertNotIn("[WHO-2b]", self.head("goal.md", "GOAL-6b"))
+        self.assertNotIn("[PROMO-2]", self.head("sizes.md", "SIZE-24b"))
+        self.assertIn("10 minutes", self.head("spawning.md", "SPAWN-10a"))
+        self.assertIn("`DECISION 13, 14:", self.head("messages.md", "MSG-9"))
+        for f in self.PROC.glob("*.md"):
+            self.assertNotIn("Chieu", f.read_text(), f.name)
+
+
 class TaskStageWordsTest(unittest.TestCase):
     """Ticket 05 (task-claim-gates): process text uses passed/merged, no confirmer, gates warn."""
 
@@ -155,7 +219,34 @@ class TaskStageWordsTest(unittest.TestCase):
         lc = rule("LC-27")
         for s in ("only `merged` is done", "Gates warn, never block", "squad-task", "`squad-evidence check`"):
             self.assertIn(s, lc)
-        self.assertIn("squad-task merged NN", rule("MRG-4"))
+        self.assertIn("squad-task merged NN", run("rule", "MRG-4").stdout)  # a phase rule: printed at merge time
+
+
+class SmallRulesTest(unittest.TestCase):
+    def test_bundle_long_wait_and_experiment_rules(self):
+        self.assertIn("one `HANDIN` lists each ticket", rule("LC-6c").replace("One `HANDIN`", "one `HANDIN`"))
+        self.assertIn("1h cache lifetime", rule("COST-8b"))
+        self.assertIn("squad-respawn", rule("COST-8b"))
+        proc = ROOT / "templates/squad/process/iterations.md"
+        t = proc.read_text().split("## ITER-18 ")[1]
+        self.assertIn("metric and baseline", t)
+        self.assertIn("remove the rule", t)
+
+
+class CheckTableRulesTest(unittest.TestCase):
+    def test_rules_reach_the_right_roles(self):
+        dev = composed("dev", team=("qa-white",))
+        self.assertIn("checks --template", dev)
+        qab = ("qa-black",)  # tech-ac = dev, a QA blackbox: the Developer assembles, the Manager accepts
+        self.assertIn("## EVID-9c ", composed("dev", team=qab))
+        self.assertIn("## EVID-9e ", composed("manager", team=qab))
+        for team in ((), ("qa-white", "qa-black")):
+            self.assertNotIn("## EVID-9c ", composed("dev", team=team))
+            self.assertNotIn("## EVID-9e ", composed("manager", team=team))
+        self.assertIn("## EVID-9d ", composed("manager", team=()))
+        self.assertNotIn("## EVID-9d ", composed("manager", team=("qa-white",)))
+        for role, team in (("qa-whitebox", ("qa-white",)), ("qa-blackbox", qab)):
+            self.assertIn("`squad-evidence checks", composed(role, team=team))
 
 
 if __name__ == "__main__":

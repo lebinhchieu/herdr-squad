@@ -19,7 +19,7 @@ from report_fixtures import Fixture, T0, asst, stamp, tasks_scope  # noqa: E402
 CLI = str(ROOT / "bin" / "squad-report")
 AGENT_ENV = ("SQUAD_DIR", "SCOPE_DIR", "GOAL_DIR", "SQUAD_NAME", "SQUAD_ROLE", "SQUAD_SCOPE")
 TASK_KEYS = {"id", "aliases", "title", "dev", "status", "iteration", "window", "cycle_s", "buckets_s", "tokens", "cost_usd",
-             "returns", "flag", "returns_list", "rework_s", "rework_cost_usd", "review_waits"}
+             "returns", "flag", "returns_list", "phases", "rework_s", "rework_cost_usd", "review_waits"}
 RETURN_KEYS = {"fail_at", "fail_by", "handin_at", "reason"}
 ITER_KEYS = {"n", "window", "agent_s", "cost_usd", "returns"}
 MATRIX_KEYS = {"task", "agent", "time_s", "buckets_s", "tokens", "cost_usd"}

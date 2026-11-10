@@ -16,7 +16,7 @@ topic: messages
 roles: all
 topic: owners
 
-Owners: Manager process, roster, team; Designer UI; the rest: [WHO-1a], [WHO-1b], [WHO-2].
+Owners: Manager process, roster, team; Designer UI; the rest: [WHO-1a], [WHO-1d], [WHO-3a], [WHO-5].
 
 ## CORE-4 Two rounds
 roles: all

@@ -104,7 +104,12 @@ class LabelAndSpawnTest(Base):
                     self.log.unlink(missing_ok=True)
                     args = [role, f"{role}-x", "--scope", "s1", "--title", "TAB-02 tabs", "--prompt", "hello", *(["--dry-run"] if dry else [])]
                     r = self.cli("squad-spawn", *args)
-                    self.assert_clean(r)
+                    if role == "token-coach" and not dry:
+                        # squad-spawn prints the ITER-6c coach-phase rule on stderr (stdout stays one JSON line)
+                        self.assertEqual(r.returncode, 0, r.stderr)
+                        self.assertIn(b"ITER-6c", r.stderr)
+                    else:
+                        self.assert_clean(r)
                     self.assertNotIn(b"squad-label --init failed", r.stderr)
                     if dry:
                         self.assertIn("🦀".encode("utf-8"), r.stdout)

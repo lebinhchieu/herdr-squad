@@ -77,7 +77,13 @@ After a respawn read your notes and the files they name; your rules are already 
 roles: manager
 topic: cost
 
-The Manager is not exempt: after every DONE, every PO message and before every spawn read your `squad-usage` row. On `fresh`, after a compaction or a cache expiry: write notes, run `squad-respawn` before your next spawn or PO reply. A hook adds one `context <n>k` notice to the result of your next `squad-spawn` or `squad-inbox add`; act on it then.
+The Manager is not exempt: after each pass, every PO message and before every spawn read your `squad-usage` row. On `fresh`, after a compaction or a cache expiry: write notes, run `squad-respawn` before your next spawn or PO reply. A hook adds one `context <n>k` notice to the result of your next `squad-spawn` or `squad-inbox add`; act on it then.
+
+## COST-8b Long PO wait, Manager
+roles: manager
+topic: cost
+
+After a PO wait longer than the 1h cache lifetime (`CACHE_TTL_S` in `bin/squadtranscript.py`, the 1-hour lifetime this squad's sessions use; not re-checked against Claude docs), write notes and run `squad-respawn` before your next spawn or reply, at any context length.
 
 ## COST-9 Idle
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect

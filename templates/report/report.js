@@ -693,6 +693,19 @@ function openTask(id) {
   add(c, b(dur(ttime(t))), document.createTextNode(" agent-time" + (t.cycle_s ? " · cycle " + dur(t.cycle_s) : "") + (!over && reviewWait(t) ? " · review wait " + dur(reviewWait(t)) : "") + " · "), b(usd(t.cost_usd)), document.createTextNode(" · "), b(tok(sum(t.tokens || {}))), document.createTextNode(" tokens "),
     bar(t.buckets_s, BK, function (k) { return "b-" + k; }), el("div", null, null, { style: "height:6px" }), tokbar(t.tokens || {}));
   add(d, c);
+  add(d, h3("Phases (turns and tokens)"));
+  var PH = [["spawn", "Spawn"], ["build", "Build"], ["handin", "HANDIN"], ["check_qa_whitebox", "QA whitebox check"], ["check_qa_blackbox", "QA blackbox check"], ["returns", "Returns"], ["other", "Other"]];
+  var ptb = el("table"), phr = el("tr");
+  [["Phase", 0], ["Turns", 1], ["Tokens", 1]].forEach(function (x) { add(phr, el("th", "nosort" + (x[1] ? " num" : ""), x[0])); });
+  add(ptb, add(el("thead"), phr));
+  var ptd = el("tbody"), pz = t.phases || {};
+  PH.forEach(function (p) {
+    var v = pz[p[0]], row = el("tr", null, null, { style: "cursor:default" });
+    add(row, el("td", null, p[1]), el("td", "num", v ? String(v.turns) : "n/a"), el("td", "num", v ? tok(sum(v.tokens || {})) : "n/a"));
+    ptd.appendChild(row);
+  });
+  add(ptb, ptd); add(d, frame(ptb));
+  if (t.phases) add(d, faint("Time windows cut by messages, not recorded markers. n/a = no record."));
   add(d, h3("Returns (FAIL messages)", t.flag ? el("span", "chip bad", "3+ flagged") : null));
   var rl = t.returns_list || [];
   if (!rl.length) add(d, el("div", "muted", "No returns."));

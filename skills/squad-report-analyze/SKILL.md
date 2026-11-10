@@ -12,7 +12,7 @@ Answers in chat from `squad-report` data. Bin: `${CLAUDE_PLUGIN_ROOT}/bin/squad-
 1. `squad-report status <scope>`. Exit 0 (fresh): go to 2. Otherwise (stale or missing): run `squad-report <scope> --quiet --no-html` first, then go to 2.
 2. `squad-report query <scope> digest`. Read nothing else yet.
 3. **Findings:** one per digest signal that matters. Cite its id, give the number, propose one change.
-4. **Detail** for one finding: `squad-report query <scope> task --task X`, `role --role R`, `blocks`, `returns`, `matrix` or `iterations`. Only these slices; do not open `data.json`.
+4. **Detail** for one finding: `squad-report query <scope> task --task X`, `phases`, `role --role R`, `blocks`, `returns`, `matrix` or `iterations`. Only these slices; do not open `data.json`.
 
 ## Rules
 

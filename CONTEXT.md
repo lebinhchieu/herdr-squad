@@ -206,7 +206,7 @@ Acceptance criteria a task must pass. **Business AC** is agreed by the BA and QA
 _Avoid_: requirements, definition of done
 
 **Passed**:
-A task is passed when every non-retired QA on the team sent `PASS` for its current sha; with no QA on the team, when the `HANDIN` evidence check (`squad-evidence check`) exits 0. No role confirms it. Passed is not done: only a merged task is done. A tip that moved after the PASS reads "sha changed after PASS"; a commit that touches only the ticket's evidence folder does not move it.
+A task is passed when every non-retired QA on the team sent `PASS` for its current sha; with no QA on the team, when the `HANDIN` evidence check (`squad-evidence check`) exits 0. No role confirms it. Passed is not done: only a merged task is done. A tip that moved after the PASS reads "sha changed after PASS"; a commit that touches only the ticket's evidence folder does not move it. The watchdog and the board read `passed` from the event store, else from ledger verdicts, never from the ticket `Status:` word.
 _Avoid_: done, finished, complete, ready for review
 
 **Merged**:
@@ -225,6 +225,30 @@ _Avoid_: evidence dir, proof folder
 
 **Evidence sha**:
 The commit where the Developer assembled the reviewers' files into `evidence.md` after every checker passed; its diff to the passed sha touches only evidence folders, and the Manager may merge it as the passed sha.
+
+**Check table**:
+`evidence/<NN>/checks.md` in the scope folder: one row per AC, columns Dev, QA whitebox and QA blackbox. Each role fills only its own column, with a command and its result, never code. `squad-evidence checks <file>` checks the table; once `## Checks` is in `evidence.md`, `squad-evidence check` also requires every QA cell (`-` is allowed).
+
+**Phase rule**:
+A Manager-only rule tagged `phase: merge|close|coach`. It is not attached to the Manager: the tool that starts the phase prints it (`squad-merge-check`, `squad-close`, `squad-spawn token-coach`), and `squad-process phase <name> --home D` prints it by hand. The rule index lists only its ID.
+
+**Review pack**:
+`squad-review-pack NN` writes `evidence/<NN>/pack.md` (full) and `pack-blackbox.md` (business AC only) for one `HANDIN`.
+
+**Shots are a starting point**:
+A Developer's screenshots start QA blackbox's check and never replace it: QA blackbox looks at the running app.
+
+**Irreversible choice**:
+A merge, close, advisor use or full suite. The PO decides each one. Roles ask through the Manager and never assume a yes.
+
+**Ticket phase**:
+In the squad report, a ticket's phases (spawn, build, `HANDIN`, each QA check, returns) are windows of work with their turns and tokens, not owners. A phase with no data shows `n/a`, not `0`.
+
+**Task prompt**:
+`squad-spawn --task NN` builds a Developer's first prompt from the ticket (Duties, Files), the `team:` line of `scope.md` and `roster.md`. A missing field or roster row stops the spawn before any side effect. The `HANDIN` target comes from the team's duty chain (`squadrules.resolve_duties`), never a second copy.
+
+**Merge check**:
+`squad-merge-check` reads the branch before a merge. Untracked files outside `.claude/squads/` are a warning; a dirty tracked file refuses; a `merge-base` failure fails closed.
 
 **Handover**:
 A plan section the Tech Lead writes when a role is added to a scope: what was decided, built and left open. Not the same as a HANDIN.

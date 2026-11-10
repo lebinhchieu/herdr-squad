@@ -160,6 +160,10 @@ class LintClassTest(Clean):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("roles: dev\n", "roles:\n", 1))
         self.assertEqual(self.lint()[0], [])
 
+    def test_a_bad_phase_value_is_a_lint_error(self):  # 10 T6
+        self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety\n", "topic: safety\nphase: bogus\n", 1))
+        self.only("phase 'bogus' is not one of merge, close, coach")
+
     def test_missing_topic(self):
         self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety\n", ""))
         self.only("missing topic:")

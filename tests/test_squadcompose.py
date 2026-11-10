@@ -89,6 +89,49 @@ class GoldenTest(Base):
         self.check("manager-goal.rules.md", self.compose("manager", self.goal_home(), agent="mgr"))
 
 
+class PhaseTest(unittest.TestCase):
+    """Ticket 10: phase rules leave the attached list and the index grows short; `squad-process phase` prints them."""
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.home = Path(self._tmp.name) / "scopes" / "s"
+        self.home.mkdir(parents=True)
+        (self.home / "scope.md").write_text("team: tech-lead, qa-white, qa-black\nqa: full\n", encoding="utf-8")
+
+    def compose(self, role):
+        return sc.compose(role, str(self.home), str(ROOT), None, role, "now")
+
+    def test_phase_prints_exactly_the_phase_rules_and_they_are_not_attached(self):  # T4
+        rules, _ = sc.load_rules(str(ROOT), None)
+        facts = sc.read_home(str(self.home))["facts"]
+        attached_line = next(l for l in self.compose("manager").split("\n") if l.startswith("rules:"))
+        for phase in sr.PHASES:
+            want = [e.id for e in sc.phase_rules(rules, "manager", facts, phase)]
+            self.assertTrue(want, phase)
+            r = cli("phase", phase, "--home", str(self.home), "--plugin-root", str(ROOT))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(re.findall(r"^## (\S+) ", r.stdout, re.M), want)
+            for rid in want:
+                self.assertNotIn(f" {rid}", attached_line + " ")
+        r = cli("phase", "nope", "--home", str(self.home), "--plugin-root", str(ROOT))
+        self.assertEqual(r.returncode, 2)
+
+    def test_index_is_short_lists_each_unattached_id_once_and_every_rule_resolves(self):  # T3
+        rules, _ = sc.load_rules(str(ROOT), None)
+        facts = sc.read_home(str(self.home))["facts"]
+        for role in ("manager", "tech-lead"):
+            text = self.compose(role)
+            idx = text.split("## Index of other rules\n")[1].splitlines()
+            self.assertLessEqual(len(idx), 40, role)
+            words = " ".join(idx[1:]).split()
+            self.assertEqual(len(words), len(set(words)), role)
+            got = {e.id for e in sc.attached(rules, role, facts)}
+            self.assertEqual(set(words) & got, set(), role)
+            self.assertTrue({e.id for e in sc.phase_rules(rules, role, facts, "merge")} <= set(words) or role != "manager")
+        for e in rules:
+            self.assertEqual(sc.find_rule(str(ROOT), None, e.id).id, e.id)
+
+
 class OverlayFailTest(Base):
     def test_stale_replace_exits_2_names_both_hashes_and_writes_nothing(self):
         self.overlay(self.overlay_path.read_text(encoding="utf-8").replace("@022a37df", "@7f3a9c21"))

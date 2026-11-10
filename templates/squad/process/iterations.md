@@ -9,26 +9,26 @@ Each iteration has `iterations/<n>.md`.
 2. **Plan:** the roles on the team talk freely; requirements, AC and tasks land in files.
 3. **Build and verify:** event-driven; Developers build, QA checks, gaps go to owners.
 4. **Retro:** the Manager writes the friction (loops, blocked panes, returns, unclear ownership) into the iteration file.
-5. **Check-in:** the Manager shows the PO what is done, open escalations and proposed role-instruction changes; each answered escalation's outcome goes into the iteration file and its row leaves `escalations.md`.
+5. **Check-in:** the Manager shows the PO what has passed, open escalations and proposed role-instruction changes; each answered escalation's outcome goes into the iteration file and its row leaves `escalations.md`.
 
 ## ITER-2 Escalating to the PO
 roles: manager
 topic: iterations
 
-Escalate only what the rules say always goes to the PO ([WHO-1a], [WHO-1b], [WHO-2]), or what you and the owners cannot settle. Write it to the inbox (question, options, your recommendation); the line the command prints is the telling.
+Escalate only what the rules say always goes to the PO ([WHO-1a], [WHO-1d], [WHO-3a], [WHO-5]), or what you and the owners cannot settle. Write it to the inbox (question, options, your recommendation); the line the command prints is the telling.
 
 ## ITER-3 Pod summary
 roles: team-lead
 topic: iterations
 
-Write `iterations/<n>.summary.md` at iteration end: tasks done with a link to each ticket's `evidence.md`, each task's final passed sha, the checkers that passed it and the returns per task (all three from `squad-ledger`), friction, open items, at most 40 lines. It carries one line naming the residual risk "the cap is a rule, not a lock".
+Write `iterations/<n>.summary.md` at iteration end: tasks passed with a link to each ticket's `evidence.md`, each task's final passed sha, the checkers that passed it and the returns per task (all three from `squad-ledger`), friction, open items, at most 40 lines. It carries one line naming the residual risk "the cap is a rule, not a lock".
 
 ## ITER-3b Pod summary, Manager
 roles: manager
-when: team-lead = no and qa-black = yes
+when: team-lead = no
 topic: iterations
 
-When you own the plan (the Team Lead is not on the team), write `iterations/<n>.summary.md` at iteration end, at most 40 lines: tasks done with each ticket's `evidence.md` link, final passed sha and returns (`squad-ledger`), friction, open items.
+When you own the plan (the Team Lead is not on the team), write `iterations/<n>.summary.md` at iteration end, at most 40 lines: tasks passed with each ticket's `evidence.md` link, final passed sha and returns (`squad-ledger`), friction, open items.
 
 ## ITER-4 Inbox
 roles: manager
@@ -61,6 +61,7 @@ Spawn the Token Coach with `squad-spawn token-coach <squad>-coach-<scope> --scop
 ## ITER-6c Wait for the Token Coach
 roles: manager
 topic: iterations
+phase: coach
 
 After the spawn, do other work or end the turn and wait for the Coach's message; never loop, sleep or poll for the file. Run `herdr agent list` on its pane only when no message came after the 10-minute health-check idle window ([MSG-8a]).
 
@@ -109,8 +110,8 @@ roles: manager
 topic: iterations
 
 - Send the check-in at the end of each iteration as ONE `squad-inbox add` item (`--kind read`; `--kind answer` when it asks the PO to choose), never as a chat report. Unless a question blocks the squad now, bring it to the next check-in.
-- It lists each step the PO must take (clean-up, checklist, close confirmation, open choices) next to: what is done, what is next, any task at 3 returns (one budget line), open escalations, proposed role-instruction changes.
-- What is done carries evidence links: per ticket, the link to its `evidence.md` (a path in the repo or on the Dev branch, not a folder), the Dev branch and the evidence sha.
+- It lists each step the PO must take (clean-up, checklist, close confirmation, open choices) next to: what has passed, what is next, any task at 3 returns (one budget line), open escalations, proposed role-instruction changes.
+- What has passed carries evidence links: per ticket, the link to its `evidence.md` (a path in the repo or on the Dev branch, not a folder), the Dev branch and the evidence sha.
 - Then copy each answered escalation's outcome into the iteration file and delete its row from `escalations.md`.
 
 ## ITER-12 Reset after a check-in
@@ -151,6 +152,12 @@ topic: iterations
 The PO is away while the file `<home>/away` exists (home = your `$SCOPE_DIR`, else `$GOAL_DIR`; present is enough, the content is not read). While away:
 - Keep going on every clear point. A question another role can settle goes to its owner, advisor first ([LC-25]); never wait for the PO.
 - A question only the PO can settle, that blocks no other ticket, is `squad-inbox park --text "<q>" --blocks "<work>"`; work on the other tickets.
-- An "Always goes to PO" item ([WHO-1a], [WHO-1b], [WHO-2]) and a team change that needs the PO's yes go to the inbox with `--blocks` naming only the work they hold; all other work goes on. A merge, push or deploy waits for the PO's request in chat ([MRG-1], [ITER-5]).
+- An "Always goes to PO" item ([WHO-1a], [WHO-1d], [WHO-3a], [WHO-5]) and a team change that needs the PO's yes go to the inbox with `--blocks` naming only the work they hold; all other work goes on. A merge, push or deploy waits for the PO's request in chat ([MRG-1], [ITER-5]).
 - Note each decision you made for the PO in the iteration file, one line: what, why.
 - When `away` is deleted, write ONE `squad-inbox add --kind read` item: decisions made, parked questions, key decisions waiting.
+
+## ITER-18 Rule experiment
+roles: manager, token-coach
+topic: iterations
+
+Each rule added to a squad overlay names its metric and baseline (a `squad-usage` or `squad-report` number). The Coach reads the metric at scope close. No change after 2 scopes: remove the rule; the PO may keep one on purpose.

@@ -401,5 +401,42 @@ class CheckBaseTest(Base):
         self.assertEqual(tool("check", str(self.folder), "--base", "deadbeef" * 5).returncode, 2)
 
 
+TABLE = "| AC | Dev | QA whitebox | QA blackbox |\n|---|---|---|---|\n"
+
+
+class ChecksTableTest(Base):
+    def table(self, *rows):
+        return put(self.work / "checks.md", TABLE + "".join(f"| {r} |\n" for r in rows))
+
+    def test_empty_dev_cell_fails_and_full_table_passes(self):
+        bad = tool("checks", str(self.table("AC1 | `t` ok | | ", "AC2 |  | | ")))
+        self.assertEqual((bad.returncode, "AC2: empty Dev cell" in bad.stdout), (1, True), bad.stdout)
+        self.assertNotIn("AC1", bad.stdout)
+        ok = tool("checks", str(self.table("AC1 | `t` ok | | ", "T1 | `u` ok | | ")))
+        self.assertEqual(ok.returncode, 0, ok.stdout)
+        t = tool("checks", "--template").stdout
+        f = put(self.work / "t.md", t.replace("| AC1 |  |", "| AC1 | `x` ok |", 1))
+        self.assertEqual(tool("checks", str(f)).returncode, 0)
+        self.assertEqual(tool("checks", str(put(self.work / "e.md", t))).returncode, 1)
+
+    def test_check_wants_qa_cells_only_when_the_section_exists(self):
+        put(self.folder / "evidence.md", "# E\n\n## Behaviour\n\nx\n")
+        self.assertEqual(tool("check", str(self.folder)).returncode, 0)
+        r = tool("add", str(self.ticket), "--heading", "Checks", "--from", str(self.table("AC1 | `t` ok | | `x` ok")))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        c = tool("check", str(self.folder))
+        self.assertEqual((c.returncode, "empty QA whitebox cell" in c.stdout), (1, True), c.stdout)
+        self.table("AC1 | `t` ok | `w` ok | -")
+        tool("add", str(self.ticket), "--heading", "Checks", "--from", str(self.work / "checks.md"))
+        self.assertEqual(tool("check", str(self.folder)).returncode, 0)
+        self.assertIn("| AC1 | `t` ok | `w` ok | - |", text(self.ev))
+
+    def test_wrong_header_and_repeated_row_fail(self):
+        f = put(self.work / "c.md", "| AC | Test | QA whitebox | QA blackbox |\n|---|---|---|---|\n| AC1 | x | | |\n| AC1 | y | | |\n")
+        r = tool("checks", str(f))
+        self.assertIn("header must be", r.stdout)
+        self.assertIn("repeated row id", r.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

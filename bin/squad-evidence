@@ -4,6 +4,7 @@
   squad-evidence path <ticket.md>
   squad-evidence add <ticket.md> --heading H --from review.md [--root DIR] [--sha SHA]
   squad-evidence check <evidence.md|folder> [--base SHA]
+  squad-evidence checks <checks.md> | --template
 
 Exit 0 ok, 1 problems found, 2 usage error.
 """
