@@ -219,7 +219,7 @@ class TaskStageWordsTest(unittest.TestCase):
         lc = rule("LC-27")
         for s in ("only `merged` is done", "Gates warn, never block", "squad-task", "`squad-evidence check`"):
             self.assertIn(s, lc)
-        self.assertIn("squad-task merged NN", rule("MRG-4"))
+        self.assertIn("squad-task merged NN", run("rule", "MRG-4").stdout)  # a phase rule: printed at merge time
 
 
 class SmallRulesTest(unittest.TestCase):

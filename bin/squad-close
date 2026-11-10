@@ -193,7 +193,7 @@ sys.exit(1)
 PY
 }
 # The close-phase rules print when a close starts (a dry run too); a failing reader never changes the close.
-python3 "$bin/squad-process" phase close --home "${src:-$squad_dir}" || true
+[[ ! -f $bin/squad-process ]] || python3 "$bin/squad-process" phase close --home "${src:-$squad_dir}" 2>/dev/null || true
 retro_empty=""
 if [[ $mode == scope ]]; then
   if [[ $force == 1 ]]; then

@@ -80,6 +80,16 @@ class MergeCheck(unittest.TestCase):
         self.assertIn("main-related: main moved, 1 files, none related", out)
         self.assertIn("warning: untracked file outside .claude/squads/: stray.txt", out)
         self.assertEqual(out.splitlines()[-1], "VERDICT: ok")
+        self.assertIn("## MRG-2", out)  # 10: the merge-phase rules print before the verdict
+
+    def test_a_broken_rules_reader_still_gives_the_verdict_and_exit_code(self):  # 10 T5
+        self.passed()
+        (self.home / "scope.md").write_text("size: M\n", encoding="utf-8")  # old format: the rules reader refuses it
+        code, out, _ = self.run_tool(BR)
+        self.assertEqual(code, 0, out)
+        self.assertIn("merge rules: squad-process phase merge --home", out)
+        self.assertNotIn("## MRG-2", out)
+        self.assertEqual(out.splitlines()[-1], "VERDICT: ok")
 
     def test_dirty_root_refuses(self):
         self.passed()

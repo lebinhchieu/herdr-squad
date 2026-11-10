@@ -176,3 +176,36 @@ class ComposedRulesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PhaseContractTest(unittest.TestCase):
+    """Ticket 10, live (no snapshot): only the Manager loses rules, exactly those with a `phase:`; a must-have list stays."""
+    import squadcompose as sc
+    MUST_ATTACH = {"manager": ("MRG-1", "CLOSE-1", "ITER-6"), "tech-lead": ("CLOSE-3a",), "dev": ("LC-3a", "LC-25")}
+    SHAPES = {"none": ((), "no"), "qas": (("qa-white", "qa-black"), "no"),
+              "tech-qas": (("tech-lead", "qa-white", "qa-black"), "no"),
+              "team-lead": (("team-lead", "tech-lead", "qa-white", "qa-black"), "no"),
+              "full": (("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect"), "no"),
+              "goal": (("team-lead", "tech-lead", "qa-white", "qa-black"), "yes")}
+
+    def test_phase_rules_are_the_only_difference_and_only_for_their_acting_role(self):
+        sc = self.sc
+        rules = sc.load_rules(str(ROOT), None)[0]
+        for shape, (team, goal) in self.SHAPES.items():
+            facts = {**sr.team_facts(list(team)), "goal": goal, "qa": "full"}
+            for role in ROLES:
+                with self.subTest(shape=shape, role=role):
+                    full = {e.id for e in sc.attached(rules, role, facts, with_phases=True)}
+                    got = {e.id for e in sc.attached(rules, role, facts)}
+                    want = {e.id for e in sc.choose(rules, role, facts) if e.phase and "manager" in e.roles}
+                    self.assertEqual(full - got, want)
+                    if role != "manager":
+                        self.assertEqual(full, got)
+                    for rid in self.MUST_ATTACH.get(role, ()):
+                        if any(e.id == rid for e in sc.choose(rules, role, facts)):
+                            self.assertIn(rid, got)
+        for rid in ("MRG-1", "CLOSE-1", "ITER-6"):
+            self.assertFalse(BY_ID[rid].phase)
+        for r in RULES:
+            if r.phase:
+                self.assertEqual(r.roles, ["manager"], r.id)

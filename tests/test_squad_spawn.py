@@ -839,6 +839,14 @@ class SpawnTaskClaimTest(unittest.TestCase):
         self.assertIn("--task ignored", r.stderr)
         self.assertNotIn("squad-task claim", r.stdout)
 
+    def test_a_token_coach_spawn_prints_the_coach_rules_and_other_roles_do_not(self):  # 10 T5
+        r = self.spawn("--prompt", "go", role="token-coach", name="t-coach-sc1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["status"], "ready")  # stdout stays the one JSON line
+        self.assertIn("## ITER-6c", r.stderr)
+        r = self.spawn("--prompt", "go", role="tech-lead", name="t-tech-sc1")
+        self.assertNotIn("ITER-6c", r.stderr + r.stdout)
+
     def test_a_bad_task_value_is_refused_and_a_claim_failure_never_fails_the_spawn(self):  # T1
         self.assertEqual(self.spawn("--task", "x3", "--dry-run").returncode, 2)
         shutil.copytree(BIN, self.root / "p" / "bin", ignore=shutil.ignore_patterns("__pycache__"))
