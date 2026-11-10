@@ -15,7 +15,7 @@ New `phase:` attribute (`merge | close | coach`; lint error otherwise) on nine M
 
 Index of the Manager and Tech Lead: 19 lines (was 213 and 280 lines in the design note's base measure).
 
-**Moved rules (T1).** Each has `roles: manager` in its file (`who` prints nothing for a rule with no `when:`; CLOSE-4 shows `goal = yes: acts: manager`). The tool that prints it is in the last column.
+**Moved rules (T1).** Each has `roles: manager` in its file (`squad-process who` prints nothing for these: none has a team or duty key in `when:`; CLOSE-4 has `goal = yes`). The tool that prints it is in the last column.
 
 | Rule | Phase | Printed by |
 |---|---|---|
