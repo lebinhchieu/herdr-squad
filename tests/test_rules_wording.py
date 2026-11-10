@@ -222,5 +222,16 @@ class TaskStageWordsTest(unittest.TestCase):
         self.assertIn("squad-task merged NN", rule("MRG-4"))
 
 
+class SmallRulesTest(unittest.TestCase):
+    def test_bundle_long_wait_and_experiment_rules(self):
+        self.assertIn("one `HANDIN` lists each ticket", rule("LC-6c").replace("One `HANDIN`", "one `HANDIN`"))
+        self.assertIn("1h cache lifetime", rule("COST-8b"))
+        self.assertIn("squad-respawn", rule("COST-8b"))
+        proc = ROOT / "templates/squad/process/iterations.md"
+        t = proc.read_text().split("## ITER-18 ")[1]
+        self.assertIn("metric and baseline", t)
+        self.assertIn("remove the rule", t)
+
+
 if __name__ == "__main__":
     unittest.main()

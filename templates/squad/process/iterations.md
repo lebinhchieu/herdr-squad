@@ -154,3 +154,9 @@ The PO is away while the file `<home>/away` exists (home = your `$SCOPE_DIR`, el
 - An "Always goes to PO" item ([WHO-1a], [WHO-1d], [WHO-3a], [WHO-5]) and a team change that needs the PO's yes go to the inbox with `--blocks` naming only the work they hold; all other work goes on. A merge, push or deploy waits for the PO's request in chat ([MRG-1], [ITER-5]).
 - Note each decision you made for the PO in the iteration file, one line: what, why.
 - When `away` is deleted, write ONE `squad-inbox add --kind read` item: decisions made, parked questions, key decisions waiting.
+
+## ITER-18 Rule experiment
+roles: manager, token-coach
+topic: iterations
+
+Each rule added to a squad overlay names its metric and baseline (a `squad-usage` or `squad-report` number). The Coach reads the metric at scope close. No change after 2 scopes: remove the rule; the PO may keep one on purpose.
