@@ -55,9 +55,11 @@ class InstructionsTest(unittest.TestCase):
 
     def test_the_manager_covers_both_modes_and_closes_through_squad_close(self):
         text = composed("manager", "M", goal="yes")
-        for token in ("goal Manager", "squad-close <squad> --scope", "squad-close <squad> --goal", "--in-goal", "--base",
+        for token in ("goal Manager", "squad-close <squad> --scope", "--in-goal", "--base",
                       "promoted:", "Never read or write another scope's folder"):
             self.assertIn(token, text)
+        # CLOSE-4 (goal close) is a phase rule now: it is served from closing.md, not attached to the Manager
+        self.assertIn("squad-close <squad> --goal", (ROOT / "templates/squad/process/closing.md").read_text())
 
     def test_the_designer_is_wired_into_process_manager_and_scope_template(self):
         for token in ("design = yes", "ui-design/", "`ux`"):  # was `design: yes` in the v6 template

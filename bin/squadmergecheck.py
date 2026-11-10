@@ -223,7 +223,7 @@ def merge_rules_block(scope):
     pointer = "merge rules: squad-process phase merge --home %s" % scope
     try:
         r = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.realpath(__file__)), "squad-process"),
-                            "phase", "merge", "--home", scope], capture_output=True, text=True, timeout=30)
+                            "phase", "merge", "--home", scope], capture_output=True, text=True, encoding="utf-8", timeout=30)
     except Exception:
         return [pointer]
     if r.returncode != 0 or not r.stdout.strip():
