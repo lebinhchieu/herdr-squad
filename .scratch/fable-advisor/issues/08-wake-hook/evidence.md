@@ -18,3 +18,6 @@ AC trace
 - AC4 | all WakeTest tests; no-repeat in each
 Tech AC: W1-W5 and T1-T6 as above; T7 existing 19 watchdog tests unchanged and pass; T8 `git diff skills/` is the one word `phases`.
 Run: `cd tests; PYTHONPATH=. python3 -m unittest test_squad_watchdog test_squad_start test_squad_log_message test_squadtask test_squad_report_query`
+
+## Return fix (QA whitebox FAIL at 3675aa1)
+`passed` now comes from `passed_keys` (event store via squadtask.is_passed, else ledger verdicts all PASS on the current sha), not the ticket label. Test: `test_passed_from_pass_messages_when_the_label_is_empty`.

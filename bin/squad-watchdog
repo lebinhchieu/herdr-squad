@@ -46,6 +46,7 @@ import squadledger  # noqa: E402
 import squadboard_active as active  # noqa: E402
 import squadboard_agents as agents_mod  # noqa: E402
 import squadreport  # noqa: E402
+import squadtask  # noqa: E402
 import squadtickets  # noqa: E402
 
 NUDGES = (5, 15)            # minutes of an idle spell
@@ -131,6 +132,23 @@ def ledger_rows(home):
     return {squadledger.key(r["task"]): r for r in squadledger.build(recs)}
 
 
+def passed_keys(h):
+    """Ticket keys of scope folder `h` that passed. Same sources as the board: the event store (`squadtask.is_passed`),
+    else the ledger row whose verdicts are PASS from every checker on the current sha. The ticket label is no source:
+    a pass is never written there."""
+    chk = squadtask.checkers(h)
+    out = set()
+    states = squadtask.fold(squadtask.read_events(squadtask.squad_dir_of(h), squadtask.slug_of(h)))
+    for k, state in states.items():
+        if squadtask.is_passed(state, chk):
+            out.add(k)
+    for r in squadledger.build(squadledger.read_records(h / "messages.jsonl")):
+        k, v = squadledger.key(r["task"]), r.get("verdicts") or {}
+        if k not in states and r.get("sha") and all(v.get(s) == "PASS" for s in squadtask.slots(chk)):
+            out.add(k)
+    return out
+
+
 def sha_text(row):
     return "shas " + (clean(row["sha"], 40) if row and row.get("sha") else "-")
 
@@ -146,7 +164,8 @@ def wake_events(st, snap, rows, now):
     out = []
     for t in snap["tickets"]:
         tid = clean(t["id"], 40)
-        cur[tid] = t["status"]
+        word = "passed" if t.get("passed", t["status"] in DONE) else t["status"]
+        cur[tid] = word
         row = rows.get(squadledger.key(t["id"]))
         n = row["returns"] if row else 0
         if n >= RETURNS_WAKE:
@@ -155,11 +174,11 @@ def wake_events(st, snap, rows, now):
                 sent.add(k)
             elif k not in sent:
                 out.append((k, f"WAKE returns3 {tid}: ticket {tid} came back {RETURNS_WAKE} times. {sha_text(row)}"))
-        if t["status"] in DONE and not base and tid in prev and prev[tid] not in DONE:
+        if word in DONE and not base and tid in prev and prev[tid] not in DONE:
             k = f"passed:{tid}"
             if k not in sent:
                 cur[tid] = prev[tid]  # keep the old status until the message is out: a held or failed send is retried
-                out.append((k, f"WAKE passed {tid}: ticket {tid} is now {clean(t['status'], 20)}. {sha_text(row)}"))
+                out.append((k, f"WAKE passed {tid}: ticket {tid} is now {clean(word, 20)}. {sha_text(row)}"))
     blocked = dict(st.get("wake_blocked") or {})
     now_blocked = {a["name"] for a in snap["agents"] if a["state"] == "blocked"}
     for name in list(blocked):
@@ -214,12 +233,14 @@ def snapshot(home, herdr_json=None):
             else:
                 state = got[r["name"]]["status"] if r["name"] in got else "gone"
             agents.append({"name": r["name"], "role": r["role"], "scope": label, "owns": r["owns"], "state": state})
+        done = passed_keys(h)
         for t in squadtickets.scope_tasks(h)["tasks"]:
             key = t.get("where") or (label, t["id"])  # scopes of a goal may share one ticket folder: one row per file
             if key in seen:
                 seen[key]["scopes"].append(label)
             else:
-                seen[key] = {"scope": label, "scopes": [label], "id": t["id"], "status": t["status"]}
+                seen[key] = {"scope": label, "scopes": [label], "id": t["id"], "status": t["status"],
+                             "passed": t["status"] in DONE or squadledger.key(t["id"]) in done}
                 tickets.append(seen[key])
     machine = got is not None and any(i["status"] == "working" for i in got.values())
     return {"ok": got is not None, "why": why, "machine_working": machine, "agents": agents, "tickets": tickets}

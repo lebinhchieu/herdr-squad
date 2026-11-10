@@ -335,6 +335,23 @@ class WakeTest(WatchdogTest):
         self.assertEqual(len(self.wakes()), 1)
         self.assertTrue(all(m == "t-mgr-s1" for m, _ in self.sent))
 
+    def test_passed_from_pass_messages_when_the_label_is_empty(self):
+        """QA whitebox FAIL at 3675aa1: a pass is never written to the ticket label, only PASS messages."""
+        with open(self.home / "roster.md", "a", encoding="utf-8") as fh:
+            fh.write("| t-qb-s1 | qa-blackbox | s1 | ticket 03 | live | d |\n")
+        self.work()
+        self.tickets(t03="")
+        self.msgs(("HANDIN", "t-dev-s1", "HANDIN 03: commit abc1234 ok"), ("PASS", "t-qa-s1", "PASS 03: abc1234"))
+        self.tick(0)  # baseline: one of two checkers passed
+        self.tick(1)
+        self.assertEqual(self.wakes(), [])
+        self.msgs(("PASS", "t-qb-s1", "PASS 03: abc1234"))
+        self.tick(2)
+        self.tick(3)
+        self.assertEqual(len(self.wakes()), 1, self.wakes())
+        self.assertIn("WAKE passed 03", self.wakes()[0])
+        self.assertIn("abc1234", self.wakes()[0])
+
     def test_third_return_counts_like_the_ledger_and_sends_once(self):
         import squadledger
         self.work()
