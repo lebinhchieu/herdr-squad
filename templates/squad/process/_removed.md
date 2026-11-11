@@ -55,3 +55,11 @@ replaced_by: REV-14a
 ## REV-19 (removed in v9)
 why: Hand in to QA whitebox alone is REV-19b; Done is told to the plan owner in LC-20a and LC-20b.
 replaced_by: REV-19b
+
+## COST-1 (removed in v13)
+why: The cost hook text is part of COST-3; one rule says when to start fresh.
+replaced_by: COST-3
+
+## COST-9 (removed in v13)
+why: Idle over 1h and over the line is already COST-3; a long PO wait is COST-8 and COST-8b.
+replaced_by: COST-3

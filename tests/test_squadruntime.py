@@ -462,6 +462,8 @@ class RespawnComposedTest(Base):
             "| t-qaw-sc1 | QA whitebox | sc1 | x | live | old |\n", encoding="utf-8")
         self.env.update(SCOPE_DIR=str(self.squad / "scopes" / "sc1"), LIVE="t-qaw-sc1")
         self.rules = self.squad / "scopes" / "sc1" / "roles" / "t-qaw-sc1.rules.md"
+        self.rules.parent.mkdir(exist_ok=True)
+        (self.rules.parent / "t-qaw-sc1.notes.md").write_text("Now: x\n", encoding="utf-8")  # a respawn needs fresh notes
 
     def respawn(self):
         return self.run_bin("squad-respawn", "t-qaw-sc1")
@@ -508,6 +510,7 @@ class RespawnComposedTest(Base):
     def test_a_goal_manager_respawns_with_the_goal_pin_and_a_notes_only_prompt(self):
         g = self.squad / "goals" / "g1"
         (g / "roles").mkdir(parents=True)
+        (g / "roles" / "t-mgr-g1.notes.md").write_text("Now: x\n", encoding="utf-8")
         (g / "goal.md").write_text(f"# Goal: g1\n\nplugin: {self.version} {self.sha}\n", encoding="utf-8")
         (g / "roster.md").write_text("| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
                                      "| t-mgr-g1 | Manager | | x | live | old |\n", encoding="utf-8")

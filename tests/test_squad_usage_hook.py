@@ -1,6 +1,7 @@
 """Stop hook: payload on stdin in, exit 2 + stderr message and a line in usage-events.jsonl out."""
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -56,11 +57,11 @@ class HookTest(unittest.TestCase):
         self.assertIn("'fresh'", r.stderr)
         self.assertIn("respawn line", r.stderr)
         self.assertNotIn("120k", r.stderr)
-        self.assertIn("tell the Team Lead and stop ([COST-5], no squad-respawn)", r.stderr)
+        self.assertIn("tell your plan owner (the Manager) and stop ([COST-5a], no squad-respawn)", r.stderr)
         self.assertIn("mid-ticket, run once: squad-respawn dev-1", r.stderr)
         [ev] = [json.loads(l) for l in self.events.read_text(encoding="utf-8").splitlines()]
         self.assertEqual((ev["agent"], ev["role"], ev["session"], ev["rule"]), ("dev-1", "dev", "sid-1", "fresh"))
-        self.assertIn("tell the Team Lead and stop ([COST-5], no squad-respawn)", ev["action"])
+        self.assertIn("tell your plan owner (the Manager) and stop ([COST-5a], no squad-respawn)", ev["action"])
         self.assertIn("mid-ticket, run once: squad-respawn dev-1", ev["action"])
         self.assertNotEqual(ev["action"], "write roles/dev-1.notes.md, then run: squad-respawn dev-1")
 
@@ -76,6 +77,37 @@ class HookTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertTrue((scope / "usage-events.jsonl").exists())
         self.assertFalse(self.events.exists())
+
+    def hook_text_with_scope_md(self, scope_md):
+        scope = self.squad / "scopes" / "sc1"
+        shutil.rmtree(scope, ignore_errors=True)  # a fresh scope each call: no scope.md, no fired-rule log
+        scope.mkdir(parents=True)
+        if scope_md is not None:
+            (scope / "scope.md").write_text(scope_md, encoding="utf-8")
+        self.transcript("sid-1", 130_000)
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
+        env.update(CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "cfg"), SQUAD_NAME="dev-1", SQUAD_ROLE="dev",
+                   SQUAD_DIR=str(self.squad), SCOPE_DIR=str(scope))
+        r = winlaunch.run_script(SCRIPT, input=json.dumps({"hook_event_name": "Stop", "session_id": "sid-1"}),
+                                 text=True, encoding="utf-8", env=env, capture_output=True, timeout=10)
+        self.assertEqual(r.returncode, 2, r.stderr)
+        return r.stderr
+
+    def test_developer_text_names_the_plan_owner_from_scope_md(self):  # task 18 AC2
+        text = self.hook_text_with_scope_md("# Scope: x\nteam: ba, team-lead, qa-white (a note)\n")
+        self.assertIn("tell your plan owner (the Team Lead) and stop ([COST-5], no squad-respawn)", text)
+        self.assertNotIn("tell the Team Lead", text)
+        # `team-lead` only inside the trailing note does not count; no team line and no scope.md: the Manager
+        for scope_md in ("team: qa-white, qa-black (Manager plans, no team-lead)\n", "# Scope\n", None):
+            self.assertIn("tell your plan owner (the Manager) and stop ([COST-5a], no squad-respawn)", self.hook_text_with_scope_md(scope_md))
+
+    def test_other_roles_text_is_unchanged(self):  # task 18 AC3
+        self.transcript("sid-1", 130_000)
+        r = self.run_hook(role="qa-whitebox")
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual(r.stderr, "Cost rule 'fresh' fired: your context is past your respawn line "
+                         "(your context at first action + 50k, at most 180k) or was compacted. Finish the step you are on, "
+                         "then write roles/dev-1.notes.md, then run: squad-respawn dev-1\n")
 
     def test_under_threshold_is_silent(self):
         self.transcript("sid-1", 50_000)
@@ -98,6 +130,20 @@ class HookTest(unittest.TestCase):
         self.assertEqual(self.run_hook().returncode, 2)
         self.assertEqual(self.run_hook().returncode, 0)
         self.assertEqual(len(self.events.read_text(encoding="utf-8").splitlines()), 1)
+
+    def test_the_dedupe_skips_corrupt_blank_and_non_object_lines(self):  # task 20 AC1, AC2
+        def ev(session):
+            return json.dumps({"agent": "dev-1", "session": session, "rule": "fresh"})
+        mess = ['{"session": "sid-1", "rul', "", ev("sid-1"), "5", "[]", "null", '"x"']
+        self.events.write_text("\n".join(mess) + "\n", encoding="utf-8")
+        self.transcript("sid-1", 130_000)
+        self.assertEqual(self.run_hook().returncode, 0)  # the valid event of this session still stops it
+        self.assertEqual(self.events.read_text(encoding="utf-8").splitlines(), mess)
+        # control: the same mess, the valid event is for another session: the hook fires and appends one line
+        self.events.write_text("\n".join(m if m != ev("sid-1") else ev("other") for m in mess) + "\n", encoding="utf-8")
+        before = len(self.events.read_text(encoding="utf-8").splitlines())
+        self.assertEqual(self.run_hook().returncode, 2)
+        self.assertEqual(len(self.events.read_text(encoding="utf-8").splitlines()), before + 1)
 
     def test_stop_hook_active_is_not_re_fired(self):
         self.transcript("sid-1", 130_000)

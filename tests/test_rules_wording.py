@@ -227,6 +227,21 @@ class SmallRulesTest(unittest.TestCase):
         self.assertIn("one `HANDIN` lists each ticket", rule("LC-6c").replace("One `HANDIN`", "one `HANDIN`"))
         self.assertIn("1h cache lifetime", rule("COST-8b"))
         self.assertIn("squad-respawn", rule("COST-8b"))
+        self.assertIn("CACHE_TTL_S", rule("COST-8b"))
+        self.assertIn("next quiet point", rule("COST-8b"))  # task 19 AC3
+        self.assertNotIn("at any context length", rule("COST-8b"))
+
+    def test_cost_3_carries_the_cost_hook_and_cost_1_and_9_are_gone(self):  # task 19 AC1, AC2, AC4
+        text = composed("qa-whitebox")
+        cost3 = text.split("## COST-3 ")[1].split(" ## ")[0]
+        for s in ("never a percent", "Stop-hook", "compaction", "squad-respawn"):
+            self.assertIn(s, cost3)
+        self.assertNotIn("new task", cost3)
+        self.assertNotIn("## COST-1 ", text)
+        self.assertNotIn("## COST-9 ", text)
+        removed = (ROOT / "templates/squad/process/_removed.md").read_text(encoding="utf-8")
+        for rid in ("COST-1", "COST-9"):
+            self.assertRegex(removed, rf"## {rid} \(removed in v13\)\nwhy: .+\nreplaced_by: COST-3")
         proc = ROOT / "templates/squad/process/iterations.md"
         t = proc.read_text().split("## ITER-18 ")[1]
         self.assertIn("metric and baseline", t)

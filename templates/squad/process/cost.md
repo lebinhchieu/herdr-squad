@@ -1,11 +1,5 @@
 # Cost rules
 
-## COST-1 The cost hook
-roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
-topic: cost
-
-A Stop hook (`squad-usage --check`) tells you when rule [COST-3] fires and logs it to `usage-events.jsonl`. Limits are absolute tokens, never a percent; [COST-3] defines your respawn line. When a Stop-hook message says a cost rule fired, write `$SCOPE_DIR/roles/$SQUAD_NAME.notes.md`, then run `squad-respawn $SQUAD_NAME`.
-
 ## COST-2 Reuse
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: cost
@@ -16,7 +10,7 @@ Reuse a session on the same task until `fresh` fires ([COST-3]).
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: cost
 
-`squad-usage --check` fires `fresh` at your respawn line: your context at first action (first edit, write or message) + 50k, at most 180k. Start fresh then, after a compaction, on a new task, or when a Stop-hook message says a cost rule fired: write `roles/<you>.notes.md`, then `squad-respawn <you>`.
+`squad-usage --check` fires `fresh` at your respawn line: context at first action (first edit, write or message) + 50k, at most 180k; limits are absolute tokens, never a percent. Start fresh then, after a compaction, on a Stop-hook cost message, or when a new ticket or PO wait makes old context useless: write `roles/<you>.notes.md`, then `squad-respawn <you>`.
 
 ## COST-4a Tech Lead splits
 roles: tech-lead
@@ -79,17 +73,13 @@ topic: cost
 
 The Manager is not exempt: after each pass, every PO message and before every spawn read your `squad-usage` row. On `fresh`, after a compaction or a cache expiry: write notes, run `squad-respawn` before your next spawn or PO reply. A hook adds one `context <n>k` notice to the result of your next `squad-spawn` or `squad-inbox add`; act on it then.
 
+The hook does not watch the Manager between those calls. Read the `line` column of your `squad-usage` row: when `last ctx` is past it, write notes and run `squad-respawn`.
+
 ## COST-8b Long PO wait, Manager
 roles: manager
 topic: cost
 
-After a PO wait longer than the 1h cache lifetime (`CACHE_TTL_S` in `bin/squadtranscript.py`, the 1-hour lifetime this squad's sessions use; not re-checked against Claude docs), write notes and run `squad-respawn` before your next spawn or reply, at any context length.
-
-## COST-9 Idle
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
-topic: cost
-
-Idle over 1h and over your respawn line ([COST-3]): start fresh from notes.
+After a PO wait longer than the 1h cache lifetime (`CACHE_TTL_S` in `bin/squadtranscript.py`, the 1-hour lifetime this squad's sessions use; not re-checked against Claude docs), write notes and run `squad-respawn` at the next quiet point (a merge, a close, or no role building).
 
 ## COST-10a PO wait, Manager plans
 roles: manager

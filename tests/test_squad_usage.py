@@ -15,12 +15,12 @@ T0 = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
 NOW = datetime.now(timezone.utc)
 
 
-def turn(minutes, msg_id, ctx=(2, 1000, 0), out=100, model="claude-sonnet-5-5", effort="medium", base=T0, tool=None, **extra):
+def turn(minutes, msg_id, ctx=(2, 1000, 0), out=100, model="claude-sonnet-5-5", effort="medium", base=T0, tool=None, cmd=None, **extra):
     inp, read, write = ctx
     return {"type": "assistant", "timestamp": (base + timedelta(minutes=minutes)).isoformat().replace("+00:00", "Z"),
             "effort": effort, "sessionId": "s",
             "message": {"id": msg_id, "model": model,
-                        "content": [{"type": "tool_use", "name": tool, "input": {}}] if tool else [],
+                        "content": [{"type": "tool_use", "name": tool, "input": {"command": cmd} if cmd else {}}] if tool else [],
                         "usage": {"input_tokens": inp, "cache_read_input_tokens": read,
                                   "cache_creation_input_tokens": write, "output_tokens": out}}, **extra}
 
@@ -86,7 +86,7 @@ class UsageTest(UsageBase):
         self.assertEqual(row[1], "claude-sonnet-5-5/medium")
         self.assertEqual(row[2], "3")
         self.assertEqual(row[3:5], ["70k", "70k"])
-        self.assertEqual(row[5:], ["0k", "0", "0", "0"])  # out, expiries, compactions, subagents
+        self.assertEqual(row[5:], ["-", "180k", "0k", "0", "0", "0"])  # 1st act, line, out, expiries, compactions, subagents
         self.assertNotIn("manager", r.stdout)
 
     def test_cache_expiry_needs_gap_and_big_write(self):
@@ -126,6 +126,47 @@ class UsageTest(UsageBase):
         later = turn(2, "b", ctx=(2, 120_000, 0), tool="Write", base=NOW)       # a later action does not move the line
         self.assertEqual(self.check("s", reads, act, later, turn(3, "c", ctx=(2, 129_000, 0), base=NOW)), "")
         self.assertEqual(self.check("t", reads, act, later, turn(3, "c", ctx=(2, 131_000, 0), base=NOW)), "fresh")
+
+    def test_a_state_changing_bash_call_is_the_first_action_when_no_action_tool_ran(self):
+        read = turn(0, "r", ctx=(2, 30_000, 0), tool="Bash", cmd="squad-usage; ls", base=NOW)   # a read: no action
+        spawn = turn(1, "a", ctx=(2, 70_000, 0), tool="Bash", cmd="cd /x && bin/squad-spawn dev", base=NOW)  # line 120k
+        self.assertEqual(self.check("b1", read, spawn, turn(2, "c", ctx=(2, 119_000, 0), base=NOW)), "")
+        self.assertEqual(self.check("b2", read, spawn, turn(2, "c", ctx=(2, 121_000, 0), base=NOW)), "fresh")
+        for c in ("git commit -m x", "git merge main", "squad-inbox add y"):
+            self.assertEqual(self.check("g", turn(0, "a", ctx=(2, 70_000, 0), tool="Bash", cmd=c, base=NOW),
+                                        turn(1, "c", ctx=(2, 121_000, 0), base=NOW)), "fresh", c)
+        for c in ("ls squad-spawn", "echo git commit", "git -C d commit", "X=1 squad-spawn a", "squad-ledger", "cat x && squad-close"):
+            self.assertEqual(self.check("r", turn(0, "a", ctx=(2, 70_000, 0), tool="Bash", cmd=c, base=NOW),
+                                        turn(1, "c", ctx=(2, 121_000, 0), base=NOW)), "", c)
+        self.assertEqual(self.check("bad", turn(0, "a", ctx=(2, 70_000, 0), tool="Bash", base=NOW),
+                                    turn(1, "c", ctx=(2, 121_000, 0), base=NOW)), "")  # no command: a read, no crash
+
+    def test_whichever_of_an_action_tool_or_a_bash_action_comes_first_sets_the_line(self):
+        bash = turn(0, "a", ctx=(2, 60_000, 0), tool="Bash", cmd="squad-label x", base=NOW)    # line 110k
+        write = turn(1, "b", ctx=(2, 80_000, 0), tool="Write", base=NOW)
+        self.assertEqual(self.check("bw", bash, write, turn(2, "c", ctx=(2, 111_000, 0), base=NOW)), "fresh")
+        write0 = turn(0, "a", ctx=(2, 60_000, 0), tool="Write", base=NOW)                      # line 110k
+        bash1 = turn(1, "b", ctx=(2, 80_000, 0), tool="Bash", cmd="squad-label x", base=NOW)
+        self.assertEqual(self.check("wb", write0, bash1, turn(2, "c", ctx=(2, 109_000, 0), base=NOW)), "")
+        self.assertEqual(self.check("wb2", write0, bash1, turn(2, "c", ctx=(2, 111_000, 0), base=NOW)), "fresh")
+        self.assertEqual(self.check("ro", turn(0, "a", ctx=(2, 60_000, 0), tool="Bash", cmd="cat x", base=NOW),
+                                    turn(1, "c", ctx=(2, 179_000, 0), base=NOW)), "")
+
+    def test_table_shows_the_first_action_context_and_the_line(self):
+        self.transcript("sid-1", [turn(0, "a", ctx=(2, 0, 20_000), tool="Bash", cmd="squad-spawn x"),
+                                  turn(1, "b", ctx=(2, 20_000, 5_000))])
+        self.transcript("sid-2", [turn(0, "a", ctx=(2, 0, 30_000), tool="Read")])
+        self.transcript("sid-3", [turn(0, "a", ctx=(2, 0, 150_000), tool="Write")])
+        (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n| mgr | sid-1 |\n| ro | sid-2 |\n"
+                                              "| late | sid-3 |\n| gone | nope |\n", encoding="utf-8")
+        out = self.run_cli("--squad-dir", str(self.squad)).stdout.splitlines()
+        head = out[0].split("  ")
+        self.assertEqual([h.strip() for h in head if h.strip()][4:7], ["last ctx", "1st act", "line"])
+        cols = lambda n: next(l for l in out if l.startswith(n)).split()
+        self.assertEqual(cols("mgr")[5:7], ["20k", "70k"])
+        self.assertEqual(cols("ro")[5:7], ["-", "180k"])
+        self.assertEqual(cols("late")[5:7], ["150k", "180k"])
+        self.assertEqual(cols("gone")[1:], ["no", "transcript"] + ["-"] * 9)
 
     def test_the_line_never_passes_180k(self):
         act = turn(0, "a", ctx=(2, 150_000, 0), tool="Write", base=NOW)         # 150k + 50k would be 200k
@@ -203,7 +244,7 @@ class UndercountTest(UsageBase):
         rows, head = self.table()
         row = rows["dev-1"]
         self.assertEqual(row[2], "2")                    # turns: main thread only
-        self.assertEqual(row[5], "4k")                   # out: 100+200+3000 (max of x1's lines)+1000 = 4300
+        self.assertEqual(row[7], "4k")                   # out: 100+200+3000 (max of x1's lines)+1000 = 4300
         self.assertEqual(row[-1], "4k")                  # subagents: their output tokens, 4000
         self.assertIn("turns = main-thread", self.run_cli("--squad-dir", str(self.squad)).stdout)
         self.assertEqual(row[4], "5k")                   # last ctx is the agent's own, not the subagent's
@@ -221,8 +262,8 @@ class UndercountTest(UsageBase):
         self.roster(("dev-1", "new"), ("dev-2", "other"))
         rows, _ = self.table()
         self.assertEqual(rows["dev-1"][1], "m-new/medium")
-        self.assertEqual((rows["dev-1"][2], rows["dev-1"][3], rows["dev-1"][4], rows["dev-1"][5]), ("3", "5k", "5k", "4k"))  # ctx from the newest session
-        self.assertEqual((rows["dev-2"][2], rows["dev-2"][5]), ("1", "50k"))
+        self.assertEqual((rows["dev-1"][2], rows["dev-1"][3], rows["dev-1"][4], rows["dev-1"][7]), ("3", "5k", "5k", "4k"))  # ctx from the newest session
+        self.assertEqual((rows["dev-2"][2], rows["dev-2"][7]), ("1", "50k"))
 
     @unittest.skipIf(os.name == "nt", "os.symlink needs Developer Mode or admin (WinError 1314)")
     def test_symlinked_projects_dir_gives_same_numbers(self):
@@ -247,7 +288,7 @@ class UndercountTest(UsageBase):
         self.named("mine", "dev-1", [turn(0, "a", out=1000)])
         self.roster(("dev-1", "mine"))
         row = self.table()[0]["dev-1"]
-        self.assertEqual((row[2], row[5]), ("2", "3k"))   # own dir + its worktree dir, not -another-squad
+        self.assertEqual((row[2], row[7]), ("2", "3k"))   # own dir + its worktree dir, not -another-squad
 
     def test_missing_roster_session_is_reported_not_guessed(self):
         self.named("x", "dev-1", [turn(0, "a")])
@@ -267,7 +308,7 @@ class UndercountTest(UsageBase):
         self.roster(("dev-1", "s1"))
         rows, head = self.table()
         self.assertEqual(head.split()[:3], ["agent", "model/effort", "turns"])
-        self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "0k", "0", "0", "0"])
+        self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "-", "180k", "0k", "0", "0", "0"])
 
     def test_check_ignores_other_sessions_and_subagents(self):
         self.named("old", "dev-1", [turn(0, "a", ctx=(2, 190_000, 0), base=NOW)])

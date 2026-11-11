@@ -21,18 +21,40 @@ from squadtranscript import TOKEN_FIELDS, agent_sessions, find_transcript, is_ex
 ROOM = 50_000                # [COST-3]: a session may grow this much past its first action
 CAP = 180_000                # hard upper bound of the line, and the line before a first action exists
 ACTION_TOOLS = ("Edit", "Write", "NotebookEdit", "SendMessage")  # a call that edits, writes or sends a message
+# A Bash call that changes state counts as a first action too, for sessions that never call an action tool (the
+# Manager). Its first word (basename of a path) is one of ACTION_BASH, or it is `git` with a subcommand in ACTION_GIT.
+# One leading `cd DIR &&` is skipped. An env prefix, `git -C dir commit` or a later `&&` part count as reads.
+ACTION_BASH = ("squad-spawn", "squad-inbox", "squad-start", "squad-close", "squad-retire", "squad-respawn",
+               "squad-label", "squad-team")
+ACTION_GIT = ("commit", "merge")
+
+
+def is_action(b):
+    """True for a tool_use block that is an action tool call or a state-changing Bash call."""
+    if not isinstance(b, dict) or b.get("type") != "tool_use":
+        return False
+    if b.get("name") in ACTION_TOOLS:
+        return True
+    cmd = b["input"].get("command") if b.get("name") == "Bash" and isinstance(b.get("input"), dict) else None
+    words = cmd.split() if isinstance(cmd, str) else []
+    if len(words) > 2 and words[0] == "cd" and words[2] == "&&":
+        words = words[3:]
+    if not words:
+        return False
+    first = words[0].replace("\\", "/").rsplit("/", 1)[-1]
+    return first in ACTION_BASH or (first == "git" and len(words) > 1 and words[1] in ACTION_GIT)
 
 
 def first_action_ctx(path):
-    """Context on the first main-thread call that edits, writes or sends a message, or None before one exists."""
+    """Context on the first main-thread call that edits, writes, sends a message or runs a state-changing Bash
+    command (ACTION_BASH), or None before one exists."""
     first = None
     for o in read_lines(path):
         m = o.get("message")
         if o.get("type") != "assistant" or o.get("isSidechain") or not isinstance(m, dict):
             continue
         content = m.get("content")
-        if first is None and isinstance(content, list) and any(
-                isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") in ACTION_TOOLS for b in content):
+        if first is None and isinstance(content, list) and any(is_action(b) for b in content):
             first = m.get("id") or o.get("uuid")
             ctx = 0
         if first is not None and (m.get("id") or o.get("uuid")) == first and isinstance(m.get("usage"), dict):
@@ -138,7 +160,7 @@ def report(squad_dir):
     entries = roster_sessions(squad_dir / "roster.md")
     if not entries:
         sys.exit("no session ids in roster.md")
-    head = ("agent", "model/effort", "turns", "peak ctx", "last ctx", "out", "expiries", "compactions", "subagents")
+    head = ("agent", "model/effort", "turns", "peak ctx", "last ctx", "1st act", "line", "out", "expiries", "compactions", "subagents")
     body, seen, unsure = [], set(), []
     for name, sid in entries:
         if name in seen:
@@ -152,16 +174,18 @@ def report(squad_dir):
             unsure.append(name)
         s = summarize_agent(sorted(set(paths)))
         if not s:
-            body.append((name, "no transcript", "-", "-", "-", "-", "-", "-", "-"))
+            body.append((name, "no transcript", "-", "-", "-", "-", "-", "-", "-", "-", "-"))
             continue
         body.append((name, f"{s['model']}/{s['effort']}", s["turns"], fmt_k(s["peak"]), fmt_k(s["last"]),
+                     "-" if s["first_action"] is None else fmt_k(s["first_action"]), fmt_k(respawn_line(s)),
                      fmt_k(s["out"]), s["expiries"], s["compactions"],
                      str(s["subagents"]) if s["subagents"] < 1000 else fmt_k(s["subagents"])))
     widths = [max(len(str(r[i])) for r in [head] + body) for i in range(len(head))]
     for r in [head] + body:
         print("  ".join(str(c).ljust(w) for c, w in zip(r, widths)).rstrip())
     print("note: turns = main-thread turns only; out includes subagents; subagents = their output tokens (inside out);"
-          " peak/last ctx, expiries, model are the agent's own thread")
+          " peak/last ctx, expiries, model are the agent's own thread;"
+          " 1st act = context at the first action, line = respawn line (1st act + 50k, at most 180k)")
     if unsure:
         print("note: roster session not found, so the squad could not be told; no other sessions were scanned for: "
               + ", ".join(unsure))
