@@ -2,7 +2,7 @@
 
 Duties: design notes: Developer (here, in this file); technical AC: QA whitebox with the Developer; business AC: the ticket as written; `promote.md`: none (goal promotes later); full suite: QA whitebox, only after Chieu agrees (the Manager asks him). A risk flag, user-visible change or business doubt: `BLOCKED NN`. Run `grep -rl` over `tests/` for each changed string or path and run every hit (CLAUDE.md "Running tests"). `## Review` starts with an AC trace (SQ-2), one line per AC: `AC<n> | test or capture file | how run`. Also run tests/test_windows_safe.py, tests/test_utf8_helpers.py, tests/test_instructions.py (SQ-10) and quote the result in `## Behaviour`. Source: `.claude/squads/plugin/goals/process-fixes/answers/respawn-rules-review.md`. No version bump in this task.
 
-Status: building
+Status: handed in
 Source: finding 6 (Chieu E17 a).
 Files: bin/squad-usage-hook, tests/ (extend the existing hook test; grep `tests/` for other hits)
 Ticket: commit this file's content as `.scratch/process-fixes/issues/18-hook-plan-owner.md` in your first commit after the merge.
@@ -25,3 +25,13 @@ Touched files: bin/squad-usage-hook, tests/test_squad_usage_hook.py (grep hits i
 - TA3 Developer text: says "plan owner" and names who it is; pointer is [COST-5] for the Team Lead, [COST-5a] for the Manager (these match the `when: plan-owner` split in cost.md). The `mid-ticket, run once: squad-respawn <name>` part stays. The `action` field in `usage-events.jsonl` carries the same text.
 - TA4 Non-dev roles: the message and the `action` are byte-identical to before (exact-string assert for one non-dev role).
 - TA5 Tests (extend tests/test_squad_usage_hook.py): the two assertions at lines 59 and 63 now expect the Manager (that fixture has no scope.md); add one test with a `team-lead` scope.md (Team Lead, [COST-5]) and one non-dev exact-string test. Run: the hook test file, `grep -rl 'tell the Team Lead' tests/` hits, and the three SQ-10 files. No other test newly skipped.
+
+## Review
+
+| AC | Test or capture | How run |
+|---|---|---|
+| AC1 merge: both heads are ancestors; tests of both sides pass | `git merge-base --is-ancestor 172a373 HEAD` and `... squad/plugin/respawn-guard/plugin-dev-respawn-guard-1 HEAD` both true (merge commit 5659700, ticket file after it); test_squad_usage, test_squad_respawn, test_squadruntime pass | `cd tests && python3 -m unittest test_squad_usage test_squad_respawn test_squadruntime` |
+| AC2 Developer text names the plan owner (Team Lead only when `team:` lists `team-lead`, else Manager; pointer COST-5 / COST-5a) | `test_developer_text_names_the_plan_owner_from_scope_md` (team-lead line, `team-lead` only in the note, no team line, no scope.md); `test_fixture_over_the_line_gives_fresh_message_and_event` (no scope.md: Manager, also in the event `action`) | `cd tests && python3 -m unittest test_squad_usage_hook` |
+| AC3 other roles unchanged | `test_other_roles_text_is_unchanged` (exact string for qa-whitebox) | same |
+| AC4 one test per AC 2-3, scope.md fixture | the tests above | same |
+

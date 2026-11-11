@@ -31,7 +31,13 @@ case $rule in
 esac
 action="write roles/$SQUAD_NAME.notes.md, then run: squad-respawn $SQUAD_NAME"
 if [[ ${SQUAD_ROLE:-} == dev ]]; then  # [COST-5]: a Developer with a finished ticket retires, it does not respawn
-  action="write roles/$SQUAD_NAME.notes.md; if your ticket is handed in or passed, tell the Team Lead and stop ([COST-5], no squad-respawn); if you are mid-ticket, run once: squad-respawn $SQUAD_NAME"
+  # Plan owner = the Team Lead when the scope's `team:` line lists team-lead (a trailing `(note)` is ignored), else the Manager.
+  owner="the Manager" ptr="COST-5a"
+  if [[ -f $home/scope.md ]]; then
+    team=$(sed -n 's/^[[:space:]]*team[[:space:]]*:[[:space:]]*\([^(]*\).*$/\1/p' "$home/scope.md" 2>/dev/null | head -n 1 | tr -d '\r')
+    [[ ,${team//[[:space:]]/}, == *,team-lead,* ]] && owner="the Team Lead" ptr="COST-5"
+  fi
+  action="write roles/$SQUAD_NAME.notes.md; if your ticket is handed in or passed, tell your plan owner ($owner) and stop ([$ptr], no squad-respawn); if you are mid-ticket, run once: squad-respawn $SQUAD_NAME"
 fi
 
 record=$(jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg agent "$SQUAD_NAME" --arg role "${SQUAD_ROLE:-}" \
