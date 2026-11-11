@@ -93,7 +93,7 @@ if [[ $force != 1 ]]; then
     echo "$notes is missing: write your notes first (squad-process rule NOTE-1), then run squad-respawn again; --force skips this check" >&2
     [[ $dry == 1 ]] || exit 1
   elif [[ $dry != 1 && -n $(find "$notes" -mmin +10 2>/dev/null) ]]; then
-    # GNU stat, else BSD stat. A warning must never stop the respawn. When stat is unusable the warning is skipped (QA blackbox saw it skipped; ruled out of scope).
+    # GNU stat, else BSD stat. A warning must never stop the respawn; if stat gives no number the age shows as ">10".
     mt=$(stat -c %Y "$notes" 2>/dev/null || stat -f %m "$notes" 2>/dev/null) || mt=""
     age=">10"; [[ $mt =~ ^[0-9]+$ ]] && age=$(( ($(date +%s) - mt) / 60 ))
     echo "warning: $notes is $age min old (more than 10 minutes); rewrite it before the new session reads it (squad-process rule NOTE-1)" >&2
@@ -116,6 +116,29 @@ fi
 # The pane, not the tab: other agents may share the tab, and closing a tab kills them all.
 old_pane=$(herdr agent get "$name" | jq -r '.result.agent.pane_id // .result.pane_id // empty')
 [[ -n $old_pane ]] || { echo "no live agent named $name" >&2; exit 1; }
+
+# Log the respawn (COST-14 needs it) after every refusal above and before the spawn. Same append rules as bin/squad-usage-hook
+# (flock, else an atomic mkdir lock). A log problem warns once and never stops the respawn.
+log_respawn() {
+  local log=$home/usage-events.jsonl record held n rc=0
+  record=$(jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg agent "$name" --arg role "$role" \
+    '{ts:$ts, agent:$agent, role:$role, rule:"respawn"}') || return 1
+  if command -v flock >/dev/null; then
+    { flock 9 2>/dev/null; printf '%s\n' "$record" >&9; } 9>>"$log" || return 1
+  else
+    held=
+    n=0
+    until mkdir "$log.lock" 2>/dev/null; do
+      (( ++n > 250 )) && { rmdir "$log.lock" 2>/dev/null; break; }
+      sleep 0.02
+    done
+    (( n <= 250 )) && held=1
+    { printf '%s\n' "$record" >&9; } 9>>"$log" || rc=1
+    [[ -z $held ]] || rmdir "$log.lock" 2>/dev/null
+    return $rc
+  fi
+}
+log_respawn 2>/dev/null || echo "warning: could not write the respawn event to $home/usage-events.jsonl; going on" >&2
 
 herdr agent rename "$name" "$prev" >/dev/null
 SQUAD_DIR=$squad_dir "${spawn[@]}" || {

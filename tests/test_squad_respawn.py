@@ -5,10 +5,12 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 import winlaunch
-from squadtest import BIN, clean_env, fake_herdr, git
+from squadtest import BIN, clean_env, fake_herdr, git, load_cli
 
 _DEV = json.loads((BIN.parent / "templates/squad/settings/dev.json").read_text(encoding="utf-8"))
 DEV = (_DEV["model"], _DEV["effortLevel"])
@@ -224,6 +226,102 @@ class RespawnTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn("Usage: squad-respawn", r.stderr)
         self.assertFalse(self.log.exists() and self.log.read_text(encoding="utf-8").strip())
+
+    # --- the respawn event in usage-events.jsonl (task 17) ---
+    def events(self, home=None):
+        path = (home or self.squad) / "usage-events.jsonl"
+        return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+
+    def failing_spawn_stub(self):
+        """A plugin copy whose squad-spawn fails: the run gets past every refusal and stops at the spawn."""
+        stub = self.root / "plugin"
+        (stub / "bin").mkdir(parents=True)
+        for f in ("squad-respawn", "squad-usage", "squad-label", "squadlabel.py", "squadio.py", "squadtranscript.py"):
+            shutil.copy(BIN / f, stub / "bin" / f)
+        (stub / "bin" / "squad-spawn").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        (stub / "bin" / "squad-spawn").chmod(0o755)
+        return stub / "bin" / "squad-respawn"
+
+    def test_a_respawn_appends_one_event_line_before_the_spawn(self):  # AC1, T1, T2
+        events = self.squad / "usage-events.jsonl"
+        events.write_bytes(b'{"keep":"me"}\n')
+        r = self.respawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        old, line = events.read_bytes().split(b"\n", 1)[0], self.events()[1]
+        self.assertEqual(old, b'{"keep":"me"}')  # appended, never rewritten
+        ev = json.loads(line)
+        self.assertRegex(ev["ts"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$")
+        self.assertEqual((ev["rule"], ev["agent"], ev["role"]), ("respawn", "dev-1", "dev"))
+        self.assertEqual(len(self.events()), 2)
+
+    def test_no_event_when_the_run_is_refused_or_a_dry_run(self):  # AC2: missing notes, no live agent, --dry-run
+        (self.squad / "roles" / "dev-1.notes.md").unlink()
+        self.assertEqual(self.respawn().returncode, 1)  # refused: notes missing
+        self.put_notes("dev-1")
+        self.env["DEAD"] = "dev-1"
+        r = self.respawn()
+        self.assertEqual(r.returncode, 1)  # refused: no live agent
+        del self.env["DEAD"]
+        self.assertEqual(self.respawn("--dry-run").returncode, 0)
+        self.assertEqual(self.events(), [])
+
+    def test_a_spawn_that_fails_leaves_the_event(self):  # T4: the line comes before the squad-spawn call
+        r = winlaunch.run_script(self.failing_spawn_stub(), ["dev-1"], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual([json.loads(l)["rule"] for l in self.events()], ["respawn"])
+
+    def test_an_unwritable_log_warns_once_and_the_respawn_goes_on(self):  # T5
+        (self.squad / "usage-events.jsonl").mkdir()
+        r = self.respawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stderr.count("could not write the respawn event"), 1)
+        self.assertIn("agent start dev-1", self.log.read_text(encoding="utf-8"))
+
+    def test_a_held_lock_does_not_hang_the_event_and_the_line_is_written_without_flock(self):  # T3: the mkdir-lock branch
+        tools = self.root / "tools"
+        tools.mkdir()
+        for name in ("bash", "sh", "env", "basename", "ls", "jq", "date", "find", "stat", "wc", "tr", "sed", "dirname", "readlink", "sleep",
+                     "mkdir", "rmdir", "cat", "python3", "awk", "grep", "git", "head", "tail", "cut", "sort", "mv", "rm", "uname", "id"):
+            found = shutil.which(name)
+            if found:
+                (tools / name).symlink_to(found)
+        shutil.copy(self.root / "fakebin" / "herdr", tools / "herdr")
+        env = dict(self.env, PATH=str(tools))
+        self.assertIsNone(shutil.which("flock", path=str(tools)))
+        (self.squad / "usage-events.jsonl.lock").mkdir()  # a writer that never lets go
+        start = time.monotonic()
+        r = winlaunch.run_script(self.failing_spawn_stub(), ["dev-1"], env=env, text=True, encoding="utf-8", capture_output=True, timeout=30)
+        self.assertLess(time.monotonic() - start, 15)
+        self.assertEqual(r.returncode, 1, r.stderr)  # the stub spawn fails; the line is already there
+        self.assertEqual([json.loads(l)["rule"] for l in self.events()], ["respawn"])
+        self.assertNotIn("could not write", r.stderr)
+
+    def test_the_hook_and_the_manager_guard_still_read_a_file_with_the_respawn_line(self):  # AC3, T6
+        events = self.squad / "usage-events.jsonl"
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        events.write_text(json.dumps({"ts": now, "agent": "dev-1", "role": "dev", "session": "sid-1", "rule": "fresh", "action": "a"}) + "\n"
+                          + json.dumps({"ts": now, "agent": "dev-1", "role": "manager", "session": "sid-1", "rule": "manager-x", "action": "a"}) + "\n",
+                          encoding="utf-8")
+        self.assertEqual(self.respawn().returncode, 0)
+        self.assertEqual(len(self.events()), 3)  # hook line, guard line, respawn line (it has no session)
+        guard = load_cli("squad-manager-guard")
+        self.assertEqual(guard.seen_keys(str(events), "sid-1"), {"manager-x"})
+        cfg = self.root / "cfg"
+        (cfg / "projects" / "-cwd").mkdir(parents=True)
+        for sid in ("sid-1", "sid-2"):  # both over the respawn line (first action at 60k, now 130k)
+            rows = [{"type": "assistant", "timestamp": now, "effort": "medium", "message": {"id": m, "model": "claude-sonnet-5-5",
+                     "content": [{"type": "tool_use", "name": "Write", "input": {}}] if m == "first" else [],
+                     "usage": {"input_tokens": 2, "cache_read_input_tokens": ctx, "cache_creation_input_tokens": 0, "output_tokens": 10}}}
+                    for m, ctx in (("first", 60_000), ("last", 130_000))]
+            (cfg / "projects" / "-cwd" / f"{sid}.jsonl").write_text("".join(json.dumps(x) + "\n" for x in rows), encoding="utf-8")
+        hook_env = dict(self.env, CLAUDE_CONFIG_DIR=str(cfg), SQUAD_NAME="dev-1", SQUAD_ROLE="dev")
+
+        def hook(sid):
+            return winlaunch.run_script(BIN / "squad-usage-hook", input=json.dumps({"hook_event_name": "Stop", "session_id": sid}),
+                                        text=True, encoding="utf-8", env=hook_env, capture_output=True, timeout=10)
+        self.assertEqual(hook("sid-1").returncode, 0)  # already logged for this session: deduped
+        self.assertEqual(hook("sid-2").returncode, 2)  # a session not yet logged still fires
+        self.assertEqual(len(self.events()), 4)
 
     def scoped(self):
         """Turn the test squad into a per-scope squad with scope sc1 and goal g1."""
