@@ -33,8 +33,16 @@ class RespawnTest(unittest.TestCase):
         self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad), HERDR_LOG=str(self.log),
                         PATH=f"{fake}:{os.environ['PATH']}")
 
+        self.put_notes("dev-1")  # squad-respawn refuses an agent without fresh notes
+
     def tearDown(self):
         self.tmp.cleanup()
+
+    def put_notes(self, agent, home=None, text="Now: x\n"):
+        path = (home or self.squad) / "roles" / f"{agent}.notes.md"
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        return path
 
     def respawn(self, *args):
         return winlaunch.run_script(BIN / "squad-respawn", ["dev-1", *args], env=self.env,
@@ -78,6 +86,7 @@ class RespawnTest(unittest.TestCase):
         # squad-start spawns manager-t; squad-spawn --set-session adds this row (empty scope, empty Owns).
         with (self.squad / "roster.md").open("a", encoding="utf-8") as f:
             f.write("| manager-t | manager |  |  | live | old-sid |\n")
+        self.put_notes("manager-t")
         r = winlaunch.run_script(BIN / "squad-respawn", ["manager-t"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -96,6 +105,7 @@ class RespawnTest(unittest.TestCase):
     def dry_prompt(self, agent, role):
         with (self.squad / "roster.md").open("a", encoding="utf-8") as f:
             f.write(f"| {agent} | {role} |  |  | live | old-sid |\n")
+        self.put_notes(agent)
         r = winlaunch.run_script(BIN / "squad-respawn", [agent, "--dry-run"], env=self.env,
                            text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -137,6 +147,7 @@ class RespawnTest(unittest.TestCase):
         (self.squad / "roster.md").write_text(
             "| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
             f"| {name} | Dev | settings | task | live | old-sid |\n", encoding="utf-8")
+        self.put_notes(name)
         r = winlaunch.run_script(BIN / "squad-respawn", [name], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(r.returncode, 0, r.stderr)
         renames = [l.split()[2:] for l in self.log.read_text(encoding="utf-8").splitlines() if l.startswith("agent rename")]
@@ -158,11 +169,53 @@ class RespawnTest(unittest.TestCase):
         self.assertNotIn("pane close", self.log.read_text(encoding="utf-8"))
 
     def test_warns_when_notes_are_over_100_lines(self):
-        (self.squad / "roles").mkdir()
-        (self.squad / "roles" / "dev-1.notes.md").write_text("line\n" * 101, encoding="utf-8")
+        self.put_notes("dev-1", text="line\n" * 101)
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("101 lines", r.stderr)
+        self.assertIn("squad-process rule NOTE-1", r.stderr)  # AC4: the pointer is a command that exists
+        self.assertNotIn("→ Notes", r.stderr)
+
+    def test_missing_notes_refuse_with_one_line_and_start_nothing(self):
+        (self.squad / "roles" / "dev-1.notes.md").unlink()
+        r = self.respawn()
+        self.assertEqual(r.returncode, 1)
+        lines = r.stderr.strip().splitlines()
+        self.assertEqual(len(lines), 1, r.stderr)
+        self.assertIn("dev-1.notes.md", lines[0])
+        self.assertIn("NOTE-1", lines[0])
+        self.assertFalse(self.log.exists() and self.log.read_text(encoding="utf-8").strip())  # no rename, no spawn, no close
+
+    def test_notes_older_than_10_minutes_warn_and_go_on(self):
+        notes = self.put_notes("dev-1")
+        old = notes.stat().st_mtime - 11 * 60
+        os.utime(notes, (old, old))
+        r = self.respawn()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("more than 10 minutes old", r.stderr)
+        self.assertIn("agent start dev-1", self.log.read_text(encoding="utf-8"))
+        self.put_notes("dev-1")  # touched now: no warning
+        self.assertNotIn("10 minutes", self.respawn().stderr)
+
+    def test_force_skips_the_old_notes_warning(self):
+        notes = self.squad / "roles" / "dev-1.notes.md"
+        old = notes.stat().st_mtime - 60 * 60
+        os.utime(notes, (old, old))
+        r = self.respawn("--force")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("10 minutes", r.stderr)
+
+    def test_force_skips_the_missing_notes_check(self):
+        (self.squad / "roles" / "dev-1.notes.md").unlink()
+        r = self.respawn("--force")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("agent start dev-1", self.log.read_text(encoding="utf-8"))
+
+    def test_dry_run_is_unchanged_without_notes(self):
+        (self.squad / "roles" / "dev-1.notes.md").unlink()
+        r = self.respawn("--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("would run: herdr agent rename dev-1", r.stdout)
 
     def scoped(self):
         """Turn the test squad into a per-scope squad with scope sc1 and goal g1."""
@@ -170,6 +223,8 @@ class RespawnTest(unittest.TestCase):
         sc, g = self.squad / "scopes" / "sc1", self.squad / "goals" / "g1"
         sc.mkdir(parents=True)
         g.mkdir(parents=True)
+        self.put_notes("t-dev-sc1-1", sc)
+        self.put_notes("t-mgr-g1", g)
         (sc / "scope.md").write_text("# Scope\n\ngoal:\nteam: ba\n", encoding="utf-8")
         (sc / "roster.md").write_text(head + "| t-dev-sc1-1 | dev | sc1 | task 1 | live | old-sid |\n", encoding="utf-8")
         (g / "roster.md").write_text(head + "| t-mgr-g1 | manager |  |  | live | old-g |\n", encoding="utf-8")
