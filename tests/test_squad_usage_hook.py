@@ -131,6 +131,20 @@ class HookTest(unittest.TestCase):
         self.assertEqual(self.run_hook().returncode, 0)
         self.assertEqual(len(self.events.read_text(encoding="utf-8").splitlines()), 1)
 
+    def test_the_dedupe_skips_corrupt_blank_and_non_object_lines(self):  # task 20 AC1, AC2
+        def ev(session):
+            return json.dumps({"agent": "dev-1", "session": session, "rule": "fresh"})
+        mess = ['{"session": "sid-1", "rul', "", ev("sid-1"), "5", "[]", "null", '"x"']
+        self.events.write_text("\n".join(mess) + "\n", encoding="utf-8")
+        self.transcript("sid-1", 130_000)
+        self.assertEqual(self.run_hook().returncode, 0)  # the valid event of this session still stops it
+        self.assertEqual(self.events.read_text(encoding="utf-8").splitlines(), mess)
+        # control: the same mess, the valid event is for another session: the hook fires and appends one line
+        self.events.write_text("\n".join(m if m != ev("sid-1") else ev("other") for m in mess) + "\n", encoding="utf-8")
+        before = len(self.events.read_text(encoding="utf-8").splitlines())
+        self.assertEqual(self.run_hook().returncode, 2)
+        self.assertEqual(len(self.events.read_text(encoding="utf-8").splitlines()), before + 1)
+
     def test_stop_hook_active_is_not_re_fired(self):
         self.transcript("sid-1", 130_000)
         self.assertEqual(self.run_hook(stop_hook_active=True).returncode, 0)

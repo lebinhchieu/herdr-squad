@@ -1,3 +1,23 @@
+## v13 — 2026-11-12
+
+Plugin 0.8.1. Wording only; nothing breaks. A pinned squad keeps its own runtime until it re-pins. COST-3 and COST-8b change hash, so `squad-process upgrade --check` names an overlay that replaced one.
+
+added:
+none
+
+changed:
+- COST-3: it also carries the cost-hook trigger ("never a percent", a Stop-hook cost message) and says "a new ticket or PO wait makes old context useless" instead of "on a new task". why: COST-1 said the same, and "new task" was unclear for a role with one session per scope
+- COST-8b: after a PO wait over 1h, respawn at the next quiet point, not at any context length. why: COST-8 and COST-3 already say when to respawn; the old text contradicted them
+- NOTE-3: points at [COST-3]. why: COST-1 is gone
+- The Developer text of the Stop hook (`bin/squad-usage-hook`) says "tell your plan owner" (the Team Lead when `team:` lists `team-lead`, else the Manager; [COST-5] or [COST-5a]). why: the Manager plans some scopes, and the text always named the Team Lead
+
+removed:
+- COST-1: merged into COST-3. why: two rules said "write notes, then respawn"
+- COST-9: why: being over the respawn line already fires COST-3, so the idle case added nothing
+
+retargeted:
+none
+
 ## v12 — 2026-11-11
 
 Plugin 0.8.0. New tools and rules; nothing breaks. A pinned squad keeps its own runtime until it re-pins; the 8 phase rules change hash, so `squad-process upgrade --check` names an overlay that replaced one.
