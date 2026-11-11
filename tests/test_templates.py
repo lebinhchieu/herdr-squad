@@ -18,8 +18,8 @@ class TemplateLayersTest(unittest.TestCase):
         for kind in ("scope", "goal"):
             text = (T / kind / f"{kind}.md").read_text()
             found = set(re.findall(r"\{\{(\w+)\}\}", text))
-            self.assertTrue({"name", "brief", "touches"} <= found, kind)
-            self.assertLessEqual(found, {"name", "brief", "touches", "goal"})
+            self.assertTrue({"name", "brief"} <= found, kind)
+            self.assertLessEqual(found, {"name", "brief", "goal"})
 
     def test_fresh_decisions_file_has_no_entries_so_a_new_goal_closes_without_promotion(self):
         self.assertFalse([l for l in (T / "goal/shared/decisions.md").read_text().splitlines() if l.startswith("- ")])

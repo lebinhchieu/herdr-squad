@@ -2,8 +2,6 @@
 
 **{{brief}}**
 
-touches: {{touches}}
-
 ## Scopes
 
 | Scope | Depends on | Status |
