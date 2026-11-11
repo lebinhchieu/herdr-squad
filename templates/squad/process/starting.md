@@ -47,8 +47,7 @@ roles: manager
 topic: starting
 
 1. The PO runs `/squad:squad-start "<text>"`; it makes the folder and brief (`scope.md`, or `goal.md` for text starting `goal:`) and starts a fresh Manager. `squad-start --resume <name>` starts a new Manager for unfinished work whose Manager is gone.
-2. **Overlap.** `touches:` lists the repos or paths the work changes. `squad-start` compares it with every open scope and stops on an overlap for the PO.
-3. The Manager reads the brief, proposes the team ([SIZE-1]), proposes the plan, and spawns the pod only after the PO confirms.
+2. The Manager reads the brief, proposes the team ([SIZE-1]), proposes the plan, and spawns the pod only after the PO confirms.
 
 ## START-3b Team models, first move
 roles: manager
@@ -191,7 +190,7 @@ roles: manager
 topic: starting
 
 - Scope Manager: read the brief, propose the team ([SIZE-1]) with its signals, write the confirmed `team:` into `scope.md` (plus `tickets: <feature-slug>`), create `iterations/1.md` with the iteration goal and the plan, and ask the PO to confirm the team and plan before you spawn anyone. When unsure, add the role.
-- Goal Manager: split the brief into scopes. Write them into `goal.md` in order, with what each depends on and what it touches. Propose each scope's team too. Ask the PO to confirm the split, then start the scopes whose dependencies are passed ([GOAL-1]).
+- Goal Manager: split the brief into scopes. Write them into `goal.md` in order, with what each depends on. Propose each scope's team too. Ask the PO to confirm the split, then start the scopes whose dependencies are passed ([GOAL-1]).
 
 ## START-20 Architect start
 roles: architect

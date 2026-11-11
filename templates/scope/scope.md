@@ -3,7 +3,6 @@
 **{{brief}}**
 
 goal: {{goal}}
-touches: {{touches}}
 <!-- Optional: tickets: <feature-slug> names the ticket folder `.scratch/<feature-slug>/issues/`; the Manager writes it at plan. -->
 tickets:
 team:

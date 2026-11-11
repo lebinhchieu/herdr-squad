@@ -18,8 +18,20 @@ class TemplateLayersTest(unittest.TestCase):
         for kind in ("scope", "goal"):
             text = (T / kind / f"{kind}.md").read_text()
             found = set(re.findall(r"\{\{(\w+)\}\}", text))
-            self.assertTrue({"name", "brief", "touches"} <= found, kind)
-            self.assertLessEqual(found, {"name", "brief", "touches", "goal"})
+            self.assertTrue({"name", "brief"} <= found, kind)
+            self.assertLessEqual(found, {"name", "brief", "goal"})
+
+    def test_no_rule_or_doc_describes_the_removed_touches_option(self):  # T22.AC1-AC4
+        root = T.parent
+        for rel in ("skills/squad-start/SKILL.md", "README.md", "templates/squad/process/starting.md", "templates/squad/process/goal.md",
+                    "templates/squad/process/files.md"):
+            text = (root / rel).read_text(encoding="utf-8")
+            self.assertNotIn("--touches", text, rel)
+            self.assertNotRegex(text, r"(?i)overlap(s)? (with )?(an )?open scope|\*\*Overlap\.\*\*|exit 3", rel)
+        start = (T / "squad/process/starting.md").read_text(encoding="utf-8")
+        step3 = start.split("## START-3 ")[1].split("\n## ")[0]
+        self.assertEqual(re.findall(r"(?m)^(\d+)\. ", step3), ["1", "2"])
+        self.assertNotIn("`touches:`", (T / "squad/process/files.md").read_text(encoding="utf-8"))
 
     def test_fresh_decisions_file_has_no_entries_so_a_new_goal_closes_without_promotion(self):
         self.assertFalse([l for l in (T / "goal/shared/decisions.md").read_text().splitlines() if l.startswith("- ")])

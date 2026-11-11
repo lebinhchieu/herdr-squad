@@ -645,9 +645,6 @@ class RuntimeIsNotAScopeTest(Base):
         with self.assertRaises(build.Refused):
             build.resolve(self.squad, "_runtime")
         self.assertEqual(build.resolve(self.squad, "sc1")[0], "scope")
-        # squad-start's overlap scan
-        smod = load_cli("squad-start")
-        self.assertEqual([n for n, _ in smod.open_scope_touches(self.squad)], ["sc1"])
 
     def test_no_script_walks_the_squad_folder_recursively(self):
         scanners = ("squad-label", "squadlabel.py", "squad-report", "squadreport", "squad-inbox", "squadinbox", "squad-start",

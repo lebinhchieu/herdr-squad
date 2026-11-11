@@ -48,7 +48,7 @@ class StartTest(unittest.TestCase):
         return self.log.read_text(encoding="utf-8") if self.log.exists() else ""
 
     def test_lone_task_creates_the_scope_folder_brief_and_a_fresh_manager(self):
-        r = self.start("Fix SEC-04: remove the committed default bypass key", "--touches", "wpapi")
+        r = self.start("Fix SEC-04: remove the committed default bypass key")
         self.assertEqual(r.returncode, 0, r.stderr)
         out = json.loads(r.stdout)
         self.assertEqual((out["kind"], out["name"], out["manager"]), ("scope", "sec04", "t-mgr-sec04"))
@@ -59,7 +59,7 @@ class StartTest(unittest.TestCase):
         sc = self.squad / "scopes" / "sec04"
         brief = (sc / "scope.md").read_text(encoding="utf-8")
         self.assertIn("Fix SEC-04: remove the committed default bypass key", brief)
-        self.assertRegex(brief, r"(?m)^touches: wpapi$")
+        self.assertNotIn("touches", brief)  # T21.AC1: the template has no touches line
         self.assertRegex(brief, r"(?m)^goal:\s*$")
         for d in ("iterations", "tasks", "evidence", "roles"):
             self.assertTrue((sc / d).is_dir(), d)
@@ -95,30 +95,30 @@ class StartTest(unittest.TestCase):
         f = self.root / "fakebin" / "herdr"  # a herdr that cannot run a command in the tab: the detached fallback starts the watchdog
         head, _ = f.read_text(encoding="utf-8").rsplit("exit 0\n", 1)
         f.write_text(head + '[[ "$1 $2" == "pane run" ]] && exit 1\nexit 0\n', encoding="utf-8", newline="\n")
-        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a", "--dry-run").returncode, 0)
+        self.assertEqual(self.start("Task one", "--name", "one", "--dry-run").returncode, 0)
         self.assertFalse((self.squad / "scopes" / "one").exists())
         for text, kind, name in (("Task one", "scopes", "one"), ("goal: Big", "goals", "big")):
             home = self.squad / kind / name
-            self.assertEqual(self.start(text, "--name", name, "--touches", name).returncode, 0)
+            self.assertEqual(self.start(text, "--name", name).returncode, 0)
             pid = self.watchdog_pid(home)
             self.addCleanup(self.stop, pid)
             self.assertRegex((home / "watchdog.log").read_text(encoding="utf-8"), rf"watchdog started for {name}; Manager t-mgr-{name}")
-        self.assertEqual(self.start("Tabs", "--in-goal", "big", "--name", "s1", "--touches", "x", "--yes").returncode, 0)
+        self.assertEqual(self.start("Tabs", "--in-goal", "big", "--name", "s1").returncode, 0)
         time.sleep(0.5)
         self.assertFalse((self.squad / "scopes" / "s1" / "watchdog.log").exists())
 
     def test_model_flag_sets_the_managers_model_else_the_role_default_applies(self):
-        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a", "--model", "opus", "--effort", "medium").returncode, 0)
+        self.assertEqual(self.start("Task one", "--name", "one", "--model", "opus", "--effort", "medium").returncode, 0)
         self.assertRegex(self.herdr(), r"--model opus --effort medium\b")
         self.log.unlink()
-        self.assertEqual(self.start("Task two", "--name", "two", "--touches", "b").returncode, 0)
+        self.assertEqual(self.start("Task two", "--name", "two").returncode, 0)
         self.assertRegex(self.herdr(), r"--model sonnet --effort high\b")
 
     def test_the_managers_model_override_survives_a_respawn_for_a_scope_and_a_goal(self):
         for text, kind, var, flag in (("Task one", "scopes", "SCOPE_DIR", "--scope"), ("goal: Big thing", "goals", "GOAL_DIR", "--goal")):
             with self.subTest(kind=kind):
                 name = "one" if kind == "scopes" else "big"
-                r = self.start(text, "--name", name, "--touches", name, "--model", "sonnet", "--effort", "low")
+                r = self.start(text, "--name", name, "--model", "sonnet", "--effort", "low")
                 self.assertEqual(r.returncode, 0, r.stderr)
                 home = self.squad / kind / name
                 self.assertEqual((home / "roles" / f"t-mgr-{name}.overrides").read_text(encoding="utf-8"), "model=sonnet\neffort=low\n")
@@ -128,16 +128,17 @@ class StartTest(unittest.TestCase):
                 self.assertRegex(d.stdout, rf"squad-spawn manager t-mgr-{name} {flag} {name} .*--model sonnet --effort low ")
 
     def test_name_comes_from_a_ticket_id_else_a_short_slug_and_can_be_overridden(self):
-        self.assertEqual(json.loads(self.start("Regroup the settings tabs", "--touches", "x").stdout)["name"], "regroup-settings")
-        self.assertEqual(json.loads(self.start("Anything", "--name", "mine", "--touches", "y").stdout)["name"], "mine")
+        self.assertEqual(json.loads(self.start("Regroup the settings tabs").stdout)["name"], "regroup-settings")
+        self.assertEqual(json.loads(self.start("Anything", "--name", "mine").stdout)["name"], "mine")
 
     def test_goal_prefix_creates_a_goal_folder_and_a_goal_manager(self):
-        r = self.start("goal: Rebuild the settings page", "--name", "settings", "--touches", "wpfe")
+        r = self.start("goal: Rebuild the settings page", "--name", "settings")
         self.assertEqual(r.returncode, 0, r.stderr)
         out = json.loads(r.stdout)
         self.assertEqual((out["kind"], out["name"], out["manager"]), ("goal", "settings", "t-mgr-settings"))
         g = self.squad / "goals" / "settings"
         self.assertIn("Rebuild the settings page", (g / "goal.md").read_text(encoding="utf-8"))
+        self.assertNotIn("touches", (g / "goal.md").read_text(encoding="utf-8"))  # T21.AC1
         self.assertNotIn("goal:", (g / "goal.md").read_text(encoding="utf-8").splitlines()[2])  # the prefix is not part of the brief
         for p in ("shared/decisions.md", "shared/summaries", "shared/contracts", "roles", "roster.md", "escalations.md"):
             self.assertTrue((g / p).exists(), p)
@@ -146,9 +147,9 @@ class StartTest(unittest.TestCase):
         self.assertIn("| t-mgr-settings | manager |", (g / "roster.md").read_text(encoding="utf-8"))
 
     def test_in_goal_creates_only_the_scope_folder_naming_its_goal(self):
-        self.start("goal: Rebuild", "--name", "g1", "--touches", "wpfe")
+        self.start("goal: Rebuild", "--name", "g1")
         self.log.unlink()
-        r = self.start("Tabs regroup", "--in-goal", "g1", "--name", "s1", "--touches", "wpfe/tabs", "--yes")
+        r = self.start("Tabs regroup", "--in-goal", "g1", "--name", "s1")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertRegex((self.squad / "scopes" / "s1" / "scope.md").read_text(encoding="utf-8"), r"(?m)^goal: g1$")
         self.assertNotIn("agent start", self.herdr())  # the goal Manager runs it, no Manager of its own
@@ -158,35 +159,38 @@ class StartTest(unittest.TestCase):
         self.assertNotEqual(self.start("x", "--in-goal", "nope", "--name", "s1").returncode, 0)
 
     def test_name_clash_with_a_scope_a_goal_or_an_archived_one_is_refused(self):
-        self.start("one", "--name", "dup", "--touches", "a")
+        self.start("one", "--name", "dup")
         self.log.unlink()
         for existing in ("scopes/dup", "goals/dup", "scopes/_done/dup", "goals/_done/dup"):
             with self.subTest(existing=existing):
                 p = self.squad / existing
                 p.mkdir(parents=True, exist_ok=True)
                 kind = ["goal: two"] if existing.startswith("scopes") else ["two"]
-                r = self.start(*kind, "--name", "dup", "--touches", "b")
+                r = self.start(*kind, "--name", "dup")
                 self.assertNotEqual(r.returncode, 0)
                 self.assertIn("already", r.stderr)
                 self.assertEqual(self.herdr(), "")
 
-    def test_overlap_with_an_open_scope_warns_and_creates_nothing_until_yes(self):
-        self.start("first", "--name", "one", "--touches", "wpfe/src/settings")
-        self.log.unlink()
-        r = self.start("second", "--name", "two", "--touches", "wpfe")
-        self.assertEqual(r.returncode, 3)
-        self.assertIn("one", r.stderr)
-        self.assertFalse((self.squad / "scopes" / "two").exists())
+    def test_touches_is_an_unknown_option_and_creates_nothing(self):
+        r = self.start("x", "--name", "one", "--touches", "a")
+        self.assertEqual(r.returncode, 2)
+        self.assertFalse((self.squad / "scopes" / "one").exists())
         self.assertEqual(self.herdr(), "")
-        r = self.start("second", "--name", "two", "--touches", "wpfe", "--yes")
-        self.assertEqual(r.returncode, 0, r.stderr)
 
-    def test_disjoint_touches_and_archived_scopes_do_not_count_as_overlap(self):
-        self.start("first", "--name", "one", "--touches", "wpapi")
-        done = self.squad / "scopes" / "_done" / "old"
-        done.mkdir(parents=True)
-        (done / "scope.md").write_text("touches: wpfe\n", encoding="utf-8")
-        self.assertEqual(self.start("second", "--name", "two", "--touches", "wpfe").returncode, 0)
+    def test_old_files_with_a_touches_line_still_load_and_never_stop_anything(self):
+        self.start("goal: Big", "--name", "g1")
+        goal = self.squad / "goals" / "g1" / "goal.md"
+        goal.write_text(goal.read_text(encoding="utf-8").replace("## Scopes", "touches: wpfe\n\n## Scopes"), encoding="utf-8")
+        self.start("Old", "--name", "old")
+        scope = self.squad / "scopes" / "old" / "scope.md"
+        scope.write_text(scope.read_text(encoding="utf-8").replace("goal:", "touches: wpfe\ngoal:", 1), encoding="utf-8")
+        before = (goal.read_bytes(), scope.read_bytes())
+        for args in (("second", "--in-goal", "g1", "--name", "two"), ("third", "--name", "three"), ("--resume", "old"), ("--resume", "g1")):
+            with self.subTest(args=args):
+                r = self.start(*args)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertNotRegex(r.stderr, r"(?i)touches|overlap")
+        self.assertEqual((goal.read_bytes(), scope.read_bytes()), before)
 
     def test_a_flat_squad_is_refused_so_it_is_not_converted_by_accident(self):
         (self.squad / "scopes").rmdir()
@@ -203,12 +207,12 @@ class StartTest(unittest.TestCase):
 
     def test_failed_spawn_rolls_the_new_folder_back(self):
         self.env["HERDR_ENV"] = "0"
-        r = self.start("x", "--name", "one", "--touches", "z")
+        r = self.start("x", "--name", "one")
         self.assertNotEqual(r.returncode, 0)
         self.assertFalse((self.squad / "scopes" / "one").exists())
 
     def test_resume_starts_a_new_manager_for_an_existing_scope_without_touching_its_files(self):
-        self.start("Fix it", "--name", "one", "--touches", "a")
+        self.start("Fix it", "--name", "one")
         sc = self.squad / "scopes" / "one"
         (sc / "tasks" / "T-1.md").write_text("keep me", encoding="utf-8")
         self.log.unlink()
@@ -224,15 +228,15 @@ class StartTest(unittest.TestCase):
         self.assertIn("roles/t-mgr-one.notes.md", prompt)
 
     def test_resume_a_goal_uses_goal_dir(self):
-        self.start("goal: Rebuild", "--name", "g1", "--touches", "wpfe")
+        self.start("goal: Rebuild", "--name", "g1")
         self.log.unlink()
         r = self.start("--resume", "g1")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(f"GOAL_DIR={self.squad / 'goals' / 'g1'}", self.herdr())
 
     def test_resume_refuses_a_scope_that_belongs_to_a_goal_unknown_names_and_extra_text(self):
-        self.start("goal: Rebuild", "--name", "g1", "--touches", "wpfe")
-        self.start("Tabs", "--in-goal", "g1", "--name", "s1", "--touches", "wpfe/tabs", "--yes")
+        self.start("goal: Rebuild", "--name", "g1")
+        self.start("Tabs", "--in-goal", "g1", "--name", "s1")
         r = self.start("--resume", "s1")
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("g1", r.stderr)
@@ -240,7 +244,7 @@ class StartTest(unittest.TestCase):
         self.assertNotEqual(self.start("text", "--resume", "g1").returncode, 0)
 
     def test_dry_run_creates_nothing(self):
-        r = self.start("x", "--name", "one", "--touches", "z", "--dry-run")
+        r = self.start("x", "--name", "one", "--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse((self.squad / "scopes" / "one").exists())
         self.assertEqual(self.herdr(), "")
@@ -254,7 +258,7 @@ class StartTest(unittest.TestCase):
         return [l for l in r.stdout.splitlines() if l.startswith("manager ")]
 
     def test_dry_run_shows_the_managers_model_and_effort_with_their_source(self):
-        new = ("x", "--name", "one", "--touches", "z")
+        new = ("x", "--name", "one")
         self.assertEqual(self.dry_lines(*new), ["manager model: sonnet (from template)", "manager effort: high (from template)"])
         (self.squad / "settings").mkdir()
         (self.squad / "settings" / "manager.local.json").write_text('{"model": "haiku"}', encoding="utf-8")
@@ -269,7 +273,7 @@ class StartTest(unittest.TestCase):
         st.mkdir()
         (st / "manager.json").write_text('{"model": "haiku", "effortLevel": "low"}', encoding="utf-8")
         (st / "manager.local.json").write_text('{"model": "opus"}', encoding="utf-8")
-        new = ("x", "--name", "one", "--touches", "z")
+        new = ("x", "--name", "one")
         # overlay present: manager.json is ignored (squad-spawn warns), so effort comes from the template
         self.assertEqual(self.dry_lines(*new), ["manager model: opus (from squad settings)", "manager effort: high (from template)"])
         (st / "manager.local.json").unlink()
@@ -294,7 +298,7 @@ class StartTest(unittest.TestCase):
         (roles / "t-mgr-one.overrides").write_text("model=opus\neffort=low\n", encoding="utf-8")
         self.assertEqual(self.dry_lines("--resume", "one"), ["manager model: opus (from recorded override)", "manager effort: low (from recorded override)"])
         self.assertEqual(self.dry_lines("--resume", "one", "--effort", "max"), ["manager model: opus (from recorded override)", "manager effort: max (from flag)"])
-        self.start("Two", "--name", "two", "--touches", "q", "--model", "opus", "--effort", "low")  # keep: recorded choice is passed on
+        self.start("Two", "--name", "two", "--model", "opus", "--effort", "low")  # keep: recorded choice is passed on
         self.log.unlink()
         r = self.start("--resume", "two")
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -325,42 +329,42 @@ class WorkspaceRenameTest(unittest.TestCase):
         f.write_text(head + extra + "\nexit 0\n", encoding="utf-8", newline="\n")
 
     def test_a_lone_scope_names_the_workspace_after_the_scope(self):
-        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a").returncode, 0)
+        self.assertEqual(self.start("Task one", "--name", "one").returncode, 0)
         self.assertEqual(self.renames(), ["workspace rename wK one"])
 
     def test_a_goal_names_the_workspace_after_the_goal(self):
-        self.start("goal: Big", "--name", "g1", "--touches", "a")
+        self.start("goal: Big", "--name", "g1")
         self.assertEqual(self.renames(), ["workspace rename wK g1"])
 
     def test_a_scope_in_a_goal_leaves_the_name_alone(self):
-        self.start("goal: Big", "--name", "g1", "--touches", "a")
+        self.start("goal: Big", "--name", "g1")
         self.log.unlink()
-        self.start("Part", "--in-goal", "g1", "--name", "p1", "--touches", "b")
+        self.start("Part", "--in-goal", "g1", "--name", "p1")
         self.assertEqual(self.renames(), [])
 
     def test_resume_renames_to_the_resumed_name(self):
-        self.start("goal: Big", "--name", "g1", "--touches", "a")
-        self.start("Task one", "--name", "one", "--touches", "b")
+        self.start("goal: Big", "--name", "g1")
+        self.start("Task one", "--name", "one")
         self.log.unlink()
         self.start("--resume", "one")
         self.start("--resume", "g1")
         self.assertEqual(self.renames(), ["workspace rename wK one", "workspace rename wK g1"])
 
     def test_two_starts_in_a_row_each_rename(self):
-        self.start("Task one", "--name", "one", "--touches", "a")
-        self.start("Task two", "--name", "two", "--touches", "b")
+        self.start("Task one", "--name", "one")
+        self.start("Task two", "--name", "two")
         self.assertEqual(self.renames(), ["workspace rename wK one", "workspace rename wK two"])
 
     def test_dry_run_renames_nothing(self):
         self.start("x", "--name", "one", "--dry-run")
-        self.start("x", "--name", "one", "--touches", "a")
+        self.start("x", "--name", "one")
         self.log.unlink()
         self.start("--resume", "one", "--dry-run")
         self.assertEqual(self.renames(), [])
 
     def test_without_a_workspace_id_nothing_is_run_and_nothing_is_said(self):
         del self.env["HERDR_WORKSPACE_ID"]
-        r = self.start("x", "--name", "one", "--touches", "a")
+        r = self.start("x", "--name", "one")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.renames(), [])
         self.assertNotIn("workspace", r.stderr)
@@ -368,12 +372,12 @@ class WorkspaceRenameTest(unittest.TestCase):
     def test_outside_herdr_the_rename_is_never_reached(self):
         # spawn itself needs HERDR_ENV=1, so a start outside herdr dies before the rename; the guard is in name_workspace
         self.env["HERDR_ENV"] = "0"
-        self.start("x", "--name", "one", "--touches", "a")
+        self.start("x", "--name", "one")
         self.assertEqual(self.renames(), [])
 
     def test_a_refusing_herdr_gives_one_warning_and_the_start_goes_on(self):
         self.fake('[[ "$1 $2" == "workspace rename" ]] && { echo "no such workspace" >&2; exit 1; }')
-        r = self.start("Task one", "--name", "one", "--touches", "a")
+        r = self.start("Task one", "--name", "one")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)["manager"], "t-mgr-one")
         self.assertEqual(r.stderr.strip().splitlines().count("workspace not renamed: no such workspace"), 1)
@@ -381,7 +385,7 @@ class WorkspaceRenameTest(unittest.TestCase):
 
     def test_a_failed_manager_start_does_not_rename(self):
         self.fake('[[ $1 == tab ]] && exit 1')
-        r = self.start("x", "--name", "one", "--touches", "a")
+        r = self.start("x", "--name", "one")
         self.assertNotEqual(r.returncode, 0)
         self.assertEqual(self.renames(), [])
 
@@ -403,7 +407,7 @@ class LegacyStartTest(unittest.TestCase):
         for squad_text in ("process-version: 1\n", "# T\n", "process-version: 1.2\n", "process-version: 99\n"):
             with self.subTest(squad_text=squad_text):
                 name = f"s{abs(hash(squad_text)) % 10**6}"
-                r = self.run_start(squad_text, "Task", "--name", name, "--touches", name)
+                r = self.run_start(squad_text, "Task", "--name", name)
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertEqual(list(json.loads(r.stdout)), ["kind", "name", "dir", "manager", "tab"])
                 self.assertNotIn("process update", r.stderr)
@@ -466,7 +470,7 @@ class LauncherTest(unittest.TestCase):
     herdr = StartTest.herdr
 
     def test_new_scope_and_resume_run_squad_spawn_through_bash(self):
-        for args in (("Task one", "--name", "one", "--touches", "a"), ("--resume", "one")):
+        for args in (("Task one", "--name", "one"), ("--resume", "one")):
             with self.subTest(args=args):
                 self.argv.unlink(missing_ok=True)
                 r = self.start(*args)
@@ -476,11 +480,11 @@ class LauncherTest(unittest.TestCase):
                 self.assertEqual(lines[1:3], ["manager", "t-mgr-one"])
 
     def test_no_bash_is_one_line_and_nothing_is_written_for_a_new_scope_and_for_resume(self):
-        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a").returncode, 0)
+        self.assertEqual(self.start("Task one", "--name", "one").returncode, 0)
         self.log.unlink()
         self.env.update(HERDR_WORKSPACE_ID="wK", PATH=str(self.root / "fakebin"))
         (self.root / "fakebin" / "bash").unlink()
-        for args, made in ((("Task two", "--name", "two", "--touches", "b"), "two"), (("--resume", "one"), None)):
+        for args, made in ((("Task two", "--name", "two"), "two"), (("--resume", "one"), None)):
             with self.subTest(args=args):
                 r = run_child([winlaunch.python(), str(SCRIPT), *args], env=self.env)
                 self.assertNotEqual(r.returncode, 0)
@@ -503,7 +507,7 @@ class LauncherTest(unittest.TestCase):
 
     def test_a_c_locale_with_an_emoji_label_runs_clean_and_writes_utf8_lf(self):
         self.env.update(PYTHONUTF8="0", LC_ALL="C", PYTHONIOENCODING="cp1252")
-        r = self.start("Fix 🦀 café", "--name", "one", "--touches", "a")
+        r = self.start("Fix 🦀 café", "--name", "one")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("Traceback", r.stderr)
         self.assertEqual(json.loads(r.stdout)["manager"], "t-mgr-one")
@@ -518,7 +522,7 @@ class LauncherTest(unittest.TestCase):
         squad = odd / ".claude" / "squads" / "t"
         shutil.copytree(self.squad, squad)
         self.env["SQUAD_DIR"] = str(squad)
-        self.assertEqual(self.start("Task one", "--name", "one", "--touches", "a").returncode, 0)
+        self.assertEqual(self.start("Task one", "--name", "one").returncode, 0)
         r = self.start("--resume", "one")
         self.assertEqual(r.returncode, 0, r.stderr)
         want = str(squad / "scopes" / "one").encode("utf-8", "surrogateescape").decode("utf-8")

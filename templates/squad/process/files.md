@@ -73,7 +73,7 @@ topic: files
 |---|---|---|
 | `project.md` | PO, Managers | Source map |
 | `process.local.md`, `process-log.md` | Managers | The squad's rule changes; each change (date, change, why) |
-| `scope.md` | Manager | PO's brief, `goal:`, `touches:`, `team:` and signals, `qa:`, constraints |
+| `scope.md` | Manager | PO's brief, `goal:`, `team:` and signals, `qa:`, constraints |
 | `roster.md` | Manager; the Team Lead for its Developers, when on the team | Each agent: name, role, scope, owns, status, session |
 | `escalations.md` | Manager | Waiting on the PO |
 | `promote.md` | The `promote-owner` of `duties:` (Tech Lead, QA whitebox or Developer) | For the project docs |

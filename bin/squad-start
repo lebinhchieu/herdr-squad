@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 """Start a task or a goal in a per-scope squad: make its folder and brief, then start a fresh Manager.
 
-  squad-start "<text>" [--touches A,B] [--name N] [--squad S] [--model M] [--effort E] [--yes] [--dry-run]
+  squad-start "<text>" [--name N] [--squad S] [--model M] [--effort E] [--dry-run]
       Plain text is a lone task: scopes/<name>/ and a Manager <squad>-mgr-<name> that lives with the scope.
       Text starting with "goal:" is a goal: goals/<name>/ and a goal Manager.
-  squad-start "<text>" --in-goal G --name N [--touches ...]
+  squad-start "<text>" --in-goal G --name N
       A scope inside goal G: scopes/N/ with `goal: G`. No Manager; the goal Manager runs it.
   squad-start --resume NAME [--model M] [--effort E]
       A new Manager for an existing scope or goal whose Manager is gone. Its files are not touched.
 
 The name is the first ticket id in the text (SEC-04 -> sec04), else a short slug; --name overrides it.
---touches lists the repos or paths the work changes. If it overlaps an open scope's `touches:` the script lists
-the overlaps and exits 3 without creating anything; the PO decides, and --yes goes ahead.
 scope.md lines `model <role>: <model> <effort>` set a role's model for every spawn in that scope (flags and a recorded override win; settings and template lose).
 --model and --effort set the Manager's model and effort (default: the model and effort in settings/manager.json); it does not change the roles the Manager spawns.
 --dry-run prints the Manager's model and effort and where each came from (flag, recorded override on --resume, scope.md `model manager:` on --resume, squad settings, template).
@@ -237,20 +235,6 @@ def derive_name(text):
     return name
 
 
-def tokens(s):
-    return [t.rstrip("/") for t in re.split(r"[,\s]+", s) if t]
-
-
-def overlaps(a, b):
-    return a == b or a.startswith(b + "/") or b.startswith(a + "/")
-
-
-def open_scope_touches(squad):
-    for f in sorted((squad / "scopes").glob("*/scope.md")):
-        m = re.search(r"(?m)^touches:[ \t]*(.*)$", f.read_text(encoding="utf-8", errors="replace"))
-        yield f.parent.name, tokens(m.group(1)) if m else []
-
-
 def render(template_dir, target, values):
     shutil.copytree(template_dir, target)
     for f in target.glob("*.md"):
@@ -341,12 +325,10 @@ def main():
     p.add_argument("text", nargs="?")
     p.add_argument("--resume", metavar="NAME")
     p.add_argument("--name")
-    p.add_argument("--touches", default="")
     p.add_argument("--in-goal")
     p.add_argument("--squad")
     p.add_argument("--model")
     p.add_argument("--effort")
-    p.add_argument("--yes", action="store_true")
     p.add_argument("--dry-run", action="store_true")
     # Only matters on POSIX under a non-UTF-8 locale (Windows decodes argv correctly): argv arrives as surrogate
     # escapes, which cannot be written to scope.md; re-decode the original bytes. Identity on UTF-8.
@@ -382,13 +364,6 @@ def main():
     if a.in_goal and not (squad / "goals" / a.in_goal).is_dir():
         die(f"no goal {a.in_goal} in {squad}/goals")
 
-    mine = tokens(a.touches)
-    hits = [(s, t, x) for s, ts in open_scope_touches(squad) for t in ts for x in mine if overlaps(t, x)]
-    if hits and not a.yes:
-        for s, t, x in hits:
-            print(f"overlap: open scope {s} touches {t}, and {name} would touch {x}", file=sys.stderr)
-        die("two scopes editing the same files only collide at merge; run again with --yes to go ahead", 3)
-
     target = squad / ("goals" if kind == "goal" else "scopes") / name
     flag = "--goal" if kind == "goal" else "--scope"
     prompt = None
@@ -423,7 +398,7 @@ def main():
         return
 
     bash = need_bash() if manager else None
-    render(PLUGIN / "templates" / kind, target, {"name": name, "brief": brief, "goal": a.in_goal or "", "touches": ", ".join(mine)})
+    render(PLUGIN / "templates" / kind, target, {"name": name, "brief": brief, "goal": a.in_goal or ""})
     if pin:
         add_pin_line(target, kind, pin)
     for d in (("shared/summaries", "shared/contracts", "roles") if kind == "goal" else ("tasks", "evidence", "roles", "iterations")):
