@@ -5,8 +5,7 @@ roles: manager
 when: goal = yes
 topic: goal
 
-- `goal.md` orders the scopes with their dependencies. The goal Manager makes each scope with `squad-start "<text>" --in-goal <goal> --name <scope> --touches <paths>` (`<goal>` is the last part of `$GOAL_DIR`); its `scope.md` says `goal: <goal>`. Then it spawns the pod with `squad-spawn <role> <name> --scope <scope>`.
-- `squad-start` stops on an overlap with an open scope: tell the PO and rerun with `--yes` only on their word.
+- `goal.md` orders the scopes with their dependencies. The goal Manager makes each scope with `squad-start "<text>" --in-goal <goal> --name <scope>` (`<goal>` is the last part of `$GOAL_DIR`); its `scope.md` says `goal: <goal>`. Then it spawns the pod with `squad-spawn <role> <name> --scope <scope>`.
 - Start a scope when everything it depends on is closed, or passed if it only needs the code ([GOAL-5]). Independent scopes may run at once within the Developer cap ([START-2c]).
 
 ## GOAL-2 Shared folder
