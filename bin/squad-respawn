@@ -8,7 +8,7 @@ set -euo pipefail
 name=$1 dry=0 force=0
 shift
 for a in "$@"; do
-  case $a in --dry-run) dry=1 ;; --force) force=1 ;; esac
+  case $a in --dry-run) dry=1 ;; --force) force=1 ;; *) echo "Usage: squad-respawn <agent-name> [--dry-run] [--force]" >&2; exit 2 ;; esac
 done
 set -- "$name" "$@"  # the pinned hand-off below passes the original arguments on
 
@@ -87,10 +87,15 @@ fi
 spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" "${title_args[@]}" "${ovr_args[@]}" --prompt "$prompt")
 
 notes=$home/roles/$name.notes.md
-# The new session starts from the notes: no notes, no respawn (NOTE-1). A real run only; --force skips both checks.
-if [[ $dry != 1 && $force != 1 ]]; then
-  [[ -f $notes ]] || { echo "$notes is missing: write your notes first (squad-process rule NOTE-1), then run squad-respawn again; --force skips this check" >&2; exit 1; }
-  [[ -z $(find "$notes" -mmin +10 2>/dev/null) ]] || echo "warning: $notes is more than 10 minutes old; rewrite it before the new session reads it (squad-process rule NOTE-1)" >&2
+# The new session starts from the notes: no notes, no respawn (NOTE-1). --force skips both checks. A dry run says so but goes on.
+if [[ $force != 1 ]]; then
+  if [[ ! -f $notes ]]; then
+    echo "$notes is missing: write your notes first (squad-process rule NOTE-1), then run squad-respawn again; --force skips this check" >&2
+    [[ $dry == 1 ]] || exit 1
+  elif [[ $dry != 1 && -n $(find "$notes" -mmin +10 2>/dev/null) ]]; then
+    age=$(( ($(date +%s) - $(stat -c %Y "$notes")) / 60 ))
+    echo "warning: $notes is $age min old (more than 10 minutes); rewrite it before the new session reads it (squad-process rule NOTE-1)" >&2
+  fi
 fi
 if [[ -f $notes ]] && (( $(wc -l <"$notes") > 100 )); then
   echo "warning: $name's notes are $(wc -l <"$notes") lines (cap ~80, see squad-process rule NOTE-1); the new session reads all of it, so trim it" >&2

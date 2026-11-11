@@ -192,7 +192,7 @@ class RespawnTest(unittest.TestCase):
         os.utime(notes, (old, old))
         r = self.respawn()
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("more than 10 minutes old", r.stderr)
+        self.assertIn("11 min old", r.stderr)
         self.assertIn("agent start dev-1", self.log.read_text(encoding="utf-8"))
         self.put_notes("dev-1")  # touched now: no warning
         self.assertNotIn("10 minutes", self.respawn().stderr)
@@ -216,6 +216,14 @@ class RespawnTest(unittest.TestCase):
         r = self.respawn("--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("would run: herdr agent rename dev-1", r.stdout)
+        self.assertIn("dev-1.notes.md is missing", r.stderr)  # said on stderr, not refused
+        self.assertIn("NOTE-1", r.stderr)
+
+    def test_an_unknown_flag_prints_usage_and_exits_2_without_starting_anything(self):
+        r = self.respawn("--dryrun")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("Usage: squad-respawn", r.stderr)
+        self.assertFalse(self.log.exists() and self.log.read_text(encoding="utf-8").strip())
 
     def scoped(self):
         """Turn the test squad into a per-scope squad with scope sc1 and goal g1."""

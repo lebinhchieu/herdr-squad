@@ -13,7 +13,8 @@
 ## Behaviour
 
 - `bin/squad-respawn` parses `--dry-run` and `--force` from any position after the name. A real run (no `--dry-run`, no `--force`) first needs `roles/<name>.notes.md`: missing prints one line (file, `squad-process rule NOTE-1`, how to skip) and exits 1 before any herdr call. Older than 10 minutes (`find -mmin +10`) prints a warning on stderr and goes on.
-- `--dry-run` skips both checks, so its output and exit code are as before. `--force` skips both on a real run. The pinned (< 0.6.0) hand-off still passes the original arguments on.
+- `--dry-run` never refuses: exit code and stdout as before; with missing notes it prints the same NOTE-1 line on stderr (no warning for old notes). The stale warning gives the age (`N min old`). An unknown flag prints the usage line and exits 2 (`test_an_unknown_flag_prints_usage_and_exits_2_without_starting_anything`). `--force` skips both on a real run. The pinned (< 0.6.0) hand-off still passes the original arguments on.
 - The 100-line warning now says `see squad-process rule NOTE-1` (finding 9b).
 - Existing respawn tests now write fresh notes first (`put_notes` in `test_squad_respawn.py`; two setup lines in `test_squadruntime.py`), because a respawn without notes now refuses.
 - Ran: `test_squad_respawn` (26), `test_squadruntime` (68), `test_squad_usage_hook`, `test_squad_manager_guard`, `test_squad_start`, `test_rules_wording`, `test_squad_spawn` (1 failure: `test_a_failed_agent_start_leaves_the_old_overrides_file`, the same failure on the base commit, see evidence 09, 11). SQ-10: `test_windows_safe` 14 OK, `test_utf8_helpers` 14 OK, `test_instructions` 16 OK. Full suite not run (QA whitebox asks Chieu).
+- After FAIL 16 round 1: unknown flag exit 2, age in minutes, dry-run stderr line. Re-ran test_squad_respawn, test_squadruntime, test_windows_safe, test_utf8_helpers, test_instructions: 139 OK.
