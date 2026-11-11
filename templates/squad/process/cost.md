@@ -79,6 +79,8 @@ topic: cost
 
 The Manager is not exempt: after each pass, every PO message and before every spawn read your `squad-usage` row. On `fresh`, after a compaction or a cache expiry: write notes, run `squad-respawn` before your next spawn or PO reply. A hook adds one `context <n>k` notice to the result of your next `squad-spawn` or `squad-inbox add`; act on it then.
 
+The hook does not watch the Manager between those calls. Read the `line` column of your `squad-usage` row: when `last ctx` is past it, write notes and run `squad-respawn`.
+
 ## COST-8b Long PO wait, Manager
 roles: manager
 topic: cost
