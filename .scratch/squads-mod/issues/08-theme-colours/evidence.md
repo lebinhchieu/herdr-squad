@@ -69,3 +69,12 @@ Agents     1
 ‹warning:   Not yet: scope api is open›
 ‹dim: Press a command to copy it. Esc or b goes back.›
 ```
+
+## Review
+AC trace
+- AC8.1 | hooks/squads/squads.test.tsx "list: every second row has the stripe..." and "scrolling keeps the stripe of each row" | `claude plugin test .`
+- AC8.2 | same first test (hover=userMessageBackgroundHover on every row Box; engine drops it when the pointer leaves) | `claude plugin test .`; list dump above
+- AC8.3 | squads.test.tsx "styles: ..." (`‹ide: `) | `claude plugin test .`; detail dump above
+- AC8.4 | `grep -rniE '#[0-9a-f]{6}|rgb\(' hooks/squads/*.ts hooks/squads/*.tsx` (no hit outside fixtures.ts data); 647 plugin tests pass | as written
+- AC8.5 | this file, List and Detail dumps | `hooks/squads/pane-text fixtures/tree.json 30 80 --styles [--press plugin/goal:g1]`
+- AC8.6 | plugin.json, changelog v16, tests/test_squadruntime.py | `grep -rl '0\.9\.1'` hits only the old v15 changelog entry (history)
