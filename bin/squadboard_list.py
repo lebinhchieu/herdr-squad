@@ -96,7 +96,13 @@ def _roster_names(text):
 
 
 def _herdr_working(sel):
-    """-> (set of agent names working now, None) or (set(), 'herdr'). One call per request."""
+    """-> (set of agent names working now, None) or (set(), 'herdr'). One call per `sel` (memoised in it)."""
+    if "_herdr" not in sel:
+        sel["_herdr"] = _herdr_read(sel)
+    return sel["_herdr"]
+
+
+def _herdr_read(sel):
     path = sel.get("herdr_json")
     try:
         if path:
@@ -232,7 +238,7 @@ def scope_row(squad, home, status, ctx):
     return row
 
 
-def _goal_row(squad, home, status, scope_rows):
+def goal_row(squad, home, status, scope_rows):
     text = _text(home / "goal.md")
     unknown = [] if text is not None else ["goal.md"]
     row = {"name": home.name, "kind": "goal", "goal": home.name, "goal_label": "", "brief": _brief(text),
@@ -308,9 +314,9 @@ def picker(sel):
         names = {p.name for p in open_goals}
         rows_open, rows_done = [], []
         for p in open_goals:
-            rows_open.append(_goal_row(squad, p, "open", [r for r in scope_rows if r["goal"] == p.name]))
+            rows_open.append(goal_row(squad, p, "open", [r for r in scope_rows if r["goal"] == p.name]))
         for p in closed_goals:
-            rows_done.append(_goal_row(squad, p, "done", [r for r in scope_rows if r["goal"] == p.name]))
+            rows_done.append(goal_row(squad, p, "done", [r for r in scope_rows if r["goal"] == p.name]))
         gone = {p.name for p in closed_goals} | names
         for r in scope_rows:
             if r["goal"] in names:
@@ -359,7 +365,7 @@ def read(sel):
         status = "done" if home is not None and home.parent.name == "_done" else "open"
         rows = _sort_open([r for r in built["scope_rows"] if r["status"] == "open"]) + \
             _sort_done([r for r in built["scope_rows"] if r["status"] == "done"])
-        grow = _goal_row(squad, home, status, rows) if home is not None else None
+        grow = goal_row(squad, home, status, rows) if home is not None else None
         table = goal_scopes_table(_text(home / "goal.md")) if home is not None else {"columns": [], "rows": []}
         return {"data": {"kind": "goal", "goal": grow, "scopes": rows, "scopes_table": table,
                          "empty_text": "No scopes in this goal" if not rows else ""},

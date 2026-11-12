@@ -766,7 +766,7 @@
             {
               "id": "close-goal",
               "label": "Close goal",
-              "text": "squad-close plugin --goal g1",
+              "text": "squad-close plugin --goal g1 --dry-run",
               "changes": "destructive",
               "runs_by": "chieu",
               "group": "yours",
