@@ -4,44 +4,6 @@
   "generated": "2026-11-12T10:00:00Z",
   "squads": [
     {
-      "name": "old-flat",
-      "flat": true,
-      "message": "flat squad: not supported",
-      "needs_you": 0,
-      "commands": [
-        {
-          "id": "new-work",
-          "label": "New work",
-          "text": "squad-start \"<text>\" --squad old-flat",
-          "changes": "starts",
-          "runs_by": "chieu",
-          "group": "yours",
-          "state": "wait",
-          "reason": "flat layout: squad-start refuses it",
-          "placeholder": true,
-          "when": "Start new work."
-        },
-        {
-          "id": "close-squad",
-          "label": "Close squad",
-          "text": "squad-close old-flat",
-          "changes": "destructive",
-          "runs_by": "chieu",
-          "group": "yours",
-          "state": "ready",
-          "reason": null,
-          "placeholder": false,
-          "when": "Work finished. Warning: retires every agent and archives the squad."
-        }
-      ],
-      "goals": [],
-      "scopes": [],
-      "done": {
-        "goals": [],
-        "scopes": []
-      }
-    },
-    {
       "name": "plugin",
       "flat": false,
       "message": null,
@@ -1216,6 +1178,44 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "name": "old-flat",
+      "flat": true,
+      "message": "flat squad: not supported",
+      "needs_you": 0,
+      "commands": [
+        {
+          "id": "new-work",
+          "label": "New work",
+          "text": "squad-start \"<text>\" --squad old-flat",
+          "changes": "starts",
+          "runs_by": "chieu",
+          "group": "yours",
+          "state": "wait",
+          "reason": "flat layout: squad-start refuses it",
+          "placeholder": true,
+          "when": "Start new work."
+        },
+        {
+          "id": "close-squad",
+          "label": "Close squad",
+          "text": "squad-close old-flat",
+          "changes": "destructive",
+          "runs_by": "chieu",
+          "group": "yours",
+          "state": "ready",
+          "reason": null,
+          "placeholder": false,
+          "when": "Work finished. Warning: retires every agent and archives the squad."
+        }
+      ],
+      "goals": [],
+      "scopes": [],
+      "done": {
+        "goals": [],
+        "scopes": []
       }
     }
   ]

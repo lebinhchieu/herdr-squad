@@ -179,6 +179,16 @@ def _sorted_goals(goals):
     return [r["_n"] for r in rows]
 
 
+def _squad_order(squads):
+    """Squads sort like goals: needs you (most first), stuck (most first), last active (newest first). A squad's
+    numbers are the sums over its open goals and lone open scopes; a flat or unreadable squad counts 0 and 0."""
+    def key(s):
+        facts = [n["facts"] or {} for n in s["goals"] + s["scopes"]]
+        las = [f.get("last_active") for f in facts if f.get("last_active")]
+        return (-(s["needs_you"] or 0), -sum(f.get("stuck") or 0 for f in facts), "".join(chr(0x10FFFF - ord(c)) for c in (max(las) if las else "")))
+    return sorted(squads, key=key)
+
+
 def build(sel):
     """sel: {"repo": Path, "names": [squad names] or []}. Never raises on a bad squad file."""
     root = sel["repo"]
@@ -195,4 +205,5 @@ def build(sel):
             out["squads"].append({"name": s.name, "flat": False, "message": "cannot read: %s" % type(e).__name__,
                                   "needs_you": 0, "commands": [], "goals": [], "scopes": [],
                                   "done": {"goals": [], "scopes": []}})
+    out["squads"] = _squad_order(out["squads"])
     return out

@@ -11,3 +11,8 @@ AC trace:
 - Targeted: test_processlint 31 OK, test_promotion_0_6_0 3 OK, test_squadupgrade 29 OK, test_old_language_inventory 2 OK (one allow-list line added for `hooks/squads/testkit.ts`, a false positive: `fs.stat size`).
 - `claude plugin test`: 644 pass, 0 fail.
 - Version 0.9.0 (new feature, minor bump). Changelog block v14 has no rule changes.
+
+## Return 1 (QA blackbox FAIL 4eaa748: squad order)
+- `bin/squadtree.py` `_squad_order`: squads sort by needs you, stuck (sums over open goals and lone open scopes), then newest last active; flat/unreadable count 0.
+- Test: `test_squads_sort_by_needs_you_then_stuck_then_newest` in `tests/test_squadtree.py` (equal needs: stuck, then newest).
+- Goldens `tree.json`, `tree-herdr-down.json` regenerated (plugin now before old-flat); two index lines in the tests follow. `python3 tests/test_squadtree.py` 15 OK; `claude plugin test` 644 pass.

@@ -149,6 +149,16 @@ class TreeTests(unittest.TestCase):
                 want = L.goal_row(squad, Path(g["home"]), "open", rows)
                 self.assertEqual(g["facts"], {k: want[k] for k in six}, g["name"])
 
+    def test_squads_sort_by_needs_you_then_stuck_then_newest(self):
+        def sq(name, needs, stuck, last, flat=False):
+            facts = {"stuck": stuck, "last_active": last} if last else {"stuck": stuck}
+            scopes = [] if flat else [{"facts": facts}]
+            return {"name": name, "needs_you": needs, "goals": [], "scopes": scopes}
+        got = squadtree._squad_order([
+            sq("aaa", 0, 1, "2026-11-01T00:00:00Z"), sq("flat", 0, 0, None, True),
+            sq("old", 0, 1, "2026-10-01T00:00:00Z"), sq("plugin", 2, 0, None), sq("zzz", 0, 1, "2026-11-05T00:00:00Z")])
+        self.assertEqual([x["name"] for x in got], ["plugin", "zzz", "aaa", "old", "flat"])
+
     def test_T1_8_AC1_5_AC1_6_sort_order_and_squad_total(self):
         sc = Scratch(True)
         try:
@@ -191,7 +201,7 @@ class TreeTests(unittest.TestCase):
             self.assertIsNone(n["facts"], n["name"])
 
     def test_T1_5b_done_scope_of_an_open_goal_has_facts_and_counts(self):
-        g1 = self.tree_up["squads"][1]["goals"][0]
+        g1 = self.tree_up["squads"][0]["goals"][0]
         docs = [s for s in g1["scopes"] if s["name"] == "docs"][0]
         self.assertEqual((docs["status"], docs["facts"]["tasks_total"]), ("done", 2))
         self.assertEqual(g1["facts"]["tasks_total"], sum(s["facts"]["tasks_total"] for s in g1["scopes"]))
@@ -216,8 +226,8 @@ class TreeTests(unittest.TestCase):
     def test_T1_3_discovery(self):
         s = self.up
         names = [x["name"] for x in s.tree()["squads"]]
-        self.assertEqual(names, ["old-flat", "plugin"])
-        flat = s.tree()["squads"][0]
+        self.assertEqual(names, ["plugin", "old-flat"])
+        flat = s.tree()["squads"][1]
         self.assertEqual((flat["flat"], flat["message"], flat["goals"], flat["scopes"]), (True, "flat squad: not supported", [], []))
         self.assertEqual([(c["id"], c["state"], c["reason"]) for c in flat["commands"]],
                          [("new-work", "wait", "flat layout: squad-start refuses it"), ("close-squad", "ready", None)])
