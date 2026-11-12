@@ -3,7 +3,10 @@
 import type { GoalNode, ScopeNode, SquadCommand, SquadFacts, SquadNode, SquadsTree, SquadsUi } from '../../types'
 import { cellWidth, clipCells, oneLine, sanitize } from '../po-inbox/core'
 
-export const line = (text: unknown): string => oneLine(sanitize(typeof text === 'string' ? text : text === null || text === undefined ? '' : String(text)))
+// A whole escape sequence goes (CSI colour codes, OSC titles ended by BEL or ESC \\, any other ESC pair), not only the ESC byte.
+const ESCAPES = /\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)?|\u001b[^[\]]?/g
+export const line = (text: unknown): string =>
+  oneLine(sanitize((typeof text === 'string' ? text : text === null || text === undefined ? '' : String(text)).replace(ESCAPES, '')))
 
 // --- parse ------------------------------------------------------------------------------------
 
@@ -171,17 +174,36 @@ export function rowText(r: Row, cols: number, now: string, nameW: number, nextW:
     return fitCells(`${head}${pad(fitCells(name, w), Math.min(nameW, w))}  ${rest}`, cols)
   }
   const f = n.facts as SquadFacts
-  const c = columnsFor(cols)
   const needs = f.needs_you === 0 ? '' : `needs ${q(f.needs_you)}`
   const stuck = f.stuck > 0 ? `stuck ${f.stuck}` : ''
   const tasks = n.unknown?.includes('tickets') || f.tasks_total === 0 ? '?' : `${f.tasks_done}/${f.tasks_total}`
-  const parts = [ ...(c.tasks ? [pad(tasks, 5)] : []), ...(c.last ? [pad(ago(f.last_active, now), 4)] : []), ...(c.agents ? [`${q(f.agents_working)}w`] : []) ]
-  const right = parts.join(' ')
+  const nextText = line(n.next_step.text)
   const head = `${ind}${mark} ${sym} `
+  const mk = (k: { agents: boolean; last: boolean; tasks: boolean }) =>
+    [k.tasks ? pad(tasks, 5) : '', k.last ? pad(ago(f.last_active, now), 4) : '', k.agents ? `${q(f.agents_working)}w` : ''].filter(Boolean).join(' ')
+  const c = columnsFor(cols)
+  if (cols < 76) {
+    // Narrow: name, needs you and next step keep their room; tasks, last and agents drop first (in the BA's rank order).
+    const flags = [needs, stuck].filter(Boolean).join(' ')
+    const flagsW = flags ? cellWidth(flags) + 2 : 0
+    const wantNext = Math.min(cellWidth(nextText), 18)
+    let right = mk(c)
+    for (const k of ['agents', 'last', 'tasks'] as const) {
+      if (cellWidth(head) + 6 + 2 + flagsW + wantNext + (right ? 2 + cellWidth(right) : 0) <= cols) break
+      c[k] = false
+      right = mk(c)
+    }
+    const avail = cols - cellWidth(head) - flagsW - (right ? 2 + cellWidth(right) : 0)
+    const nextAlloc = Math.min(cellWidth(nextText), nextW, Math.max(8, avail - 2 - nameW))
+    const nameAlloc = Math.max(4, Math.min(nameW, avail - 2 - nextAlloc))
+    const body = `${head}${pad(fitCells(name, nameAlloc), nameAlloc)}  ${flags ? flags + '  ' : ''}${fitCells(nextText, nextAlloc)}${right ? `  ${right}` : ''}`
+    return fitCells(body.trimEnd(), cols)
+  }
+  const right = mk(c)
   const fixed = cellWidth(head) + 2 + 8 + 2 + 8 + 2 + (right ? 2 + cellWidth(right) : 0)
   const room = Math.max(8, cols - fixed)
   const nw = Math.min(nameW, Math.max(4, Math.floor(room / 3)))
-  const next = fitCells(line(n.next_step.text), Math.max(4, Math.min(nextW, room - nw - 2)))
+  const next = fitCells(nextText, Math.max(4, Math.min(nextW, room - nw - 2)))
   const body = `${head}${pad(fitCells(name, nw), nw)}  ${pad(needs, 8)}  ${pad(stuck, 8)}  ${pad(next, Math.min(nextW, Math.max(4, room - nw - 2)))}${right ? `  ${right}` : ''}`
   return fitCells(body.trimEnd(), cols)
 }

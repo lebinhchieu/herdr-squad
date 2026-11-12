@@ -105,6 +105,19 @@ class TreeTests(unittest.TestCase):
         self.up.run("--repo", str(self.up.repo), "--json")
         self.assertEqual(snapshot(self.up.repo), before)
 
+    def test_T2_12_the_pane_is_read_only_end_to_end(self):
+        """Open, pick, back, copy and filter in the real mod on a real `squad-tree --json` of the scratch repo: nothing changes."""
+        sc = self.up
+        before, git_before = snapshot(sc.repo), subprocess.run(["git", "status", "--porcelain"], cwd=str(sc.repo), capture_output=True, text=True).stdout
+        data = sc.run("--repo", str(sc.repo), "--json").stdout
+        r = subprocess.run([sys.executable, str(ROOT / "hooks" / "squads" / "pane-text"), "-", "40", "100", "--press",
+                            "plugin/goal:g1,c1:board:head,back,plugin/scope:fix,back", "--filter", "api"],
+                           input=data, capture_output=True, text=True, encoding="utf-8", cwd=str(sc.repo), timeout=300)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("api", r.stdout)
+        self.assertEqual(snapshot(sc.repo), before)
+        self.assertEqual(subprocess.run(["git", "status", "--porcelain"], cwd=str(sc.repo), capture_output=True, text=True).stdout, git_before)
+
     def test_T1_4b_field_shape_and_facts_equal_the_board(self):
         six = {"needs_you", "stuck", "tasks_done", "tasks_total", "agents_working", "last_active"}
         for s, n in nodes(self.tree_up):

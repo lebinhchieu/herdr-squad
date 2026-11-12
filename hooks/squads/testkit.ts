@@ -10,19 +10,20 @@ export const pane = (surface: string, cols = 100, bodyRows = 20) =>
     props: { title: 'Squads', isFocused: true, bodyColumns: cols, placement: 'inline', scroll: { bodyRows }, view: {} },
   }) as any
 
-export type World = { runs: string[][]; copies: any[]; opened: any[]; fsCalls: number; reply: { exitCode: number; stdout: string; stderr: string }; copied: boolean; clock: any }
+export type World = { runs: string[][]; copies: any[]; opened: any[]; fsCalls: number; reply: { exitCode: number; stdout: string; stderr: string }; copied: boolean; clock: any; gate: Promise<void> | null }
 
 // `stdout` is what bin/squad-tree prints; `reply` may be changed between presses.
 export async function boot($: any, on: any, stdout: string): Promise<World> {
   const w: World = {
-    runs: [], copies: [], opened: [], fsCalls: 0, copied: true, clock: undefined as any,
+    runs: [], copies: [], opened: [], fsCalls: 0, copied: true, clock: undefined as any, gate: null,
     reply: { exitCode: 0, stdout, stderr: '' },
   }
   mock.env(on, {})
   w.clock = mock.clock(on)
   on('session.start', (_$: any, e: any) => ({ cwd: e.cwd }))
-  on('process.run', (_$: any, e: any) => {
+  on('process.run', async (_$: any, e: any) => {
     w.runs.push(e.argv)
+    if (w.gate) await w.gate
     return { value: { ...w.reply, isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('fs.stat', () => { w.fsCalls += 1; return { value: { kind: 'file', size: 1, mtimeMs: 1, isLink: false } } })

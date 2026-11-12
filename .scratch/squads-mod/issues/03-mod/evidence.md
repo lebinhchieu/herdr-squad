@@ -78,3 +78,135 @@ r refresh · f filter · Tab walks rows · Esc closes
 ```
 
 Tests: `claude plugin test` 640 pass, 0 fail; test_po_inbox_mod, test_squadtree, test_hooks_json, test_windows_safe, test_utf8_helpers, test_instructions: 64 OK.
+
+## Return 1 (QA whitebox and blackbox, sha 8a499dc)
+
+Keys: a goal/scope detail starts with Resume (c0), so Board is `c1:board:head`; a squad detail has Board as `c0:board:head`. Fold a goal: `plugin/goal:g1:fold`.
+
+`pane-text hooks/squads/fixtures/tree.json 12 100 --filter api`
+```
+rows=12 cols=100 lines=6
+Squads  2 need you  [ Refresh (r) ]
+/ api▏
+▾ plugin  needs 2  4 open
+  ▾ ● g1        needs 2             Answer 2 questions in api  3/7   30m  1w
+      ● api       needs 2             Answer 2 questions         1/3   30m  1w
+r refresh · f filter · Tab walks rows · Esc closes
+```
+
+`pane-text hooks/squads/fixtures/tree.json 12 100 --filter zzzz`
+```
+rows=12 cols=100 lines=4
+Squads  2 need you  [ Refresh (r) ]
+/ zzzz▏
+No match for "zzzz".
+r refresh · f filter · Tab walks rows · Esc closes
+```
+
+`pane-text hooks/squads/fixtures/tree.json 12 100 --refresh-error boom`
+```
+rows=12 cols=100 lines=12
+Squads  2 need you  [ Refresh (r) ]
+⚠ Refresh failed, nothing was changed (last list kept): squad-tree failed: boom
+[ Try again ]
+/ filter (f)
+▾ old-flat  flat squad: not supported
+▾ plugin  needs 2  4 open
+  ▾ ● g1        needs 2             Answer 2 questions in api  3/7   30m  1w
+      ● api       needs 2             Answer 2 questions         1/3   30m  1w
+      ○ ui                            Nobody working: resume     0/2   30m  0w
+      ✔ docs      2026-11-11  Closed. Read the report.
+↓ 3 more
+r refresh · f filter · Tab walks rows · Esc closes
+```
+
+`pane-text hooks/squads/fixtures/tree.json 12 46`
+```
+rows=12 cols=46 lines=12
+Squads  2 need you  [ Refresh (r) ]
+/ filter (f)
+▾ old-flat  flat squad: not supported
+▾ plugin  needs 2  4 open
+  ▾ ● g1        needs 2  Answer 2 questions i…
+      ● api       needs 2  Answer 2 questions
+      ○ ui        Nobody working: resu…  0/2
+      ✔ docs  2026-11-11  Closed. Read the re…
+  ▾ no goal (1)
+      ▲ fix       stuck 1  1 task stuck  1/4
+  ▸ Done (2)
+r refresh · f filter
+```
+
+`pane-text hooks/squads/fixtures/tree.json 12 38`
+```
+rows=12 cols=38 lines=12
+Squads  2 need you  [ r ]
+/ filter (f)
+▾ old-flat  flat squad: not supported
+▾ plugin  needs 2  4 open
+  ▾ ● g1        needs 2  Answer 2 que…
+      ● api       needs 2  Answer 2 q…
+      ○ ui        Nobody working: res…
+      ✔ docs  2026-11-11  Closed. Rea…
+  ▾ no goal (1)
+      ▲ fix       stuck 1  1 task stu…
+  ▸ Done (2)
+r refresh · f filter
+```
+
+`pane-text hooks/squads/fixtures/tree.json 12 30`
+```
+rows=12 cols=30 lines=12
+Squads  2 need you  [ r ]
+/ filter (f)
+▾ old-flat  flat squad: not s…
+▾ plugin  needs 2  4 open
+  ▾ ● g1     needs 2  Answer …
+      ● api   needs 2  Answer…
+      ○ ui        Nobody work…
+      ✔ docs  2026-11-11  Clo…
+  ▾ no goal (1)
+      ▲ fix   stuck 1  1 task…
+  ▸ Done (2)
+r refresh · f filter
+```
+
+`pane-text /tmp/tree-esc.json 12 100`
+```
+rows=12 cols=100 lines=12
+Squads  2 need you  [ Refresh (r) ]
+/ filter (f)
+▾ old-flat  flat squad: not supported
+▾ plugin  needs 2  4 open
+  ▾ ● ansi      needs 2             Answer 2 questions in api  3/7   30m  1w
+      ● api       needs 2             Answer 2 questions         1/3   30m  1w
+      ○ ui                            Nobody working: resume     0/2   30m  0w
+      ✔ docs      2026-11-11  Closed. Read the report.
+  ▾ no goal (1)
+      ▲ fix                 stuck 1   1 task stuck               1/4   30m  0w
+  ▸ Done (2)
+r refresh · f filter · Tab walks rows · Esc closes
+```
+
+`pane-text hooks/squads/fixtures/tree.json 12 100 --press plugin/goal:g1:fold --then /tmp/tree2.json`
+```
+rows=12 cols=100 lines=9
+Squads  2 need you  [ Refresh (r) ]
+/ filter (f)
+▾ old-flat  flat squad: not supported
+▾ plugin  needs 2  4 open
+  ▸ ● g1        needs 2             Answer 2 questions in api  6/7   30m  1w
+  ▾ no goal (1)
+      ▲ fix                 stuck 1   1 task stuck               1/4   30m  0w
+  ▸ Done (2)
+r refresh · f filter · Tab walks rows · Esc closes
+```
+
+`pane-text hooks/squads/fixtures/tree.json 12 100 --loading`
+```
+rows=12 cols=100 lines=2
+Squads  [ Refresh (r) ]
+Reading .claude/squads …
+```
+
+Tests after return 1: `claude plugin test` 644 pass, 0 fail; test_po_inbox_mod, test_squadtree (new T2.12), test_hooks_json, test_windows_safe, test_utf8_helpers, test_instructions: 65 OK except nothing failing after the T2.12 row fix.

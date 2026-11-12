@@ -33,7 +33,13 @@ function listScreen($: any, e: any, T: any, tree: SquadsTree | null, ui: SquadsU
       {refreshBtn}
     </Box>
   )
-  const errorRow = error ? <Text key="err" color="error" wrap="truncate">{fitCells(`⚠ ${line(error)}${tree ? ' (last good list shown)' : ''}`, cols)}</Text> : null
+  // The fixed words come first so a narrow pane cuts the cause, not "nothing was changed".
+  const errorRow = error ? (
+    <Box key="err" flexDirection="column">
+      <Text color="error" wrap="truncate">{fitCells(`⚠ Refresh failed, nothing was changed${tree ? ' (last list kept)' : ''}: ${line(error)}`, cols)}</Text>
+      <Button key="retry" label="Try again" onPress={() => { void refresh($) }} />
+    </Box>
+  ) : null
   const filterRow = ui.isFiltering || ui.filter ? (
     <Input key="filter" label="/ " value={ui.filter} submitLabel="ok" onInput={(v: string) => { void setFilter($, v) }} onSubmit={() => { void patchUi($, { isFiltering: false }) }} />
   ) : (
@@ -45,7 +51,6 @@ function listScreen($: any, e: any, T: any, tree: SquadsTree | null, ui: SquadsU
       <Box flexDirection="column">
         {header}
         {errorRow ?? <Text dimColor>{fitCells('Reading .claude/squads …', cols)}</Text>}
-        {error ? <Button key="retry" label="Try again" onPress={() => { void refresh($) }} /> : null}
       </Box>
     )
   }
@@ -65,7 +70,7 @@ function listScreen($: any, e: any, T: any, tree: SquadsTree | null, ui: SquadsU
   const keys = cols >= keysLong.length ? keysLong : cols >= 24 ? 'r refresh · f filter' : 'r · f'
   const footer = <Text key="foot" dimColor wrap="truncate">{fitCells(ui.notice ?? keys, cols)}</Text>
   const footer2 = ui.notice && bodyRows >= 11 ? <Text key="foot2" dimColor wrap="truncate">{fitCells(keys, cols)}</Text> : null
-  const chrome = 1 + (errorRow ? 1 : 0) + (filterRow && bodyRows >= 8 ? 1 : 0) + 1 + (footer2 ? 1 : 0)
+  const chrome = 1 + (errorRow ? 2 : 0) + (filterRow && bodyRows >= 8 ? 1 : 0) + 1 + (footer2 ? 1 : 0)
   const win = windowOf(rows.length, ui.top, bodyRows - chrome)
   const shown = rows.slice(win.from, win.from + win.count)
   const { nameW, nextW } = widths(rows)
@@ -119,7 +124,6 @@ function commandBlock($: any, T: any, c: SquadCommand, cols: number, key: string
     <Box key={key} flexDirection="column">
       <Button key={`${key}:head`} plain label={fitCells(`⧉ ${line(c.label)}  (${CHANGES[c.changes] ?? line(c.changes)})`, cols)} onPress={press} />
       <Text dimColor wrap="truncate">{fitCells(`  ${line(c.when)}`, cols)}</Text>
-      {c.id === 'close-squad' ? <Text color="warning" wrap="truncate">{fitCells('  Warning: retires every agent, archives the squad', cols)}</Text> : null}
       <Button key={`${key}:text`} plain label={fitCells(`  ${line(c.text)}`, Math.max(cols, 1))} onPress={press} />
       {dim ? <Text color="warning" wrap="truncate">{fitCells(`  Not yet: ${line(c.reason ?? '')}`, cols)}</Text> : null}
     </Box>

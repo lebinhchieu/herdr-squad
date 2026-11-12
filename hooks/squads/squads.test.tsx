@@ -125,6 +125,7 @@ test('text from the JSON is stripped of escape sequences and control characters'
   PLUGIN(t).goals[0].commands[0].reason = 'wa\x1b[0mit'
   const { text, press } = await open($, on, t)
   expect(await text()).not.toMatch(/\x1b|\x07/)
+  expect(await text()).not.toContain('[31m')
   await press('plugin/goal:g\x1b[31m1')
   expect(await text()).not.toMatch(/\x1b|\x07/)
 })
@@ -146,6 +147,64 @@ for (const rows of [6, 11, 40]) {
     })
   }
 }
+
+test('layout on a second surface (desktop) keeps name and next step and counts the rest', async ($, on) => {
+  const w = await boot($, on, J(TREE))
+  await $.command.run({ command: 'squads', args: '' })
+  await w.clock.settle()
+  const ui = await $.ui.mount(pane('desktop', 46, 8))
+  const out = dumpText(await ui.drawn(), 46)
+  expect(out).toContain('g1')
+  expect(out).toContain('Answer')
+  expect(out).toMatch(/↓ \d+ more/)
+  expect(out.split('\n').every((l) => [...l].length <= 46)).toBe(true)
+})
+
+test('refresh: a tick while a run is pending starts no second run', async ($, on) => {
+  const { w, press } = await open($, on, TREE)
+  const n = w.runs.length
+  let release: () => void = () => {}
+  const gate = new Promise<void>((r) => { release = r })
+  w.gate = gate
+  void press('refresh')
+  await w.clock.advance(10000)
+  await w.clock.advance(10000)
+  expect(w.runs.length).toBe(n + 1)
+  release()
+  await w.clock.settle()
+})
+
+test('back keeps the list position and the folds', async ($, on) => {
+  const many = copy(TREE)
+  for (let i = 0; i < 30; i++) {
+    const sc = copy(PLUGIN(many).scopes[0])
+    sc.name = `lone${i}`
+    PLUGIN(many).scopes.push(sc)
+  }
+  const { text, press } = await open($, on, many, 100, 11)
+  await press('plugin/goal:g1:fold')
+  await press('below')
+  const before = await text()
+  expect(before).toContain('↑ ')
+  const first = before.split('\n').find((l) => l.includes('lone'))!
+  await press(`plugin/scope:${first.match(/lone\d+/)![0]}`)
+  await press('back')
+  expect(await text()).toBe(before)
+})
+
+test('a refresh with new data changes the numbers and keeps the folds', async ($, on) => {
+  const { w, text, press } = await open($, on, TREE)
+  await press('plugin/goal:g1:fold')
+  const folded = await text()
+  expect(folded).not.toContain('Answer 2 questions   ')
+  const next = copy(TREE)
+  PLUGIN(next).goals[0].facts.tasks_done = 5
+  w.reply = { exitCode: 0, stdout: J(next), stderr: '' }
+  await press('refresh')
+  const out = await text()
+  expect(out).toContain('5/7')
+  expect(out).not.toMatch(/^\s+● api/m)
+})
 
 test('windowOf counts the rows above and below', () => {
   expect(windowOf(10, 0, 4)).toEqual({ from: 0, count: 3, above: 0, below: 7 })
