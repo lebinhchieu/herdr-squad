@@ -228,7 +228,29 @@ test('styles: each state has its tone in list and detail; theme keys only; the w
   const plain = await text()
   await press('plugin/goal:g1')
   const detail = dumpStyled(await ui.drawn())
-  for (const s of ['‹warning bold: ● needs you', '‹bold: Commands›', '‹permission: ', '‹success: read›', '‹warning bold: 2›']) expect(detail).toContain(s)
+  for (const s of ['‹warning bold: ● needs you', '‹bold: Commands›', '‹ide: ', '‹success: read›', '‹warning bold: 2›']) expect(detail).toContain(s)
   expect(detail).toContain('‹warning:   Not yet: agents are working›')
   expect(plain).toContain('needs 2')
+})
+
+test('list: every second row has the stripe, every row the hover; the stripe follows the absolute index, not the window', async ($, on) => {
+  const { ui } = await open($, on, TREE)
+  const rows = dumpStyled(await ui.drawn()).split('\n').filter((l) => l.includes('hover='))
+  expect(rows.length).toBeGreaterThan(2)
+  rows.forEach((l, i) => {
+    expect(l).toContain('hover=userMessageBackgroundHover')
+    expect(l.includes('bg=bashMessageBackgroundColor')).toBe(i % 2 === 1)
+  })
+})
+
+test('list: scrolling keeps the stripe of each row', async ($, on) => {
+  const { ui, press } = await open($, on, TREE, 100, 9)
+  const striped = (d: string) => new Map(d.split('\n').filter((l) => l.includes('hover=')).map((l) => [l.replace(/^\{[^}]*\} /, ''), l.includes('bg=')] as const))
+  const before = striped(dumpStyled(await ui.drawn()))
+  await press('below')
+  const after = striped(dumpStyled(await ui.drawn()))
+  const common = [...after.keys()].filter((k) => before.has(k))
+  expect(common.length).toBeGreaterThan(0)
+  for (const k of common) expect(after.get(k)).toBe(before.get(k))
+  expect(after.size).toBeGreaterThan(0)
 })

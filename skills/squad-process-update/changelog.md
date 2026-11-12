@@ -1,3 +1,13 @@
+## v16 — 2026-11-12
+
+Plugin 0.9.2. The Squads pane takes three colours from the theme; nothing breaks and no rule changes. A pinned squad keeps its own runtime until it re-pins.
+
+added:
+- Every second row of the Squads list has the theme's `bashMessageBackgroundColor`; the row under the mouse has `userMessageBackgroundHover` (theme keys only).
+
+changed:
+- Command text in the Squads detail uses the theme key `ide` instead of `permission`.
+
 ## v15 — 2026-11-12
 
 Plugin 0.9.1. The Squads pane now draws in colour; nothing breaks and no rule changes. A pinned squad keeps its own runtime until it re-pins.

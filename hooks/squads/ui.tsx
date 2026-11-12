@@ -11,6 +11,8 @@ import {
 } from './core'
 
 const DEFAULT_ROWS = 20
+const STRIPE = 'bashMessageBackgroundColor'
+const HOVER = 'userMessageBackgroundHover'
 
 // One run of text in its style: theme keys only. The words stay, so colour is never the only signal.
 const styled = (T: any, st: Style | undefined, text: string, key: string | number, extra: Record<string, unknown> = {}) => {
@@ -88,7 +90,9 @@ function listScreen($: any, e: any, T: any, tree: SquadsTree | null, ui: SquadsU
   const { nameW, nextW } = widths(rows)
   const now = tree.generated
 
-  const draw = (r: Row) => {
+  // Every second row of the whole list (group rows count, absolute index) has the stripe; the row under the pointer has the hover
+  // background. Both are theme keys; the engine applies the hover with no hook. The stripe is a Box background, so it fills the width.
+  const draw = (r: Row, at: number) => {
     const segs = rowSegs(r, cols, now, nameW, nextW)
     const cut = 2 * r.depth + 1
     const text = segs.map((x) => x.text).join('')
@@ -100,7 +104,7 @@ function listScreen($: any, e: any, T: any, tree: SquadsTree | null, ui: SquadsU
       else void select($, r.path)
     }
     return (
-      <Box key={r.key + (r.kind === 'group' ? ':g' : '')}>
+      <Box key={r.key + (r.kind === 'group' ? ':g' : '')} {...(at % 2 === 1 ? { backgroundColor: STRIPE } : {})} hover={{ backgroundColor: HOVER }}>
         {r.foldKey && r.kind !== 'group' ? (
           <Box>
             <Text>{lead.slice(0, -1)}</Text>
@@ -118,7 +122,7 @@ function listScreen($: any, e: any, T: any, tree: SquadsTree | null, ui: SquadsU
       {errorRow}
       {bodyRows >= 8 ? filterRow : null}
       {win.above > 0 ? <Button key="above" plain label={`↑ ${win.above} above`} onPress={() => { void scrollTo($, win.from - win.count) }} /> : null}
-      {rows.length === 0 ? <Text>{`No match for "${line(ui.filter)}".`}</Text> : shown.map(draw)}
+      {rows.length === 0 ? <Text>{`No match for "${line(ui.filter)}".`}</Text> : shown.map((r, i) => draw(r, win.from + i))}
       {win.below > 0 ? <Button key="below" plain label={`↓ ${win.below} more`} onPress={() => { void scrollTo($, win.from + win.count) }} /> : null}
       {footer}
       {footer2}

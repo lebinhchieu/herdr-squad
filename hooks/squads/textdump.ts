@@ -82,7 +82,8 @@ export function dumpStyled(node: any): string {
     if (Array.isArray(n)) return n.forEach(walk)
     if (n.type === 'Box' && (n.props?.flexDirection ?? 'row') !== 'row') return walk(n.children ?? [])
     const s = runsOf(n, '')
-    if (s !== '') out.push(s)
+    const bg = n.type === 'Box' ? [n.props?.backgroundColor ? `bg=${n.props.backgroundColor}` : '', n.hover?.backgroundColor ? `hover=${n.hover.backgroundColor}` : ''].filter(Boolean).join(' ') : ''
+    if (s !== '') out.push(bg ? `{${bg}} ${s}` : s)
   }
   walk(node)
   return out.join('\n')
