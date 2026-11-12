@@ -31,7 +31,7 @@
           "state": "ready",
           "reason": null,
           "placeholder": false,
-          "when": "Open the board."
+          "when": "Open the board. Keeps running: stop with Ctrl-C."
         },
         {
           "id": "close-squad",
@@ -43,7 +43,7 @@
           "state": "ready",
           "reason": null,
           "placeholder": false,
-          "when": "Close the whole squad."
+          "when": "Work finished. Warning: retires every agent and archives the squad."
         }
       ],
       "goals": [
@@ -76,7 +76,7 @@
               "runs_by": "chieu",
               "group": "yours",
               "state": "wait",
-              "reason": "agents are working now",
+              "reason": "agents are working",
               "placeholder": false,
               "when": "Start the Manager again."
             },
@@ -90,7 +90,7 @@
               "state": "ready",
               "reason": null,
               "placeholder": false,
-              "when": "Open the board."
+              "when": "Open the board. Keeps running: stop with Ctrl-C."
             },
             {
               "id": "report",
@@ -115,6 +115,30 @@
               "reason": null,
               "placeholder": false,
               "when": "List open questions."
+            },
+            {
+              "runs_by": "chieu",
+              "group": "yours",
+              "state": "ready",
+              "reason": null,
+              "placeholder": false,
+              "id": "watchdog",
+              "label": "Watchdog status",
+              "text": "squad-watchdog status --home /work/repo/.claude/squads/plugin/goals/g1",
+              "changes": "read",
+              "when": "Is the watchdog on?"
+            },
+            {
+              "runs_by": "chieu",
+              "group": "yours",
+              "state": "ready",
+              "reason": null,
+              "placeholder": false,
+              "id": "sleep",
+              "label": "Sleep when idle",
+              "text": "squad-watchdog sleep on --home /work/repo/.claude/squads/plugin/goals/g1",
+              "changes": "writes",
+              "when": "Use when leaving the machine."
             },
             {
               "id": "new-scope",
@@ -173,7 +197,7 @@
                   "runs_by": "chieu",
                   "group": "yours",
                   "state": "wait",
-                  "reason": "agents are working now",
+                  "reason": "agents are working",
                   "placeholder": false,
                   "when": "Start the Manager again."
                 },
@@ -187,7 +211,19 @@
                   "state": "ready",
                   "reason": null,
                   "placeholder": false,
-                  "when": "Open the board."
+                  "when": "Open the board. Keeps running: stop with Ctrl-C."
+                },
+                {
+                  "runs_by": "chieu",
+                  "group": "yours",
+                  "state": "ready",
+                  "reason": null,
+                  "placeholder": false,
+                  "id": "report",
+                  "label": "Report",
+                  "text": "squad-report api --squad plugin",
+                  "changes": "writes",
+                  "when": "Write the report."
                 },
                 {
                   "id": "report-status",
@@ -227,7 +263,7 @@
                 },
                 {
                   "id": "sleep",
-                  "label": "Sleep",
+                  "label": "Sleep when idle",
                   "text": "squad-watchdog sleep on --home /work/repo/.claude/squads/plugin/scopes/api",
                   "changes": "writes",
                   "runs_by": "chieu",
@@ -322,7 +358,19 @@
                   "state": "ready",
                   "reason": null,
                   "placeholder": false,
-                  "when": "Open the board."
+                  "when": "Open the board. Keeps running: stop with Ctrl-C."
+                },
+                {
+                  "runs_by": "chieu",
+                  "group": "yours",
+                  "state": "ready",
+                  "reason": null,
+                  "placeholder": false,
+                  "id": "report",
+                  "label": "Report",
+                  "text": "squad-report ui --squad plugin",
+                  "changes": "writes",
+                  "when": "Write the report."
                 },
                 {
                   "id": "report-status",
@@ -344,7 +392,7 @@
                   "runs_by": "chieu",
                   "group": "yours",
                   "state": "wait",
-                  "reason": "nothing to answer",
+                  "reason": "no open questions",
                   "placeholder": false,
                   "when": "List open questions."
                 },
@@ -362,7 +410,7 @@
                 },
                 {
                   "id": "sleep",
-                  "label": "Sleep",
+                  "label": "Sleep when idle",
                   "text": "squad-watchdog sleep on --home /work/repo/.claude/squads/plugin/scopes/ui",
                   "changes": "writes",
                   "runs_by": "chieu",
@@ -443,7 +491,7 @@
                   "state": "ready",
                   "reason": null,
                   "placeholder": false,
-                  "when": "See the closed scope."
+                  "when": "See the closed scope. Keeps running: stop with Ctrl-C."
                 },
                 {
                   "id": "report",
@@ -456,6 +504,18 @@
                   "reason": null,
                   "placeholder": false,
                   "when": "Write the report."
+                },
+                {
+                  "runs_by": "chieu",
+                  "group": "yours",
+                  "state": "ready",
+                  "reason": null,
+                  "placeholder": false,
+                  "id": "report-status",
+                  "label": "Report status",
+                  "text": "squad-report status docs --squad plugin",
+                  "changes": "read",
+                  "when": "Read the status."
                 }
               ]
             }
@@ -508,7 +568,19 @@
               "state": "ready",
               "reason": null,
               "placeholder": false,
-              "when": "Open the board."
+              "when": "Open the board. Keeps running: stop with Ctrl-C."
+            },
+            {
+              "runs_by": "chieu",
+              "group": "yours",
+              "state": "ready",
+              "reason": null,
+              "placeholder": false,
+              "id": "report",
+              "label": "Report",
+              "text": "squad-report fix --squad plugin",
+              "changes": "writes",
+              "when": "Write the report."
             },
             {
               "id": "report-status",
@@ -530,7 +602,7 @@
               "runs_by": "chieu",
               "group": "yours",
               "state": "wait",
-              "reason": "nothing to answer",
+              "reason": "no open questions",
               "placeholder": false,
               "when": "List open questions."
             },
@@ -548,7 +620,7 @@
             },
             {
               "id": "sleep",
-              "label": "Sleep",
+              "label": "Sleep when idle",
               "text": "squad-watchdog sleep on --home /work/repo/.claude/squads/plugin/scopes/fix",
               "changes": "writes",
               "runs_by": "chieu",
@@ -623,7 +695,7 @@
                 "state": "ready",
                 "reason": null,
                 "placeholder": false,
-                "when": "See the closed goal."
+                "when": "See the closed goal. Keeps running: stop with Ctrl-C."
               },
               {
                 "id": "report",
@@ -677,7 +749,7 @@
                     "state": "ready",
                     "reason": null,
                     "placeholder": false,
-                    "when": "See the closed scope."
+                    "when": "See the closed scope. Keeps running: stop with Ctrl-C."
                   },
                   {
                     "id": "report",
@@ -690,6 +762,18 @@
                     "reason": null,
                     "placeholder": false,
                     "when": "Write the report."
+                  },
+                  {
+                    "runs_by": "chieu",
+                    "group": "yours",
+                    "state": "ready",
+                    "reason": null,
+                    "placeholder": false,
+                    "id": "report-status",
+                    "label": "Report status",
+                    "text": "squad-report status old --squad plugin",
+                    "changes": "read",
+                    "when": "Read the status."
                   }
                 ]
               }
@@ -723,7 +807,7 @@
                 "state": "ready",
                 "reason": null,
                 "placeholder": false,
-                "when": "See the closed scope."
+                "when": "See the closed scope. Keeps running: stop with Ctrl-C."
               },
               {
                 "id": "report",
@@ -736,6 +820,18 @@
                 "reason": null,
                 "placeholder": false,
                 "when": "Write the report."
+              },
+              {
+                "runs_by": "chieu",
+                "group": "yours",
+                "state": "ready",
+                "reason": null,
+                "placeholder": false,
+                "id": "report-status",
+                "label": "Report status",
+                "text": "squad-report status tiny --squad plugin",
+                "changes": "read",
+                "when": "Read the status."
               },
               {
                 "id": "retire",
@@ -782,7 +878,7 @@
           "state": "ready",
           "reason": null,
           "placeholder": false,
-          "when": "Close the whole squad."
+          "when": "Work finished. Warning: retires every agent and archives the squad."
         }
       ],
       "goals": [],
