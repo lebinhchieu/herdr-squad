@@ -148,6 +148,10 @@ export type SquadsUi = {
   folded: string[];
   /** The `/` name filter. */
   filter: string;
+  /** First list row in the window (the `↑ N above` / `↓ N more` lines move it). */
+  top: number;
+  /** The filter field is open. */
+  isFiltering: boolean;
   /** Footer line, e.g. `copied: <command>`. */
   notice: string | null;
 };
