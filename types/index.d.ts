@@ -62,6 +62,92 @@ export type InboxUi = {
   more: string[];
 };
 
+// The /squads mod's contract: the `squad-tree --json` document (version 1,
+// design-notes section 2) and the pane's own UI state.
+export type SquadFacts = {
+  needs_you: number | null;
+  stuck: number;
+  tasks_done: number;
+  tasks_total: number;
+  agents_working: number | null;
+  last_active: string | null;
+};
+
+export type NextStep = { rule: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9; text: string };
+
+export type SquadCommand = {
+  id: string;
+  label: string;
+  text: string;
+  changes: 'read' | 'writes' | 'destructive' | 'starts';
+  runs_by: 'chieu' | 'manager' | 'team';
+  group: 'yours' | 'team';
+  state: 'ready' | 'wait';
+  reason: string | null;
+  /** The text holds <text> or <N> that Chieu must replace. */
+  placeholder: boolean;
+  when: string;
+};
+
+export type ScopeNode = {
+  name: string;
+  kind: 'scope';
+  status: 'open' | 'done';
+  home: string;
+  goal: string | null;
+  goal_label: string | null;
+  brief: string;
+  closed_at: string | null;
+  facts: SquadFacts | null;
+  unknown: string[];
+  next_step: NextStep;
+  commands: SquadCommand[];
+};
+
+export type GoalNode = {
+  name: string;
+  kind: 'goal';
+  status: 'open' | 'done';
+  home: string;
+  brief: string;
+  closed_at: string | null;
+  facts: SquadFacts | null;
+  unknown: string[];
+  next_step: NextStep;
+  commands: SquadCommand[];
+  scopes: ScopeNode[];
+};
+
+export type SquadNode = {
+  name: string;
+  flat: boolean;
+  message: string | null;
+  needs_you: number;
+  commands: SquadCommand[];
+  goals: GoalNode[];
+  scopes: ScopeNode[];
+  done: { goals: GoalNode[]; scopes: ScopeNode[] };
+};
+
+export type SquadsTree = {
+  version: 1;
+  repo: string;
+  generated: string;
+  squads: SquadNode[];
+};
+
+export type SquadsUi = {
+  isOpen: boolean;
+  /** Picked row, e.g. ['plugin', 'goal:g1']; empty = the list screen. */
+  path: string[];
+  /** Folded group keys. */
+  folded: string[];
+  /** The `/` name filter. */
+  filter: string;
+  /** Footer line, e.g. `copied: <command>`. */
+  notice: string | null;
+};
+
 declare module 'claude-code' {
   interface PluginState {
     squad: {
@@ -70,6 +156,11 @@ declare module 'claude-code' {
       /** Why the last refresh failed; null when the last refresh worked. */
       inboxError: string | null;
       ui: InboxUi;
+      /** Last good /squads tree; null before the first load. */
+      squadsTree: SquadsTree | null;
+      /** Why the last squad-tree run failed; null when it worked. */
+      squadsError: string | null;
+      squadsUi: SquadsUi;
     };
   }
 }
