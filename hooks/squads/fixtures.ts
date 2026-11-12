@@ -6,6 +6,44 @@ export const TREE = {
  "generated": "2026-11-12T10:00:00Z",
  "squads": [
   {
+   "name": "old-flat",
+   "flat": true,
+   "message": "flat squad: not supported",
+   "needs_you": 0,
+   "commands": [
+    {
+     "id": "new-work",
+     "label": "New work",
+     "text": "squad-start \"<text>\" --squad old-flat",
+     "changes": "starts",
+     "runs_by": "chieu",
+     "group": "yours",
+     "state": "wait",
+     "reason": "flat layout: squad-start refuses it",
+     "placeholder": true,
+     "when": "Start new work."
+    },
+    {
+     "id": "close-squad",
+     "label": "Close squad",
+     "text": "squad-close old-flat",
+     "changes": "destructive",
+     "runs_by": "chieu",
+     "group": "yours",
+     "state": "ready",
+     "reason": null,
+     "placeholder": false,
+     "when": "Work finished. Warning: retires every agent and archives the squad."
+    }
+   ],
+   "goals": [],
+   "scopes": [],
+   "done": {
+    "goals": [],
+    "scopes": []
+   }
+  },
+  {
    "name": "plugin",
    "flat": false,
    "message": null,
@@ -66,108 +104,6 @@ export const TREE = {
       "last_active": "2026-11-12T09:30:00Z"
      },
      "unknown": [],
-     "next_step": {
-      "rule": 2,
-      "text": "Answer 2 questions in api"
-     },
-     "commands": [
-      {
-       "id": "resume",
-       "label": "Resume",
-       "text": "squad-start --resume g1 --squad plugin",
-       "changes": "starts",
-       "runs_by": "chieu",
-       "group": "yours",
-       "state": "wait",
-       "reason": "agents are working",
-       "placeholder": false,
-       "when": "Start the Manager again."
-      },
-      {
-       "id": "board",
-       "label": "Board",
-       "text": "squad-board --squad plugin --goal g1",
-       "changes": "read",
-       "runs_by": "chieu",
-       "group": "yours",
-       "state": "ready",
-       "reason": null,
-       "placeholder": false,
-       "when": "Open the board. Keeps running: stop with Ctrl-C."
-      },
-      {
-       "id": "report",
-       "label": "Report",
-       "text": "squad-report g1 --squad plugin",
-       "changes": "writes",
-       "runs_by": "chieu",
-       "group": "yours",
-       "state": "ready",
-       "reason": null,
-       "placeholder": false,
-       "when": "Write the report."
-      },
-      {
-       "id": "inbox",
-       "label": "Inbox list",
-       "text": "squad-inbox --home /work/repo/.claude/squads/plugin/goals/g1 list --open --no-write",
-       "changes": "read",
-       "runs_by": "chieu",
-       "group": "yours",
-       "state": "ready",
-       "reason": null,
-       "placeholder": false,
-       "when": "List open questions."
-      },
-      {
-       "runs_by": "chieu",
-       "group": "yours",
-       "state": "ready",
-       "reason": null,
-       "placeholder": false,
-       "id": "watchdog",
-       "label": "Watchdog status",
-       "text": "squad-watchdog status --home /work/repo/.claude/squads/plugin/goals/g1",
-       "changes": "read",
-       "when": "Is the watchdog on?"
-      },
-      {
-       "runs_by": "chieu",
-       "group": "yours",
-       "state": "ready",
-       "reason": null,
-       "placeholder": false,
-       "id": "sleep",
-       "label": "Sleep when idle",
-       "text": "squad-watchdog sleep on --home /work/repo/.claude/squads/plugin/goals/g1",
-       "changes": "writes",
-       "when": "Use when leaving the machine."
-      },
-      {
-       "id": "new-scope",
-       "label": "New scope",
-       "text": "squad-start \"<text>\" --in-goal g1 --name <N> --squad plugin",
-       "changes": "starts",
-       "runs_by": "chieu",
-       "group": "yours",
-       "state": "ready",
-       "reason": null,
-       "placeholder": true,
-       "when": "Add a scope to the goal."
-      },
-      {
-       "id": "close-goal",
-       "label": "Close goal",
-       "text": "squad-close plugin --goal g1",
-       "changes": "destructive",
-       "runs_by": "chieu",
-       "group": "yours",
-       "state": "wait",
-       "reason": "scope api is open",
-       "placeholder": false,
-       "when": "Close the goal."
-      }
-     ],
      "scopes": [
       {
        "name": "api",
@@ -218,21 +154,21 @@ export const TREE = {
          "when": "Open the board. Keeps running: stop with Ctrl-C."
         },
         {
+         "id": "report",
+         "label": "Report",
+         "text": "squad-report api --squad /work/repo/.claude/squads/plugin",
+         "changes": "writes",
          "runs_by": "chieu",
          "group": "yours",
          "state": "ready",
          "reason": null,
          "placeholder": false,
-         "id": "report",
-         "label": "Report",
-         "text": "squad-report api --squad plugin",
-         "changes": "writes",
          "when": "Write the report."
         },
         {
          "id": "report-status",
          "label": "Report status",
-         "text": "squad-report status api --squad plugin",
+         "text": "squad-report status api --squad /work/repo/.claude/squads/plugin",
          "changes": "read",
          "runs_by": "chieu",
          "group": "yours",
@@ -302,9 +238,117 @@ export const TREE = {
          "when": "Used by the team."
         },
         {
+         "id": "squad-respawn",
+         "label": "squad-respawn",
+         "text": "squad-respawn --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
          "id": "squad-team",
          "label": "squad-team",
          "text": "squad-team --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-usage",
+         "label": "squad-usage",
+         "text": "squad-usage --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-task",
+         "label": "squad-task",
+         "text": "squad-task --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-merge-check",
+         "label": "squad-merge-check",
+         "text": "squad-merge-check --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-review-pack",
+         "label": "squad-review-pack",
+         "text": "squad-review-pack --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-label",
+         "label": "squad-label",
+         "text": "squad-label --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-evidence",
+         "label": "squad-evidence",
+         "text": "squad-evidence --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-process",
+         "label": "squad-process",
+         "text": "squad-process --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-ledger",
+         "label": "squad-ledger",
+         "text": "squad-ledger --help",
          "changes": "varies",
          "runs_by": "team",
          "group": "team",
@@ -330,15 +374,13 @@ export const TREE = {
         "stuck": 0,
         "tasks_done": 0,
         "tasks_total": 2,
-        "agents_working": null,
+        "agents_working": 0,
         "last_active": "2026-11-12T09:30:00Z"
        },
-       "unknown": [
-        "herdr"
-       ],
+       "unknown": [],
        "next_step": {
-        "rule": 1,
-        "text": "Cannot read herdr: open board"
+        "rule": 5,
+        "text": "Nobody working: resume"
        },
        "commands": [
         {
@@ -366,21 +408,21 @@ export const TREE = {
          "when": "Open the board. Keeps running: stop with Ctrl-C."
         },
         {
+         "id": "report",
+         "label": "Report",
+         "text": "squad-report ui --squad /work/repo/.claude/squads/plugin",
+         "changes": "writes",
          "runs_by": "chieu",
          "group": "yours",
          "state": "ready",
          "reason": null,
          "placeholder": false,
-         "id": "report",
-         "label": "Report",
-         "text": "squad-report ui --squad plugin",
-         "changes": "writes",
          "when": "Write the report."
         },
         {
          "id": "report-status",
          "label": "Report status",
-         "text": "squad-report status ui --squad plugin",
+         "text": "squad-report status ui --squad /work/repo/.claude/squads/plugin",
          "changes": "read",
          "runs_by": "chieu",
          "group": "yours",
@@ -450,9 +492,117 @@ export const TREE = {
          "when": "Used by the team."
         },
         {
+         "id": "squad-respawn",
+         "label": "squad-respawn",
+         "text": "squad-respawn --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
          "id": "squad-team",
          "label": "squad-team",
          "text": "squad-team --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-usage",
+         "label": "squad-usage",
+         "text": "squad-usage --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-task",
+         "label": "squad-task",
+         "text": "squad-task --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-merge-check",
+         "label": "squad-merge-check",
+         "text": "squad-merge-check --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-review-pack",
+         "label": "squad-review-pack",
+         "text": "squad-review-pack --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-label",
+         "label": "squad-label",
+         "text": "squad-label --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-evidence",
+         "label": "squad-evidence",
+         "text": "squad-evidence --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-process",
+         "label": "squad-process",
+         "text": "squad-process --help",
+         "changes": "varies",
+         "runs_by": "team",
+         "group": "team",
+         "state": "ready",
+         "reason": null,
+         "placeholder": false,
+         "when": "Used by the team."
+        },
+        {
+         "id": "squad-ledger",
+         "label": "squad-ledger",
+         "text": "squad-ledger --help",
          "changes": "varies",
          "runs_by": "team",
          "group": "team",
@@ -468,7 +618,7 @@ export const TREE = {
        "kind": "scope",
        "status": "done",
        "name_safe": true,
-       "home": "/work/repo/.claude/squads/plugin/scopes/docs",
+       "home": "/work/repo/.claude/squads/plugin/scopes/_done/docs",
        "goal": "g1",
        "goal_label": "g1",
        "brief": "Brief of docs",
@@ -502,7 +652,7 @@ export const TREE = {
         {
          "id": "report",
          "label": "Report",
-         "text": "squad-report docs --squad plugin",
+         "text": "squad-report docs --squad /work/repo/.claude/squads/plugin",
          "changes": "writes",
          "runs_by": "chieu",
          "group": "yours",
@@ -512,18 +662,120 @@ export const TREE = {
          "when": "Write the report."
         },
         {
+         "id": "report-status",
+         "label": "Report status",
+         "text": "squad-report status docs --squad /work/repo/.claude/squads/plugin",
+         "changes": "read",
          "runs_by": "chieu",
          "group": "yours",
          "state": "ready",
          "reason": null,
          "placeholder": false,
-         "id": "report-status",
-         "label": "Report status",
-         "text": "squad-report status docs --squad plugin",
-         "changes": "read",
          "when": "Read the status."
         }
        ]
+      }
+     ],
+     "next_step": {
+      "rule": 2,
+      "text": "Answer 2 questions in api"
+     },
+     "commands": [
+      {
+       "id": "resume",
+       "label": "Resume",
+       "text": "squad-start --resume g1 --squad plugin",
+       "changes": "starts",
+       "runs_by": "chieu",
+       "group": "yours",
+       "state": "wait",
+       "reason": "agents are working",
+       "placeholder": false,
+       "when": "Start the Manager again."
+      },
+      {
+       "id": "board",
+       "label": "Board",
+       "text": "squad-board --squad plugin --goal g1",
+       "changes": "read",
+       "runs_by": "chieu",
+       "group": "yours",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Open the board. Keeps running: stop with Ctrl-C."
+      },
+      {
+       "id": "report",
+       "label": "Report",
+       "text": "squad-report g1 --squad /work/repo/.claude/squads/plugin",
+       "changes": "writes",
+       "runs_by": "chieu",
+       "group": "yours",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Write the report."
+      },
+      {
+       "id": "inbox",
+       "label": "Inbox list",
+       "text": "squad-inbox --home /work/repo/.claude/squads/plugin/goals/g1 list --open --no-write",
+       "changes": "read",
+       "runs_by": "chieu",
+       "group": "yours",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "List open questions."
+      },
+      {
+       "id": "watchdog",
+       "label": "Watchdog status",
+       "text": "squad-watchdog status --home /work/repo/.claude/squads/plugin/goals/g1",
+       "changes": "read",
+       "runs_by": "chieu",
+       "group": "yours",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Is the watchdog on?"
+      },
+      {
+       "id": "sleep",
+       "label": "Sleep when idle",
+       "text": "squad-watchdog sleep on --home /work/repo/.claude/squads/plugin/goals/g1",
+       "changes": "writes",
+       "runs_by": "chieu",
+       "group": "yours",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Use when leaving the machine."
+      },
+      {
+       "id": "new-scope",
+       "label": "New scope",
+       "text": "squad-start \"<text>\" --in-goal g1 --name <N> --squad plugin",
+       "changes": "starts",
+       "runs_by": "chieu",
+       "group": "yours",
+       "state": "ready",
+       "reason": null,
+       "placeholder": true,
+       "when": "Add a scope to the goal."
+      },
+      {
+       "id": "close-goal",
+       "label": "Close goal",
+       "text": "squad-close plugin --goal g1 --dry-run",
+       "changes": "destructive",
+       "runs_by": "chieu",
+       "group": "yours",
+       "state": "wait",
+       "reason": "scope api is open",
+       "placeholder": false,
+       "when": "Close the goal."
       }
      ]
     }
@@ -578,21 +830,21 @@ export const TREE = {
        "when": "Open the board. Keeps running: stop with Ctrl-C."
       },
       {
+       "id": "report",
+       "label": "Report",
+       "text": "squad-report fix --squad /work/repo/.claude/squads/plugin",
+       "changes": "writes",
        "runs_by": "chieu",
        "group": "yours",
        "state": "ready",
        "reason": null,
        "placeholder": false,
-       "id": "report",
-       "label": "Report",
-       "text": "squad-report fix --squad plugin",
-       "changes": "writes",
        "when": "Write the report."
       },
       {
        "id": "report-status",
        "label": "Report status",
-       "text": "squad-report status fix --squad plugin",
+       "text": "squad-report status fix --squad /work/repo/.claude/squads/plugin",
        "changes": "read",
        "runs_by": "chieu",
        "group": "yours",
@@ -662,9 +914,117 @@ export const TREE = {
        "when": "Used by the team."
       },
       {
+       "id": "squad-respawn",
+       "label": "squad-respawn",
+       "text": "squad-respawn --help",
+       "changes": "varies",
+       "runs_by": "team",
+       "group": "team",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Used by the team."
+      },
+      {
        "id": "squad-team",
        "label": "squad-team",
        "text": "squad-team --help",
+       "changes": "varies",
+       "runs_by": "team",
+       "group": "team",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Used by the team."
+      },
+      {
+       "id": "squad-usage",
+       "label": "squad-usage",
+       "text": "squad-usage --help",
+       "changes": "varies",
+       "runs_by": "team",
+       "group": "team",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Used by the team."
+      },
+      {
+       "id": "squad-task",
+       "label": "squad-task",
+       "text": "squad-task --help",
+       "changes": "varies",
+       "runs_by": "team",
+       "group": "team",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Used by the team."
+      },
+      {
+       "id": "squad-merge-check",
+       "label": "squad-merge-check",
+       "text": "squad-merge-check --help",
+       "changes": "varies",
+       "runs_by": "team",
+       "group": "team",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Used by the team."
+      },
+      {
+       "id": "squad-review-pack",
+       "label": "squad-review-pack",
+       "text": "squad-review-pack --help",
+       "changes": "varies",
+       "runs_by": "team",
+       "group": "team",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Used by the team."
+      },
+      {
+       "id": "squad-label",
+       "label": "squad-label",
+       "text": "squad-label --help",
+       "changes": "varies",
+       "runs_by": "team",
+       "group": "team",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Used by the team."
+      },
+      {
+       "id": "squad-evidence",
+       "label": "squad-evidence",
+       "text": "squad-evidence --help",
+       "changes": "varies",
+       "runs_by": "team",
+       "group": "team",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Used by the team."
+      },
+      {
+       "id": "squad-process",
+       "label": "squad-process",
+       "text": "squad-process --help",
+       "changes": "varies",
+       "runs_by": "team",
+       "group": "team",
+       "state": "ready",
+       "reason": null,
+       "placeholder": false,
+       "when": "Used by the team."
+      },
+      {
+       "id": "squad-ledger",
+       "label": "squad-ledger",
+       "text": "squad-ledger --help",
        "changes": "varies",
        "runs_by": "team",
        "group": "team",
@@ -683,60 +1043,18 @@ export const TREE = {
       "kind": "goal",
       "status": "done",
       "name_safe": true,
-      "home": "/work/repo/.claude/squads/plugin/goals/g0",
+      "home": "/work/repo/.claude/squads/plugin/goals/_done/g0",
       "brief": "Brief of g0",
       "closed_at": "2026-11-01T12:00:00Z",
       "facts": null,
       "unknown": [],
-      "next_step": {
-       "rule": 9,
-       "text": "Closed. Read the report."
-      },
-      "commands": [
-       {
-        "id": "board",
-        "label": "Board",
-        "text": "squad-board --squad plugin --goal g0",
-        "changes": "read",
-        "runs_by": "chieu",
-        "group": "yours",
-        "state": "ready",
-        "reason": null,
-        "placeholder": false,
-        "when": "See the closed goal. Keeps running: stop with Ctrl-C."
-       },
-       {
-        "id": "report",
-        "label": "Report",
-        "text": "squad-report g0 --squad plugin",
-        "changes": "writes",
-        "runs_by": "chieu",
-        "group": "yours",
-        "state": "ready",
-        "reason": null,
-        "placeholder": false,
-        "when": "Write the report."
-       },
-       {
-        "id": "retire",
-        "label": "Retire Manager",
-        "text": "squad-retire plugin-mgr-g0",
-        "changes": "destructive",
-        "runs_by": "chieu",
-        "group": "yours",
-        "state": "ready",
-        "reason": null,
-        "placeholder": false,
-        "when": "Retire the finished Manager."
-       }
-      ],
       "scopes": [
        {
         "name": "old",
         "kind": "scope",
         "status": "done",
         "name_safe": true,
-        "home": "/work/repo/.claude/squads/plugin/scopes/old",
+        "home": "/work/repo/.claude/squads/plugin/scopes/_done/old",
         "goal": "g0",
         "goal_label": "g0",
         "brief": "Brief of old",
@@ -763,7 +1081,7 @@ export const TREE = {
          {
           "id": "report",
           "label": "Report",
-          "text": "squad-report old --squad plugin",
+          "text": "squad-report old --squad /work/repo/.claude/squads/plugin",
           "changes": "writes",
           "runs_by": "chieu",
           "group": "yours",
@@ -773,18 +1091,60 @@ export const TREE = {
           "when": "Write the report."
          },
          {
+          "id": "report-status",
+          "label": "Report status",
+          "text": "squad-report status old --squad /work/repo/.claude/squads/plugin",
+          "changes": "read",
           "runs_by": "chieu",
           "group": "yours",
           "state": "ready",
           "reason": null,
           "placeholder": false,
-          "id": "report-status",
-          "label": "Report status",
-          "text": "squad-report status old --squad plugin",
-          "changes": "read",
           "when": "Read the status."
          }
         ]
+       }
+      ],
+      "next_step": {
+       "rule": 9,
+       "text": "Closed. Read the report."
+      },
+      "commands": [
+       {
+        "id": "board",
+        "label": "Board",
+        "text": "squad-board --squad plugin --goal g0",
+        "changes": "read",
+        "runs_by": "chieu",
+        "group": "yours",
+        "state": "ready",
+        "reason": null,
+        "placeholder": false,
+        "when": "See the closed goal. Keeps running: stop with Ctrl-C."
+       },
+       {
+        "id": "report",
+        "label": "Report",
+        "text": "squad-report g0 --squad /work/repo/.claude/squads/plugin",
+        "changes": "writes",
+        "runs_by": "chieu",
+        "group": "yours",
+        "state": "ready",
+        "reason": null,
+        "placeholder": false,
+        "when": "Write the report."
+       },
+       {
+        "id": "retire",
+        "label": "Retire Manager",
+        "text": "squad-retire plugin-mgr-g0",
+        "changes": "destructive",
+        "runs_by": "chieu",
+        "group": "yours",
+        "state": "ready",
+        "reason": null,
+        "placeholder": false,
+        "when": "Retire the finished Manager."
        }
       ]
      }
@@ -795,7 +1155,7 @@ export const TREE = {
       "kind": "scope",
       "status": "done",
       "name_safe": true,
-      "home": "/work/repo/.claude/squads/plugin/scopes/tiny",
+      "home": "/work/repo/.claude/squads/plugin/scopes/_done/tiny",
       "goal": null,
       "goal_label": "no goal",
       "brief": "Brief of tiny",
@@ -822,7 +1182,7 @@ export const TREE = {
        {
         "id": "report",
         "label": "Report",
-        "text": "squad-report tiny --squad plugin",
+        "text": "squad-report tiny --squad /work/repo/.claude/squads/plugin",
         "changes": "writes",
         "runs_by": "chieu",
         "group": "yours",
@@ -832,15 +1192,15 @@ export const TREE = {
         "when": "Write the report."
        },
        {
+        "id": "report-status",
+        "label": "Report status",
+        "text": "squad-report status tiny --squad /work/repo/.claude/squads/plugin",
+        "changes": "read",
         "runs_by": "chieu",
         "group": "yours",
         "state": "ready",
         "reason": null,
         "placeholder": false,
-        "id": "report-status",
-        "label": "Report status",
-        "text": "squad-report status tiny --squad plugin",
-        "changes": "read",
         "when": "Read the status."
        },
        {
@@ -858,44 +1218,6 @@ export const TREE = {
       ]
      }
     ]
-   }
-  },
-  {
-   "name": "old-flat",
-   "flat": true,
-   "message": "flat squad: not supported",
-   "needs_you": 0,
-   "commands": [
-    {
-     "id": "new-work",
-     "label": "New work",
-     "text": "squad-start \"<text>\" --squad old-flat",
-     "changes": "starts",
-     "runs_by": "chieu",
-     "group": "yours",
-     "state": "wait",
-     "reason": "flat layout: squad-start refuses it",
-     "placeholder": true,
-     "when": "Start new work."
-    },
-    {
-     "id": "close-squad",
-     "label": "Close squad",
-     "text": "squad-close old-flat",
-     "changes": "destructive",
-     "runs_by": "chieu",
-     "group": "yours",
-     "state": "ready",
-     "reason": null,
-     "placeholder": false,
-     "when": "Work finished. Warning: retires every agent and archives the squad."
-    }
-   ],
-   "goals": [],
-   "scopes": [],
-   "done": {
-    "goals": [],
-    "scopes": []
    }
   }
  ]

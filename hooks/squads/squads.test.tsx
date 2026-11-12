@@ -7,10 +7,11 @@ import { dumpText } from './textdump'
 
 const J = (v: unknown) => JSON.stringify(v)
 const copy = <T,>(v: T): any => JSON.parse(JSON.stringify(v))
+const PLUGIN = (t: any): any => t.squads.find((s: any) => s.name === 'plugin')
 // A tree with herdr unreadable: agents_working null and rule 1 on an open scope (own copy: the fixture file may change).
 const HERDR_DOWN = () => {
   const t = copy(TREE)
-  const sc = t.squads[0].goals[0].scopes[1]
+  const sc = PLUGIN(t).goals[0].scopes[1]
   sc.facts.agents_working = null
   sc.next_step = { rule: 1, text: 'Cannot read agents: open board' }
   return t
@@ -73,7 +74,7 @@ test('refresh: the pane never opened, so no run', async ($, on) => {
 test('a command press copies exactly the JSON text, shows it on screen, and starts no process and writes no file', async ($, on) => {
   const { w, text, press } = await open($, on, TREE)
   await press('plugin/goal:g1')
-  const g1 = TREE.squads[0].goals[0]
+  const g1 = PLUGIN(TREE).goals[0]
   const board = g1.commands.find((c: any) => c.id === 'board') as any
   expect(await text()).toContain(board.text)
   const runs = w.runs.length
@@ -118,10 +119,10 @@ test('an empty tree says No squads here', async ($, on) => {
 
 test('text from the JSON is stripped of escape sequences and control characters', async ($, on) => {
   const t = copy(TREE)
-  t.squads[0].goals[0].name = 'g\x1b[31m1'
-  t.squads[0].goals[0].brief = 'b\x1b]0;x\x07rief'
-  t.squads[0].goals[0].next_step.text = 'Ans\x1b[2Jwer'
-  t.squads[0].goals[0].commands[0].reason = 'wa\x1b[0mit'
+  PLUGIN(t).goals[0].name = 'g\x1b[31m1'
+  PLUGIN(t).goals[0].brief = 'b\x1b]0;x\x07rief'
+  PLUGIN(t).goals[0].next_step.text = 'Ans\x1b[2Jwer'
+  PLUGIN(t).goals[0].commands[0].reason = 'wa\x1b[0mit'
   const { text, press } = await open($, on, t)
   expect(await text()).not.toMatch(/\x1b|\x07/)
   await press('plugin/goal:g\x1b[31m1')
