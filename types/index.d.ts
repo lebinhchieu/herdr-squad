@@ -79,7 +79,7 @@ export type SquadCommand = {
   id: string;
   label: string;
   text: string;
-  changes: 'read' | 'writes' | 'destructive' | 'starts';
+  changes: 'read' | 'writes' | 'destructive' | 'starts' | 'varies';
   runs_by: 'chieu' | 'manager' | 'team';
   group: 'yours' | 'team';
   state: 'ready' | 'wait';
@@ -93,6 +93,8 @@ export type ScopeNode = {
   name: string;
   kind: 'scope';
   status: 'open' | 'done';
+  /** false when the name fails NAME_RE: commands is then empty. */
+  name_safe: boolean;
   home: string;
   goal: string | null;
   goal_label: string | null;
@@ -108,6 +110,8 @@ export type GoalNode = {
   name: string;
   kind: 'goal';
   status: 'open' | 'done';
+  /** false when the name fails NAME_RE: commands is then empty. */
+  name_safe: boolean;
   home: string;
   brief: string;
   closed_at: string | null;
