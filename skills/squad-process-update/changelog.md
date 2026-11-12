@@ -1,3 +1,15 @@
+## v14 — 2026-11-12
+
+Plugin 0.9.0. A new read-only Squads pane and `squad-tree`; no rule changes and nothing breaks. A pinned squad keeps its own runtime until it re-pins.
+
+added:
+- `squad-tree` (with `--json`): lists every squad home with its goals, scopes, next step and commands. Read-only.
+- The Squads pane (`/squads`), a mod that draws the `squad-tree` output. It runs no command and writes nothing.
+- ADR 0026: the Squads pane lists every home (amends 0007 and 0020).
+
+changed:
+none
+
 ## v13 — 2026-11-12
 
 Plugin 0.8.1. Wording only; nothing breaks. A pinned squad keeps its own runtime until it re-pins. COST-3 and COST-8b change hash, so `squad-process upgrade --check` names an overlay that replaced one.
