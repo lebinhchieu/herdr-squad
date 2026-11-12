@@ -113,7 +113,7 @@ for (const [name, env] of INERT) {
     await w.clock.advance(10000)
     expect(w.runs).toEqual([])
     expect(w.stats).toEqual([])
-    expect(w.registered).toEqual([])
+    expect(w.registered).toEqual(['squads'])
     expect(w.writes).toBe(0)
     const ran = await $.command.run({ command: 'inbox' })
     expect(w.opened).toEqual([])
@@ -130,7 +130,7 @@ for (const [name, env, home] of [
   test(`active: ${name}`, async ($, on) => {
     const w = world(on, env, () => ok(MIXED))
     await $.session.start(START)
-    expect(w.registered).toEqual(['inbox'])
+    expect(w.registered).toEqual(['squads', 'inbox'])
     expect(verb(w, 'list').length).toBe(1)
     expect(w.runs[0].argv).toEqual([w.runs[0].argv[0], 'list', '--json'])
     expect(w.runs[0].argv[0].endsWith('/bin/squad-inbox')).toBe(true)
@@ -435,7 +435,7 @@ test('timers: two session.start leave one timer and one /inbox registration', as
   const w = world(on, MANAGER, () => ok(MIXED))
   await $.session.start(START)
   await $.session.start(START)
-  expect(w.registered).toEqual(['inbox'])
+  expect(w.registered).toEqual(['squads', 'inbox'])
   w.stats.length = 0
   await w.clock.advance(2000)
   expect(w.stats.length).toBe(2)

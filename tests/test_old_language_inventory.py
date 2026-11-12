@@ -27,6 +27,7 @@ ALLOW = {
     "hooks/po-inbox/mod.test.ts": (2, "false positive: fs.stat size"),
     "hooks/po-inbox/testkit.ts": (1, "false positive: fs.stat size"),
     "hooks/po-inbox/ui.test.ts": (1, "false positive: fs.stat size"),
+    "hooks/squads/testkit.ts": (1, "false positive: fs.stat size"),
 }
 
 

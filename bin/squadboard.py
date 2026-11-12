@@ -115,6 +115,11 @@ def _squads_in(root):
         return []
 
 
+def squads_of(root):
+    """[Squad] of every squad folder under `<root>/.claude/squads` (no refusal when there are none)."""
+    return [Squad(p, p.name) for p in _squads_in(root)]
+
+
 def _looks_like_path(arg):
     return "/" in arg or "\\" in arg or arg.startswith((".", "~")) or os.path.isabs(arg)
 

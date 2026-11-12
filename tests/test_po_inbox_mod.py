@@ -32,18 +32,30 @@ class PoInboxModTest(unittest.TestCase):
     def test_validate_lists_what_the_mod_hooks_and_calls(self):
         code, out = claude("validate")
         self.assertEqual(code, 0, out)
-        hooks = next(line for line in out.splitlines() if "register.tsx hooks:" in line)
+        hooks = next(line for line in out.splitlines() if "./register.tsx hooks:" in line)
         for event in ("session.start", "command.run{command=inbox}", "turn.complete"):
             self.assertIn(event, hooks)
         self.assertIn("ui.render", hooks)
         self.assertRegex(out, r"env reads: .*GOAL_DIR")
         for name in ("SQUAD_ROLE", "SCOPE_DIR", "GOAL_DIR"):
             self.assertIn(name, next(line for line in out.splitlines() if "env reads:" in line))
-        calls = next(line for line in out.splitlines() if "register.tsx calls:" in line)
+        calls = next(line for line in out.splitlines() if "./register.tsx calls:" in line)
         self.assertIn("$.process.run", calls)
         self.assertIn("$.fs.stat", calls)
         self.assertNotIn("$.fs.read", calls)
         self.assertNotIn("$.fs.write", calls)
+
+    def test_validate_lists_the_squads_mod_and_it_never_touches_fs(self):
+        code, out = claude("validate")
+        self.assertEqual(code, 0, out)
+        hooks = next(line for line in out.splitlines() if "./register.tsx hooks:" in line)
+        self.assertIn("command.run{command=squads}", hooks)
+        calls = next(line for line in out.splitlines() if "./register.tsx calls:" in line)
+        self.assertIn("$.ui.copy", calls)
+        # validate lists one module (po-inbox uses $.fs.stat), so the squads files are held to it by source.
+        for path in (REPO / "hooks" / "squads").glob("*.ts*"):
+            if ".test." not in path.name:
+                self.assertNotIn("$.fs", path.read_text(encoding="utf-8"), path.name)
 
     def test_plugin_test_passes(self):
         code, out = claude("test")
@@ -53,6 +65,7 @@ class PoInboxModTest(unittest.TestCase):
         self.assertIsNotNone(passed, out)
         self.assertEqual(failed.group(1), "0", out)
         declared = sum(len(re.findall(r"^\s*test\(", p.read_text(encoding="utf-8"), re.M)) for p in MOD_DIR.glob("*.test.ts"))
+        declared += sum(len(re.findall(r"^\s*test\(", p.read_text(encoding="utf-8"), re.M)) for p in (REPO / "hooks" / "squads").glob("*.test.ts*"))
         self.assertGreaterEqual(int(passed.group(1)), declared)
         print("claude plugin test: %s pass, %s fail (not skipped)" % (passed.group(1), failed.group(1)))
 
