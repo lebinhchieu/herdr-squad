@@ -8,7 +8,7 @@ Status: accepted (po-inbox)
 
 **Consequences:**
 - The PO's answer is written into the row's Answer cell (`|` escaped, newline as `<br>`) and kept verbatim in the log; a deleted row stays listable from a snapshot; the Options cell format `(a) text; (b) text` gives choices.
-- An inbox answer is never a merge, push or deploy request; per-home only, `squad-board` stays the cross-home view.
+- An inbox answer is never a merge, push or deploy request; per-home only, `squad-board` stays the cross-home view (amended by 0026: the `/squads` pane lists every home, list-only).
 - The pane hides a Manager's `squad-inbox add` body only for a quoted heredoc `<<'WORD'` / `<<"WORD"` (allow-list); any other form shows its full row in chat. Manager instructions say "body in a quoted heredoc".
 - A hand-written `escalations.md` row shorter than the header is a valid item; answering pads it to header width. When the Answer cell cannot be written the answer is still kept and the item carries flag `cell-not-written`.
 - Known limits: an answer recorded by an outside process with `--source pane` is delivered at the next session start; `squad-close` refuses for `--scope`/`--goal` only (not whole-squad or legacy flat).
