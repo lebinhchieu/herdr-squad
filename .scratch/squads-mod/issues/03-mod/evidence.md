@@ -209,4 +209,4 @@ Squads  [ Refresh (r) ]
 Reading .claude/squads …
 ```
 
-Tests after return 1: `claude plugin test` 644 pass, 0 fail; test_po_inbox_mod, test_squadtree (new T2.12), test_hooks_json, test_windows_safe, test_utf8_helpers, test_instructions: 65 OK except nothing failing after the T2.12 row fix.
+Tests after return 1: `claude plugin test` 644 pass, 0 fail; test_po_inbox_mod, test_squadtree (new T2.12), test_hooks_json, test_windows_safe, test_utf8_helpers, test_instructions: all OK.
