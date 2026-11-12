@@ -57,3 +57,33 @@ export function dumpTree(node: any, cols: number, out: string[] = []): string[] 
 }
 
 export const dumpText = (node: any, cols: number): string => dumpTree(node, cols).join('\n')
+
+// Evidence for the styles: each styled run printed next to its text as `‹style: text›`; an unstyled run is bare.
+// Style words: the theme key, `bold`, `dim`. A Button shows its children's runs (or its label when it has none).
+const styleOf = (p: any): string => [p?.color, p?.bold ? 'bold' : '', p?.dimColor ? 'dim' : ''].filter(Boolean).join(' ')
+const runsOf = (n: any, inherit: string): string => {
+  if (n === null || n === undefined || n === false) return ''
+  if (typeof n === 'string') return inherit ? `‹${inherit}: ${n}›` : n
+  if (Array.isArray(n)) return n.map((x) => runsOf(x, inherit)).join('')
+  if (n.type === 'Button') {
+    const kids = n.children ?? []
+    const body = kids.length ? runsOf(kids, inherit) : runsOf(n.props?.label ?? '', inherit)
+    return n.props?.plain ? body : `[ ${body} ]`
+  }
+  if (n.type === 'Input') return `${n.props?.label ?? ''}${n.props?.value ?? ''}▏`
+  const own = styleOf(n.props)
+  return runsOf(n.children ?? [], n.type === 'Text' ? own || inherit : inherit)
+}
+
+export function dumpStyled(node: any): string {
+  const out: string[] = []
+  const walk = (n: any): void => {
+    if (n === null || n === undefined || n === false || typeof n === 'string') return
+    if (Array.isArray(n)) return n.forEach(walk)
+    if (n.type === 'Box' && (n.props?.flexDirection ?? 'row') !== 'row') return walk(n.children ?? [])
+    const s = runsOf(n, '')
+    if (s !== '') out.push(s)
+  }
+  walk(node)
+  return out.join('\n')
+}

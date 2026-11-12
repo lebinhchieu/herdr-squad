@@ -2,7 +2,7 @@
 """Print the /squads pane as text, as the mod draws it, for a squad-tree JSON file at ROWS x COLS.
 
   hooks/squads/pane-text FILE ROWS COLS [--press KEY[,KEY...]] [--filter TEXT] [--then FILE2]
-                                 [--loading] [--copy-fails] [--refresh-error MSG]
+                                 [--loading] [--copy-fails] [--refresh-error MSG] [--styles]
   squad-tree --json | hooks/squads/pane-text - 11 60          (FILE - reads stdin)
   hooks/squads/pane-text --sync-fixtures                      (rewrites hooks/squads/fixtures.ts from the JSON files)
 
@@ -14,6 +14,7 @@ and in a detail the command's key: `cN:<id>:head` where N is its place in the li
 Resume as c0, so Board is c1:board:head; a squad detail has Board as c0): it copies it and the footer shows `copied: ...`.
 Order of work: first the keys of --press, then --filter (types TEXT in the filter box), then --then, then the drawing.
 --then FILE2: after the keys, refresh once with FILE2 as the new data (a number changes, folds stay).
+--styles: print each run's style next to its text, as `‹warning bold: needs 2›` (no width cut).
 --loading: draw the first read before any data arrives ("Reading .claude/squads ..."); FILE is ignored.
 --copy-fails: the clipboard refuses, so the footer says the copy failed. --refresh-error: the next refresh fails with MSG,
 then `refresh` is pressed once: the last good list stays and one error line shows.
@@ -33,7 +34,7 @@ FIX = ROOT / "hooks" / "squads" / "fixtures"
 TEMPLATE = r"""
 import { test } from 'claude-code/testing'
 import { boot, KEYS, pane } from './testkit'
-import { dumpText } from './textdump'
+import { dumpStyled, dumpText } from './textdump'
 
 const TREE = %(tree)s
 const OPTS = %(opts)s
@@ -60,7 +61,7 @@ test('render', async ($, on) => {
     w.reply = { exitCode: 0, stdout: OPTS.then, stderr: '' }
     await press('refresh')
   }
-  const out = dumpText(await ui.drawn(), OPTS.cols)
+  const out = OPTS.styles ? dumpStyled(await ui.drawn()) : dumpText(await ui.drawn(), OPTS.cols)
   console.log('<<<PANE\n' + out + '\nPANE>>>')
 })
 """
@@ -81,7 +82,7 @@ def main(argv):
         print(__doc__, file=sys.stderr)
         return 2
     src, rows, cols = argv[0], int(argv[1]), int(argv[2])
-    opts = {"rows": rows, "cols": cols, "press": [], "filter": "", "then": "", "loading": False, "copyFails": False, "refreshError": ""}
+    opts = {"rows": rows, "cols": cols, "press": [], "filter": "", "then": "", "loading": False, "copyFails": False, "refreshError": "", "styles": False}
     rest = argv[3:]
     while rest:
         a = rest.pop(0)
@@ -95,6 +96,8 @@ def main(argv):
             opts["loading"] = True
         elif a == "--refresh-error" and rest:
             opts["refreshError"] = rest.pop(0)
+        elif a == "--styles":
+            opts["styles"] = True
         elif a == "--copy-fails":
             opts["copyFails"] = True
         else:
