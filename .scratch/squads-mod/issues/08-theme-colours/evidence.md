@@ -78,3 +78,47 @@ AC trace
 - AC8.4 | `grep -rniE '#[0-9a-f]{6}|rgb\(' hooks/squads/*.ts hooks/squads/*.tsx` (no hit outside fixtures.ts data); 647 plugin tests pass | as written
 - AC8.5 | this file, List and Detail dumps | `hooks/squads/pane-text fixtures/tree.json 30 80 --styles [--press plugin/goal:g1]`
 - AC8.6 | plugin.json, changelog v16, tests/test_squadruntime.py | `grep -rl '0\.9\.1'` hits only the old v15 changelog entry (history)
+
+## Review qa-w
+
+### 08 QA whitebox, sha 6ed9247 (branch squad/plugin/squads-mod/plugin-dev-squads-mod-8, base main 291f4d3)
+
+Verdict: PASS. No findings that break an AC or a test.
+
+#### Checks (my own runs, read-only clone at 6ed9247)
+| AC | Check | Result |
+|---|---|---|
+| 8.1 | ui.tsx `draw(r, at)`: stripe on `win.from + i` odd (absolute index, group rows count); tests "every second row..." and "scrolling keeps the stripe" | ok |
+| 8.2 | Box has `key` and `hover={{backgroundColor: HOVER}}` on the same Box. Host types (claude-code.d.ts BoxProps.hover): hover applies while pointer is over the nearest keyed Box, this one included; no hook | ok |
+| 8.3 | core.ts COMMAND_STYLE = `{color:'ide'}` (not bold before, not bold now); test expects `‹ide: ` | ok |
+| 8.4 | `grep -rniE '#[0-9a-f]{6}|rgb\(' hooks/squads/*.ts hooks/squads/*.tsx` no hit; `cd hooks/squads && claude plugin test ../..` 647 pass 0 fail; python (squadruntime squadtree windows_safe utf8_helpers instructions) 127 OK | ok |
+| 8.5 | evidence.md dumps; I re-ran `pane-text fixtures/tree.json 30 80 --styles`: same stripe/hover lines | ok |
+| 8.6 | plugin.json 0.9.2, changelog v16, test_squadruntime.py 0.9.2; only `0.9.1` left is the v15 changelog entry (history) | ok |
+
+SQ-10: no bin/ or printed text touched; not needed.
+
+#### Follow-ups (not blocking)
+- Not live-verified in the real host: that the hover background paints on a Box that has no own background, and that the stripe fills the pane width. The type docs say hover may override backgroundColor, and a Box in a column stretches. QA blackbox to look if a real screen is possible.
+- Test limit: the tests check the props (bg, hover), not the pointer. The engine applies hover with no hook, so there is nothing more to test in the mod.
+- Old `0.9.1` in the v15 changelog entry is history, kept.
+
+## Review qa-b
+
+### 08 QA blackbox, sha 6ed9247
+
+Method: `git archive 6ed9247` to a scratch dir; `hooks/squads/pane-text <file> ROWS COLS --styles [--press KEY]` on the fixtures; same commands on `git archive c16cabf` (ticket 07) to compare. No code read. Types file of the mod API read for what `hover` does.
+
+| AC | live/shot | What I did | What I saw | Result |
+|---|---|---|---|---|
+| 8.1 stripe | live | tree.json 30x80 --styles; 8x80 with `--press below` and `below,below`; `--press plugin/done`; `--filter api` | Rows alternate: plugin none, g1 `bg=bashMessageBackgroundColor`, api none, ui bg, docs none, no-goal bg, fix none, Done bg, old-flat none. Group rows count. Scrolling: no-goal stays striped, fix stays plain, Done stays striped. Opening Done: g0 plain, tiny striped. Selected row: see limit 1 | pass |
+| 8.2 hover | live (prop) | same dumps | Every row has `hover=userMessageBackgroundHover` (striped and plain). The API doc says the surface applies `hover.backgroundColor` while the pointer is over the Box and removes it on leave. Real pointer: see limit 2 | pass (prop level) |
+| 8.3 command | live | `--press plugin/goal:g1`, `plugin/goal:g1/scope:api`, `plugin/scope:fix`, `plugin` (squad) | All command lines `‹ide: ...›` (07 sha: `permission`); titles bold as before; "Not yet" commands also `ide` | pass |
+| 8.4 no hex, text unchanged | live | `grep -rniE '#[0-9a-f]{6}\|rgb\(' hooks/squads/*.ts hooks/squads/*.tsx` = no hit (exit 1). Plain dumps (no --styles) of tree.json 30x80, goal detail, 8x60, 14x40, tree-empty, real.json 30x100 diffed with 07 sha: 0 diff lines. `--styles` diff = only the `{bg/hover}` prefixes and permission->ide | pass |
+| 8.5 evidence | shot | Developer's evidence.md has the list and detail style dumps; my dumps match | pass |
+| 8.6 version | live | plugin.json = 0.9.2; changelog entry "Plugin 0.9.2"; test_squadruntime.py names 0.9.2; `grep -rl '0\.9\.1'` hits only changelog.md = the old 0.9.1 entry (history) | pass |
+| tests | live | `claude plugin test .` on the archive: 647 pass, 0 fail | pass |
+
+Limits (could not check, no real terminal screen here):
+1. The selected row's look, and whether a stripe/hover fills the full pane width on a real screen: the dump is text and style runs only. The group rows (`no goal (1)`, `Done (2)`) are short text; a Box row should stretch, but I did not see it.
+2. A real mouse move over a row. Checked only that the engine's hover prop is set on every row.
+Chieu: one look at the real pane (hover a row, scroll) closes both.
