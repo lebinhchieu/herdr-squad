@@ -57,7 +57,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual((c["close-scope"]["state"], c["close-scope"]["reason"]), ("wait", "tasks open"))
         g = by_id(C.commands_for(info("goal", name="g1", open_scopes=["a", "b"], facts=facts())))
         self.assertEqual((g["close-goal"]["state"], g["close-goal"]["reason"]), ("wait", "scope a is open"))
-        self.assertEqual(g["close-goal"]["text"], "squad-close plugin --goal g1")
+        self.assertEqual(g["close-goal"]["text"], "squad-close plugin --goal g1 --dry-run")
 
     def test_T1_9g_retire_only_on_done_lone_scope_and_done_goal(self):
         has = lambda i: "retire" in by_id(C.commands_for(i))  # noqa: E731

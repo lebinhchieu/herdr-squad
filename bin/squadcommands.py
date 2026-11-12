@@ -105,7 +105,7 @@ COMMANDS = [
     _rec("close-scope", "Close scope",
          lambda i: "squad-close %s --scope %s --dry-run" % (q(i["squad"]), q(i["name"])), ("scope",), "open",
          "destructive", "Close the scope.", _close_scope_ready),
-    _rec("close-goal", "Close goal", lambda i: "squad-close %s --goal %s" % (q(i["squad"]), q(i["name"])),
+    _rec("close-goal", "Close goal", lambda i: "squad-close %s --goal %s --dry-run" % (q(i["squad"]), q(i["name"])),
          ("goal",), "open", "destructive", "Close the goal.", _close_goal_ready),
     _rec("close-squad", "Close squad", lambda i: "squad-close %s" % q(i["squad"]), ("squad",), "any",
          "destructive", "Work finished. Warning: retires every agent and archives the squad."),
