@@ -12,7 +12,7 @@ Amends two lines and says so: 0007 ("no cross-home view; `squad-board` stays the
 - The pane shows a number the board also shows, from the same code, so they agree.
 - "Active repo" is the main repo of the session (a worktree resolves to the main repo); other repos are never scanned (as 0020).
 - The mod loads in every session and does nothing until `/squads`; it reads no file itself (the CLI does).
-- New code: `bin/squad-tree`, `bin/squadtree.py`, `bin/squadcommands.py`, `hooks/squads/`, a second path in `hooks/hooks.json` `modules`, new `$.state` keys under plugin `squad`. Two additive edits in `squadboard_list.py` and `squadboard.py` (public `goal_row`, `squads_of`, one herdr call per run).
+- New code: `bin/squad-tree`, `bin/squadtree.py`, `bin/squadcommands.py`, `hooks/squads/`, one composed hooks module `hooks/register.tsx` (the engine takes one per plugin) that runs po-inbox and `hooks/squads/`, new `$.state` keys under plugin `squad`. Two additive edits in `squadboard_list.py` and `squadboard.py` (public `goal_row`, `squads_of`, one herdr call per run).
 - The JSON version 1 is additive only; the mod keeps its last good tree on any other version.
 - Not built, by decision: `new since last look` (no place for a last-seen time in a terminal), running any command from the pane (Chieu chose copy only), a cross-squad inbox.
 
