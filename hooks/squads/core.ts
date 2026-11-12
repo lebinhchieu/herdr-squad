@@ -1,7 +1,7 @@
 // The /squads pane, pure part: parse the squad-tree JSON, build the rows, fit them to the host's width and height.
 // No `$` here. Python owns every fact and command text; this file only orders and shortens what it is given.
 import type { GoalNode, ScopeNode, SquadCommand, SquadFacts, SquadNode, SquadsTree, SquadsUi } from '../../types'
-import { ACCENT, cellWidth, clipCells, oneLine, sanitize, TONE } from '../po-inbox/core'
+import { cellWidth, clipCells, oneLine, sanitize, TONE } from '../po-inbox/core'
 
 // A whole escape sequence goes (CSI colour codes, OSC titles ended by BEL or ESC \\, any other ESC pair), not only the ESC byte.
 const ESCAPES = /\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)?|\u001b[^[\]]?/g
@@ -70,7 +70,7 @@ const TONE_BY_RULE: Record<number, Style> = {
   1: { color: TONE.warn }, 2: NEEDS, 3: STUCK, 4: { color: TONE.good }, 5: DIM, 6: DIM, 7: { color: 'suggestion' }, 8: DIM, 9: { color: TONE.good },
 }
 export const toneOf = (n: Node): Style => TONE_BY_RULE[n.next_step?.rule] ?? DIM
-export const COMMAND_STYLE: Style = { color: ACCENT }
+export const COMMAND_STYLE: Style = { color: 'ide' }
 export const NOT_YET_STYLE: Style = { color: TONE.warn }
 export const CHANGE_STYLE: Record<string, Style> = {
   read: { color: TONE.good }, writes: { color: TONE.warn }, destructive: STUCK, starts: { color: TONE.warn }, varies: DIM,
