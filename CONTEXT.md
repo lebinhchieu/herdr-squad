@@ -330,6 +330,18 @@ _Avoid_: sandbox, test board
 The dashboard's squad-wide count of what waits on the PO: open questions, answers to read, tasks ready to merge and permission prompts; items outside the choice show as "N more need you in <name>". A parked question is not counted.
 _Avoid_: notifications, todo list
 
+**Squads pane**:
+The `/squads` mod pane: a read-only, list-only index of every squad, goal and scope of the active repo, each row with the board list's six facts and a Next step; the picked row shows its commands. It writes nothing and runs no command; a click copies one. Data comes from `squad-tree` (ADR 0026).
+_Avoid_: board (it shows one choice; the pane shows all), inbox
+
+**Next step**:
+The one phrase on a Squads pane row, chosen from the row's facts by fixed rules (for example "Answer 1 question(s)" when needs you is above 0). Not a task state.
+_Avoid_: status, action item
+
+**Commands table**:
+The single list of squad commands in `bin/squadcommands.py`: who runs each, what it changes and when it applies. The Squads pane filters it by the picked row; a new command is added in this one place.
+_Avoid_: commands doc, help text
+
 **Parked question**:
 A question the PO put aside, kept as a `## Q<n>` block in `open-questions.md` of its level (scope, goal or squad). It is not an inbox item; `squad-inbox park|unpark|resolve` is the only writer and the Manager never waits on it.
 _Avoid_: deferred escalation, backlog
@@ -418,6 +430,7 @@ Every time figure in a report. **Estimated, list price**: every dollar figure. L
 - A **Home** has at most one **Watchdog** running; the PO's "I am away" turns on **Away mode** and **Sleep-when-idle** together.
 - An **Inbox** shows the open **Escalations** of its **Home** (answer items) and its own read items; the PO's answer is written into the escalation's Answer cell.
 - Rendering never drops or changes the Manager's or the PO's text: unknown markup shows as plain text and every word stays reachable.
+- The **Squads pane** lists every **Squad**, **Goal** and **Scope** once, each with a **Next step**, and offers the **Commands table** entries that fit the picked row; the **Dashboard** is where one **Choice** is read in full.
 - The **Dashboard** shows exactly one **Choice** (a **Goal** with its **Scopes**, or one **Scope**) and many **Panels**; its **Picker** lists the choices.
 - A **Parked question** belongs to one level (scope, goal or squad) and is kept apart from the **Inbox**; the **Dashboard** only reads it.
 - An **Account launcher** starts Claude Code on one account; the **Workspace default**, inside herdr, else the **Global default**, decides which one `c` picks, and the launchers report an **Account token** for the workspace.
