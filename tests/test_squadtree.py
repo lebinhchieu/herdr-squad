@@ -127,6 +127,35 @@ class TreeTests(unittest.TestCase):
             with unittest.mock.patch.dict(os.environ, self.up.env()):
                 row = L.scope_row(squad, Path(n["home"]), n["status"], L._ctx(squad, sel))
             self.assertEqual(n["facts"], {k: row[k] for k in six}, n["name"])
+        # a goal row too: goal_row over the same scope rows
+        plugin = [x for x in self.tree_up["squads"] if x["name"] == "plugin"][0]
+        with unittest.mock.patch.dict(os.environ, self.up.env()):
+            ctx = L._ctx(squad, sel)
+            for g in plugin["goals"]:
+                rows = [L.scope_row(squad, Path(k["home"]), k["status"], ctx) for k in g["scopes"]]
+                want = L.goal_row(squad, Path(g["home"]), "open", rows)
+                self.assertEqual(g["facts"], {k: want[k] for k in six}, g["name"])
+
+    def test_T1_8_AC1_5_AC1_6_sort_order_and_squad_total(self):
+        sc = Scratch(True)
+        try:
+            base = sc.repo / ".claude/squads/plugin/scopes"
+            for name, stamp in (("new1", 0), ("old1", 3600)):  # no stuck; last active differs
+                shutil.copytree(str(base / "fix"), str(base / name))
+                (base / name / "messages.jsonl").write_text("", encoding="utf-8")
+                for f in (base / name).iterdir():
+                    t = build.LIVE.timestamp() - stamp
+                    os.utime(str(f), (t, t))
+            shutil.copytree(str(base / "fix"), str(base / "q1"))
+            (base / "q1" / "messages.jsonl").write_text("", encoding="utf-8")
+            (base / "q1" / "escalations.md").write_text(build.HEAD + "| 1 | 2026-11-12 | Q? | a | a | none | |\n", encoding="utf-8")
+            t = sc.tree()
+        finally:
+            sc.close()
+        plugin = [x for x in t["squads"] if x["name"] == "plugin"][0]
+        # needs you first, then more stuck, then newest; the lone rows here share needs you 0 except q1
+        self.assertEqual([n["name"] for n in plugin["scopes"]], ["q1", "fix", "new1", "old1"])
+        self.assertEqual(plugin["needs_you"], 2 + 1)  # goal g1 (api 2) + lone q1 (1): questions, not rows
 
     def test_T1_5_light_rows_read_no_inbox_and_no_git(self):
         with unittest.mock.patch.object(L.squadinbox, "snapshot", side_effect=AssertionError("inbox")) as snap, \
