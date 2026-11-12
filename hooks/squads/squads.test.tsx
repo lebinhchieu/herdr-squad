@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { EMPTY, TREE } from './fixtures'
 import { parseTree, windowOf } from './core'
 import { boot, KEYS, pane } from './testkit'
-import { dumpText } from './textdump'
+import { dumpStyled, dumpText } from './textdump'
 
 const J = (v: unknown) => JSON.stringify(v)
 const copy = <T,>(v: T): any => JSON.parse(JSON.stringify(v))
@@ -218,4 +218,17 @@ test('a state the previous shape wrote is declined', async ($, on) => {
   const ui = await $.ui.mount(pane('terminal', 80, 20))
   expect(dumpText(await ui.drawn(), 80)).toContain('Squads')
   void w
+})
+
+test('styles: each state has its tone in list and detail; theme keys only; the words stay', async ($, on) => {
+  const { ui, press, text } = await open($, on, TREE)
+  const list = dumpStyled(await ui.drawn())
+  for (const s of ['‹warning bold: ●›', '‹warning bold: needs 2›', '‹dim: ○›', '‹success: ✔›', '‹error bold: ▲›', '‹error bold: stuck 1›']) expect(list).toContain(s)
+  expect(list).not.toMatch(/#[0-9a-fA-F]{3,6}/)
+  const plain = await text()
+  await press('plugin/goal:g1')
+  const detail = dumpStyled(await ui.drawn())
+  for (const s of ['‹warning bold: ● needs you', '‹bold: Commands›', '‹permission: ', '‹success: read›', '‹warning bold: 2›']) expect(detail).toContain(s)
+  expect(detail).toContain('‹warning:   Not yet: agents are working›')
+  expect(plain).toContain('needs 2')
 })

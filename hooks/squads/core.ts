@@ -1,7 +1,7 @@
 // The /squads pane, pure part: parse the squad-tree JSON, build the rows, fit them to the host's width and height.
 // No `$` here. Python owns every fact and command text; this file only orders and shortens what it is given.
 import type { GoalNode, ScopeNode, SquadCommand, SquadFacts, SquadNode, SquadsTree, SquadsUi } from '../../types'
-import { cellWidth, clipCells, oneLine, sanitize } from '../po-inbox/core'
+import { ACCENT, cellWidth, clipCells, oneLine, sanitize, TONE } from '../po-inbox/core'
 
 // A whole escape sequence goes (CSI colour codes, OSC titles ended by BEL or ESC \\, any other ESC pair), not only the ESC byte.
 const ESCAPES = /\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)?|\u001b[^[\]]?/g
@@ -56,6 +56,28 @@ const BY_RULE: Record<number, [string, string]> = {
 }
 export const symbolOf = (n: Node): string => (BY_RULE[n.next_step?.rule] ?? ['·', ''])[0]
 export const stateWord = (n: Node): string => (BY_RULE[n.next_step?.rule] ?? ['·', 'unknown'])[1]
+
+// Style of one run: a theme key (never hex), bold, dim. The same state draws the same style in the list and the detail.
+export type Style = { color?: string; bold?: boolean; dim?: boolean }
+export type Seg = { text: string; style?: Style }
+const S = (text: string, style?: Style): Seg => (style ? { text, style } : { text })
+
+const NEEDS: Style = { color: TONE.warn, bold: true }
+const STUCK: Style = { color: TONE.bad, bold: true }
+const DIM: Style = { dim: true }
+// By next-step rule: 1 unreadable, 2 needs you, 3 stuck, 4 all done, 5 nobody working, 6 no tasks, 7 working, 8 waiting, 9 closed.
+const TONE_BY_RULE: Record<number, Style> = {
+  1: { color: TONE.warn }, 2: NEEDS, 3: STUCK, 4: { color: TONE.good }, 5: DIM, 6: DIM, 7: { color: 'suggestion' }, 8: DIM, 9: { color: TONE.good },
+}
+export const toneOf = (n: Node): Style => TONE_BY_RULE[n.next_step?.rule] ?? DIM
+export const COMMAND_STYLE: Style = { color: ACCENT }
+export const NOT_YET_STYLE: Style = { color: TONE.warn }
+export const CHANGE_STYLE: Record<string, Style> = {
+  read: { color: TONE.good }, writes: { color: TONE.warn }, destructive: STUCK, starts: { color: TONE.warn }, varies: DIM,
+}
+export const NEEDS_STYLE = NEEDS
+export const STUCK_STYLE = STUCK
+export const DIM_STYLE = DIM
 
 const q = (v: number | null | undefined): string => (typeof v === 'number' ? String(v) : '?')
 
@@ -152,26 +174,67 @@ export function columnsFor(cols: number): { agents: boolean; last: boolean; task
   return { agents: cols >= 76, last: cols >= 58, tasks: cols >= 46 }
 }
 
-export function rowText(r: Row, cols: number, now: string, nameW: number, nextW: number): string {
+const joinSegs = (segs: Seg[]): string => segs.map((x) => x.text).join('')
+
+// The row text is cut to the width as one string (as before); the styled runs are cut to the same prefix.
+function clipSegs(segs: Seg[], cols: number): Seg[] {
+  const full = joinSegs(segs).trimEnd()
+  const cut = fitCells(full, cols)
+  let common = 0
+  while (common < cut.length && common < full.length && cut[common] === full[common]) common++
+  const out: Seg[] = []
+  let at = 0
+  for (const x of segs) {
+    if (at >= common) break
+    const t = x.text.slice(0, common - at)
+    at += x.text.length
+    if (t !== '') out.push(S(t, x.style))
+  }
+  if (cut.length > common) {
+    if (out.length) out[out.length - 1] = S(out[out.length - 1].text + cut.slice(common), out[out.length - 1].style)
+    else out.push(S(cut.slice(common)))
+  }
+  return out
+}
+
+const padSeg = (text: string, w: number, style?: Style): Seg[] => (text === '' ? [S(' '.repeat(w))] : [S(text, style), S(' '.repeat(Math.max(0, w - cellWidth(text))))])
+
+export const sliceSegs = (segs: Seg[], from: number): Seg[] => {
+  const out: Seg[] = []
+  let at = 0
+  for (const x of segs) {
+    const start = Math.max(0, from - at)
+    at += x.text.length
+    if (start < x.text.length) out.push(S(x.text.slice(start), x.style))
+  }
+  return out
+}
+
+export const rowText = (r: Row, cols: number, now: string, nameW: number, nextW: number): string => joinSegs(rowSegs(r, cols, now, nameW, nextW))
+
+export function rowSegs(r: Row, cols: number, now: string, nameW: number, nextW: number): Seg[] {
   const ind = '  '.repeat(r.depth)
   const mark = r.foldKey ? (r.isFolded ? '▸' : '▾') : ' '
-  if (r.kind === 'group') return fitCells(`${ind}${mark} ${r.label}`, cols)
+  if (r.kind === 'group') return clipSegs([S(`${ind}${mark} ${r.label}`, DIM)], cols)
   if (r.kind === 'squad') {
     const s = r.squad
-    if (s.flat) return fitCells(`${mark} ${line(s.name)}  ${line(s.message ?? 'flat squad: not supported')}`, cols)
+    if (s.flat) return clipSegs([S(`${mark} ${line(s.name)}  `), S(line(s.message ?? 'flat squad: not supported'), DIM)], cols)
     const open = s.goals.length + s.scopes.length + s.goals.reduce((n, g) => n + g.scopes.filter((x) => x.status === 'open').length, 0)
     const tail = `needs ${s.needs_you}  ${open} open`
     const name = fitCells(line(s.name), Math.max(4, cols - 2 - tail.length - 2))
-    return fitCells(`${mark} ${name}  ${tail}`, cols)
+    return clipSegs([S(`${mark} `), S(name, { bold: true }), S('  '), S(`needs ${s.needs_you}`, s.needs_you > 0 ? NEEDS : DIM), S(`  ${open} open`, DIM)], cols)
   }
   const n = r.node as Node
   const sym = symbolOf(n)
+  const tone = toneOf(n)
+  const nextStyle: Style = { color: tone.color, dim: tone.dim }
   const name = line(n.name)
+  const headSegs = (): Seg[] => [S(`${ind}${mark} `), S(sym, tone), S(' ')]
   if (n.status === 'done' || !n.facts) {
     const rest = `${day(n.closed_at)}  Closed. Read the report.`
     const head = `${ind}${mark} ${sym} `
     const w = Math.max(4, cols - cellWidth(head) - 2 - cellWidth(rest))
-    return fitCells(`${head}${pad(fitCells(name, w), Math.min(nameW, w))}  ${rest}`, cols)
+    return clipSegs([...headSegs(), S(`${pad(fitCells(name, w), Math.min(nameW, w))}  `), S(rest, DIM)], cols)
   }
   const f = n.facts as SquadFacts
   const needs = f.needs_you === 0 ? '' : `needs ${q(f.needs_you)}`
@@ -196,16 +259,18 @@ export function rowText(r: Row, cols: number, now: string, nameW: number, nextW:
     const avail = cols - cellWidth(head) - flagsW - (right ? 2 + cellWidth(right) : 0)
     const nextAlloc = Math.min(cellWidth(nextText), nextW, Math.max(8, avail - 2 - nameW))
     const nameAlloc = Math.max(4, Math.min(nameW, avail - 2 - nextAlloc))
-    const body = `${head}${pad(fitCells(name, nameAlloc), nameAlloc)}  ${flags ? flags + '  ' : ''}${fitCells(nextText, nextAlloc)}${right ? `  ${right}` : ''}`
-    return fitCells(body.trimEnd(), cols)
+    const flagSegs: Seg[] = flags ? [...(needs ? [S(needs, NEEDS)] : []), ...(needs && stuck ? [S(' ')] : []), ...(stuck ? [S(stuck, STUCK)] : []), S('  ')] : []
+    return clipSegs([...headSegs(), S(pad(fitCells(name, nameAlloc), nameAlloc) + '  '), ...flagSegs, S(fitCells(nextText, nextAlloc), nextStyle), ...(right ? [S(`  ${right}`, DIM)] : [])], cols)
   }
   const right = mk(c)
   const fixed = cellWidth(head) + 2 + 8 + 2 + 8 + 2 + (right ? 2 + cellWidth(right) : 0)
   const room = Math.max(8, cols - fixed)
   const nw = Math.min(nameW, Math.max(4, Math.floor(room / 3)))
   const next = fitCells(nextText, Math.max(4, Math.min(nextW, room - nw - 2)))
-  const body = `${head}${pad(fitCells(name, nw), nw)}  ${pad(needs, 8)}  ${pad(stuck, 8)}  ${pad(next, Math.min(nextW, Math.max(4, room - nw - 2)))}${right ? `  ${right}` : ''}`
-  return fitCells(body.trimEnd(), cols)
+  return clipSegs([
+    ...headSegs(), S(pad(fitCells(name, nw), nw) + '  '), ...padSeg(needs, 8, NEEDS), S('  '), ...padSeg(stuck, 8, STUCK), S('  '),
+    ...padSeg(next, Math.min(nextW, Math.max(4, room - nw - 2)), nextStyle), ...(right ? [S(`  ${right}`, DIM)] : []),
+  ], cols)
 }
 
 export function widths(rows: Row[]): { nameW: number; nextW: number } {

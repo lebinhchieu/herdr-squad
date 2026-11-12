@@ -117,7 +117,7 @@ class PinTest(Base):
         self.assertEqual(c.exception.code, 2)
 
     def test_versions_compare_as_numbers(self):
-        self.assertLess(rt.vkey("0.9.0"), rt.vkey("0.10.0"))
+        self.assertLess(rt.vkey("0.9.1"), rt.vkey("0.10.0"))
 
 
 class MaterialiseTest(Base):

@@ -4,12 +4,24 @@ import type { On } from 'claude-code'
 
 import type { SquadCommand, SquadsTree, SquadsUi } from '../../types'
 import { back, copyCommand, patchUi, refresh, scrollTo, select, setFilter, toggle, view } from './actions'
-import type { Row, Target } from './core'
+import type { Row, Seg, Style, Target } from './core'
 import {
-  ago, day, fitCells, isOpenKey, line, listRows, needsTotal, resolve, rowText, stateWord, symbolOf, widths, windowOf,
+  ago, CHANGE_STYLE, COMMAND_STYLE, day, DIM_STYLE, fitCells, isOpenKey, line, listRows, needsTotal, NEEDS_STYLE, NOT_YET_STYLE, resolve,
+  rowSegs, sliceSegs, stateWord, STUCK_STYLE, symbolOf, toneOf, widths, windowOf,
 } from './core'
 
 const DEFAULT_ROWS = 20
+
+// One run of text in its style: theme keys only. The words stay, so colour is never the only signal.
+const styled = (T: any, st: Style | undefined, text: string, key: string | number, extra: Record<string, unknown> = {}) => {
+  const { Text } = T
+  const props: Record<string, unknown> = { ...extra }
+  if (st?.color) props.color = st.color
+  if (st?.bold) props.bold = true
+  if (st?.dim) props.dimColor = true
+  return <Text key={key} {...props}>{text}</Text>
+}
+const runs = (T: any, segs: Seg[]) => segs.map((x, i) => styled(T, x.style, x.text, i))
 
 function sizeOf(e: any): { rows: number; cols: number } {
   const rows = e.props?.scroll?.bodyRows ?? (typeof e.viewport?.rows === 'number' ? e.viewport.rows : DEFAULT_ROWS)
@@ -77,10 +89,12 @@ function listScreen($: any, e: any, T: any, tree: SquadsTree | null, ui: SquadsU
   const now = tree.generated
 
   const draw = (r: Row) => {
-    const text = rowText(r, cols, now, nameW, nextW)
+    const segs = rowSegs(r, cols, now, nameW, nextW)
     const cut = 2 * r.depth + 1
+    const text = segs.map((x) => x.text).join('')
     const lead = text.slice(0, cut)
     const rest = text.slice(cut)
+    const restRuns = runs(T, sliceSegs(segs, cut))
     const open = () => {
       if (r.kind === 'group') void toggle($, r.foldKey as string, r.foldKey?.endsWith('/done') === true)
       else void select($, r.path)
@@ -93,7 +107,7 @@ function listScreen($: any, e: any, T: any, tree: SquadsTree | null, ui: SquadsU
             <Button key={`${r.key}:fold`} plain label={lead.slice(-1)} onPress={() => { void toggle($, r.foldKey as string, false) }} />
           </Box>
         ) : <Text>{lead}</Text>}
-        <Button key={r.key} plain label={rest} onPress={open} />
+        <Button key={r.key} plain label={rest} onPress={open}>{restRuns}</Button>
       </Box>
     )
   }
@@ -120,11 +134,20 @@ function commandBlock($: any, T: any, c: SquadCommand, cols: number, key: string
   const { Box, Text, Button } = T
   const press = (p: any) => { void copyCommand($, c, p?.surface) }
   const dim = c.state === 'wait'
+  const word = CHANGES[c.changes] ?? line(c.changes)
+  const headText = fitCells(`⧉ ${line(c.label)}  (${word})`, cols)
+  const tag = `(${word})`
+  const at = headText.endsWith(tag) ? headText.length - tag.length : -1
+  const headRuns = at < 0 ? styled(T, undefined, headText, 'h') : [
+    styled(T, { bold: true }, headText.slice(0, at), 'a'), styled(T, undefined, '(', 'b'),
+    styled(T, CHANGE_STYLE[c.changes] ?? DIM_STYLE, word, 'w'), styled(T, undefined, ')', 'z'),
+  ]
+  const cmdText = fitCells(`  ${line(c.text)}`, Math.max(cols, 1))
   return (
     <Box key={key} flexDirection="column">
-      <Button key={`${key}:head`} plain label={fitCells(`⧉ ${line(c.label)}  (${CHANGES[c.changes] ?? line(c.changes)})`, cols)} onPress={press} />
+      <Button key={`${key}:head`} plain label={headText} onPress={press}>{headRuns}</Button>
       <Text dimColor wrap="truncate">{fitCells(`  ${line(c.when)}`, cols)}</Text>
-      <Button key={`${key}:text`} plain label={fitCells(`  ${line(c.text)}`, Math.max(cols, 1))} onPress={press} />
+      <Button key={`${key}:text`} plain label={cmdText} onPress={press}>{styled(T, COMMAND_STYLE, cmdText, 'cmd')}</Button>
       {dim ? <Text color="warning" wrap="truncate">{fitCells(`  Not yet: ${line(c.reason ?? '')}`, cols)}</Text> : null}
     </Box>
   )
@@ -135,22 +158,26 @@ function detailScreen($: any, e: any, T: any, tree: SquadsTree, ui: SquadsUi, t:
   const { cols } = sizeOf(e)
   const n = t.node
   const lines: any[] = []
-  const kv = (k: string, v: string) => lines.push(<Text key={`kv-${k}`} wrap="truncate">{fitCells(`${k.padEnd(10)} ${line(v)}`, cols)}</Text>)
+  const kv = (k: string, v: string, st?: Style) => {
+    const full = fitCells(`${k.padEnd(10)} ${line(v)}`, cols)
+    lines.push(<Text key={`kv-${k}`} wrap="truncate">{styled(T, undefined, full.slice(0, 11), 'k')}{styled(T, st, full.slice(11), 'v')}</Text>)
+  }
   let commands: SquadCommand[]
   let safe = true
   if (n) {
     safe = n.name_safe !== false
     commands = n.commands
-    lines.push(<Text key="state" bold wrap="truncate">{fitCells(`${symbolOf(n)} ${stateWord(n)}   ${line(t.squad.name)}${t.goal && n.kind === 'scope' ? ` / ${line(t.goal.name)}` : ''}`, cols)}</Text>)
+    const tone = toneOf(n)
+    lines.push(<Text key="state" bold {...(tone.color ? { color: tone.color } : {})} {...(tone.dim ? { dimColor: true } : {})} wrap="truncate">{fitCells(`${symbolOf(n)} ${stateWord(n)}   ${line(t.squad.name)}${t.goal && n.kind === 'scope' ? ` / ${line(t.goal.name)}` : ''}`, cols)}</Text>)
     lines.push(<Text key="name" wrap="truncate">{fitCells(line(n.name), cols)}</Text>)
     if (n.brief) lines.push(<Text key="brief" dimColor wrap="wrap">{line(n.brief)}</Text>)
     if (n.status === 'done' || !n.facts) {
-      lines.push(<Text key="closed">{`Closed ${day(n.closed_at)}. Read the report.`}</Text>)
+      lines.push(<Text key="closed" dimColor>{`Closed ${day(n.closed_at)}. Read the report.`}</Text>)
     } else {
       const f = n.facts
-      kv('Next', n.next_step.text)
-      kv('Needs you', f.needs_you === null ? '?' : String(f.needs_you))
-      kv('Stuck', String(f.stuck))
+      kv('Next', n.next_step.text, { color: tone.color, dim: tone.dim })
+      kv('Needs you', f.needs_you === null ? '?' : String(f.needs_you), f.needs_you === 0 ? DIM_STYLE : NEEDS_STYLE)
+      kv('Stuck', String(f.stuck), f.stuck > 0 ? STUCK_STYLE : DIM_STYLE)
       kv('Tasks', n.unknown.includes('tickets') || f.tasks_total === 0 ? '?' : `${f.tasks_done}/${f.tasks_total}`)
       kv('Last', ago(f.last_active, tree.generated))
       kv('Agents', f.agents_working === null ? '?' : String(f.agents_working))
@@ -168,7 +195,7 @@ function detailScreen($: any, e: any, T: any, tree: SquadsTree, ui: SquadsUi, t:
     const sub = n.scopes.map((x): Row => ({ key: `${t.squad.name}/goal:${n.name}/scope:${x.name}`, path: [t.squad.name, `goal:${n.name}`, `scope:${x.name}`], kind: 'scope', depth: 0, squad: t.squad, node: x, label: x.name, done: x.status === 'done' }))
     const { nameW, nextW } = widths(sub)
     children.push(<Text key="scopes-h" bold>Scopes</Text>)
-    for (const r of sub) children.push(<Button key={r.key} plain label={rowText(r, cols, tree.generated, nameW, nextW)} onPress={() => { void select($, r.path) }} />)
+    for (const r of sub) children.push(<Button key={r.key} plain label={rowSegs(r, cols, tree.generated, nameW, nextW).map((x) => x.text).join('')} onPress={() => { void select($, r.path) }}>{runs(T, rowSegs(r, cols, tree.generated, nameW, nextW))}</Button>)
   }
 
   const mine = commands.filter((c) => c.group !== 'team')

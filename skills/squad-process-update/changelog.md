@@ -1,3 +1,14 @@
+## v15 — 2026-11-12
+
+Plugin 0.9.1. The Squads pane now draws in colour; nothing breaks and no rule changes. A pinned squad keeps its own runtime until it re-pins.
+
+added:
+- Colours and styles in the Squads pane (theme keys only): needs you and stuck in bold, working, done and closed each in their own tone, command text in the accent, the change word and "Not yet" in a tone.
+- `hooks/squads/pane-text --styles`: prints each run's style next to its text.
+
+changed:
+none
+
 ## v14 — 2026-11-12
 
 Plugin 0.9.0. A new read-only Squads pane and `squad-tree`; no rule changes and nothing breaks. A pinned squad keeps its own runtime until it re-pins.
