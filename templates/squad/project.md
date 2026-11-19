@@ -5,7 +5,7 @@
 | What | Where |
 |---|---|
 | Project instructions | <the instructions file(s) every teammate follows, e.g. CLAUDE.md / AGENTS.md; team-level rules go here, through a PO-merged task> |
-| Requirements | <spec / ticket / Confluence export paths> |
+| Requirements | <spec / ticket / export paths> |
 | Business AC | <where business AC live> |
 | Technical AC / done rules | <conventions, definition of done> |
 | Decisions | <decisions file / ADR folder> |
