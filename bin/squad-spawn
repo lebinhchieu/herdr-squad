@@ -43,7 +43,7 @@ Env:
                    (default: lean, only the squad plugin, playwright-cli and claude-accounts); lean.json is then ignored
 
 Lean start, per squad: <squad>/settings/lean.json (optional) says what every role of that squad keeps:
-  {"skills": ["playwright-cli"], "plugins": ["reply-style"], "mcp": ["atlassian"]}
+  {"skills": ["playwright-cli"], "plugins": ["reply-style"], "mcp": ["playwright"]}
   skills   names copied from the user's skills folder (<config dir>/skills). Default when the key or the file is
            absent: playwright-cli and claude-accounts. [] keeps none.
   plugins  user plugins to keep enabled: a name from enabledPlugins in the user's settings.json, with or without
