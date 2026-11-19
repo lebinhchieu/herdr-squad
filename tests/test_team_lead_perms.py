@@ -25,12 +25,13 @@ ROSTER = """| Agent | Role | Scope | Owns | Status | Session |
 
 
 class SettingsTest(unittest.TestCase):
-    def test_allow_set_is_exact_and_denies_are_kept(self):
+    def test_allow_set_is_exact_and_git_risks_ask(self):
         cfg = json.loads(SETTINGS.read_text())["permissions"]
         self.assertEqual(set(cfg["allow"]), TL_ALLOW)
         self.assertEqual(len(cfg["allow"]), len(TL_ALLOW))
-        for d in ("git push", "git merge", "git rebase", "git reset --hard", "git checkout main", "git checkout dev"):
-            self.assertIn(f"Bash({d}:*)", cfg["deny"])
+        for d in ("git push", "git merge", "git rebase", "git reset --hard", "git checkout main", "git checkout dev", "git branch -D"):
+            self.assertIn(f"Bash({d}:*)", cfg["ask"])
+        self.assertFalse([d for d in cfg["deny"] if d.startswith("Bash(git")])
 
 
 class GateTest(unittest.TestCase):

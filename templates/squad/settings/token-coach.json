@@ -8,8 +8,14 @@
       "Write(/.claude/squads/*/scopes/*/iterations/*.coach.md)", "Edit(/.claude/squads/*/scopes/*/iterations/*.coach.md)",
       "Write(/.claude/squads/*/goals/*/coach/*.coach.md)", "Edit(/.claude/squads/*/goals/*/coach/*.coach.md)"
     ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git branch -D:*)"
+    ],
     "deny": [
-      "Bash(git push:*)", "Bash(git merge:*)", "Bash(git rebase:*)", "Bash(git reset --hard:*)",
       "Write(/.claude/squads/*/*.md)", "Edit(/.claude/squads/*/*.md)",
       "Write(/.claude/squads/*/scopes/*/*.md)", "Edit(/.claude/squads/*/scopes/*/*.md)", "Write(/.claude/squads/*/goals/*/*.md)", "Edit(/.claude/squads/*/goals/*/*.md)", "Write(/.claude/squads/*/settings/**)", "Edit(/.claude/squads/*/settings/**)",
       "Read(~/.claude/projects/**)", "Read(~/.claude-2/projects/**)"
