@@ -22,7 +22,7 @@ roles: manager
 topic: merge
 phase: merge
 
-`git merge --abort`, then tell the PO the files in conflict. The Manager never resolves a conflict and never uses `--force`, `rebase`, `reset --hard` or `push`.
+`git merge --abort`, then tell the PO the files in conflict. The Manager never resolves a conflict itself; it uses `--force`, `rebase`, `reset --hard` or `push` only as [SAFE-1b] allows.
 
 ## MRG-4 After the merge
 roles: manager

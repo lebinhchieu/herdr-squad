@@ -13,7 +13,7 @@ sys.path.insert(0, str(BIN))
 from rulesview import ROOT, ROLES, run, shape_team, who
 
 # ticket 09 (check table rule); the Developer gets no rule index, so ticket 10 does not lower this
-LIMIT = 5440
+LIMIT = 5580
 NOW = "2026-10-22T10:00:00Z"
 KEYS = ("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect")
 TEAMS = [tuple(k for i, k in enumerate(KEYS) if m >> i & 1) for m in range(128)]
@@ -76,7 +76,7 @@ class DevRulesSize(unittest.TestCase):
                 "REV-14a": "After a PASS, a later commit goes to",
                 {"S": "REV-22", "M": "EVID-2d", "L": "EVID-2b"}[size]: "squad-evidence check",
                 "COST-5" if size == "L" else "COST-5a": "no `squad-respawn`",
-                "SAFE-1a": "Never push, rebase",
+                "SAFE-1a": "Never touch another worktree",
                 "SAFE-3": "by PID",
                 "SAFE-4": "files your role owns",
                 "SAFE-11": "mktemp -d",

@@ -1,3 +1,18 @@
+## v17 — 2026-11-19
+
+Plugin 0.9.4. Git risk actions (push, rebase, reset --hard, branch -D, checkout main/dev, merge into the PO's branch) raise Claude Code's confirm prompt instead of being denied; the rules say who may start them. A pinned squad keeps its own runtime until it re-pins; `squad-process upgrade --check` names an overlay that replaced one of these rules.
+
+added:
+none
+
+changed:
+- SAFE-1a: a Developer runs a git risk action only when the PO asked in its own session and it answered the confirm prompt. why: the settings now ask instead of deny.
+- SAFE-1b: same for the Manager; deploy stays never. why: same.
+- SAFE-5: a role may commit on the PO's branch when the PO asks. why: checkout main/dev is now possible.
+- MRG-3: the Manager uses `--force`, `rebase`, `reset --hard` or `push` only as SAFE-1b allows. why: same.
+- WHO-5: Push is split from deploy: the PO asks, the asked role runs it after the confirm prompt. why: same.
+- Role settings ask instead of deny for these git actions.
+
 ## v16 — 2026-11-12
 
 Plugin 0.9.2. The Squads pane takes three colours from the theme; nothing breaks and no rule changes. A pinned squad keeps its own runtime until it re-pins.

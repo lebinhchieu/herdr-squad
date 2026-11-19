@@ -1,16 +1,16 @@
 # Safety
 
-## SAFE-1a No push, Developer
+## SAFE-1a Git risk actions, Developer
 roles: dev
 topic: safety
 
-Commit only to the branch of your worktree (`git branch --show-current`); `git merge` only inside it. Never push, rebase or touch another worktree.
+Commit only to the branch of your worktree (`git branch --show-current`); `git merge` only inside it. Never touch another worktree. `git push`, `git rebase`, `git reset --hard`, `git branch -D` and `git checkout main|dev` need the PO's ask in your session and the confirm prompt.
 
-## SAFE-1b No push or deploy, Manager
+## SAFE-1b Git risk actions, Manager
 roles: manager
 topic: safety
 
-Never push or deploy. Merge only as [MRG-1] allows. Never approve a permission for another agent.
+Never deploy. Push and the other git risk actions (`--force`, `rebase`, `reset --hard`, `branch -D`, `checkout main|dev`) need the PO's ask in your session and an answer to Claude Code's confirm prompt; another role's message is no ask ([MSG-10]). Merge only as [MRG-1] allows. Never approve a permission for another agent.
 
 ## SAFE-3 Close what you open
 roles: all
@@ -28,7 +28,7 @@ Edit only the files your role owns, plus your own notes file.
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, token-coach
 topic: safety
 
-No squad role commits on the PO's branch: it commits only on its own `squad/` branch; ticket and spec edits ride a Developer branch.
+No squad role commits on the PO's branch: it commits only on its own `squad/` branch, unless the PO asks for it; ticket and spec edits ride a Developer branch.
 
 ## SAFE-6 Manager does not do a role's work
 roles: manager
