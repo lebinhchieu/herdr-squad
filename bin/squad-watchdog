@@ -11,11 +11,10 @@ Idle = no live agent of the scope (or of the goal's scopes) is `working` in herd
 returned, handed in, checking). The start of an idle spell is logged with every agent's state. After 5 and after 15 minutes
 of the same spell the Manager gets a message (`herdr agent prompt`). The spell ends when someone works or no ticket waits.
 
-Wake-ups (on by default, only to the Manager the watchdog was started for): one message per event, never repeated: a ticket
-becomes passed, a ticket gets its 3rd return (the squad-ledger count), a pane stays `blocked` for 10 minutes (the text says
-"Chieu's to answer"; the watchdog never reads, relays or approves a prompt). Nothing is sent into a Manager pane that is
-`blocked` (a prompt may be open); the event is sent on a later pass. The first pass, or a state file from before this feature,
-only records a baseline. State keys: wake_status, wake_blocked, wake_sent. Switch file: watchdog.wake (`on` or `off`).
+Wake-up (on by default, only to the Manager the watchdog was started for): one message per event, never repeated: a pane
+stays `blocked` for 10 minutes (the text says "Chieu's to answer"; the watchdog never reads, relays or approves a prompt).
+Nothing is sent into a Manager pane that is `blocked` (a prompt may be open); the event is sent on a later pass. State keys:
+wake_blocked, wake_sent. Switch file: watchdog.wake (`on` or `off`).
 
 Sleep-when-idle is OFF. `squad-watchdog sleep on` turns it on; the Manager runs that only when the PO asks. While it is on,
 the watchdog suspends the computer once, when no agent anywhere on this machine has been `working` in herdr for
@@ -59,7 +58,6 @@ WSL_PS = ("Add-Type -AssemblyName System.Windows.Forms; "
           "[System.Windows.Forms.Application]::SetSuspendState('Suspend',$false,$false)")
 LOG, STATE, SLEEP, WAKE = "watchdog.log", "watchdog.state.json", "watchdog.sleep", "watchdog.wake"
 BLOCKED_WAKE_S = 600        # a pane blocked this long wakes the Manager
-RETURNS_WAKE = 3
 TEXT_CAP = 80
 
 
@@ -125,13 +123,6 @@ def clean(text, cap=TEXT_CAP):
     return t if len(t) <= cap else t[:cap - 1] + "…"
 
 
-def ledger_rows(home):
-    recs = []
-    for _label, h in scope_homes(home):
-        recs += squadledger.read_records(h / "messages.jsonl")
-    return {squadledger.key(r["task"]): r for r in squadledger.build(recs)}
-
-
 def passed_keys(h):
     """Ticket keys of scope folder `h` that passed. Same sources as the board: the event store (`squadtask.is_passed`),
     else the ledger row whose verdicts are PASS from every checker on the current sha. The ticket label is no source:
@@ -149,36 +140,14 @@ def passed_keys(h):
     return out
 
 
-def sha_text(row):
-    return "shas " + (clean(row["sha"], 40) if row and row.get("sha") else "-")
-
-
-def wake_events(st, snap, rows, now):
-    """Pure: -> (new state, [(key, text)]). The first pass (no wake_status in the state, also an old state file) records a
-    baseline and sends nothing. Keys are stored in wake_sent by the caller once the message went out."""
+def wake_events(st, snap, now):
+    """Pure: -> (new state, [(key, text)]). One event: a pane `blocked` for 10 minutes. A ticket that passes or comes back
+    is no event (the plan owner is told by the process). Keys are stored in wake_sent by the caller once the message went
+    out. A `wake_status` key of an old state file is dropped."""
     st = dict(st)
-    base = "wake_status" not in st
+    st.pop("wake_status", None)
     sent = set(st.get("wake_sent") or [])
-    prev = st.get("wake_status") or {}
-    cur = {}
     out = []
-    for t in snap["tickets"]:
-        tid = clean(t["id"], 40)
-        word = "passed" if t.get("passed", t["status"] in DONE) else t["status"]
-        cur[tid] = word
-        row = rows.get(squadledger.key(t["id"]))
-        n = row["returns"] if row else 0
-        if n >= RETURNS_WAKE:
-            k = f"returns3:{tid}"
-            if base:
-                sent.add(k)
-            elif k not in sent:
-                out.append((k, f"WAKE returns3 {tid}: ticket {tid} came back {RETURNS_WAKE} times. {sha_text(row)}"))
-        if word in DONE and not base and tid in prev and prev[tid] not in DONE:
-            k = f"passed:{tid}"
-            if k not in sent:
-                cur[tid] = prev[tid]  # keep the old status until the message is out: a held or failed send is retried
-                out.append((k, f"WAKE passed {tid}: ticket {tid} is now {clean(word, 20)}. {sha_text(row)}"))
     blocked = dict(st.get("wake_blocked") or {})
     now_blocked = {a["name"] for a in snap["agents"] if a["state"] == "blocked"}
     for name in list(blocked):
@@ -189,10 +158,10 @@ def wake_events(st, snap, rows, now):
             continue
         since = blocked.setdefault(a["name"], now)
         k = f"blocked:{clean(a['name'], 60)}:{int(since)}"
-        if not base and now - since >= BLOCKED_WAKE_S and k not in sent:
+        if now - since >= BLOCKED_WAKE_S and k not in sent:
             out.append((k, f"WAKE blocked {clean(a['name'], 60)}: pane (owns {clean(a['owns'])}) has been blocked for more "
                            "than 10 minutes. Chieu's to answer; do not relay or approve the prompt."))
-    st["wake_status"], st["wake_blocked"], st["wake_sent"] = cur, blocked, sorted(sent)
+    st["wake_blocked"], st["wake_sent"] = blocked, sorted(sent)
     return st, out
 
 
@@ -355,7 +324,7 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None):
     snap = snapshot(home, herdr_json)
     st, events = decide(read_state(home), snap, now, sleep_on(home), sleep_after_s())
     if snap["ok"] and wake_on(home):
-        st, wakes = wake_events(st, snap, ledger_rows(home), now)
+        st, wakes = wake_events(st, snap, now)
         mgr_blocked = any(a["name"] == manager and a["state"] == "blocked" for a in snap["agents"])
         for key, text in wakes:
             if mgr_blocked:  # a prompt may be open in the Manager pane: send nothing, keep the key free, retry later
