@@ -1,3 +1,18 @@
+## v18 — 2026-11-20
+
+Plugin 0.9.5. The watchdog follows a goals file and no longer wakes the Manager when a ticket passes; the rules say who writes the file and how a pass is told. A pinned squad keeps its own runtime until it re-pins. LC-20a, LC-20b, LC-20e and MSG-6 change hash, so `squad-process upgrade --check` names an overlay that replaced one.
+
+added:
+- START-19b: the Manager alone writes `goals.md` (add a row on each PO request, `done` when its tasks passed, `blocked` + inbox item when the PO must act) and runs `squad-watchdog ensure`. why: the watchdog reads this file.
+- FILE-6: a `goals.md` row.
+- ADR 0028: the watchdog follows the goals file (supersedes the wake text of ADR 0022).
+
+changed:
+- LC-20a, LC-20b, LC-20e: the Developer tells the plan owner `STATUS NN: passed <sha>`. why: the rules named no message type.
+- MSG-6: the Team Lead tells the Manager one line when a goal is done or blocked, never a pass per ticket.
+- START-19: both Managers write the first goal row from the brief.
+- `agents/team-lead.md`: the context line matches MSG-19 (not copied on HANDIN, PASS, FAIL). why: the two contradicted.
+
 ## v17 — 2026-11-19
 
 Plugin 0.9.4. Git risk actions (push, rebase, reset --hard, branch -D, checkout main/dev, merge into the PO's branch) raise Claude Code's confirm prompt instead of being denied; the rules say who may start them. A pinned squad keeps its own runtime until it re-pins; `squad-process upgrade --check` names an overlay that replaced one of these rules.

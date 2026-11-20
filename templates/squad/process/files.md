@@ -76,6 +76,7 @@ topic: files
 | `scope.md` | Manager | PO's brief, `goal:`, `team:` and signals, `qa:`, constraints |
 | `roster.md` | Manager; the Team Lead for its Developers, when on the team | Each agent: name, role, scope, owns, status, session |
 | `escalations.md` | Manager | Waiting on the PO |
+| `goals.md` | Manager alone ([START-19b]) | One row per PO request: status `in progress`, `done`, `blocked` |
 | `promote.md` | The `promote-owner` of `duties:` (Tech Lead, QA whitebox or Developer) | For the project docs |
 | `messages.jsonl`, `usage-events.jsonl` | hooks | Message log; cost-rule firings |
 

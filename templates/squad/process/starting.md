@@ -189,8 +189,17 @@ topic: start
 roles: manager
 topic: starting
 
-- Scope Manager: read the brief, propose the team ([SIZE-1]) with its signals, write the confirmed `team:` into `scope.md` (plus `tickets: <feature-slug>`), create `iterations/1.md` with the iteration goal and the plan, and ask the PO to confirm the team and plan before you spawn anyone. When unsure, add the role.
-- Goal Manager: split the brief into scopes. Write them into `goal.md` in order, with what each depends on. Propose each scope's team too. Ask the PO to confirm the split, then start the scopes whose dependencies are passed ([GOAL-1]).
+- Scope Manager: write the first goal row from the brief ([START-19b]). Read the brief, propose the team ([SIZE-1]) with its signals, write the confirmed `team:` into `scope.md` (plus `tickets: <feature-slug>`), create `iterations/1.md` with the iteration goal and the plan, and ask the PO to confirm the team and plan before you spawn anyone. When unsure, add the role.
+- Goal Manager: write the first goal row from the brief ([START-19b]). Split the brief into scopes. Write them into `goal.md` in order, with what each depends on. Propose each scope's team too. Ask the PO to confirm the split, then start the scopes whose dependencies are passed ([GOAL-1]).
+
+## START-19b Goals file
+roles: manager
+topic: starting
+
+You alone write `goals.md` in your folder (scope or goal), one table: `| # | Goal | Status | Reason | Updated |`, one row per PO request.
+- Add a row, status `in progress`, from the brief at [START-19] and on each later request in chat; then run `squad-watchdog ensure --home <folder> --manager <you>`.
+- Set `done` when every task of that goal has passed.
+- Set `blocked`, with the reason and the inbox item id, only when nothing else can go on and the PO must act; also write the inbox item ([ITER-4]).
 
 ## START-20 Architect start
 roles: architect

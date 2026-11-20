@@ -306,7 +306,7 @@ class WatchdogTest(unittest.TestCase):
 
 
 class WakeTest(WatchdogTest):
-    """Ticket 08: one message to the Manager per event (passed, 3rd return, pane blocked 10 min); never repeated."""
+    """Ticket 08: one message to the Manager per event (pane blocked 10 min); never repeated."""
 
     def msgs(self, *rows):
         with open(self.home / "messages.jsonl", "a", encoding="utf-8") as fh:
@@ -320,58 +320,16 @@ class WakeTest(WatchdogTest):
     def work(self, **kw):
         self.agents(**dict(dict(t_mgr_s1="working", t_dev_s1="idle", t_qa_s1="working"), **kw))
 
-    def test_passed_once_and_baseline_is_silent(self):
-        self.work()
-        self.msgs(("HANDIN", "t-dev-s1", "HANDIN 03: commit abc1234 ok"))
-        self.tickets(t03="passed", t04="checking")
-        self.tick(0)  # first pass: baseline, nothing for the ticket that is already passed
-        self.assertEqual(self.wakes(), [])
-        self.tickets(t03="passed", t04="passed")
-        self.tick(1)
-        self.tick(2)  # same state again: no repeat
-        self.assertEqual(len(self.wakes()), 1, self.wakes())
-        self.assertIn("WAKE passed 04", self.wakes()[0])
-        self.tick(3)
-        self.assertEqual(len(self.wakes()), 1)
-        self.assertTrue(all(m == "t-mgr-s1" for m, _ in self.sent))
-
-    def test_passed_from_pass_messages_when_the_label_is_empty(self):
-        """QA whitebox FAIL at 3675aa1: a pass is never written to the ticket label, only PASS messages."""
-        with open(self.home / "roster.md", "a", encoding="utf-8") as fh:
-            fh.write("| t-qb-s1 | qa-blackbox | s1 | ticket 03 | live | d |\n")
-        self.work()
-        self.tickets(t03="")
-        self.msgs(("HANDIN", "t-dev-s1", "HANDIN 03: commit abc1234 ok"), ("PASS", "t-qa-s1", "PASS 03: abc1234"))
-        self.tick(0)  # baseline: one of two checkers passed
-        self.tick(1)
-        self.assertEqual(self.wakes(), [])
-        self.msgs(("PASS", "t-qb-s1", "PASS 03: abc1234"))
-        self.tick(2)
-        self.tick(3)
-        self.assertEqual(len(self.wakes()), 1, self.wakes())
-        self.assertIn("WAKE passed 03", self.wakes()[0])
-        self.assertIn("abc1234", self.wakes()[0])
-
-    def test_third_return_counts_like_the_ledger_and_sends_once(self):
-        import squadledger
+    def test_a_ticket_that_passes_or_returns_three_times_sends_and_logs_nothing(self):
         self.work()
         self.tickets(t03="building")
         self.tick(0)
-        for n in (1, 2):  # two checkers fail each sha: still one return per sha
-            self.msgs(("HANDIN", "t-dev-s1", f"HANDIN 03: commit aaa{n}111"), ("FAIL", "t-qa-s1", f"FAIL 03: aaa{n}111 x"),
-                      ("FAIL", "t-qb-s1", f"FAIL 03: aaa{n}111 y"))
+        self.tickets(t03="passed")
+        self.msgs(*[x for n in (1, 2, 3) for x in (("HANDIN", "t-dev-s1", f"HANDIN 03: commit aaa{n}111"), ("FAIL", "t-qa-s1", f"FAIL 03: aaa{n}111 x"))])
         self.tick(1)
-        self.assertEqual(self.wakes(), [])
-        self.msgs(("HANDIN", "t-dev-s1", "HANDIN 03: commit aaa3111"), ("FAIL", "t-qa-s1", "FAIL 03: aaa3111 z"))
-        rows = squadledger.build(squadledger.read_records(self.home / "messages.jsonl"))
-        self.assertEqual(rows[0]["returns"], 3)
         self.tick(2)
-        self.tick(3)
-        self.msgs(("HANDIN", "t-dev-s1", "HANDIN 03: commit aaa4111"), ("FAIL", "t-qa-s1", "FAIL 03: aaa4111 w"))
-        self.tick(4)  # a 4th return sends nothing more
-        self.assertEqual(len(self.wakes()), 1, self.wakes())
-        self.assertIn("returns3 03", self.wakes()[0])
-        self.assertIn("aaa3111", self.wakes()[0])
+        self.assertEqual(self.sent, [])
+        self.assertNotIn("wake", self.log() if (self.home / "watchdog.log").exists() else "")
 
     def test_blocked_pane_wakes_once_after_10_minutes_and_never_relays(self):
         self.work(t_dev_s1="blocked")
@@ -392,39 +350,32 @@ class WakeTest(WatchdogTest):
         self.assertEqual(len(self.wakes()), 2)
 
     def test_no_wake_into_a_blocked_manager_pane_and_a_failed_send_is_retried(self):
-        self.work()
+        self.work(t_dev_s1="blocked")
         self.tickets(t03="building")
         self.tick(0)
-        self.tickets(t03="passed")
-        self.work(t_mgr_s1="blocked")
-        self.tick(1)
+        self.work(t_dev_s1="blocked", t_mgr_s1="blocked")
+        self.tick(11)
         self.assertEqual(self.wakes(), [])  # a prompt may be open: nothing sent, key not stored
-        self.work()
+        self.work(t_dev_s1="blocked")
         fails = []
-        W.tick(self.home, "t-mgr-s1", now=T0 + 2 * MIN, herdr_json=str(self.herdr), send=lambda m, t: (fails.append(t) or (False, "no")))
-        self.tick(3)  # retried and sent
-        self.tick(4)
+        W.tick(self.home, "t-mgr-s1", now=T0 + 12 * MIN, herdr_json=str(self.herdr), send=lambda m, t: (fails.append(t) or (False, "no")))
+        self.tick(13)  # retried and sent
+        self.tick(14)
         self.assertEqual((len(fails), len(self.wakes())), (1, 1))
 
     def test_switch_off_and_old_state_file(self):
-        self.work()
-        self.tickets(t03="passed")
-        self.msgs(*[x for n in (1, 2, 3) for x in (("HANDIN", "t-dev-s1", f"HANDIN 03: commit bbb{n}111"), ("FAIL", "t-qa-s1", f"FAIL 03: bbb{n}111 x"))])
-        (self.home / "watchdog.state.json").write_text(json.dumps({"beat": 1, "idle_since": None}), encoding="utf-8")  # before this feature
+        self.work(t_dev_s1="blocked")
+        self.tickets(t03="building")
+        (self.home / "watchdog.state.json").write_text(json.dumps({"beat": 1, "idle_since": None, "wake_status": {"03": "building"}}),
+                                                      encoding="utf-8")  # an old file with the removed key
         self.tick(0)
-        self.assertEqual(self.wakes(), [])  # baseline: no flood after a restart, the 3 returns are already known
+        self.assertNotIn("wake_status", json.loads((self.home / "watchdog.state.json").read_text(encoding="utf-8")))
         W.set_wake(self.home, False)
         self.assertFalse(W.wake_on(self.home))
-        self.tickets(t03="building")
-        self.tick(1)
-        self.tickets(t03="passed")
-        self.tick(2)
+        self.tick(11)
         self.assertEqual(self.wakes(), [])
         W.set_wake(self.home, True)
-        self.tickets(t03="building")
-        self.tick(3)
-        self.tickets(t03="passed")
-        self.tick(4)
+        self.tick(12)
         self.assertEqual(len(self.wakes()), 1)
 
     def test_roster_text_is_one_capped_line(self):
@@ -448,3 +399,108 @@ class WakeTest(WatchdogTest):
         self.assertIn("wake-ups: off", run("status").stdout)
         run("wake", "on")
         self.assertIn("wake-ups: on", run("status").stdout)
+
+
+GOALS = """# Goals
+
+| # | Goal | Status | Reason / what Chieu must do | Updated |
+|---|---|---|---|---|
+| G1 | Ship the report |  In Progress | | 2027-01-15 |
+| G2 | Fix the login | blocked | needs the prod key; inbox item i7 | 2027-01-15 |
+| G3 | Old thing | done | | 2027-01-14 |
+"""
+ALL_DONE = "| # | Goal | Status |\n|---|---|---|\n| G1 | x | done |\n| G2 | y | Done |\n"
+
+
+class GoalsTest(WatchdogTest):
+    """Ticket 03: the watchdog follows <home>/goals.md."""
+
+    def goals(self, text=GOALS):
+        (self.home / "goals.md").write_text(text, encoding="utf-8")
+
+    def idle(self, **kw):
+        self.agents(**dict(dict(t_mgr_s1="idle", t_dev_s1="idle", t_qa_s1="idle"), **kw))
+
+    def test_read_goals_is_tolerant_and_none_without_a_file(self):
+        self.assertIsNone(W.read_goals(self.home))
+        self.goals(GOALS.replace("blocked", "  BLOCKED ").replace("done", "weird"))
+        self.assertEqual(W.read_goals(self.home), [("G1", "Ship the report", "in progress", ""),
+                         ("G2", "Fix the login", "blocked", "needs the prod key; inbox item i7"), ("G3", "Old thing", "in progress", "")])
+        self.goals("# Goals\n\n| # | Goal | Status | Reason | Updated |\n|---|---|---|---|---|\n")
+        self.assertEqual(W.read_goals(self.home), [])
+
+    def test_open_goal_and_idle_nudges_at_5_and_15_with_status_and_reason(self):
+        self.goals()
+        self.idle()  # no ticket waits: the goals alone keep the spell open
+        for m in (0, 4, 5, 14, 15, 40):
+            self.tick(m)
+        self.assertEqual(len(self.sent), 2)
+        first, second = (t for _, t in self.sent)
+        self.assertIn("nobody has worked for 5 minutes", first)
+        self.assertIn("still nobody working after 15 minutes", second)
+        self.assertIn("G1 Ship the report: in progress", first)
+        self.assertIn("G2 Fix the login: blocked (needs the prod key; inbox item i7)", first)
+        self.assertNotIn("G3", first)
+        self.assertIn("solve", first)
+        self.assertNotIn("ignore this", first)
+        self.assertIn("idle start: nobody works and goals are open (G1", self.log())
+        self.assertNotIn("watchdog stops", self.log())
+
+    def test_all_goals_done_and_nobody_working_stops_and_run_returns(self):
+        self.goals(ALL_DONE)
+        self.idle()
+        self.tickets(t03="building")  # an open ticket does not matter once goals are recorded
+        self.assertIn(("stop",), self.tick(0))
+        self.assertIn("all goals done; watchdog stops", self.log())
+        self.assertIsNone(W.read_state(self.home)["beat"])
+        self.assertEqual(self.sent, [])
+        # the real run loop (real clock, no beat left): it returns instead of looping
+        self.assertEqual(W.run(self.home, "t-mgr-s1", 0.01, str(self.herdr)), 0)
+        self.assertIn("watchdog started", self.log())
+
+    def test_all_goals_done_but_an_agent_working_does_not_stop(self):
+        self.goals(ALL_DONE)
+        self.idle(t_dev_s1="working")
+        self.assertNotIn(("stop",), self.tick(0))
+        self.assertFalse((self.home / "watchdog.log").exists())
+
+    def test_the_stop_waits_for_a_pending_pc_sleep(self):
+        self.goals(ALL_DONE)
+        self.idle()
+        W.set_sleep(self.home, True)
+        self.tick(0)
+        self.assertNotIn(("stop",), self.tick(6))
+        self.assertEqual(self.suspended, [1])
+        self.assertIn(("stop",), self.tick(7))  # the switch is off now
+
+    def test_no_goals_file_or_an_empty_table_behaves_as_before(self):
+        self.tickets(t03="ready")
+        self.idle()
+        self.goals("| # | Goal | Status |\n|---|---|---|\n")
+        for m in (0, 5, 15):
+            self.assertNotIn(("stop",), self.tick(m))
+        self.assertEqual(len(self.sent), 2)
+        self.assertIn("Waiting: 03 ready.", self.sent[0][1])
+        self.assertNotIn("ignore this", self.sent[0][1])
+
+    def test_status_shows_the_open_goal_count(self):
+        self.goals()
+        r = winlaunch.run_script(str(BIN / "squad-watchdog"), ["status", "--home", str(self.home)], clean_env(), utf8=True,
+                                 encoding="utf-8", capture_output=True)
+        self.assertIn("open goals: 2", r.stdout)
+
+    def test_ensure_starts_once_and_a_second_call_does_nothing(self):
+        import subprocess
+        import time
+        from unittest import mock
+        started = []
+
+        def fake_popen(argv, **kw):
+            started.append(argv)
+            W.write_state(self.home, {"beat": time.time()})  # what the started `run` does
+        env = {k: v for k, v in os.environ.items() if k not in ("HERDR_ENV", "SQUAD_WATCHDOG")}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(subprocess, "Popen", fake_popen):
+            self.assertTrue(W.ensure(self.home, "t-mgr-s1"))
+            self.assertFalse(W.ensure(self.home, "t-mgr-s1"))
+        self.assertEqual(len(started), 1)
+        self.assertEqual(started[0][-4:], ["--home", str(self.home), "--manager", "t-mgr-s1"])

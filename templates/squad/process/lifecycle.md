@@ -258,21 +258,21 @@ roles: dev
 when: handin-target = manager
 topic: lifecycle
 
-Passed at `HANDIN`. Tell the Manager and wait; it retires you.
+At `HANDIN` send `STATUS NN: passed <sha>`; it retires you.
 
 ## LC-20b Passed, QAs
 roles: dev
 when: handin-target = qas
 topic: lifecycle
 
-Passed on every checker's `PASS`. Tell the plan owner and wait; it retires you.
+On every `PASS` send the plan owner `STATUS NN: passed <sha>`; it retires you.
 
 ## LC-20e Passed, Team Lead alone
 roles: dev
 when: handin-target = team-lead
 topic: lifecycle
 
-Passed at `HANDIN`. Tell it and wait; it retires you.
+At `HANDIN` send `STATUS NN: passed <sha>`; it retires you.
 
 ## LC-21 QA light mode
 roles: qa-whitebox, qa-blackbox

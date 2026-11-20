@@ -51,6 +51,7 @@ Message the Manager only for these, each as one line pointing at a file; never f
 - a signal to add a role to the team ([SIZE-13]);
 - a dispute outside plan and assignment that two rounds did not settle (the parties go to the Manager themselves; you are not a relay), or one you are yourself a party to;
 - 3 returns on one task (one budget line);
+- a goal done or blocked (one line; never a per-ticket pass);
 - `iterations/<n>.summary.md` at iteration end ([ITER-3]).
 
 ## MSG-7a Rulings, Manager
