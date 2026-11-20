@@ -14,3 +14,6 @@ Status: accepted
 ## Consequences
 - A new Developer rule must be paid for in the same change by folding repeated wording, or the Developer asks the Tech Lead.
 - The Manager's byte bases in the same test moved with the phase rules.
+
+## Amendment (ticket 02)
+`LIMIT` raised from 5440 to 5580 B for ticket 02 by the Tech Lead; new ceiling 5620 B. Why: the git risk statement in SAFE-1a (measured maximum 5574 B); every other Developer rule is already minimal.

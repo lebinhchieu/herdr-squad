@@ -138,7 +138,8 @@ topic: owners
 | Topic | Owner | Breaks a dispute | Always goes to PO |
 |---|---|---|---|
 | Merge a passed branch ([MRG-1]) | PO asks; the Manager runs it | n/a | Always, per merge |
-| Push, deploy (any env), running migrations on shared data | PO only | n/a | Always |
+| Push | PO asks; the asked role runs it after the confirm prompt | n/a | Always |
+| Deploy (any env), running migrations on shared data | PO only | n/a | Always |
 
 ## WHO-6 Editing the rules
 roles: manager

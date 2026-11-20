@@ -48,17 +48,20 @@ class TemplateLayersTest(unittest.TestCase):
         for cmd in ("squad-start", "squad-spawn", "squad-retire", "squad-respawn", "squad-close", "squad-usage"):
             self.assertIn(f"Bash({cmd}:*)", allow)
 
-    def test_only_developers_and_the_manager_may_merge_and_nobody_may_push_or_switch_to_main(self):
+    def test_git_merge_is_allowed_for_dev_and_manager_and_every_git_risk_asks_never_denied(self):
         for role in ROLES:
             perms = json.loads((T / "squad/settings" / f"{role}.json").read_text())["permissions"]
             if role in ("dev", "manager"):
                 self.assertIn("Bash(git merge:*)", perms["allow"])
-                self.assertNotIn("Bash(git merge:*)", perms["deny"])
-                for cmd in ("git push", "git rebase", "git reset --hard", "git checkout main", "git checkout dev"):
-                    self.assertIn(f"Bash({cmd}:*)", perms["deny"], cmd)
-            elif "deny" in perms:
-                self.assertIn("Bash(git merge:*)", perms["deny"], role)
+                self.assertNotIn("Bash(git merge:*)", perms["ask"])
+                cmds = ("git push", "git rebase", "git reset --hard", "git checkout main", "git checkout dev", "git branch -D")
+            else:
+                self.assertIn("Bash(git merge:*)", perms["ask"], role)
                 self.assertNotIn("Bash(git merge:*)", perms.get("allow", []), role)
+                cmds = ("git push", "git rebase", "git reset --hard", "git branch -D")
+            for cmd in cmds:
+                self.assertIn(f"Bash({cmd}:*)", perms["ask"], f"{role} {cmd}")
+            self.assertFalse([d for d in perms.get("deny", []) if d.startswith("Bash(git")], role)
 
     def test_token_coach_may_write_only_its_own_proposal_files(self):
         perms = json.loads((T / "squad/settings/token-coach.json").read_text())["permissions"]

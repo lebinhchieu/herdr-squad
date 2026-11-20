@@ -12,13 +12,16 @@
       "Write(/.claude/squads/*/scopes/*/ui-design/**)",
       "Edit(/.claude/squads/*/scopes/*/ui-design/**)"
     ],
-    "deny": [
+    "ask": [
       "Bash(git push:*)",
       "Bash(git merge:*)",
       "Bash(git rebase:*)",
       "Bash(git reset --hard:*)",
       "Bash(git checkout main:*)",
       "Bash(git checkout dev:*)",
+      "Bash(git branch -D:*)"
+    ],
+    "deny": [
       "Write(/.claude/squads/*/*.md)",
       "Edit(/.claude/squads/*/*.md)",
       "Write(/.claude/squads/*/scopes/*/*.md)",

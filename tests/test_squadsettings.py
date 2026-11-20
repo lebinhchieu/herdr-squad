@@ -103,13 +103,15 @@ class EffectiveTest(Base):
                 self.assertNotIn("codePaths", e)
                 self.assertFalse([d for d in e["permissions"]["deny"] if d.startswith("Read(")])
                 self.assertNotIn("CODE_PATHS_SET_BY_SQUAD_INIT", json.dumps(e))
-                self.assertIn("Bash(git push:*)", e["permissions"]["deny"])
+                self.assertIn("Bash(git push:*)", e["permissions"]["ask"])
+                self.assertNotIn("Bash(git push:*)", e["permissions"]["deny"])
 
-    def test_git_writes_stay_denied(self):
+    def test_git_risk_actions_ask_and_are_never_denied(self):
         for f in sorted((ROOT / "templates/squad/settings").glob("*.json")):
             perms = json.loads(f.read_text(encoding="utf-8"))["permissions"]
-            for g in ("push", "rebase", "reset --hard"):
-                self.assertIn(f"Bash(git {g}:*)", perms["deny"], f.name)
+            for g in ("push", "rebase", "reset --hard", "branch -D"):
+                self.assertIn(f"Bash(git {g}:*)", perms["ask"], f.name)
+            self.assertFalse([d for d in perms["deny"] if d.startswith("Bash(git")], f.name)
 
     def test_scratch_rm_allowed_only_under_mktemp_dirs(self):
         d = ROOT / "templates/squad/settings"

@@ -274,7 +274,8 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertEqual(allow.count("Bash(git status:*)"), 1)  # joined without a duplicate
         self.assertIn("Bash(rtk:*)", allow)
         self.assertIn("Bash(git diff:*)", allow)  # from the role's template
-        self.assertIn("Bash(git push:*)", m["permissions"]["deny"])
+        self.assertIn("Bash(git push:*)", m["permissions"]["ask"])
+        self.assertNotIn("Bash(git push:*)", m["permissions"]["deny"])
 
     def test_lean_settings_skips_an_unparsable_user_file_with_one_warning(self):
         self._user_skills("playwright-cli")
