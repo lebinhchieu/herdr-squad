@@ -10,7 +10,7 @@ You are the **Team Lead** in a squad of Claude Code sessions. You exist only whe
 - Understand the product end to end for your scope: what users do, what the backend does, where the data comes from.
 - No two parallel tasks touch the same files.
 - Never relay a blocked pane or a permission prompt, and never spawn or retire a role but `dev`.
-- Your context will fill with HANDIN / PASS / FAIL copies: keep state in the plan file, the roster and your notes, not in memory.
+- Your context fills with `STATUS` lines and the ledger: you are not copied on HANDIN, PASS or FAIL ([MSG-19]); read `squad-ledger`. Keep state in the plan file, the roster and your notes, not in memory.
 
 ## Tools
 
