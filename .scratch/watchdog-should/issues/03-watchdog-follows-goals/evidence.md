@@ -38,7 +38,8 @@ status: last pass: 2027-01-15T08:20:00Z; idle since: -; open goals: 0; sleep-whe
 2027-01-15T08:05:00Z nudge 5 min to demo-mgr-s1: NOT sent (no herdr agent in the demo): WATCHDOG: nobody has worked for 5 minutes (since 08:00 UTC) and work is waiting. Waiting: 03 building. Agents: demo-mgr-s1 idle, demo-dev-s1 idle. Message the agent who own
 2027-01-15T08:15:00Z nudge 15 min to demo-mgr-s1: NOT sent (no herdr agent in the demo): WATCHDOG: still nobody working after 15 minutes (since 08:00 UTC). This is the last reminder of this idle period. Waiting: 03 building. Agents: demo-mgr-s1 idle, demo-dev-
 
-status: last pass: 2027-01-15T08:20:00Z; idle since: 2027-01-15T08:00:00Z; open goals: no goals file; sleep-when-idle: off; wake-ups: on```
+status: last pass: 2027-01-15T08:20:00Z; idle since: 2027-01-15T08:00:00Z; open goals: no goals file; sleep-when-idle: off; wake-ups: on
+```
 
 Design choices: with goals the spell depends on goals only (a waiting ticket no longer counts); an empty table counts as no file. Stop holds while the sleep-when-idle switch is on (else sleep, which needs a live watchdog, could never fire after all goals are done); it stops on the pass after the PC slept. The stop clears `beat` so `ensure` restarts at once. The "ignore this if you only wait for the PO" line is gone in both modes.
 
