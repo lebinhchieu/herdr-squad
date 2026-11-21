@@ -36,3 +36,24 @@ Note: with LC-11c removed, no Manager rule says "split tasks only after architec
 | AC6 | test_windows_safe, test_utf8_helpers, test_instructions OK (144 tests) | - | - |
 | AC7 | `test_dev_rules_size` OK | - | - |
 | AC8 | 10 test files run, 144 OK | - | - |
+
+## QA whitebox
+Ran `cd tests && python3 -m unittest test_rules_contract test_rules_wording test_architect_handoff test_small_files_equivalence test_dev_rules_size test_squad_log_message test_windows_safe test_utf8_helpers test_instructions test_sizes` -> 144 OK; `squad-process lint` 0. AC1 grep empty; AC2 hits only 3 negative assertions in tests; AC2c grep "plan owner" empty; AC2b greps: every hit Manager-only or "never reorders" (LC-17, MSG-6, WHO-1e, WHO team-lead row); AC4 WHO-1e split as designed; AC5 bin/squad-log-message always Team Lead [LC-7b] with test; test_team_lead_text_gives_no_plan_or_order present. No test newly skipped. LC-14, LC-15..17 read: consistent with Manager owns the plan.
+PASS.
+## Follow-ups
+- Integration (SQ-6): 03 and 04 both edit iterations.md, _removed.md, spawning.md, starting.md and five test files (test_rules_contract, test_rules_wording, test_architect_handoff, test_dev_rules_size, test_small_files_equivalence). They are related siblings: merge both and run the shared tests on the result (SQ-6b).
+
+## QA blackbox
+Worktree .worktrees/plugin/tl-always/plugin-dev-tl-always-03, live runs.
+
+| AC | how | saw | result |
+|---|---|---|---|
+| AC1 | live: `squad-process lint` (rc 0); grep `plan-owner\|team-lead = ` in lifecycle/messages/who | lint clean, grep empty | pass |
+| AC2 | live: grep of removed IDs over bin hooks agents skills tests templates minus _removed/changelog/fixtures | only 3 `assertNotIn` lines in tests | pass |
+| AC2c | live: `grep -in 'plan owner'` lifecycle/messages/review | empty | pass |
+| AC2b | live: grep take over the plan / owns the plan / task order / plan owner / Reorder over 03's files | only who.md:36 (Manager row). LC-17 now (lifecycle:171): "You never reorder the plan ... send the Manager an ASK" | pass |
+| AC3 | live: compose team-lead, manager, dev on a no-pin scratch squad (team: qa-white, qa-black) | Team Lead text: never reorder (MSG-6, who.md:153, LC-17); Manager text has SIZE-6a plan/order/spawning + MSG-6; dev composes (85 lines) with no plan-owner text | pass |
+| AC4 | live: `squad-process rule WHO-1e` | heading "Plan, order and assignment", no `when:`, rows `Plan, task order` Manager and `Assignment` Team Lead. `squad-process who WHO-1e` prints nothing (same as any unconditional rule, e.g. MSG-6) | pass |
+| AC5, AC6, AC7 | live: `cd tests && python3 -m unittest` on test_rules_contract, _rules_wording, _architect_handoff, _small_files_equivalence, _squad_log_message, _dev_rules_size, _windows_safe, _utf8_helpers, _instructions | 136 tests OK | pass |
+
+Follow-ups (not AC of 03, files of 04): composed Team Lead and Manager text still has "Plan owner (`plan-owner` of `duties:`)" and "the plan owner ([ITER-3])" from files.md:90,97, and the `duties:` header still carries plan-owner (02's engine). Settle in 04/02/07.
