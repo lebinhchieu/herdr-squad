@@ -199,13 +199,6 @@ topic: lifecycle
 
 Build inside `$SCOPE_DIR/architecture.md`; a difference: `ASK` the Architect; unsettled after 2 rounds: the Manager.
 
-## LC-20a Passed, Manager
-roles: dev
-when: handin-target = manager
-topic: lifecycle
-
-At `HANDIN` send `STATUS NN: passed <sha>`; it retires you.
-
 ## LC-20b Passed, QAs
 roles: dev
 when: handin-target = qas

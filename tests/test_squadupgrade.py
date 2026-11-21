@@ -187,7 +187,7 @@ class OldWhenLanguage(Base):
         self.assertNotIn("nothing needs a decision", r.stdout)
         self.assertEqual(self.snapshot(sq), before)
 
-    def test_other_l_role_rule_lists_both_alternatives(self):
+    def test_other_l_role_rule_lists_the_tech_lead_alternative(self):
         for roles in ("tech-lead", "team-lead", "tech-lead, team-lead"):
             with self.subTest(roles=roles):
                 sq = self.squad_with("size = L")
@@ -198,7 +198,7 @@ class OldWhenLanguage(Base):
                 r = run(*self.args("--check", "add-free", sq))
                 self.assertEqual(r.returncode, 3, r.stderr)
                 self.assertIn("size = L -> ba = yes", r.stdout)
-                self.assertIn("alternative: team-lead = yes", r.stdout)
+                self.assertNotIn("alternative: team-lead = yes", r.stdout)  # that key is gone
                 self.assertIn("alternative: tech-lead = yes", r.stdout)
                 self.assertEqual(self.snapshot(sq), before)
                 r = run(*self.args("--apply", "add-free", sq, "--yes"))

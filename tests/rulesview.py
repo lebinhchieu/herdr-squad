@@ -60,7 +60,7 @@ def composed(role, size="M", design="no", goal="no", qa="full", *, architecture=
 @functools.lru_cache(maxsize=None)
 def who(rule_id):
     """-> {key: (acting roles, aware roles)} from `squad-process who <ID>`: key `<key> = <value>`
-    (e.g. `plan-owner = team-lead`, `ba = yes`) for a duty or presence line of the team language."""
+    (e.g. `handin-target = qas`, `ba = yes`) for a duty or presence line of the team language."""
     r = run("who", rule_id)
     assert r.returncode == 0, r.stderr
     out = {}

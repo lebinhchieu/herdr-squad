@@ -307,7 +307,7 @@ def rule_text(e):
     return "\n".join([heading(e), e.body]) + "\n"
 
 
-_NEW_WHO_KEYS = frozenset(sr.DUTIES) | {"ba", "team-lead", "tech-lead", "qa-white", "qa-black"}
+_NEW_WHO_KEYS = frozenset(sr.DUTIES) | {"ba", "tech-lead", "qa-white", "qa-black"}
 
 
 def _acts_aware(e, facts):

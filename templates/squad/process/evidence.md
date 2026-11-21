@@ -43,8 +43,8 @@ topic: evidence
 The Developer's `HANDIN <task>: evidence sha <sha>` is accepted only when `squad-evidence check <folder> --base <passed sha>` exits 0.
 
 ## EVID-3a Review record without a QA
-roles: manager
-when: handin-target = manager
+roles: team-lead
+when: handin-target = team-lead
 topic: evidence
 
 With no QA on the team there is no reviewer file: `## Review` in the ticket's `evidence.md` ([REV-22]) is the review record, and your confirmation (no `PASS`, [LC-27]) is the verdict.
@@ -106,9 +106,9 @@ topic: evidence
 
 Fill only your column of `checks.md`: commands, never code; `## Review` points at `## Checks`. Refuse a `HANDIN` when `squad-evidence checks <file>` fails.
 
-## EVID-9d Check table, Manager
-roles: manager
-when: handin-target = manager
+## EVID-9d Check table, Team Lead
+roles: team-lead
+when: handin-target = team-lead
 topic: evidence
 
 With no QA on the team, refuse a `HANDIN` when `squad-evidence checks <file>` fails.

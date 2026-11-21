@@ -24,22 +24,21 @@ OVERLAY_FILE = "process.local.md"
 ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "designer", "architect", "dev", "token-coach")
 # Team model (drop-scope-size, architecture.md sections 2 and 3). `team:` tokens in scope.md; the `when:` presence
 # key of a token is PRESENCE_KEY (designer -> design, architect -> architecture, the rest the same string).
-TEAM_KEYS = ("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect")
-IMPLICIT_ROLES = ("manager", "dev", "token-coach")
+TEAM_KEYS = ("ba", "tech-lead", "qa-white", "qa-black", "designer", "architect")
+IMPLICIT_ROLES = ("manager", "dev", "token-coach", "team-lead")  # team-lead: always on the team
 ROLE_KEY = {"qa-whitebox": "qa-white", "qa-blackbox": "qa-black"}  # role name -> team token; other roles map to themselves
-PRESENCE_KEY = {"ba": "ba", "team-lead": "team-lead", "tech-lead": "tech-lead", "qa-white": "qa-white",
+PRESENCE_KEY = {"ba": "ba", "tech-lead": "tech-lead", "qa-white": "qa-white",
                 "qa-black": "qa-black", "designer": "design", "architect": "architecture"}
 # Duty facts: first present chain item owns the duty; every chain ends at manager, dev or ticket. `qas` stands for
 # "qa-white or qa-black on the team" (the hand-in goes to the QAs).
 DUTIES = {
-    "plan-owner": ("team-lead", "manager"),
     "design-notes": ("tech-lead", "dev"),
     "tech-ac": ("tech-lead", "qa-white", "dev"),
     "business-ac": ("ba", "ticket"),
     "code-check": ("qa-white", "tech-lead", "manager"),
     "behaviour-check": ("qa-black", "qa-white", "manager"),
     "ui-check": ("qa-black", "manager"),
-    "handin-target": ("qas", "team-lead", "manager"),
+    "handin-target": ("qas", "team-lead"),
     "suite-owner": ("tech-lead", "qa-white", "dev"),
     "promote-owner": ("tech-lead", "qa-white", "dev"),
     "risk-owner": ("tech-lead", "manager"),
@@ -49,13 +48,17 @@ DUTIES = {
 _DUTY_TERMINAL = ("manager", "dev", "ticket")
 # The old language (`size`, `qa-b`, `qa-whitebox` in a `when:`) is gone: OLD_WHEN_KEYS names the key to use instead.
 OLD_WHEN_KEYS = {"size": "a duty or role key (`squad-process who` lists them), e.g. `ba = yes` for what size L had",
-                 "qa-b": "qa-black", "qa-whitebox": "qa-white"}
+                 "qa-b": "qa-black", "qa-whitebox": "qa-white",
+                 "plan-owner": "no condition: the Team Lead always plans and coordinates, so drop the condition "
+                               "(a `= manager` condition never holds: drop the operation)",
+                 "team-lead": "no condition: the Team Lead is always on the team, so drop the condition "
+                              "(`team-lead = no` never holds: drop the operation)"}
 WHEN_KEYS = {"design": ("yes", "no"), "architecture": ("yes", "no"), "qa": ("full", "light"),
              "goal": ("yes", "no"),
-             **{k: ("yes", "no") for k in ("ba", "team-lead", "tech-lead", "qa-white", "qa-black")},
+             **{k: ("yes", "no") for k in ("ba", "tech-lead", "qa-white", "qa-black")},
              **{fact: chain for fact, chain in DUTIES.items()}}
 # A `when:` that uses a key of the team language holds at most one PRIMARY key; the rest are EXTRA (orthogonal).
-PRIMARY_KEYS = frozenset(DUTIES) | {"ba", "team-lead", "tech-lead", "qa-white"}
+PRIMARY_KEYS = frozenset(DUTIES) | {"ba", "tech-lead", "qa-white"}
 EXTRA_KEYS = frozenset({"goal", "qa", "design", "architecture", "qa-black"})
 PLUGIN_ATTRS = ("roles", "aware", "when", "topic", "phase")
 PHASES = ("merge", "close", "coach")
@@ -204,6 +207,8 @@ def parse_team(value, where="scope.md"):
         tok = raw.strip()
         if tok in ROLE_KEY:
             raise ValueError(f"{where}: team token {tok!r} is a role name; write {ROLE_KEY[tok]!r}")
+        if tok == "team-lead":
+            continue  # always on the team: accepted, ignored
         if tok in IMPLICIT_ROLES:
             raise ValueError(f"{where}: {tok!r} is always on the team; do not list it in team:")
         if tok not in TEAM_KEYS:
@@ -216,7 +221,7 @@ def parse_team(value, where="scope.md"):
 
 def resolve_duties(team):
     """team (tokens) -> {duty: owner}. Pure; the first present chain item owns the duty."""
-    team = frozenset(team)
+    team = frozenset(team) | {"team-lead"}
     out = {}
     for fact, chain in DUTIES.items():
         for item in chain:

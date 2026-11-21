@@ -344,13 +344,13 @@ class TeamHomeTest(Base):
     def test_team_none_is_decided_and_empty(self):
         info = sc.read_home(self.team_home("team: none"))
         self.assertEqual((info["team"], info["team_source"]), ([], "team"))
-        self.assertEqual(info["facts"]["plan-owner"], "manager")
+        self.assertEqual(info["facts"]["handin-target"], "team-lead")
         self.assertEqual(info["facts"]["code-check"], "manager")
 
     def test_blank_team_is_undecided_with_no_team_fact(self):
         info = sc.read_home(self.team_home("team:"))
         self.assertEqual((info["team"], info["team_source"]), (None, "undecided"))
-        self.assertNotIn("plan-owner", info["facts"])
+        self.assertNotIn("handin-target", info["facts"])
         self.assertNotIn("ba", info["facts"])
 
     def test_old_line_beside_team_is_an_error_naming_each_line(self):
@@ -398,7 +398,7 @@ class TeamHomeTest(Base):
             with self.subTest(role=role):
                 lines = self.compose(role, h).split("\n")
                 self.assertIn("· team: ba, qa-white (design no, qa full, goal no)", lines[1])
-                self.assertTrue(lines[3].startswith("duties: plan-owner=manager, design-notes=dev, tech-ac=qa-white, "
+                self.assertTrue(lines[3].startswith("duties: design-notes=dev, tech-ac=qa-white, "
                                                     "business-ac=ba, "), lines[3])
                 self.assertTrue(lines[4].startswith("rules: "))
         for role in ("dev", "qa-whitebox", "ba", "designer", "token-coach"):
@@ -538,7 +538,7 @@ class RulesviewTest(unittest.TestCase):
         self.assertIn("team: none", rv.composed("manager", team=()))
         self.assertIn("team: none", rv.composed("manager", team=""))
         self.assertIn("(design no, qa full", rv.composed("dev"))  # size shorthand: the converter's mapping
-        self.assertIn("duties: plan-owner=manager", rv.composed("manager", team="qa-white, qa-black"))
+        self.assertIn("duties: design-notes=dev", rv.composed("manager", team="qa-white, qa-black"))
 
 
 if __name__ == "__main__":

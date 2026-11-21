@@ -84,7 +84,7 @@ class ComposedRulesTest(unittest.TestCase):
         self.assertIn("never run the suite", composed("qa-blackbox", "M"))
         self.assertIn("then once on your final sha", composed("dev", "S"))
 
-    def test_qa_blackbox_gets_a_suites_rule_on_every_team_with_a_dev_owner(self):  # SUITE-2f, over the 128 teams
+    def test_qa_blackbox_gets_a_suites_rule_on_every_team_with_a_dev_owner(self):  # SUITE-2f, over the 64 teams
         n = 0
         for k in range(len(sr.TEAM_KEYS) + 1):
             for team in itertools.combinations(sr.TEAM_KEYS, k):
@@ -95,7 +95,7 @@ class ComposedRulesTest(unittest.TestCase):
                 got = [r for r in ("SUITE-2e", "SUITE-2f", "SUITE-2b") if sr.matches(BY_ID[r].when, facts)]
                 want = {"dev": ["SUITE-2f"], "qa-white": ["SUITE-2e"], "tech-lead": ["SUITE-2b"]}[facts.get("suite-owner")]
                 self.assertEqual(got, want, (team, facts.get("suite-owner")))
-        self.assertEqual(n, 64)
+        self.assertEqual(n, 32)
         self.assertIn("the Developer owns the full suite", composed("qa-blackbox", team="qa-black"))
         self.assertNotIn("SUITE-2f", composed("qa-blackbox", team="qa-black, qa-white").split(" rules: ", 1)[1].split(" ## ", 1)[0])
 
@@ -184,7 +184,7 @@ class ComposedRulesTest(unittest.TestCase):
             self.assertNotRegex(text, r"\bqa-b\b", f)
             self.assertNotRegex(text, r"(?m)^when:.*\b(?:S|M|L)\b", f)
 
-    def test_tech_lead_respawns_per_cost_4b_and_4c(self):  # over the 128 teams
+    def test_tech_lead_respawns_per_cost_4b_and_4c(self):  # over the 64 teams
         n = 0
         for k in range(len(sr.TEAM_KEYS) + 1):
             for team in itertools.combinations(sr.TEAM_KEYS, k):
@@ -194,7 +194,7 @@ class ComposedRulesTest(unittest.TestCase):
                 n += 1
                 got = [i for i in ("COST-4b", "COST-4c") if sr.matches(BY_ID[i].when, facts)]
                 self.assertEqual(got, ["COST-4b", "COST-4c"], team)  # the Team Lead always plans: both rules for every Tech Lead
-        self.assertEqual(n, 64)
+        self.assertEqual(n, 32)
         self.assertIn("Respawn once your design and AC are in files.", composed("tech-lead", team="tech-lead"))
         self.assertIn("COST-4c", rule_ids(composed("tech-lead", team="tech-lead, team-lead")))
 

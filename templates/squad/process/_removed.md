@@ -74,7 +74,7 @@ replaced_by: LC-22b
 
 ## LC-20c (removed in v9)
 why: Done is told to the plan owner; one rule per owner (LC-20a, LC-20b), not per size.
-replaced_by: LC-20a
+replaced_by: LC-20b
 
 ## REV-14b (removed in v9)
 why: The diff check goes to the checkers handed in to (REV-14a); the plan owner hears of it in LC-20a and LC-20b.
@@ -187,3 +187,19 @@ replaced_by: SPAWN-10b
 ## START-2a (removed in v14)
 why: The Team Lead plans every scope; the Manager-plans variant is gone.
 replaced_by: START-2b
+
+## LC-20a (removed in v20)
+why: The Team Lead is always on the team, so a hand-in never goes to the Manager.
+replaced_by: LC-20e
+
+## REV-1 (removed in v20)
+why: The Team Lead is always on the team, so a hand-in never goes to the Manager.
+replaced_by: REV-1b
+
+## REV-13a (removed in v20)
+why: The Team Lead is always on the team, so a hand-in never goes to the Manager.
+replaced_by: REV-13c
+
+## ITER-6a (removed in v20)
+why: The Team Lead is always on the team, so a hand-in never goes to the Manager.
+replaced_by: ITER-6b
