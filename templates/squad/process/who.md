@@ -1,14 +1,5 @@
 # Who decides
 
-## WHO-1a Plan owner, Manager
-roles: manager
-when: plan-owner = manager
-topic: owners
-
-| Topic | Owner | Breaks a dispute | Always goes to PO |
-|---|---|---|---|
-| Plan, task order, Developer spawning | Manager | Manager | Deadline or budget overrun |
-
 ## WHO-1b Task passed
 roles: manager, ba, team-lead, tech-lead
 topic: owners
@@ -36,14 +27,14 @@ topic: owners
 | Business AC | The ticket as written | Manager | Goal change, scope cut |
 | Business doubt | Manager adds the BA ([SIZE-13]) | Manager | n/a |
 
-## WHO-1e Plan owner, Team Lead
+## WHO-1e Plan, order and assignment
 roles: manager, team-lead, tech-lead
-when: plan-owner = team-lead
 topic: owners
 
 | Topic | Owner | Breaks a dispute | Always goes to PO |
 |---|---|---|---|
-| Plan, task order, assignment | Team Lead | Team Lead | Deadline or budget overrun |
+| Plan, task order | Manager | Manager | Deadline or budget overrun |
+| Assignment, Developer spawning | Team Lead | Manager | n/a |
 
 ## WHO-2 Technical owners, Tech Lead
 roles: manager, tech-lead
@@ -104,18 +95,8 @@ topic: owners
 |---|---|---|---|
 | What is promoted to the project docs | Tech Lead (technical), and the BA when on the team (business) | Manager | n/a |
 
-## WHO-3a Process owner, Manager
-roles: manager
-when: plan-owner = manager
-topic: owners
-
-| Topic | Owner | Breaks a dispute | Always goes to PO |
-|---|---|---|---|
-| Process, roster, spawning, the team | Manager | n/a | Changes to role instructions; team confirmation and removing a role |
-
 ## WHO-3b Process owner, Manager with a Team Lead
 roles: manager, team-lead
-when: plan-owner = team-lead
 topic: owners
 
 | Topic | Owner | Breaks a dispute | Always goes to PO |
@@ -157,25 +138,16 @@ Questions for an outside decision maker `project.md` names go to the place it sa
 roles: manager
 topic: owners
 
-The parties come straight to the Manager after 2 exchanges; no one relays. Decide, write the decision to the place `project.md` names, then send `DECISION` ([MSG-7a], [MSG-7b]).
-
-## WHO-8a Disputes, Manager plans
-roles: manager
-when: plan-owner = manager
-topic: owners
-
-The Manager settles every dispute.
+The parties come straight to the Manager after 2 exchanges; no one relays. Decide, write the decision to the place `project.md` names, then send `DECISION` ([MSG-7b]).
 
 ## WHO-8b Disputes, Manager with a Team Lead
 roles: manager
-when: plan-owner = team-lead
 topic: owners
 
-The Manager settles every dispute except plan, order and assignment ones, which the Team Lead settles.
+The Manager settles every dispute, plan, order and assignment ones included.
 
 ## WHO-8c Disputes, Team Lead
 roles: team-lead
-when: plan-owner = team-lead
 topic: owners
 
-Settle plan, order and assignment disputes. Write the ruling where the plan lives, and send it as `FINAL:` ([MSG-7b]). When you are yourself a party to such a dispute, do not settle it; after the two-round rule it goes to the Manager.
+Never settle a plan, order or assignment dispute, and never reorder the plan. After the two-round rule the parties go to the Manager, who rules ([MSG-7b]).

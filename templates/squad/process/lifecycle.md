@@ -10,17 +10,10 @@ A Developer's own checks are required but never enough to pass ([SIZE-2]).
 ## LC-2 UI ticket waits for its design
 roles: team-lead
 aware: tech-lead
-when: plan-owner = team-lead and design = yes
+when: design = yes
 topic: lifecycle
 
 A UI ticket with a `Design:` line stays `ready` until its design is `Status: final`. The Developer does not start the UI part before that.
-
-## LC-2b UI ticket waits for its design, Manager
-roles: manager
-when: plan-owner = manager and design = yes
-topic: lifecycle
-
-Hold a UI ticket that has a `Design:` line back from its Developer until that design reads `Status: final`.
 
 ## LC-3a Returned task
 roles: dev
@@ -44,49 +37,26 @@ QA never pre-writes test points before the Developer starts; the AC are the bar.
 
 ## LC-5 Next ticket
 roles: team-lead
-when: plan-owner = team-lead and qa-black = yes
+when: qa-black = yes
 topic: lifecycle
 
 The next ticket starts on the last sha that passed the code check, without waiting for QA blackbox, when it touches different files; a blackbox return is merged in afterwards.
 
-## LC-5b Next ticket, Manager
-roles: manager
-when: plan-owner = manager and qa-black = yes
-topic: lifecycle
-
-Base a Developer's next ticket on the last sha that passed the code check when it touches other files, and do not wait for QA blackbox; merge a blackbox return in later.
-
 ## LC-6 Queued tickets
 roles: team-lead
-when: plan-owner = team-lead
 topic: lifecycle
 
 A Developer with queued tickets in its area takes the next, and retires per [COST-5].
-
-## LC-6b Queued tickets, Manager
-roles: manager
-when: plan-owner = manager
-topic: lifecycle
-
-Give a Developer the next ticket in its area while it stays under the [COST-5] limit.
 
 ## LC-6c Bundle small tickets
 roles: manager, team-lead
 topic: lifecycle
 
-The plan owner may give one Developer 2-3 tickets of at most 2 files each, all different files. One `HANDIN` lists each ticket and sha; both QAs check every ticket in one pass and send one verdict line per ticket. A `FAIL` returns only the failed ticket.
-
-## LC-7a Three returns, Manager
-roles: manager
-when: plan-owner = manager
-topic: lifecycle
-
-After 3 returns on one task (a return is a handed-in sha with a `FAIL`; `squad-ledger` counts them) you step in; with QAs on the team the 3rd failing QA sends you `BLOCKED NN: 3 returns`, and your own 3rd `FAIL` counts: read the findings and decide whether the task, the AC or the Developer is the problem.
+The Team Lead may give one Developer 2-3 tickets of at most 2 files each, all different files. One `HANDIN` lists each ticket and sha; both QAs check every ticket in one pass and send one verdict line per ticket. A `FAIL` returns only the failed ticket.
 
 ## LC-7b Three returns, Team Lead
 roles: team-lead
 aware: manager
-when: plan-owner = team-lead
 topic: lifecycle
 
 After 3 returns on one task (a return is a handed-in sha with a `FAIL`; `squad-ledger` counts them) the Team Lead steps in and decides whether the task, the AC or the Developer is the problem, then sends the Manager one line ([MSG-6]).
@@ -96,7 +66,7 @@ roles: qa-whitebox, qa-blackbox
 when: handin-target = qas
 topic: lifecycle
 
-After 3 returns on one task (a return is a handed-in sha with a `FAIL`; `squad-ledger` counts them) the 3rd failing QA sends the plan owner `BLOCKED NN: 3 returns`.
+After 3 returns on one task (a return is a handed-in sha with a `FAIL`; `squad-ledger` counts them) the 3rd failing QA sends the Team Lead `BLOCKED NN: 3 returns`.
 
 ## LC-8 Defect class
 roles: tech-lead
@@ -147,26 +117,12 @@ topic: lifecycle
 
 Plan the UI tasks to start after their design is final. Put `Design: ui-design/<task>.md` and the AC "built UI matches the design: every screen and state" in each UI ticket, and answer the Designer's feasibility `ASK`s.
 
-## LC-11b Design with a UI, Manager
-roles: manager
-when: plan-owner = manager and design = yes
-topic: lifecycle
-
-Start the UI tasks after their design is final. Each UI ticket gets a `Design: ui-design/<task>.md` line and the AC "built UI matches the design: every screen and state"; you answer the Designer's feasibility `ASK`s, asking the Developer who builds it when needed.
-
-## LC-11c Plan after the architecture, Manager
-roles: manager
-when: plan-owner = manager and architecture = yes
-topic: lifecycle
-
-Split the tasks only after `architecture.md` reads `Status: final`. Put "conforms to `architecture.md`" in each ticket's AC, and answer the Architect's feasibility `ASK`s, asking the Developer who builds it when needed.
-
-## LC-11d Plan after the architecture, Team Lead
+## LC-11d Tickets after the architecture, Team Lead
 roles: team-lead
-when: plan-owner = team-lead and architecture = yes
+when: architecture = yes
 topic: lifecycle
 
-Plan only after `architecture.md` reads `Status: final`; put "conforms to `architecture.md`" in each ticket's AC.
+Assign tickets only after `architecture.md` reads `Status: final`; check that each ticket's AC says "conforms to `architecture.md`".
 
 ## LC-11e Design inside the architecture
 roles: tech-lead
@@ -194,35 +150,25 @@ roles: tech-lead
 when: tech-lead = yes
 topic: lifecycle
 
-Help the plan owner plan: split work so parallel tasks do not touch the same files; flag technical risk and order. Hand the plan and its `## Handover` section to the plan owner ([SIZE-16]).
+Help the Manager plan: write each task's dependencies, touched files and parallel-safe groups, and the technical risks, in a file under `tasks/`, with the `## Handover` section ([SIZE-16]). Send the Manager one line pointing at it, Team Lead on copy; the Manager writes them into the plan.
 
 ## LC-15 Shape the plan
 roles: team-lead
-when: plan-owner = team-lead
 topic: lifecycle
 
-Each task fits one Developer session, has clear AC links, and names the files it will touch. No two parallel tasks touch the same files.
+Check that each task in the Manager's plan fits one Developer session, has clear AC links, and names the files it will touch, with no two parallel tasks on the same files; an `ASK` to the Manager fixes a gap.
 
 ## LC-16 Write the plan
 roles: team-lead
-when: plan-owner = team-lead
 topic: lifecycle
 
-Write the plan where `project.md` says (or `$SCOPE_DIR/tasks/<id>.md`): order, dependencies, owner, state. Mark which tasks are ready in parallel; migration and cross-repo tasks follow the deploy order in their task or decisions file ([LC-13]).
+Write each `tasks/<id>.md` from the Manager's plan, in the plan's order and with its dependencies, owner and state. Mark which tasks are ready in parallel; migration and cross-repo tasks follow the deploy order in their task or decisions file ([LC-13]).
 
 ## LC-17 Track delivery
 roles: team-lead
-when: plan-owner = team-lead
 topic: lifecycle
 
-Move task state as `HANDIN`, `PASS` and `FAIL` messages arrive (read `squad-ledger`; you are not copied). Reorder when gaps appear. State lives in the plan file, the roster and your notes, not in memory.
-
-## LC-17b Plan and track, Manager
-roles: manager
-when: plan-owner = manager
-topic: lifecycle
-
-Each task fits one Developer session, cites its AC and names its files; no two parallel tasks touch the same files. Write the order, dependencies, owner and state in the plan file (where `project.md` says, or `$SCOPE_DIR/tasks/<id>.md`) and update it from `squad-ledger`; state does not live in memory.
+Move task state as `HANDIN`, `PASS` and `FAIL` messages arrive (read `squad-ledger`; you are not copied). You never reorder the plan: when a gap needs a new order, send the Manager an `ASK`. State lives in the plan file, the roster and your notes, not in memory.
 
 ## LC-18 Dev work
 roles: dev
@@ -265,7 +211,7 @@ roles: dev
 when: handin-target = qas
 topic: lifecycle
 
-On every `PASS` send the plan owner `STATUS NN: passed <sha>`; it retires you.
+On every `PASS` send the Team Lead `STATUS NN: passed <sha>`; it retires you.
 
 ## LC-20e Passed, Team Lead alone
 roles: dev
@@ -290,17 +236,10 @@ Test-strength gaps go in `qa-w.md` as "follow-up".
 
 ## LC-22b Light mode follow-ups, Team Lead
 roles: team-lead
-when: plan-owner = team-lead and qa = light
+when: qa = light
 topic: lifecycle
 
 Batch the follow-ups of `qa-w.md` into one last, droppable ticket.
-
-## LC-22c Light mode follow-ups, Manager
-roles: manager
-when: plan-owner = manager and qa = light
-topic: lifecycle
-
-Collect the "follow-up" lines of `qa-w.md` into one final ticket the PO may drop.
 
 ## LC-23 Design files
 roles: designer

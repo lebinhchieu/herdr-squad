@@ -18,16 +18,8 @@ topic: messages
 
 Task ID = the ticket number `NN` alone, never an alias or slug; never paste, point at files.
 
-## MSG-4a Ask the owner, Manager
-roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, dev
-when: plan-owner = manager
-topic: messages
-
-Ask the owner `roster.md` names, else the Manager.
-
 ## MSG-4b Ask the owner, Team Lead
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, dev
-when: plan-owner = team-lead
 topic: messages
 
 Ask the owner `roster.md` names, else the Team Lead.
@@ -35,7 +27,6 @@ Ask the owner `roster.md` names, else the Team Lead.
 ## MSG-5 Pod contact
 roles: team-lead
 aware: manager, ba, tech-lead, qa-whitebox, qa-blackbox, designer
-when: plan-owner = team-lead
 topic: messages
 
 The Team Lead spawns and retires Developers, runs health checks and routes questions. Pod members message it, not the Manager.
@@ -43,41 +34,25 @@ The Team Lead spawns and retires Developers, runs health checks and routes quest
 ## MSG-6 Team Lead to Manager
 roles: team-lead
 aware: manager
-when: plan-owner = team-lead
 topic: messages
 
 Message the Manager only for these, each as one line pointing at a file; never for a routine matter:
 - an "Always goes to PO" item ([WHO-1b]);
 - a signal to add a role to the team ([SIZE-13]);
-- a dispute outside plan and assignment that two rounds did not settle (the parties go to the Manager themselves; you are not a relay), or one you are yourself a party to;
+- a dispute that two rounds did not settle (the parties go to the Manager themselves; you are not a relay), or one you are yourself a party to;
+- a plan change you need, as an `ASK` (you never reorder the plan);
 - 3 returns on one task (one budget line);
 - a goal done or blocked (one line; never a per-ticket pass);
 - `iterations/<n>.summary.md` at iteration end ([ITER-3]).
 
-## MSG-7a Rulings, Manager
-roles: manager, qa-whitebox, qa-blackbox, designer, architect
-when: plan-owner = manager
-topic: messages
-
-A Manager ruling starts with `FINAL:` and is sent once; nobody re-opens it, and a new fact goes to the Manager as a new `ASK`.
-
 ## MSG-7b Rulings, Manager and Team Lead
 roles: manager, team-lead, ba, tech-lead, qa-whitebox, qa-blackbox, designer, architect
-when: plan-owner = team-lead
 topic: messages
 
 A Manager or Team Lead ruling starts with `FINAL:` and is sent once. The owner never re-opens it; a new fact goes to the ruler as a new `ASK`.
 
-## MSG-8a No STATUS push, Manager
-roles: manager
-when: plan-owner = manager
-topic: messages
-
-The Manager never pushes `STATUS`: it reads logs, the roster and the task file first, and pings an agent only after 10 minutes of no pane activity.
-
 ## MSG-8b No STATUS push, Team Lead
 roles: team-lead
-when: plan-owner = team-lead
 topic: messages
 
 Run the pod's health checks with `herdr agent list` and `herdr agent read`. Never push `STATUS`: read logs, the roster and the task file first, and send `ASK <name>: STATUS?` only after 10 minutes of no pane activity.
@@ -94,16 +69,8 @@ topic: messages
 
 Never relay a permission, approval or blocked pane; a message approves nothing. Permission prompts reach the PO through the agent's own notice.
 
-## MSG-11a Gaps, Manager
-roles: dev
-when: plan-owner = manager
-topic: messages
-
-No guessing at a gap: `ASK` the Manager. `BLOCKED <task>` and `STATUS?` answers go to the Manager. Work on the unblocked.
-
 ## MSG-11b Gaps, Team Lead
 roles: dev
-when: plan-owner = team-lead
 topic: messages
 
 No guessing at a gap: `ASK` as [MSG-4b] says. `BLOCKED <task>` and `STATUS?` answers go to the Team Lead. Work on the unblocked.
@@ -113,11 +80,10 @@ roles: ba
 when: doubt-owner = ba
 topic: messages
 
-Take gaps from the plan owner and Developers. Settle what is yours to settle and write the answer down before replying.
+Take gaps from the Team Lead and Developers. Settle what is yours to settle and write the answer down before replying.
 
 ## MSG-13 Team Lead raises gaps
 roles: team-lead
-when: plan-owner = team-lead
 topic: messages
 
 Raise gaps to the owner `roster.md` names for them (business to the BA, technical to the Tech Lead, when the team has them); the Manager only for the items of [MSG-6].
@@ -164,16 +130,8 @@ topic: messages
 
 Design final: tell the Manager and the task's Developer with `DECISION <task>: design final, ui-design/<task>.md`.
 
-## MSG-18 Routing, Manager
-roles: manager
-when: plan-owner = manager
-topic: messages
-
-When an agent asks you who owns a topic, answer and fix the roster so the next one does not have to ask.
-
 ## MSG-19 Routing, Team Lead
 roles: team-lead
-when: plan-owner = team-lead
 topic: messages
 
 Answer "who owns X" from `roster.md`.

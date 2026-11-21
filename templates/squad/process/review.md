@@ -150,7 +150,7 @@ topic: review
 roles: dev
 topic: review
 
-After a PASS, a later commit goes to the same checkers as `HANDIN <task>: diff check <passed sha>..<new sha>`; tell the plan owner after every checker passes it. An evidence-only commit ([MRG-2]) needs none.
+After a PASS, a later commit goes to the same checkers as `HANDIN <task>: diff check <passed sha>..<new sha>`; tell the Team Lead after every checker passes it. An evidence-only commit ([MRG-2]) needs none.
 
 ## REV-15 Report deliverables
 roles: manager

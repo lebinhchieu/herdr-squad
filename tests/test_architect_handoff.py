@@ -6,7 +6,7 @@ import unittest
 from rulesview import ROOT, acts, composed
 
 NEW_RULES = ("SIZE-3a", "SIZE-9a", "SIZE-22a", "SIZE-23c", "SIZE-23d", "REV-22a", "WHO-2e", "SPAWN-4a", "START-4a",
-             "START-5a", "START-20", "LC-11c", "LC-11d", "LC-19c", "MSG-20", "MSG-20a", "MSG-20b")
+             "START-5a", "START-20", "LC-11d", "LC-19c", "MSG-20", "MSG-20a", "MSG-20b")
 ALL_ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "designer", "dev", "token-coach")
 
 
@@ -68,7 +68,7 @@ class RulesTest(unittest.TestCase):
     def test_the_manager_carries_flag_spawn_name_lifetime_gate_and_owner_rules(self):
         for size in "SM":
             got = ids("manager", size, architecture="yes")
-            for rid in ("SIZE-1", "SIZE-22", "WHO-2e", "SPAWN-4a", "START-4a", "START-5a", "LC-11c", "MSG-20"):
+            for rid in ("SIZE-1", "SIZE-22", "WHO-2e", "SPAWN-4a", "START-4a", "START-5a", "MSG-20"):
                 self.assertIn(rid, got, (rid, size))
             self.assertNotIn("LC-11d", got)
         text = composed("manager", "M", architecture="yes")
@@ -86,12 +86,9 @@ class RulesTest(unittest.TestCase):
             self.assertIn(token, text)
 
     def test_the_plan_waits_for_the_architecture(self):
-        self.assertEqual(acts("LC-11c", "plan-owner = manager"), ("manager",))
-        self.assertEqual(acts("LC-11c", "plan-owner = team-lead"), ())
-        self.assertEqual(acts("LC-11d", "plan-owner = team-lead"), ("team-lead",))
+        self.assertEqual(acts("LC-11d", "M"), ("team-lead",))
         self.assertEqual(acts("LC-11e", "tech-lead = yes"), ("tech-lead",))
         self.assertIn("`Status: final`", composed("team-lead", "L", architecture="yes"))
-        self.assertIn("Split the tasks only after", composed("manager", "S", architecture="yes"))
 
     def test_conformance_joins_the_technical_ac_of_the_existing_checker(self):
         self.assertEqual(acts("SIZE-23c", "M"), ("qa-whitebox",))
@@ -107,7 +104,7 @@ class RulesTest(unittest.TestCase):
         for size in "SM":
             for role in ("dev", "qa-whitebox"):
                 t = composed(role, size, architecture="yes").split("## Index of other rules")[0]
-                for name in ("Tech Lead", "Team Lead", "the BA"):
+                for name in ("Tech Lead", "the BA"):  # the Team Lead is always on the team
                     self.assertNotIn(name, t, (role, size, name))
 
 

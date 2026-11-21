@@ -1,6 +1,7 @@
 """Rule contract: which roles a rule acts on or reaches, per team facts (`squad-process who`, `rules:` of a composed file).
 One home for the small per-ticket files it replaces (advisor, pod, retro, suite, task id, designer, team lead, contact routes)."""
 import itertools
+import re
 import unittest
 
 from rulesview import ROLES, ROOT, acts, composed, rule_ids
@@ -20,10 +21,8 @@ class WhoActsTest(unittest.TestCase):
     def test_who_shows_the_acting_roles(self):
         for rid, key, want in (
                 ("LC-26", "S", ("manager", "tech-lead")), ("LC-26", "M", ("manager", "tech-lead")), ("LC-26", "L", ("manager", "tech-lead")),
-                ("MSG-5", "plan-owner = manager", ()),
                 ("SIZE-6a", "S", None),  # manager must be among them
-                ("LC-15", "plan-owner = team-lead", ("team-lead",)), ("LC-15", "plan-owner = manager", ()),
-                ("LC-17b", "plan-owner = manager", ("manager",)),
+                ("LC-15", "M", ("team-lead",)),
                 ("ITER-13", "S", ("token-coach",)), ("ITER-13", "M", ("token-coach",)), ("ITER-13", "L", ("token-coach",)),
                 ("ITER-14", "S", ("token-coach",)), ("ITER-14", "M", ("token-coach",)), ("ITER-14", "L", ("token-coach",)),
                 ("ITER-15", "S", ("manager",)), ("ITER-15", "M", ("manager",)), ("ITER-15", "L", ("manager",)),
@@ -39,9 +38,8 @@ class WhoActsTest(unittest.TestCase):
                     self.assertEqual(acts(rid, key), want)
         for size in "SML":
             self.assertEqual(set(acts("LC-25", size)), ALL)
-        self.assertIn("team-lead", acts("MSG-5", "plan-owner = team-lead"))
+        self.assertIn("team-lead", acts("MSG-5", "M"))
         self.assertIn("tech-lead", acts("LC-11", "L"))
-        self.assertIn("manager", acts("LC-11b", "M"))
         self.assertIn("team-lead", acts("SIZE-17b", "L"))
 
     def test_task_id_rule_reaches_every_role_and_size(self):
@@ -96,17 +94,38 @@ class ComposedRulesTest(unittest.TestCase):
     def test_routes_follow_the_plan_owner_of_the_team(self):  # team language: plan-owner, doubt-owner, design-notes
         tl = TL
         self.assertIn("MSG-11b", rule_ids(composed("dev", team=tl)))
-        self.assertNotIn("MSG-11a", rule_ids(composed("dev", team=tl)))
-        self.assertIn("MSG-11a", rule_ids(composed("dev", team=MG)))
-        self.assertNotIn("MSG-11b", rule_ids(composed("dev", team=MG)))
+        self.assertIn("MSG-11b", rule_ids(composed("dev", team=MG)))  # the Team Lead variant at every team
+        self.assertNotIn("MSG-11a", rule_ids(composed("dev", team=MG)))
         self.assertIn("go to the Team Lead", composed("dev", team=tl))
-        self.assertIn("go to the Manager", composed("dev", team=MG))
+        self.assertIn("go to the Team Lead", composed("dev", team=MG))
         self.assertIn("MSG-5", rule_ids(composed("team-lead", team=tl)))
         self.assertIn("MSG-6", rule_ids(composed("team-lead", team=tl)))
         self.assertIn("MSG-14", rule_ids(composed("tech-lead", team="tech-lead")))  # the Tech Lead answers gaps whoever plans
         self.assertIn("MSG-15", rule_ids(composed("tech-lead", team="tech-lead, ba")))
         self.assertNotIn("MSG-15", rule_ids(composed("tech-lead", team="tech-lead")))  # no BA to raise to
         self.assertIn("MSG-12", rule_ids(composed("ba", team="ba")))
+
+    def test_manager_owns_plan_and_disputes_team_lead_never_reorders(self):
+        for team in (TL, MG):
+            mg, tl = composed("manager", team=team), composed("team-lead", team=team)
+            self.assertIn("| Plan, task order | Manager | Manager |", mg)
+            self.assertIn("| Assignment, Developer spawning | Team Lead | Manager |", mg)
+            self.assertIn("The Manager settles every dispute, plan, order and assignment ones included.", mg)
+            self.assertIn("You never reorder the plan: when a gap needs a new order, send the Manager an `ASK`.", tl)
+            self.assertIn("a plan change you need, as an `ASK`", tl)
+            self.assertIn("Never settle a plan, order or assignment dispute", tl)
+            for rid in ("LC-15", "LC-16", "LC-17", "MSG-6"):
+                self.assertIn(rid, rule_ids(tl))
+
+    def test_team_lead_text_gives_no_plan_or_order(self):  # the LC-8 defect class: a sentence that hands it the plan
+        for team in (TL, MG):
+            tl = " ".join(s for s in composed("team-lead", team=team).split(" ## ") if s.startswith(("LC-", "MSG-", "WHO-")))
+            for sentence in re.split(r"(?<=[.;])\s+", tl):
+                s = sentence.lower()
+                if "never" in s or "not " in s:
+                    continue
+                for phrase in ("owns the plan", "take over the plan", "task order and assignment", "plan owner", "reorder"):
+                    self.assertNotIn(phrase, s, sentence)
 
     def test_doubts_go_to_the_doubt_owner(self):
         self.assertIn("MSG-16b", rule_ids(composed("designer", team="ba, designer")))
