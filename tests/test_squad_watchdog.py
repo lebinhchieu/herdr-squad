@@ -220,6 +220,9 @@ class WatchdogTest(unittest.TestCase):
         self.herdr.write_text("not json", encoding="utf-8")
         self.tick(30)
         self.assertEqual(self.suspended, [])
+        (self.home / "watchdog.state.json").unlink()  # a fresh home or a 0.9.5 state file has no bg keys
+        self.tick(31)  # must not raise
+        self.assertIn("herdr does not answer", self.log())
 
     def test_a_herdr_outage_restarts_the_quiet_clock_so_the_pc_does_not_sleep_at_the_first_check_after_it(self):
         W.set_sleep(self.home, True)
@@ -504,3 +507,121 @@ class GoalsTest(WatchdogTest):
             self.assertFalse(W.ensure(self.home, "t-mgr-s1"))
         self.assertEqual(len(started), 1)
         self.assertEqual(started[0][-4:], ["--home", str(self.home), "--manager", "t-mgr-s1"])
+
+
+class BgTest(unittest.TestCase):
+    """Ticket 03 (watchdog-shell): a herdr `bg` shell token counts as working, capped, and the log says why."""
+    setUp = WatchdogTest.setUp
+    tickets, tick, log = WatchdogTest.tickets, WatchdogTest.tick, WatchdogTest.log
+
+    def agents(self, **spec):
+        """name=status, or name=(status, bg token). A row copied from a live herdr list has `tokens` only when a shell runs."""
+        rows = []
+        for n, v in spec.items():
+            status, bg = v if isinstance(v, tuple) else (v, None)
+            row = {"name": n.replace("_", "-"), "agent_status": status, "pane_id": "p"}
+            if bg:
+                row["tokens"] = {"bg": bg}
+            rows.append(row)
+        self.herdr.write_text(json.dumps({"result": {"agents": rows}}), encoding="utf-8")
+
+    def setup_busy(self, dev=("done", "\u23f5 1 shell"), **more):
+        self.tickets(t03="building")
+        self.agents(**dict(dict(t_mgr_s1="idle", t_dev_s1=dev, t_qa_s1="idle"), **more))
+
+    def test_a_dev_with_a_token_holds_the_idle_spell_and_a_blocked_one_still_wakes(self):
+        self.setup_busy()
+        for m in range(0, 31, 5):
+            self.tick(m)
+        self.assertEqual(self.sent, [])
+        self.assertNotIn("idle start", self.log())
+        self.assertEqual(self.log().count("bg busy:"), 1)
+        # blocked with a token: stays blocked, never busy, and the 10-minute WAKE comes as before
+        self.setup_busy(dev=("blocked", "\u23f5 1 shell"), t_mgr_s1="working", t_qa_s1="working")
+        for m in (40, 51):
+            self.tick(m)
+        self.assertEqual(len([t for _m, t in self.sent if t.startswith("WAKE")]), 1)
+        self.assertNotIn("busy (bg shell)", self.log().split("bg busy:")[-1].split("\n", 1)[-1])
+
+    def test_decide_keeps_its_input_and_loads_a_state_without_bg_keys(self):
+        import copy
+        self.setup_busy()
+        snap = W.snapshot(self.home, str(self.herdr))
+        st = {"nudged": [5], "idle_since": T0, "bg_since": {"t-dev-s1": T0 - 10}, "bg_busy": ["t-dev-s1"], "wake_blocked": {"x": 1}}
+        before = copy.deepcopy(st)
+        W.decide(st, snap, T0, False)
+        self.assertEqual(st, before)
+        new, _ = W.decide({"idle_since": None}, snap, T0, False)
+        self.assertEqual((new["bg_since"], new["bg_busy"]), ({"t-dev-s1": T0}, ["t-dev-s1"]))
+
+    def test_the_cap_ends_the_hold_once_per_stretch_and_a_work_pass_resets_the_clock(self):
+        self.setup_busy()
+        self.tick(0)
+        self.tick(59)
+        self.assertEqual(self.sent, [])
+        self.tick(60)  # cap: the idle spell starts now, nudges follow 5 and 15 min later
+        self.tick(64)
+        self.assertEqual(len(self.sent), 0)
+        self.tick(65)
+        self.tick(75)
+        self.tick(90)
+        self.assertEqual(len(self.sent), 2)
+        log = self.log()
+        self.assertEqual(log.count("bg busy: t-dev-s1 has a background shell (\u23f5 1 shell); counted as working for at most 60 min"), 1)
+        self.assertEqual(log.count("bg cap: t-dev-s1 counted as working for 60 min; idle check resumes"), 1)
+        self.assertIn("idle start:", log)
+        self.assertIn("t-dev-s1 idle", log.split("idle start:")[1])  # past the cap: no more `busy`
+        self.assertEqual(self.sent and "nobody has worked for 5 minutes" in self.sent[0][1], True)
+        # new stretch: a token that goes absent for one pass and returns restarts the clock
+        self.setup_busy(dev="idle")
+        self.tick(91)
+        self.setup_busy()
+        self.tick(92)
+        self.assertEqual(W.read_state(self.home)["bg_busy"], ["t-dev-s1"])
+        self.assertEqual(self.log().count("bg busy:"), 2)
+
+    def test_a_working_pass_in_a_long_hold_resets_the_cap(self):
+        self.setup_busy()
+        self.tick(0)
+        self.setup_busy(dev="working")
+        self.tick(50)
+        self.assertEqual(W.read_state(self.home)["bg_since"], {})  # no entry without a token: no growth
+        self.setup_busy()
+        self.tick(51)
+        self.tick(110)
+        self.assertEqual(W.read_state(self.home)["bg_busy"], ["t-dev-s1"])
+        self.tick(111)
+        self.assertEqual(W.read_state(self.home)["bg_busy"], [])
+
+    def test_the_cap_env_falls_back_to_60_and_zero_turns_the_rule_off(self):
+        from unittest import mock
+        for val, want in (("", 3600), ("abc", 3600), ("-5", 3600), ("nan", 3600), ("0", 0), ("2", 120)):
+            with mock.patch.dict(os.environ, {"SQUAD_WATCHDOG_BG_MAX": val}):
+                self.assertEqual(W.bg_max_s(), want, val)
+        self.setup_busy()
+        with mock.patch.dict(os.environ, {"SQUAD_WATCHDOG_BG_MAX": "0"}):
+            self.tick(0)
+        self.assertIn("idle start", self.log())
+        self.assertNotIn("bg busy", self.log())
+
+    def test_an_other_squads_token_holds_the_sleep_until_the_cap_and_is_not_logged(self):
+        self.agents(other_dev_1=("done", "\u23f5 1 shell"), t_mgr_s1="idle", t_dev_s1="idle", t_qa_s1="idle")
+        W.set_sleep(self.home, True)
+        self.tick(0)
+        self.tick(6)
+        self.assertEqual(self.suspended, [])
+        self.tick(61)  # past the cap: the quiet clock starts
+        self.assertEqual(self.suspended, [])
+        self.tick(67)
+        self.assertEqual(self.suspended, [1])
+        self.assertNotIn("bg busy", self.log() if (self.home / "watchdog.log").exists() else "")
+
+    def test_a_busy_roster_agent_holds_the_stop_until_the_cap(self):
+        self.tickets(t03="building")
+        (self.home / "goals.md").write_text("| # | Goal | Status |\n|---|---|---|\n| G1 | x | done |\n", encoding="utf-8")
+        self.agents(t_mgr_s1="idle", t_dev_s1=("done", "\u23f5 1 shell"), t_qa_s1="idle")
+        self.assertNotIn(("stop",), self.tick(0))
+        self.assertNotIn(("stop",), self.tick(59))
+        self.assertNotIn("watchdog stops", self.log())
+        self.assertIn(("stop",), self.tick(60))
+        self.assertIn("all goals done; watchdog stops", self.log())

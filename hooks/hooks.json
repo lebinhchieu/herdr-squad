@@ -19,6 +19,10 @@
       {
         "matcher": "Bash",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-merge-record\"" }]
+      },
+      {
+        "matcher": "Bash|Monitor|TaskStop",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/herdr-bg\" hook", "timeout": 5 }]
       }
     ],
     "UserPromptSubmit": [
@@ -32,6 +36,9 @@
       },
       {
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-notify\"", "async": true, "timeout": 5 }]
+      },
+      {
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/herdr-bg\" hook", "timeout": 5 }]
       }
     ],
     "Notification": [
