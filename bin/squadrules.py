@@ -381,8 +381,11 @@ def process_dir(plugin_root):
     return os.path.join(plugin_root, "templates", "squad", "process")
 
 
-def load_rules(pdir, rel_root=None):
-    """(rules in FILE_ORDER, tombstones, problems) for a process folder. Never raises on content."""
+def load_rules(pdir, rel_root=None, old_root=False):
+    """(rules in FILE_ORDER, tombstones, problems) for a process folder. Never raises on content.
+
+    old_root: the folder is a pinned OLD plugin root (`squad-process upgrade`); a rule's `when:` stays text and is
+    not checked, since it may name a removed key or value."""
     rel_root = rel_root or pdir
     problems, rules, tombs = [], [], []
     names = sorted((n for n in os.listdir(pdir) if n.endswith(".md")), key=lambda n: _file_rank(n[:-3]))
@@ -412,7 +415,7 @@ def load_rules(pdir, rel_root=None):
                     if r.roles != ["all"]:
                         problems.append(f"{rel}:{r.line}: core rule {r.id} needs `roles: all`")
         rules.extend(found)
-    _structure(rules, tombs, problems)
+    _structure(rules, tombs, problems, old_root)
     return rules, tombs, problems
 
 
@@ -448,7 +451,7 @@ def _check_attrs(vals, rel, n, out, need, rid=None):
         out.append(f"{rel}:{n}: phase {vals['phase']!r} is not one of {', '.join(PHASES)}")
 
 
-def _structure(rules, tombs, out):
+def _structure(rules, tombs, out, old_root=False):
     """Checks compose depends on: unique IDs, tombstones, attributes of each rule."""
     first = {}
     for r in rules:
@@ -464,7 +467,7 @@ def _structure(rules, tombs, out):
                 out.append(f"{t.file}:{t.line}: replaced_by names missing ID {rb}")
     for r in rules:
         raw = {k: v for k, v in (("roles", ", ".join(r.roles)), ("aware", ", ".join(r.aware)),
-                                 ("when", r.when), ("topic", r.topic), ("phase", r.phase)) if v}
+                                 ("when", "" if old_root else r.when), ("topic", r.topic), ("phase", r.phase)) if v}
         # an empty `roles:` line = on demand, attached to no role (ADR 0016); a missing line stays an error
         has_roles = any(a.startswith("roles:") for a in r.attr_text.split("\n"))
         _check_attrs(raw, r.file, r.line, out, ("topic",) if has_roles else ("roles", "topic"), r.id)

@@ -141,12 +141,12 @@ class Plan:
 
 # ---- reading ---------------------------------------------------------------------------------------
 
-def load_plugin(root):
+def load_plugin(root, old=False):
     """-> (rules by id in file order, tombstones by id). Raises UpgradeError on a rule file problem."""
     pdir = sr.process_dir(root)
     if not os.path.isdir(pdir):
         raise UpgradeError(f"no rule files in {pdir}")
-    rules, tombs, problems = sr.load_rules(pdir, root)
+    rules, tombs, problems = sr.load_rules(pdir, root, old_root=old)
     if problems:
         raise UpgradeError(*problems)
     return {r.id: r for r in rules}, {t.id: t for t in tombs}
@@ -513,7 +513,7 @@ def prepare(a):
     old_pin, new_pin = read_pin(squad_dir), _new_pin(a)
     new_rules, tombs = load_plugin(a.plugin_root)
     old_root = find_old_root(a, squad_dir, old_pin)
-    old_rules = load_plugin(old_root)[0] if old_root else None
+    old_rules = load_plugin(old_root, old=True)[0] if old_root else None
     pre, ops = read_overlay(squad_dir)
     plan = classify(old_rules, new_rules, tombs, ops)
     return squad_dir, old_pin, new_pin, new_rules, old_rules, pre, ops, plan
