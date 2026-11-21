@@ -20,6 +20,13 @@ the inbox item id). With at least one row the watchdog follows the goals:
 No goals file, or a table without rows (a scope from before goals): the old check. Idle = nobody `working` while a ticket
 waits (ready, building, returned, handed in, checking); the same nudges; it never stops.
 
+Background shell: an agent that waits for a background shell (a test suite) ends its turn, so herdr calls it `idle`/`done`, but
+herdr reports the shell as the `bg` token of its `tokens` (hooks/herdr-bg writes it). A herdr `bg` shell token counts as
+working while the agent is idle with it, for at most SQUAD_WATCHDOG_BG_MAX minutes (default 60, `0` = rule off): no idle
+spell, no nudge, no sleep and no stop while it holds. The cap counts one stretch of "idle with a token" and restarts when the
+agent works, is blocked or gone, or the token clears. The log says why: `bg busy:` and `bg cap:`. herdr-bg's token expires
+1 h after the last hook event, so a BG_MAX above 60 helps only if TTL_MS in hooks/herdr-bg is raised too.
+
 Wake-up (on by default, only to the Manager the watchdog was started for): one message per event, never repeated: a pane
 stays `blocked` for 10 minutes (the text says "Chieu's to answer"; the watchdog never reads, relays or approves a prompt).
 Nothing is sent into a Manager pane that is `blocked` (a prompt may be open); the event is sent on a later pass. State keys:
@@ -36,9 +43,10 @@ suspend`, macOS `pmset sleepnow`, Windows `rundll32.exe powrprof.dll,SetSuspendS
 
 Files in <home>: watchdog.log (one line per event, UTC), watchdog.state.json (state and heartbeat), watchdog.sleep (`on`).
 Env: SQUAD_WATCHDOG_INTERVAL (seconds between passes, default 60), SQUAD_WATCHDOG_SLEEP_AFTER, SQUAD_WATCHDOG_SLEEP_CMD,
-SQUAD_DIR / SCOPE_DIR / GOAL_DIR (default --home).
+SQUAD_WATCHDOG_BG_MAX (minutes a background shell counts as working, default 60, 0 = off), SQUAD_DIR / SCOPE_DIR / GOAL_DIR (default --home).
 """
 import argparse
+import copy
 import json
 import os
 import subprocess
@@ -58,6 +66,7 @@ import squadtask  # noqa: E402
 import squadtickets  # noqa: E402
 
 NUDGES = (5, 15)            # minutes of an idle spell
+BG_MAX_MIN = 60            # minutes a background-shell token counts as working
 SLEEP_AFTER_MIN = 5         # minutes the whole machine must be quiet before the PC sleeps
 INTERVAL_S = 60
 OPEN = {"ready", "building", "returned", "handed in", "checking", "in progress"}
@@ -215,6 +224,15 @@ def sleep_after_s():
         return SLEEP_AFTER_MIN * 60
 
 
+def bg_max_s():
+    """Seconds a bg token counts as working: SQUAD_WATCHDOG_BG_MAX minutes; empty, not a number or negative -> 60; 0 -> off."""
+    try:
+        v = float(os.environ.get("SQUAD_WATCHDOG_BG_MAX") or BG_MAX_MIN)
+    except ValueError:
+        return BG_MAX_MIN * 60
+    return v * 60 if 0 <= v < float("inf") else BG_MAX_MIN * 60
+
+
 def scope_homes(home):
     """[(label, folder)]: the home itself, and for a goal the scopes that name it."""
     out = [(home.name, home)]
@@ -255,7 +273,8 @@ def snapshot(home, herdr_json=None):
                              "passed": t["status"] in DONE or squadledger.key(t["id"]) in done}
                 tickets.append(seen[key])
     machine = got is not None and any(i["status"] == "working" for i in got.values())
-    return {"ok": got is not None, "why": why, "machine_working": machine, "agents": agents, "tickets": tickets,
+    bg = {n: i["bg"] for n, i in (got or {}).items() if i["status"] == "idle" and i.get("bg")}  # whole herdr list
+    return {"ok": got is not None, "why": why, "machine_working": machine, "bg": bg, "agents": agents, "tickets": tickets,
             "goals": read_goals(home) or None}  # None: no file or no row = no goals recorded
 
 
@@ -267,7 +286,8 @@ def waiting(snap):
 
 
 def states_text(snap):
-    return ", ".join(f"{a['name']} {a['state']}" for a in snap["agents"]) or "no agent in the roster"
+    busy = set(snap.get("busy") or [])
+    return ", ".join(f"{a['name']} " + ("busy (bg shell)" if a["name"] in busy else a["state"]) for a in snap["agents"]) or "no agent in the roster"
 
 
 def tickets_text(snap):
@@ -292,11 +312,12 @@ def all_done(snap):
     return bool(snap["tickets"]) and all(t["status"] in DONE for t in snap["tickets"])
 
 
-def decide(st, snap, now, sleep_enabled, sleep_after=SLEEP_AFTER_MIN * 60):
+def decide(st, snap, now, sleep_enabled, sleep_after=SLEEP_AFTER_MIN * 60, bg_max=BG_MAX_MIN * 60):
     """Pure: (old state, snapshot, now, switch on?, seconds) -> (new state, [event]).
     event = ("start", since) | ("nudge", minutes, since) | ("end", minutes) | ("sleep", minutes, all_done) | ("down", why) | ("up",)
-    | ("stop",): goals are recorded, all done, nobody working, and the sleep switch is off."""
-    st = dict(st)
+    | ("stop",): goals are recorded, all done, nobody working, and the sleep switch is off
+    | ("bg_busy", name, text) | ("bg_cap", name, minutes): roster agents only. `st` is never changed (deep copy)."""
+    st = copy.deepcopy(st)
     events = []
     if not snap["ok"]:
         if not st.get("down"):
@@ -306,7 +327,17 @@ def decide(st, snap, now, sleep_enabled, sleep_after=SLEEP_AFTER_MIN * 60):
         return st, events
     if st.pop("down", False):
         events.append(("up",))
-    working = any(a["state"] == "working" for a in snap["agents"])
+    # bg shell: one stretch of "idle with a token" per name; any other state or no token drops it (resets the clock)
+    tokens = snap.get("bg") or {}
+    prev = set(st.get("bg_busy") or [])
+    old = st.get("bg_since") if isinstance(st.get("bg_since"), dict) else {}
+    bg_since = {n: old.get(n, now) for n in tokens}
+    busy = {n for n in tokens if now - bg_since[n] < bg_max} if bg_max > 0 else set()
+    st["bg_since"], st["bg_busy"] = bg_since, sorted(busy)
+    roster = {a["name"] for a in snap["agents"]}
+    events += [("bg_busy", n, tokens[n]) for n in sorted(busy - prev) if n in roster]
+    events += [("bg_cap", n, bg_max / 60) for n in sorted(prev - busy) if n in roster and n in tokens]
+    working = any(a["state"] == "working" or a["name"] in busy for a in snap["agents"])
     idle = not working and bool(waiting(snap))
     since = st.get("idle_since")
     if idle and since is None:
@@ -323,7 +354,7 @@ def decide(st, snap, now, sleep_enabled, sleep_after=SLEEP_AFTER_MIN * 60):
                 st["nudged"] = st["nudged"] + [m]
                 events.append(("nudge", m, since))
     # sleep-when-idle: nobody on the machine working for sleep_after seconds, switch on; the tickets do not matter
-    if not snap["machine_working"]:
+    if not snap["machine_working"] and not busy:
         quiet = st["quiet_since"] = st.get("quiet_since") if st.get("quiet_since") is not None else now
         if sleep_enabled and now - quiet >= sleep_after:
             events.append(("sleep", int((now - quiet) // 60), all_done(snap)))
@@ -377,7 +408,9 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None):
     """One pass: read, decide, act, log, save. Returns the events."""
     now = time.time() if now is None else now
     snap = snapshot(home, herdr_json)
-    st, events = decide(read_state(home), snap, now, sleep_on(home), sleep_after_s())
+    bg_max = bg_max_s()
+    st, events = decide(read_state(home), snap, now, sleep_on(home), sleep_after_s(), bg_max)
+    snap["busy"] = st.get("bg_busy") or []  # absent when herdr did not answer and the state file is new or from 0.9.5
     if snap["ok"] and wake_on(home):
         st, wakes = wake_events(st, snap, now)
         mgr_blocked = any(a["name"] == manager and a["state"] == "blocked" for a in snap["agents"])
@@ -394,6 +427,10 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None):
         if kind == "start":
             what = "goals are open" if snap.get("goals") else "work waits"
             log(home, now, f"idle start: nobody works and {what} ({tickets_text(snap)}). Agents: {states_text(snap)}")
+        elif kind == "bg_busy":
+            log(home, now, f"bg busy: {ev[1]} has a background shell ({clean(ev[2])}); counted as working for at most {bg_max / 60:g} min")
+        elif kind == "bg_cap":
+            log(home, now, f"bg cap: {ev[1]} counted as working for {ev[2]:g} min; idle check resumes")
         elif kind == "nudge":
             text = nudge_text(ev[1], ev[2], snap)
             ok, why = send(manager, text)

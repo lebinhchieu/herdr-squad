@@ -49,6 +49,22 @@ class Agents(unittest.TestCase):
             got, _ = ag.parse_herdr('{"id": "cli:agent:list", "result": {"agents": [%s]}}' % (a % word))
             self.assertEqual(got["fix-dev-02"]["status"], want)
 
+    def test_T03_1_bg_token_is_kept_only_when_present_and_non_empty(self):
+        # rows copied from a live `herdr agent list` (2026-11-21), names changed; the absent row has no `tokens` key at all
+        present = {"agent": "claude", "agent_status": "done", "completion_seq": 72, "cwd": "/fixture/repo", "focused": False,
+                   "interactive_ready": True, "name": "fix-dev-02", "pane_id": "w1:p2", "revision": 3, "state_change_seq": 72,
+                   "tokens": {"bg": "\u23f5 1 shell"}, "workspace_id": "w1"}
+        absent = {k: v for k, v in present.items() if k != "tokens"}
+
+        def parse(**extra):
+            got, why = ag.parse_herdr(json.dumps({"result": {"agents": [dict(absent, **extra)]}}))
+            self.assertIsNone(why)
+            return got["fix-dev-02"]
+        self.assertEqual(parse(tokens=present["tokens"]), {"status": "idle", "pane_id": "w1:p2", "cwd": "/fixture/repo", "bg": "\u23f5 1 shell"})
+        self.assertEqual(parse(), {"status": "idle", "pane_id": "w1:p2", "cwd": "/fixture/repo"})
+        for odd in (None, [], {}, {"bg": ""}, {"bg": 3}, "x"):
+            self.assertNotIn("bg", parse(tokens=odd), odd)
+
     def test_T08_AC6_five_live_one_retired_other_squad_hidden(self):
         d = ag.read(self.sel(self.fx.herdr_json))["data"]
         self.assertEqual(d["status"], "ok")

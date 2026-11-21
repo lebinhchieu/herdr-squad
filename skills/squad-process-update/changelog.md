@@ -1,3 +1,14 @@
+## v19 — 2026-11-21
+
+Plugin 0.9.6. The watchdog counts an agent with a herdr background-shell token as working for up to `SQUAD_WATCHDOG_BG_MAX` minutes (default 60); the plugin ships the `herdr-bg` hook.
+
+added:
+- `hooks/herdr-bg`: reports an agent's background shells to herdr as `tokens.bg`. why: herdr calls an agent that waits for a background test run idle.
+- `SQUAD_WATCHDOG_BG_MAX`: minutes a bg token counts as working (60; `0` = off); `watchdog.log` says `bg busy:` and `bg cap:`.
+
+changed:
+- `squad-watchdog`: such an agent starts no idle spell, gets no nudge, holds the PC sleep and the "all goals done" stop until the cap. why: a full suite run looked like idle.
+
 ## v18 — 2026-11-20
 
 Plugin 0.9.5. The watchdog follows a goals file and no longer wakes the Manager when a ticket passes; the rules say who writes the file and how a pass is told. A pinned squad keeps its own runtime until it re-pins. LC-20a, LC-20b, LC-20e and MSG-6 change hash, so `squad-process upgrade --check` names an overlay that replaced one.
