@@ -187,6 +187,17 @@ class OldWhenLanguage(Base):
         self.assertNotIn("nothing needs a decision", r.stdout)
         self.assertEqual(self.snapshot(sq), before)
 
+    def test_removed_team_lead_conditions_are_listed_with_their_translation(self):  # ticket 02 AC4
+        for old, new in (("plan-owner = team-lead", "drop the condition"), ("plan-owner = manager", "drop the operation"),
+                         ("team-lead = no", "drop the operation"), ("team-lead = yes", "drop the condition")):
+            with self.subTest(when=old):
+                sq = self.squad_with(old)
+                before = self.snapshot(sq)
+                r = run(*self.args("--check", "add-free", sq))
+                self.assertEqual(r.returncode, 3, r.stderr)  # same exit code as the `size` case
+                self.assertRegex(r.stdout, rf"REV-1 \(line 3\): {old} -> .*{new}")
+                self.assertEqual(self.snapshot(sq), before)
+
     def test_other_l_role_rule_lists_the_tech_lead_alternative(self):
         for roles in ("tech-lead", "team-lead", "tech-lead, team-lead"):
             with self.subTest(roles=roles):
