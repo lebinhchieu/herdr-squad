@@ -22,3 +22,19 @@ AC trace (`cd tests; python3 -m unittest <file>`; greps from the repo root). See
 - AC6b (Tech Lead ANSWER, ticket updated): tombstoned LC-20a -> LC-20e, REV-1 -> REV-1b, REV-13a -> REV-13c, ITER-6a -> ITER-6b (`removed in v20`). REV-1b now carries REV-1's full text (self-contained). EVID-3a and EVID-9d had no twin for a team without QA, so they are kept and retargeted (`roles: team-lead`, `when: handin-target = team-lead`, heading "Team Lead"). Their hash changed on purpose; no `_removed.md` entry. `spawning.md` and `sizes.md` citations moved to ITER-6b and REV-1b.
 - Tests edited: test_squadrules, test_squadupgrade, test_squad_team (synthetic rules on `tech-lead = yes|no`), test_squadcompose, test_sizes, test_team_duties (64 teams, 12 duties), test_rules_contract (counts 64 -> 32), test_rules_wording, test_dev_rules_size, test_small_files_equivalence; rulesview.py docstring.
 - Results: `cd tests && python3 -m unittest test_rules_contract test_rules_wording test_sizes test_small_files_equivalence test_squadcompose test_squadrules test_squadupgrade test_team_cli test_team_duties test_squad_team test_dev_rules_size test_windows_safe test_utf8_helpers test_instructions`: 284 tests OK (includes the three SQ-10 files). No test skipped. Full suite not run (Tech Lead's).
+
+## Checks
+
+| AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |
+|---|---|---|---|
+| AC1 | test_squadrules TeamLeadImplicitTest OK | - | - |
+| AC2 | test_squadrules TeamLeadImplicitTest, test_team_duties OK | - | - |
+| AC3 | test_squadrules old-key test (plan-owner, team-lead rows) OK | - | - |
+| AC4 | test_squadupgrade test_removed_team_lead_conditions... OK | - | - |
+| AC5 | test_squad_team test_team_lead_is_always_on_the_team OK | - | - |
+| AC6 | grep over bin/ templates/ agents/ hooks/ skills/ empty but pointers; lint exit 0 | - | - |
+| AC6b | grep `handin-target = manager` templates/ empty; lint exit 0 | - | - |
+| AC7 | `squad-process who MSG-5 / WHO-1e`: 0 hits | - | - |
+| AC8 | test_dev_rules_size, test_squadcompose, test_sizes OK | - | - |
+| AC9 | windows_safe, utf8_helpers, instructions OK | - | - |
+| AC10 | 284 targeted tests OK | - | - |
