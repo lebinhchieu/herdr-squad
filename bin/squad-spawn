@@ -501,6 +501,7 @@ pane=$(jq -r '.result.root_pane.pane_id' <<<"$tab_json")
 tab=$(jq -r '.result.tab.tab_id' <<<"$tab_json")
 
 start_err=$(herdr agent start "$name" --kind claude --pane "$pane" --timeout 120000 -- "${claude_args[@]}" 2>&1) || {
+  [[ -n $start_err ]] || start_err="herdr agent start failed with no output"  # a silent failure must still fail the spawn
   if [[ $start_err == *agent_pane_busy* ]]; then
     # herdr found no shell prompt in the new pane. On Windows it only hooks PowerShell, so a Git Bash
     # default_shell lands here. Do what `agent start` would: type the command into the pane, wait until herdr
