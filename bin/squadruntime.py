@@ -172,6 +172,109 @@ def _installed_cache(version, sha, plugin_json_paths=None):
     return None
 
 
+def _claude_files(env_name, filename):
+    """The files to read: env `env_name` (a fixture path) alone, else `~/.claude*/plugins/<filename>`."""
+    env = os.environ.get(env_name)
+    return [env] if env else sorted(glob.glob(os.path.join(os.path.expanduser("~"), ".claude*", "plugins", filename)))
+
+
+def _plugin_json(folder):
+    try:
+        with open(os.path.join(folder, ".claude-plugin", "plugin.json"), encoding="utf-8-sig") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _known_squad_checkouts(path):
+    """Yield (marketplace name, installLocation) of the entries of one known_marketplaces.json that are a git
+    work-tree root whose plugin.json is named `squad`; an unreadable file or any other entry is skipped."""
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return
+    for name, entry in (data.items() if isinstance(data, dict) else ()):
+        loc = entry.get("installLocation") if isinstance(entry, dict) else None
+        if isinstance(loc, str) and os.path.isdir(loc) and is_repo_root(loc) and _plugin_json(loc).get("name") == "squad":
+            yield str(name), loc
+
+
+def _refusal(running_root, running_version, searched, why):
+    where = "; ".join(f"{p} ({n} entries)" for p, n in searched) or "no known_marketplaces.json or installed_plugins.json found"
+    return RuntimeError_(
+        1, f"cannot pin the running plugin: it is squad {running_version} at {running_root}; {why}",
+        f"searched: {where}",
+        "fix: update the plugin checkout or install to a version at least " + running_version + ", then run this again",
+        "or pass --plugin-root <new plugin folder> and --new-pin \"<version> <sha>\" by hand")
+
+
+def newest_plugin(running_root=DEFAULT_ROOT):
+    """(root, version, sha, source) of the newest squad plugin: the running root (when it can pin itself), the
+    git checkouts of known_marketplaces.json, the squad@* entries of installed_plugins.json. The first wins a
+    version tie. A running root that cannot pin itself never moves to an older plugin: exit 1 refusal."""
+    running_version = sc.running_version(running_root)
+    cands, searched = [], []
+    try:
+        version, sha, _dirty = running_pin(running_root)
+        cands.append((running_root, version, sha, "running"))
+    except RuntimeError_:
+        pass
+    can_pin = bool(cands)
+    for path in _claude_files("SQUAD_KNOWN_MARKETPLACES", "known_marketplaces.json"):
+        n = 0
+        for name, loc in _known_squad_checkouts(path):
+            version, sha = _plugin_json(loc).get("version"), _git(loc, "rev-parse", "HEAD")
+            if version and sha and SHA_RE.match(sha):
+                cands.append((loc, str(version), sha, f"known marketplace {name}"))
+                n += 1
+        searched.append((path, n))
+    for path in _claude_files("SQUAD_INSTALLED_PLUGINS", "installed_plugins.json"):
+        n = 0
+        for folder, sha in _installed_entries([path]):
+            version = _plugin_json(folder).get("version") if os.path.isdir(folder) else None
+            if version and SHA_RE.match(sha):
+                cands.append((folder, str(version), sha, "installed cache"))
+                n += 1
+        searched.append((path, n))
+    if not cands:
+        raise _refusal(running_root, running_version, searched, "no newer squad plugin was found")
+    best = cands[0]
+    for c in cands[1:]:
+        if vkey(c[1]) > vkey(best[1]):
+            best = c
+    if not can_pin and vkey(best[1]) < vkey(running_version):
+        raise _refusal(running_root, running_version, searched,
+                       f"the newest plugin found is {best[1]} at {best[0]}, older than the running one")
+    return best
+
+
+def _run_child(root, argv):
+    env = dict(os.environ, SQUAD_PROCESS_DELEGATED=root)
+    return subprocess.run([sys.executable, os.path.join(root, "bin", "squad-process"), *argv], env=env).returncode
+
+
+def delegate(argv, running_root=DEFAULT_ROOT):
+    """The exit code of the newest plugin's `squad-process` run with `argv`, or None to run in place. For
+    `upgrade` and `homes` only, when argv has no --plugin-root. Prints one stderr line before the child runs."""
+    if any(a == "--plugin-root" or a.startswith("--plugin-root=") for a in argv) or "-h" in argv or "--help" in argv:
+        return None
+    if os.environ.get("SQUAD_PROCESS_DELEGATED"):  # a child never delegates again; it still refuses when it cannot pin
+        try:
+            running_pin(running_root)
+        except RuntimeError_:
+            raise _refusal(running_root, sc.running_version(running_root), [],
+                           "it is not a git checkout and has no installed squad@* entry, and this is already the delegated run")
+        return None
+    root, version, _sha, source = newest_plugin(running_root)
+    if source == "running" or _norm_path(root) == _norm_path(running_root):
+        return None
+    print(f"squad-process: this session runs plugin {sc.running_version(running_root)}; using plugin {version} "
+          f"from {root} ({source})", file=sys.stderr, flush=True)
+    return _run_child(root, argv)
+
+
 def _norm_path(path):
     return os.path.normcase(os.path.realpath(path))
 

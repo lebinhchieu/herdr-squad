@@ -104,6 +104,109 @@ class InstalledCache(Base):
         self.assertIn("--new-pin", r.stdout + r.stderr)
 
 
+class Delegation(Base):
+    """A session pinned to an extracted runtime (0.4.0, no .git) finds the newer checkout (0.5.0) of
+    known_marketplaces.json and runs its squad-process: `upgrade` and `homes` only."""
+
+    def setUp(self):
+        super().setUp()
+        tmp = Path(self._tmp.name)
+        self.runtime, self.child = tmp / "_runtime", tmp / "checkout"
+        for dest, ver in ((self.runtime, "0.4.0"), (self.child, "0.5.0")):
+            if dest is self.child:
+                shutil.copytree(FIX / "add-free" / "new", dest)
+            shutil.copytree(BIN, dest / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+            (dest / ".claude-plugin").mkdir(exist_ok=True)
+            (dest / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": "squad", "version": ver}), encoding="utf-8")
+        git("init", "-q", cwd=self.child)
+        self.commit()
+        self.known, self.listing = tmp / "known_marketplaces.json", tmp / "installed_plugins.json"
+        self.known.write_text(json.dumps({
+            "claude-plugins-official": {"source": {"source": "github", "repo": "a/b"}, "installLocation": str(tmp / "none")},
+            "herdr-squad": {"source": {"source": "directory", "path": str(self.child)}, "installLocation": str(self.child),
+                            "lastUpdated": "2026-11-21T10:00:00.000Z"}}), encoding="utf-8")
+        self.listing.write_text(json.dumps({"version": 2, "plugins": {}}), encoding="utf-8")
+
+    def commit(self, case=None):
+        """Commit the child; `case` swaps in that case's new rule files first."""
+        if case:
+            shutil.rmtree(self.child / "templates")
+            shutil.copytree(FIX / case / "new" / "templates", self.child / "templates")
+        git("add", "-A", cwd=self.child)
+        git("commit", "-q", "-m", "0.5.0", cwd=self.child)
+        self.sha = git("rev-parse", "HEAD", cwd=self.child)
+
+    def go(self, root, *args, env=None):
+        base = {"SQUAD_KNOWN_MARKETPLACES": str(self.known), "SQUAD_INSTALLED_PLUGINS": str(self.listing)}
+        return subprocess.run([sys.executable, str(root / "bin" / "squad-process"), *args], capture_output=True,
+                              encoding="utf-8", env={**{k: v for k, v in os.environ.items() if not k.startswith("SQUAD_") and k not in ("SCOPE_DIR", "GOAL_DIR")},
+                                                     **base, **(env or {}), "PYTHONDONTWRITEBYTECODE": "1"})
+
+    def up(self, mode, case, sq, *extra):
+        return ["upgrade", mode, "--squad-dir", str(sq), "--old-root", str(FIX / case / "old"), "--today", "2026-10-22", *extra]
+
+    LINE = "squad-process: this session runs plugin 0.4.0; using plugin 0.5.0 from %s (known marketplace herdr-squad)\n"
+
+    def test_upgrade_check_and_apply_run_the_newer_plugin_with_its_exit_code(self):
+        for case, code in (("add-free", 0), ("change-stale", 3)):
+            with self.subTest(case=case):
+                if case != "add-free":
+                    self.commit(case)
+                sq = self.squad(case)
+                direct = self.go(self.child, *self.up("--check", case, sq))  # the newer plugin on its own
+                r = self.go(self.runtime, *self.up("--check", case, sq))
+                self.assertEqual((r.returncode, r.stdout), (code, direct.stdout), r.stderr)
+                self.assertEqual(r.returncode, direct.returncode)
+                self.assertEqual(r.stderr, self.LINE % self.child)
+        sq = self.squad("add-free")
+        r = self.go(self.runtime, *self.up("--apply", "add-free", sq, "--yes"))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual((sq / "plugin.pin").read_text(encoding="utf-8").strip(), f"0.5.0 {self.sha}")
+
+    def test_homes_delegates_the_same_way(self):
+        sq = self.squad("add-free")
+        (sq / "plugin.pin").write_text(f"0.5.0 {self.sha}\n", encoding="utf-8")
+        home = sq / "scopes" / "s"
+        home.mkdir(parents=True)
+        (home / "scope.md").write_text("# Scope: s\n\ngoal: none\nteam: tech-lead\nqa: full\nplugin: 0.5.0 " + self.sha + "\n",
+                                       encoding="utf-8")
+        args = ["homes", "--check", "--squad-dir", str(sq), "--home", str(home)]
+        r, direct = self.go(self.runtime, *args), self.go(self.child, *args)
+        self.assertEqual((r.returncode, r.stdout), (direct.returncode, direct.stdout), r.stderr)
+        self.assertEqual(r.stderr, self.LINE % self.child + direct.stderr)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("at-target", r.stdout)
+
+    def test_these_run_in_place_and_print_no_using_plugin_line(self):
+        sq = self.squad("add-free")
+        runs = [(self.runtime, ["upgrade", "--check", "--squad-dir", str(sq), "--old-root", str(FIX / "add-free" / "old"),
+                                "--plugin-root", str(FIX / "add-free" / "new"), "--new-pin", NEW_PIN, "--today", "2026-10-22"]),
+                (self.runtime, ["mode", "--squad-dir", str(sq)]),
+                (self.child, self.up("--check", "add-free", sq))]  # can pin itself, nothing newer
+        for root, args in runs:
+            with self.subTest(args=args[:2]):
+                r = self.go(root, *args)
+                self.assertNotIn("using plugin", r.stderr)
+                self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_a_delegated_child_that_cannot_pin_refuses_and_starts_no_grandchild(self):
+        sq = self.squad("add-free")
+        r = self.go(self.runtime, *self.up("--check", "add-free", sq), env={"SQUAD_PROCESS_DELEGATED": str(self.child)})
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("cannot pin the running plugin", r.stderr)
+        self.assertNotIn("using plugin", r.stderr)
+
+    def test_refusal_with_nothing_found_changes_nothing_in_the_squad(self):
+        sq = self.squad("add-free")
+        self.known.write_text("{}", encoding="utf-8")
+        before = sorted(str(p.relative_to(sq.parent.parent)) for p in sq.parent.parent.rglob("*"))
+        r = self.go(self.runtime, *self.up("--apply", "add-free", sq, "--yes"))
+        self.assertEqual(r.returncode, 1)
+        for want in ("0.4.0", f"{self.known} (0 entries)", f"{self.listing} (0 entries)", "--plugin-root", "--new-pin"):
+            self.assertIn(want, r.stderr)
+        self.assertEqual(before, sorted(str(p.relative_to(sq.parent.parent)) for p in sq.parent.parent.rglob("*")))
+
+
 class CaseTable(Base):
     def test_check_output_and_exit_for_every_fixture(self):
         for case in CASES:

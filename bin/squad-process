@@ -43,6 +43,16 @@ def main(argv=None):
     if argv and argv[0] == "scaffold":
         import squadscaffold  # new composed squads
         return squadscaffold.main(argv)
+    if argv and argv[0] in ("upgrade", "homes"):  # the new plugin may be another folder than the pinned runtime
+        import squadruntime
+        try:
+            code = squadruntime.delegate(argv)
+        except squadruntime.RuntimeError_ as e:
+            for line in e.lines:
+                print(line, file=sys.stderr)
+            return e.code
+        if code is not None:
+            return code
     if argv and argv[0] == "homes":
         import squadhomes  # list the open homes' pins, move chosen ones to the squad's pin
         return squadhomes.main(argv)

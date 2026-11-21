@@ -15,7 +15,7 @@ import unittest
 from unittest import mock
 from pathlib import Path
 
-from squadtest import BIN, clean_env, fake_herdr, git, load_cli, plugin_clone, plugin_copy, squad_home
+from squadtest import BIN, _stamp_version, clean_env, fake_herdr, git, load_cli, plugin_clone, plugin_copy, squad_home
 sys.path.insert(0, str(BIN))
 import squadruntime as rt  # noqa: E402
 import winlaunch
@@ -295,6 +295,108 @@ class RunningPinCacheTest(Base):
         self.assertEqual(rt._norm_path(d), rt._norm_path(os.path.join(d, "bin", "..")))
         if os.name == "nt":  # backslash, forward slash and drive-letter case are one folder
             self.assertEqual(rt._norm_path(d.replace("\\", "/")), rt._norm_path(d.swapcase()))
+
+
+class NewestPluginTest(Base):
+    """newest_plugin from an extracted runtime (no .git, not in the listing). The files have the shapes of the real
+    ~/.claude/plugins/known_marketplaces.json (directory and github entries) and installed_plugins.json."""
+
+    def setUp(self):
+        super().setUp()
+        self.run_root = self.root / "_runtime"
+        plugin_clone(self.run_root, git_dir=False)
+        _stamp_version(self.run_root, "0.4.0")
+        self.known, self.listing = self.root / "known_marketplaces.json", self.root / "installed_plugins.json"
+        env = {"SQUAD_KNOWN_MARKETPLACES": str(self.known), "SQUAD_INSTALLED_PLUGINS": str(self.listing)}
+        patcher = mock.patch.dict(os.environ, env)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.set_known({})
+        self.set_installed([])
+
+    def checkout(self, name, version):
+        d = self.root / name
+        plugin_clone(d)
+        _stamp_version(d, version)
+        return d
+
+    def cache(self, name, version, sha="c" * 40):
+        d = self.root / name
+        plugin_clone(d, git_dir=False)
+        _stamp_version(d, version)
+        return d, sha
+
+    def set_known(self, entries):
+        data = {n: {"source": {"source": "directory", "path": str(p)}, "installLocation": str(p),
+                    "lastUpdated": "2026-11-21T10:00:00.000Z"} for n, p in entries.items()}
+        self.known.write_text(json.dumps(data), encoding="utf-8")
+
+    def set_installed(self, entries):
+        rows = [{"scope": "user", "installPath": str(p), "version": "x", "gitCommitSha": sha} for p, sha in entries]
+        self.listing.write_text(json.dumps({"version": 2, "plugins": {"squad@market": rows}}), encoding="utf-8")
+
+    def test_the_checkout_wins_when_newer_and_the_cache_when_newer_than_it(self):
+        co = self.checkout("co", "0.5.0")
+        self.set_known({"herdr-squad": co})
+        got = rt.newest_plugin(str(self.run_root))
+        self.assertEqual(got[:2], (str(co), "0.5.0"))
+        self.assertEqual((got[2], got[3]), (git("rev-parse", "HEAD", cwd=co), "known marketplace herdr-squad"))
+        cache = self.cache("cache", "0.6.0")
+        self.set_installed([cache])
+        got = rt.newest_plugin(str(self.run_root))
+        self.assertEqual(got, (str(cache[0]), "0.6.0", cache[1], "installed cache"))
+
+    def test_a_version_tie_goes_to_the_checkout(self):
+        co = self.checkout("co", "0.5.0")
+        self.set_known({"herdr-squad": co})
+        self.set_installed([self.cache("cache", "0.5.0")])
+        self.assertEqual(rt.newest_plugin(str(self.run_root))[3], "known marketplace herdr-squad")
+
+    def test_entries_that_are_no_squad_plugin_are_skipped_without_error(self):
+        bare = self.root / "official"  # a github marketplace: no plugin.json
+        bare.mkdir()
+        git("init", "-q", cwd=bare)
+        other = self.checkout("other", "9.0.0")
+        pj = other / ".claude-plugin" / "plugin.json"
+        pj.write_text(re.sub(r'"name"\s*:\s*"squad"', '"name": "ponytail"', pj.read_text(encoding="utf-8")), encoding="utf-8")
+        self.set_known({"claude-plugins-official": bare, "ponytail": other, "gone": self.root / "missing"})
+        self.set_installed([(self.root / "no-such-folder", "d" * 40)])
+        with self.assertRaises(rt.RuntimeError_) as c:
+            rt.newest_plugin(str(self.run_root))
+        self.assertEqual(c.exception.code, 1)
+        self.known.write_text("{not json", encoding="utf-8")
+        self.listing.write_text("[", encoding="utf-8")
+        with self.assertRaises(rt.RuntimeError_) as c:  # malformed files: skipped, the refusal still names them
+            rt.newest_plugin(str(self.run_root))
+        self.assertIn(str(self.known), str(c.exception))
+
+    def test_never_moves_an_unpinnable_root_backwards_and_starts_no_child(self):
+        _stamp_version(self.run_root, "0.10.3")
+        self.set_known({"herdr-squad": self.checkout("co", "0.10.2")})
+        with mock.patch.object(rt, "_run_child") as run:
+            with self.assertRaises(rt.RuntimeError_) as c:
+                rt.delegate(["upgrade", "--check"], str(self.run_root))
+        self.assertEqual(c.exception.code, 1)
+        self.assertIn("0.10.3", str(c.exception))
+        self.assertIn("0.10.2", str(c.exception))
+        run.assert_not_called()
+
+    def test_refusal_names_what_was_searched_and_the_two_ways_out(self):
+        with self.assertRaises(rt.RuntimeError_) as c:
+            rt.newest_plugin(str(self.run_root))
+        text = str(c.exception)
+        self.assertEqual(c.exception.code, 1)
+        for want in ("0.4.0", f"{self.known} (0 entries)", f"{self.listing} (0 entries)", "--plugin-root", "--new-pin"):
+            self.assertIn(want, text)
+
+    def test_a_root_that_can_pin_itself_is_a_candidate_and_loses_only_to_a_newer_one(self):
+        co = self.checkout("co", "0.5.0")
+        self.set_known({"herdr-squad": co})
+        self.assertEqual(rt.newest_plugin(str(co))[3], "running")  # tie with itself: runs in place
+        older = self.checkout("older", "0.3.0")
+        self.assertEqual(rt.newest_plugin(str(older))[:2], (str(co), "0.5.0"))
+        self.set_known({"herdr-squad": older})
+        self.assertEqual(rt.newest_plugin(str(co))[3], "running")  # never backwards
 
 
 class ExtractDrainTest(Base):
