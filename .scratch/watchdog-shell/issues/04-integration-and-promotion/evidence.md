@@ -18,10 +18,10 @@ Branch squad/plugin/watchdog-shell/plugin-dev-watchdog-shell-1. `squad-evidence 
 **Tests (AC2)**, on the merge result, all OK, no skip: test_hooks_json 5, test_herdr_bg 6, test_squad_watchdog 78, test_squadboard_agents 10, test_squad_start 49, test_squad_log_message 25, test_squadtask 15, test_squadboard_inbox 12. SQ-10: test_windows_safe 14, test_utf8_helpers 14, test_instructions 16.
 
 **Live contract (AC3)**, own pane, temp state/tasks dirs, `herdr` stubbed on PATH for the tick so no real Manager is messaged (stub log never created = no nudge):
-- a. `b1.output` empty, PreToolUse-style Bash payload with `run_in_background` piped to `hooks/herdr-bg hook`.
+- a. `b1.output` empty, PostToolUse Bash payload with `run_in_background` piped to `hooks/herdr-bg hook`.
 - b. `herdr agent list > live-bg-present.json`. My row: `"name": "plugin-dev-watchdog-shell-5", "agent_status": "working", ... "tokens": {"bg": "⏵ 1 shell"}`.
 - c. Note: my own row is `working` (I am running the check), so the watchdog rule (idle/done + token) cannot fire on it. The same file holds a real unedited row `plugin-tl-watchdog-shell`, `agent_status: done`, `tokens: {"bg": "⏵ 1 shell"}`. I used it: scratch home, roster = that agent, goals G1 `in progress`; `tick --herdr-json live-bg-present.json` at 10:00 and 10:10 gave exactly one log line `bg busy: plugin-tl-watchdog-shell has a background shell (⏵ 1 shell); counted as working for at most 60 min`, no `idle start`, rc 0, no herdr send.
-- d. `[exited with code 0]` appended, Stop payload to the hook, `herdr agent list > live-bg-cleared.json`: my row `working`, no `tokens` key. For the idle line my row's status cannot be idle, so a copy with only `agent_status` set to `done` for my row went to `tick`: `the log below`: `idle start: nobody works and goals are open (G1 x: in progress). Agents: plugin-mgr-x gone, plugin-dev-watchdog-shell-5 idle`.
+- d. `[exited with code 0]` appended, Stop payload to the hook, `herdr agent list > live-bg-cleared.json`: my row `working`, no `tokens` key. For the idle line my row's status cannot be idle, so a copy with only `agent_status` set to `done` for my row went to `tick`: the log line below: `idle start: nobody works and goals are open (G1 x: in progress). Agents: plugin-mgr-x gone, plugin-dev-watchdog-shell-5 idle`.
 - e. Cleanup: `herdr pane report-metadata "$HERDR_PANE_ID" --source herdr-bg --clear-token bg` rc 0; temp dirs removed; env vars unset. The team lead's own token in the JSON is theirs, not touched.
 
 ```
