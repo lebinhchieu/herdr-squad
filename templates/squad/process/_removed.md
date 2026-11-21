@@ -14,7 +14,7 @@ replaced_by: SIZE-1
 
 ## SIZE-6d (removed in v9)
 why: Twin of SIZE-6c; one rule now, the `duties:` header line names the owners.
-replaced_by: SIZE-6c
+replaced_by: SIZE-6b
 
 ## SIZE-12 (removed in v9)
 why: Duties of a missing role are the duty owner chains; nothing is dropped.
@@ -127,3 +127,63 @@ replaced_by: WHO-3b
 ## WHO-8a (removed in v20)
 why: The Manager settles every dispute (WHO-8b).
 replaced_by: WHO-8b
+
+## COST-5a (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: COST-5
+
+## COST-6a (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: COST-6b
+
+## COST-10a (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: COST-10b
+
+## COST-13a (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: COST-13b
+
+## COST-14a (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: COST-14b
+
+## FILE-5a (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: FILE-5b
+
+## ITER-3b (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: ITER-3
+
+## PROMO-5b (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: PROMO-5
+
+## SIZE-6a (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: SIZE-6b
+
+## SIZE-6c (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: SIZE-6b
+
+## SPAWN-2a (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: SPAWN-2b
+
+## SPAWN-5a (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: SPAWN-5b
+
+## SPAWN-8a (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: SPAWN-8b
+
+## SPAWN-10a (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: SPAWN-10b
+
+## START-2a (removed in v14)
+why: The Team Lead plans every scope; the Manager-plans variant is gone.
+replaced_by: START-2b
