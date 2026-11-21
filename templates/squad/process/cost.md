@@ -21,7 +21,6 @@ The Tech Lead splits a task likely to need a respawn.
 
 ## COST-4b Plan owners respawn
 roles: tech-lead, team-lead
-when: plan-owner = team-lead
 topic: cost
 
 Respawn once your plan and AC are in files.
@@ -35,28 +34,12 @@ Respawn once your design and AC are in files.
 
 ## COST-5 Developer retires
 roles: dev
-when: plan-owner = team-lead
 topic: cost
 
 Retire (no `squad-respawn`) when the hook says `fresh` with the ticket merged-ready, or when no open ticket touches your files. Mid-ticket respawn once; the Team Lead splits the rest. Never reuse a retired name.
 
-## COST-5a Developer retires, Manager
-roles: dev
-when: plan-owner = manager
-topic: cost
-
-On the hook's `fresh` with the ticket merged-ready, or when no open ticket touches your files, retire (no `squad-respawn`). Mid-ticket respawn once; the Manager splits the rest. Never reuse a retired name.
-
-## COST-6a Ticket assignment, Manager
-roles: manager
-when: plan-owner = manager
-topic: cost
-
-A ticket touching at most 2 files goes to a live Developer under 80k before a new spawn. A ticket on files a live Developer already changed goes to it while it has no `fresh` signal.
-
 ## COST-6b Ticket assignment, Team Lead
 roles: team-lead
-when: plan-owner = team-lead
 topic: cost
 
 Before spawning for a ticket touching at most 2 files, give it to a live Developer under 80k. Give a ticket on files a live Developer already changed to that Developer while it has no `fresh` signal.
@@ -81,16 +64,8 @@ topic: cost
 
 After a PO wait longer than the 1h cache lifetime (`CACHE_TTL_S` in `bin/squadtranscript.py`, the 1-hour lifetime this squad's sessions use; not re-checked against Claude docs), write notes and run `squad-respawn` at the next quiet point (a merge, a close, or no role building).
 
-## COST-10a PO wait, Manager plans
-roles: manager
-when: plan-owner = manager
-topic: cost
-
-Before a PO wait (a merge, a check-in answer, a close), retire every pod role over 60k, and respawn the roles the next iteration needs.
-
 ## COST-10b PO wait, Team Lead plans
 roles: manager, team-lead
-when: plan-owner = team-lead
 topic: cost
 
 Before a PO wait (a merge, a check-in answer, a close), the Manager retires every pod role over 60k; the Team Lead respawns the roles the next iteration needs.
@@ -107,34 +82,16 @@ topic: cost
 
 Messages point at files. The Manager reads summaries, never transcripts.
 
-## COST-13a Nothing left to do, Manager plans
-roles: qa-whitebox, qa-blackbox, designer, architect
-aware: manager
-when: plan-owner = manager
-topic: cost
-
-A role with no open ticket and its deliverable file written (QA: its verdict posted) answers a fresh event from notes only and never runs `squad-respawn`; the Manager retires it once its work is accepted.
-
 ## COST-13b Nothing left to do, Team Lead plans
 roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 aware: manager
-when: plan-owner = team-lead
 topic: cost
 
-A role with no open ticket and its deliverable file written (Team Lead: the iteration file; Tech Lead: the final sha named; QA: its verdict posted) answers a fresh event from notes only and never runs `squad-respawn`; the Team Lead retires it once its work is accepted.
-
-## COST-14a Short life, Manager plans
-roles: qa-whitebox, qa-blackbox, designer, architect
-aware: manager
-when: plan-owner = manager
-topic: cost
-
-A role whose fresh event comes under 15 minutes after its previous respawn tells the Manager first; the Manager splits the remaining tickets or narrows what the role reads to the diff and the files its AC name.
+A role with no open ticket and its deliverable file written (the iteration file, the final sha named, or its verdict posted) answers a fresh event from notes only and never runs `squad-respawn`; the Team Lead retires it once its work is accepted.
 
 ## COST-14b Short life, Team Lead plans
 roles: ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 aware: manager
-when: plan-owner = team-lead
 topic: cost
 
 A role whose fresh event comes under 15 minutes after its previous respawn tells the Team Lead first; the Team Lead splits the remaining tickets or narrows what the role reads to the diff and the files its AC name.

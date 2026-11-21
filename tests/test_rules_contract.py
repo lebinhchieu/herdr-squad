@@ -21,7 +21,7 @@ class WhoActsTest(unittest.TestCase):
         for rid, key, want in (
                 ("LC-26", "S", ("manager", "tech-lead")), ("LC-26", "M", ("manager", "tech-lead")), ("LC-26", "L", ("manager", "tech-lead")),
                 ("MSG-5", "plan-owner = manager", ()),
-                ("SIZE-6a", "S", None),  # manager must be among them
+                ("SPAWN-12", "S", ("manager",)),
                 ("LC-15", "plan-owner = team-lead", ("team-lead",)), ("LC-15", "plan-owner = manager", ()),
                 ("LC-17b", "plan-owner = manager", ("manager",)),
                 ("ITER-13", "S", ("token-coach",)), ("ITER-13", "M", ("token-coach",)), ("ITER-13", "L", ("token-coach",)),
@@ -43,6 +43,14 @@ class WhoActsTest(unittest.TestCase):
         self.assertIn("tech-lead", acts("LC-11", "L"))
         self.assertIn("manager", acts("LC-11b", "M"))
         self.assertIn("team-lead", acts("SIZE-17b", "L"))
+
+    def test_manager_subagent_default_rule(self):  # ticket 04 AC3, AC4
+        m = composed("manager", team="team-lead")
+        self.assertIn("SPAWN-12", rule_ids(m))
+        for phrase in ("`model: sonnet`", "`effort: high`", "A fork is allowed"):
+            self.assertIn(phrase, m)
+        self.assertNotIn("SPAWN-12", rule_ids(composed("dev", team="team-lead")))
+        self.assertNotIn("SPAWN-12", rule_ids(composed("team-lead", team="team-lead")))
 
     def test_task_id_rule_reaches_every_role_and_size(self):
         for size in "SML":
@@ -134,9 +142,6 @@ class ComposedRulesTest(unittest.TestCase):
         tl = "team-lead, tech-lead, qa-white, qa-black"
         self.assertIn("SPAWN-2b", rule_ids(composed("manager", team=tl)))
         self.assertIn("SPAWN-2c", rule_ids(composed("manager", team=tl)))
-        self.assertNotIn("SPAWN-2a", rule_ids(composed("manager", team=tl)))
-        self.assertIn("SPAWN-2a", rule_ids(composed("manager", team=MG)))
-        self.assertNotIn("SPAWN-2b", rule_ids(composed("manager", team=MG)))
         self.assertIn("every other role on `team:`", composed("manager", team=MG))
         self.assertNotIn("SPAWN-5b", rule_ids(composed("manager", team=tl)))
         self.assertIn("SPAWN-5b", rule_ids(composed("team-lead", team=tl)))
@@ -145,10 +150,9 @@ class ComposedRulesTest(unittest.TestCase):
         self.assertNotIn("SPAWN-4", rule_ids(composed("manager", team=MG)))
         self.assertIn("SPAWN-4a", rule_ids(composed("manager", team="architect")))
         self.assertIn("COST-5", rule_ids(composed("dev", team=tl)))
-        self.assertIn("COST-5a", rule_ids(composed("dev", team=MG)))
+        self.assertIn("COST-5", rule_ids(composed("dev", team=MG)))
         self.assertIn("COST-4a", rule_ids(composed("tech-lead", team="tech-lead")))
         self.assertIn("COST-6b", rule_ids(composed("team-lead", team=tl)))
-        self.assertIn("COST-6a", rule_ids(composed("manager", team=MG)))
         self.assertIn("SAFE-9", rule_ids(composed("qa-whitebox", team=MG)))  # no `when:`: composed for the role that is on the team
         self.assertIn("SAFE-10", rule_ids(composed("qa-blackbox", team="qa-black")))
 
@@ -159,7 +163,7 @@ class ComposedRulesTest(unittest.TestCase):
             self.assertNotRegex(text, r"\bqa-b\b", f)
             self.assertNotRegex(text, r"(?m)^when:.*\b(?:S|M|L)\b", f)
 
-    def test_tech_lead_without_team_lead_respawns_per_cost_4c(self):  # over the 128 teams
+    def test_tech_lead_respawns_per_cost_4b_and_4c(self):  # over the 128 teams
         n = 0
         for k in range(len(sr.TEAM_KEYS) + 1):
             for team in itertools.combinations(sr.TEAM_KEYS, k):
@@ -168,7 +172,7 @@ class ComposedRulesTest(unittest.TestCase):
                     continue
                 n += 1
                 got = [i for i in ("COST-4b", "COST-4c") if sr.matches(BY_ID[i].when, facts)]
-                self.assertEqual(got, ["COST-4b", "COST-4c"] if "team-lead" in team else ["COST-4c"], team)  # accepted: both for a Tech Lead with a Team Lead
+                self.assertEqual(got, ["COST-4b", "COST-4c"], team)  # the Team Lead always plans: both rules for every Tech Lead
         self.assertEqual(n, 64)
         self.assertIn("Respawn once your design and AC are in files.", composed("tech-lead", team="tech-lead"))
         self.assertIn("COST-4c", rule_ids(composed("tech-lead", team="tech-lead, team-lead")))

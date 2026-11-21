@@ -107,7 +107,7 @@ class RulesTest(unittest.TestCase):
         for size in "SM":
             for role in ("dev", "qa-whitebox"):
                 t = composed(role, size, architecture="yes").split("## Index of other rules")[0]
-                for name in ("Tech Lead", "Team Lead", "the BA"):
+                for name in ("Tech Lead", "the BA"):  # the Team Lead is always on the team
                     self.assertNotIn(name, t, (role, size, name))
 
 
