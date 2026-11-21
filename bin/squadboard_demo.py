@@ -77,10 +77,16 @@ def extend(fx, now=None):
         for d in (src, dst):
             shutil.copy2(questions / f, d / f)
     seen = (now - timedelta(minutes=25)).strftime("%Y-%m-%dT%H:%M:%SZ")  # the fixture stamp is a fixed date: make E1 and E2 minutes old
+    import board_fixtures
+    shift = now - board_fixtures.REF  # copy_fixture moved every stamp by this: find the 3 Nov ones by their unshifted day
     for d in (src, dst, questions):  # the temp copy of the `questions` scope too (the fixture file stays unedited)
         lines = [json.loads(l) for l in _read(d / "inbox.jsonl").splitlines() if l.strip()]
         for rec in lines:
-            if rec.get("ts", "").startswith("2026-11-03"):
+            try:
+                was = datetime.strptime(rec.get("ts", ""), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc) - shift
+            except ValueError:
+                continue
+            if was.strftime("%Y-%m-%d") == "2026-11-03":
                 rec["ts"] = seen
         _write(d / "inbox.jsonl", "".join(json.dumps(r) + "\n" for r in lines))
     _write(dst / "messages.jsonl", _rename(_read(src / "messages.jsonl")))
@@ -148,7 +154,7 @@ def build(now=None):
     import board_fixtures
     root = Path(tempfile.mkdtemp(prefix="squad-board-demo-"))
     try:
-        fx = board_fixtures.copy_fixture(root, now=now or datetime.now(timezone.utc))
+        fx = board_fixtures.copy_fixture(root, now=now or datetime.now(timezone.utc), pin_clock=False)
         extend(fx, now)
         return fx
     except BaseException:

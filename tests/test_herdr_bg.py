@@ -10,13 +10,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import winlaunch
+
 SCRIPT = Path(__file__).resolve().parent.parent / "hooks" / "herdr-bg"
-BASH = shutil.which("bash")
 JQ = shutil.which("jq")
+BASH = winlaunch.bash()  # Git bash on Windows, never the WSL launcher (tests/test_no_bare_bash.py)
 
 
 def setUpModule():
-    missing = [n for n, p in (("bash", BASH), ("jq", JQ)) if not p]
+    missing = [n for n, exe in {"jq": "jq", "bash": BASH}.items() if not shutil.which(exe)]
     if missing:
         if os.environ.get("SQUAD_REQUIRE_CLAUDE") == "1":
             raise AssertionError("SQUAD_REQUIRE_CLAUDE=1 but not on PATH: " + ", ".join(missing))
