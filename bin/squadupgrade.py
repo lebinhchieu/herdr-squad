@@ -557,8 +557,8 @@ def cmd_apply(a):
     today = a.today or str(datetime.date.today())
     backup = _backup(squad_dir, today)
     _atomic_write(Path(squad_dir) / sr.OVERLAY_FILE, text)
-    rows = [(f"Upgraded plugin {' '.join(old_pin) if old_pin else '(no pin)'} -> {' '.join(new_pin)}; running "
-             "scopes keep their scope.md pin", "squad-process upgrade --apply")] + rows
+    rows = [(f"Upgraded plugin {' '.join(old_pin) if old_pin else '(no pin)'} -> {' '.join(new_pin)}; open "
+             "scopes and goals keep their own pin until squad-process homes moves them", "squad-process upgrade --apply")] + rows
     table = _write_log(squad_dir, rows, today)
     _atomic_write(Path(squad_dir) / "plugin.pin", f"{new_pin[0]} {new_pin[1]}\n")  # last: a crash re-runs safely
     print(f"backup: {backup}")

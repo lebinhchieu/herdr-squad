@@ -410,6 +410,8 @@ class WriteGuards(Base):
         log = (sq / "process-log.md").read_text()
         self.assertIn("| 2026-10-22 | Upgraded plugin 0.4.0 aaaaaaa1 -> 0.5.0 bbbbbbb2", log)
         self.assertIn("overlay replace REV-2: local text kept", log)
+        self.assertIn("until squad-process homes moves them", log)
+        self.assertNotIn("keep their " "scope.md pin", log)
 
     def test_missing_runtime_is_exit_1_with_path(self):
         sq = self.squad("add-free")

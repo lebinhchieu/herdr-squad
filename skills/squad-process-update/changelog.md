@@ -10,6 +10,7 @@ added:
 
 changed:
 - `upgrade --check` exit 0 now still goes through `--apply`, so `plugin.pin` moves when nothing is flagged. why: the pin stayed old while the plugin moved on.
+- `upgrade --apply --yes` logs "open scopes and goals keep their own pin until squad-process homes moves them" instead of the old claim that scopes in progress hold their scope.md pin; the skill's refused-home case moves the homes that compose with `--only`. why: both read wrong next to the new Home step.
 
 Deploy (Chieu): merge; `claude plugin update` to 0.10.2. A session pinned at 0.10.0 or 0.10.1 has no discovery and the old skill: move it to 0.10.2 by hand first (there is no bootstrap for older pins). Rollback: revert the merge, plugin back to 0.10.1.
 
