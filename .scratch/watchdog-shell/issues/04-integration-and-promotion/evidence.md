@@ -24,6 +24,8 @@ Branch squad/plugin/watchdog-shell/plugin-dev-watchdog-shell-1. `squad-evidence 
 - d. `[exited with code 0]` appended, Stop payload to the hook, `herdr agent list > live-bg-cleared.json`: my row `working`, no `tokens` key. For the idle line my row's status cannot be idle, so a copy with only `agent_status` set to `done` for my row went to `tick`: `img/live-tick-cleared.log`: `idle start: nobody works and goals are open (G1 x: in progress). Agents: plugin-mgr-x gone, plugin-dev-watchdog-shell-5 idle`.
 - e. Cleanup: `herdr pane report-metadata "$HERDR_PANE_ID" --source herdr-bg --clear-token bg` rc 0; temp dirs removed; env vars unset. The team lead's own token in the JSON is theirs, not touched.
 
+Captures: ![present](img/live-bg-present.json) ![cleared](img/live-bg-cleared.json) ![tick after clear](img/live-tick-cleared.log)
+
 **ADR (AC4).** `docs/adr/0029-watchdog-counts-a-background-shell-as-work.md` is the fenced block of promote.md verbatim; no fact needed a fix, so the diff against the block is empty. Facts, each checked on the merged tree:
 - `hooks/hooks.json:24` matcher `Bash|Monitor|TaskStop` and `:33` `Stop`, both run `hooks/herdr-bg hook`.
 - `hooks/herdr-bg:18` `TTL_MS=3600000`; header "Needs bash, jq and herdr", silent no-op outside herdr.
