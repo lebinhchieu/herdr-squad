@@ -728,11 +728,13 @@ class SpawnTaskPromptTest(unittest.TestCase):
         self.assertIn("Ticket 07 of scope sc1", p)
         self.assertTrue(p.endswith(" EXTRA"), p)  # --prompt text comes after the built part
 
-    def test_a_no_qa_team_hands_in_to_the_team_lead_else_the_manager(self):  # AC2
+    def test_a_no_qa_team_hands_in_to_the_team_lead_and_a_roster_without_one_is_refused(self):  # AC2
         self.scope("team-lead", rows="| t-tl | team-lead | sc1 |  | live | s4 |\n")
         self.assertIn("HANDIN to t-tl.", self.prompt_of(self.spawn("--task", "07", "--prompt", "x")))
         self.scope("none")
-        self.assertIn("HANDIN to t-mgr.", self.prompt_of(self.spawn("--task", "07", "--prompt", "x")))
+        r = self.spawn("--task", "07", "--prompt", "x")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("roster.md has no team-lead row", r.stderr)
 
     def refused(self, *args, msg):
         r = self.spawn(*args, dry=False)
@@ -1010,13 +1012,19 @@ class _GateBase(unittest.TestCase):
 class SpawnTeamGateTest(_GateBase):
     def test_a_role_not_on_the_team_exits_1_naming_the_role_and_scope_md_and_creates_nothing(self):
         self.set_scope("# Scope\n\nteam: ba, qa-white\n")
-        for role in ("team-lead", "tech-lead", "qa-blackbox", "designer", "architect"):
+        for role in ("tech-lead", "qa-blackbox", "designer", "architect"):
             for extra in (("--dry-run",), ()):
                 with self.subTest(role=role, extra=extra):
                     r = self.spawn(role, "gate-1", *extra)
                     self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
                     self.assertIn(f"role {role} is not on the team in {self.scope_md}", r.stderr)
                     self.assertEqual(self.created(), [])
+
+    def test_the_team_lead_is_always_on_the_team(self):  # task 02
+        self.set_scope("# Scope\n\nteam: ba, qa-white\n")
+        r = self.spawn("team-lead", "gate-1", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("is not on the team", r.stderr)
 
     def test_qa_whitebox_is_gated_on_qa_white_and_qa_blackbox_on_qa_black(self):
         for team, role, ok in (("qa-white", "qa-whitebox", True), ("qa-black", "qa-whitebox", False),
