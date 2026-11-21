@@ -1,7 +1,7 @@
 # 02 `squad-process homes --apply --yes` respawns the moved homes' live agents at once
 Duties: Developer builds and writes design notes (this file is the design) and the evidence; technical AC are in this file (Tech Lead, agreed with QA whitebox); business AC = this ticket as written; QA whitebox code check; QA blackbox behaviour check; hand in to both QAs
 Files: bin/squadhomes.py, tests/test_squad_respawn.py, tests/test_squadupgrade.py, README.md
-Evidence: .scratch/fix-update/issues/02-homes-respawn/evidence.md
+Evidence: .scratch/fix-update/issues/02-respawn-moved-homes/evidence.md
 Status: ready
 After: 01 (build on 01's branch; the passed sha of 01 is `--base`)
 
@@ -28,6 +28,8 @@ Chieu's Q3 (b): when a home moves to the new pin, its live agents are respawned 
 - AC6 [SQ-10] `tests/test_windows_safe.py`, `tests/test_utf8_helpers.py`, `tests/test_instructions.py` run, result quoted; `tests/test_squad_respawn.py` still passes. Subprocess calls use `sys.executable`/list argv, no shell.
 - AC8 When the caller (`$SQUAD_NAME`) is a live roster row of a moved home, the last line `--apply --yes` prints is `caller <name>: last step: report to Chieu, write your notes, then run squad-respawn <name>`, after every agent line; with no caller in a moved roster, no such line. (Business AC: the Manager is told, last, what only it can do.)
 - AC9 `SQUAD_HOMES_PROMPT_TIMEOUT_MS=<small>` shortens the wait in AC3 (QA blackbox's stub herdr returns no DONE; the run ends in about that time, not five minutes); an invalid value falls back to 300000.
+- AC10 (follow-up from 01's PASSes, `bin/squadhomes.py`) A home refused at read time (a malformed `plugin:` line) is named on `--apply` too: its note is printed and `--apply` exits 2, never `nothing to move` exit 0 (a test: one refused-at-read offered home, `--apply --yes`, nothing changed).
+- AC11 (same) After `--apply --yes` the table shows the pins as moved (pin now = target, state `at-target`), or the table is printed before the move and each `moved ...` line is the result; say which in the evidence.
 - AC7 Evidence says the live behaviour (a real agent mid-turn, the new tab) was not verified, and what Chieu checks at merge.
 
 ## SQ-1 (deletes and moves)

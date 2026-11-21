@@ -1,6 +1,6 @@
 """squad-process homes: list the open homes with their pins and move chosen ones to the squad's `plugin.pin`. stdlib only.
 
-  squad-process homes --check | --apply [--yes] [--only NAME ...] [--squad-dir D] [--home H] [--plugin-root R]
+  squad-process homes --check | --apply [--yes] [--no-respawn] [--only NAME ...] [--squad-dir D] [--home H] [--plugin-root R]
 
 `H` (default $SCOPE_DIR, else $GOAL_DIR) is offered, plus the open scopes of `H` when it is a goal home. The target
 is the squad's `plugin.pin`. A home moves only when it composes for every role at the target runtime (the engine and
@@ -23,6 +23,9 @@ import squadruntime as rt  # noqa: E402
 import squadupgrade as su  # noqa: E402
 
 _PLUGIN_LINE = re.compile(r"^(plugin:[ \t]*)(\S+[ \t]+\S+)([ \t]*)$")
+PROMPT_MS = 300000
+_ORDER = ["dev", "qa-white", "qa-whitebox", "qa-black", "qa-blackbox", "tech-lead", "ba", "designer", "architect",
+          "team-lead"]
 _TEAM_ROLE = {token: role for role, token in sr.ROLE_KEY.items()}  # qa-white -> qa-whitebox
 
 
@@ -165,6 +168,92 @@ def _edit_pin(home, new):
     raise Refused(f"{home.pin_file}: cannot find the `plugin: <version> <sha>` line")
 
 
+def prompt_ms():
+    v = os.environ.get("SQUAD_HOMES_PROMPT_TIMEOUT_MS", "")
+    return int(v) if v.isdecimal() and int(v) > 0 else PROMPT_MS
+
+
+def live_agents(home):
+    """(role, name) of each roster.md row of the home with Status `live`, in respawn order (coordinator last)."""
+    path = os.path.join(home.path, "roster.md")
+    if not os.path.isfile(path):
+        return []
+    rows = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if line.lstrip().startswith("|") and len(cells) >= 5 and cells[4].lower() == "live" and cells[0] != "Agent":
+                rows.append((cells[1].lower(), cells[0]))
+    rank = lambda r: _ORDER.index(r[0]) if r[0] in _ORDER else len(_ORDER)
+    return sorted(rows, key=rank)
+
+
+def _herdr(*args, timeout=None):
+    return subprocess.run(["herdr", *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          timeout=timeout)
+
+
+def respawn_plan(chosen, caller):
+    """[(home, role, name)] over the moved homes, the caller left out; the caller's own row -> caller name."""
+    plan, seen, found = [], set(), None
+    for h in chosen:
+        for role, name in live_agents(h):
+            if name == caller:
+                found = name
+            elif name not in seen:
+                seen.add(name)
+                plan.append((h, role, name))
+    return plan, found
+
+
+def respawn_one(home, name, target, root):
+    """`respawned` | `not running` | `pending: <reason>` for one agent (herdr called once for `get`, `prompt`, then the respawn)."""
+    try:
+        if _herdr("agent", "get", name).returncode != 0:
+            return "not running"
+    except OSError as e:
+        return f"pending: herdr: {e}"
+    ms = prompt_ms()
+    msg = (f"PIN-MOVE: your home moved to plugin {fmt_pin(target)}. Finish the step you are on, commit nothing you did "
+           f"not intend to, write roles/{name}.notes.md (NOTE-1), then reply DONE.")
+    try:
+        r = _herdr("agent", "prompt", name, msg, "--wait", "--timeout", str(ms), timeout=ms / 1000 + 30)
+    except subprocess.TimeoutExpired:
+        return "pending: prompt did not settle"
+    except OSError as e:
+        return f"pending: herdr: {e}"
+    if r.returncode != 0:
+        return "pending: prompt did not settle"
+    env = {k: v for k, v in os.environ.items() if k not in ("SCOPE_DIR", "GOAL_DIR")}
+    env["SQUAD_DIR"] = home.squad
+    env["GOAL_DIR" if home.kind == "goal" else "SCOPE_DIR"] = home.path
+    r = subprocess.run([os.path.join(root, "bin", "squad-respawn"), name], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", env=env)
+    if r.returncode != 0:
+        return f"pending: squad-respawn exited {r.returncode}: " + _first_line((r.stderr or r.stdout).splitlines())
+    return "respawned"
+
+
+def respawn(chosen, squad, target, root):
+    caller = os.environ.get("SQUAD_NAME", "")
+    plan, found = respawn_plan(chosen, caller)
+    for h in chosen:
+        h.squad = squad
+    if plan:
+        print("new sessions open in a new herdr tab (squad-respawn)")
+    code = 0
+    for h, role, name in plan:
+        res = respawn_one(h, name, target, root)
+        if res.startswith("pending"):
+            code = 4
+            print(f"pending {name}: {res[len('pending: '):]}; run squad-respawn {name} after it saved its notes")
+        else:
+            print(f"{res} {name}")
+    if found:
+        print(f"caller {found}: last step: report to Chieu, write your notes, then run squad-respawn {found}")
+    return code
+
+
 def run(a):
     squad = os.path.realpath(a.squad_dir) if a.squad_dir else None
     if not squad or not os.path.isdir(squad):
@@ -201,6 +290,9 @@ def run(a):
         return 3 if movers else 0
     chosen = [h for h in movers if not only or h.name in only]
     if not chosen:
+        refused = [h for h in shown if h.state == "refused" and (not only or h.name in only)]
+        if refused:
+            raise Refused(*(f"refused {h.label}: {h.note}" for h in refused))
         print("nothing to move")
         return 0
     bad = [h for h in chosen if h.state == "refused"]
@@ -208,6 +300,12 @@ def run(a):
         raise Refused(*(f"refused {h.label}: {h.note} (deselect it with --only)" for h in bad))
     if not a.yes:
         print("NOT APPLIED (add --yes after Chieu confirms)")
+        if not a.no_respawn:
+            plan, found = respawn_plan(chosen, os.environ.get("SQUAD_NAME", ""))
+            for h, role, name in plan:
+                print(f"would respawn: {name} ({role}, {h.label})")
+            if found:
+                print(f"would not respawn the caller {found}: it reports to Chieu and runs squad-respawn last")
         return 3
     new = {h.path: _edit_pin(h, target) for h in chosen}  # every edit succeeds before the first write
     for h in chosen:
@@ -220,7 +318,7 @@ def run(a):
     su._atomic_write(log, su._insert_log(old, rows))
     for h in chosen:
         print(f"moved {h.label}: {fmt_pin(h.pin)} -> {fmt_pin(target)}")
-    return 0
+    return 0 if a.no_respawn else respawn(chosen, squad, target, root)
 
 
 def main(argv=None):
@@ -231,6 +329,7 @@ def main(argv=None):
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--apply", action="store_true")
     ap.add_argument("--yes", action="store_true")
+    ap.add_argument("--no-respawn", action="store_true", help="skip respawning the moved homes' live agents")
     ap.add_argument("--only", nargs="+", metavar="NAME")
     ap.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
     ap.add_argument("--home")

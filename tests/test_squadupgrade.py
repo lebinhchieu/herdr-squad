@@ -8,9 +8,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from squadtest import BIN, ROOT, _stamp_version, git, plugin_clone
+from squadtest import BIN, ROOT, _stamp_version, clean_env, fake_herdr, git, plugin_clone
 FIX = Path(__file__).resolve().parent / "fixtures" / "upgrade"
 sys.path.insert(0, str(BIN))
+import squadhomes as homes_mod  # noqa: E402
 import squadrules as sr  # noqa: E402
 import squadruntime as rt  # noqa: E402
 import squadupgrade as su  # noqa: E402
@@ -407,6 +408,10 @@ class Homes(unittest.TestCase):
         core = cls.plug / "templates" / "squad" / "process" / "core.md"
         core.write_text(core.read_text(encoding="utf-8").rstrip("\n") + " Edited in B.\n", encoding="utf-8", newline="\n")
         _stamp_version(cls.plug, "0.6.1")
+        stub = cls.plug / "bin" / "squad-respawn"  # B's runtime runs this stub: it records argv and the home env
+        stub.write_text('#!/usr/bin/env bash\necho "respawn $0 $* SQUAD_DIR=${SQUAD_DIR-unset} SCOPE_DIR=${SCOPE_DIR-unset} '
+                        'GOAL_DIR=${GOAL_DIR-unset}" >> "$HERDR_LOG"\n', encoding="utf-8", newline="\n")
+        stub.chmod(0o755)
         git("commit", "-q", "-am", "B", cwd=cls.plug)
         cls.a, cls.b = ("0.6.0", a.sha), ("0.6.1", git("rev-parse", "HEAD", cwd=cls.plug))
         rules, _, _ = sr.load_rules(str(cls.plug / "templates" / "squad" / "process"), str(cls.plug))
@@ -517,3 +522,95 @@ class Homes(unittest.TestCase):
         r = self.homes("--apply", g, "--yes", "--only", "nope")
         self.assertEqual(r.returncode, 2)
         self.assertIn("not an offered home", r.stderr)
+
+    # --- respawn stage (ticket 02) ---
+    def roster(self, home, *rows):
+        lines = ["# Roster", "", "| Agent | Role | Scope | Owns | Status | Session |", "| --- | --- | --- | --- | --- | --- |"]
+        lines += [f"| {n} | {r} | x |  | {st} | s-{n} |" for n, r, st in rows]
+        (home / "roster.md").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+    def herdr_run(self, mode, home, *extra, **env):
+        bindir = self.root / "bin"
+        bindir.mkdir(exist_ok=True)
+        fake_herdr(bindir, "live")
+        self.log = self.root / "herdr.log"
+        self.log.write_text("", encoding="utf-8")
+        e = clean_env(HERDR_LOG=str(self.log), PATH=f"{bindir}{os.pathsep}{os.environ['PATH']}", **env)
+        return subprocess.run([sys.executable, str(BIN / "squad-process"), "homes", mode, "--squad-dir", str(self.sq),
+                               "--home", str(home), "--plugin-root", str(self.plug), "--today", "2026-11-21", *extra],
+                              capture_output=True, text=True, encoding="utf-8", env=e)
+
+    def calls(self):
+        return self.log.read_text(encoding="utf-8").splitlines()
+
+    def goal_with_pods(self):
+        g = self.goal("g1")
+        s1, s2 = self.scope("s1", goal="g1"), self.scope("s2", goal="g1")
+        self.roster(g, ("mgr", "manager", "live"), ("gtl", "team-lead", "live"))
+        self.roster(s1, ("s1-tl", "team-lead", "live"), ("s1-dev", "dev", "live"), ("s1-qw", "qa-whitebox", "live"),
+                    ("s1-old", "dev", "retired"))
+        self.roster(s2, ("s2-dev", "dev", "live"), ("s2-tech", "tech-lead", "live"))
+        return g, s1, s2
+
+    def test_respawn_prompts_then_respawns_in_order_with_each_own_home_and_skips_the_caller(self):
+        g, s1, s2 = self.goal_with_pods()
+        r = self.herdr_run("--apply", g, "--yes", SQUAD_NAME="mgr", DEAD="s2-tech")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        c = self.calls()
+        self.assertFalse([x for x in c if x.split()[2:3] == ["mgr"]])
+        agents = [x.split()[2] for x in c if x.startswith("agent prompt")]
+        # the pod before its coordinator, within a home
+        self.assertLess(agents.index("s1-dev"), agents.index("s1-qw"))
+        self.assertLess(agents.index("s1-qw"), agents.index("s1-tl"))
+        self.assertNotIn("s2-tech", agents)
+        self.assertNotIn("s1-old", " ".join(c))
+        for name in agents:
+            p = next(i for i, x in enumerate(c) if x.startswith(f"agent prompt {name} "))
+            q = next(i for i, x in enumerate(c) if x.startswith("respawn ") and x.split()[2] == name)
+            self.assertLess(p, q)
+            self.assertIn("--wait --timeout 300000", c[p])
+        rs = {x.split()[2]: x for x in c if x.startswith("respawn ")}
+        rt_bin = os.path.join(rt.runtime_path(str(self.sq), *self.b), "bin", "squad-respawn")
+        self.assertTrue(all(x.split()[1] == rt_bin and "--force" not in x for x in rs.values()), rs)
+        self.assertIn(f"SQUAD_DIR={self.sq} SCOPE_DIR={s1} GOAL_DIR=unset", rs["s1-dev"])
+        self.assertIn(f"SQUAD_DIR={self.sq} SCOPE_DIR=unset GOAL_DIR={g}", rs["gtl"])
+        self.assertEqual(r.stdout.splitlines()[-1], "caller mgr: last step: report to Chieu, write your notes, "
+                                                    "then run squad-respawn mgr")
+        self.assertIn("not running s2-tech", r.stdout)
+
+    def test_a_prompt_without_done_leaves_the_agent_pending_exit_4_and_the_rest_respawn(self):
+        g, s1, s2 = self.goal_with_pods()
+        r = self.herdr_run("--apply", g, "--yes", SQUAD_NAME="nobody", FAIL_PROMPT="s1-dev",
+                           SQUAD_HOMES_PROMPT_TIMEOUT_MS="50")
+        self.assertEqual(r.returncode, 4, r.stderr)
+        self.assertIn("pending s1-dev: prompt did not settle; run squad-respawn s1-dev after it saved its notes", r.stdout)
+        self.assertIn("respawned s1-qw", r.stdout)
+        self.assertNotIn("caller", r.stdout)
+        self.assertTrue(any(x.startswith("agent prompt s1-dev ") and "--timeout 50" in x for x in self.calls()))
+        self.assertFalse(any(x.startswith("respawn ") and x.split()[2] == "s1-dev" for x in self.calls()))
+        self.assertIn("%s %s" % self.b, (s1 / "scope.md").read_text(encoding="utf-8"))
+        # an invalid value falls back to the default
+        os.environ["SQUAD_HOMES_PROMPT_TIMEOUT_MS"] = "x"
+        self.addCleanup(os.environ.pop, "SQUAD_HOMES_PROMPT_TIMEOUT_MS", None)
+        self.assertEqual(homes_mod.prompt_ms(), 300000)
+
+    def test_no_herdr_call_without_yes_or_with_no_respawn_and_the_plan_is_listed(self):
+        g, s1, s2 = self.goal_with_pods()
+        r = self.herdr_run("--apply", g, SQUAD_NAME="mgr")
+        self.assertEqual(r.returncode, 3)
+        self.assertIn("would respawn: s1-dev", r.stdout)
+        self.assertEqual(self.calls(), [])
+        r = self.herdr_run("--apply", g, "--yes", "--no-respawn", SQUAD_NAME="mgr")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_a_home_refused_at_read_is_named_by_apply_and_exits_2(self):
+        s = self.scope("solo")
+        sf = s / "scope.md"
+        sf.write_text(sf.read_text(encoding="utf-8").replace("plugin: ", "plugin: bad "), encoding="utf-8", newline="\n")
+        before = self.snapshot()
+        r = self.homes("--apply", s, "--yes")
+        self.assertEqual(r.returncode, 2, r.stdout)
+        self.assertIn("refused scope solo", r.stderr)
+        self.assertNotIn("nothing to move", r.stdout)
+        self.assertEqual(self.snapshot(), before)
