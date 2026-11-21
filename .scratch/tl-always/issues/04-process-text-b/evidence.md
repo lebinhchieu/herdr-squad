@@ -7,7 +7,8 @@ AC trace (`cd tests; python3 -m unittest <file>` for tests, repo root for greps)
 - AC1 | `squad-process lint` exit 0; tombstones in `_removed.md` (15 IDs, `replaced_by` each); grep `plan-owner\|team-lead = ` over the seven files: empty | run from repo root
 - AC2 | grep of the 15 removed IDs over bin hooks agents skills tests templates: hits only `_removed.md`, `changelog.md`, fixtures, and two `assertNotIn("## SPAWN-5a")` lines plus a historical byte comment in tests | grep in `## Behaviour`
 - AC3 | `tests/test_rules_contract.py` (row `acts("SPAWN-12","S") == ("manager",)`, `test_manager_subagent_default_rule`: three phrases, absent from dev and team-lead) | `python3 -m unittest test_rules_contract`
-- AC4 | `test_rules_contract.py::test_spawning_cost_and_safety_follow_the_team`, `test_team_lead_spawns_and_retires_dev_only` | same
+- AC4 | `test_rules_contract.py::test_spawning_cost_and_safety_follow_the_team`, `test_team_lead_spawns_and_retires_dev_only` (asserts SIZE-6b has no "owns the plan"/"task order") | same
+- AC4b | grep `take over the plan|owns the plan|task order|plan owner|Reorder` over the seven files: one hit, sizes.md SIZE-6b ("never reorders the plan") | repo root
 - AC5 | `tests/test_squad_usage_hook.py::test_developer_text_is_the_same_for_every_scope_md_shape` | `python3 -m unittest test_squad_usage_hook`
 - AC6 | `test_windows_safe`, `test_utf8_helpers`, `test_instructions` | each OK, see `## Behaviour`
 - AC7 | `tests/test_dev_rules_size.py` | OK
@@ -23,3 +24,5 @@ AC trace (`cd tests; python3 -m unittest <file>` for tests, repo root for greps)
 - Three edits outside the Files line, approved by the Tech Lead (ANSWER 04): `test_sizes.py` drops "plan-owner" from the duty tuple; `test_sizes.py::present_roles` counts team-lead always present; `test_architect_handoff.py::test_size_text_stays_clean_for_an_absent_role` drops "Team Lead" from the absent names.
 - `process.local.md` line 25 (Manager overlay) cites COST-5a: not touched, listed for the Manager.
 - Results: test_windows_safe OK (14), test_utf8_helpers OK (14), test_instructions OK (16); test_rules_contract, test_rules_wording, test_dev_rules_size, test_squad_usage_hook, test_small_files_equivalence, test_sizes, test_architect_handoff: 88 tests OK. Full suite not run (Tech Lead's).
+
+- Return after FAIL 37c625b (AC4): SIZE-6b says the Team Lead assigns per the Manager's plan and never reorders, heading "Assignment, Team Lead"; SIZE-17b reads the Manager's plan and `## Handover`; COST-4b heading "Plan and AC written, respawn"; one composed-text assertion. Fixed in bc3e3d9; 132 tests OK, lint exit 0.
