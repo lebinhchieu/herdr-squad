@@ -614,3 +614,15 @@ class Homes(unittest.TestCase):
         self.assertIn("refused scope solo", r.stderr)
         self.assertNotIn("nothing to move", r.stdout)
         self.assertEqual(self.snapshot(), before)
+        # next to a home that moves: still exit 2, nothing written; --only deselects the refused one
+        g = self.goal("g1")
+        s2 = self.scope("s1", goal="g1")
+        sf = s2 / "scope.md"
+        sf.write_text(sf.read_text(encoding="utf-8").replace("plugin: ", "plugin: bad "), encoding="utf-8", newline="\n")
+        before = self.snapshot()
+        r = self.homes("--apply", g, "--yes", "--no-respawn")
+        self.assertEqual(r.returncode, 2, r.stdout)
+        self.assertIn("refused scope s1", r.stderr)
+        self.assertEqual(self.snapshot(), before)
+        r = self.homes("--apply", g, "--yes", "--no-respawn", "--only", "g1")
+        self.assertEqual(r.returncode, 0, r.stderr)

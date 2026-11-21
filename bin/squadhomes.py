@@ -289,15 +289,12 @@ def run(a):
             return 2
         return 3 if movers else 0
     chosen = [h for h in movers if not only or h.name in only]
-    if not chosen:
-        refused = [h for h in shown if h.state == "refused" and (not only or h.name in only)]
-        if refused:
-            raise Refused(*(f"refused {h.label}: {h.note}" for h in refused))
-        print("nothing to move")
-        return 0
-    bad = [h for h in chosen if h.state == "refused"]
+    bad = [h for h in shown if h.state == "refused" and (not only or h.name in only)]  # compose- or read-refused
     if bad:
         raise Refused(*(f"refused {h.label}: {h.note} (deselect it with --only)" for h in bad))
+    if not chosen:
+        print("nothing to move")
+        return 0
     if not a.yes:
         print("NOT APPLIED (add --yes after Chieu confirms)")
         if not a.no_respawn:
