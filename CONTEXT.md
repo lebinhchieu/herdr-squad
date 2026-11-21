@@ -121,7 +121,7 @@ The file `roles/<agent>.rules.md` that `squad-process compose` writes at spawn a
 _Avoid_: process view, role copy
 
 **Plugin pin**:
-The plugin version and commit (`plugin:` in `scope.md`/`goal.md`, `plugin.pin` in the squad) a scope runs on until it closes, with its **runtime** in `_runtime/<version>-<sha12>/`. An upgrade applies between scopes only.
+The plugin version and commit (`plugin:` in `scope.md`/`goal.md`, `plugin.pin` in the squad) a scope runs on until it closes, with its **runtime** in `_runtime/<version>-<sha12>/`. An upgrade leaves it alone unless Chieu confirms a **Pin move** of that home.
 _Avoid_: version lock, process version
 
 **Tombstone**:
@@ -141,12 +141,16 @@ The plugin's list, per released version, of the rule IDs added, changed, removed
 _Avoid_: release notes
 
 **Process update**:
-The skill `/squad:squad-process-update`, which drives `squad-process upgrade` between scopes: it applies every rule the **Overlay** does not touch and lists for the PO only the stale operations (target hash changed), the operations whose target was removed, and the local rules that share a `topic` with a changed plugin rule. Nothing is written without the PO's yes.
+The skill `/squad:squad-process-update`, which drives `squad-process upgrade` and then `squad-process homes`: it applies every rule the **Overlay** does not touch, lists for the PO only the stale operations (target hash changed), the operations whose target was removed, and the local rules that share a `topic` with a changed plugin rule, and then offers a **Pin move** of the Manager's home. Nothing is written without the PO's yes.
 _Avoid_: migration
 
 **Home**:
 A folder with its own roster, escalations, logs, `iterations/` and `roles/`: `goals/<g>/` or `scopes/<s>/` in a per-scope squad, the squad folder itself in a flat one.
 _Avoid_: folder, workspace
+
+**Pin move**:
+Rewriting the `plugin:` line of a **Home** (and of a goal's open scopes) to the squad's `plugin.pin`, on the PO's yes, then respawning that home's live agents so they read the new rules (`squad-process homes`). ADR 0031.
+_Avoid_: scope upgrade
 
 ## Goals and knowledge
 
