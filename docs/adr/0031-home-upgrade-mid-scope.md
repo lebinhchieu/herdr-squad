@@ -11,7 +11,7 @@ Amends 0016: "an upgrade applies between scopes only" now has one exception, bel
 - Chieu works in one home and asked to be offered it (Q1 (a)); a second item (Q2 (a)) keeps the rule decisions and the home move apart; live agents restart at once (Q3 (b)) so the home does not run two rule versions.
 
 **Consequences:**
-- The target is `plugin.pin`, never the running plugin, so the tool works from a pinned runtime; the skill still needs a session whose plugin is the new one for the squad upgrade itself.
+- The target is `plugin.pin`, never the running plugin, so the tool works from a pinned runtime; from a Manager session pinned at 0.10.2 or later, `upgrade` and `homes` find the newest plugin (known marketplace checkout, else installed cache) and run it; sessions pinned before 0.10.2 move to 0.10.2 by hand (ticket 05).
 - The move is reversible: one process-log row per home holds the old pin; moving back is the same one-line edit.
 - Respawn at once costs each agent a fresh context (notes only); a Developer's worktree and branch are kept.
 - Known limit: homes outside Q1 (a) stay on their pin and may stop composing; they are warned about, not moved.
