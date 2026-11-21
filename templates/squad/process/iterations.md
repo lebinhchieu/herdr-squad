@@ -23,13 +23,6 @@ topic: iterations
 
 Write `iterations/<n>.summary.md` at iteration end: tasks passed with a link to each ticket's `evidence.md`, each task's final passed sha, the checkers that passed it and the returns per task (all three from `squad-ledger`), friction, open items, at most 40 lines. It carries one line naming the residual risk "the cap is a rule, not a lock".
 
-## ITER-3b Pod summary, Manager
-roles: manager
-when: team-lead = no
-topic: iterations
-
-When you own the plan (the Team Lead is not on the team), write `iterations/<n>.summary.md` at iteration end, at most 40 lines: tasks passed with each ticket's `evidence.md` link, final passed sha and returns (`squad-ledger`), friction, open items.
-
 ## ITER-4 Inbox
 roles: manager
 topic: iterations

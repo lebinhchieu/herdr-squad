@@ -44,23 +44,14 @@ topic: files
 - Edit structured files (`roster.md`, notes, tables) with a small script that keeps the rest, then check; never `command > file`.
 - Write with `open(path, "w", encoding="utf-8", newline="\n")`: Python's default text mode writes CRLF on Windows, and a `\r` breaks bash `$(...)` parsing (ADR 0011). Check with `grep -c $'\r' <file>`, which must print `0`.
 
-## FILE-5a Roster, Manager plans
-roles: manager
-when: plan-owner = manager
-topic: roster
-
-`roster.md` must always match reality. `squad-spawn` adds an agent's row (name, role, scope, session); the Manager fills in what it owns and its status, and edits every row.
-
 ## FILE-5b Roster, Manager with a Team Lead
 roles: manager
-when: plan-owner = team-lead
 topic: roster
 
 `roster.md` must always match reality. `squad-spawn` adds an agent's row (name, role, scope, session); the Manager fills in what it owns and its status for the agents it spawned. The Team Lead edits its Developers' rows.
 
 ## FILE-5c Roster, Team Lead
 roles: team-lead
-when: plan-owner = team-lead
 topic: roster
 
 Edit only the rows of the Developers you spawned (owns, status). Re-read the file just before writing and keep every other row; the Manager edits the others.
@@ -87,14 +78,14 @@ topic: files
 | File | Owner | Holds |
 |---|---|---|
 | `iterations/<n>.md`, `iterations/<n>.log.md` | Manager | Goal, plan, status, retro, check-in, at most 80 lines; per-ticket event log (nobody reads it at start) |
-| `tasks/<id>.md` | Plan owner (`plan-owner` of `duties:`); the Developer for its design notes when no Tech Lead is on the team | Task state, if the project has no ticket files |
+| `tasks/<id>.md` | Team Lead (from the Manager's plan); the Developer for its design notes when no Tech Lead is on the team | Task state, if the project has no ticket files |
 
 ## FILE-8 Pod summary file
 roles: team-lead, manager
 when: handin-target in qas, team-lead
 topic: files
 
-`iterations/<n>.summary.md`: the plan owner ([ITER-3]) writes the pod summary for the retro and check-in, at most 40 lines.
+`iterations/<n>.summary.md`: the Team Lead ([ITER-3]) writes the pod summary for the retro and check-in, at most 40 lines.
 
 ## FILE-9 Task evidence files
 roles: qa-whitebox, qa-blackbox, tech-lead, designer, architect

@@ -74,7 +74,7 @@ class DevRulesSize(unittest.TestCase):
                 "REV-13a" if size == "S" else "REV-13b": "HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it",
                 "REV-14a": "After a PASS, a later commit goes to",
                 {"S": "REV-22", "M": "EVID-2d", "L": "EVID-2b"}[size]: "squad-evidence check",
-                "COST-5" if size == "L" else "COST-5a": "no `squad-respawn`",
+                "COST-5": "no `squad-respawn`",
                 "SAFE-1a": "Never touch another worktree",
                 "SAFE-3": "by PID",
                 "SAFE-4": "files your role owns",

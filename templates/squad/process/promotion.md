@@ -37,17 +37,9 @@ The scope's last task: a Developer commits `promote.md` to the project docs on t
 
 ## PROMO-5 Promotion task, Developer
 roles: team-lead
-when: plan-owner = team-lead
 topic: promotion
 
 A promotion task commits `promote.md` into the project docs, following the rule `project.md` names for editing them. It is handed in like any task.
-
-## PROMO-5b Promotion task, Manager
-roles: manager
-when: plan-owner = manager
-topic: promotion
-
-Cite [PROMO-5] in the task file of a promotion task; its Developer commits `promote.md` into the project docs, and QA whitebox, when on the team, then checks it ([PROMO-8]).
 
 ## PROMO-6 Promotion of a goal
 roles: manager

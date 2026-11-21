@@ -6,23 +6,14 @@ topic: spawning
 
 Spawn with the `squad-spawn` command (on your PATH from this plugin): `squad-spawn <role> <agent-name> --scope <scope> [--repo DIR [--base REF]] [--title "<text>"] [--task NN] [--prompt "first message"]`. The scope is yours (`$SQUAD_SCOPE`), or the scope you are running inside the goal.
 
-## SPAWN-2a Roles the Manager spawns, Manager plans
-roles: manager
-when: plan-owner = manager
-topic: spawning
-
-You spawn `dev`, every other role on `team:` and `token-coach` as [ITER-6a] and [ITER-6b] say. `squad-spawn` refuses a role that is not on the team.
-
 ## SPAWN-2b Roles the Manager spawns, Team Lead plans
 roles: manager
-when: plan-owner = team-lead
 topic: spawning
 
 You spawn `team-lead`, every other role on `team:` and `token-coach` as [ITER-6a] and [ITER-6b] say. `squad-spawn` refuses a role that is not on the team.
 
 ## SPAWN-2c Developers, Team Lead plans
 roles: manager
-when: plan-owner = team-lead
 topic: spawning
 
 The Team Lead spawns Developers; you do not.
@@ -45,20 +36,10 @@ roles: manager
 when: architecture = yes
 topic: spawning
 
-Besides the roles of [SPAWN-2a] and [SPAWN-2b], spawn `architect` only when `architect` is on `team:`. Spawn it after the goal check and before the plan: before your task split or the plan. Retire it once `architecture.md` is `Status: final`; respawn it for a question on it.
-
-## SPAWN-5a Developers, Manager plans
-roles: manager
-when: plan-owner = manager
-topic: spawning
-
-Developers always get `--repo <code repo>` so they work in their own git worktree `.worktrees/<squad>/<scope>/<agent>` on branch `squad/<squad>/<scope>/<agent>`. Take the repo from the task's `repos` and `project.md`. `--base <passed branch or commit>` starts the branch from work that is passed but not merged ([GOAL-5]).
-
-Reuse: a Developer's next task in the same scope, with no parallel task running, reuses the previous Developer's worktree and branch: `squad-spawn dev <name> --scope <scope> --repo <repo> --worktree <previous worktree>` (no `--base`). Only a task that runs in parallel gets a new worktree.
+Besides the roles of [SPAWN-2b], spawn `architect` only when `architect` is on `team:`. Spawn it after the goal check and before the plan: before your task split or the plan. Retire it once `architecture.md` is `Status: final`; respawn it for a question on it.
 
 ## SPAWN-5b Developers, Team Lead
 roles: team-lead
-when: plan-owner = team-lead
 topic: spawning
 
 Spawn a Developer with `squad-spawn dev <squad>-dev-<scope>-<n> --scope <scope> --repo <repo> [--base <ref>] --title "<id> words" --task <id> --prompt "<briefing>"`; `--task` claims the ticket for the Developer ([LC-27]); the name is at most 32 characters. Pass `--base` only with the ref the Manager checked and named in the iteration file ([GOAL-5]).
@@ -79,41 +60,20 @@ Pass `--title` when the agent has a specific task: a Developer gets the ticket i
 
 When you point an agent at a new ticket, relabel it: `squad-label --agent <name> "<text>"` (`""` clears). Labels are display only: messages and `roster.md` use the address name.
 
-## SPAWN-8a Retiring, Manager plans
-roles: manager
-when: plan-owner = manager
-topic: spawning
-
-Retire with `squad-retire <agent-name>`: it asks the agent to save its notes, then closes its pane. Developers retire after their task has passed; their branch stays for the PO.
-
 ## SPAWN-8b Retiring, Team Lead plans
 roles: team-lead
-when: plan-owner = team-lead
 topic: spawning
 
 Retire a Developer with `squad-retire <agent-name>` after its task has passed: it asks the agent to save its notes, then closes its pane; its branch stays for the PO.
 
 ## SPAWN-9 Team Lead spawns only Developers
 roles: team-lead
-when: plan-owner = team-lead
 topic: spawning
 
 Spawn and retire only Developers: no second Team Lead, no Tech Lead, BA, QA or Designer.
 
-## SPAWN-10a Health checks, Manager plans
-roles: manager
-when: plan-owner = manager
-topic: spawning
-
-Check every time you get a message and at least between iterations:
-- `herdr agent list`: who is `working`, `idle`, `blocked`, or gone.
-- Idle with work assigned for 10 minutes ([MSG-8b]) → send `ASK <name>: STATUS?`.
-- Looping (the same two agents exchanging messages on one topic past 2 rounds) → step in, decide or route to the owner.
-- Context filling (a long-running agent getting confused or repeating itself) → ask it to update its notes, retire it, respawn with the same name and a briefing that points at its notes.
-
 ## SPAWN-10b Health checks, Team Lead plans
 roles: manager
-when: plan-owner = team-lead
 topic: spawning
 
 Watch the Team Lead only; the Team Lead runs the pod's health checks.
@@ -126,3 +86,9 @@ roles: manager
 topic: spawning
 
 A `blocked` pane (permission prompt or question) is the PO's to answer: each agent's own toast reaches them, and nobody relays it.
+
+## SPAWN-12 Subagent model and effort
+roles: manager
+topic: spawning
+
+Subagents you spawn default to `model: sonnet` and `effort: high` (Agent tool parameters, not your own model). Before each spawn pick model and effort for the task: gathering and exploring stay sonnet high; a judgment call may use opus or a higher effort. A fork is allowed when it helps; it runs on your model, so choose it on purpose.

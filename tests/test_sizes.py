@@ -24,7 +24,7 @@ def my_rules():
 
 
 def present_roles(team):
-    return {"manager", "dev", "token-coach"} | {r for r in sr.ROLES if sr.ROLE_KEY.get(r, r) in team}
+    return {"manager", "dev", "token-coach", "team-lead"} | {r for r in sr.ROLES if sr.ROLE_KEY.get(r, r) in team}
 
 
 class TeamRules(unittest.TestCase):
@@ -69,7 +69,7 @@ class TeamRules(unittest.TestCase):
             for k, vals in (sr._conditions(r.when) if r.when else []):
                 if k in sr.DUTIES:
                     by.setdefault(k, set()).update(vals)
-        for duty in ("plan-owner", "business-ac", "code-check", "behaviour-check", "ui-check", "doubt-owner", "tech-ac", "promote-owner"):
+        for duty in ("business-ac", "code-check", "behaviour-check", "ui-check", "doubt-owner", "tech-ac", "promote-owner"):
             self.assertTrue(by.get(duty), duty)
         self.assertEqual(by["business-ac"], {"ticket", "ba"})
         self.assertEqual(by["behaviour-check"], {"manager", "qa-black", "qa-white"})

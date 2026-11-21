@@ -59,8 +59,7 @@ class CitationsTest(unittest.TestCase):
 class ManagerWordingTest(unittest.TestCase):
     def test_s_keeps_developer_spawning_and_routing(self):
         ms = composed("manager", "S")
-        self.assertIn("## SPAWN-5a Developers, Manager plans", ms)
-        self.assertIn("## SPAWN-5a", MANAGER)
+        self.assertNotIn("## SPAWN-5a", ms)  # the Team Lead spawns Developers
         self.assertNotIn("## MSG-18", ms)
         mm = composed("manager", "L")  # Team Lead exists at L only
         self.assertNotIn("## SPAWN-5a", mm)
@@ -186,7 +185,7 @@ class WordingBTest(unittest.TestCase):
         self.assertIn("[ITER-2]", self.head("sizes.md", "SIZE-22"))
 
     def test_when_keys(self):
-        self.assertNotIn("qa-black", self.head("iterations.md", "ITER-3b").split("\n\n")[0])
+        self.assertNotIn("qa-black", self.head("iterations.md", "ITER-3").split("\n\n")[0])
         self.assertIn("[MRG-2]", self.head("review.md", "REV-14a"))
 
     def test_citations_and_small_items(self):
@@ -194,7 +193,6 @@ class WordingBTest(unittest.TestCase):
             self.assertNotIn("[WHO-1b]", self.head(name, rid))
         self.assertNotIn("[WHO-2b]", self.head("goal.md", "GOAL-6b"))
         self.assertNotIn("[PROMO-2]", self.head("sizes.md", "SIZE-24b"))
-        self.assertIn("10 minutes", self.head("spawning.md", "SPAWN-10a"))
         self.assertIn("`DECISION 13, 14:", self.head("messages.md", "MSG-9"))
         for f in self.PROC.glob("*.md"):
             self.assertNotIn("Chieu", f.read_text(), f.name)
