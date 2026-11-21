@@ -1,3 +1,19 @@
+## v21 — 2026-11-21
+
+Plugin 0.10.2. `squad-process upgrade` and `homes` find the newest plugin from a pinned session, and the upgrade skill moves the Manager's own goal or scope.
+
+added:
+- `squad-process homes --check|--apply [--yes] [--no-respawn] [--only NAME ...]`: lists the open homes' pins and moves chosen ones to the squad's `plugin.pin` when they compose there, one log row per home. why: open scopes kept the old pin until the next scope.
+- The respawn stage: `homes --apply --yes` asks each moved home's live agents to save notes and respawns them at once; exit 4 when one stays `pending`.
+- Pinned-session discovery (ticket 05): from a Manager session pinned at 0.10.2 or later, `upgrade` and `homes` find the newest plugin (repo checkout, else installed cache) and run it; none found, or an older one, exits 1 and names what was searched.
+- Skill `squad-process-update`: a Home step after the squad upgrade (one inbox item: move all, only the goal, or leave) and a last step, the Manager's own respawn.
+
+changed:
+- `upgrade --check` exit 0 now still goes through `--apply`, so `plugin.pin` moves when nothing is flagged. why: the pin stayed old while the plugin moved on.
+- `upgrade --apply --yes` logs "open scopes and goals keep their own pin until squad-process homes moves them" instead of the old claim that scopes in progress hold their scope.md pin; the skill's refused-home case moves the homes that compose with `--only`. why: both read wrong next to the new Home step.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.10.2. A session pinned at 0.10.0 or 0.10.1 has no discovery and the old skill: move it to 0.10.2 by hand first (there is no bootstrap for older pins). Rollback: revert the merge, plugin back to 0.10.1.
+
 ## v20 — 2026-11-21
 
 Plugin 0.10.0. The Team Lead is always on the team and the Manager owns the plan (ADR 0030). Breaking for rule retargets and `when:` keys; Chieu deploys.

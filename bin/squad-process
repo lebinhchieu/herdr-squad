@@ -13,6 +13,10 @@
   squad-process upgrade --check | --apply [--resolve ID=choice ...] [--yes] [--squad-dir D] [--plugin-root R]
                                         composed squads: move the overlay to the running plugin one rule at a time
                                         (exit 0 nothing to decide, 3 a decision is needed, 2 refused)
+  squad-process homes --check | --apply [--yes] [--no-respawn] [--only NAME ...] [--squad-dir D] [--home H] [--plugin-root R]
+                                        list the open homes with their pins; move chosen ones to the squad's plugin.pin
+                                        (exit 0 nothing to move, 3 a move is offered or needs --yes, 2 refused,
+                                        4 moved but a live agent is pending its respawn; --yes respawns them)
   squad-process upstream [--squad-dir D] the overlay's `upstream: proposed` operations, ready for a plugin ticket
   squad-process mode --squad-dir D       composed | legacy | none
   squad-process runtime --squad-dir D --home H [--dry-run]
@@ -39,6 +43,19 @@ def main(argv=None):
     if argv and argv[0] == "scaffold":
         import squadscaffold  # new composed squads
         return squadscaffold.main(argv)
+    if argv and argv[0] in ("upgrade", "homes"):  # the new plugin may be another folder than the pinned runtime
+        import squadruntime
+        try:
+            code = squadruntime.delegate(argv)
+        except squadruntime.RuntimeError_ as e:
+            for line in e.lines:
+                print(line, file=sys.stderr)
+            return e.code
+        if code is not None:
+            return code
+    if argv and argv[0] == "homes":
+        import squadhomes  # list the open homes' pins, move chosen ones to the squad's pin
+        return squadhomes.main(argv)
     if argv and argv[0] in ("upgrade", "upstream"):
         import squadupgrade  # upgrade one rule at a time: ticket 07
         return squadupgrade.main(argv)

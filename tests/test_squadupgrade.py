@@ -8,9 +8,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from squadtest import BIN, ROOT
+from squadtest import BIN, ROOT, _stamp_version, clean_env, fake_herdr, git, plugin_clone
 FIX = Path(__file__).resolve().parent / "fixtures" / "upgrade"
 sys.path.insert(0, str(BIN))
+import squadhomes as homes_mod  # noqa: E402
 import squadrules as sr  # noqa: E402
 import squadruntime as rt  # noqa: E402
 import squadupgrade as su  # noqa: E402
@@ -101,6 +102,109 @@ class InstalledCache(Base):
         r = self.go("--check", sq)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("--new-pin", r.stdout + r.stderr)
+
+
+class Delegation(Base):
+    """A session pinned to an extracted runtime (0.4.0, no .git) finds the newer checkout (0.5.0) of
+    known_marketplaces.json and runs its squad-process: `upgrade` and `homes` only."""
+
+    def setUp(self):
+        super().setUp()
+        tmp = Path(self._tmp.name)
+        self.runtime, self.child = tmp / "_runtime", tmp / "checkout"
+        for dest, ver in ((self.runtime, "0.4.0"), (self.child, "0.5.0")):
+            if dest is self.child:
+                shutil.copytree(FIX / "add-free" / "new", dest)
+            shutil.copytree(BIN, dest / "bin", ignore=shutil.ignore_patterns("__pycache__"))
+            (dest / ".claude-plugin").mkdir(exist_ok=True)
+            (dest / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": "squad", "version": ver}), encoding="utf-8")
+        git("init", "-q", cwd=self.child)
+        self.commit()
+        self.known, self.listing = tmp / "known_marketplaces.json", tmp / "installed_plugins.json"
+        self.known.write_text(json.dumps({
+            "claude-plugins-official": {"source": {"source": "github", "repo": "a/b"}, "installLocation": str(tmp / "none")},
+            "herdr-squad": {"source": {"source": "directory", "path": str(self.child)}, "installLocation": str(self.child),
+                            "lastUpdated": "2026-11-21T10:00:00.000Z"}}), encoding="utf-8")
+        self.listing.write_text(json.dumps({"version": 2, "plugins": {}}), encoding="utf-8")
+
+    def commit(self, case=None):
+        """Commit the child; `case` swaps in that case's new rule files first."""
+        if case:
+            shutil.rmtree(self.child / "templates")
+            shutil.copytree(FIX / case / "new" / "templates", self.child / "templates")
+        git("add", "-A", cwd=self.child)
+        git("commit", "-q", "-m", "0.5.0", cwd=self.child)
+        self.sha = git("rev-parse", "HEAD", cwd=self.child)
+
+    def go(self, root, *args, env=None):
+        base = {"SQUAD_KNOWN_MARKETPLACES": str(self.known), "SQUAD_INSTALLED_PLUGINS": str(self.listing)}
+        return subprocess.run([sys.executable, str(root / "bin" / "squad-process"), *args], capture_output=True,
+                              encoding="utf-8", env={**{k: v for k, v in os.environ.items() if not k.startswith("SQUAD_") and k not in ("SCOPE_DIR", "GOAL_DIR")},
+                                                     **base, **(env or {}), "PYTHONDONTWRITEBYTECODE": "1"})
+
+    def up(self, mode, case, sq, *extra):
+        return ["upgrade", mode, "--squad-dir", str(sq), "--old-root", str(FIX / case / "old"), "--today", "2026-10-22", *extra]
+
+    LINE = "squad-process: this session runs plugin 0.4.0; using plugin 0.5.0 from %s (known marketplace herdr-squad)\n"
+
+    def test_upgrade_check_and_apply_run_the_newer_plugin_with_its_exit_code(self):
+        for case, code in (("add-free", 0), ("change-stale", 3)):
+            with self.subTest(case=case):
+                if case != "add-free":
+                    self.commit(case)
+                sq = self.squad(case)
+                direct = self.go(self.child, *self.up("--check", case, sq))  # the newer plugin on its own
+                r = self.go(self.runtime, *self.up("--check", case, sq))
+                self.assertEqual((r.returncode, r.stdout), (code, direct.stdout), r.stderr)
+                self.assertEqual(r.returncode, direct.returncode)
+                self.assertEqual(r.stderr, self.LINE % self.child)
+        sq = self.squad("add-free")
+        r = self.go(self.runtime, *self.up("--apply", "add-free", sq, "--yes"))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual((sq / "plugin.pin").read_text(encoding="utf-8").strip(), f"0.5.0 {self.sha}")
+
+    def test_homes_delegates_the_same_way(self):
+        sq = self.squad("add-free")
+        (sq / "plugin.pin").write_text(f"0.5.0 {self.sha}\n", encoding="utf-8")
+        home = sq / "scopes" / "s"
+        home.mkdir(parents=True)
+        (home / "scope.md").write_text("# Scope: s\n\ngoal: none\nteam: tech-lead\nqa: full\nplugin: 0.5.0 " + self.sha + "\n",
+                                       encoding="utf-8")
+        args = ["homes", "--check", "--squad-dir", str(sq), "--home", str(home)]
+        r, direct = self.go(self.runtime, *args), self.go(self.child, *args)
+        self.assertEqual((r.returncode, r.stdout), (direct.returncode, direct.stdout), r.stderr)
+        self.assertEqual(r.stderr, self.LINE % self.child + direct.stderr)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("at-target", r.stdout)
+
+    def test_these_run_in_place_and_print_no_using_plugin_line(self):
+        sq = self.squad("add-free")
+        runs = [(self.runtime, ["upgrade", "--check", "--squad-dir", str(sq), "--old-root", str(FIX / "add-free" / "old"),
+                                "--plugin-root", str(FIX / "add-free" / "new"), "--new-pin", NEW_PIN, "--today", "2026-10-22"]),
+                (self.runtime, ["mode", "--squad-dir", str(sq)]),
+                (self.child, self.up("--check", "add-free", sq))]  # can pin itself, nothing newer
+        for root, args in runs:
+            with self.subTest(args=args[:2]):
+                r = self.go(root, *args)
+                self.assertNotIn("using plugin", r.stderr)
+                self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_a_delegated_child_that_cannot_pin_refuses_and_starts_no_grandchild(self):
+        sq = self.squad("add-free")
+        r = self.go(self.runtime, *self.up("--check", "add-free", sq), env={"SQUAD_PROCESS_DELEGATED": str(self.child)})
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("cannot pin the running plugin", r.stderr)
+        self.assertNotIn("using plugin", r.stderr)
+
+    def test_refusal_with_nothing_found_changes_nothing_in_the_squad(self):
+        sq = self.squad("add-free")
+        self.known.write_text("{}", encoding="utf-8")
+        before = sorted(str(p.relative_to(sq.parent.parent)) for p in sq.parent.parent.rglob("*"))
+        r = self.go(self.runtime, *self.up("--apply", "add-free", sq, "--yes"))
+        self.assertEqual(r.returncode, 1)
+        for want in ("0.4.0", f"{self.known} (0 entries)", f"{self.listing} (0 entries)", "--plugin-root", "--new-pin"):
+            self.assertIn(want, r.stderr)
+        self.assertEqual(before, sorted(str(p.relative_to(sq.parent.parent)) for p in sq.parent.parent.rglob("*")))
 
 
 class CaseTable(Base):
@@ -306,6 +410,8 @@ class WriteGuards(Base):
         log = (sq / "process-log.md").read_text()
         self.assertIn("| 2026-10-22 | Upgraded plugin 0.4.0 aaaaaaa1 -> 0.5.0 bbbbbbb2", log)
         self.assertIn("overlay replace REV-2: local text kept", log)
+        self.assertIn("until squad-process homes moves them", log)
+        self.assertNotIn("keep their " "scope.md pin", log)
 
     def test_missing_runtime_is_exit_1_with_path(self):
         sq = self.squad("add-free")
@@ -393,3 +499,235 @@ class OddInstalledPlugins(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Homes(unittest.TestCase):
+    """squad-process homes: a squad whose plugin.pin is B and whose open homes are pinned A."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.tmp.cleanup)
+        cls.plug = Path(cls.tmp.name) / "plug"
+        a = plugin_clone(cls.plug)
+        core = cls.plug / "templates" / "squad" / "process" / "core.md"
+        core.write_text(core.read_text(encoding="utf-8").rstrip("\n") + " Edited in B.\n", encoding="utf-8", newline="\n")
+        _stamp_version(cls.plug, "0.6.1")
+        stub = cls.plug / "bin" / "squad-respawn"  # B's runtime runs this stub: it records argv and the home env
+        stub.write_text('#!/usr/bin/env bash\necho "respawn $0 $* SQUAD_DIR=${SQUAD_DIR-unset} SCOPE_DIR=${SCOPE_DIR-unset} '
+                        'GOAL_DIR=${GOAL_DIR-unset}" >> "$HERDR_LOG"\n', encoding="utf-8", newline="\n")
+        stub.chmod(0o755)
+        git("commit", "-q", "-am", "B", cwd=cls.plug)
+        cls.a, cls.b = ("0.6.0", a.sha), ("0.6.1", git("rev-parse", "HEAD", cwd=cls.plug))
+        rules, _, _ = sr.load_rules(str(cls.plug / "templates" / "squad" / "process"), str(cls.plug))
+        cls.core_hash = next(r.hash for r in rules if r.id == "CORE-1")
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(dir=self.tmp.name))
+        self.sq = self.root / ".claude" / "squads" / "x"
+        self.sq.mkdir(parents=True)
+        (self.sq / "plugin.pin").write_text("%s %s\n" % self.b, encoding="utf-8")
+        self.overlay("")
+        rt.materialise(str(self.sq), *self.a, plugin_root=str(self.plug))
+
+    def overlay(self, ops):
+        (self.sq / "process.local.md").write_text("# Local process\n" + ops, encoding="utf-8", newline="\n")
+
+    def scope(self, name, goal="none", pin=None, eol="\n", done=False):
+        d = self.sq / "scopes" / ("_done" if done else "") / name
+        d.mkdir(parents=True)
+        text = f"# Scope: {name}\n\ngoal: {goal}\nteam: tech-lead\nqa: full\nplugin: {pin or '%s %s' % self.a}\n"
+        (d / "scope.md").write_bytes(text.replace("\n", eol).encode())
+        return d
+
+    def goal(self, name):
+        d = self.sq / "goals" / name
+        d.mkdir(parents=True)
+        (d / "goal.md").write_text("# Goal: %s\n\nplugin: %s %s\n" % ((name,) + self.a), encoding="utf-8", newline="\n")
+        return d
+
+    def homes(self, mode, home, *extra):
+        return run("homes", mode, "--squad-dir", str(self.sq), "--home", str(home), "--plugin-root", str(self.plug),
+                   "--today", "2026-11-21", *extra)
+
+    def snapshot(self):
+        return {str(p.relative_to(self.sq)): p.read_bytes() for p in self.sq.rglob("*")
+                if p.is_file() and "_runtime" not in p.parts}
+
+    def test_list_for_a_lone_scope_and_for_a_goal(self):
+        solo = self.scope("solo")
+        g = self.goal("g1")
+        self.scope("s1", goal="g1")
+        self.scope("s2", goal="other")
+        self.scope("old", goal="g1", done=True)
+        r = self.homes("--check", solo)
+        self.assertEqual(r.returncode, 3, r.stderr)
+        self.assertIn("scope solo", r.stdout)
+        self.assertNotIn("goal g1", r.stdout)
+        r = self.homes("--check", g)
+        self.assertEqual(r.returncode, 3, r.stderr)
+        self.assertIn("goal g1", r.stdout)
+        self.assertIn("scope s1", r.stdout)
+        self.assertNotIn("s2", r.stdout)
+        self.assertNotIn("scope old", r.stdout)
+        self.assertNotIn("scope solo", r.stdout)
+
+    def test_a_stale_overlay_op_moves_at_the_target_and_warns_about_the_stranded_home(self):
+        self.overlay(f"\n## replace CORE-1 @{self.core_hash}\nwhy: local\nupstream: local-only\nLocal wording.\n")
+        g = self.goal("g1")
+        self.scope("lone")  # not offered from the goal home; composes only at A, where the op is stale
+        r = self.homes("--check", g)
+        self.assertEqual(r.returncode, 3, r.stdout + r.stderr)
+        self.assertRegex(r.stdout, r"goal g1 .* moves")
+        self.assertIn("will refuse spawn and respawn: scope lone: CORE-1: overlay written for", r.stdout)
+
+    def test_a_refused_compose_writes_nothing(self):
+        self.overlay("\n## replace NOPE-9 @deadbeef\nwhy: x\nupstream: local-only\nBody.\n")
+        s = self.scope("solo")
+        before = self.snapshot()
+        r = self.homes("--check", s)
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("refused", r.stdout)
+        r = self.homes("--apply", s, "--yes")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("NOPE-9", r.stderr)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_apply_needs_yes_then_changes_one_line_and_keeps_crlf(self):
+        s = self.scope("solo", eol="\r\n")
+        before = self.snapshot()
+        r = self.homes("--apply", s)
+        self.assertEqual(r.returncode, 3)
+        self.assertIn("NOT APPLIED", r.stdout)
+        self.assertEqual(self.snapshot(), before)
+        r = self.homes("--apply", s, "--yes")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("moved scope solo: %s %s -> %s %s" % (self.a + self.b), r.stdout)
+        after = self.snapshot()
+        changed = [k for k in after if after.get(k) != before.get(k)]
+        self.assertEqual(sorted(changed), ["process-log.md", "scopes/solo/scope.md"])
+        old, new = before["scopes/solo/scope.md"].split(b"\r\n"), after["scopes/solo/scope.md"].split(b"\r\n")
+        self.assertEqual([(o, n) for o, n in zip(old, new) if o != n],
+                         [(b"plugin: %s %s" % tuple(x.encode() for x in self.a),
+                           b"plugin: %s %s" % tuple(x.encode() for x in self.b))])
+        self.assertEqual(len(old), len(new))
+        self.assertEqual(after["process-log.md"].decode().count("Home scope solo plugin"), 1)
+        self.assertIn("nothing to move", self.homes("--apply", s, "--yes").stdout)
+
+    def test_only_limits_the_move_and_a_name_not_offered_exits_2(self):
+        g = self.goal("g1")
+        self.scope("s1", goal="g1")
+        self.scope("s2", goal="g1")
+        r = self.homes("--apply", g, "--yes", "--only", "s2")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("moved scope s2", r.stdout)
+        self.assertNotIn("moved scope s1", r.stdout)
+        self.assertIn("%s %s" % self.a, (self.sq / "scopes" / "s1" / "scope.md").read_text(encoding="utf-8"))
+        self.assertIn("%s %s" % self.a, (g / "goal.md").read_text(encoding="utf-8"))
+        r = self.homes("--apply", g, "--yes", "--only", "nope")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("not an offered home", r.stderr)
+
+    # --- respawn stage (ticket 02) ---
+    def roster(self, home, *rows):
+        lines = ["# Roster", "", "| Agent | Role | Scope | Owns | Status | Session |", "| --- | --- | --- | --- | --- | --- |"]
+        lines += [f"| {n} | {r} | x |  | {st} | s-{n} |" for n, r, st in rows]
+        (home / "roster.md").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+    def herdr_run(self, mode, home, *extra, **env):
+        bindir = self.root / "bin"
+        bindir.mkdir(exist_ok=True)
+        fake_herdr(bindir, "live")
+        self.log = self.root / "herdr.log"
+        self.log.write_text("", encoding="utf-8")
+        e = clean_env(HERDR_LOG=str(self.log), PATH=f"{bindir}{os.pathsep}{os.environ['PATH']}", **env)
+        return subprocess.run([sys.executable, str(BIN / "squad-process"), "homes", mode, "--squad-dir", str(self.sq),
+                               "--home", str(home), "--plugin-root", str(self.plug), "--today", "2026-11-21", *extra],
+                              capture_output=True, text=True, encoding="utf-8", env=e)
+
+    def calls(self):
+        return self.log.read_text(encoding="utf-8").splitlines()
+
+    def goal_with_pods(self):
+        g = self.goal("g1")
+        s1, s2 = self.scope("s1", goal="g1"), self.scope("s2", goal="g1")
+        self.roster(g, ("mgr", "manager", "live"), ("gtl", "team-lead", "live"))
+        self.roster(s1, ("s1-tl", "team-lead", "live"), ("s1-dev", "dev", "live"), ("s1-qw", "qa-whitebox", "live"),
+                    ("s1-old", "dev", "retired"))
+        self.roster(s2, ("s2-dev", "dev", "live"), ("s2-tech", "tech-lead", "live"))
+        return g, s1, s2
+
+    def test_respawn_prompts_then_respawns_in_order_with_each_own_home_and_skips_the_caller(self):
+        g, s1, s2 = self.goal_with_pods()
+        r = self.herdr_run("--apply", g, "--yes", SQUAD_NAME="mgr", DEAD="s2-tech")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        c = self.calls()
+        self.assertFalse([x for x in c if x.split()[2:3] == ["mgr"]])
+        agents = [x.split()[2] for x in c if x.startswith("agent prompt")]
+        # the pod before its coordinator, within a home
+        self.assertLess(agents.index("s1-dev"), agents.index("s1-qw"))
+        self.assertLess(agents.index("s1-qw"), agents.index("s1-tl"))
+        self.assertNotIn("s2-tech", agents)
+        self.assertNotIn("s1-old", " ".join(c))
+        for name in agents:
+            p = next(i for i, x in enumerate(c) if x.startswith(f"agent prompt {name} "))
+            q = next(i for i, x in enumerate(c) if x.startswith("respawn ") and x.split()[2] == name)
+            self.assertLess(p, q)
+            self.assertIn("--wait --timeout 300000", c[p])
+        rs = {x.split()[2]: x for x in c if x.startswith("respawn ")}
+        rt_bin = os.path.join(rt.runtime_path(str(self.sq), *self.b), "bin", "squad-respawn")
+        self.assertTrue(all(x.split()[1] == rt_bin and "--force" not in x for x in rs.values()), rs)
+        self.assertIn(f"SQUAD_DIR={self.sq} SCOPE_DIR={s1} GOAL_DIR=unset", rs["s1-dev"])
+        self.assertIn(f"SQUAD_DIR={self.sq} SCOPE_DIR=unset GOAL_DIR={g}", rs["gtl"])
+        self.assertEqual(r.stdout.splitlines()[-1], "caller mgr: last step: report to Chieu, write your notes, "
+                                                    "then run squad-respawn mgr")
+        self.assertIn("not running s2-tech", r.stdout)
+
+    def test_a_prompt_without_done_leaves_the_agent_pending_exit_4_and_the_rest_respawn(self):
+        g, s1, s2 = self.goal_with_pods()
+        r = self.herdr_run("--apply", g, "--yes", SQUAD_NAME="nobody", FAIL_PROMPT="s1-dev",
+                           SQUAD_HOMES_PROMPT_TIMEOUT_MS="50")
+        self.assertEqual(r.returncode, 4, r.stderr)
+        self.assertIn("pending s1-dev: prompt did not settle; run squad-respawn s1-dev after it saved its notes", r.stdout)
+        self.assertIn("respawned s1-qw", r.stdout)
+        self.assertNotIn("caller", r.stdout)
+        self.assertTrue(any(x.startswith("agent prompt s1-dev ") and "--timeout 50" in x for x in self.calls()))
+        self.assertFalse(any(x.startswith("respawn ") and x.split()[2] == "s1-dev" for x in self.calls()))
+        self.assertIn("%s %s" % self.b, (s1 / "scope.md").read_text(encoding="utf-8"))
+        # an invalid value falls back to the default
+        os.environ["SQUAD_HOMES_PROMPT_TIMEOUT_MS"] = "x"
+        self.addCleanup(os.environ.pop, "SQUAD_HOMES_PROMPT_TIMEOUT_MS", None)
+        self.assertEqual(homes_mod.prompt_ms(), 300000)
+
+    def test_no_herdr_call_without_yes_or_with_no_respawn_and_the_plan_is_listed(self):
+        g, s1, s2 = self.goal_with_pods()
+        r = self.herdr_run("--apply", g, SQUAD_NAME="mgr")
+        self.assertEqual(r.returncode, 3)
+        self.assertIn("would respawn: s1-dev", r.stdout)
+        self.assertEqual(self.calls(), [])
+        r = self.herdr_run("--apply", g, "--yes", "--no-respawn", SQUAD_NAME="mgr")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_a_home_refused_at_read_is_named_by_apply_and_exits_2(self):
+        s = self.scope("solo")
+        sf = s / "scope.md"
+        sf.write_text(sf.read_text(encoding="utf-8").replace("plugin: ", "plugin: bad "), encoding="utf-8", newline="\n")
+        before = self.snapshot()
+        r = self.homes("--apply", s, "--yes")
+        self.assertEqual(r.returncode, 2, r.stdout)
+        self.assertIn("refused scope solo", r.stderr)
+        self.assertNotIn("nothing to move", r.stdout)
+        self.assertEqual(self.snapshot(), before)
+        # next to a home that moves: still exit 2, nothing written; --only deselects the refused one
+        g = self.goal("g1")
+        s2 = self.scope("s1", goal="g1")
+        sf = s2 / "scope.md"
+        sf.write_text(sf.read_text(encoding="utf-8").replace("plugin: ", "plugin: bad "), encoding="utf-8", newline="\n")
+        before = self.snapshot()
+        r = self.homes("--apply", g, "--yes", "--no-respawn")
+        self.assertEqual(r.returncode, 2, r.stdout)
+        self.assertIn("refused scope s1", r.stderr)
+        self.assertEqual(self.snapshot(), before)
+        r = self.homes("--apply", g, "--yes", "--no-respawn", "--only", "g1")
+        self.assertEqual(r.returncode, 0, r.stderr)

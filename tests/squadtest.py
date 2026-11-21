@@ -59,7 +59,7 @@ def squad_home(root, process=None, scope=None):
 # One script for every test. Behaviour comes from the environment the test sets:
 #   HERDR_LOG  every call is appended (also the "agent rename" a respawn made: that agent is gone afterwards)
 #   LIVE / DEAD  space-separated agent names that are (not) found; the rest follows the mode
-#   FAIL_RENAME  `tab rename` fails        PANES  a table "pane tab agent" that agent get / tab close / pane close use
+#   FAIL_PROMPT  agents whose `agent prompt --wait` fails (no DONE)   FAIL_RENAME  `tab rename` fails        PANES  a table "pane tab agent" that agent get / tab close / pane close use
 _FAKE_HERDR = r"""#!/usr/bin/env bash
 [[ -n ${HERDR_LOG:-} ]] && echo "$@" >> "$HERDR_LOG"
 case "$1 $2" in
@@ -77,6 +77,7 @@ case "$1 $2" in
     [[ -n ${HERDR_LOG:-} ]] && grep -q "^agent rename $3 " "$HERDR_LOG" && up=0
     (( up )) || { echo '{"error":{"code":"agent_not_found"}}'; exit 1; }
     echo "{\"result\":{\"agent\":{\"name\":\"$3\",\"pane_id\":\"p-$3\",\"tab_id\":\"tab-$3\"}}}" ;;
+  "agent prompt") [[ " ${FAIL_PROMPT:-} " == *" $3 "* ]] && { echo timeout >&2; exit 1; } ;;
   "tab create") echo '{"result":{"root_pane":{"pane_id":"p-new"},"tab":{"tab_id":"t-new"}}}' ;;
   "tab rename") [[ -n ${FAIL_RENAME:-} ]] && { echo boom >&2; exit 1; } ;;
   "tab close") [[ -n ${PANES:-} ]] && { awk -v t="$3" '$2 != t' "$PANES" > "$PANES.new"; mv "$PANES.new" "$PANES"; } ;;
