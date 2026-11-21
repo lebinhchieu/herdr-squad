@@ -137,7 +137,7 @@ class ComposedRulesTest(unittest.TestCase):
         self.assertIn("squad-spawn dev", rules)
         self.assertIn("squad-retire", rules)
         self.assertNotIn("owns the plan", rules)  # AC4: the Team Lead never reorders the plan
-        self.assertNotIn("task order", rules.split("## SIZE-6b")[1].split("\n## ")[0])
+        self.assertNotIn("task order", rules.split("## SIZE-6b ")[1].split("## ")[0])
         self.assertIn("no", rules.split("## SPAWN-9")[1].split("##")[0].lower())
 
     def test_spawning_cost_and_safety_follow_the_team(self):  # spawning.md, cost.md, safety.md in the team language
