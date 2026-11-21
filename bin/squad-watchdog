@@ -410,7 +410,7 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None):
     snap = snapshot(home, herdr_json)
     bg_max = bg_max_s()
     st, events = decide(read_state(home), snap, now, sleep_on(home), sleep_after_s(), bg_max)
-    snap["busy"] = st["bg_busy"]
+    snap["busy"] = st.get("bg_busy") or []  # absent when herdr did not answer and the state file is new or from 0.9.5
     if snap["ok"] and wake_on(home):
         st, wakes = wake_events(st, snap, now)
         mgr_blocked = any(a["name"] == manager and a["state"] == "blocked" for a in snap["agents"])

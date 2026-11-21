@@ -220,6 +220,9 @@ class WatchdogTest(unittest.TestCase):
         self.herdr.write_text("not json", encoding="utf-8")
         self.tick(30)
         self.assertEqual(self.suspended, [])
+        (self.home / "watchdog.state.json").unlink()  # a fresh home or a 0.9.5 state file has no bg keys
+        self.tick(31)  # must not raise
+        self.assertIn("herdr does not answer", self.log())
 
     def test_a_herdr_outage_restarts_the_quiet_clock_so_the_pc_does_not_sleep_at_the_first_check_after_it(self):
         W.set_sleep(self.home, True)
