@@ -19,7 +19,7 @@ topic: cost
 
 The Tech Lead splits a task likely to need a respawn.
 
-## COST-4b Plan owners respawn
+## COST-4b Plan and AC written, respawn
 roles: tech-lead, team-lead
 topic: cost
 

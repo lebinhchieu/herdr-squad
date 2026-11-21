@@ -48,11 +48,11 @@ topic: sizes
 
 The BA owns the business AC and writes them with QA blackbox.
 
-## SIZE-6b Plan owner, Team Lead
+## SIZE-6b Assignment, Team Lead
 roles: team-lead
 topic: sizes
 
-The Team Lead owns the plan, task order and assignment, in the same plan file and format the Manager uses. A task of those kinds cites its rule in the task file ([GOAL-6b], [PROMO-5], [REV-15]) because the Developer does not carry them.
+The Team Lead assigns tickets per the Manager's plan, spawns and retires Developers and tracks status; it never reorders the plan. A task of those kinds cites its rule in the task file ([GOAL-6b], [PROMO-5], [REV-15]) because the Developer does not carry them.
 
 ## SIZE-7a Code and test check, Manager
 roles: manager
@@ -163,7 +163,7 @@ Joining a scope already under way: start from the plan's `## Handover` section; 
 roles: team-lead
 topic: sizes
 
-Joining a scope already under way: take over the existing plan file from the Manager (same format) and read its `## Handover` section first.
+Joining a scope already under way: read the Manager's plan file and its `## Handover` section first; the Manager keeps the plan.
 
 ## SIZE-17c Joining a team, QA whitebox
 roles: qa-whitebox
