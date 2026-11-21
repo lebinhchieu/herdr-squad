@@ -15,20 +15,13 @@ Each iteration has `iterations/<n>.md`.
 roles: manager
 topic: iterations
 
-Escalate only what the rules say always goes to the PO ([WHO-1a], [WHO-1d], [WHO-3a], [WHO-5]), or what you and the owners cannot settle. Write it to the inbox (question, options, your recommendation); the line the command prints is the telling.
+Escalate only what the rules say always goes to the PO ([WHO-1e], [WHO-1d], [WHO-3b], [WHO-5]), or what you and the owners cannot settle. Write it to the inbox (question, options, your recommendation); the line the command prints is the telling.
 
 ## ITER-3 Pod summary
 roles: team-lead
 topic: iterations
 
 Write `iterations/<n>.summary.md` at iteration end: tasks passed with a link to each ticket's `evidence.md`, each task's final passed sha, the checkers that passed it and the returns per task (all three from `squad-ledger`), friction, open items, at most 40 lines. It carries one line naming the residual risk "the cap is a rule, not a lock".
-
-## ITER-3b Pod summary, Manager
-roles: manager
-when: team-lead = no
-topic: iterations
-
-When you own the plan (the Team Lead is not on the team), write `iterations/<n>.summary.md` at iteration end, at most 40 lines: tasks passed with each ticket's `evidence.md` link, final passed sha and returns (`squad-ledger`), friction, open items.
 
 ## ITER-4 Inbox
 roles: manager
@@ -63,14 +56,7 @@ roles: manager
 topic: iterations
 phase: coach
 
-After the spawn, do other work or end the turn and wait for the Coach's message; never loop, sleep or poll for the file. Run `herdr agent list` on its pane only when no message came after the 10-minute health-check idle window ([MSG-8a]).
-
-## ITER-6a Token Coach, no checkers
-roles: manager
-when: handin-target = manager
-topic: iterations
-
-At the close of a scope with no QA and no Team Lead, spawn the Token Coach only when the PO asks.
+After the spawn, do other work or end the turn and wait for the Coach's message; never loop, sleep or poll for the file. Run `herdr agent list` on its pane only when no message came after the 10-minute health-check idle window ([MSG-8b]).
 
 ## ITER-6b Token Coach, with checkers
 roles: manager
@@ -152,7 +138,7 @@ topic: iterations
 The PO is away while the file `<home>/away` exists (home = your `$SCOPE_DIR`, else `$GOAL_DIR`; present is enough, the content is not read). While away:
 - Keep going on every clear point. A question another role can settle goes to its owner, advisor first ([LC-25]); never wait for the PO.
 - A question only the PO can settle, that blocks no other ticket, is `squad-inbox park --text "<q>" --blocks "<work>"`; work on the other tickets.
-- An "Always goes to PO" item ([WHO-1a], [WHO-1d], [WHO-3a], [WHO-5]) and a team change that needs the PO's yes go to the inbox with `--blocks` naming only the work they hold; all other work goes on. A merge, push or deploy waits for the PO's request in chat ([MRG-1], [ITER-5]).
+- An "Always goes to PO" item ([WHO-1e], [WHO-1d], [WHO-3b], [WHO-5]) and a team change that needs the PO's yes go to the inbox with `--blocks` naming only the work they hold; all other work goes on. A merge, push or deploy waits for the PO's request in chat ([MRG-1], [ITER-5]).
 - Note each decision you made for the PO in the iteration file, one line: what, why.
 - When `away` is deleted, write ONE `squad-inbox add --kind read` item: decisions made, parked questions, key decisions waiting.
 

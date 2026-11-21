@@ -1,6 +1,6 @@
 # squad: a self-managing Claude Code dev team
 
-**You are the PO. For each task or goal you give it, a fresh Manager session spawns and runs a team of Claude Code sessions (Developers, and the optional roles BA, Team Lead, Tech Lead, QA whitebox, QA blackbox, UI/UX Designer and Architect that the PO confirms for each scope), each in its own herdr tab. They talk through Claude Code's built-in cross-session messaging and keep everything durable in a folder in your project. Work is grouped by scope: a scope starts fresh, shares nothing with other scopes, and its lasting knowledge goes into your project's own docs.**
+**You are the PO. For each task or goal you give it, a fresh Manager session spawns and runs a team of Claude Code sessions (Developers, and the Team Lead, who is always on the team, and the optional roles BA, Tech Lead, QA whitebox, QA blackbox, UI/UX Designer and Architect that the PO confirms for each scope), each in its own herdr tab. They talk through Claude Code's built-in cross-session messaging and keep everything durable in a folder in your project. Work is grouped by scope: a scope starts fresh, shares nothing with other scopes, and its lasting knowledge goes into your project's own docs.**
 
 ## Quick start
 

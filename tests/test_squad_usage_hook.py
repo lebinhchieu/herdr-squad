@@ -57,11 +57,11 @@ class HookTest(unittest.TestCase):
         self.assertIn("'fresh'", r.stderr)
         self.assertIn("respawn line", r.stderr)
         self.assertNotIn("120k", r.stderr)
-        self.assertIn("tell your plan owner (the Manager) and stop ([COST-5a], no squad-respawn)", r.stderr)
+        self.assertIn("tell your plan owner (the Team Lead) and stop ([COST-5], no squad-respawn)", r.stderr)
         self.assertIn("mid-ticket, run once: squad-respawn dev-1", r.stderr)
         [ev] = [json.loads(l) for l in self.events.read_text(encoding="utf-8").splitlines()]
         self.assertEqual((ev["agent"], ev["role"], ev["session"], ev["rule"]), ("dev-1", "dev", "sid-1", "fresh"))
-        self.assertIn("tell your plan owner (the Manager) and stop ([COST-5a], no squad-respawn)", ev["action"])
+        self.assertIn("tell your plan owner (the Team Lead) and stop ([COST-5], no squad-respawn)", ev["action"])
         self.assertIn("mid-ticket, run once: squad-respawn dev-1", ev["action"])
         self.assertNotEqual(ev["action"], "write roles/dev-1.notes.md, then run: squad-respawn dev-1")
 
@@ -93,13 +93,13 @@ class HookTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr)
         return r.stderr
 
-    def test_developer_text_names_the_plan_owner_from_scope_md(self):  # task 18 AC2
-        text = self.hook_text_with_scope_md("# Scope: x\nteam: ba, team-lead, qa-white (a note)\n")
-        self.assertIn("tell your plan owner (the Team Lead) and stop ([COST-5], no squad-respawn)", text)
-        self.assertNotIn("tell the Team Lead", text)
-        # `team-lead` only inside the trailing note does not count; no team line and no scope.md: the Manager
-        for scope_md in ("team: qa-white, qa-black (Manager plans, no team-lead)\n", "# Scope\n", None):
-            self.assertIn("tell your plan owner (the Manager) and stop ([COST-5a], no squad-respawn)", self.hook_text_with_scope_md(scope_md))
+    def test_developer_text_is_the_same_for_every_scope_md_shape(self):  # ticket 04 AC5
+        want = "tell your plan owner (the Team Lead) and stop ([COST-5], no squad-respawn)"
+        texts = [self.hook_text_with_scope_md(s) for s in
+                 ("# Scope: x\nteam: ba, team-lead, qa-white (a note)\n", "team: qa-white, qa-black\n", None)]
+        for text in texts:
+            self.assertIn(want, text)
+        self.assertEqual(len(set(texts)), 1)
 
     def test_other_roles_text_is_unchanged(self):  # task 18 AC3
         self.transcript("sid-1", 130_000)

@@ -157,7 +157,7 @@ class LogMessageTest(unittest.TestCase):
         head = "| Agent | Role | Scope | Owns | Status | Session |\n| --- | --- | --- | --- | --- | --- |\n"
         (scope / "roster.md").write_text(head + rows, encoding="utf-8")
 
-    # ---- 3rd return notice: Team Lead iff `team-lead` is on the team, else Manager (AC 12) ----
+    # ---- 3rd return notice: always the Team Lead (AC 12) ----
     def third_fail_notice(self, scope_md):
         scope = self.squad / "scopes" / "sc1"
         scope.mkdir(parents=True, exist_ok=True)
@@ -172,17 +172,12 @@ class LogMessageTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         return r.stdout
 
-    def test_third_return_goes_to_team_lead_when_on_the_team(self):
-        out = self.third_fail_notice("team: ba, team-lead, tech-lead, qa-white\n")
-        self.assertIn("to Team Lead [LC-7b]", json.loads(out)["hookSpecificOutput"]["additionalContext"])
-
-    def test_third_return_goes_to_manager_for_none_undecided_error_and_size(self):
-        for text in ("team: none\n", "team:\n", "team: ba, nobody\n", "size: L\n", "team: team-lead; touch X\n"):
+    def test_third_return_always_goes_to_team_lead(self):
+        for text in ("team: none\n", "team: ba\n", "team: ba, team-lead, tech-lead, qa-white\n", "size: L\n", "team: ba, nobody\n"):
             with self.subTest(text=text):
                 self.setUp()
                 out = self.third_fail_notice(text)
-                self.assertIn("to Manager [LC-7c]", json.loads(out)["hookSpecificOutput"]["additionalContext"])
-                self.assertFalse((self.squad / "scopes" / "sc1" / "X").exists())
+                self.assertIn("to Team Lead [LC-7b]", json.loads(out)["hookSpecificOutput"]["additionalContext"])
                 self.tearDown()
 
     def test_the_notice_is_stdout_json_on_the_third_failing_sha_only(self):

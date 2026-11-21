@@ -89,7 +89,7 @@ class StartTest(unittest.TestCase):
             time.sleep(0.1)
         self.fail("the watchdog made no pass")
 
-    def test_a_scope_and_a_goal_start_a_watchdog_and_a_dry_run_or_an_in_goal_scope_does_not(self):
+    def test_a_scope_a_goal_and_an_in_goal_scope_start_a_watchdog_and_a_dry_run_or_off_does_not(self):
         self.env.pop("SQUAD_WATCHDOG")
         self.env["SQUAD_WATCHDOG_INTERVAL"] = "1"
         f = self.root / "fakebin" / "herdr"  # a herdr that cannot run a command in the tab: the detached fallback starts the watchdog
@@ -103,16 +103,25 @@ class StartTest(unittest.TestCase):
             pid = self.watchdog_pid(home)
             self.addCleanup(self.stop, pid)
             self.assertRegex((home / "watchdog.log").read_text(encoding="utf-8"), rf"watchdog started for {name}; Manager t-mgr-{name}")
-        self.assertEqual(self.start("Tabs", "--in-goal", "big", "--name", "s1").returncode, 0)
+        # ticket 06: a scope inside a goal gets its own watchdog (goal Manager as fallback), one per home; off starts none
+        self.env["SQUAD_WATCHDOG"] = "off"
+        self.assertEqual(self.start("Off", "--in-goal", "big", "--name", "s0").returncode, 0)
+        self.env.pop("SQUAD_WATCHDOG")
         time.sleep(0.5)
-        self.assertFalse((self.squad / "scopes" / "s1" / "watchdog.log").exists())
+        self.assertFalse((self.squad / "scopes" / "s0" / "watchdog.log").exists())
+        self.assertEqual(self.start("Tabs", "--in-goal", "big", "--name", "s1").returncode, 0)
+        home = self.squad / "scopes" / "s1"
+        pid = self.watchdog_pid(home)
+        self.addCleanup(self.stop, pid)
+        self.assertRegex((home / "watchdog.log").read_text(encoding="utf-8"), r"watchdog started for s1; Manager t-mgr-big")
+        self.assertEqual(self.watchdog_pid(home), pid)  # still the one process
 
     def test_model_flag_sets_the_managers_model_else_the_role_default_applies(self):
         self.assertEqual(self.start("Task one", "--name", "one", "--model", "opus", "--effort", "medium").returncode, 0)
         self.assertRegex(self.herdr(), r"--model opus --effort medium\b")
         self.log.unlink()
         self.assertEqual(self.start("Task two", "--name", "two").returncode, 0)
-        self.assertRegex(self.herdr(), r"--model sonnet --effort high\b")
+        self.assertRegex(self.herdr(), r"--model opus --effort medium\b")
 
     def test_the_managers_model_override_survives_a_respawn_for_a_scope_and_a_goal(self):
         for text, kind, var, flag in (("Task one", "scopes", "SCOPE_DIR", "--scope"), ("goal: Big thing", "goals", "GOAL_DIR", "--goal")):
@@ -259,13 +268,13 @@ class StartTest(unittest.TestCase):
 
     def test_dry_run_shows_the_managers_model_and_effort_with_their_source(self):
         new = ("x", "--name", "one")
-        self.assertEqual(self.dry_lines(*new), ["manager model: sonnet (from template)", "manager effort: high (from template)"])
+        self.assertEqual(self.dry_lines(*new), ["manager model: opus (from template)", "manager effort: medium (from template)"])
         (self.squad / "settings").mkdir()
         (self.squad / "settings" / "manager.local.json").write_text('{"model": "haiku"}', encoding="utf-8")
-        self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from squad settings)", "manager effort: high (from template)"])
+        self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from squad settings)", "manager effort: medium (from template)"])
         self.assertEqual(self.dry_lines(*new, "--model", "opus", "--effort", "low"),
                          ["manager model: opus (from flag)", "manager effort: low (from flag)"])
-        self.assertEqual(self.dry_lines(*new, "--model", "opus"), ["manager model: opus (from flag)", "manager effort: high (from template)"])
+        self.assertEqual(self.dry_lines(*new, "--model", "opus"), ["manager model: opus (from flag)", "manager effort: medium (from template)"])
         self.assertEqual(len(self.dry_lines("goal: Big", "--name", "g")), 2)
 
     def test_dry_run_resolves_like_squad_spawn_overlay_beats_the_full_file_and_the_pinned_template_is_used(self):
@@ -275,7 +284,7 @@ class StartTest(unittest.TestCase):
         (st / "manager.local.json").write_text('{"model": "opus"}', encoding="utf-8")
         new = ("x", "--name", "one")
         # overlay present: manager.json is ignored (squad-spawn warns), so effort comes from the template
-        self.assertEqual(self.dry_lines(*new), ["manager model: opus (from squad settings)", "manager effort: high (from template)"])
+        self.assertEqual(self.dry_lines(*new), ["manager model: opus (from squad settings)", "manager effort: medium (from template)"])
         (st / "manager.local.json").unlink()
         self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from squad settings)", "manager effort: low (from squad settings)"])
         (st / "manager.json").unlink()
@@ -292,7 +301,7 @@ class StartTest(unittest.TestCase):
     def test_resume_dry_run_shows_them_too_and_in_goal_has_no_manager_lines(self):
         (self.squad / "scopes" / "one").mkdir()
         self.assertEqual(self.dry_lines("--resume", "one", "--model", "opus"),
-                         ["manager model: opus (from flag)", "manager effort: high (from template)"])
+                         ["manager model: opus (from flag)", "manager effort: medium (from template)"])
         roles = self.squad / "scopes" / "one" / "roles"
         roles.mkdir()
         (roles / "t-mgr-one.overrides").write_text("model=opus\neffort=low\n", encoding="utf-8")

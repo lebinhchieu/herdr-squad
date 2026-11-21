@@ -1,3 +1,26 @@
+## v20 — 2026-11-21
+
+Plugin 0.10.0. The Team Lead is always on the team and the Manager owns the plan (ADR 0030). Breaking for rule retargets and `when:` keys; Chieu deploys.
+
+added:
+- ADR 0030: the Team Lead is always on the team; the Manager owns the plan and settles disputes; the Team Lead coordinates (spawns and retires Developers, assigns per the plan, health checks, fixed escalation triggers) and never reorders the plan. why: every rule needed a Manager and a Team Lead variant.
+- SPAWN-12: the Manager's subagent defaults (`model: sonnet`, `effort: high`; a fork is allowed). why: one place states them.
+- `squad-process upgrade --check` lists overlay ops that name a removed rule or an old `when:` key, with the translation. why: overlays of other teams may go stale.
+- `squad-team add|remove team-lead` refuses ("always on the team"). why: the role cannot be dropped.
+
+changed:
+- Watchdog (06): a scope's watchdog wakes its own Team Lead and falls back to the Manager while no Team Lead is up or when it is blocked; a scope inside a goal gets its own watchdog. why: ADR 0028 woke the Manager for pod matters.
+- Defaults (05): Manager `opus medium`, Team Lead `sonnet low`.
+- LC-7b, LC-15, LC-16, LC-17, MSG-6 and the rows of WHO: plan and assignment owners are the Manager and the Team Lead; the "plan owner" wording is gone. why: one reading for every team.
+- `agents/team-lead.md`, `agents/manager.md`, README, CONTEXT.md: match the new roles.
+- `team:` may still list `team-lead`: the engine accepts the token and ignores it.
+
+removed:
+- The 31 Manager-twin rules (tombstones in `_removed.md`, `replaced_by` named): COST-5a 6a 10a 13a 14a, FILE-5a, ITER-3b, LC-2b 5b 6b 7a 11b 11c 17b 22c, MSG-4a 7a 8a 11a 18, PROMO-5b, SIZE-6a 6c, SPAWN-2a 5a 8a 10a, START-2a, WHO-1a 3a 8a; also LC-20a, REV-1, REV-13a, ITER-6a. why: each was the variant for a scope without a Team Lead.
+- The `plan-owner` duty and the `when:` keys `plan-owner` and `team-lead`: the engine rejects them; `lint` names `file:line`. why: they only chose between the variants.
+
+Deploy (Chieu): merge the integration branch; `claude plugin update` to 0.10.0; check `squad-process lint`, `squad-process compose manager --home <a scope>` (Team Lead rules, no `plan-owner=` in `duties:`), `squad-process upgrade --check --squad-dir <each squad>`. Live roles pick up the rules at their next respawn; pinned scopes keep their runtime. Rollback: revert the merge, plugin back to 0.9.6.
+
 ## v19 — 2026-11-21
 
 Plugin 0.9.6. The watchdog counts an agent with a herdr background-shell token as working for up to `SQUAD_WATCHDOG_BG_MAX` minutes (default 60); the plugin ships the `herdr-bg` hook.

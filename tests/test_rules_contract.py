@@ -1,6 +1,7 @@
 """Rule contract: which roles a rule acts on or reaches, per team facts (`squad-process who`, `rules:` of a composed file).
 One home for the small per-ticket files it replaces (advisor, pod, retro, suite, task id, designer, team lead, contact routes)."""
 import itertools
+import re
 import unittest
 
 from rulesview import ROLES, ROOT, acts, composed, rule_ids
@@ -20,10 +21,8 @@ class WhoActsTest(unittest.TestCase):
     def test_who_shows_the_acting_roles(self):
         for rid, key, want in (
                 ("LC-26", "S", ("manager", "tech-lead")), ("LC-26", "M", ("manager", "tech-lead")), ("LC-26", "L", ("manager", "tech-lead")),
-                ("MSG-5", "plan-owner = manager", ()),
-                ("SIZE-6a", "S", None),  # manager must be among them
-                ("LC-15", "plan-owner = team-lead", ("team-lead",)), ("LC-15", "plan-owner = manager", ()),
-                ("LC-17b", "plan-owner = manager", ("manager",)),
+                ("SPAWN-12", "S", ("manager",)),
+                ("LC-15", "M", ("team-lead",)),
                 ("ITER-13", "S", ("token-coach",)), ("ITER-13", "M", ("token-coach",)), ("ITER-13", "L", ("token-coach",)),
                 ("ITER-14", "S", ("token-coach",)), ("ITER-14", "M", ("token-coach",)), ("ITER-14", "L", ("token-coach",)),
                 ("ITER-15", "S", ("manager",)), ("ITER-15", "M", ("manager",)), ("ITER-15", "L", ("manager",)),
@@ -39,10 +38,17 @@ class WhoActsTest(unittest.TestCase):
                     self.assertEqual(acts(rid, key), want)
         for size in "SML":
             self.assertEqual(set(acts("LC-25", size)), ALL)
-        self.assertIn("team-lead", acts("MSG-5", "plan-owner = team-lead"))
+        self.assertIn("team-lead", acts("MSG-5", "M"))
         self.assertIn("tech-lead", acts("LC-11", "L"))
-        self.assertIn("manager", acts("LC-11b", "M"))
         self.assertIn("team-lead", acts("SIZE-17b", "L"))
+
+    def test_manager_subagent_default_rule(self):  # ticket 04 AC3, AC4
+        m = composed("manager", team="team-lead")
+        self.assertIn("SPAWN-12", rule_ids(m))
+        for phrase in ("`model: sonnet`", "`effort: high`", "A fork is allowed"):
+            self.assertIn(phrase, m)
+        self.assertNotIn("SPAWN-12", rule_ids(composed("dev", team="team-lead")))
+        self.assertNotIn("SPAWN-12", rule_ids(composed("team-lead", team="team-lead")))
 
     def test_task_id_rule_reaches_every_role_and_size(self):
         for size in "SML":
@@ -78,7 +84,7 @@ class ComposedRulesTest(unittest.TestCase):
         self.assertIn("never run the suite", composed("qa-blackbox", "M"))
         self.assertIn("then once on your final sha", composed("dev", "S"))
 
-    def test_qa_blackbox_gets_a_suites_rule_on_every_team_with_a_dev_owner(self):  # SUITE-2f, over the 128 teams
+    def test_qa_blackbox_gets_a_suites_rule_on_every_team_with_a_dev_owner(self):  # SUITE-2f, over the 64 teams
         n = 0
         for k in range(len(sr.TEAM_KEYS) + 1):
             for team in itertools.combinations(sr.TEAM_KEYS, k):
@@ -89,24 +95,45 @@ class ComposedRulesTest(unittest.TestCase):
                 got = [r for r in ("SUITE-2e", "SUITE-2f", "SUITE-2b") if sr.matches(BY_ID[r].when, facts)]
                 want = {"dev": ["SUITE-2f"], "qa-white": ["SUITE-2e"], "tech-lead": ["SUITE-2b"]}[facts.get("suite-owner")]
                 self.assertEqual(got, want, (team, facts.get("suite-owner")))
-        self.assertEqual(n, 64)
+        self.assertEqual(n, 32)
         self.assertIn("the Developer owns the full suite", composed("qa-blackbox", team="qa-black"))
         self.assertNotIn("SUITE-2f", composed("qa-blackbox", team="qa-black, qa-white").split(" rules: ", 1)[1].split(" ## ", 1)[0])
 
     def test_routes_follow_the_plan_owner_of_the_team(self):  # team language: plan-owner, doubt-owner, design-notes
         tl = TL
         self.assertIn("MSG-11b", rule_ids(composed("dev", team=tl)))
-        self.assertNotIn("MSG-11a", rule_ids(composed("dev", team=tl)))
-        self.assertIn("MSG-11a", rule_ids(composed("dev", team=MG)))
-        self.assertNotIn("MSG-11b", rule_ids(composed("dev", team=MG)))
+        self.assertIn("MSG-11b", rule_ids(composed("dev", team=MG)))  # the Team Lead variant at every team
+        self.assertNotIn("MSG-11a", rule_ids(composed("dev", team=MG)))
         self.assertIn("go to the Team Lead", composed("dev", team=tl))
-        self.assertIn("go to the Manager", composed("dev", team=MG))
+        self.assertIn("go to the Team Lead", composed("dev", team=MG))
         self.assertIn("MSG-5", rule_ids(composed("team-lead", team=tl)))
         self.assertIn("MSG-6", rule_ids(composed("team-lead", team=tl)))
         self.assertIn("MSG-14", rule_ids(composed("tech-lead", team="tech-lead")))  # the Tech Lead answers gaps whoever plans
         self.assertIn("MSG-15", rule_ids(composed("tech-lead", team="tech-lead, ba")))
         self.assertNotIn("MSG-15", rule_ids(composed("tech-lead", team="tech-lead")))  # no BA to raise to
         self.assertIn("MSG-12", rule_ids(composed("ba", team="ba")))
+
+    def test_manager_owns_plan_and_disputes_team_lead_never_reorders(self):
+        for team in (TL, MG):
+            mg, tl = composed("manager", team=team), composed("team-lead", team=team)
+            self.assertIn("| Plan, task order | Manager | Manager |", mg)
+            self.assertIn("| Assignment, Developer spawning | Team Lead | Manager |", mg)
+            self.assertIn("The Manager settles every dispute, plan, order and assignment ones included.", mg)
+            self.assertIn("You never reorder the plan: when a gap needs a new order, send the Manager an `ASK`.", tl)
+            self.assertIn("a plan change you need, as an `ASK`", tl)
+            self.assertIn("Never settle a plan, order or assignment dispute", tl)
+            for rid in ("LC-15", "LC-16", "LC-17", "MSG-6"):
+                self.assertIn(rid, rule_ids(tl))
+
+    def test_team_lead_text_gives_no_plan_or_order(self):  # the LC-8 defect class: a sentence that hands it the plan
+        for team in (TL, MG):
+            tl = " ".join(s for s in composed("team-lead", team=team).split(" ## ") if s.startswith(("LC-", "MSG-", "WHO-")))
+            for sentence in re.split(r"(?<=[.;])\s+", tl):
+                s = sentence.lower()
+                if "never" in s or "not " in s:
+                    continue
+                for phrase in ("owns the plan", "take over the plan", "task order and assignment", "plan owner", "reorder"):
+                    self.assertNotIn(phrase, s, sentence)
 
     def test_doubts_go_to_the_doubt_owner(self):
         self.assertIn("MSG-16b", rule_ids(composed("designer", team="ba, designer")))
@@ -121,22 +148,21 @@ class ComposedRulesTest(unittest.TestCase):
         self.assertNotIn("the BA", a.split("## MSG-20a")[1].split("##")[0])
 
     def test_team_lead_exists_when_the_team_lists_it_and_takes_the_handover(self):
-        self.assertIn("lists `team-lead`", CARD)  # 06: no size in the card
+        self.assertNotIn("exist only when", CARD)  # 07: the Team Lead is always on the team
         self.assertIn("## Handover", composed("team-lead", "L"))
 
     def test_team_lead_spawns_and_retires_dev_only(self):
         rules = composed("team-lead", "L")
         self.assertIn("squad-spawn dev", rules)
         self.assertIn("squad-retire", rules)
+        self.assertNotIn("owns the plan", rules)  # AC4: the Team Lead never reorders the plan
+        self.assertNotIn("task order", rules.split("## SIZE-6b ")[1].split("## ")[0])
         self.assertIn("no", rules.split("## SPAWN-9")[1].split("##")[0].lower())
 
     def test_spawning_cost_and_safety_follow_the_team(self):  # spawning.md, cost.md, safety.md in the team language
         tl = "team-lead, tech-lead, qa-white, qa-black"
         self.assertIn("SPAWN-2b", rule_ids(composed("manager", team=tl)))
         self.assertIn("SPAWN-2c", rule_ids(composed("manager", team=tl)))
-        self.assertNotIn("SPAWN-2a", rule_ids(composed("manager", team=tl)))
-        self.assertIn("SPAWN-2a", rule_ids(composed("manager", team=MG)))
-        self.assertNotIn("SPAWN-2b", rule_ids(composed("manager", team=MG)))
         self.assertIn("every other role on `team:`", composed("manager", team=MG))
         self.assertNotIn("SPAWN-5b", rule_ids(composed("manager", team=tl)))
         self.assertIn("SPAWN-5b", rule_ids(composed("team-lead", team=tl)))
@@ -145,10 +171,9 @@ class ComposedRulesTest(unittest.TestCase):
         self.assertNotIn("SPAWN-4", rule_ids(composed("manager", team=MG)))
         self.assertIn("SPAWN-4a", rule_ids(composed("manager", team="architect")))
         self.assertIn("COST-5", rule_ids(composed("dev", team=tl)))
-        self.assertIn("COST-5a", rule_ids(composed("dev", team=MG)))
+        self.assertIn("COST-5", rule_ids(composed("dev", team=MG)))
         self.assertIn("COST-4a", rule_ids(composed("tech-lead", team="tech-lead")))
         self.assertIn("COST-6b", rule_ids(composed("team-lead", team=tl)))
-        self.assertIn("COST-6a", rule_ids(composed("manager", team=MG)))
         self.assertIn("SAFE-9", rule_ids(composed("qa-whitebox", team=MG)))  # no `when:`: composed for the role that is on the team
         self.assertIn("SAFE-10", rule_ids(composed("qa-blackbox", team="qa-black")))
 
@@ -159,7 +184,7 @@ class ComposedRulesTest(unittest.TestCase):
             self.assertNotRegex(text, r"\bqa-b\b", f)
             self.assertNotRegex(text, r"(?m)^when:.*\b(?:S|M|L)\b", f)
 
-    def test_tech_lead_without_team_lead_respawns_per_cost_4c(self):  # over the 128 teams
+    def test_tech_lead_respawns_per_cost_4b_and_4c(self):  # over the 64 teams
         n = 0
         for k in range(len(sr.TEAM_KEYS) + 1):
             for team in itertools.combinations(sr.TEAM_KEYS, k):
@@ -168,8 +193,8 @@ class ComposedRulesTest(unittest.TestCase):
                     continue
                 n += 1
                 got = [i for i in ("COST-4b", "COST-4c") if sr.matches(BY_ID[i].when, facts)]
-                self.assertEqual(got, ["COST-4b", "COST-4c"] if "team-lead" in team else ["COST-4c"], team)  # accepted: both for a Tech Lead with a Team Lead
-        self.assertEqual(n, 64)
+                self.assertEqual(got, ["COST-4b", "COST-4c"], team)  # the Team Lead always plans: both rules for every Tech Lead
+        self.assertEqual(n, 32)
         self.assertIn("Respawn once your design and AC are in files.", composed("tech-lead", team="tech-lead"))
         self.assertIn("COST-4c", rule_ids(composed("tech-lead", team="tech-lead, team-lead")))
 

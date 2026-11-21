@@ -116,6 +116,20 @@ class ParseTest(Clean):
         self.assertEqual(self.lint(), ([], [], True))
 
 
+class TeamLeadImplicitTest(unittest.TestCase):  # ticket 02 AC1, AC2
+    def test_team_lead_token_is_ignored_and_never_a_fact(self):
+        self.assertEqual(sr.parse_team("ba, team-lead", "x"), sr.parse_team("ba", "x"))
+        facts = sr.team_facts(sr.parse_team("ba, team-lead", "x"))
+        self.assertEqual(facts, sr.team_facts(sr.parse_team("ba", "x")))
+        self.assertNotIn("team-lead", facts)
+        self.assertNotIn("plan-owner", facts)
+
+    def test_handin_target_is_team_lead_without_a_qa(self):
+        self.assertNotIn("plan-owner", sr.resolve_duties([]))
+        self.assertEqual(sr.resolve_duties([])["handin-target"], "team-lead")
+        self.assertEqual(sr.resolve_duties(["qa-white"])["handin-target"], "qas")
+
+
 class HashTest(unittest.TestCase):
     def test_golden(self):
         self.assertEqual(sr.rule_hash(GOLDEN_ATTRS, GOLDEN_BODY), "022a37df")
@@ -179,7 +193,9 @@ class LintClassTest(Clean):
         self.only("unknown value 'maybe'")
 
     def test_old_when_keys_are_a_lint_error_naming_rule_and_new_key(self):
-        for old, new in (("qa-b = no", "qa-black"), ("size in M, L", "duty or role key"), ("qa-whitebox = yes", "qa-white")):
+        for old, new in (("qa-b = no", "qa-black"), ("size in M, L", "duty or role key"), ("qa-whitebox = yes", "qa-white"),
+                           ("plan-owner = manager", "Team Lead always plans"), ("team-lead = yes", "always on the team"),
+                           ("team-lead = no", "always on the team")):  # ticket 02 AC3
             with self.subTest(when=old):
                 self.edit(f"{PROC}/safety.md", lambda t: t.replace("topic: safety", f"when: {old}\ntopic: safety", 1))
                 errs = self.lint()[0]

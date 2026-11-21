@@ -16,3 +16,5 @@ Status: accepted (drop-scope-size; PO answered I1 to I7 on 2026-10-27 and agreed
 - `CONTEXT.md`: remove **Size**, add **Team**, **Duty owner**, **Checker**.
 
 **Alternatives rejected:** presence facts only (unbounded variants); presets under another name; keeping the `design:`, `architecture:`, `qa-b:` lines beside `team:` (two lines saying one thing); an accepted `size` key in overlays (two targeting languages); a read-side shim for old `scope.md` files (two formats read by one engine; PO decision I4); keeping `qa-b` beside new role-aligned keys (uneven names; PO decision I3).
+
+Amended by 0030 (team-lead-always): `team-lead` is no longer a presence key or an optional role; every subset of the six other roles is a valid team.

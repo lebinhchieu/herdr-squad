@@ -24,7 +24,7 @@ def my_rules():
 
 
 def present_roles(team):
-    return {"manager", "dev", "token-coach"} | {r for r in sr.ROLES if sr.ROLE_KEY.get(r, r) in team}
+    return {"manager", "dev", "token-coach", "team-lead"} | {r for r in sr.ROLES if sr.ROLE_KEY.get(r, r) in team}
 
 
 class TeamRules(unittest.TestCase):
@@ -69,7 +69,7 @@ class TeamRules(unittest.TestCase):
             for k, vals in (sr._conditions(r.when) if r.when else []):
                 if k in sr.DUTIES:
                     by.setdefault(k, set()).update(vals)
-        for duty in ("plan-owner", "business-ac", "code-check", "behaviour-check", "ui-check", "doubt-owner", "tech-ac", "promote-owner"):
+        for duty in ("business-ac", "code-check", "behaviour-check", "ui-check", "doubt-owner", "tech-ac", "promote-owner"):
             self.assertTrue(by.get(duty), duty)
         self.assertEqual(by["business-ac"], {"ticket", "ba"})
         self.assertEqual(by["behaviour-check"], {"manager", "qa-black", "qa-white"})
@@ -129,7 +129,7 @@ class ComposedPerRole(unittest.TestCase):
             with self.subTest(role=role):
                 text = composed(role, team=FULL_TEAM)
                 self.assertIn(f"role: {role} ", text)
-                self.assertEqual("duties: plan-owner=" in text, role in HAS_DUTIES_LINE, f"{role}: duties line")
+                self.assertEqual("duties: design-notes=" in text, role in HAS_DUTIES_LINE, f"{role}: duties line")
                 have = set(re.findall(r"## ([A-Z]+-[0-9]+[a-z]?) ", text))
                 self.assertEqual(sorted(set(ids.split()) - have), [], f"{role} lost rules")
 

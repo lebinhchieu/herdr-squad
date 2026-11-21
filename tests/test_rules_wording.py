@@ -28,7 +28,7 @@ class CitationsTest(unittest.TestCase):
             root = Path(d) / "plugin"
             shutil.copytree(ROOT / "templates/squad/process", root / "templates/squad/process")
             f = root / "templates/squad/process/core.md"
-            f.write_text(f.read_text().replace("[WHO-1a]", "[MSG-99]"))
+            f.write_text(f.read_text().replace("[WHO-1e]", "[MSG-99]"))
             r = run("lint", "--plugin-root", str(root))
         self.assertEqual(r.returncode, 1)
         self.assertIn("unknown pointer [MSG-99]", r.stdout)
@@ -59,25 +59,18 @@ class CitationsTest(unittest.TestCase):
 class ManagerWordingTest(unittest.TestCase):
     def test_s_keeps_developer_spawning_and_routing(self):
         ms = composed("manager", "S")
-        self.assertIn("## SPAWN-5a Developers, Manager plans", ms)
-        self.assertIn("## SPAWN-5a", MANAGER)
-        self.assertIn("## MSG-18 Routing, Manager", ms)
+        self.assertNotIn("## SPAWN-5a", ms)  # the Team Lead spawns Developers
+        self.assertNotIn("## MSG-18", ms)
         mm = composed("manager", "L")  # Team Lead exists at L only
         self.assertNotIn("## SPAWN-5a", mm)
         self.assertNotIn("## MSG-18", mm)
 
-    def test_manager_three_returns_rule_per_team_shape(self):
-        """Every Manager gets a three-returns rule when it is the plan owner; the Team Lead's shape only hears of it."""
+    def test_three_returns_go_to_the_team_lead_at_every_team_shape(self):
+        """The Team Lead steps in ([LC-7b]); the Manager only hears of it ([MSG-6]); no Manager variant."""
         from test_dev_rules_size import compose
-        def ids(size):
-            return set(re.findall(r"(?m)^## (LC-7[a-z]?) ", compose("manager", size).decode()))
-        def body(size):
-            return compose("manager", size).decode().split("## LC-7a")[1].split("\n## ")[0]
-        self.assertEqual(ids("S") & {"LC-7a", "LC-7b", "LC-7c"}, {"LC-7a"})
-        self.assertIn("you step in; with QAs on the team", body("S"))  # conditional, so valid with no QA
-        self.assertEqual(ids("M") & {"LC-7a", "LC-7b", "LC-7c"}, {"LC-7a"})  # qa-white + qa-black, no Team Lead
-        self.assertIn("with QAs on the team the 3rd failing QA sends you `BLOCKED NN: 3 returns`", body("M"))
-        self.assertEqual(ids("L") & {"LC-7a", "LC-7b", "LC-7c"}, {"LC-7b"})  # aware only: the Team Lead decides
+        for size in "SML":
+            text = compose("manager", size).decode()
+            self.assertEqual(set(re.findall(r"(?m)^## (LC-7[a-z]?) ", text)), {"LC-7b"}, size)
 
     def test_retained_duties(self):
         for token in ("Adding a role", "Merge only on the PO's request", "squad-inbox add", "Token Coach", "squad-close <squad> --scope"):
@@ -192,7 +185,7 @@ class WordingBTest(unittest.TestCase):
         self.assertIn("[ITER-2]", self.head("sizes.md", "SIZE-22"))
 
     def test_when_keys(self):
-        self.assertNotIn("qa-black", self.head("iterations.md", "ITER-3b").split("\n\n")[0])
+        self.assertNotIn("qa-black", self.head("iterations.md", "ITER-3").split("\n\n")[0])
         self.assertIn("[MRG-2]", self.head("review.md", "REV-14a"))
 
     def test_citations_and_small_items(self):
@@ -200,7 +193,6 @@ class WordingBTest(unittest.TestCase):
             self.assertNotIn("[WHO-1b]", self.head(name, rid))
         self.assertNotIn("[WHO-2b]", self.head("goal.md", "GOAL-6b"))
         self.assertNotIn("[PROMO-2]", self.head("sizes.md", "SIZE-24b"))
-        self.assertIn("10 minutes", self.head("spawning.md", "SPAWN-10a"))
         self.assertIn("`DECISION 13, 14:", self.head("messages.md", "MSG-9"))
         for f in self.PROC.glob("*.md"):
             self.assertNotIn("Chieu", f.read_text(), f.name)
@@ -258,8 +250,8 @@ class CheckTableRulesTest(unittest.TestCase):
         for team in ((), ("qa-white", "qa-black")):
             self.assertNotIn("## EVID-9c ", composed("dev", team=team))
             self.assertNotIn("## EVID-9e ", composed("manager", team=team))
-        self.assertIn("## EVID-9d ", composed("manager", team=()))
-        self.assertNotIn("## EVID-9d ", composed("manager", team=("qa-white",)))
+        self.assertIn("## EVID-9d ", composed("team-lead", team=()))
+        self.assertNotIn("## EVID-9d ", composed("team-lead", team=("qa-white",)))
         for role, team in (("qa-whitebox", ("qa-white",)), ("qa-blackbox", qab)):
             self.assertIn("`squad-evidence checks", composed(role, team=team))
 

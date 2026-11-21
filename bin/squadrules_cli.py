@@ -160,7 +160,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="squad-process", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     lp = sub.add_parser("lint", help="check the rule files and the squad's overlay",
-                        description="check the rule files and the squad's overlay; a when: key must be one of the team language (qa-white, qa-black, ba, team-lead, tech-lead, design, architecture, a duty, goal, qa)")
+                        description="check the rule files and the squad's overlay; a when: key must be one of the team language (qa-white, qa-black, ba, tech-lead, design, architecture, a duty, goal, qa)")
     lp.add_argument("--squad-dir", default=os.environ.get("SQUAD_DIR"))
     lp.add_argument("--plugin-root", default=DEFAULT_ROOT)
     lp.add_argument("--home", action="append", help="also check this scope or goal home's team: line")
@@ -181,7 +181,7 @@ def main(argv=None):
     tp.add_argument("--has", metavar="ROLE")
     for name, text in (("rule", "print the effective text of a rule"),
                        ("who", "which roles a rule acts on or only knows about, for each value of the duty and role "
-                               "keys in its when: (ba, team-lead, tech-lead, qa-white, qa-black, plan-owner, ...)")):
+                               "keys in its when: (ba, tech-lead, qa-white, qa-black, code-check, ...)")):
         p = sub.add_parser(name, help=text, description=text)
         p.add_argument("id")
     for p in (cp, pp, sub.choices["rule"], sub.choices["who"]):

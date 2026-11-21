@@ -158,19 +158,19 @@ class NoticeTest(unittest.TestCase):
         # a FAIL now lands on ccccccc (current sha), not on the evidence sha
         self.assertIn("3 returns", self.send("FAIL 05: late", "qab"))
 
-    def test_pass_does_not_reset_and_a_team_without_team_lead_names_the_manager(self):
+    def test_pass_does_not_reset_and_a_team_without_team_lead_names_the_team_lead(self):
         (self.squad / "scope.md").write_text("team: none\n", encoding="utf-8")
         got = None
         for sha in ["aaaaaaa", "bbbbbbb", "ccccccc"]:
             self.send("HANDIN 5: commit %s" % sha, "dev", "tech")
             self.send("PASS 5", "tech")
             got = self.send("FAIL 5: x", "tech")
-        self.assertIn("`BLOCKED 5: 3 returns` to Manager [LC-7c]", got)
+        self.assertIn("`BLOCKED 5: 3 returns` to Team Lead [LC-7b]", got)
 
-    def test_three_returns_notice_routes_by_team(self):
-        want = {"team: none": ("Manager", "LC-7c"), "team: qa-white, qa-black": ("Manager", "LC-7c"),
-                "team: ba, team-lead": ("Team Lead", "LC-7b"), "team:": ("Manager", "LC-7c"),
-                "size: L": ("Manager", "LC-7c"), "team: ba, bogus": ("Manager", "LC-7c")}
+    def test_three_returns_notice_always_names_the_team_lead(self):
+        route = ("Team Lead", "LC-7b")
+        want = {line: route for line in ("team: none", "team: qa-white, qa-black", "team: ba, team-lead", "team:",
+                                         "size: L", "team: ba, bogus")}
         for line, route in want.items():
             (self.squad / "scope.md").write_text(line + "\n", encoding="utf-8")
             (self.squad / "messages.jsonl").unlink(missing_ok=True)

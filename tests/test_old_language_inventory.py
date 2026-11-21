@@ -12,7 +12,6 @@ import winlaunch
 PATTERN = r"size:|'size'|\"size\"|qa-b\b"
 CONVERTER = "converter input or old-format rejection (names the old key to point at the converter)"
 ALLOW = {
-    "bin/squad-log-message": (1, "comment: old `size:` scope.md is not guessed"),
     "bin/squad-respawn": (2, "pinned-runtime comment and refusal text (D7)"),
     "bin/squad-spawn": (2, "pinned-runtime comment and refusal text (D7)"),
     "bin/squadcompose.py": (4, CONVERTER),

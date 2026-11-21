@@ -48,33 +48,18 @@ topic: sizes
 
 The BA owns the business AC and writes them with QA blackbox.
 
-## SIZE-6a Plan owner, Manager
-roles: manager
-when: plan-owner = manager
-topic: sizes
-
-The Manager owns the plan, task order and Developer spawning, in the plan file format every team uses: an exception to "never does a role's work". Each task file cites the on-demand rules its Developer needs: [GOAL-6b] integration, [PROMO-5] promotion, [REV-15] report deliverable.
-
-## SIZE-6b Plan owner, Team Lead
+## SIZE-6b Assignment, Team Lead
 roles: team-lead
-when: plan-owner = team-lead
 topic: sizes
 
-The Team Lead owns the plan, task order and assignment, in the same plan file and format the Manager uses. A task of those kinds cites its rule in the task file ([GOAL-6b], [PROMO-5], [REV-15]) because the Developer does not carry them.
-
-## SIZE-6c Developer duties
-roles: manager
-when: plan-owner = manager
-topic: sizes
-
-Start each task file with `Duties:` (a respawned Developer reads it), copied from the `duties:` line of your header: who owns design notes, technical AC, business AC, `promote.md` and the full suite for this team. A risk flag, user-visible change or business doubt found while building: `BLOCKED <task>` ([SIZE-14]).
+The Team Lead assigns tickets per the Manager's plan, spawns and retires Developers and tracks status; it never reorders the plan. A task of those kinds cites its rule in the task file ([GOAL-6b], [PROMO-5], [REV-15]) because the Developer does not carry them.
 
 ## SIZE-7a Code and test check, Manager
 roles: manager
 when: code-check = manager
 topic: sizes
 
-Confirm `evidence.md` and its `## Review` exist ([REV-1]); do not redo the Developer's checks.
+Confirm `evidence.md` and its `## Review` exist ([REV-1b]); do not redo the Developer's checks.
 
 ## SIZE-7b Code and test check, QA whitebox
 roles: qa-whitebox
@@ -144,7 +129,7 @@ roles: ba
 when: doubt-owner = ba
 topic: sizes
 
-The BA writes a question for an outside decision maker to the open-points place `project.md` names, never to that person, with the BA's proposed answer. The BA marks the affected work blocked and tells the plan owner.
+The BA writes a question for an outside decision maker to the open-points place `project.md` names, never to that person, with the BA's proposed answer. The BA marks the affected work blocked and tells the Team Lead.
 
 ## SIZE-13 Adding a role
 roles: manager
@@ -176,10 +161,9 @@ Joining a scope already under way: start from the plan's `## Handover` section; 
 
 ## SIZE-17b Joining a team, Team Lead
 roles: team-lead
-when: team-lead = yes
 topic: sizes
 
-Joining a scope already under way: take over the existing plan file from the Manager (same format) and read its `## Handover` section first.
+Joining a scope already under way: read the Manager's plan file and its `## Handover` section first; the Manager keeps the plan.
 
 ## SIZE-17c Joining a team, QA whitebox
 roles: qa-whitebox
@@ -204,7 +188,6 @@ Joining a scope already under way: start from the plan's `## Handover` section; 
 
 ## SIZE-18 Extra hands
 roles: manager
-when: plan-owner = team-lead
 topic: sizes
 
 Add a second BA, Tech Lead or QA when the scope is large.

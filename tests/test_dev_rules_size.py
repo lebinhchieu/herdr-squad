@@ -60,8 +60,7 @@ class DevRulesSize(unittest.TestCase):
         for size, design, goal in COMBOS:
             t = compose("dev", size, design, goal).decode()
             tag = f"{size}/{design}/{goal}"
-            owner = {"S": "Manager", "M": "Manager", "L": "Team Lead"}[size]
-            ask_owner = "Team Lead" if size == "L" else "Manager"  # MSG-11a/b move with ticket 30
+            ask_owner = "Team Lead"
             checks = {
                 "CORE-1": "returned",
                 "CORE-2": "`HANDIN`",
@@ -71,18 +70,18 @@ class DevRulesSize(unittest.TestCase):
                 "START-10": "git branch --show-current",
                 "MSG-3": "`NN` alone",
                 "LC-18": "squad-label",
-                {"S": "LC-20a", "M": "LC-20b", "L": "LC-20b"}[size]: "STATUS NN: passed",
-                "REV-13a" if size == "S" else "REV-13b": "HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it",
+                {"S": "LC-20e", "M": "LC-20b", "L": "LC-20b"}[size]: "STATUS NN: passed",
+                "REV-13c" if size == "S" else "REV-13b": "HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it",
                 "REV-14a": "After a PASS, a later commit goes to",
                 {"S": "REV-22", "M": "EVID-2d", "L": "EVID-2b"}[size]: "squad-evidence check",
-                "COST-5" if size == "L" else "COST-5a": "no `squad-respawn`",
+                "COST-5": "no `squad-respawn`",
                 "SAFE-1a": "Never touch another worktree",
                 "SAFE-3": "by PID",
                 "SAFE-4": "files your role owns",
                 "SAFE-11": "mktemp -d",
                 {"S": "SUITE-2d", "M": "SUITE-2c", "L": "SUITE-2a"}[size]: "the test files you touched",
-                "MSG-4b" if size == "L" else "MSG-4a": ask_owner,
-                "MSG-11b" if size == "L" else "MSG-11a": f"to the {ask_owner}",
+                "MSG-4b": ask_owner,
+                "MSG-11b": f"to the {ask_owner}",
             }
             if design == "yes":
                 checks["LC-19b" if size in "SM" else "LC-19"] = "Status: final"

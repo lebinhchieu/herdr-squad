@@ -8,26 +8,26 @@ sys.path.insert(0, str(ROOT / "bin"))
 import squadrules as sr  # noqa: E402
 
 class Sweep(unittest.TestCase):
-    def test_all_128_sets_have_one_present_owner_per_duty(self):
+    def test_all_64_sets_have_one_present_owner_per_duty(self):
         n = 0
-        for r in range(8):
+        for r in range(7):
             for combo in itertools.combinations(sr.TEAM_KEYS, r):
                 n += 1
                 got = sr.resolve_duties(combo)
                 self.assertEqual(set(got), set(sr.DUTIES), combo)
                 for fact, owner in got.items():
-                    ok = owner in ("manager", "dev", "ticket") or owner in combo \
+                    ok = owner in ("manager", "dev", "ticket") or owner in combo or owner == "team-lead" \
                         or (owner == "qas" and ("qa-white" in combo or "qa-black" in combo))
                     self.assertTrue(ok, f"{combo}: {fact} -> {owner} is not present")
-        self.assertEqual(n, 128)
+        self.assertEqual(n, 64)
 
-    def test_thirteen_duties_every_chain_ends_at_manager_dev_or_ticket(self):
-        self.assertEqual(len(sr.DUTIES), 13)
+    def test_twelve_duties_every_chain_ends_at_manager_dev_or_ticket(self):
+        self.assertEqual(len(sr.DUTIES), 12)
         for fact, chain in sr.DUTIES.items():
-            self.assertIn(chain[-1], ("manager", "dev", "ticket"), fact)
+            self.assertIn(chain[-1], ("manager", "dev", "ticket", "team-lead"), fact)  # team-lead is always present
 
     def test_new_when_keys_are_the_presence_keys_and_duties(self):
-        for key in ("ba", "team-lead", "tech-lead", "qa-white", "qa-black"):
+        for key in ("ba", "tech-lead", "qa-white", "qa-black"):
             self.assertEqual(sr.WHEN_KEYS[key], ("yes", "no"))
         for fact in sr.DUTIES:
             self.assertIn(fact, sr.WHEN_KEYS)
@@ -49,8 +49,8 @@ class RoleKey(unittest.TestCase):
         self.assertEqual(sr.ROLE_KEY, {"qa-whitebox": "qa-white", "qa-blackbox": "qa-black"})
         self.assertEqual(sr.ROLE_KEY.get("designer", "designer"), "designer")
 
-    def test_team_keys_are_the_seven_optional_roles(self):
-        self.assertEqual(len(sr.TEAM_KEYS), 7)
+    def test_team_keys_are_the_six_optional_roles(self):
+        self.assertEqual(len(sr.TEAM_KEYS), 6)
         self.assertEqual({sr.ROLE_KEY.get(r, r) for r in sr.ROLES} - set(sr.IMPLICIT_ROLES), set(sr.TEAM_KEYS))
 
 
@@ -63,7 +63,7 @@ class ParseTeam(unittest.TestCase):
         self.assertEqual(sr.parse_team("none"), [])
         self.assertEqual(sr.parse_team("none  (confirmed minimal)"), [])
         self.assertEqual(sr.parse_team("qa-white, ba  (PO 2026-10-27, no QA blackbox)"), ["ba", "qa-white"])
-        self.assertEqual(sr.parse_team("architect,designer,qa-black,qa-white,tech-lead,team-lead,ba"), list(sr.TEAM_KEYS))
+        self.assertEqual(sr.parse_team("architect,designer,qa-black,qa-white,tech-lead,team-lead,ba"), list(sr.TEAM_KEYS))  # team-lead skipped
 
     def test_crlf_value(self):
         self.assertEqual(sr.parse_team("qa-white, qa-black\r"), ["qa-white", "qa-black"])
