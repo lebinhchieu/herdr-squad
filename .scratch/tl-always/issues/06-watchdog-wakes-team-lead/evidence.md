@@ -27,4 +27,4 @@ Live check, scratch scope `plug/scopes/demo`, stub `herdr`, `squad-watchdog tick
 ```
 
 AC6 sample source: a real `herdr agent list` on this machine, 2026-11-21 (fields `agent_status` `idle` and `done`, name in `terminal_title_stripped`):
-`guardian-qab-cvscope idle`, `guardian-tl-cvscope done`, `guardian-qaw-cvscope idle`. Team Lead name `plugin-tl-tl-always` is from this squad's roster.md (`<squad>-tl-<scope>`). No retired agent was in the live list; retired is the roster `Status` column, handled as before.
+`guardian-qab-cvscope idle`, `guardian-tl-cvscope done`, `guardian-qaw-cvscope idle`. Team Lead name `plugin-tl-tl-always` is from this squad's roster.md (`<squad>-tl-<scope>`). No retired agent was in the live list; retired is the roster `Status` column. Known limit: a roster-retired Team Lead whose pane is still open is not detected (`route()` looks only at the herdr list); `squad-retire` closes the pane.
