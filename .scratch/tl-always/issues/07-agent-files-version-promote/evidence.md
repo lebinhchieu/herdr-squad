@@ -85,14 +85,56 @@ exit 0
 Each squad ends `nothing needs a decision`; the plugin squad overlay: 19 operations, 0 need a decision (no COST-5a citation note appeared; the review lines are non-blocking). The `SQ-n ... plugin changed` lines of the board squad are non-blocking review lines, left out above.
 
 ## Checks
+
 | AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |
 |---|---|---|---|
-| AC1 | grep 0.9.6 in .claude-plugin/ empty; evidence Behaviour | | - |
-| AC2 | `python3 bin/squad-process lint` exit 0; grep plan-owner | | - |
-| AC3 | compose manager/team-lead/dev, evidence AC3 | | - |
-| AC4 | upgrade --check x3, evidence AC4 | | - |
-| AC5 | is-ancestor x6; five shared test files OK; uniq -d empty | | - |
-| AC6 | test_instructions, test_rules_contract OK | | - |
-| AC6b | CONTEXT.md line 12 | | - |
-| AC6c | grep plan-owner CONTEXT.md | | - |
-| AC7 | Tech Lead (full run) | | - |
+| AC1 | grep 0.9.6 in .claude-plugin/ empty; evidence Behaviour | `grep -rn 0.9.6 .claude-plugin/` empty; plugin.json 0.10.0; changelog v20 read | - |
+| AC2 | `python3 bin/squad-process lint` exit 0; grep plan-owner | lint exit 0; grep plan-owner: only squadrules.py:52, squadupgrade.py:85,93 and changelog | - |
+| AC3 | compose manager/team-lead/dev, evidence AC3 | compose x3 on `team: tech-lead` scratch scope: rc 0, no `plan-owner` in output | - |
+| AC4 | upgrade --check x3, evidence AC4 | run by me on plugin, board, accounts: rc 0, 0 need a decision each | - |
+| AC5 | is-ancestor x6; five shared test files OK; uniq -d empty | is-ancestor 01,02,04,05,06 true; 03 e27e14f true (tip 639e0c9 superseded per Tech Lead); no `## ` duplicates, no conflict markers in _removed.md; 530 tests OK | - |
+| AC6 | test_instructions, test_rules_contract OK | no "exist only when" in agents/team-lead.md; both files OK at 24bbb35 | - |
+| AC6b | CONTEXT.md line 12 | line 12 read: Team Lead spawns and retires only Developers | - |
+| AC6c | grep plan-owner CONTEXT.md | Duty owner entry has no plan duty; plan-owner left only in the retired "Plan owner" entry and ADR 0030 history | - |
+| AC7 | Tech Lead (full run) | not mine (Tech Lead) | - |
+
+## QA whitebox
+
+### QA whitebox 07, sha 24bbb35 (c2826ff plus a one-line frontmatter fix)
+
+Checks per AC: see `checks.md` (my column).
+- Tests: 17 changed test files plus test_squadruntime, test_instructions, test_windows_safe, test_utf8_helpers: 530 OK at c2826ff; test_instructions and test_rules_contract 33 OK again at 24bbb35 (only agents/team-lead.md changed).
+- Real samples (REV-4): `upgrade --check` on plugin (0.9.5), board (0.6.7), accounts (0.7.6) squads: rc 0, "0 need a decision", nothing written.
+- Agent cards: team-lead.md body and (after 24bbb35) description no longer say it owns the plan or exists only when listed; manager.md owns the plan, points to SPAWN-12.
+- Integration: 01, 02, 04, 05, 06 are ancestors; 03 at e27e14f (final per Tech Lead; the branch tip 639e0c9 is the superseded ticket-copy drop).
+PASS.
+
+#### Follow-ups (not FAIL)
+- `squad-evidence checks evidence.md` exits 1 until my column is added to the `## Checks` table (empty QA whitebox cells at evidence.md:90-98). My column is in `$SCOPE_DIR/evidence/07/checks.md`; the Developer's `squad-evidence add` copies it. AC7 stays the Tech Lead's.
+- AC6c: `plan-owner` still appears in CONTEXT.md:28 and ADR 0030 as retirement history; the ticket's intent (no plan duty in Duty owner) holds.
+- squad overlay rules SQ-6 and SQ-6b still say "plan owner" (this repo's own overlay, not the plugin); the Manager edits it.
+
+## QA blackbox
+
+### 07 QA blackbox (sha c2826ff)
+Worktree .worktrees/plugin/tl-always/plugin-dev-tl-always-07, live runs, scratch squads removed.
+
+| QA-b AC | how | saw | result |
+|---|---|---|---|
+| QA-b AC1 | live: grep 0.9.6 in .claude-plugin; plugin.json; changelog | no 0.9.6, version 0.10.0, v20 with added/changed/removed + Deploy | pass |
+| QA-b AC2 | live: `squad-process lint` (0); grep plan-owner bin templates agents hooks skills | lint 0; only squadupgrade.py:85,93, squadrules.py:52 (pointers) | pass |
+| QA-b AC3 | live: compose manager, team-lead, dev on scratch `team: tech-lead, qa-white` | 0 `plan-owner=`, 0 "plan owner"; Team Lead text "never reorders the plan"; Manager text has SPAWN-12 and the plan/dispute rules | pass |
+| QA-b AC4 | live: `upgrade --check` plugin / board / accounts | all exit 0, "nothing needs a decision" | pass |
+| QA-b AC5 | live: 292 tests (rules_contract, wording, architect_handoff, dev_rules_size, small_files_equivalence, instructions, windows_safe, utf8_helpers, upgrade, rules, compose, squad_team, sizes, log_message) | OK; `_removed.md`: no conflict markers, no duplicate heading | pass |
+| QA-b AC6 | live: grep "exist only or only when" agents/team-lead.md | none; body says "You are always on the team ... never reorders" | pass for the literal AC |
+| AC6b/AC6c | live: read CONTEXT.md Manager and Duty owner | Manager: "The Manager spawns the pod; the Team Lead spawns and retires only Developers"; Duty owner has no plan | pass |
+| What ("Agent files match the new roles") | live: read agents/team-lead.md line 3 | frontmatter `description:` still says "Owns the delivery plan, task order and assignment for one scope." | FAIL |
+
+#### Re-check sha 24bbb35 (changed file: agents/team-lead.md only)
+| What | how | saw | result |
+|---|---|---|---|
+| Agent files match new roles | live: read line 3 | description: "Coordinates the pod for one scope: spawns and retires Developers, assigns tasks per the Manager's plan, tracks, runs health checks"; no "Owns the delivery plan" | pass |
+| Re-check AC2 | live: `squad-process lint` | exit 0 | pass |
+| Re-check AC3 | live: compose manager/team-lead/dev on scratch squad | 0 "plan owner"/"plan-owner" in each | pass |
+| Re-check AC4 | live: `upgrade --check` plugin/board/accounts | exit 0 each, "nothing needs a decision" | pass |
+| Tests | test_rules_wording, test_rules_contract | see run | pass |
