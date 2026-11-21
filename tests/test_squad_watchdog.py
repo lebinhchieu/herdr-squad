@@ -625,3 +625,90 @@ class BgTest(unittest.TestCase):
         self.assertNotIn("watchdog stops", self.log())
         self.assertIn(("stop",), self.tick(60))
         self.assertIn("all goals done; watchdog stops", self.log())
+
+
+class TeamLeadTest(unittest.TestCase):
+    """Ticket 06: a scope home wakes its own Team Lead (t-tl-s1), the Manager only as fallback; a goal home keeps the Manager."""
+
+    setUp = WatchdogTest.setUp
+    tickets, agents, tick, log = WatchdogTest.tickets, WatchdogTest.agents, WatchdogTest.tick, WatchdogTest.log
+
+    def setUp(self):  # noqa: F811
+        WatchdogTest.setUp(self)
+        with open(self.home / "roster.md", "a", encoding="utf-8") as fh:  # the Team Lead is in the roster, as in a real squad
+            fh.write("| t-tl-s1 | team-lead | s1 | plan | live | d |\n")
+
+    def up(self, **kw):
+        self.agents(**dict(dict(t_mgr_s1="idle", t_tl_s1="idle", t_dev_s1="idle"), **kw))
+
+    def test_ac1_the_nudge_goes_to_the_team_lead_with_its_own_wording(self):
+        self.tickets(t03="ready")
+        self.up()
+        for m in (0, 5, 15):
+            self.tick(m)
+        self.assertEqual([m for m, _ in self.sent], ["t-tl-s1", "t-tl-s1"])
+        self.assertIn("spawn one within your cap, or `ASK` the Manager", self.sent[0][1])
+        self.assertNotIn("route:", self.log())
+
+    def test_ac2_absent_then_blocked_team_lead_falls_back_to_the_manager_and_a_blocked_manager_holds(self):
+        self.tickets(t03="ready")
+        self.agents(t_mgr_s1="idle", t_dev_s1="idle")  # no Team Lead in the herdr list
+        self.tick(0)
+        self.tick(5)
+        self.assertEqual([m for m, _ in self.sent], ["t-mgr-s1"])
+        self.assertIn("route: 5 min idle -> t-mgr-s1 (team lead absent)", self.log())
+        self.up(t_tl_s1="blocked")
+        self.tick(15)
+        self.assertEqual([m for m, _ in self.sent], ["t-mgr-s1", "t-mgr-s1"])
+        self.assertIn("(team lead blocked)", self.log())
+        # both panes blocked: nothing sent, the key stays free for a later pass
+        self.sent.clear()
+        (self.home / "watchdog.state.json").write_text(json.dumps({"idle_since": T0, "nudged": []}), encoding="utf-8")
+        self.up(t_tl_s1="blocked", t_mgr_s1="blocked")
+        self.tick(20)
+        self.assertEqual(self.sent, [])
+        self.assertIn("held: t-mgr-s1 is blocked", self.log())
+        self.up(t_tl_s1="blocked")
+        self.tick(21)
+        self.assertEqual(len(self.sent), 2)  # 5 and 15 both due and now sent
+
+    def test_ac3_a_blocked_developer_wakes_the_team_lead_and_a_blocked_team_lead_the_manager(self):
+        self.tickets(t03="building")
+        self.up(t_dev_s1="blocked")
+        self.tick(0)
+        self.tick(10)
+        self.assertEqual([m for m, t in self.sent if t.startswith("WAKE")], ["t-tl-s1"])
+        self.sent.clear()
+        self.up(t_dev_s1="working", t_tl_s1="blocked")
+        self.tick(11)
+        self.tick(22)
+        self.assertEqual([(m, "t-tl-s1" in t) for m, t in self.sent if t.startswith("WAKE")], [("t-mgr-s1", True)])
+        self.assertNotIn("route:", self.log())  # the design, not a fallback
+
+    def test_ac4_a_goal_home_nudges_the_goal_manager_and_wakes_no_scope_pane(self):
+        squad = self.home.parent.parent
+        goal = squad / "goals" / "g1"
+        goal.mkdir(parents=True)
+        (goal / "goal.md").write_text("# g1\n", encoding="utf-8")
+        (goal / "roster.md").write_text(ROSTER.replace("s1", "g1"), encoding="utf-8")
+        (self.home / "scope.md").write_text("# s1\ngoal: g1\n", encoding="utf-8")
+        self.tickets(t03="building")
+        self.agents(t_mgr_g1="idle", t_dev_g1="idle", t_qa_g1="idle", t_dev_s1="blocked", t_tl_s1="idle")
+        for m in (0, 5, 11, 15):
+            W.tick(goal, "t-mgr-g1", now=T0 + m * MIN, herdr_json=str(self.herdr),
+                   send=lambda t, x: (self.sent.append((t, x)) or (True, "")))
+        self.assertEqual([m for m, _ in self.sent], ["t-mgr-g1", "t-mgr-g1"])
+        self.assertFalse(any(x.startswith("WAKE") for _, x in self.sent))
+        # the scope's own watchdog wakes its Team Lead for the same pane
+        self.tick(0)
+        self.tick(11)
+        self.assertIn(("t-tl-s1", True), [(m, x.startswith("WAKE")) for m, x in self.sent])
+        # every goal done: stop, as before
+        (goal / "goals.md").write_text("| # | Goal | Status |\n|---|---|---|\n| G1 | x | done |\n", encoding="utf-8")
+        self.agents(t_mgr_g1="idle", t_dev_s1="idle")
+        W.tick(goal, "t-mgr-g1", now=T0 + 30 * MIN, herdr_json=str(self.herdr), send=None)
+        self.assertIn("all goals done; watchdog stops", (goal / "watchdog.log").read_text(encoding="utf-8"))
+
+    def test_the_default_manager_of_an_in_goal_scope_is_the_goal_manager(self):
+        (self.home / "scope.md").write_text("# s1\ngoal: g1\n", encoding="utf-8")
+        self.assertEqual(W.default_manager(self.home), "t-mgr-g1")

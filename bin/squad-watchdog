@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Plugin watchdog of one scope or goal: logs each idle start, nudges the Manager, and (only when asked) sleeps the PC.
 
-  squad-watchdog run --home DIR --manager NAME [--interval S]   loop until DIR is gone (squad-start starts it)
-  squad-watchdog tick --home DIR --manager NAME [--now UTC]     one pass (what `run` does every interval)
-  squad-watchdog ensure --home DIR --manager NAME               start the watchdog unless its heartbeat is fresh (the Manager calls it)
+  squad-watchdog run --home DIR --manager NAME [--team-lead NAME] [--interval S]   loop until DIR is gone (squad-start starts it)
+  squad-watchdog tick --home DIR --manager NAME [--team-lead NAME] [--now UTC]     one pass (what `run` does every interval)
+  squad-watchdog ensure --home DIR --manager NAME [--team-lead NAME]               start the watchdog unless its heartbeat is fresh (the Manager calls it)
   squad-watchdog sleep on|off [--home DIR]                      the opt-in switch for sleep-when-idle (off by default)
   squad-watchdog wake on|off [--home DIR]                       the switch for event wake-ups to the Manager (on by default)
   squad-watchdog status [--home DIR]                            print the switches, the last state and the log tail
@@ -27,7 +27,14 @@ spell, no nudge, no sleep and no stop while it holds. The cap counts one stretch
 agent works, is blocked or gone, or the token clears. The log says why: `bg busy:` and `bg cap:`. herdr-bg's token expires
 1 h after the last hook event, so a BG_MAX above 60 helps only if TTL_MS in hooks/herdr-bg is raised too.
 
-Wake-up (on by default, only to the Manager the watchdog was started for): one message per event, never repeated: a pane
+Who is told: a scope home (lone or inside a goal) wakes its own Team Lead (--team-lead, default <squad>-tl-<scope>): the idle
+nudges and the blocked-pane wake go to it, with a Team Lead wording. The Manager gets them instead when the Team Lead is not
+in `herdr agent list` or its pane is `blocked`, and always the wake of a blocked Team Lead pane; the log line `route: ... ->
+<manager> (team lead absent|blocked)` says so. Nothing is sent into a `blocked` target pane (held, retried on a later pass).
+A goal home keeps its nudges for the goal Manager (the `goals.md` events); its blocked-pane wake covers only its own roster,
+the scope panes are woken by their own scope watchdogs.
+
+Wake-up (on by default; to the Manager, or the Team Lead of a scope home): one message per event, never repeated: a pane
 stays `blocked` for 10 minutes (the text says "Chieu's to answer"; the watchdog never reads, relays or approves a prompt).
 Nothing is sent into a Manager pane that is `blocked` (a prompt may be open); the event is sent on a later pass. State keys:
 wake_blocked, wake_sent. Switch file: watchdog.wake (`on` or `off`).
@@ -193,7 +200,7 @@ def passed_keys(h):
 
 
 def wake_events(st, snap, now):
-    """Pure: -> (new state, [(key, text)]). One event: a pane `blocked` for 10 minutes. A ticket that passes or comes back
+    """Pure: -> (new state, [(key, text, name)]). One event: a pane `blocked` for 10 minutes. A ticket that passes or comes back
     is no event (the plan owner is told by the process). Keys are stored in wake_sent by the caller once the message went
     out. A `wake_status` key of an old state file is dropped."""
     st = dict(st)
@@ -211,7 +218,7 @@ def wake_events(st, snap, now):
         since = blocked.setdefault(a["name"], now)
         k = f"blocked:{clean(a['name'], 60)}:{int(since)}"
         if now - since >= BLOCKED_WAKE_S and k not in sent:
-            out.append((k, f"WAKE blocked {clean(a['name'], 60)}: pane (owns {clean(a['owns'])}) has been blocked for more "
+            out.append((k, a["name"], f"WAKE blocked {clean(a['name'], 60)}: pane (owns {clean(a['owns'])}) has been blocked for more "
                            "than 10 minutes. Chieu's to answer; do not relay or approve the prompt."))
     st["wake_blocked"], st["wake_sent"] = blocked, sorted(sent)
     return st, out
@@ -274,7 +281,8 @@ def snapshot(home, herdr_json=None):
                 tickets.append(seen[key])
     machine = got is not None and any(i["status"] == "working" for i in got.values())
     bg = {n: i["bg"] for n, i in (got or {}).items() if i["status"] == "idle" and i.get("bg")}  # whole herdr list
-    return {"ok": got is not None, "why": why, "machine_working": machine, "bg": bg, "agents": agents, "tickets": tickets,
+    return {"ok": got is not None, "why": why, "machine_working": machine, "bg": bg,
+            "herdr": {n: i["status"] for n, i in (got or {}).items()}, "agents": agents, "tickets": tickets,
             "goals": read_goals(home) or None}  # None: no file or no row = no goals recorded
 
 
@@ -306,6 +314,18 @@ def nudge_text(minutes, since, snap):
                 "Check each goal and solve it: message the agent who owns the work, or spawn one; a blocked goal needs its inbox item with Chieu.")
     return (f"{head} Waiting: {tickets_text(snap)}. Agents: {states_text(snap)}. "
             "Message the agent who owns a ticket, or spawn one.")
+
+
+def team_lead_nudge_text(minutes, since, snap):
+    """The Team Lead's wording: its ticket wait list and agents; a blocked goal is the Manager's and is only named."""
+    first = minutes == NUDGES[0]
+    head = (f"WATCHDOG: nobody has worked for {minutes} minutes (since {hhmm(since)}) and work is waiting."
+            if first else f"WATCHDOG: still nobody working after {minutes} minutes (since {hhmm(since)}). This is the last reminder of this idle period.")
+    goals = [g for g in open_goals(snap) if g[2] == "blocked"]
+    tail = (f" Blocked goals are the Manager's, not yours to solve: {goals_text({'goals': goals})}." if goals else "")
+    waits = ", ".join(f"{t['id']} {t['status']}" for t in snap["tickets"] if t["status"] in OPEN) or "none open"
+    return (f"{head} Waiting: {waits}. Agents: {states_text(snap)}.{tail} "
+            "Message the Developer who owns a ticket, spawn one within your cap, or `ASK` the Manager.")
 
 
 def all_done(snap):
@@ -404,22 +424,52 @@ def suspend():
     return r.returncode == 0, (r.stderr.strip().splitlines() or ["suspend command failed"])[-1] if r.returncode else ""
 
 
-def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None):
-    """One pass: read, decide, act, log, save. Returns the events."""
+def is_goal_home(home):
+    return home.parent.name == "goals"
+
+
+def default_team_lead(home):
+    return f"{home.parent.parent.name}-tl-{home.name}"
+
+
+def route(home, manager, team_lead, snap, subject=None):
+    """Who is told in a scope home -> (target, why or None). The Team Lead, unless it is not in herdr (`team lead absent`)
+    or its pane is blocked (`team lead blocked`): then the Manager. The wake of the Team Lead's own pane goes to the Manager
+    with no `why` (that is the design, not a fallback). A goal home, or no Team Lead name: the Manager."""
+    if team_lead is None or is_goal_home(home):
+        return manager, None
+    if subject == team_lead:
+        return manager, None
+    state = snap.get("herdr", {}).get(team_lead)
+    if state is None:
+        return manager, "team lead absent"
+    if state == "blocked":
+        return manager, "team lead blocked"
+    return team_lead, None
+
+
+def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None, team_lead=None):
+    """One pass: read, decide, act, log, save. Returns the events. A scope home tells its Team Lead (default
+    <squad>-tl-<scope>) and falls back to the Manager; a goal home tells the goal Manager."""
     now = time.time() if now is None else now
+    if team_lead is None and not is_goal_home(home):
+        team_lead = default_team_lead(home)
     snap = snapshot(home, herdr_json)
     bg_max = bg_max_s()
     st, events = decide(read_state(home), snap, now, sleep_on(home), sleep_after_s(), bg_max)
     snap["busy"] = st.get("bg_busy") or []  # absent when herdr did not answer and the state file is new or from 0.9.5
     if snap["ok"] and wake_on(home):
-        st, wakes = wake_events(st, snap, now)
-        mgr_blocked = any(a["name"] == manager and a["state"] == "blocked" for a in snap["agents"])
-        for key, text in wakes:
-            if mgr_blocked:  # a prompt may be open in the Manager pane: send nothing, keep the key free, retry later
-                log(home, now, f"wake {key} held: {manager} is blocked")
+        own = {"agents": [a for a in snap["agents"] if a["scope"] == home.name]} if is_goal_home(home) else snap
+        st, wakes = wake_events(st, own, now)
+        for key, name, text in wakes:
+            target, why = route(home, manager, team_lead, snap, name)
+            if is_blocked(snap, target, home):  # a prompt may be open in that pane: send nothing, keep the key free, retry later
+                log(home, now, f"wake {key} held: {target} is blocked")
                 continue
-            ok, why = send(manager, text)
-            log(home, now, f"wake {key} to {manager}: " + ("sent: " if ok else f"NOT sent ({why}): ") + text)
+            if why:
+                log(home, now, f"route: wake {key} -> {target} ({why})")
+            ok, why = send(target, text)
+            log(home, now, f"wake {key} to {target}: " + ("sent: " if ok else f"NOT sent ({why}): ") + text)
             if ok:
                 st["wake_sent"] = sorted(set(st["wake_sent"]) | {key})
     for ev in events:
@@ -432,9 +482,16 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None):
         elif kind == "bg_cap":
             log(home, now, f"bg cap: {ev[1]} counted as working for {ev[2]:g} min; idle check resumes")
         elif kind == "nudge":
-            text = nudge_text(ev[1], ev[2], snap)
-            ok, why = send(manager, text)
-            log(home, now, f"nudge {ev[1]} min to {manager}: " + ("sent: " if ok else f"NOT sent ({why}): ") + text)
+            target, why = route(home, manager, team_lead, snap)
+            if why and is_blocked(snap, target, home):  # fallback into a blocked Manager pane: held, the key stays free
+                st["nudged"] = [m for m in st["nudged"] if m != ev[1]]
+                log(home, now, f"nudge {ev[1]} min held: {target} is blocked")
+                continue
+            if why:
+                log(home, now, f"route: {ev[1]} min idle -> {target} ({why})")
+            text = (team_lead_nudge_text if target == team_lead else nudge_text)(ev[1], ev[2], snap)
+            ok, why = send(target, text)
+            log(home, now, f"nudge {ev[1]} min to {target}: " + ("sent: " if ok else f"NOT sent ({why}): ") + text)
         elif kind == "end":
             log(home, now, f"idle end after {ev[1]} min. Agents: {states_text(snap)}")
         elif kind == "down":
@@ -459,14 +516,19 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None):
     return events
 
 
-def run(home, manager, interval, herdr_json=None):
+def is_blocked(snap, name, home):
+    """The pane of `name` is `blocked` in herdr (the roster, then the whole herdr list)."""
+    return snap.get("herdr", {}).get(name) == "blocked" or any(a["name"] == name and a["state"] == "blocked" for a in snap["agents"])
+
+
+def run(home, manager, interval, herdr_json=None, team_lead=None):
     st = read_state(home)
     if st.get("beat") and time.time() - st["beat"] < 3 * interval:
         return 0  # another watchdog of this home is alive
     log(home, time.time(), f"watchdog started for {home.name}; Manager {manager}; every {interval} s")
     while home.is_dir():
         try:
-            if any(ev[0] == "stop" for ev in tick(home, manager, herdr_json=herdr_json)):
+            if any(ev[0] == "stop" for ev in tick(home, manager, herdr_json=herdr_json, team_lead=team_lead)):
                 return 0
         except Exception as e:  # a watchdog that dies is the thing it exists to prevent
             try:
@@ -477,7 +539,7 @@ def run(home, manager, interval, herdr_json=None):
     return 0
 
 
-def ensure(home, manager):
+def ensure(home, manager, team_lead=None):
     """Start the watchdog of `home` unless its heartbeat is fresh. -> True when a start was tried. The start code is
     squad-start's (watchdog_alive, start_watchdog: herdr tab, else detached), not a copy."""
     import importlib.machinery
@@ -487,7 +549,7 @@ def ensure(home, manager):
     loader.exec_module(mod)
     if mod.watchdog_alive(home):
         return False
-    mod.start_watchdog(home, manager)
+    mod.start_watchdog(home, manager, team_lead)
     return True
 
 
@@ -500,7 +562,10 @@ def home_arg(a):
 
 
 def default_manager(home):
-    return f"{home.parent.parent.name}-mgr-{home.name}"
+    """The Manager of a lone scope or a goal; of a scope inside a goal, the goal Manager (scope.md `goal:`)."""
+    squad = home.parent.parent.name
+    goal = squadreport._scope_field(home / "scope.md", "goal") if home.parent.name == "scopes" else None
+    return f"{squad}-mgr-{goal or home.name}"
 
 
 def main():
@@ -511,6 +576,7 @@ def main():
         s = sub.add_parser(name)
         s.add_argument("--home")
         s.add_argument("--manager")
+        s.add_argument("--team-lead", help="default <squad>-tl-<scope>; a goal home takes none")
         s.add_argument("--herdr-json", help="read herdr agents from a recorded file (tests)")
         s.add_argument("--now", help="act as if it were this UTC time, e.g. 2027-01-15T08:05:00Z (tests, demos)")
         if name == "run":
@@ -518,6 +584,7 @@ def main():
     s = sub.add_parser("ensure")
     s.add_argument("--home")
     s.add_argument("--manager")
+    s.add_argument("--team-lead")
     s = sub.add_parser("sleep")
     s.add_argument("switch", choices=("on", "off"))
     s.add_argument("--home")
@@ -531,13 +598,13 @@ def main():
     if a.cmd in ("run", "tick"):
         manager = a.manager or default_manager(home)
         if a.cmd == "run":
-            return run(home, manager, a.interval, a.herdr_json)
+            return run(home, manager, a.interval, a.herdr_json, a.team_lead)
         now = datetime.strptime(a.now, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp() if a.now else None
-        tick(home, manager, now=now, herdr_json=a.herdr_json)  # the log is the output
+        tick(home, manager, now=now, herdr_json=a.herdr_json, team_lead=a.team_lead)  # the log is the output
         return 0
     if a.cmd == "ensure":
         manager = a.manager or default_manager(home)
-        print("watchdog started" if ensure(home, manager) else "watchdog already running")
+        print("watchdog started" if ensure(home, manager, a.team_lead) else "watchdog already running")
         return 0
     if a.cmd == "sleep":
         set_sleep(home, a.switch == "on")
