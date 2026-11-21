@@ -14,10 +14,12 @@ input=$(cat) || exit 0
 session=$(jq -r '.session_id // empty' <<<"$input" 2>/dev/null)
 [[ -n $session ]] || exit 0
 
-args=(--check "$session")
+args=(--check-detail "$session")
 transcript=$(jq -r '.transcript_path // empty' <<<"$input" 2>/dev/null)
 [[ -n $transcript ]] && args+=(--transcript "$transcript")
-rule=$("$(dirname "$(readlink -f "$0")")/squad-usage" "${args[@]}" 2>/dev/null) || exit 0
+detail=$("$(dirname "$(readlink -f "$0")")/squad-usage" "${args[@]}" 2>/dev/null) || exit 0
+[[ -n $detail ]] || exit 0
+IFS=$'\t' read -r rule ctx line turns <<<"$detail"  # one computation: rule, ctx, respawn line, turns
 [[ -n $rule ]] || exit 0
 
 log=$home/usage-events.jsonl  # the dedupe skips corrupt, blank and non-object lines (fromjson? | objects)
@@ -36,7 +38,8 @@ fi
 
 record=$(jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg agent "$SQUAD_NAME" --arg role "${SQUAD_ROLE:-}" \
   --arg session "$session" --arg rule "$rule" --arg action "$action" \
-  '{ts:$ts, agent:$agent, role:$role, session:$session, rule:$rule, action:$action}') || exit 0
+  --argjson ctx "${ctx:-0}" --argjson line "${line:-0}" --argjson turns "${turns:-0}" \
+  '{ts:$ts, agent:$agent, role:$role, session:$session, rule:$rule, ctx:$ctx, line:$line, turns:$turns, action:$action}') || exit 0
 if command -v flock >/dev/null; then
   { flock 9 2>/dev/null; printf '%s\n' "$record" >&9; } 9>>"$log" || exit 0
 else

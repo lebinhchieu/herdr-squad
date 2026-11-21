@@ -216,6 +216,37 @@ class UsageTest(UsageBase):
         self.assertEqual(len(lines), 6)
 
 
+class OrphanFreshTest(UsageBase):
+    """A `fresh` with no later `respawn` or `retire` of the same agent is flagged; real log lines of this repo's squads."""
+    FRESH = ('{"ts":"2026-11-21T10:00:00.000Z","agent":"dev-1","role":"dev","session":"s1","rule":"fresh","ctx":120000,'
+             '"line":110000,"turns":40,"action":"x"}')
+    RESPAWN = '{"ts":"2026-11-21T10:05:00.000Z","agent":"dev-1","role":"dev","rule":"respawn"}'
+
+    def table_out(self, log):
+        (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n| dev-1 | s1 |\n", encoding="utf-8")
+        self.transcript("s1", [turn(0, "a")])
+        if log is not None:
+            (self.squad / "usage-events.jsonl").write_text(log, encoding="utf-8")
+        r = self.run_cli("--squad-dir", str(self.squad))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout
+
+    def test_flags_a_fresh_only_while_no_respawn_or_retire_follows(self):
+        self.assertIn("note: fresh with no later respawn or retire: dev-1 (120k/110k)", self.table_out(self.FRESH + "\n"))
+        self.assertNotIn("no later respawn", self.table_out(self.FRESH + "\n" + self.RESPAWN + "\n"))
+        retire = self.RESPAWN.replace('"respawn"', '"retire"')
+        self.assertNotIn("no later respawn", self.table_out(self.FRESH + "\n" + retire + "\n"))
+
+    def test_a_missing_empty_or_corrupt_log_is_no_error_and_no_flag(self):
+        for log in (None, "", "\nnot json\n[1]\n42\n" + self.FRESH.replace('"agent":"dev-1"', '"agent":7') + "\n"):
+            self.assertNotIn("no later respawn", self.table_out(log))
+
+    def test_check_detail_adds_ctx_line_and_turns_while_check_stays_one_word(self):
+        self.transcript("s1", [turn(0, "a", ctx=(2, 0, 20_000), tool="Write", base=NOW), turn(1, "b", ctx=(2, 20_000, 80_000), base=NOW)])
+        self.assertEqual(self.run_cli("--check", "s1").stdout, "fresh\n")
+        self.assertEqual(self.run_cli("--check-detail", "s1").stdout, "fresh\t100002\t70002\t2\n")
+
+
 class UndercountTest(UsageBase):
     """AT-05: subagents, every session of an agent, symlinked config dirs."""
 

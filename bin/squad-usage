@@ -4,6 +4,8 @@
   squad-usage [--squad-dir DIR]                 table for every roster.md row with a session id
   squad-usage --sessions NAME                   per-session list of an agent: peak ctx, turns, last turn (oldest first)
   squad-usage --check SESSION [--transcript F]  print `fresh` when the session is past its respawn line, or nothing
+  squad-usage --check-detail SESSION [--transcript F]
+                                                like --check; `fresh` is followed by TAB ctx TAB line TAB turns (what the Stop hook logs)
   squad-usage --get NAME                        print "role<TAB>scope<TAB>session" of a roster row
   squad-usage --set-session NAME SESSION [--role R --scope S]
                                                 record a session id in roster.md (adds the column)
@@ -11,6 +13,7 @@
 Env: SCOPE_DIR, else GOAL_DIR, else SQUAD_DIR: the folder holding roster.md. CLAUDE_CONFIG_DIR (default ~/.claude).
 """
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -106,6 +109,28 @@ def check(s):
     if s["compactions"] or s["last"] > respawn_line(s):
         return "fresh"
     return None
+
+
+def orphan_fresh(log):
+    """Agents whose last `fresh` record in usage-events.jsonl has no later `respawn` or `retire` of the same agent.
+    A missing log gives none; a blank, corrupt or non-object line is skipped. Returns [(agent, record)]."""
+    last = {}
+    try:
+        lines = Path(log).read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    for line in lines:
+        try:
+            o = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(o, dict) or not isinstance(o.get("agent"), str):
+            continue
+        if o.get("rule") == "fresh":
+            last[o["agent"]] = o
+        elif o.get("rule") in ("respawn", "retire"):
+            last.pop(o["agent"], None)
+    return list(last.items())
 
 
 def table_rows(text):
@@ -217,6 +242,11 @@ def report(squad_dir):
           " peak/last ctx, expiries, model are the agent's own thread;"
           " sessions = transcripts of the agent (--sessions NAME lists each one's peak and turns);"
           " 1st act = context at the first action, line = respawn line (1st act + 50k, at most 180k)")
+    orphans = orphan_fresh(squad_dir / "usage-events.jsonl")
+    if orphans:
+        print("note: fresh with no later respawn or retire: " + ", ".join(
+            f"{n} ({fmt_k(o['ctx'])}/{fmt_k(o['line'])})" if isinstance(o.get("ctx"), int) and isinstance(o.get("line"), int)
+            else n for n, o in orphans))
     if unsure:
         print("note: roster session not found, so the squad could not be told; no other sessions were scanned for: "
               + ", ".join(unsure))
@@ -227,6 +257,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--squad-dir")
     p.add_argument("--check", metavar="SESSION")
+    p.add_argument("--check-detail", metavar="SESSION")
     p.add_argument("--sessions", metavar="NAME")
     p.add_argument("--transcript")
     p.add_argument("--get", metavar="NAME")
@@ -237,12 +268,13 @@ def main():
     # SQUAD_DIR alone is the legacy flat layout
     squad_dir = a.squad_dir or os.environ.get("SCOPE_DIR") or os.environ.get("GOAL_DIR") or os.environ.get("SQUAD_DIR")
 
-    if a.check:
-        path = Path(a.transcript) if a.transcript else find_transcript(a.check)
+    if a.check or a.check_detail:
+        sid = a.check or a.check_detail
+        path = Path(a.transcript) if a.transcript else find_transcript(sid)
         s = summarize(path) if path and path.exists() else None
         rule = check(s) if s else None
         if rule:
-            print(rule)
+            print(f"{rule}\t{s['last']}\t{respawn_line(s)}\t{s['turns']}" if a.check_detail else rule)
         return
     if not squad_dir:
         sys.exit("set SQUAD_DIR or pass --squad-dir")

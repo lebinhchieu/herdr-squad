@@ -535,6 +535,9 @@ start_err=$(herdr agent start "$name" --kind claude --pane "$pane" --timeout 120
 }
 
 "$plugin_root/bin/squad-usage" --squad-dir "$home" --set-session "$name" "$session" --role "$role" --scope "$scope"
+# Log the spawn, except for a respawn (squad-respawn sets SQUAD_RESPAWN=1 and has logged `respawn`). A failure only warns.
+[[ -n ${SQUAD_RESPAWN:-} ]] || "$plugin_root/bin/squad-event" "$home" spawn "$name" "$role" "$scope" "$session" 2>/dev/null \
+  || echo "warning: could not write the spawn event to $home/usage-events.jsonl; going on" >&2
 
 # Claim the ticket (design 5.2): the first task-state event. Warnings go to stderr, stdout stays the one JSON line.
 # No branch (--worktree, a respawn): no claim, so a respawn never re-claims. A failure never fails the spawn.

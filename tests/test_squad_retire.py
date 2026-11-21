@@ -1,4 +1,5 @@
 """squad-retire: closes only the retired agent, even when the PO has merged several agents into one herdr tab."""
+import json
 import os
 import subprocess
 import tempfile
@@ -41,6 +42,23 @@ class RetireTest(unittest.TestCase):
         r = self.retire("dev")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.survivors(), ["mgr", "tl"])
+
+    def test_retire_appends_a_retire_event_and_a_log_failure_only_warns(self):
+        self.panes.write_text("p1 t1 mgr\np3 t3 dev\n", encoding="utf-8")
+        home = Path(self.tmp.name) / "scope"
+        home.mkdir()
+        (home / "roster.md").write_text("| Agent | Role | Scope | Owns | Status | Session |\n|---|---|---|---|---|---|\n"
+                                        "| dev | dev | s1 | x | live | sid |\n", encoding="utf-8")
+        self.env["SCOPE_DIR"] = str(home)
+        self.assertEqual(self.retire("dev").returncode, 0)
+        [ev] = [json.loads(l) for l in (home / "usage-events.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual((ev["rule"], ev["agent"], ev["role"], ev["scope"]), ("retire", "dev", "dev", "s1"))
+        self.panes.write_text("p3 t3 dev\n", encoding="utf-8")
+        (home / "usage-events.jsonl").unlink()
+        (home / "usage-events.jsonl").mkdir()  # not writable as a file
+        r = self.retire("dev")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("could not write the retire event", r.stderr)
 
     def test_unknown_agent_is_an_error_and_closes_nothing(self):
         self.panes.write_text("p1 t1 mgr\n", encoding="utf-8")

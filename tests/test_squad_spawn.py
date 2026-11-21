@@ -132,6 +132,22 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertIn(f"| dev-1 | dev | s |  | live | {passed} |", (self.squad / "roster.md").read_text(encoding="utf-8"))
         self.assertIn(passed, r.stdout)
 
+    def test_a_real_spawn_logs_one_spawn_event_but_a_respawn_and_a_dry_run_log_none(self):
+        self._fake_herdr(live="")
+        events = self.squad / "usage-events.jsonl"
+        run = lambda *a: winlaunch.run_script(SCRIPT, ["dev", "dev-1", "--scope", "s", *a], env=self.env,
+                                              text=True, encoding="utf-8", capture_output=True, timeout=10)
+        self.assertEqual(run("--dry-run").returncode, 0)
+        self.assertFalse(events.exists())
+        self.assertEqual(run().returncode, 0)
+        [ev] = [json.loads(l) for l in events.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual((ev["rule"], ev["agent"], ev["role"], ev["scope"]), ("spawn", "dev-1", "dev", "s"))
+        self.assertRegex(ev["session"], UUID)
+        events.unlink()
+        self.env["SQUAD_RESPAWN"] = "1"   # squad-respawn already logged `respawn`
+        self.assertEqual(run().returncode, 0)
+        self.assertFalse(events.exists())
+
     def _fake_herdr(self, live):
         bin_dir = Path(self.tmp.name) / "bin"
         bin_dir.mkdir(exist_ok=True)
