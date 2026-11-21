@@ -60,8 +60,7 @@ class DevRulesSize(unittest.TestCase):
         for size, design, goal in COMBOS:
             t = compose("dev", size, design, goal).decode()
             tag = f"{size}/{design}/{goal}"
-            owner = {"S": "Manager", "M": "Manager", "L": "Team Lead"}[size]
-            ask_owner = "Team Lead" if size == "L" else "Manager"  # MSG-11a/b move with ticket 30
+            ask_owner = "Team Lead"
             checks = {
                 "CORE-1": "returned",
                 "CORE-2": "`HANDIN`",
@@ -81,8 +80,8 @@ class DevRulesSize(unittest.TestCase):
                 "SAFE-4": "files your role owns",
                 "SAFE-11": "mktemp -d",
                 {"S": "SUITE-2d", "M": "SUITE-2c", "L": "SUITE-2a"}[size]: "the test files you touched",
-                "MSG-4b" if size == "L" else "MSG-4a": ask_owner,
-                "MSG-11b" if size == "L" else "MSG-11a": f"to the {ask_owner}",
+                "MSG-4b": ask_owner,
+                "MSG-11b": f"to the {ask_owner}",
             }
             if design == "yes":
                 checks["LC-19b" if size in "SM" else "LC-19"] = "Status: final"

@@ -28,7 +28,7 @@ class CitationsTest(unittest.TestCase):
             root = Path(d) / "plugin"
             shutil.copytree(ROOT / "templates/squad/process", root / "templates/squad/process")
             f = root / "templates/squad/process/core.md"
-            f.write_text(f.read_text().replace("[WHO-1a]", "[MSG-99]"))
+            f.write_text(f.read_text().replace("[WHO-1e]", "[MSG-99]"))
             r = run("lint", "--plugin-root", str(root))
         self.assertEqual(r.returncode, 1)
         self.assertIn("unknown pointer [MSG-99]", r.stdout)
@@ -61,23 +61,17 @@ class ManagerWordingTest(unittest.TestCase):
         ms = composed("manager", "S")
         self.assertIn("## SPAWN-5a Developers, Manager plans", ms)
         self.assertIn("## SPAWN-5a", MANAGER)
-        self.assertIn("## MSG-18 Routing, Manager", ms)
+        self.assertNotIn("## MSG-18", ms)
         mm = composed("manager", "L")  # Team Lead exists at L only
         self.assertNotIn("## SPAWN-5a", mm)
         self.assertNotIn("## MSG-18", mm)
 
-    def test_manager_three_returns_rule_per_team_shape(self):
-        """Every Manager gets a three-returns rule when it is the plan owner; the Team Lead's shape only hears of it."""
+    def test_three_returns_go_to_the_team_lead_at_every_team_shape(self):
+        """The Team Lead steps in ([LC-7b]); the Manager only hears of it ([MSG-6]); no Manager variant."""
         from test_dev_rules_size import compose
-        def ids(size):
-            return set(re.findall(r"(?m)^## (LC-7[a-z]?) ", compose("manager", size).decode()))
-        def body(size):
-            return compose("manager", size).decode().split("## LC-7a")[1].split("\n## ")[0]
-        self.assertEqual(ids("S") & {"LC-7a", "LC-7b", "LC-7c"}, {"LC-7a"})
-        self.assertIn("you step in; with QAs on the team", body("S"))  # conditional, so valid with no QA
-        self.assertEqual(ids("M") & {"LC-7a", "LC-7b", "LC-7c"}, {"LC-7a"})  # qa-white + qa-black, no Team Lead
-        self.assertIn("with QAs on the team the 3rd failing QA sends you `BLOCKED NN: 3 returns`", body("M"))
-        self.assertEqual(ids("L") & {"LC-7a", "LC-7b", "LC-7c"}, {"LC-7b"})  # aware only: the Team Lead decides
+        for size in "SML":
+            text = compose("manager", size).decode()
+            self.assertEqual(set(re.findall(r"(?m)^## (LC-7[a-z]?) ", text)), {"LC-7b"}, size)
 
     def test_retained_duties(self):
         for token in ("Adding a role", "Merge only on the PO's request", "squad-inbox add", "Token Coach", "squad-close <squad> --scope"):

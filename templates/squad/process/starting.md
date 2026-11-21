@@ -14,7 +14,7 @@ roles: manager
 when: plan-owner = manager
 topic: developers
 
-- **Developer cap:** 3 at once. Spawn one Developer per ready task (or per queued run of tasks in one area, [LC-6b]), up to the cap, and queue the rest. A task is ready when its dependencies are passed, its AC are agreed and it touches no file another running task touches; the cap is the brief's, else this one.
+- **Developer cap:** 3 at once. Spawn one Developer per ready task (or per queued run of tasks in one area, [LC-6]), up to the cap, and queue the rest. A task is ready when its dependencies are passed, its AC are agreed and it touches no file another running task touches; the cap is the brief's, else this one.
 - In a goal the goal Manager divides the cap among running scopes in their briefings.
 - You decide which tasks are ready in parallel (dependencies passed, AC agreed, no shared files); the Developers' design notes in the task files show what each touches.
 
@@ -83,7 +83,7 @@ topic: lifetimes
 | Manager | Lives with the scope; stays, chat-only, after the close until the PO retires it | The goal Manager lives across the goal, respawns after each scope closes, re-reads only `goal.md`, `shared/` and summaries, never a closed scope's folder |
 | Team Lead, Tech Lead, QA whitebox, QA blackbox | One session per scope | Same |
 | BA, Designer | One session per scope; retired once its spec and AC, or designs, are final; respawned for a question on them | Same |
-| Developer | One session per task, or per queued run of tasks in one area ([COST-6a], [LC-6b]) | Same |
+| Developer | One session per task, or per queued run of tasks in one area ([COST-6a], [LC-6]) | Same |
 | Token Coach | At the close ([ITER-6]) | Same |
 
 A lone scope sees nothing of other scopes; a scope in a goal also reads `goal.md` and all of `shared/` at start.
