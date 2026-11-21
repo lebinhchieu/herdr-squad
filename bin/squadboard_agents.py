@@ -27,7 +27,7 @@ ALIASES = {"done": "idle"}  # herdr `done` = a turn finished, waiting for input 
 
 
 def parse_herdr(text):
-    """herdr `agent list` JSON text -> ({name: {status, pane_id, cwd}}, None) or (None, reason). Pure."""
+    """herdr `agent list` JSON text -> ({name: {status, pane_id, cwd[, bg]}}, None) or (None, reason). Pure."""
     try:
         o = json.loads(text)
         if not isinstance(o, dict):
@@ -44,8 +44,13 @@ def parse_herdr(text):
     for a in agents:
         if isinstance(a, dict) and a.get("name"):
             st = a.get("agent_status")
-            out[str(a["name"])] = {"status": ALIASES.get(st, st) if ALIASES.get(st, st) in STATUSES else "unknown", "pane_id": a.get("pane_id"),
-                                   "cwd": a.get("cwd")}
+            row = {"status": ALIASES.get(st, st) if ALIASES.get(st, st) in STATUSES else "unknown", "pane_id": a.get("pane_id"),
+                   "cwd": a.get("cwd")}
+            tokens = a.get("tokens")
+            bg = tokens.get("bg") if isinstance(tokens, dict) else None
+            if isinstance(bg, str) and bg:
+                row["bg"] = bg  # herdr-bg's background-shell token (`⏵ 1 shell`); never parsed, the watchdog counts any text
+            out[str(a["name"])] = row
     return out, None
 
 
