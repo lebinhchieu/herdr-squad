@@ -123,6 +123,13 @@ def _build(fixtures):
             fh.write("\n## REV-14a Diff check\nroles: dev\ntopic: review\n\nA later commit goes to the same checkers.\n"
                      "\n## REV-19b Hand in to QA whitebox alone\nroles: dev\nwhen: qa-white = yes and qa-black = no\ntopic: review\n\n"
                      "The Developer hands in to QA whitebox alone.\n")
+        # the v20 tombstones name these replacements; the fixture messages.md and review.md do not have them
+        with (pdir / "messages.md").open("a", encoding="utf-8", newline="\n") as fh:
+            for rid in ("MSG-4b", "MSG-7b", "MSG-8b", "MSG-11b", "MSG-19"):
+                fh.write(f"\n## {rid} Stub\nroles: dev\ntopic: messages\n\nStub for a tombstone's replaced_by.\n")
+        with (pdir / "review.md").open("a", encoding="utf-8", newline="\n") as fh:
+            for rid in ("REV-1b", "REV-13c"):
+                fh.write(f"\n## {rid} Stub\nroles: dev\ntopic: review\n\nStub for a tombstone's replaced_by.\n")
     git("init", "-q", cwd=dest)
     git("add", "-A", cwd=dest)
     git("commit", "-q", "-m", "fixture plugin", cwd=dest)

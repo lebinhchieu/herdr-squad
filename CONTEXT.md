@@ -9,7 +9,7 @@ The human who makes the requests, confirms each scope's team, and alone decides 
 _Avoid_: user, owner, client
 
 **Manager**:
-The role that runs one scope (a lone task) or one goal (several scopes): proposes the team, owns the plan (which tasks, their order, the iteration goal) and settles disputes. The Team Lead spawns and retires the other roles and keeps them unblocked. It starts fresh for each request and never does another role's work. The one running a goal is the **goal Manager**.
+The role that runs one scope (a lone task) or one goal (several scopes): proposes the team, owns the plan (which tasks, their order, the iteration goal) and settles disputes. The Manager spawns the pod; the Team Lead spawns and retires only Developers and keeps them unblocked. It starts fresh for each request and never does another role's work. The one running a goal is the **goal Manager**.
 _Avoid_: orchestrator, lead
 
 **BA**:
@@ -89,7 +89,7 @@ The optional roles of one scope, on the `team:` line of `scope.md`: any subset o
 _Avoid_: tier, preset
 
 **Duty owner**:
-The role that owns one duty (plan, business AC, code check, behaviour check, suite run and so on) on a given team: the first present role in that duty's fallback chain, every chain ending at the Manager or the Developer. One table (`DUTIES`) derives it; rules target it with a duty fact in `when:`.
+The role that owns one duty (business AC, code check, behaviour check, suite run and so on) on a given team: the first present role in that duty's fallback chain, every chain ending at the Manager or the Developer. One table (`DUTIES`) derives it; rules target it with a duty fact in `when:`.
 _Avoid_: responsible role
 
 **Checker**:

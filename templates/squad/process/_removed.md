@@ -73,8 +73,8 @@ why: The Team Lead batches the follow-ups (LC-22b).
 replaced_by: LC-22b
 
 ## LC-20c (removed in v9)
-why: Done is told to the plan owner; one rule per owner (LC-20a, LC-20b), not per size.
-replaced_by: LC-20a
+why: Done is told to the plan owner; one rule per owner (LC-20b, LC-20e), not per size.
+replaced_by: LC-20b
 
 ## REV-14b (removed in v9)
 why: The diff check goes to the checkers handed in to (REV-14a); the plan owner hears of it in LC-20a and LC-20b.

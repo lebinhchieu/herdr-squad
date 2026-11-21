@@ -148,7 +148,7 @@ class ComposedRulesTest(unittest.TestCase):
         self.assertNotIn("the BA", a.split("## MSG-20a")[1].split("##")[0])
 
     def test_team_lead_exists_when_the_team_lists_it_and_takes_the_handover(self):
-        self.assertIn("lists `team-lead`", CARD)  # 06: no size in the card
+        self.assertNotIn("exist only when", CARD)  # 07: the Team Lead is always on the team
         self.assertIn("## Handover", composed("team-lead", "L"))
 
     def test_team_lead_spawns_and_retires_dev_only(self):

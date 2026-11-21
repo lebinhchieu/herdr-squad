@@ -20,6 +20,7 @@ The Team Lead was optional, so every rule that named the plan owner needed varia
 - `squad-process upgrade --check` lists old-key `when:` lines with their translation; `lint` names `file:line`.
 - Live roles re-compose at their next respawn. Pinned scopes (`plugin: <v> <sha>`) keep their runtime.
 - Known limit (watchdog): the watchdog treats the Team Lead as absent only when it is missing from `herdr agent list`. A Team Lead the roster marks retired whose pane is still open would still get the nudges. `squad-retire` closes the pane, so the case needs a hand-edited roster; the Manager's fallback does not cover it.
+- Known limit (LC-11c): the Manager's LC-11c (split tasks only after `architecture.md` is final) is tombstoned with `replaced_by` LC-11d. Only the Team Lead's LC-11d (assign after `Status: final`) and the Tech Lead's LC-11e remain, so the Manager's plan may be drafted before the architecture is final, but nothing is assigned until it is. Accepted: the plan is revisable and the gate sits at assignment.
 
 ## Alternatives rejected
 The goal-watchdog options Chieu did not pick (`iterations/1.md`, `escalations.md` E1):
