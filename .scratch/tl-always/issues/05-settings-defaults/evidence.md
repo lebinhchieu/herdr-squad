@@ -57,3 +57,5 @@ PASS.
 ## Follow-ups
 - SQ-17: the test above is a repeat base failure with no fix ticket: Chieu to decide (fix ticket or keep).
 - AC3 spawn dry-run output is the Dev's claim (evidence.md:32); test_squad_start covers the manager side.
+
+Known failing on base: test_squad_spawn.py::SpawnDryRunTest::test_a_failed_agent_start_leaves_the_old_overrides_file
