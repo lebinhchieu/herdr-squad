@@ -9,7 +9,7 @@ The human who makes the requests, confirms each scope's team, and alone decides 
 _Avoid_: user, owner, client
 
 **Manager**:
-The role that runs one scope (a lone task) or one goal (several scopes): proposes the team, starts and retires the other roles (the Team Lead does when one is on the team) and keeps them unblocked (the Team Lead does when on the team). With no Team Lead it also plans the tasks and takes the pod's messages. It starts fresh for each request and never does another role's work. The one running a goal is the **goal Manager**.
+The role that runs one scope (a lone task) or one goal (several scopes): proposes the team, owns the plan (which tasks, their order, the iteration goal) and settles disputes. The Team Lead spawns and retires the other roles and keeps them unblocked. It starts fresh for each request and never does another role's work. The one running a goal is the **goal Manager**.
 _Avoid_: orchestrator, lead
 
 **BA**:
@@ -17,19 +17,26 @@ The role that owns the business need and the business AC of one scope. Optional:
 _Avoid_: analyst, product owner
 
 **Team Lead**:
-The role that owns the plan (which tasks, in which order, who does each) and runs the pod when on the team: spawns and retires the Developers, checks on the pod, routes its questions, and is the pod's **single point of contact**. Takes the plan from the Tech Lead. Optional.
+The **Coordinator** of the pod, always on the team: spawns and retires the Developers, assigns tasks per the Manager's plan, tracks STATUS messages and the ledger, checks on the pod, routes its questions, and is the pod's **single point of contact**. Never reorders the plan (ADR 0030).
 _Avoid_: project manager, scrum master
 
+**Coordinator**:
+The Team Lead's role: spawns Developers, assigns tasks per the plan, tracks STATUS and the ledger, health-checks the pod, escalates to the Manager only on fixed triggers, and never reorders the plan. Always on the team (ADR 0030).
+_Avoid_: scheduler, project manager
+
+**Plan owner** (retired):
+Was the role that owned the plan, a Team Lead or, without one, the Manager (the `plan-owner` duty). Retired by ADR 0030: the Manager owns the plan, the Team Lead coordinates.
+
 **Single point of contact**:
-With a Team Lead on the team, the role every pod member messages for routine matters: the Team Lead. The Manager hears from it only an escalation to the PO, a team-change signal, a dispute the pod could not settle, 3 returns on one task and one summary per iteration (`iterations/<n>.summary.md`).
+The role every pod member messages for routine matters: the Team Lead. The Manager hears from it only an escalation to the PO, a team-change signal, a dispute the pod could not settle, 3 returns on one task and one summary per iteration (`iterations/<n>.summary.md`).
 _Avoid_: relay, gateway
 
 **Manager traffic**:
-The four things the Manager hears from a pod with a Team Lead: an escalation to the PO, a team-change signal, a dispute the pod could not settle, and the iteration summary; plus one line when a task has had 3 returns.
+The four things the Manager hears from the Team Lead: an escalation to the PO, a team-change signal, a dispute the pod could not settle, and the iteration summary; plus one line when a task has had 3 returns.
 _Avoid_: status, relay
 
 **Tech Lead**:
-The role that owns technical design, quality and security of one scope. The Team Lead owns the plan. Optional. With `architecture: yes` its per-task design stays inside the **Architect**'s `architecture.md`.
+The role that owns technical design, quality and security of one scope. Its task dependencies go into the plan the Manager owns. Optional. With `architecture: yes` its per-task design stays inside the **Architect**'s `architecture.md`.
 
 **QA whitebox**:
 The role that checks a task is built right: reads the diff, runs tests and lint. Agrees the technical AC with the Tech Lead, else with the Developer. Optional; its team key is `qa-white`.
@@ -52,7 +59,7 @@ The role that builds one task in its own worktree until the checkers pass it.
 _Avoid_: engineer, coder
 
 **Token Coach**:
-The role started when a scope with a QA or Team Lead, or a goal, closes, that finds wasted tokens and proposes changes to the process rules. It never changes anything itself.
+The role started when a scope with a QA, or a goal, closes, that finds wasted tokens and proposes changes to the process rules. It never changes anything itself.
 _Avoid_: cost bot, optimizer
 
 **Role**:
@@ -78,7 +85,7 @@ The group of agents that delivers one scope.
 _Avoid_: squad (a squad is the whole)
 
 **Team**:
-The optional roles of one scope, on the `team:` line of `scope.md`: any subset of `ba`, `team-lead`, `tech-lead`, `qa-white`, `qa-black`, `designer`, `architect` (the Manager and Developers are always there). The Manager proposes each role with its signal; the PO confirms. The keys `qa-white`/`qa-black` name the QA whitebox and QA blackbox roles; the term QA stays. Every subset is valid. Bigger work is a goal. Replaces the S, M, L presets (ADR 0018).
+The optional roles of one scope, on the `team:` line of `scope.md`: any subset of `ba`, `tech-lead`, `qa-white`, `qa-black`, `designer`, `architect` (the Manager, the Team Lead and Developers are always there). The Manager proposes each role with its signal; the PO confirms. The keys `qa-white`/`qa-black` name the QA whitebox and QA blackbox roles; the term QA stays. Every subset is valid. Bigger work is a goal. Replaces the S, M, L presets (ADR 0018).
 _Avoid_: tier, preset
 
 **Duty owner**:
@@ -182,7 +189,7 @@ The opt-in switch of the **Watchdog** (`squad-watchdog sleep on|off`, off by def
 _Avoid_: sleep-when-done
 
 **Watchdog**:
-`bin/squad-watchdog`, one per **Home**. It logs idle spells, nudges the **Manager**, and runs **Sleep-when-idle**. Inside herdr it runs alone in its own tab labelled `watchdog`; when the tab cannot be opened it falls back to a detached process.
+`bin/squad-watchdog`, one per **Home**. It logs idle spells, nudges the scope's Team Lead (the Manager as fallback), and runs **Sleep-when-idle**. Inside herdr it runs alone in its own tab labelled `watchdog`; when the tab cannot be opened it falls back to a detached process.
 _Avoid_: monitor, supervisor
 
 **Goal check**:
