@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# Show a session's running background shells/monitors on the herdr agents pane.
+#   herdr-bg hook   Claude Code hook (stdin = hook JSON): record, reconcile, report
+#   herdr-bg list   popup body: full list for the focused agent pane
+# Liveness comes from Claude's own tasks/<id>.output files; see reconcile().
+#
+# Needs bash, jq and herdr. Without jq or outside herdr (HERDR_ENV unset) the hook is a
+# silent no-op. The token expires TTL_MS (1 h) after the last hook event; the watchdog's
+# SQUAD_WATCHDOG_BG_MAX cannot exceed that without raising TTL_MS here.
+# Known limits: `sed -i` below is GNU sed (macOS keeps the row until reconcile); two
+# parallel hooks of one session can lose a row (no lock); native Windows without
+# git-bash is unverified.
+
+STATE_DIR="${HERDR_BG_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/herdr-bg}"
+TASKS_GLOB="${HERDR_BG_TASKS_GLOB:-/tmp/claude-$(id -u)/*/%s/tasks}"
+SOURCE=herdr-bg
+# Long: only hook events refresh the token, and a dev server can outlive an hour of idle.
+TTL_MS=3600000
+
+state_file() { printf '%s/%s.tsv' "$STATE_DIR" "$1"; }
+
+tasks_dir() {
+  local pattern
+  # shellcheck disable=SC2059
+  printf -v pattern "$TASKS_GLOB" "$1"
+  compgen -G "$pattern" | head -n1
+}
+
+# Drop entries whose task has ended: output file gone, or Claude wrote its exit marker.
+reconcile() {
+  local sid=$1 file dir tmp id rest
+  file=$(state_file "$sid")
+  [ -s "$file" ] || return 0
+  dir=$(tasks_dir "$sid")
+  tmp=$(mktemp)
+  while IFS=$'\t' read -r id rest; do
+    [ -n "$id" ] || continue
+    [ -n "$dir" ] && [ -f "$dir/$id.output" ] || continue
+    grep -q '^\[exited with code' "$dir/$id.output" && continue
+    printf '%s\t%s\n' "$id" "$rest"
+  done <"$file" >"$tmp"
+  mv "$tmp" "$file"
+}
+
+summary() {
+  awk -F'\t' '
+    seen[$1]++ { next }
+    $2 == "shell"   { s++ }
+    $2 == "monitor" { m++ }
+    END {
+      out = ""
+      if (s) out = s " shell"
+      if (m) out = out (out ? " · " : "") m " monitor"
+      if (out) printf "⏵ %s", out
+    }' "$1"
+}
+
+report() {
+  local sid=$1 text
+  [ "${HERDR_ENV:-}" = 1 ] && [ -n "${HERDR_PANE_ID:-}" ] || return 0
+  text=$(summary "$(state_file "$sid")")
+  if [ -n "$text" ]; then
+    herdr pane report-metadata "$HERDR_PANE_ID" --source "$SOURCE" \
+      --token "bg=$text" --ttl-ms "$TTL_MS" >/dev/null 2>&1
+  else
+    herdr pane report-metadata "$HERDR_PANE_ID" --source "$SOURCE" \
+      --clear-token bg >/dev/null 2>&1
+  fi
+}
+
+hook() {
+  local input sid file id kind label
+  command -v jq >/dev/null 2>&1 || return 0
+  input=$(cat)
+  sid=$(jq -r '.session_id // empty' <<<"$input")
+  [ -n "$sid" ] || return 0
+  mkdir -p "$STATE_DIR"
+  file=$(state_file "$sid")
+  touch "$file"
+
+  case "$(jq -r '.tool_name // empty' <<<"$input")" in
+    Bash)
+      id=$(jq -r '.tool_response.backgroundTaskId // empty' <<<"$input")
+      kind=shell
+      label=$(jq -r '.tool_input.command // ""' <<<"$input")
+      ;;
+    Monitor)
+      id=$(jq -r '.tool_response.taskId // empty' <<<"$input")
+      kind=monitor
+      label=$(jq -r '.tool_input.description // .tool_input.command // ""' <<<"$input")
+      ;;
+    TaskStop)
+      id=$(jq -r '.tool_input.task_id // empty' <<<"$input")
+      [ -n "$id" ] && sed -i "/^$id\t/d" "$file"
+      id=
+      ;;
+    *) id= ;;
+  esac
+  if [ -n "$id" ]; then
+    label=${label//$'\t'/ }
+    label=${label//$'\n'/ }
+    printf '%s\t%s\t%s\t%s\n' "$id" "$kind" "$(date +%s)" "$label" >>"$file"
+  fi
+
+  reconcile "$sid"
+  report "$sid"
+}
+
+list() {
+  local pane=${HERDR_ACTIVE_PANE_ID:-} sid file now
+  # A popup's own HERDR_PANE_ID is not the agent's, so fall back to the focused pane.
+  [ -n "$pane" ] || pane=$(herdr pane list 2>/dev/null | jq -r '[.result.panes[] | select(.focused)][0].pane_id // empty')
+  sid=$(herdr pane get "$pane" 2>/dev/null | jq -r '.result.pane.agent_session.value // empty')
+  [ -n "$sid" ] || { echo "no agent session in pane ${pane:-?}"; return 0; }
+  reconcile "$sid"
+  file=$(state_file "$sid")
+  if [ ! -s "$file" ]; then
+    echo "nothing running"
+    return 0
+  fi
+  now=$(date +%s)
+  awk -F'\t' -v now="$now" '
+    function age(s) { return s < 60 ? s "s" : s < 3600 ? int(s/60) "m" : int(s/3600) "h" int((s%3600)/60) "m" }
+    { printf "%-8s %-9s %6s  %s\n", $1, $2, age(now - $3), $4 }' "$file"
+}
+
+# Herdr runs popup commands without a shell, so waiting for a key has to live here.
+popup() {
+  list
+  printf '\n\033[2mpress any key to close\033[0m'
+  read -rsn1 </dev/tty
+}
+
+case "${1:-}" in
+  hook) hook || true ;;
+  list) list ;;
+  popup) popup ;;
+  *) echo "usage: herdr-bg hook|list|popup" >&2; exit 2 ;;
+esac
+exit 0

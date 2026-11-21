@@ -29,6 +29,12 @@ class HooksJsonTest(unittest.TestCase):
     def test_notify_on_notification(self):
         self.assertEqual(commands("Notification", "permission_prompt|elicitation_dialog"), [(NOTIFY, True, 5)])
 
+    def test_herdr_bg_on_bash_monitor_taskstop_and_stop(self):
+        bg = '"${CLAUDE_PLUGIN_ROOT}/hooks/herdr-bg" hook'
+        self.assertEqual(commands("PostToolUse", "Bash|Monitor|TaskStop"), [(bg, None, 5)])
+        self.assertIn((bg, None, 5), commands("Stop"))
+        self.assertTrue((Path(__file__).resolve().parent.parent / "hooks" / "herdr-bg").is_file())
+
     def test_one_module_listed_beside_the_command_hooks(self):
         # The engine takes one module per plugin: ./register.tsx runs po-inbox and squads.
         self.assertEqual(HOOKS_FILE["modules"], ["./register.tsx"])
