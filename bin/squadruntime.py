@@ -286,9 +286,21 @@ def _under(root, path):
     return os.path.dirname(os.path.realpath(path)) == os.path.realpath(root)
 
 
+def iter_homes(squad):
+    """[(kind, name, path)] of the open scopes, then goals: `scopes/*/scope.md` and `goals/*/goal.md` (never a
+    recursive glob; `_done` folders are not matched). The one place that globs the homes of a squad."""
+    homes = []
+    for kind, group, marker in (("scope", "scopes", "scope.md"), ("goal", "goals", "goal.md")):
+        for home in sorted(glob.glob(os.path.join(glob.escape(squad), group, "*"))):
+            name = os.path.basename(home)
+            if name != "_done" and os.path.isfile(os.path.join(home, marker)):
+                homes.append((kind, name, home))
+    return homes
+
+
 def _holders(squad, exclude_home):
-    """{runtime name: [holder label]} from plugin.pin and the pins of scopes/* and goals/* (never a recursive
-    glob; `_done` folders are not matched). `exclude_home` (the home being closed) holds nothing."""
+    """{runtime name: [holder label]} from plugin.pin and the pins of the open homes (`iter_homes`).
+    `exclude_home` (the home being closed) holds nothing."""
     held = {}
 
     def add(pin, label):
@@ -297,14 +309,10 @@ def _holders(squad, exclude_home):
 
     add(read_pin_file(squad), "plugin.pin")
     skip = os.path.realpath(exclude_home) if exclude_home else None
-    for kind, group, marker in (("scope", "scopes", "scope.md"), ("goal", "goals", "goal.md")):
-        for home in sorted(glob.glob(os.path.join(glob.escape(squad), group, "*"))):
-            name = os.path.basename(home)
-            if name == "_done" or not os.path.isfile(os.path.join(home, marker)):
-                continue
-            if skip and os.path.realpath(home) == skip:
-                continue
-            add(home_pin(home), f"{kind} {name}")
+    for kind, name, home in iter_homes(squad):
+        if skip and os.path.realpath(home) == skip:
+            continue
+        add(home_pin(home), f"{kind} {name}")
     return held
 
 
