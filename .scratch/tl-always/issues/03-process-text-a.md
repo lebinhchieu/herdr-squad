@@ -1,0 +1,37 @@
+# 03 Process text A: lifecycle, messages, who
+Status: ready
+Duties: plan-owner=team-lead, design-notes=tech-lead, tech-ac=tech-lead, business-ac=ticket, code-check=qa-white, behaviour-check=qa-black, ui-check=qa-black, handin-target=qas, suite-owner=tech-lead, promote-owner=tech-lead, risk-owner=tech-lead, doubt-owner=manager, choice-owner=tech-lead
+Files: templates/squad/process/lifecycle.md, messages.md, who.md, review.md (REV-14a only), _removed.md (tombstones, own hunks); bin/squad-log-message; tests/test_rules_contract.py (LC/MSG/WHO rows), test_rules_wording.py, test_architect_handoff.py, test_small_files_equivalence.py (IDs in these three files), test_squad_log_message.py
+Depends: - (group A, parallel with 01, 04, 05, 06; the plan had `02`, which now comes after: SQ-1, see `tech-lead-plan.md`). Goal: `../iterations/1.md`; brief `../scope.md`.
+Evidence: .scratch/tl-always/issues/03-process-text-a/evidence.md
+
+## What and why
+One variant each. Manager owns the plan; Team Lead never reorders it; fixed escalation triggers; Tech Lead supplies deps/files/parallel groups into the plan. Parallel with 04: disjoint files.
+
+## Design notes (Tech Lead)
+The old engine still accepts `plan-owner`; this task removes every use of it in these three files, so it runs and tests green before 02. Read `../scope.md` (Chieu's brief) and `docs/adr/0010`, `0018` first; follow `docs/adr/0006` (process writing rule: one rule, who acts, when, limit; no history).
+
+Design (one variant each, keep the Team-Lead twin's ID):
+- Rules in lifecycle.md, messages.md, who.md with `when: plan-owner = manager` (LC-2b, LC-5b, LC-6b, LC-7a, LC-11b, LC-11c, LC-17b, LC-22c, MSG-4a, MSG-7a, MSG-8a, MSG-11a, MSG-18, WHO-1a, WHO-3a, WHO-8a) are removed: a tombstone `## <ID> (removed in v20)` in `_removed.md` with `why:` and `replaced_by:` (the Team-Lead twin; MSG-18 -> MSG-19), inserted in the file's existing order.
+- Rules with `plan-owner = team-lead` (and `... and design/architecture/qa-black/qa = light`) lose that condition and keep the rest (e.g. `when: design = yes`). Where a rule had only the plan-owner condition, no `when:` line is left.
+- Role split in the text (Chieu's brief): the Manager owns the plan (tasks, order, iteration goal) and breaks plan/order/assignment disputes; the Team Lead coordinates: spawns and retires Developers, assigns per the plan, tracks STATUS and the ledger, runs health checks, answers the pod's routine questions, and never reorders the plan (a needed reorder is an `ASK` to the Manager). Its Manager messages stay the fixed list of MSG-6 (add: a plan change it needs; keep: Always-goes-to-PO item, team-change signal, unsettled dispute, 3 returns, goal done or blocked, iteration summary). Task files `tasks/<id>.md` are written by the Team Lead from the Manager's plan.
+- WHO-1e: split the row: `Plan, task order` owner Manager; `Assignment` owner Team Lead; both disputes broken by the Manager; Always-to-PO: deadline or budget overrun.
+- LC-14 (Help the plan) and the Tech Lead input: the Tech Lead gives the dependencies, files touched and parallel-safe groups to the Manager in a file under `tasks/`, one line pointing at it, Team Lead on copy; the Manager writes them into the plan. (START-2d, in 04's file, already says "tell the Manager"; keep the two consistent.)
+- Every "plan owner" in these files becomes Team Lead or Manager by what the sentence does (assignment, health, spawn -> Team Lead; plan, order, dispute -> Manager). `plan-owner` of `duties:` is no longer cited.
+- `bin/squad-log-message`: the 3rd-return notice always goes to the Team Lead ([LC-7b]); delete the `squad-process team` lookup, the `LC-7c` Manager fallback and the "Manager otherwise" comment. (LC-7c stays only if it is still a rule; check.)
+
+Technical AC:
+- AC1 `squad-process lint` is clean; every removed ID has a tombstone with `replaced_by`; no `when:` in the three files names `plan-owner` or `team-lead =`: `grep -n "plan-owner\|team-lead = " templates/squad/process/{lifecycle,messages,who}.md` is empty.
+- AC2 No remaining citation of a removed ID outside `_removed.md`, the changelog and `hooks/squads/fixtures/`: `grep -rn "LC-2b\|LC-5b\|LC-6b\|LC-7a\|LC-11b\|LC-11c\|LC-17b\|LC-22c\|MSG-4a\|MSG-7a\|MSG-8a\|MSG-11a\|MSG-18\|WHO-1a\|WHO-3a\|WHO-8a" bin hooks agents skills tests templates` hits only those (tests are updated: test_rules_contract.py, test_rules_wording.py, test_architect_handoff.py, test_small_files_equivalence.py).
+- AC2c (from both QAs of 04) Every remaining "plan owner" in lifecycle.md, messages.md and review.md is replaced by what the sentence does: LC-6c (2-3 tickets per Developer) -> Team Lead; LC-20b/LC-7c (`BLOCKED NN: 3 returns`) -> Team Lead; LC-14 (Tech Lead helps plan, hands over `## Handover`) -> Manager, Team Lead on copy; line 268 (`STATUS NN: passed <sha>` after a PASS) -> Team Lead; MSG gaps line 116 -> Team Lead for routing, Manager for plan/order; REV-14a (review.md:153, tell after every checker passes) -> Team Lead. `grep -in 'plan owner'` over the three files is empty except tombstones. Files: of 03 gains templates/squad/process/review.md (REV-14a hunk only; 04 does not touch it).
+- AC2b (LC-8 defect class, from QA whitebox FAIL of 04) `lifecycle.md` LC-17 (line 218, Team Lead) no longer says "Reorder when gaps appear": the Team Lead tracks state and sends `ASK` to the Manager when a gap needs a new order. Grep the five files of 03 for `take over the plan`, `owns the plan`, `task order`, `plan owner` and `Reorder`; each hit is Manager-only text or says the Team Lead never reorders. A test asserts the composed Team Lead text has no sentence giving it the plan or the order.
+- AC3 Composed text for `manager`, `team-lead`, `tech-lead`, `dev` on a team with and without `team-lead` in `team:` contains the Team Lead variants only; a test (extend test_rules_contract.py `test_routes_follow_...`) asserts: Developer composes MSG-11b and not MSG-11a-removed text, the Manager's text has the plan/dispute split, the Team Lead's text says it never reorders the plan and lists the fixed triggers (one assertion per sentence of the brief, not a sweep).
+- AC4 WHO-1e rows read as in Design (heading no longer "Plan owner, Team Lead", `when:` line gone; row `Plan, task order` names the Manager); `squad-process who WHO-1e` still lists acting roles.
+- AC5 `bin/squad-log-message`: the 3rd FAIL on one sha notifies the Team Lead with `[LC-7b]` on `team: none`, `team: ba` and `team: ba, team-lead` alike (test_squad_log_message.py rows at lines 160-195 rewritten; the `size:` and bad-team-line cases no longer change the target).
+- AC6 SQ-10: the diff edits `bin/` and text a `bin/` tool prints and role text: run `tests/test_windows_safe.py`, `tests/test_utf8_helpers.py`, `tests/test_instructions.py`; quote the result in `## Behaviour`.
+- AC7 Developer rules stay within the 5 KiB cap: `tests/test_dev_rules_size.py` passes.
+- AC8 Targeted tests: touched files plus `grep -rl "<each retitled or removed ID>" tests/` hits (goldens included). No test newly skipped; the full suite is the Tech Lead's.
+Compatibility (LC-12): rule IDs of the Team-Lead twins stay, so overlays that `add`/cite them keep working; overlay `replace`/`remove` ops on a changed rule go stale by hash and on a removed twin by tombstone: `squad-process upgrade` lists them (already existing behaviour). Rollback = revert the merge.
+
+## Evidence
+`evidence.md` next to the ticket (path in Evidence: line, Tech Lead).
