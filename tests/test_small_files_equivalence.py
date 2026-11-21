@@ -49,7 +49,7 @@ class SevenShapeEquivalence(unittest.TestCase):
 
 # Rewritten or retargeted rules (body or roles changed): the same check. The known difference is by design:
 # WHO-1b is now the one unconditional "Task done" row (the Manager sees it at every shape; base L only).
-CHANGED_IDS = "WHO-1a WHO-1b WHO-2 WHO-2d WHO-2e WHO-2b WHO-2c WHO-3a WHO-3b WHO-8a WHO-8b START-1 START-2c START-3 START-3b START-19 FILE-5b FILE-6 FILE-7 FILE-10 GOAL-3a GOAL-3c GOAL-6b GOAL-6d PROMO-3a PROMO-3b CLOSE-1 CLOSE-3c ITER-1 ITER-6 ITER-6a ITER-6b".split()
+CHANGED_IDS = "WHO-1b WHO-2 WHO-2d WHO-2e WHO-2b WHO-2c WHO-3b WHO-8b START-1 START-2c START-3 START-3b START-19 FILE-5b FILE-6 FILE-7 FILE-10 GOAL-3a GOAL-3c GOAL-6b GOAL-6d PROMO-3a PROMO-3b CLOSE-1 CLOSE-3c ITER-1 ITER-6 ITER-6a ITER-6b".split()
 CHANGED = {
     "Lgoal/architect": "",
     "Lgoal/ba": "WHO-1b WHO-2c PROMO-3a",
@@ -64,7 +64,7 @@ CHANGED = {
     "M/ba": "",
     "M/designer": "",
     "M/dev": "",
-    "M/manager": "WHO-1a WHO-2d WHO-2b WHO-3a WHO-8a START-1 START-2c FILE-5b START-3 START-3b START-19 FILE-6 FILE-7 GOAL-6b CLOSE-1 ITER-1 ITER-6 ITER-6b",
+    "M/manager": "WHO-2d WHO-2b WHO-3b WHO-8b START-1 START-2c FILE-5b START-3 START-3b START-19 FILE-6 FILE-7 GOAL-6b CLOSE-1 ITER-1 ITER-6 ITER-6b",
     "M/qa-blackbox": "",
     "M/qa-whitebox": "",
     "M/team-lead": "FILE-7",

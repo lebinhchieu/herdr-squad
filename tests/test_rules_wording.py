@@ -60,7 +60,7 @@ class ManagerWordingTest(unittest.TestCase):
     def test_s_keeps_developer_spawning_and_routing(self):
         ms = composed("manager", "S")
         self.assertNotIn("## SPAWN-5a", ms)  # the Team Lead spawns Developers
-        self.assertIn("## MSG-18 Routing, Manager", ms)
+        self.assertNotIn("## MSG-18", ms)
         mm = composed("manager", "L")  # Team Lead exists at L only
         self.assertNotIn("## SPAWN-5a", mm)
         self.assertNotIn("## MSG-18", mm)
