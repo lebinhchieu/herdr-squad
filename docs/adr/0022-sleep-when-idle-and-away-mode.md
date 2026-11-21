@@ -16,3 +16,5 @@ Sleep-when-done suspended the PC only when every ticket was done and nobody work
 - "I am away" is matched at the start of a prompt in a Manager session only; other sessions and sentences are ignored.
 - The tab depends on herdr: `tab create` takes no command, so `squad-start` creates the tab and then types the command with `herdr pane run` (`exec ...` on POSIX, PowerShell `& ...; exit` on Windows).
 - Reversible: `sleep off`, delete `<home>/away`, or `SQUAD_WATCHDOG=off`.
+
+Amended by 0030 (team-lead-always): the watchdog and the blocked-pane wake go to the scope's Team Lead, with the Manager as fallback.

@@ -4,6 +4,8 @@ Status: accepted (tl-manages-team)
 
 Amended by 0016 (composed-process): the Team Lead exists only at size L. At S and M the Manager plans and spawns Developers and takes the pod's routine messages; role defaults come from `scope.md` `model <role>:` lines over squad settings (ticket 20).
 
+Amended by 0030 (team-lead-always): the Team Lead is on every team, not only in M and L; the Manager owns the plan and the Team Lead coordinates.
+
 **Decision:** in M and L the Team Lead runs the pod and is its single point of contact; S is unchanged.
 
 **Why:** every routine message reached the Manager, whose Opus context should hold the PO's conversation and decisions.

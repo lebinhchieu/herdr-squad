@@ -16,3 +16,5 @@ The watchdog woke the Manager on every `passed` ticket and judged idleness from 
 - The Manager is woken for an open goal, never for a ticket.
 - A Manager who forgets to write a goal gets the old behaviour, not silence.
 - Plugin 0.9.5; changelog v18.
+
+Amended by 0030 (team-lead-always): the nudge goes to the scope's Team Lead; the goal's watchdog wakes the goal Manager only on `goals.md` events.
