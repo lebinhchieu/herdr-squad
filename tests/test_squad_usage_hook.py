@@ -61,6 +61,8 @@ class HookTest(unittest.TestCase):
         self.assertIn("mid-ticket, run once: squad-respawn dev-1", r.stderr)
         [ev] = [json.loads(l) for l in self.events.read_text(encoding="utf-8").splitlines()]
         self.assertEqual((ev["agent"], ev["role"], ev["session"], ev["rule"]), ("dev-1", "dev", "sid-1", "fresh"))
+        self.assertEqual((ev["line"], ev["turns"]), (110_002, 2))   # 60k first action + 50k; two main-thread turns
+        self.assertGreater(ev["ctx"], 130_000 - 1)                  # last context, from the same summarize as the row
         self.assertIn("tell your plan owner (the Team Lead) and stop ([COST-5], no squad-respawn)", ev["action"])
         self.assertIn("mid-ticket, run once: squad-respawn dev-1", ev["action"])
         self.assertNotEqual(ev["action"], "write roles/dev-1.notes.md, then run: squad-respawn dev-1")

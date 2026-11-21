@@ -111,6 +111,7 @@ export function styleOf(tree: any, text: string): Record<string, unknown> | null
 // A Box with no flexDirection or `row` draws its children side by side: one text, a Button as `[ label ]`.
 export function rowsOfTree(tree: any, cols: number): number {
   if (tree === null || tree === undefined || typeof tree === 'string') return 0
+  if (tree.part?.plugin === 'test') return 0 // the harness's own `ENGINE` stub (boot) drawn beside the mod's part: not a row of the mod
   if (Array.isArray(tree)) return tree.reduce((n: number, t: any) => n + rowsOfTree(t, cols), 0)
   if (tree.type === 'Box' && (tree.props?.flexDirection ?? 'row') === 'row') {
     const side = (n: any): string =>

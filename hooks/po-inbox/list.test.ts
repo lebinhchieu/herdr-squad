@@ -59,7 +59,7 @@ test('band: the four-kinds, two-digit case at 75 is rung 2, at 35 it wraps to ex
   expect(rowsOfTree(w.tree, 75)).toBe(1)
   const narrow = await $.ui.mount(band('terminal', 35))
   const tree = await narrow.drawn()
-  const t = tree.type === 'Box' ? tree : tree[0]
+  const t = tree.children?.find((n: any) => n.part?.plugin === 'squad') ?? (tree.type === 'Box' ? tree : tree[0]) // the engine wraps the mod's part and the harness stub
   expect(t.props.flexDirection).toBe('column')
   expect(t.children.map((n: any) => n.type)).toEqual(['Text', 'Button'])
   expect(textOf(t.children[0])).toBe('12 answer 3 read 2 wait 1 problem')

@@ -141,7 +141,7 @@ log_respawn() {
 log_respawn 2>/dev/null || echo "warning: could not write the respawn event to $home/usage-events.jsonl; going on" >&2
 
 herdr agent rename "$name" "$prev" >/dev/null
-SQUAD_DIR=$squad_dir "${spawn[@]}" || {
+SQUAD_DIR=$squad_dir SQUAD_RESPAWN=1 "${spawn[@]}" || {
   rc=$?
   herdr agent rename "$prev" "$name" >/dev/null
   exit "$rc"  # 2 = refused (no pin, compose error), 1 = runtime missing or other

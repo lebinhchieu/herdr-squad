@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Append one event line to usage-events.jsonl in a squad folder. Used by squad-retire and squad-spawn (retire, spawn);
+# squad-respawn and squad-usage-hook write their own lines the same way (flock, else an atomic mkdir lock).
+# Usage: squad-event HOME RULE AGENT [ROLE [SCOPE [SESSION]]]   Prints nothing; exit 1 when it could not write.
+# The record is {ts, agent, role, rule[, scope][, session]}: `rule` names the event, as in the respawn and fresh records.
+set -uo pipefail
+[[ $# -ge 3 && -d $1 ]] || { echo "Usage: squad-event HOME RULE AGENT [ROLE [SCOPE [SESSION]]]" >&2; exit 2; }
+command -v jq >/dev/null || exit 1
+log=$1/usage-events.jsonl
+record=$(jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg agent "$3" --arg role "${4:-}" --arg rule "$2" \
+  --arg scope "${5:-}" --arg session "${6:-}" \
+  '{ts:$ts, agent:$agent, role:$role, rule:$rule} + (if $scope != "" then {scope:$scope} else {} end)
+   + (if $session != "" then {session:$session} else {} end)') || exit 1
+if command -v flock >/dev/null; then
+  { flock 9 2>/dev/null; printf '%s\n' "$record" >&9; } 9>>"$log" || exit 1
+else
+  held=
+  n=0
+  until mkdir "$log.lock" 2>/dev/null; do
+    (( ++n > 250 )) && { rmdir "$log.lock" 2>/dev/null; break; }
+    sleep 0.02
+  done
+  (( n <= 250 )) && held=1
+  rc=0
+  { printf '%s\n' "$record" >&9; } 9>>"$log" || rc=1
+  [[ -z $held ]] || rmdir "$log.lock" 2>/dev/null
+  exit $rc
+fi

@@ -24,6 +24,9 @@ from pathlib import Path
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "board"
 REF = datetime(2026, 11, 4, 10, 0, 0, tzinfo=timezone.utc)  # the fixture clock: age words are measured against it
 GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+# commits carry the fixture clock, not the run's, so "last active" never reads today (copy_fixture pin_clock)
+PINNED_GIT_DATES = {"GIT_AUTHOR_DATE": "2026-10-05T10:00:00+0000", "GIT_COMMITTER_DATE": "2026-10-05T10:00:00+0000"}
+_git_dates = {}
 # branch -> keys of its commits (the key is the {{sha:KEY}} placeholder); merged = merged into main
 BRANCHES = {"fix-dev-03": (["03a", "03b", "03c"], False), "fix-dev-05": (["05"], False), "fix-dev-06": (["06"], False),
             "fix-dev-07": (["07a", "07"], False), "fix-dev-08": (["08"], True)}
@@ -33,7 +36,7 @@ _TS = re.compile(r'("ts"\s*:\s*")([^"]+)(")')
 
 def _git(cwd, *args):
     return subprocess.run(["git", *args], cwd=str(cwd), check=True, capture_output=True, text=True, encoding="utf-8",
-                          env={**os.environ, **GIT_ENV}).stdout.strip()
+                          env={**os.environ, **GIT_ENV, **_git_dates}).stdout.strip()
 
 
 def _parse(ts):
@@ -70,8 +73,9 @@ def _build_git(repo, squad_scope):
     return shas
 
 
-def copy_fixture(dest=None, now=None, git=True):
-    """Copy the fixture to `dest` (a new temp dir by default); `now` (aware datetime) shifts message and inbox times."""
+def copy_fixture(dest=None, now=None, git=True, pin_clock=True):
+    """Copy the fixture to `dest` (a new temp dir by default); `now` (aware datetime) shifts message and inbox times;
+    `pin_clock` also dates the git commits and file mtimes on the fixture clock (False: they stay the real time of the copy)."""
     root = Path(dest) if dest else Path(tempfile.mkdtemp(prefix="board-fixture-"))
     for item in FIXTURE.iterdir():
         if item.name.startswith("_"):
@@ -98,7 +102,17 @@ def copy_fixture(dest=None, now=None, git=True):
         d = squad / "scopes" / "_done" / ("closed-release" if i == 1 else "done-%02d" % i)
         t = (REF - timedelta(days=i)).timestamp()
         os.utime(d, (t, t))
-    shas = _build_git(repo, scope) if git else {}
+    _git_dates.clear()
+    _git_dates.update(PINNED_GIT_DATES if pin_clock else {})
+    try:
+        shas = _build_git(repo, scope) if git else {}
+    finally:
+        _git_dates.clear()
+    if pin_clock:  # file mtimes are the real time of this copy; pin them to the fixture clock so "last active" never reads today
+        old = ((now or REF) - timedelta(days=30)).timestamp()  # (the demo wants them live: it passes pin_clock=False)
+        for p in squad.rglob("*"):
+            if p.is_file():
+                os.utime(p, (old, old))
     return Fixture(root, repo, squad, scope, root / "repo2" / ".claude" / "squads" / "other", root / "claude-config",
                    root / "herdr" / "agents.json", root / "herdr" / "not-running.json", FIXTURE / "FIXTURE-STEPS.md", shas)
 

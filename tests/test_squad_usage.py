@@ -86,7 +86,7 @@ class UsageTest(UsageBase):
         self.assertEqual(row[1], "claude-sonnet-5-5/medium")
         self.assertEqual(row[2], "3")
         self.assertEqual(row[3:5], ["70k", "70k"])
-        self.assertEqual(row[5:], ["-", "180k", "0k", "0", "0", "0"])  # 1st act, line, out, expiries, compactions, subagents
+        self.assertEqual(row[5:], ["-", "180k", "0k", "0", "0", "0", "1"])  # 1st act, line, out, expiries, compactions, subagents, sessions
         self.assertNotIn("manager", r.stdout)
 
     def test_cache_expiry_needs_gap_and_big_write(self):
@@ -99,14 +99,14 @@ class UsageTest(UsageBase):
         self.env["SQUAD_DIR"] = str(self.squad)
         (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n| dev-1 | sid-1 |\n", encoding="utf-8")
         r = self.run_cli()
-        self.assertEqual(r.stdout.splitlines()[1].split()[-3:-1], ["1", "0"])
+        self.assertEqual(r.stdout.splitlines()[1].split()[-4:-2], ["1", "0"])
 
     def test_compaction_counted_once_per_compaction(self):
         self.transcript("sid-1", [turn(0, "a"), {"type": "system", "subtype": "compact_boundary"},
                                   {"type": "user", "isCompactSummary": True}, turn(1, "b")])
         self.assertEqual(self.run_cli("--check", "sid-1").stdout.strip(), "fresh")
         (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n| dev-1 | sid-1 |\n", encoding="utf-8")
-        self.assertEqual(self.run_cli("--squad-dir", str(self.squad)).stdout.splitlines()[1].split()[-2], "1")
+        self.assertEqual(self.run_cli("--squad-dir", str(self.squad)).stdout.splitlines()[1].split()[-3], "1")
 
     def check(self, sid, *turns):
         self.transcript(sid, list(turns))
@@ -166,7 +166,7 @@ class UsageTest(UsageBase):
         self.assertEqual(cols("mgr")[5:7], ["20k", "70k"])
         self.assertEqual(cols("ro")[5:7], ["-", "180k"])
         self.assertEqual(cols("late")[5:7], ["150k", "180k"])
-        self.assertEqual(cols("gone")[1:], ["no", "transcript"] + ["-"] * 9)
+        self.assertEqual(cols("gone")[1:], ["no", "transcript"] + ["-"] * 10)
 
     def test_the_line_never_passes_180k(self):
         act = turn(0, "a", ctx=(2, 150_000, 0), tool="Write", base=NOW)         # 150k + 50k would be 200k
@@ -216,6 +216,37 @@ class UsageTest(UsageBase):
         self.assertEqual(len(lines), 6)
 
 
+class OrphanFreshTest(UsageBase):
+    """A `fresh` with no later `respawn` or `retire` of the same agent is flagged; real log lines of this repo's squads."""
+    FRESH = ('{"ts":"2026-11-21T10:00:00.000Z","agent":"dev-1","role":"dev","session":"s1","rule":"fresh","ctx":120000,'
+             '"line":110000,"turns":40,"action":"x"}')
+    RESPAWN = '{"ts":"2026-11-21T10:05:00.000Z","agent":"dev-1","role":"dev","rule":"respawn"}'
+
+    def table_out(self, log):
+        (self.squad / "roster.md").write_text("| Agent | Session |\n|---|---|\n| dev-1 | s1 |\n", encoding="utf-8")
+        self.transcript("s1", [turn(0, "a")])
+        if log is not None:
+            (self.squad / "usage-events.jsonl").write_text(log, encoding="utf-8")
+        r = self.run_cli("--squad-dir", str(self.squad))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout
+
+    def test_flags_a_fresh_only_while_no_respawn_or_retire_follows(self):
+        self.assertIn("note: fresh with no later respawn or retire: dev-1 (120k/110k)", self.table_out(self.FRESH + "\n"))
+        self.assertNotIn("no later respawn", self.table_out(self.FRESH + "\n" + self.RESPAWN + "\n"))
+        retire = self.RESPAWN.replace('"respawn"', '"retire"')
+        self.assertNotIn("no later respawn", self.table_out(self.FRESH + "\n" + retire + "\n"))
+
+    def test_a_missing_empty_or_corrupt_log_is_no_error_and_no_flag(self):
+        for log in (None, "", "\nnot json\n[1]\n42\n" + self.FRESH.replace('"agent":"dev-1"', '"agent":7') + "\n"):
+            self.assertNotIn("no later respawn", self.table_out(log))
+
+    def test_check_detail_adds_ctx_line_and_turns_while_check_stays_one_word(self):
+        self.transcript("s1", [turn(0, "a", ctx=(2, 0, 20_000), tool="Write", base=NOW), turn(1, "b", ctx=(2, 20_000, 80_000), base=NOW)])
+        self.assertEqual(self.run_cli("--check", "s1").stdout, "fresh\n")
+        self.assertEqual(self.run_cli("--check-detail", "s1").stdout, "fresh\t100002\t70002\t2\n")
+
+
 class UndercountTest(UsageBase):
     """AT-05: subagents, every session of an agent, symlinked config dirs."""
 
@@ -245,7 +276,7 @@ class UndercountTest(UsageBase):
         row = rows["dev-1"]
         self.assertEqual(row[2], "2")                    # turns: main thread only
         self.assertEqual(row[7], "4k")                   # out: 100+200+3000 (max of x1's lines)+1000 = 4300
-        self.assertEqual(row[-1], "4k")                  # subagents: their output tokens, 4000
+        self.assertEqual(row[-2], "4k")                  # subagents: their output tokens, 4000
         self.assertIn("turns = main-thread", self.run_cli("--squad-dir", str(self.squad)).stdout)
         self.assertEqual(row[4], "5k")                   # last ctx is the agent's own, not the subagent's
 
@@ -253,7 +284,7 @@ class UndercountTest(UsageBase):
         self.transcript("s1", [turn(0, "m1"), turn(1, "side", isSidechain=True, ctx=(2, 90_000, 0))])
         self.roster(("dev-1", "s1"))
         row = self.table()[0]["dev-1"]
-        self.assertEqual((row[2], row[3], row[-1]), ("1", "1k", "100"))
+        self.assertEqual((row[2], row[3], row[-2]), ("1", "1k", "100"))
 
     def test_sessions_with_the_same_agent_name_sum(self):
         self.named("old", "dev-1", [turn(0, "a", ctx=(2, 90_000, 0), out=1000), turn(1, "b", ctx=(2, 91_000, 0), out=1000)])
@@ -308,7 +339,21 @@ class UndercountTest(UsageBase):
         self.roster(("dev-1", "s1"))
         rows, head = self.table()
         self.assertEqual(head.split()[:3], ["agent", "model/effort", "turns"])
-        self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "-", "180k", "0k", "0", "0", "0"])
+        self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "-", "180k", "0k", "0", "0", "0", "1"])
+
+    def test_sessions_column_and_flag_list_each_session_and_agree_with_the_row(self):
+        self.named("old", "dev-1", [turn(0, "a", ctx=(2, 90_000, 0)), turn(1, "b", ctx=(2, 91_000, 0))])
+        self.named("new", "dev-1", [turn(0, "c", ctx=(2, 5000, 0), base=T0 + timedelta(days=1))])
+        self.named("empty", "dev-1", [])   # no usable lines: skipped, no crash
+        self.roster(("dev-1", "new"))
+        rows, head = self.table()
+        self.assertEqual((head.split()[-1], rows["dev-1"][-1]), ("sessions", "2"))
+        r = self.run_cli("--squad-dir", str(self.squad), "--sessions", "dev-1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        lst = [l.split() for l in r.stdout.splitlines()[1:]]
+        self.assertEqual([(x[0], x[1], x[2]) for x in lst], [("1", "91k", "2"), ("2", "5k", "1")])   # oldest first
+        self.assertEqual(sum(int(x[2]) for x in lst), int(rows["dev-1"][2]))   # turns sum = row turns
+        self.assertEqual(lst[-1][1], rows["dev-1"][3])                         # newest session's peak = row peak ctx
 
     def test_check_ignores_other_sessions_and_subagents(self):
         self.named("old", "dev-1", [turn(0, "a", ctx=(2, 190_000, 0), base=NOW)])

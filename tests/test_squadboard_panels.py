@@ -1,7 +1,9 @@
 """Picker and views (ticket 11). Pure rules and the page are driven in headless Chrome on a small harness that loads the
 real templates/board/*.js (pattern of test_squadboard_page.py). The data is the real answer of the squadboard routes on the
 ticket-02 fixture. Tickets 12 and 13 append their sections. Tests are named for the business AC (T11.ACn) or technical AC."""
+import datetime
 import json
+import os
 import re
 import subprocess
 import sys
@@ -419,6 +421,7 @@ def payloads12():
     srv = squadboard.BoardServer(0, squads, {})
     srv.routes, _ = squadboard.load_routes()
     srv.herdr_json = str(fx.herdr_json)
+    srv.clock = lambda: (now - datetime.timedelta(hours=14)).timestamp()  # fixed server clock (not today): E1 was first seen 2026-11-03T08:00Z, so it reads "12 h ago"
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base = "http://127.0.0.1:%d" % srv.port
     try:
@@ -636,6 +639,9 @@ def payloads14():
         f = squad / rel
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(text, encoding="utf-8", newline="\n")
+    day = datetime.datetime(2026, 11, 4, 1, 0, tzinfo=datetime.timezone.utc).timestamp()  # the page clock's day (start14), not the run's
+    for f in [squad, fx.repo / ".scratch"] + list(squad.rglob("*")) + list((fx.repo / ".scratch").rglob("*")):  # tickets live in repo/.scratch; folders show a time too
+        os.utime(f, (day, day))
     srv = squadboard.BoardServer(0, squadboard.find_squads([str(squad)]), {})
     srv.routes, _ = squadboard.load_routes()
     threading.Thread(target=srv.serve_forever, daemon=True).start()
