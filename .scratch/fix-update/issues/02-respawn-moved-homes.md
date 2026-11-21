@@ -5,7 +5,7 @@ Evidence: .scratch/fix-update/issues/02-respawn-moved-homes/evidence.md
 Status: ready
 After: 01 (build on 01's branch; the passed sha of 01 is `--base`)
 
-Ticket path: `.scratch/fix-update/issues/02-homes-respawn.md`. Touched files are an estimate (LC-9b); a change re-issues this file.
+Ticket path: `.scratch/fix-update/issues/02-respawn-moved-homes.md` (matches the Evidence: folder). Touched files are an estimate (LC-9b); a change re-issues this file.
 Harness: `tests/squadtest.py` `fake_herdr(dir, "live")` with `HERDR_LOG` (as `tests/test_squad_respawn.py` setUp) and `PluginCopy`. The stub cannot show a real tab or a real mid-turn agent: say so in `## Behaviour` and list the live check as not done (Chieu's merge check).
 
 ## Problem
