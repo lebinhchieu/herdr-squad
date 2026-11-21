@@ -89,7 +89,7 @@ class StartTest(unittest.TestCase):
             time.sleep(0.1)
         self.fail("the watchdog made no pass")
 
-    def test_a_scope_and_a_goal_start_a_watchdog_and_a_dry_run_or_an_in_goal_scope_does_not(self):
+    def test_a_scope_a_goal_and_an_in_goal_scope_start_a_watchdog_and_a_dry_run_or_off_does_not(self):
         self.env.pop("SQUAD_WATCHDOG")
         self.env["SQUAD_WATCHDOG_INTERVAL"] = "1"
         f = self.root / "fakebin" / "herdr"  # a herdr that cannot run a command in the tab: the detached fallback starts the watchdog
@@ -103,9 +103,18 @@ class StartTest(unittest.TestCase):
             pid = self.watchdog_pid(home)
             self.addCleanup(self.stop, pid)
             self.assertRegex((home / "watchdog.log").read_text(encoding="utf-8"), rf"watchdog started for {name}; Manager t-mgr-{name}")
-        self.assertEqual(self.start("Tabs", "--in-goal", "big", "--name", "s1").returncode, 0)
+        # ticket 06: a scope inside a goal gets its own watchdog (goal Manager as fallback), one per home; off starts none
+        self.env["SQUAD_WATCHDOG"] = "off"
+        self.assertEqual(self.start("Off", "--in-goal", "big", "--name", "s0").returncode, 0)
+        self.env.pop("SQUAD_WATCHDOG")
         time.sleep(0.5)
-        self.assertFalse((self.squad / "scopes" / "s1" / "watchdog.log").exists())
+        self.assertFalse((self.squad / "scopes" / "s0" / "watchdog.log").exists())
+        self.assertEqual(self.start("Tabs", "--in-goal", "big", "--name", "s1").returncode, 0)
+        home = self.squad / "scopes" / "s1"
+        pid = self.watchdog_pid(home)
+        self.addCleanup(self.stop, pid)
+        self.assertRegex((home / "watchdog.log").read_text(encoding="utf-8"), r"watchdog started for s1; Manager t-mgr-big")
+        self.assertEqual(self.watchdog_pid(home), pid)  # still the one process
 
     def test_model_flag_sets_the_managers_model_else_the_role_default_applies(self):
         self.assertEqual(self.start("Task one", "--name", "one", "--model", "opus", "--effort", "medium").returncode, 0)

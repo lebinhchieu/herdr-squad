@@ -5,7 +5,7 @@
       Plain text is a lone task: scopes/<name>/ and a Manager <squad>-mgr-<name> that lives with the scope.
       Text starting with "goal:" is a goal: goals/<name>/ and a goal Manager.
   squad-start "<text>" --in-goal G --name N
-      A scope inside goal G: scopes/N/ with `goal: G`. No Manager; the goal Manager runs it.
+      A scope inside goal G: scopes/N/ with `goal: G`. No Manager; the goal Manager runs it. Its watchdog wakes the scope's Team Lead.
   squad-start --resume NAME [--model M] [--effort E]
       A new Manager for an existing scope or goal whose Manager is gone. Its files are not touched.
 
@@ -13,9 +13,10 @@ The name is the first ticket id in the text (SEC-04 -> sec04), else a short slug
 scope.md lines `model <role>: <model> <effort>` set a role's model for every spawn in that scope (flags and a recorded override win; settings and template lose).
 --model and --effort set the Manager's model and effort (default: the model and effort in settings/manager.json); it does not change the roles the Manager spawns.
 --dry-run prints the Manager's model and effort and where each came from (flag, recorded override on --resume, scope.md `model manager:` on --resume, squad settings, template).
-A scope or goal that gets a Manager also gets a watchdog (bin/squad-watchdog), started in its own herdr tab (label `watchdog`, no focus, only the
-watchdog, one per home) or, outside herdr or when the tab fails, detached: it logs idle spells and nudges the Manager after
-5 and 15 minutes when nobody works. SQUAD_WATCHDOG=off starts none.
+A scope or goal that gets a Manager, and a scope inside a goal (--in-goal, target = the scope folder, Manager = the goal Manager), also gets a watchdog
+(bin/squad-watchdog), started in its own herdr tab (label `watchdog`, no focus, only the watchdog, one per home) or, outside herdr or when the tab
+fails, detached: it logs idle spells and nudges after 5 and 15 minutes when nobody works (a scope: its Team Lead, else the Manager; a goal: the
+Manager). SQUAD_WATCHDOG=off starts none.
 Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
 """
 import argparse
@@ -201,7 +202,7 @@ def start_watchdog_tab(home, argv):
         raise
 
 
-def start_watchdog(home, manager):
+def start_watchdog(home, manager, team_lead=None):
     """Run bin/squad-watchdog for this scope or goal: in its own herdr tab when inside herdr, else (or when the tab fails)
     as a detached process. A failure only warns (the work does not depend on it)."""
     if os.environ.get("SQUAD_WATCHDOG", "").lower() in ("off", "0", "no"):
@@ -209,6 +210,8 @@ def start_watchdog(home, manager):
     if watchdog_alive(home):
         return  # one watchdog per home; `run` would exit at once anyway
     argv = [sys.executable, (PLUGIN / "bin" / "squad-watchdog").as_posix(), "run", "--home", str(home), "--manager", manager]
+    if team_lead:
+        argv += ["--team-lead", team_lead]
     if os.environ.get("HERDR_ENV") == "1":
         try:
             start_watchdog_tab(home, argv)
@@ -418,6 +421,8 @@ def main():
     if manager:
         name_workspace(name)
         start_watchdog(target, manager)
+    elif a.in_goal:  # no Manager of its own: the goal Manager is the fallback of the scope's watchdog
+        start_watchdog(target, f"{squad.name}-mgr-{a.in_goal}")
     print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab}))
     print_board_command(squad, kind, name)
 
