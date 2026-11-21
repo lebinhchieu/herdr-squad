@@ -30,6 +30,13 @@ class ModelEffortSettingsTest(unittest.TestCase):
                 self.assertRegex(d["model"], r"^[A-Za-z0-9][][A-Za-z0-9._-]*$")
                 self.assertIn(d["effortLevel"], EFFORTS)
 
+    def test_manager_and_team_lead_defaults(self):
+        want = {"manager": ("opus", "medium"), "team-lead": ("sonnet", "low")}
+        for role, pair in want.items():
+            with self.subTest(role=role):
+                d = json.loads((ROOT / "templates/squad/settings" / f"{role}.json").read_text())
+                self.assertEqual((d["model"], d["effortLevel"]), pair)
+
 
 if __name__ == "__main__":
     unittest.main()

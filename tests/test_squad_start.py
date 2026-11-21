@@ -112,7 +112,7 @@ class StartTest(unittest.TestCase):
         self.assertRegex(self.herdr(), r"--model opus --effort medium\b")
         self.log.unlink()
         self.assertEqual(self.start("Task two", "--name", "two").returncode, 0)
-        self.assertRegex(self.herdr(), r"--model sonnet --effort high\b")
+        self.assertRegex(self.herdr(), r"--model opus --effort medium\b")
 
     def test_the_managers_model_override_survives_a_respawn_for_a_scope_and_a_goal(self):
         for text, kind, var, flag in (("Task one", "scopes", "SCOPE_DIR", "--scope"), ("goal: Big thing", "goals", "GOAL_DIR", "--goal")):
@@ -259,13 +259,13 @@ class StartTest(unittest.TestCase):
 
     def test_dry_run_shows_the_managers_model_and_effort_with_their_source(self):
         new = ("x", "--name", "one")
-        self.assertEqual(self.dry_lines(*new), ["manager model: sonnet (from template)", "manager effort: high (from template)"])
+        self.assertEqual(self.dry_lines(*new), ["manager model: opus (from template)", "manager effort: medium (from template)"])
         (self.squad / "settings").mkdir()
         (self.squad / "settings" / "manager.local.json").write_text('{"model": "haiku"}', encoding="utf-8")
-        self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from squad settings)", "manager effort: high (from template)"])
+        self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from squad settings)", "manager effort: medium (from template)"])
         self.assertEqual(self.dry_lines(*new, "--model", "opus", "--effort", "low"),
                          ["manager model: opus (from flag)", "manager effort: low (from flag)"])
-        self.assertEqual(self.dry_lines(*new, "--model", "opus"), ["manager model: opus (from flag)", "manager effort: high (from template)"])
+        self.assertEqual(self.dry_lines(*new, "--model", "opus"), ["manager model: opus (from flag)", "manager effort: medium (from template)"])
         self.assertEqual(len(self.dry_lines("goal: Big", "--name", "g")), 2)
 
     def test_dry_run_resolves_like_squad_spawn_overlay_beats_the_full_file_and_the_pinned_template_is_used(self):
@@ -275,7 +275,7 @@ class StartTest(unittest.TestCase):
         (st / "manager.local.json").write_text('{"model": "opus"}', encoding="utf-8")
         new = ("x", "--name", "one")
         # overlay present: manager.json is ignored (squad-spawn warns), so effort comes from the template
-        self.assertEqual(self.dry_lines(*new), ["manager model: opus (from squad settings)", "manager effort: high (from template)"])
+        self.assertEqual(self.dry_lines(*new), ["manager model: opus (from squad settings)", "manager effort: medium (from template)"])
         (st / "manager.local.json").unlink()
         self.assertEqual(self.dry_lines(*new), ["manager model: haiku (from squad settings)", "manager effort: low (from squad settings)"])
         (st / "manager.json").unlink()
@@ -292,7 +292,7 @@ class StartTest(unittest.TestCase):
     def test_resume_dry_run_shows_them_too_and_in_goal_has_no_manager_lines(self):
         (self.squad / "scopes" / "one").mkdir()
         self.assertEqual(self.dry_lines("--resume", "one", "--model", "opus"),
-                         ["manager model: opus (from flag)", "manager effort: high (from template)"])
+                         ["manager model: opus (from flag)", "manager effort: medium (from template)"])
         roles = self.squad / "scopes" / "one" / "roles"
         roles.mkdir()
         (roles / "t-mgr-one.overrides").write_text("model=opus\neffort=low\n", encoding="utf-8")
