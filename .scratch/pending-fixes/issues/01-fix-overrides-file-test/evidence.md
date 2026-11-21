@@ -11,3 +11,5 @@ AC trace
 
 ## Behaviour
 A failed `agent start` with silent output now exits 1 with "herdr agent start failed with no output" and keeps the old overrides file. SQ-10 (bin/ changed): test_windows_safe 14 OK, test_utf8_helpers 14 OK, test_instructions 16 OK.
+
+Note: the ticket's literal AC1 command `python3 -m unittest tests.test_squad_spawn` fails with ModuleNotFoundError (winlaunch) on base and on the fix, because tests/ is not a package. Run it as `cd tests && python3 -m unittest test_squad_spawn`, or with discover as above.
