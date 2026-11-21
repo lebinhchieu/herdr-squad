@@ -250,8 +250,8 @@ class CheckTableRulesTest(unittest.TestCase):
         for team in ((), ("qa-white", "qa-black")):
             self.assertNotIn("## EVID-9c ", composed("dev", team=team))
             self.assertNotIn("## EVID-9e ", composed("manager", team=team))
-        self.assertIn("## EVID-9d ", composed("manager", team=()))
-        self.assertNotIn("## EVID-9d ", composed("manager", team=("qa-white",)))
+        self.assertIn("## EVID-9d ", composed("team-lead", team=()))
+        self.assertNotIn("## EVID-9d ", composed("team-lead", team=("qa-white",)))
         for role, team in (("qa-whitebox", ("qa-white",)), ("qa-blackbox", qab)):
             self.assertIn("`squad-evidence checks", composed(role, team=team))
 

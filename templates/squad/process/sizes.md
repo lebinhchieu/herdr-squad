@@ -59,7 +59,7 @@ roles: manager
 when: code-check = manager
 topic: sizes
 
-Confirm `evidence.md` and its `## Review` exist ([REV-1]); do not redo the Developer's checks.
+Confirm `evidence.md` and its `## Review` exist ([REV-1b]); do not redo the Developer's checks.
 
 ## SIZE-7b Code and test check, QA whitebox
 roles: qa-whitebox

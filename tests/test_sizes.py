@@ -129,7 +129,7 @@ class ComposedPerRole(unittest.TestCase):
             with self.subTest(role=role):
                 text = composed(role, team=FULL_TEAM)
                 self.assertIn(f"role: {role} ", text)
-                self.assertEqual("duties: plan-owner=" in text, role in HAS_DUTIES_LINE, f"{role}: duties line")
+                self.assertEqual("duties: design-notes=" in text, role in HAS_DUTIES_LINE, f"{role}: duties line")
                 have = set(re.findall(r"## ([A-Z]+-[0-9]+[a-z]?) ", text))
                 self.assertEqual(sorted(set(ids.split()) - have), [], f"{role} lost rules")
 

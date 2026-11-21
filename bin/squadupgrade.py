@@ -82,10 +82,16 @@ class Item:
 
 # Old `when:` conditions and what to write now (AC 21). The size ones are the nearest team-language reading, a hint:
 # the PO decides, the upgrade never rewrites a `when:` by itself.
-_OLD_COND = re.compile(r"(size|qa-b|qa-whitebox) (=|in) (\S+(?:, ?\S+)*)")
+_OLD_COND = re.compile(r"(size|qa-b|qa-whitebox|plan-owner|team-lead) (=|in) (\S+(?:, ?\S+)*)")
+_DROP_COND = "always true now: drop the condition"
+_NEVER = "never holds now: drop the operation"
 _TRANSLATE = {("size", "S"): "qa-white = no", ("size", "M"): "qa-white = yes", ("size", "L"): "ba = yes",
               ("qa-b", "yes"): "qa-black = yes", ("qa-b", "no"): "qa-black = no",
-              ("qa-whitebox", "yes"): "qa-white = yes", ("qa-whitebox", "no"): "qa-white = no"}
+              ("qa-whitebox", "yes"): "qa-white = yes", ("qa-whitebox", "no"): "qa-white = no",
+              # The Team Lead is always on the team: a condition that always holds is dropped, one that never holds
+              # drops its operation.
+              ("plan-owner", "team-lead"): _DROP_COND, ("plan-owner", "manager"): _NEVER,
+              ("team-lead", "yes"): _DROP_COND, ("team-lead", "no"): _NEVER}
 
 
 def old_when_conditions(when):
@@ -102,6 +108,8 @@ def old_when_conditions(when):
             text = ""
         elif len(set(new)) == 1:
             text = new[0]
+        elif not all(" = " in n for n in new):
+            text = "no single key (write one rule per case)"
         else:
             k = {n.split(" = ")[0] for n in new}
             text = (f"{k.pop()} in {', '.join(n.split(' = ')[1] for n in new)}" if len(k) == 1
@@ -112,9 +120,9 @@ def old_when_conditions(when):
 
 def _other_l_role(op):
     """True when the op's `roles:` names an L role other than the BA (a rule about the Team Lead or Tech Lead): the
-    L-only `ba = yes` is then not the only reading, `team-lead = yes` and `tech-lead = yes` are listed too (AC 21)."""
+    L-only `ba = yes` is then not the only reading, `tech-lead = yes` is listed too (AC 21)."""
     roles = {r.strip() for r in (op.attrs.get("roles") or "").split(",")}
-    return bool(roles & {"team-lead", "tech-lead"})
+    return bool(roles & {"team-lead", "tech-lead"})  # a Team Lead rule: still the Tech Lead alternative
 
 
 class Plan:
@@ -133,12 +141,12 @@ class Plan:
 
 # ---- reading ---------------------------------------------------------------------------------------
 
-def load_plugin(root):
+def load_plugin(root, old=False):
     """-> (rules by id in file order, tombstones by id). Raises UpgradeError on a rule file problem."""
     pdir = sr.process_dir(root)
     if not os.path.isdir(pdir):
         raise UpgradeError(f"no rule files in {pdir}")
-    rules, tombs, problems = sr.load_rules(pdir, root)
+    rules, tombs, problems = sr.load_rules(pdir, root, old_root=old)
     if problems:
         raise UpgradeError(*problems)
     return {r.id: r for r in rules}, {t.id: t for t in tombs}
@@ -332,8 +340,7 @@ def format_check(plan, old_pin, new_pin, why_of=None):
             for old, new in conds:
                 lines.append(f"  {o.id} (line {o.line}): {old} -> {new or 'no direct translation: pick a duty or role key'}")
                 if new == "ba = yes" and _other_l_role(o):
-                    lines += [f"  {o.id} (line {o.line}): alternative: team-lead = yes",
-                              f"  {o.id} (line {o.line}): alternative: tech-lead = yes"]
+                    lines.append(f"  {o.id} (line {o.line}): alternative: tech-lead = yes")
     if plan.review:
         lines.append("review (not blocking):")
         lines += [f"  {r}" for r in plan.review]
@@ -506,7 +513,7 @@ def prepare(a):
     old_pin, new_pin = read_pin(squad_dir), _new_pin(a)
     new_rules, tombs = load_plugin(a.plugin_root)
     old_root = find_old_root(a, squad_dir, old_pin)
-    old_rules = load_plugin(old_root)[0] if old_root else None
+    old_rules = load_plugin(old_root, old=True)[0] if old_root else None
     pre, ops = read_overlay(squad_dir)
     plan = classify(old_rules, new_rules, tombs, ops)
     return squad_dir, old_pin, new_pin, new_rules, old_rules, pre, ops, plan

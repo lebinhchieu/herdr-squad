@@ -187,7 +187,36 @@ class OldWhenLanguage(Base):
         self.assertNotIn("nothing needs a decision", r.stdout)
         self.assertEqual(self.snapshot(sq), before)
 
-    def test_other_l_role_rule_lists_both_alternatives(self):
+    def test_removed_team_lead_conditions_are_listed_with_their_translation(self):  # ticket 02 AC4
+        for old, new in (("plan-owner = team-lead", "drop the condition"), ("plan-owner = manager", "drop the operation"),
+                         ("team-lead = no", "drop the operation"), ("team-lead = yes", "drop the condition")):
+            with self.subTest(when=old):
+                sq = self.squad_with(old)
+                before = self.snapshot(sq)
+                r = run(*self.args("--check", "add-free", sq))
+                self.assertEqual(r.returncode, 3, r.stderr)  # same exit code as the `size` case
+                self.assertRegex(r.stdout, rf"REV-1 \(line 3\): {old} -> .*{new}")
+                self.assertEqual(self.snapshot(sq), before)
+
+    def test_old_root_keeps_removed_when_keys_as_text(self):  # ticket 02 AC11
+        case = Path(self._tmp.name) / "case"
+        shutil.copytree(FIX / "add-free", case)
+        rev = case / "old" / "templates" / "squad" / "process" / "review.md"
+        rev.write_text(rev.read_text().replace("roles: tech-lead\ntopic: review\n\nThe Tech Lead reads",
+                                               "roles: tech-lead\nwhen: plan-owner = manager\ntopic: review\n\nThe Tech Lead reads", 1),
+                       encoding="utf-8", newline="\n")
+        self.assertIn("when: plan-owner = manager", rev.read_text())
+        self.assertEqual(su.load_plugin(str(case / "old"), old=True)[0]["REV-1"].when, "plan-owner = manager")
+        with self.assertRaises(su.UpgradeError):  # the new root stays strict
+            su.load_plugin(str(case / "old"))
+        sq = self.squad_with("plan-owner = manager")
+        args = self.args("--check", "add-free", sq)
+        args[args.index("--old-root") + 1] = str(case / "old")
+        r = run(*args)
+        self.assertEqual(r.returncode, 3, r.stderr)
+        self.assertIn("REV-1 (line 3): plan-owner = manager -> ", r.stdout)
+
+    def test_other_l_role_rule_lists_the_tech_lead_alternative(self):
         for roles in ("tech-lead", "team-lead", "tech-lead, team-lead"):
             with self.subTest(roles=roles):
                 sq = self.squad_with("size = L")
@@ -198,7 +227,7 @@ class OldWhenLanguage(Base):
                 r = run(*self.args("--check", "add-free", sq))
                 self.assertEqual(r.returncode, 3, r.stderr)
                 self.assertIn("size = L -> ba = yes", r.stdout)
-                self.assertIn("alternative: team-lead = yes", r.stdout)
+                self.assertNotIn("alternative: team-lead = yes", r.stdout)  # that key is gone
                 self.assertIn("alternative: tech-lead = yes", r.stdout)
                 self.assertEqual(self.snapshot(sq), before)
                 r = run(*self.args("--apply", "add-free", sq, "--yes"))

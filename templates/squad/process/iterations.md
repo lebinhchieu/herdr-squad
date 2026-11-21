@@ -58,13 +58,6 @@ phase: coach
 
 After the spawn, do other work or end the turn and wait for the Coach's message; never loop, sleep or poll for the file. Run `herdr agent list` on its pane only when no message came after the 10-minute health-check idle window ([MSG-8b]).
 
-## ITER-6a Token Coach, no checkers
-roles: manager
-when: handin-target = manager
-topic: iterations
-
-At the close of a scope with no QA and no Team Lead, spawn the Token Coach only when the PO asks.
-
 ## ITER-6b Token Coach, with checkers
 roles: manager
 when: handin-target in qas, team-lead

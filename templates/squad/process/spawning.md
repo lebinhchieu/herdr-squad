@@ -10,7 +10,7 @@ Spawn with the `squad-spawn` command (on your PATH from this plugin): `squad-spa
 roles: manager
 topic: spawning
 
-You spawn `team-lead`, every other role on `team:` and `token-coach` as [ITER-6a] and [ITER-6b] say. `squad-spawn` refuses a role that is not on the team.
+You spawn `team-lead`, every other role on `team:` and `token-coach` as [ITER-6b] says. `squad-spawn` refuses a role that is not on the team.
 
 ## SPAWN-2c Developers, Team Lead plans
 roles: manager

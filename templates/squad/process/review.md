@@ -1,18 +1,11 @@
 # Review and checks
 
-## REV-1 Confirmation, Manager
-roles: manager
-when: handin-target = manager
-topic: review
-
-On `HANDIN`: open the Developer's `evidence.md` (design shots too); confirm `## Behaviour` and `## Review` ([REV-22]) are there, with the suite receipt in `$SCOPE_DIR/evidence/` ([SUITE-2d]). `squad-evidence check` on its folder must pass. Send no `PASS` ([LC-27]); a missing or unverified item is a `FAIL`. No redo of the Developer's checks ([SIZE-7a]).
-
 ## REV-1b Confirmation, Team Lead
 roles: team-lead
 when: handin-target = team-lead
 topic: review
 
-On `HANDIN`: make the confirmation of [REV-1] (`## Behaviour` and `## Review` in `evidence.md`, suite receipt, `squad-evidence check` passing) and send `FAIL` to the Developer on a problem, never `PASS` ([LC-27]); you do not redo the Developer's checks.
+On `HANDIN`: open the Developer's `evidence.md` (design shots too); confirm `## Behaviour` and `## Review` ([REV-22]) are there, with the suite receipt in `$SCOPE_DIR/evidence/` ([SUITE-2d]). `squad-evidence check` on its folder must pass. Send no `PASS` ([LC-27]); a missing or unverified item is a `FAIL`, never `PASS`. No redo of the Developer's checks ([SIZE-7a]).
 
 ## REV-2 QA whitebox review
 roles: qa-whitebox
@@ -117,13 +110,6 @@ when: handin-target = qas
 topic: review
 
 Send `PASS` or `FAIL` to the Developer only.
-
-## REV-13a Hand in, Manager
-roles: dev
-when: handin-target = manager
-topic: review
-
-`HANDIN <task>: the branch of your worktree (`git branch --show-current`), commit <sha>, how to run it` to the Manager.
 
 ## REV-13c Hand in, Team Lead
 roles: dev

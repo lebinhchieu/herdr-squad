@@ -15,10 +15,10 @@ import squadteam as st  # noqa: E402
 
 RULE = "## {id} {title}\nroles: {roles}\n{when}topic: teams\n\n{body}\n"
 RULES = [  # (id, roles, when, body)
-    ("TEAM-1", "manager", "plan-owner = manager", "The Manager plans."),
-    ("TEAM-2", "team-lead", "plan-owner = team-lead", "The Team Lead plans."),
+    ("TEAM-1", "manager", "tech-lead = no", "The Manager plans."),
+    ("TEAM-2", "team-lead", "tech-lead = yes", "The Team Lead plans."),
     ("TEAM-3", "tech-lead", "code-check = tech-lead", "The Tech Lead checks the code."),
-    ("TEAM-5", "dev", "plan-owner = manager", "Ask the Manager for the plan."),
+    ("TEAM-5", "dev", "tech-lead = no", "Ask the Manager for the plan."),
 ]
 DESIGN_RULE = ("TEAM-6", "manager", "design = yes", "Manager: the Designer is on the team.")
 
@@ -209,7 +209,7 @@ class EditTest(Base):
     def test_dry_run_writes_nothing_and_prints_plan(self):
         h = self.home(["team: tech-lead"])
         before = self.scope(h)
-        r = self.team("add", "team-lead", h, "--dry-run")
+        r = self.team("add", "ba", h, "--dry-run")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("dry run", r.stdout)
         self.assertIn("respawn: ", r.stdout)
@@ -226,25 +226,31 @@ class RespawnListTest(Base):
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout.splitlines()
 
-    def test_add_team_lead_lists_manager_tech_lead_dev(self):
+    def test_team_lead_is_always_on_the_team(self):  # ticket 02 AC5
         h = self.home(["team: tech-lead"])
-        out = self.lines(self.team("add", "team-lead", h))
-        self.assertIn("respawn: manager, tech-lead, dev", out)  # ROLES order
-        self.assertIn("spawn: team-lead", out)
-        self.assertIn("duty plan-owner: manager -> team-lead", out)
-        self.assertIn("team: team-lead, tech-lead", out)
+        before = self.scope(h)
+        for mode in ("add", "remove"):
+            r = self.team(mode, "team-lead", h)
+            self.assertEqual(r.returncode, 2, r.stdout)
+            self.assertIn("always on the team", r.stderr)
+        self.assertEqual(self.scope(h), before)
+        h = self.home(["team: team-lead, qa-white"], name="tl")
+        out = self.lines(self.team("add", "ba", h))
+        self.assertIn("team: ba, qa-white", out)
+        self.assertFalse([x for x in out if x.startswith(("spawn:", "retire:")) and "team-lead" in x], out)
+        self.assertIn(b"team: ba, qa-white", self.scope(h))
 
     def test_add_qa_white_lists_manager_and_tech_lead_not_dev(self):
         h = self.home(["team: tech-lead"])
         out = self.lines(self.team("add", "qa-whitebox", h))
-        self.assertIn("respawn: manager, tech-lead", out)
+        self.assertIn("respawn: manager, team-lead, tech-lead", out)
         self.assertIn("spawn: qa-whitebox", out)
         self.assertIn("duty code-check: tech-lead -> qa-white", out)
 
     def test_remove_qa_white_lists_roles_and_retires_it(self):
         h = self.home(["team: tech-lead, qa-white"])
         out = self.lines(self.team("remove", "qa-white", h, "--at-boundary"))
-        self.assertIn("respawn: manager, tech-lead", out)
+        self.assertIn("respawn: manager, team-lead, tech-lead", out)
         self.assertIn("retire: qa-whitebox", out)
         self.assertIn("duty code-check: qa-white -> tech-lead", out)
 
@@ -265,11 +271,11 @@ class RespawnListTest(Base):
         """Independent check: compose before and after per role, drop header lines, compare."""
         import squadcompose as sc
         plugin = self.plugin()
-        for start, mode, role, extra in (("tech-lead", "add", "team-lead", ()), ("tech-lead", "add", "qa-whitebox", ()),
+        for start, mode, role, extra in (("tech-lead", "add", "ba", ()), ("tech-lead", "add", "qa-whitebox", ()),
                                          ("tech-lead, qa-white", "remove", "qa-white", ("--at-boundary",))):
             h = self.home([f"team: {start}"], name="x" + mode + role)
             roles = [r for r in ("manager", "team-lead", "tech-lead", "qa-whitebox", "dev")
-                     if r in ("manager", "dev") or sr_key(r) in start]
+                     if r in ("manager", "team-lead", "dev") or sr_key(r) in start]
 
             def body(text):
                 return [x for x in text.splitlines() if not x.startswith(("agent:", "plugin:", "# ")) and "team:" not in x]

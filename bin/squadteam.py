@@ -27,6 +27,8 @@ def _version(text):
 
 def _token(role):
     """Role name or team token -> team token. Implicit and unknown roles are refused."""
+    if role == "team-lead":
+        raise sc.ComposeError("squad-team: 'team-lead' is always on the team; nothing to add or remove")
     if role in sr.IMPLICIT_ROLES:
         raise sc.ComposeError(f"squad-team: {role!r} is always on the team; nothing to add or remove")
     token = sr.ROLE_KEY.get(role, role)

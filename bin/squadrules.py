@@ -24,22 +24,21 @@ OVERLAY_FILE = "process.local.md"
 ROLES = ("manager", "ba", "team-lead", "tech-lead", "qa-whitebox", "qa-blackbox", "designer", "architect", "dev", "token-coach")
 # Team model (drop-scope-size, architecture.md sections 2 and 3). `team:` tokens in scope.md; the `when:` presence
 # key of a token is PRESENCE_KEY (designer -> design, architect -> architecture, the rest the same string).
-TEAM_KEYS = ("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect")
-IMPLICIT_ROLES = ("manager", "dev", "token-coach")
+TEAM_KEYS = ("ba", "tech-lead", "qa-white", "qa-black", "designer", "architect")
+IMPLICIT_ROLES = ("manager", "dev", "token-coach", "team-lead")  # team-lead: always on the team
 ROLE_KEY = {"qa-whitebox": "qa-white", "qa-blackbox": "qa-black"}  # role name -> team token; other roles map to themselves
-PRESENCE_KEY = {"ba": "ba", "team-lead": "team-lead", "tech-lead": "tech-lead", "qa-white": "qa-white",
+PRESENCE_KEY = {"ba": "ba", "tech-lead": "tech-lead", "qa-white": "qa-white",
                 "qa-black": "qa-black", "designer": "design", "architect": "architecture"}
 # Duty facts: first present chain item owns the duty; every chain ends at manager, dev or ticket. `qas` stands for
 # "qa-white or qa-black on the team" (the hand-in goes to the QAs).
 DUTIES = {
-    "plan-owner": ("team-lead", "manager"),
     "design-notes": ("tech-lead", "dev"),
     "tech-ac": ("tech-lead", "qa-white", "dev"),
     "business-ac": ("ba", "ticket"),
     "code-check": ("qa-white", "tech-lead", "manager"),
     "behaviour-check": ("qa-black", "qa-white", "manager"),
     "ui-check": ("qa-black", "manager"),
-    "handin-target": ("qas", "team-lead", "manager"),
+    "handin-target": ("qas", "team-lead"),
     "suite-owner": ("tech-lead", "qa-white", "dev"),
     "promote-owner": ("tech-lead", "qa-white", "dev"),
     "risk-owner": ("tech-lead", "manager"),
@@ -49,13 +48,17 @@ DUTIES = {
 _DUTY_TERMINAL = ("manager", "dev", "ticket")
 # The old language (`size`, `qa-b`, `qa-whitebox` in a `when:`) is gone: OLD_WHEN_KEYS names the key to use instead.
 OLD_WHEN_KEYS = {"size": "a duty or role key (`squad-process who` lists them), e.g. `ba = yes` for what size L had",
-                 "qa-b": "qa-black", "qa-whitebox": "qa-white"}
+                 "qa-b": "qa-black", "qa-whitebox": "qa-white",
+                 "plan-owner": "no condition: the Team Lead always plans and coordinates, so drop the condition "
+                               "(a `= manager` condition never holds: drop the operation)",
+                 "team-lead": "no condition: the Team Lead is always on the team, so drop the condition "
+                              "(`team-lead = no` never holds: drop the operation)"}
 WHEN_KEYS = {"design": ("yes", "no"), "architecture": ("yes", "no"), "qa": ("full", "light"),
              "goal": ("yes", "no"),
-             **{k: ("yes", "no") for k in ("ba", "team-lead", "tech-lead", "qa-white", "qa-black")},
+             **{k: ("yes", "no") for k in ("ba", "tech-lead", "qa-white", "qa-black")},
              **{fact: chain for fact, chain in DUTIES.items()}}
 # A `when:` that uses a key of the team language holds at most one PRIMARY key; the rest are EXTRA (orthogonal).
-PRIMARY_KEYS = frozenset(DUTIES) | {"ba", "team-lead", "tech-lead", "qa-white"}
+PRIMARY_KEYS = frozenset(DUTIES) | {"ba", "tech-lead", "qa-white"}
 EXTRA_KEYS = frozenset({"goal", "qa", "design", "architecture", "qa-black"})
 PLUGIN_ATTRS = ("roles", "aware", "when", "topic", "phase")
 PHASES = ("merge", "close", "coach")
@@ -204,6 +207,8 @@ def parse_team(value, where="scope.md"):
         tok = raw.strip()
         if tok in ROLE_KEY:
             raise ValueError(f"{where}: team token {tok!r} is a role name; write {ROLE_KEY[tok]!r}")
+        if tok == "team-lead":
+            continue  # always on the team: accepted, ignored
         if tok in IMPLICIT_ROLES:
             raise ValueError(f"{where}: {tok!r} is always on the team; do not list it in team:")
         if tok not in TEAM_KEYS:
@@ -216,7 +221,7 @@ def parse_team(value, where="scope.md"):
 
 def resolve_duties(team):
     """team (tokens) -> {duty: owner}. Pure; the first present chain item owns the duty."""
-    team = frozenset(team)
+    team = frozenset(team) | {"team-lead"}
     out = {}
     for fact, chain in DUTIES.items():
         for item in chain:
@@ -376,8 +381,11 @@ def process_dir(plugin_root):
     return os.path.join(plugin_root, "templates", "squad", "process")
 
 
-def load_rules(pdir, rel_root=None):
-    """(rules in FILE_ORDER, tombstones, problems) for a process folder. Never raises on content."""
+def load_rules(pdir, rel_root=None, old_root=False):
+    """(rules in FILE_ORDER, tombstones, problems) for a process folder. Never raises on content.
+
+    old_root: the folder is a pinned OLD plugin root (`squad-process upgrade`); a rule's `when:` stays text and is
+    not checked, since it may name a removed key or value."""
     rel_root = rel_root or pdir
     problems, rules, tombs = [], [], []
     names = sorted((n for n in os.listdir(pdir) if n.endswith(".md")), key=lambda n: _file_rank(n[:-3]))
@@ -407,7 +415,7 @@ def load_rules(pdir, rel_root=None):
                     if r.roles != ["all"]:
                         problems.append(f"{rel}:{r.line}: core rule {r.id} needs `roles: all`")
         rules.extend(found)
-    _structure(rules, tombs, problems)
+    _structure(rules, tombs, problems, old_root)
     return rules, tombs, problems
 
 
@@ -443,7 +451,7 @@ def _check_attrs(vals, rel, n, out, need, rid=None):
         out.append(f"{rel}:{n}: phase {vals['phase']!r} is not one of {', '.join(PHASES)}")
 
 
-def _structure(rules, tombs, out):
+def _structure(rules, tombs, out, old_root=False):
     """Checks compose depends on: unique IDs, tombstones, attributes of each rule."""
     first = {}
     for r in rules:
@@ -459,7 +467,7 @@ def _structure(rules, tombs, out):
                 out.append(f"{t.file}:{t.line}: replaced_by names missing ID {rb}")
     for r in rules:
         raw = {k: v for k, v in (("roles", ", ".join(r.roles)), ("aware", ", ".join(r.aware)),
-                                 ("when", r.when), ("topic", r.topic), ("phase", r.phase)) if v}
+                                 ("when", "" if old_root else r.when), ("topic", r.topic), ("phase", r.phase)) if v}
         # an empty `roles:` line = on demand, attached to no role (ADR 0016); a missing line stays an error
         has_roles = any(a.startswith("roles:") for a in r.attr_text.split("\n"))
         _check_attrs(raw, r.file, r.line, out, ("topic",) if has_roles else ("roles", "topic"), r.id)
