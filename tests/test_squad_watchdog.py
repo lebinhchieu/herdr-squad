@@ -650,6 +650,35 @@ class TeamLeadTest(unittest.TestCase):
         self.assertIn("spawn one within your cap, or `ASK` the Manager", self.sent[0][1])
         self.assertNotIn("route:", self.log())
 
+    def test_goal_status_is_asked_of_the_team_lead_when_no_ticket_is_open(self):
+        self.tickets(t03="passed")
+        (self.home / "goals.md").write_text("| # | Goal | Status |\n|---|---|---|\n| G1 | Ship the report | in progress |\n"
+                                            "| G2 | Fix login | blocked |\n", encoding="utf-8")
+        self.up()
+        for m in (0, 5, 15):
+            self.tick(m)
+        self.assertEqual([m for m, _ in self.sent], ["t-tl-s1", "t-tl-s1"])
+        for _, text in self.sent:
+            self.assertIn("G1 Ship the report: in progress", text)
+            self.assertIn("send the Manager one line", text)
+            self.assertIn("done when all its tickets passed, else blocked with the reason", text)
+            self.assertIn("you never edit it", text)
+            self.assertNotIn("write goals.md", text)
+
+    def test_goal_status_is_not_asked_while_a_ticket_is_open_and_without_goals(self):
+        self.tickets(t03="ready")
+        (self.home / "goals.md").write_text("| # | Goal | Status |\n|---|---|---|\n| G1 | Ship the report | in progress |\n", encoding="utf-8")
+        self.up()
+        self.tick(0)
+        self.tick(5)
+        text = self.sent[0][1]
+        self.assertIn("Waiting: 03 ready", text)
+        self.assertIn("G1 Ship the report: in progress", text)
+        self.assertNotIn("send the Manager one line", text)
+        plain = W.team_lead_nudge_text(5, 0, {"tickets": [], "agents": [], "goals": []})
+        self.assertNotIn("Open goals", plain)
+        self.assertIn("Waiting: none open", plain)
+
     def test_ac2_absent_then_blocked_team_lead_falls_back_to_the_manager_and_a_blocked_manager_holds(self):
         self.tickets(t03="ready")
         self.agents(t_mgr_s1="idle", t_dev_s1="idle")  # no Team Lead in the herdr list

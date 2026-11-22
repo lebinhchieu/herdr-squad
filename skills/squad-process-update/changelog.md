@@ -1,3 +1,12 @@
+## v22 — 2026-11-22
+
+Plugin 0.10.3. The scope watchdog's Team Lead nudge asks for the goal status.
+
+changed:
+- With rows in `goals.md` and no open ticket, the Team Lead nudge (5 and 15 min) names each open goal and asks the Team Lead to send the Manager one line: done when all its tickets passed, else blocked with the reason. The Manager writes `goals.md`. why: after every ticket passed the goal stayed `in progress` and the watchdog never stopped.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.10.3. Rollback: revert the merge, plugin back to 0.10.2.
+
 ## v21 — 2026-11-21
 
 Plugin 0.10.2. `squad-process upgrade` and `homes` find the newest plugin from a pinned session, and the upgrade skill moves the Manager's own goal or scope.
