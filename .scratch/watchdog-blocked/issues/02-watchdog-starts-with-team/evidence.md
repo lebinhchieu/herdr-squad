@@ -21,13 +21,13 @@ AC9 results (python3 -m unittest, from tests/): test_squad_watchdog 89 OK; test_
 ## Checks
 | AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |
 |---|---|---|---|
-| AC1 | test_squad_start new test OK |  |  |
-| AC2 | SpawnWatchdogTest first-spawn test OK |  |  |
-| AC3 | SpawnWatchdogTest goal test OK |  |  |
-| AC4 | test_sleep_on_starts_the_homes_watchdog_unless_it_runs OK |  |  |
-| AC5 | git grep "squad-watchdog ensure" templates/: no hit |  |  |
-| AC6 | SpawnWatchdogTest failure test OK |  |  |
-| AC7 | 4 tests, no new file |  |  |
-| AC8 | grep 0.10.3 .claude-plugin/: no hit |  |  |
-| AC9 | quoted in Behaviour; lint exit 0 |  |  |
-| AC10 | none: live check is QA blackbox's |  |  |
+| AC1 | test_squad_start new test OK | test_squad_start 49 OK: `cd tests && python3 -m unittest test_squad_start` | live: lone scope, goal, in-goal, both resumes: 0 watchdog tabs: pass |
+| AC2 | SpawnWatchdogTest first-spawn test OK | test_squad_spawn 111 OK (SpawnWatchdogTest first spawn, once, Manager none) | live: first non-Manager spawn 1 tab + heartbeat, second spawn none; Manager spawns none: pass |
+| AC3 | SpawnWatchdogTest goal test OK | test_squad_spawn 111 OK (goal home too) | live: scope of goal g1 opens scope and goal watchdogs, no more on next spawn: pass |
+| AC4 | test_sleep_on_starts_the_homes_watchdog_unless_it_runs OK | test_squad_watchdog 89 OK (sleep on ensures; off none; fresh beat no second) | live: sleep on starts 1 watchdog + heartbeat, again none: pass |
+| AC5 | git grep "squad-watchdog ensure" templates/: no hit | git grep `squad-watchdog ensure` in templates agents skills: only old changelog entry | live: START-19b has no ensure; --help docstring updated: pass |
+| AC6 | SpawnWatchdogTest failure test OK | test_squad_spawn 111 OK (failing start warns) | live: failing herdr tab: spawn exit 0, warning on stderr, detached fallback: pass |
+| AC7 | 4 tests, no new file | tests extended in existing files, none skipped | - (whitebox's) |
+| AC8 | grep 0.10.3 .claude-plugin/: no hit | plugin.json 0.10.4; grep 0.10.3 hits only changelog history and a fixture; changelog v23 | - (whitebox's) |
+| AC9 | quoted in Behaviour; lint exit 0 | windows_safe 14, utf8_helpers 14, instructions 16, log_message 24, squadtask 15, respawn 33 OK; lint exit 0 | - (whitebox's) |
+| AC10 | none: live check is QA blackbox's | - (blackbox's live check) | live scratch squad, AC1-AC6: pass (qa-b.md) |
