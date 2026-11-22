@@ -91,7 +91,7 @@ class EffectiveTest(Base):
         # v4 gap: a squad file written before T5 lacked these; the overlay cannot lose them.
         self.local("team-lead", {})
         allow = self.eff("team-lead")["permissions"]["allow"]
-        for e in ("Bash(squad-spawn dev:*)", "Bash(squad-retire:*)", "Bash(herdr agent list:*)",
+        for e in ("Bash(squad-spawn dev:*)", "Bash(squad-spawn qa-whitebox:*)", "Bash(squad-spawn architect:*)", "Bash(squad-retire:*)", "Bash(herdr agent list:*)",
                   "Bash(herdr agent get:*)", "Bash(herdr agent read:*)"):
             self.assertIn(e, allow)
 
