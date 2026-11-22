@@ -16,7 +16,7 @@ SQ-10 and targeted run (from `tests/`): `python3 -m unittest test_squad_watchdog
 | AC6 | docstring "Who is told"; ADR 0028 Consequences line | | |
 | AC7 | the 217-test run above | | |
 | AC8 | plugin.json 0.10.3; changelog v22 | | |
-| AC9 | - | | |
+| AC9 | - (QA blackbox live check) | | |
 
 ## Review
 AC trace:
