@@ -95,6 +95,12 @@ class GateTest(unittest.TestCase):
         self.assertIn("manager", r.stderr)  # row written `Manager`: normalised
         self.assertFalse((self.scope / "labels").exists())
         self.assertFalse(Path(self.env["HERDR_LOG"]).exists())
+        (self.squad / "goals" / "g").mkdir(parents=True)
+        (self.squad / "goals" / "g" / "roster.md").write_text(ROSTER)
+        r = self.run_bin("team-lead", "qa-whitebox", "mgr", "--goal", "g", "--dry-run")
+        self.assertEqual(r.returncode, 2)
+        self.assertFalse((self.scope / "labels").exists())
+        self.assertFalse(Path(self.env["HERDR_LOG"]).exists())
         for name in ("qab", "qaw", "fresh-name"):  # row says qa-blackbox for qab: respawn case needs the same role
             role = "qa-blackbox" if name == "qab" else "qa-whitebox"
             with self.subTest(name=name):

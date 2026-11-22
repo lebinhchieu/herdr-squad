@@ -135,6 +135,8 @@ project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
 # Per-scope squads keep each agent's roster, notes and logs in its scope folder (a goal Manager: its goal folder).
 # A flat squad (no scopes/ folder; legacy flat layout) keeps them all in the squad folder.
 home=$squad_dir scope_dir="" goal_dir="" runtime=""
+# A Team Lead spawns only inside its own scope: no --goal, no flat squad (both skip the name-vs-row and team checks below).
+[[ ${SQUAD_ROLE:-} != team-lead || ( -z $goal && -d $squad_dir/scopes ) ]] || { echo "a Team Lead may not spawn $role with --goal or in a flat squad; it spawns only inside its scope (--scope)" >&2; exit 2; }
 if [[ -d $squad_dir/scopes ]]; then
   [[ -z $scope || -z $goal ]] || { echo "pass --scope or --goal, not both" >&2; exit 2; }
   if [[ -n $goal ]]; then

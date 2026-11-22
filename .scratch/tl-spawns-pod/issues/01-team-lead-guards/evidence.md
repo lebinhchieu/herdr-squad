@@ -5,7 +5,7 @@ AC trace (run from `tests/`: `python3 -m unittest <file>`):
 
 - AC1 | `test_team_lead_perms::test_team_lead_spawns_every_pod_role` | unittest
 - AC2 | `test_team_lead_perms::test_team_lead_cannot_spawn_the_three_never_roles`, `..._may_respawn_itself_but_not_spawn_never_roles_under_other_names`, `test_refusal_has_no_side_effect` | unittest
-- AC3 | `test_team_lead_name_must_match_its_roster_row` (row `Manager`, `QA Whitebox`, no row; no `labels/`, no herdr log), `test_team_lead_spawn_refuses_when_roster_is_missing` (01-B) | unittest
+- AC3 | `test_team_lead_name_must_match_its_roster_row` (row `Manager`, `QA Whitebox`, no row; no `labels/`, no herdr log), `test_team_lead_spawn_refuses_when_roster_is_missing` (01-B) | unittest; `--goal` and flat squad refused for a Team Lead (qaw FAIL fix)
 - AC4 | `test_team_lead_role_not_on_team_is_refused_by_the_team_gate` | unittest
 - AC5 | `test_retire_closes_every_pod_role`, `test_retire_refuses_never_roles_and_missing_row`; `test_crlf_squad_files::test_retire_team_lead_branch` | unittest
 - AC6 | `test_respawn_refuses_never_roles_without_event_or_rename` (rows `Manager`, token-coach, team-lead; QA dry run prints `squad-spawn qa-whitebox qaw`), self-respawn in `test_team_lead_may_respawn_itself...` | unittest
