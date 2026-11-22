@@ -28,7 +28,8 @@ agent works, is blocked or gone, or the token clears. The log says why: `bg busy
 1 h after the last hook event, so a BG_MAX above 60 helps only if TTL_MS in hooks/herdr-bg is raised too.
 
 Who is told: a scope home (lone or inside a goal) wakes its own Team Lead (--team-lead, default <squad>-tl-<scope>): the idle
-nudges and the blocked-pane wake go to it, with a Team Lead wording. The Manager gets them instead when the Team Lead is not
+nudges and the blocked-pane wake go to it, with a Team Lead wording. With rows in goals.md and no open ticket the nudge names each open goal and asks it to send the Manager one line per open goal (`goal <id> done`, or
+`goal <id> blocked: <reason>`; done when all its tickets passed); only the Manager writes goals.md. The Manager gets them instead when the Team Lead is not
 in `herdr agent list` or its pane is `blocked`, and always the wake of a blocked Team Lead pane; the log line `route: ... ->
 <manager> (team lead absent|blocked)` says so. Nothing is sent into a `blocked` target pane (held, retried on a later pass).
 A goal home keeps its nudges for the goal Manager (the `goals.md` events); its blocked-pane wake covers only its own roster,
@@ -317,14 +318,23 @@ def nudge_text(minutes, since, snap):
 
 
 def team_lead_nudge_text(minutes, since, snap):
-    """The Team Lead's wording: its ticket wait list and agents; a blocked goal is the Manager's and is only named."""
+    """The Team Lead's wording: its ticket wait list and agents; a blocked goal is the Manager's and is only named.
+    With open goals and no open ticket it also names each goal and asks the Manager one line per open goal: `goal <id> done` or `goal <id> blocked: <reason>`."""
     first = minutes == NUDGES[0]
     head = (f"WATCHDOG: nobody has worked for {minutes} minutes (since {hhmm(since)}) and work is waiting."
             if first else f"WATCHDOG: still nobody working after {minutes} minutes (since {hhmm(since)}). This is the last reminder of this idle period.")
     goals = [g for g in open_goals(snap) if g[2] == "blocked"]
     tail = (f" Blocked goals are the Manager's, not yours to solve: {goals_text({'goals': goals})}." if goals else "")
-    waits = ", ".join(f"{t['id']} {t['status']}" for t in snap["tickets"] if t["status"] in OPEN) or "none open"
-    return (f"{head} Waiting: {waits}. Agents: {states_text(snap)}.{tail} "
+    open_tickets = [t for t in snap["tickets"] if t["status"] in OPEN]
+    waits = ", ".join(f"{t['id']} {t['status']}" for t in open_tickets) or "none open"
+    mine = [g for g in open_goals(snap) if g[2] != "blocked"]  # blocked ones are already named in `tail`
+    report = (f" Open goals: {goals_text({'goals': mine})}." if mine else "")
+    if mine and not open_tickets:
+        ids = "; ".join(f"`goal {g[0]} done` or `goal {g[0]} blocked: <reason>`" for g in mine)
+        report += (f" No ticket is open: send the Manager one line per open goal, naming its id, as `goal <id> done` or"
+                   f" `goal <id> blocked: <reason>`, here {ids}: a goal is done when all its tickets passed,"
+                   " else blocked with the reason. The Manager updates goals.md; you never edit it.")
+    return (f"{head} Waiting: {waits}. Agents: {states_text(snap)}.{tail}{report} "
             "Message the Developer who owns a ticket, spawn one within your cap, or `ASK` the Manager.")
 
 
