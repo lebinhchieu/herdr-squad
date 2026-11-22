@@ -78,7 +78,7 @@ class DevRulesSize(unittest.TestCase):
                 "SAFE-1a": "Never touch another worktree",
                 "SAFE-3": "by PID",
                 "SAFE-4": "files your role owns",
-                "SAFE-11": "mktemp -d",
+                "SAFE-11": "anywhere under `/tmp`",
                 {"S": "SUITE-2d", "M": "SUITE-2c", "L": "SUITE-2a"}[size]: "the test files you touched",
                 "MSG-4b": ask_owner,
                 "MSG-11b": f"to the {ask_owner}",
@@ -137,7 +137,7 @@ class DevRulesSize(unittest.TestCase):
                 self.assertIn("squad-process who <ID>", body)
 
     def test_scratch_rule_reaches_dev_and_both_qas_only(self):
-        have = {r for r in ROLES if "mktemp -d" in compose(r, "M").decode() and "rm -rf /tmp/tmp." in compose(r, "M").decode()}
+        have = {r for r in ROLES if "Scratch: anywhere under `/tmp`" in compose(r, "M").decode() and "rm -rf /tmp/X" in compose(r, "M").decode()}
         self.assertEqual(have, {"dev", "qa-whitebox", "qa-blackbox"})
         self.assertLessEqual(len(section(compose("dev", "M").decode(), "SAFE-11").split()), 45)
         for r in ("dev", "qa-whitebox", "qa-blackbox"):

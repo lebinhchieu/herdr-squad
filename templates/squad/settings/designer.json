@@ -3,6 +3,7 @@
   "effortLevel": "high",
   "advisorModel": "opus",
   "permissions": {
+    "additionalDirectories": ["/tmp"],
     "allow": [
       "SendMessage",
       "ListAgents",
@@ -10,7 +11,14 @@
       "Bash(echo:*)",
       "Bash(git log:*)",
       "Write(/.claude/squads/*/scopes/*/ui-design/**)",
-      "Edit(/.claude/squads/*/scopes/*/ui-design/**)"
+      "Edit(/.claude/squads/*/scopes/*/ui-design/**)",
+      "Bash(rm -rf /tmp/*)",
+      "Bash(rm -r /tmp/*)",
+      "Bash(rm /tmp/*)",
+      "Bash(rmdir /tmp/*)",
+      "Read(//tmp/**)",
+      "Edit(//tmp/**)",
+      "Write(//tmp/**)"
     ],
     "ask": [
       "Bash(git push:*)",

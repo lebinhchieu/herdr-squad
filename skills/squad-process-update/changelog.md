@@ -1,3 +1,13 @@
+## v25 — 2026-11-22
+
+Plugin 0.10.6. Every role works anywhere under `/tmp`, not only in `mktemp -d` dirs.
+
+changed:
+- All ten role settings templates: `permissions.additionalDirectories: ["/tmp"]`; allow `Read`, `Edit`, `Write` on `//tmp/**`; the `rm`/`rmdir` allows go from `/tmp/tmp.*` to `/tmp/*` and now reach every role, not six. why: the `tmp.` prefix prompted Chieu for ordinary scratch work.
+- SAFE-11: scratch goes anywhere under `/tmp`; still one path per `rm` and `cd` out first. why: matches the new allows.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.10.6; then `/squad:squad-process-update` and respawn agents so their settings are rebuilt. Rollback: revert the merge, plugin back to 0.10.5.
+
 ## v24 — 2026-11-22
 
 Plugin 0.10.5. The Team Lead spawns, respawns and retires every pod role on `team:` and the Developers; the Manager spawns only the Team Lead and, at the close, the Token Coach (ADR 0032).
