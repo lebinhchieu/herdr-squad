@@ -17,3 +17,9 @@ Amends two lines and says so: 0007 ("no cross-home view; `squad-board` stays the
 - Not built, by decision: `new since last look` (no place for a last-seen time in a terminal), running any command from the pane (Chieu chose copy only), a cross-squad inbox.
 
 **Alternatives rejected:** extending `squad-board` with an all-squads page (a browser, a server and a token for a list; 0020 said no); a recorder of squad state (0009 removed it); the mod reading squad files itself (the facts would drift from the board); a separate commands doc (it would go stale: one code table).
+
+**Amendment (2026-11-22, Chieu):** three changes, each Chieu's request.
+- "No time" meant time spent (the board's work time and cost). The detail screen now shows clock times, in the machine's local timezone with its offset: `Last` (last active, plus its age), `Touched` and `Closed`. Rows show the local date.
+- Every list sorts by last touched, newest first: goals, scopes, done goals, done scopes, and the scopes in a goal. Needs you and stuck no longer move a row up, so the pane's order differs from the board list's on purpose. The facts are still the board's, from the same code. `touched` (ISO UTC) is a new, additive JSON v1 field: the newest of last active, closed at, and the mtimes of the home and its direct files. A goal also counts its scopes. Squads keep their order.
+- A second resume command, `resume-session` ("Resume session"), sits next to `resume` (`squad-start --resume`, unchanged). It is the `claude --resume <roster session>` of the Manager with the env (`SQUAD*`, `SCOPE_DIR`/`GOAL_DIR`, the pinned runtime's `PATH`) and flags (`--agent`, settings, plugin dir, rules) squad-spawn gave it. The text is bash only. It waits when roster.md has no Manager session.
+

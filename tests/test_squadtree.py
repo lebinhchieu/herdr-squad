@@ -111,7 +111,7 @@ class TreeTests(unittest.TestCase):
         before, git_before = snapshot(sc.repo), subprocess.run(["git", "status", "--porcelain"], cwd=str(sc.repo), capture_output=True, text=True).stdout
         data = sc.run("--repo", str(sc.repo), "--json").stdout
         r = subprocess.run([sys.executable, str(ROOT / "hooks" / "squads" / "pane-text"), "-", "40", "100", "--press",
-                            "plugin/goal:g1,c1:board:head,back,plugin/scope:fix,back", "--filter", "api"],
+                            "plugin/goal:g1,c2:board:head,back,plugin/scope:fix,back", "--filter", "api"],
                            input=data, capture_output=True, text=True, encoding="utf-8", cwd=str(sc.repo), timeout=300)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("api", r.stdout)
@@ -176,9 +176,31 @@ class TreeTests(unittest.TestCase):
         finally:
             sc.close()
         plugin = [x for x in t["squads"] if x["name"] == "plugin"][0]
-        # needs you first, then more stuck, then newest; the lone rows here share needs you 0 except q1
+        # newest touched first (q1 was copied last); needs you no longer jumps the queue
         self.assertEqual([n["name"] for n in plugin["scopes"]], ["q1", "fix", "new1", "old1"])
         self.assertEqual(plugin["needs_you"], 2 + 1)  # goal g1 (api 2) + lone q1 (1): questions, not rows
+
+    def test_every_list_sorts_by_last_touched_newest_first(self):
+        """Goals, scopes, done goals and done scopes: newest touched first, not needs you first (Chieu, 2026-11-22)."""
+        sc = Scratch(True)
+        try:
+            base = sc.repo / ".claude/squads/plugin/scopes"
+            for name, age in (("old1", 7200), ("new1", 0)):
+                shutil.copytree(str(base / "fix"), str(base / name))
+                for f in [base / name] + list((base / name).iterdir()):
+                    t = build.LIVE.timestamp() + 86400 - age  # newer than every other row
+                    os.utime(str(f), (t, t))
+            (base / "old1" / "escalations.md").write_text(build.HEAD + "| 1 | 2026-11-12 | Q? | a | a | none | |\n", encoding="utf-8")
+            os.utime(str(base / "old1" / "escalations.md"), (build.LIVE.timestamp() + 86400 - 7200,) * 2)
+            t = sc.tree()
+        finally:
+            sc.close()
+        plugin = [x for x in t["squads"] if x["name"] == "plugin"][0]
+        self.assertEqual([n["name"] for n in plugin["scopes"]][:2], ["new1", "old1"])  # old1 needs you, still second
+        for key in ("goals", "scopes"):
+            for rows in (plugin[key], plugin["done"][key]):
+                stamps = [n["touched"] or "" for n in rows]
+                self.assertEqual(stamps, sorted(stamps, reverse=True), key)
 
     def test_T1_5_light_rows_read_no_inbox_and_no_git(self):
         with unittest.mock.patch.object(L.squadinbox, "snapshot", side_effect=AssertionError("inbox")) as snap, \
@@ -280,7 +302,7 @@ class TreeTests(unittest.TestCase):
         s = self.up
         before = snapshot(s.repo)
         env = s.env(SQUAD_WATCHDOG="off")
-        want = {"inbox", "watchdog", "report-status", "close-scope", "resume"}
+        want = {"inbox", "watchdog", "report-status", "close-scope", "resume"}  # resume-session is `claude --resume`: not run
         ran = set()
         for _, n in nodes(self.tree_up):
             if n["name"] != "ui":

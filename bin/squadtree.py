@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import squadboard
+import squadboard_active
 import squadboard_list as L
 import squadcommands
 
@@ -90,13 +91,51 @@ def _node(squad, kind, status, row):
     n["closed_at"] = row["closed_at"] if status == "done" else None
     n["facts"] = _facts(row) if "tasks_total" in row else None
     n["unknown"] = row["unknown"]
+    n["touched"] = touched(home, n)
     return n
+
+
+def touched(home, n):
+    """Last touched, ISO UTC: the newest of last active, closed at and the mtimes of the home and its direct files."""
+    ts = [L._mtime(home)]
+    try:
+        ts += [L._mtime(e.path) for e in os.scandir(str(home))]
+    except OSError:
+        pass
+    stamps = [L._iso(t) for t in ts if t is not None]
+    stamps += [v for v in ((n["facts"] or {}).get("last_active"), n["closed_at"]) if v and v != "unknown"]
+    return max(stamps) if stamps else None
+
+
+def by_touched(nodes):
+    """Newest touched first; never touched last. Stable."""
+    return sorted(nodes, key=lambda x: x.get("touched") or "", reverse=True)
+
+
+def manager_of(squad, n, goal=None):
+    """The Manager that runs open node `n` (a scope in a goal: the goal's), for `claude --resume`; None when done.
+    Reads the home's roster.md (session) and roles/ (settings, rules) the way squad-spawn wrote them."""
+    if n["status"] != "open":
+        return None
+    kind, name = ("goal", goal) if goal else (n["kind"], n["name"])
+    home = squad.path / (kind + "s") / name
+    agent = "%s-mgr-%s" % (squad.name, name)
+    rows = [r for r in squadboard_active.roster_rows(home) if r["name"] == agent and r["session"]]
+    roles = home / "roles"
+    f = lambda p: str(p) if p.is_file() else None  # noqa: E731
+    return {"name": agent, "kind": kind, "home": str(home), "home_name": name,
+            "session": rows[-1]["session"] if rows else None, "cwd": str(squad.path.parents[2]),
+            "composed": (squad.path / "process.local.md").is_file(),
+            "lean": f(roles / (agent + ".lean-settings.json")), "settings": f(roles / (agent + ".settings.json")),
+            "rules": f(roles / (agent + ".rules.md"))}
 
 
 def _finish(squad, n, flat_goal=None, open_scopes=()):
     n["next_step"] = next_step(n)
     info = {"kind": n["kind"], "name": n["name"], "status": n["status"], "home": n["home"], "squad": squad.name, "squad_path": str(squad.path),
             "goal": flat_goal, "facts": n["facts"], "open_scopes": list(open_scopes), "flat": False}
+    if n["kind"] in ("goal", "scope"):
+        info["manager"] = manager_of(squad, n, flat_goal)
     n["commands"] = squadcommands.commands_for(info)
     return n
 
@@ -149,34 +188,24 @@ def _squad(squad, sel):
             g = L.goal_row(squad, home, "open", scope_rows)
             g["unknown"] = list(g["unknown"])
             n = _node(squad, "goal", "open", g)
-            opens = L._sort_open([r for s, r in pairs if s == "open"])
-            closed = L._sort_done([r for s, r in pairs if s == "done"])
-            kids = [scope_node("open", r, name) for r in opens] + [scope_node("done", r, name) for r in closed]
-            n["scopes"] = [_finish(squad, k, name) for k in kids]
-            return _finish(squad, n, open_scopes=[r["name"] for r in opens])
+            opens = by_touched([scope_node("open", r, name) for s, r in pairs if s == "open"])
+            closed = by_touched([scope_node("done", r, name) for s, r in pairs if s == "done"])
+            n["scopes"] = [_finish(squad, k, name) for k in opens + closed]
+            n["touched"] = max([x for x in [n["touched"]] + [k["touched"] for k in n["scopes"]] if x] or [None])
+            return _finish(squad, n, open_scopes=[k["name"] for k in opens])
         light = _light(home, "goal.md")
         n = _node(squad, "goal", "done", light)
-        n["scopes"] = [_finish(squad, scope_node("done", r, name), name) for r in L._sort_done(scope_rows)]
+        n["scopes"] = [_finish(squad, k, name) for k in by_touched([scope_node("done", r, name) for r in scope_rows])]
+        n["touched"] = max([x for x in [n["touched"]] + [k["touched"] for k in n["scopes"]] if x] or [None])
         return _finish(squad, n)
 
-    for name in open_goals:
-        out["goals"].append(goal_node(name, "open"))
-    for name in done_goals:
-        out["done"]["goals"].append(goal_node(name, "done"))
-    out["goals"] = _sorted_goals(out["goals"])
-    out["done"]["goals"].sort(key=lambda g: g["closed_at"] if g["closed_at"] != "unknown" else "", reverse=True)
-    for row in L._sort_open(lone["open"]):
-        out["scopes"].append(_finish(squad, scope_node("open", row, None)))
-    for row in L._sort_done(lone["done"]):
-        out["done"]["scopes"].append(_finish(squad, scope_node("done", row, None)))
+    # Every list is newest touched first (Chieu, 2026-11-22): goals, scopes, done goals, done scopes.
+    out["goals"] = by_touched([goal_node(name, "open") for name in open_goals])
+    out["done"]["goals"] = by_touched([goal_node(name, "done") for name in done_goals])
+    out["scopes"] = [_finish(squad, k) for k in by_touched([scope_node("open", r, None) for r in lone["open"]])]
+    out["done"]["scopes"] = [_finish(squad, k) for k in by_touched([scope_node("done", r, None) for r in lone["done"]])]
     out["needs_you"] = sum((n["facts"] or {}).get("needs_you") or 0 for n in out["goals"] + out["scopes"])
     return out
-
-
-def _sorted_goals(goals):
-    rows = [dict(g["facts"], _n=g) for g in goals]
-    L._sort_open(rows)
-    return [r["_n"] for r in rows]
 
 
 def _squad_order(squads):

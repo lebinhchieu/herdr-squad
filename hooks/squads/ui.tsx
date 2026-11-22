@@ -6,7 +6,7 @@ import type { SquadCommand, SquadsTree, SquadsUi } from '../../types'
 import { back, copyCommand, patchUi, refresh, scrollTo, select, setFilter, toggle, view } from './actions'
 import type { Row, Seg, Style, Target } from './core'
 import {
-  ago, CHANGE_STYLE, COMMAND_STYLE, day, DIM_STYLE, fitCells, isOpenKey, line, listRows, needsTotal, NEEDS_STYLE, NOT_YET_STYLE, resolve,
+  ago, CHANGE_STYLE, COMMAND_STYLE, DIM_STYLE, fitCells, isOpenKey, line, listRows, localTime, needsTotal, NEEDS_STYLE, NOT_YET_STYLE, resolve,
   rowSegs, sliceSegs, stateWord, STUCK_STYLE, symbolOf, toneOf, widths, windowOf,
 } from './core'
 
@@ -176,14 +176,16 @@ function detailScreen($: any, e: any, T: any, tree: SquadsTree, ui: SquadsUi, t:
     lines.push(<Text key="name" wrap="truncate">{fitCells(line(n.name), cols)}</Text>)
     if (n.brief) lines.push(<Text key="brief" dimColor wrap="wrap">{line(n.brief)}</Text>)
     if (n.status === 'done' || !n.facts) {
-      lines.push(<Text key="closed" dimColor>{`Closed ${day(n.closed_at)}. Read the report.`}</Text>)
+      lines.push(<Text key="closed" dimColor>{`Closed ${localTime(n.closed_at)}. Read the report.`}</Text>)
+      if (n.touched) kv('Touched', localTime(n.touched))
     } else {
       const f = n.facts
       kv('Next', n.next_step.text, { color: tone.color, dim: tone.dim })
       kv('Needs you', f.needs_you === null ? '?' : String(f.needs_you), f.needs_you === 0 ? DIM_STYLE : NEEDS_STYLE)
       kv('Stuck', String(f.stuck), f.stuck > 0 ? STUCK_STYLE : DIM_STYLE)
       kv('Tasks', n.unknown.includes('tickets') || f.tasks_total === 0 ? '?' : `${f.tasks_done}/${f.tasks_total}`)
-      kv('Last', ago(f.last_active, tree.generated))
+      kv('Last', f.last_active ? `${localTime(f.last_active)} (${((a) => (a === 'now' ? a : `${a} ago`))(ago(f.last_active, tree.generated))})` : '?')
+      if (n.touched) kv('Touched', localTime(n.touched))
       kv('Agents', f.agents_working === null ? '?' : String(f.agents_working))
       if (n.unknown.length) kv('Unknown', n.unknown.join(', '))
     }

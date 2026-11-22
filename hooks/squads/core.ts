@@ -94,7 +94,19 @@ export function ago(iso: string | null | undefined, now: string): string {
   return `${Math.floor(s / 86400)}d`
 }
 
-export const day = (iso: string | null | undefined): string => (iso ? line(iso).slice(0, 10) : '?')
+// The local date of `iso` (the first 10 of localTime), so a row and its detail agree on the day.
+export const day = (iso: string | null | undefined): string => { const t = localTime(iso); return t === '?' ? '?' : t.slice(0, 10) }
+
+// Date and time in the machine's own timezone, with its offset: `2026-11-22 20:15 +07:00`.
+export function localTime(iso: string | null | undefined): string {
+  if (!iso || iso === 'unknown') return '?'
+  const d = new Date(iso)
+  if (!Number.isFinite(d.getTime())) return '?'
+  const p = (n: number) => String(n).padStart(2, '0')
+  const off = -d.getTimezoneOffset()
+  const a = Math.abs(off)
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())} ${off < 0 ? '-' : '+'}${p(Math.floor(a / 60))}:${p(a % 60)}`
+}
 
 // --- rows -------------------------------------------------------------------------------------
 

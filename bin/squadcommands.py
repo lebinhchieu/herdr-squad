@@ -32,6 +32,35 @@ def _resume_name(i):
     return i["goal"] or i["name"]  # squad-start refuses a scope that has a goal: use the goal's name
 
 
+PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
+
+def _resume_text(i):
+    """`claude --resume` of the Manager's roster session, with the env and flags squad-spawn gave it.
+    i["manager"]: {name, session, home, kind (scope|goal), cwd, composed, settings, lean, rules} (squadtree.manager_of)."""
+    m = i.get("manager") or {}
+    session = m.get("session") or "<session>"
+    env = ["SQUAD=%s" % q(i["squad"]), "SQUAD_DIR=%s" % q(i["squad_path"]), "SQUAD_NAME=%s" % q(m.get("name") or ""),
+           "SQUAD_ROLE=manager", "SQUAD_SCOPE=%s" % (q(m["home_name"]) if m.get("kind") == "scope" else "''"),
+           "%s=%s" % ("SCOPE_DIR" if m.get("kind") == "scope" else "GOAL_DIR", q(m.get("home") or i["home"]))]
+    flags = ["--resume", q(session), "--agent", "squad:manager", "--permission-mode", "auto"]
+    pre = ""
+    if m.get("lean"):
+        flags += ["--setting-sources", "project,local", "--settings", q(m["lean"])]
+    elif m.get("settings"):
+        flags += ["--settings", q(m["settings"])]
+    if m.get("composed"):
+        pre = "RT=$(squad-process runtime --squad-dir %s --home %s) && " % (q(i["squad_path"]), q(m["home"]))
+        env.insert(0, 'PATH="$RT/bin:$PATH"')
+        flags += ["--plugin-dir", '"$RT"']
+    elif m.get("lean"):
+        flags += ["--plugin-dir", q(PLUGIN_ROOT)]
+    if m.get("rules"):
+        flags += ["--append-system-prompt-file", q(m["rules"])]
+    cd = "cd %s && " % q(m["cwd"]) if m.get("cwd") else ""
+    return "%s%s%s claude %s" % (pre, cd, " ".join(env), " ".join(flags))
+
+
 def _board_text(i):
     if i["kind"] == "squad":
         return "squad-board --squad %s" % q(i["squad"])
@@ -47,6 +76,12 @@ def _board_when(i):
 
 def _resume_ready(i):
     return ("wait", "agents are working") if (_f(i, "agents_working") or 0) > 0 else ("ready", None)
+
+
+def _resume_session_ready(i):
+    if not (i.get("manager") or {}).get("session"):
+        return ("wait", "no Manager session in roster.md")
+    return _resume_ready(i)
 
 
 def _inbox_ready(i):
@@ -86,6 +121,8 @@ COMMANDS = [
          "starts", "Start new work.", _new_work_ready, True),
     _rec("resume", "Resume", lambda i: "squad-start --resume %s --squad %s" % (q(_resume_name(i)), q(i["squad"])),
          ("goal", "scope"), "open", "starts", "Start the Manager again.", _resume_ready),
+    _rec("resume-session", "Resume session", _resume_text, ("goal", "scope"), "open", "starts",
+         "Resume the Manager's own session (claude --resume).", _resume_session_ready),
     _rec("board", "Board", _board_text, ("squad", "goal", "scope"), "any", "read", _board_when),
     _rec("report", "Report", lambda i: "squad-report %s --squad %s" % (q(i["name"]), q(i["squad_path"])),
          ("goal", "scope"), "any", "writes", "Write the report."),

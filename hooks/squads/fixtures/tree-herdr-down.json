@@ -64,6 +64,7 @@
             "last_active": "2026-11-12T09:30:00Z"
           },
           "unknown": [],
+          "touched": "2026-11-12T09:30:00Z",
           "scopes": [
             {
               "name": "api",
@@ -86,6 +87,7 @@
               "unknown": [
                 "herdr"
               ],
+              "touched": "2026-11-12T09:30:00Z",
               "next_step": {
                 "rule": 1,
                 "text": "Cannot read herdr: open board"
@@ -102,6 +104,18 @@
                   "reason": null,
                   "placeholder": false,
                   "when": "Start the Manager again."
+                },
+                {
+                  "id": "resume-session",
+                  "label": "Resume session",
+                  "text": "cd /work/repo && SQUAD=plugin SQUAD_DIR=/work/repo/.claude/squads/plugin SQUAD_NAME=plugin-mgr-g1 SQUAD_ROLE=manager SQUAD_SCOPE='' GOAL_DIR=/work/repo/.claude/squads/plugin/goals/g1 claude --resume '<session>' --agent squad:manager --permission-mode auto",
+                  "changes": "starts",
+                  "runs_by": "chieu",
+                  "group": "yours",
+                  "state": "wait",
+                  "reason": "no Manager session in roster.md",
+                  "placeholder": false,
+                  "when": "Resume the Manager's own session (claude --resume)."
                 },
                 {
                   "id": "board",
@@ -342,6 +356,7 @@
               "unknown": [
                 "herdr"
               ],
+              "touched": "2026-11-12T09:30:00Z",
               "next_step": {
                 "rule": 1,
                 "text": "Cannot read herdr: open board"
@@ -358,6 +373,18 @@
                   "reason": null,
                   "placeholder": false,
                   "when": "Start the Manager again."
+                },
+                {
+                  "id": "resume-session",
+                  "label": "Resume session",
+                  "text": "cd /work/repo && SQUAD=plugin SQUAD_DIR=/work/repo/.claude/squads/plugin SQUAD_NAME=plugin-mgr-g1 SQUAD_ROLE=manager SQUAD_SCOPE='' GOAL_DIR=/work/repo/.claude/squads/plugin/goals/g1 claude --resume '<session>' --agent squad:manager --permission-mode auto",
+                  "changes": "starts",
+                  "runs_by": "chieu",
+                  "group": "yours",
+                  "state": "wait",
+                  "reason": "no Manager session in roster.md",
+                  "placeholder": false,
+                  "when": "Resume the Manager's own session (claude --resume)."
                 },
                 {
                   "id": "board",
@@ -598,6 +625,7 @@
               "unknown": [
                 "herdr"
               ],
+              "touched": "2026-11-12T09:30:00Z",
               "next_step": {
                 "rule": 9,
                 "text": "Closed. Read the report."
@@ -658,6 +686,18 @@
               "reason": null,
               "placeholder": false,
               "when": "Start the Manager again."
+            },
+            {
+              "id": "resume-session",
+              "label": "Resume session",
+              "text": "cd /work/repo && SQUAD=plugin SQUAD_DIR=/work/repo/.claude/squads/plugin SQUAD_NAME=plugin-mgr-g1 SQUAD_ROLE=manager SQUAD_SCOPE='' GOAL_DIR=/work/repo/.claude/squads/plugin/goals/g1 claude --resume '<session>' --agent squad:manager --permission-mode auto",
+              "changes": "starts",
+              "runs_by": "chieu",
+              "group": "yours",
+              "state": "wait",
+              "reason": "no Manager session in roster.md",
+              "placeholder": false,
+              "when": "Resume the Manager's own session (claude --resume)."
             },
             {
               "id": "board",
@@ -768,6 +808,7 @@
           "unknown": [
             "herdr"
           ],
+          "touched": "2026-11-12T09:30:00Z",
           "next_step": {
             "rule": 1,
             "text": "Cannot read herdr: open board"
@@ -784,6 +825,18 @@
               "reason": null,
               "placeholder": false,
               "when": "Start the Manager again."
+            },
+            {
+              "id": "resume-session",
+              "label": "Resume session",
+              "text": "cd /work/repo && SQUAD=plugin SQUAD_DIR=/work/repo/.claude/squads/plugin SQUAD_NAME=plugin-mgr-fix SQUAD_ROLE=manager SQUAD_SCOPE=fix SCOPE_DIR=/work/repo/.claude/squads/plugin/scopes/fix claude --resume '<session>' --agent squad:manager --permission-mode auto",
+              "changes": "starts",
+              "runs_by": "chieu",
+              "group": "yours",
+              "state": "wait",
+              "reason": "no Manager session in roster.md",
+              "placeholder": false,
+              "when": "Resume the Manager's own session (claude --resume)."
             },
             {
               "id": "board",
@@ -1016,6 +1069,7 @@
             "closed_at": "2026-11-01T12:00:00Z",
             "facts": null,
             "unknown": [],
+            "touched": "2026-11-12T09:30:00Z",
             "scopes": [
               {
                 "name": "old",
@@ -1029,6 +1083,7 @@
                 "closed_at": "2026-11-01T12:00:00Z",
                 "facts": null,
                 "unknown": [],
+                "touched": "2026-11-12T09:30:00Z",
                 "next_step": {
                   "rule": 9,
                   "text": "Closed. Read the report."
@@ -1130,6 +1185,7 @@
             "closed_at": "2026-11-05T12:00:00Z",
             "facts": null,
             "unknown": [],
+            "touched": "2026-11-12T09:30:00Z",
             "next_step": {
               "rule": 9,
               "text": "Closed. Read the report."

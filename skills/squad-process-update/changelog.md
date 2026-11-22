@@ -1,3 +1,14 @@
+## v27 — 2026-11-22
+
+Plugin 0.10.8. `/squads`: a "Resume session" command (`claude --resume` of the Manager's own session), lists newest touched first, and local date and time in the detail screen.
+
+changed:
+- `bin/squadcommands.py`: new `resume-session` record next to `resume` (kept). why: Chieu wants to resume the Manager's own session, with its env vars, not start a new one.
+- `bin/squadtree.py`: `touched` per goal and scope; goals, scopes, done goals and done scopes sort by it, newest first. why: Chieu wants the lists sorted by last touched.
+- `hooks/squads`: the detail screen shows `Last`, `Touched` and `Closed` as local date and time with the offset; rows show the local date. why: UTC dates read a day off at +07.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.10.8; reload the mod. No process files change. Rollback: revert the merge, plugin back to 0.10.7.
+
 ## v26 — 2026-11-22
 
 Plugin 0.10.7. A PO inbox item that has only a date shows its age in Chieu's local days (`today`, `1d`), not hours since midnight UTC.
