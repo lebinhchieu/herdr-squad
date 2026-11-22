@@ -53,6 +53,22 @@ class CommandTests(unittest.TestCase):
         c = by_id(C.commands_for(info(goal="g1", facts=facts(agents_working=2, needs_you=0))))
         self.assertEqual(c["resume"]["text"], "squad-start --resume g1 --squad plugin")  # the goal's name
         self.assertEqual((c["resume"]["state"], c["resume"]["reason"]), ("wait", "agents are working"))
+        rs = c["resume-session"]
+        self.assertEqual((rs["state"], rs["reason"]), ("wait", "no Manager session in roster.md"))
+        mgr = {"name": "plugin-mgr-g1", "kind": "goal", "home": "/r/sq/goals/g1", "home_name": "g1", "session": "s-1",
+               "cwd": "/r", "composed": True, "lean": "/r/l.json", "settings": None, "rules": "/r/rules.md"}
+        c = by_id(C.commands_for(info(goal="g1", manager=mgr, facts=facts(agents_working=2, needs_you=0))))
+        self.assertEqual((c["resume-session"]["state"], c["resume-session"]["reason"]), ("wait", "agents are working"))
+        words = shlex.split(c["resume-session"]["text"])
+        self.assertIn("claude", words)
+        self.assertNotIn("squad-start", words)
+        for w in ("SQUAD=plugin", "SQUAD_NAME=plugin-mgr-g1", "SQUAD_ROLE=manager", "SQUAD_SCOPE=", "GOAL_DIR=/r/sq/goals/g1",
+                  "SQUAD_DIR=/r/.claude/squads/plugin"):
+            self.assertIn(w, words)
+        tail = words[words.index("claude"):]
+        self.assertEqual(tail[1:5], ["--resume", "s-1", "--agent", "squad:manager"])  # the goal Manager's roster session
+        for flag in ("--settings", "--plugin-dir", "--append-system-prompt-file", "--setting-sources"):
+            self.assertIn(flag, tail)
         self.assertEqual((c["inbox"]["state"], c["inbox"]["reason"]), ("wait", "no open questions"))
         self.assertEqual((c["close-scope"]["state"], c["close-scope"]["reason"]), ("wait", "tasks open"))
         g = by_id(C.commands_for(info("goal", name="g1", open_scopes=["a", "b"], facts=facts())))

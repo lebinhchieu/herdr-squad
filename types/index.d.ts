@@ -100,6 +100,8 @@ export type ScopeNode = {
   goal_label: string | null;
   brief: string;
   closed_at: string | null;
+  /** Last touched, ISO UTC (newest of last active, closed at, home file mtimes); lists sort by it, newest first. */
+  touched?: string | null;
   facts: SquadFacts | null;
   unknown: string[];
   next_step: NextStep;
@@ -115,6 +117,8 @@ export type GoalNode = {
   home: string;
   brief: string;
   closed_at: string | null;
+  /** Last touched, ISO UTC (newest of last active, closed at, home file mtimes); lists sort by it, newest first. */
+  touched?: string | null;
   facts: SquadFacts | null;
   unknown: string[];
   next_step: NextStep;
