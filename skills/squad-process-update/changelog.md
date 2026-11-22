@@ -1,3 +1,12 @@
+## v26 — 2026-11-22
+
+Plugin 0.10.7. A PO inbox item that has only a date shows its age in Chieu's local days (`today`, `1d`), not hours since midnight UTC.
+
+changed:
+- `hooks/po-inbox` `ageOf`: a day-precision `created` counts local calendar days; list, header and Details show `today` without "ago". why: a row dated today read `12h ago` in the evening at +07, and `now` before 07:00.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.10.7; reload the mod. No process files change. Rollback: revert the merge, plugin back to 0.10.6.
+
 ## v25 — 2026-11-22
 
 Plugin 0.10.6. Every role works anywhere under `/tmp`, not only in `mktemp -d` dirs.
