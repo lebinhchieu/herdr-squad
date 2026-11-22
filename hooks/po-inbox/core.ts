@@ -133,8 +133,17 @@ export function stamp(iso: string, precision?: string): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
-// `now`, `12m`, `5h`, `3d`.
-export function ageOf(created: string, now: string): string {
+// `now`, `12m`, `5h`, `3d`. A day-precision source has only a date, written in the PO's own day: it is
+// counted in local calendar days (`today`, `1d`, ...), never as hours from midnight UTC.
+export function ageOf(created: string, now: string, precision?: string): string {
+  if (precision === 'day' || /^\d{4}-\d\d-\d\d$/.test(created)) {
+    const c = /^(\d{4})-(\d\d)-(\d\d)/.exec(created)
+    const t = Date.parse(now)
+    if (!c || Number.isNaN(t)) return ''
+    const n = new Date(t)
+    const days = Math.round((Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()) - Date.UTC(+c[1], +c[2] - 1, +c[3])) / 86400000)
+    return days < 1 ? 'today' : `${days}d`
+  }
   const ms = Date.parse(now) - Date.parse(created)
   if (Number.isNaN(ms)) return ''
   const min = Math.floor(ms / 60000)

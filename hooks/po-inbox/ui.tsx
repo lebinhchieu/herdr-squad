@@ -215,8 +215,8 @@ function listScreen($: any, e: any, ui: any, snap: InboxSnapshot, error: any, T:
     if (short) return { nodes: [], rows: 0 }
     const label = `blocks ${line(it.blocks) || 'nothing'}`
     const tone = toneProps(blocksTone(it.blocks))
-    const a = ageOf(it.created, snap.now)
-    const age = compact || a === 'now' ? a : `created ${a} ago`
+    const a = ageOf(it.created, snap.now, it.created_precision)
+    const age = compact || a === 'now' || a === 'today' ? a : `created ${a} ago`
     const withAge = a !== '' && cellWidth(`${INDENT}${label} · ${age}`) <= cols
     if (withAge) {
       return {
@@ -247,7 +247,7 @@ function listScreen($: any, e: any, ui: any, snap: InboxSnapshot, error: any, T:
     const kind = waiting ? 'answered' : it.kind
     const kindProps = toneProps(waiting ? 'warn' : kindTone(it))
     // short tier: the short age ends the row (the waiting rows carry their status in the sub-row instead)
-    const age = short && !waiting ? ageOf(it.created, snap.now) : ''
+    const age = short && !waiting ? ageOf(it.created, snap.now, it.created_precision) : ''
     const prefix = 3 + cellWidth(id) + 2 + cellWidth(kind) + 2
     const title = clipCells(line(it.title), Math.max(10, cols - prefix - (age === '' ? 0 : 2 + cellWidth(age))))
     const hot = n <= 9 ? { hotkey: String(n) } : {}
@@ -338,9 +338,9 @@ function itemNotice(ui: any, cols: number, T: any): Sized | null {
 
 // `created Y`: under a day `5h ago`; from a day the date and the age when wide, the age alone when compact.
 function createdText(it: InboxItem, now: string, cols: number): string {
-  const age = ageOf(it.created, now)
+  const age = ageOf(it.created, now, it.created_precision)
   if (age === '') return when(it.created, it.created_precision)
-  if (age === 'now') return 'now'
+  if (age === 'now' || age === 'today') return age
   if (!age.endsWith('d')) return `${age} ago`
   return cols >= BODY_COLUMNS_FULL ? `${when(it.created, it.created_precision).slice(0, 10)} (${age} ago)` : `${age} ago`
 }
@@ -496,7 +496,7 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   const btnWidth = buttons.reduce((n, _b, i) => n + (i === 0 ? cellWidth(backLabel) : cellWidth('Mark read (m)')) + 4, 0) + (buttons.length - 1)
 
   // row 1: header pieces
-  const age = ageOf(it.created, snap.now)
+  const age = ageOf(it.created, snap.now, it.created_precision)
   const blocksFull = line(it.blocks) || 'nothing'
   const bt = it.state === 'done' ? 'dim' : blocksTone(it.blocks)
   const make = (b: string, a: string): Piece[] => {

@@ -144,6 +144,13 @@ test('ageOf: now, minutes, hours, days (60 days stays days)', () => {
   expect(ageOf('2026-08-16T12:00:00', now)).toBe('60d')
 })
 
+test('ageOf: a day-precision date counts local calendar days, not hours from midnight UTC', () => {
+  const evening = new Date(2026, 10, 22, 19, 56).toISOString()
+  expect(ageOf('2026-11-22T00:00:00Z', evening, 'day')).toBe('today')
+  expect(ageOf('2026-11-21T00:00:00Z', evening, 'day')).toBe('1d')
+  expect(ageOf('2026-11-22T00:00:00Z', new Date(2026, 10, 22, 0, 30).toISOString(), 'day')).toBe('today')
+})
+
 test('stamp: local date and time; a day-precision source is date only', () => {
   expect(stamp('2026-10-15T10:42:00')).toBe('2026-10-15 10:42')
   expect(stamp('2026-10-15', 'day')).toBe('2026-10-15')
