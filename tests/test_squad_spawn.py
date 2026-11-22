@@ -4,6 +4,8 @@ import os
 import re
 import shutil
 import subprocess
+import sys
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -700,6 +702,61 @@ class SpawnScopedTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("| t-tech-sc1 | tech-lead | sc1 |", (self.squad / "scopes" / "sc1" / "roster.md").read_text(encoding="utf-8"))
         self.assertNotIn("t-tech-sc1", (self.squad / "scopes" / "sc2" / "roster.md").read_text(encoding="utf-8"))
+
+
+class SpawnWatchdogTest(unittest.TestCase):
+    """The home's watchdog starts at the first non-Manager spawn (watchdog-blocked 02). The fake herdr only logs `tab create`."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.squad = scoped_squad(self.root)
+        self.env = clean_env()
+        self.env.update(HERDR_ENV="1", SQUAD_DIR=str(self.squad))
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir()
+        fake_herdr(bin_dir)
+        self.hlog = self.root / "h.log"
+        self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", HERDR_LOG=str(self.hlog))
+        self.env.pop("SQUAD_WATCHDOG", None)
+
+    def spawn_real(self, role, name, *args):
+        r = winlaunch.run_script(SCRIPT, [role, name, *args], env=self.env, text=True, encoding="utf-8", capture_output=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r
+
+    def tabs(self):
+        log = self.hlog.read_text(encoding="utf-8") if self.hlog.exists() else ""
+        return [l for l in log.splitlines() if l.startswith("tab create") and "--label watchdog" in l]
+
+    def beat(self, home):
+        (home / "watchdog.state.json").write_text(json.dumps({"beat": time.time()}), encoding="utf-8")
+
+    def test_first_non_manager_spawn_starts_the_homes_watchdog_once_and_a_manager_none(self):  # AC2
+        self.spawn_real("manager", "t-mgr-sc1", "--scope", "sc1")
+        self.assertEqual(self.tabs(), [])
+        r = self.spawn_real("team-lead", "t-tl-sc1", "--scope", "sc1")
+        self.assertEqual(json.loads(r.stdout)["status"], "ready")  # stdout stays one JSON line
+        self.assertEqual(len(self.tabs()), 1)
+        self.assertIn(f"--cwd {self.squad}/scopes/sc1 ", self.tabs()[0])
+        self.beat(self.squad / "scopes" / "sc1")
+        self.spawn_real("tech-lead", "t-tech-sc1", "--scope", "sc1")
+        self.assertEqual(len(self.tabs()), 1)
+
+    def test_a_scope_in_a_goal_also_starts_the_goals_watchdog(self):  # AC3
+        self.spawn_real("team-lead", "t-tl-sc2", "--scope", "sc2")
+        cwds = sorted(t.split("--cwd ")[1].split(" ")[0] for t in self.tabs())
+        self.assertEqual(cwds, [f"{self.squad}/goals/g1", f"{self.squad}/scopes/sc2"])
+
+    def test_a_failing_watchdog_start_warns_and_never_fails_the_spawn(self):  # AC6
+        fail = self.root / "bin" / "python3"
+        fail.write_text('#!/usr/bin/env bash\n[[ " $* " == *squad-watchdog* ]] && { echo boom >&2; exit 1; }\n'
+                        f'exec {sys.executable} "$@"\n', encoding="utf-8", newline="\n")
+        fail.chmod(0o755)
+        r = self.spawn_real("team-lead", "t-tl-sc1", "--scope", "sc1")
+        self.assertIn("could not start the watchdog", r.stderr)
+        self.assertEqual(json.loads(r.stdout)["name"], "t-tl-sc1")
 
 
 class SpawnTaskPromptTest(unittest.TestCase):

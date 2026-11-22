@@ -13,10 +13,8 @@ The name is the first ticket id in the text (SEC-04 -> sec04), else a short slug
 scope.md lines `model <role>: <model> <effort>` set a role's model for every spawn in that scope (flags and a recorded override win; settings and template lose).
 --model and --effort set the Manager's model and effort (default: the model and effort in settings/manager.json); it does not change the roles the Manager spawns.
 --dry-run prints the Manager's model and effort and where each came from (flag, recorded override on --resume, scope.md `model manager:` on --resume, squad settings, template).
-A scope or goal that gets a Manager, and a scope inside a goal (--in-goal, target = the scope folder, Manager = the goal Manager), also gets a watchdog
-(bin/squad-watchdog), started in its own herdr tab (label `watchdog`, no focus, only the watchdog, one per home) or, outside herdr or when the tab
-fails, detached: it logs idle spells and nudges after 5 and 15 minutes when nobody works (a scope: its Team Lead, else the Manager; a goal: the
-Manager). SQUAD_WATCHDOG=off starts none.
+No watchdog starts here: a home's watchdog (bin/squad-watchdog) starts at the first non-Manager `squad-spawn` into it, or at
+`squad-watchdog sleep on` (see squad-spawn and the watchdog docstring). SQUAD_WATCHDOG=off starts none.
 Env: SQUAD_DIR (else the only squad in <git root>/.claude/squads, or --squad).
 """
 import argparse
@@ -286,7 +284,6 @@ def resume(squad, a):
     except ValueError:
         tab = None
     name_workspace(a.resume)
-    start_watchdog(target, manager)
     print(json.dumps({"kind": kind, "name": a.resume, "dir": str(target), "manager": manager, "tab": tab}))
     print_board_command(squad, kind, a.resume)
 
@@ -420,9 +417,6 @@ def main():
             pass
     if manager:
         name_workspace(name)
-        start_watchdog(target, manager)
-    elif a.in_goal:  # no Manager of its own: the goal Manager is the fallback of the scope's watchdog
-        start_watchdog(target, f"{squad.name}-mgr-{a.in_goal}")
     print(json.dumps({"kind": kind, "name": name, "dir": str(target), "manager": manager, "tab": tab}))
     print_board_command(squad, kind, name)
 

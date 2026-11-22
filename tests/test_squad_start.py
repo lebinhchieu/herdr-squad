@@ -89,32 +89,21 @@ class StartTest(unittest.TestCase):
             time.sleep(0.1)
         self.fail("the watchdog made no pass")
 
-    def test_a_scope_a_goal_and_an_in_goal_scope_start_a_watchdog_and_a_dry_run_or_off_does_not(self):
+    def test_squad_start_starts_no_watchdog_for_a_scope_a_goal_an_in_goal_scope_or_a_resume(self):  # AC1
         self.env.pop("SQUAD_WATCHDOG")
-        self.env["SQUAD_WATCHDOG_INTERVAL"] = "1"
-        f = self.root / "fakebin" / "herdr"  # a herdr that cannot run a command in the tab: the detached fallback starts the watchdog
+        calls = self.root / "herdr-calls.log"
+        f = self.root / "fakebin" / "herdr"
         head, _ = f.read_text(encoding="utf-8").rsplit("exit 0\n", 1)
-        f.write_text(head + '[[ "$1 $2" == "pane run" ]] && exit 1\nexit 0\n', encoding="utf-8", newline="\n")
-        self.assertEqual(self.start("Task one", "--name", "one", "--dry-run").returncode, 0)
-        self.assertFalse((self.squad / "scopes" / "one").exists())
-        for text, kind, name in (("Task one", "scopes", "one"), ("goal: Big", "goals", "big")):
-            home = self.squad / kind / name
-            self.assertEqual(self.start(text, "--name", name).returncode, 0)
-            pid = self.watchdog_pid(home)
-            self.addCleanup(self.stop, pid)
-            self.assertRegex((home / "watchdog.log").read_text(encoding="utf-8"), rf"watchdog started for {name}; Manager t-mgr-{name}")
-        # ticket 06: a scope inside a goal gets its own watchdog (goal Manager as fallback), one per home; off starts none
-        self.env["SQUAD_WATCHDOG"] = "off"
-        self.assertEqual(self.start("Off", "--in-goal", "big", "--name", "s0").returncode, 0)
-        self.env.pop("SQUAD_WATCHDOG")
+        f.write_text(head + f'echo "$@" >> {calls}\nexit 0\n', encoding="utf-8", newline="\n")
+        for text, kind, name, extra in (("Task one", "scopes", "one", ()), ("goal: Big", "goals", "big", ()),
+                                        ("Tabs", "scopes", "s1", ("--in-goal", "big"))):
+            self.assertEqual(self.start(text, "--name", name, *extra).returncode, 0)
+        self.assertEqual(self.start("--resume", "one").returncode, 0)
         time.sleep(0.5)
-        self.assertFalse((self.squad / "scopes" / "s0" / "watchdog.log").exists())
-        self.assertEqual(self.start("Tabs", "--in-goal", "big", "--name", "s1").returncode, 0)
-        home = self.squad / "scopes" / "s1"
-        pid = self.watchdog_pid(home)
-        self.addCleanup(self.stop, pid)
-        self.assertRegex((home / "watchdog.log").read_text(encoding="utf-8"), r"watchdog started for s1; Manager t-mgr-big")
-        self.assertEqual(self.watchdog_pid(home), pid)  # still the one process
+        for home in (self.squad / "scopes" / "one", self.squad / "goals" / "big", self.squad / "scopes" / "s1"):
+            self.assertFalse((home / "watchdog.state.json").exists(), home)
+            self.assertFalse((home / "watchdog.log").exists(), home)
+        self.assertNotIn("--label watchdog", calls.read_text(encoding="utf-8") if calls.exists() else "")
 
     def test_model_flag_sets_the_managers_model_else_the_role_default_applies(self):
         self.assertEqual(self.start("Task one", "--name", "one", "--model", "opus", "--effort", "medium").returncode, 0)
