@@ -2,6 +2,7 @@
 import json
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -392,6 +393,29 @@ class WakeTest(WatchdogTest):
         self.tick(0)
         self.tick(11)
         self.assertTrue(all(len(t) < 300 and "\n" not in t for t in self.wakes()) and self.wakes())
+
+    def test_sleep_on_starts_the_homes_watchdog_unless_it_runs(self):  # AC4
+        from squadtest import fake_herdr
+        bindir = Path(self.tmp.name) / "fakebin"
+        bindir.mkdir()
+        fake_herdr(bindir)
+        hlog = Path(self.tmp.name) / "h.log"
+        env = clean_env(PYTHONDONTWRITEBYTECODE="1", HERDR_ENV="1", HERDR_LOG=str(hlog), PATH=f"{bindir}:{os.environ['PATH']}")
+        env.pop("SQUAD_WATCHDOG", None)
+        def run(*a):
+            return winlaunch.run_script(str(BIN / "squad-watchdog"), list(a) + ["--home", str(self.home)], env, utf8=True,
+                                        encoding="utf-8", capture_output=True)
+        def tabs():
+            return sum(l.startswith("tab create") and "--label watchdog" in l for l in hlog.read_text(encoding="utf-8").splitlines()) if hlog.exists() else 0
+        self.assertEqual(run("sleep", "off").returncode, 0)
+        self.assertEqual(tabs(), 0)  # off starts nothing
+        r = run("sleep", "on")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(tabs(), 1)
+        self.assertTrue(W.sleep_on(self.home))
+        (self.home / "watchdog.state.json").write_text(json.dumps({"beat": time.time()}), encoding="utf-8")
+        run("sleep", "on")
+        self.assertEqual(tabs(), 1)  # running: no second one
 
     def test_cli_wake_switch_and_status(self):
         env = clean_env(PYTHONDONTWRITEBYTECODE="1")

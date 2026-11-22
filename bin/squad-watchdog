@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Plugin watchdog of one scope or goal: logs each idle start, nudges the Manager, and (only when asked) sleeps the PC.
 
-  squad-watchdog run --home DIR --manager NAME [--team-lead NAME] [--interval S]   loop until DIR is gone (squad-start starts it)
+  squad-watchdog run --home DIR --manager NAME [--team-lead NAME] [--interval S]   loop until DIR is gone (squad-spawn starts it)
   squad-watchdog tick --home DIR --manager NAME [--team-lead NAME] [--now UTC]     one pass (what `run` does every interval)
-  squad-watchdog ensure --home DIR --manager NAME [--team-lead NAME]               start the watchdog unless its heartbeat is fresh (the Manager calls it)
+  squad-watchdog ensure --home DIR --manager NAME [--team-lead NAME]               start the watchdog unless its heartbeat is fresh (squad-spawn and `sleep on` call it)
   squad-watchdog sleep on|off [--home DIR]                      the opt-in switch for sleep-when-idle (off by default)
   squad-watchdog wake on|off [--home DIR]                       the switch for event wake-ups to the Manager (on by default)
   squad-watchdog status [--home DIR]                            print the switches, the last state and the log tail
 
+Start: a home's watchdog starts at the first non-Manager `squad-spawn` into it (a scope inside a goal also starts the goal's), not
+at `squad-start`, and at `sleep on` when it is not running; a lone Manager has nobody to wake. A start failure only warns.
 Goals: <home>/goals.md (only the Manager writes it) is one table, one row per request of Chieu: `| # | Goal | Status | Reason |
 Updated |`, Status `in progress`, `done` or `blocked` (any other word counts as `in progress`; `blocked` carries the reason and
 the inbox item id). With at least one row the watchdog follows the goals:
@@ -630,6 +632,11 @@ def main():
         return 0
     if a.cmd == "sleep":
         set_sleep(home, a.switch == "on")
+        if a.switch == "on":  # away mode with no team: the home's watchdog must be running to sleep the PC
+            try:
+                ensure(home, default_manager(home))
+            except Exception as e:  # never fails the switch
+                print(f"warning: watchdog not started: {e}", file=sys.stderr)
         print(f"sleep-when-idle: {a.switch.upper() if a.switch == 'on' else 'off'}"
               + ("; the PC suspends once, when nobody on this machine works for "
                  f"{sleep_after_s() / 60:g} min, for any reason (all tickets passed or team idle with open tickets)" if a.switch == "on" else ""))

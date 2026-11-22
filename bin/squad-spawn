@@ -555,6 +555,17 @@ fi
 
 [[ -n $prompt ]] && herdr agent prompt "$name" "$prompt" >/dev/null
 
+# The home's watchdog starts with the first non-Manager agent (a scope inside a goal also starts the goal's). `ensure` is a
+# no-op while the heartbeat is fresh. A failure only warns; stdout stays the one JSON line.
+if [[ $role != manager && -n ${scope_dir:-$goal_dir} ]]; then
+  wd_homes=("${scope_dir:-$goal_dir}")
+  wd_goal=$(sed -n 's/^goal:[[:space:]]*\([^[:space:]]*\).*/\1/p' "$scope_dir/scope.md" 2>/dev/null | head -n1) || wd_goal=""
+  [[ -z $wd_goal || ! -d $squad_dir/goals/$wd_goal ]] || wd_homes+=("$squad_dir/goals/$wd_goal")
+  for wd_home in "${wd_homes[@]}"; do
+    python3 "$plugin_root/bin/squad-watchdog" ensure --home "$wd_home" >/dev/null || echo "warning: could not start the watchdog of $wd_home; going on" >&2
+  done
+fi
+
 jq -n --arg name "$name" --arg role "$role" --arg scope "$scope" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" --arg session "$session" \
   '{name:$name, role:$role, scope:$scope, tab:$tab, pane:$pane, cwd:$cwd, session:$session, status:"ready"}'
 

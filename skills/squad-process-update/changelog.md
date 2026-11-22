@@ -1,3 +1,13 @@
+## v23 — 2026-11-22
+
+Plugin 0.10.4. A blocked goal gets no idle nudge, and a home's watchdog starts with its team.
+
+changed:
+- The idle test counts only `in progress` goals; all open goals `blocked`: one log line, no nudge, the watchdog keeps running. why: a goal waiting on Chieu has nothing the squad can do.
+- `squad-start` starts no watchdog; the first non-Manager `squad-spawn` into a home does (a scope in a goal also starts the goal's), and `squad-watchdog sleep on` does when it is not running. START-19b no longer tells the Manager to run `ensure`. why: a lone Manager was nudged.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.10.4. Rollback: revert the merge, plugin back to 0.10.3.
+
 ## v22 — 2026-11-22
 
 Plugin 0.10.3. The scope watchdog's Team Lead nudge asks for the goal status.
