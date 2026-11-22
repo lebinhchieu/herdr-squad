@@ -24,11 +24,12 @@ SQ-10 / AC7 results (python3 -m unittest, from tests/):
 ## Checks
 | AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |
 |---|---|---|---|
-| AC1 | test_all_blocked_goals_get_no_nudge_one_log_line_and_the_watchdog_keeps_running OK |  |  |
-| AC2 | test_mixed_goals_nudge_names_only_the_in_progress_ones OK |  |  |
-| AC3 | test_goal_turning_blocked_stops_the_nudges_and_back_to_in_progress_starts_a_fresh_spell OK |  |  |
-| AC4 | existing watchdog tests OK |  |  |
-| AC5 | 88 OK |  |  |
-| AC6 | git diff main (docstring, ADR) |  |  |
-| AC7 | quoted in Behaviour |  |  |
-| AC8 | none: live check is QA blackbox (unit tests cover tick via decide) |  |  |
+| AC1 | test_all_blocked_goals_get_no_nudge_one_log_line_and_the_watchdog_keeps_running OK | test_squad_watchdog 88 OK: `cd tests && python3 -m unittest test_squad_watchdog` | live tick --now, stub herdr: 1 log line, 0 prompts, no stop: pass |
+| AC2 | test_mixed_goals_nudge_names_only_the_in_progress_ones OK | test_squad_watchdog 88 OK (new test) | live: nudges at 5 and 15 min name only the in-progress goal: pass |
+| AC3 | test_goal_turning_blocked_stops_the_nudges_and_back_to_in_progress_starts_a_fresh_spell OK | test_squad_watchdog 88 OK (new test) | live: blocked mid-spell no 15 min nudge; back to in progress nudge 5 min later: pass |
+| AC4 | existing watchdog tests OK | decide() blocked goal + sleep on, 20 min quiet -> sleep, no stop, no nudge | live: all-done stop, blocked-pane wake, sleep, no-goals check unchanged: pass |
+| AC5 | 88 OK | test_squad_watchdog 88 OK | - (whitebox's) |
+| AC6 | git diff main (docstring, ADR) | docstring and ADR 0028 amended, read in diff 8d74fcb..01965af | - (whitebox's) |
+| AC7 | quoted in Behaviour | windows_safe 14, utf8_helpers 14, instructions 16, start 49, log_message 24, squadtask 15 OK | - (whitebox's) |
+| AC8 | none: live check is QA blackbox (unit tests cover tick via decide) | - (blackbox's live check) | live scratch home, all blocked/mixed/back: pass (qa-b.md) |
+
