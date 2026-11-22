@@ -21,7 +21,7 @@ topic: developers
 roles: manager
 topic: developers
 
-- The Team Lead spawns and retires Developers within its share of the cap; the Manager does not.
+- The Team Lead spawns, respawns and retires its Developers within its share of the cap; the Manager does not.
 - Tell each Team Lead its Developer share of the cap in its first prompt. A lone scope gets the whole cap. In a goal the goal Manager divides the cap among the scopes running at that time, shares summing to at most the cap; a Team Lead spawns no more Developers than its share.
 
 ## START-2d Parallel tasks, Tech Lead
@@ -56,7 +56,7 @@ topic: spawning
 - An agent is `<squad>-<role-short>-<scope>[-n]`, lowercase, at most 32 characters; role-short is `mgr`, `ba`, `tl`, `tech`, `qaw`, `qab`, `ux`, `dev` or `coach`, e.g. `bill-ba-invoices`, `bill-dev-invoices-1`. Address agents by bare name; `squad-spawn` refuses a live name.
 
 ## START-4a Architect name
-roles: manager
+roles: manager, team-lead
 when: architecture = yes
 topic: spawning
 
@@ -73,6 +73,8 @@ topic: lifetimes
 | BA, Designer | One session per scope; retired once its spec and AC, or designs, are final; respawned for a question on them | Same |
 | Developer | One session per task, or per queued run of tasks in one area ([COST-6b], [LC-6]) | Same |
 | Token Coach | At the close ([ITER-6]) | Same |
+
+The Manager spawns the Team Lead and the Token Coach; the Team Lead spawns, respawns and retires every other row.
 
 A lone scope sees nothing of other scopes; a scope in a goal also reads `goal.md` and all of `shared/` at start.
 

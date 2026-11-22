@@ -48,13 +48,13 @@ topic: files
 roles: manager
 topic: roster
 
-`roster.md` must always match reality. `squad-spawn` adds an agent's row (name, role, scope, session); the Manager fills in what it owns and its status for the agents it spawned. The Team Lead edits its Developers' rows.
+`roster.md` must always match reality. `squad-spawn` adds an agent's row (name, role, scope, session); whoever spawned an agent fills in what it owns and its status. The Manager keeps its own row and the Team Lead's.
 
 ## FILE-5c Roster, Team Lead
 roles: team-lead
 topic: roster
 
-Edit only the rows of the Developers you spawned (owns, status). Re-read the file just before writing and keep every other row; the Manager edits the others.
+Edit only the rows of the agents you spawned (owns, status). Re-read the file just before writing and keep every other row; the Manager edits the others.
 
 ## FILE-6 Squad and brief files
 roles: manager

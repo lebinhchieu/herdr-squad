@@ -1,3 +1,13 @@
+## v23 — 2026-11-22
+
+Plugin 0.10.4. The Team Lead spawns, respawns and retires every pod role on `team:` and the Developers; the Manager spawns only the Team Lead and, at the close, the Token Coach (ADR 0032).
+
+changed:
+- Rule text: SPAWN-2b, 2c, 4, 4a, 8b, 9, 10b, COST-10b, START-2c, START-5, SIZE-6b, SIZE-13, SIZE-21a, FILE-5b, 5c, MSG-5, MSG-6, `goal.md` and the `who.md` spawning row name the Team Lead as the spawner of the pod. why: COST-10b already told the Team Lead to respawn pod roles while SPAWN-9 forbade it.
+- `roles:` of SPAWN-3, 4, 4a and START-4a add `team-lead`; SIZE-13 and SIZE-21a add `aware: team-lead`. No rule ID is removed or renamed. why: a rule belongs to the role that acts on it.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.10.4; then `/squad:squad-process-update` so the squad upgrade and `squad-process homes --apply --yes` move each open home's pin and respawn its agents. A home pinned at 0.10.3 or older keeps the old Team Lead guard in its agents' `PATH`; a bare respawn changes nothing. Rollback: revert the merge, plugin back to 0.10.3, move the pins back by the same step.
+
 ## v22 — 2026-11-22
 
 Plugin 0.10.3. The scope watchdog's Team Lead nudge asks for the goal status.

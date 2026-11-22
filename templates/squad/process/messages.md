@@ -29,7 +29,7 @@ roles: team-lead
 aware: manager, ba, tech-lead, qa-whitebox, qa-blackbox, designer
 topic: messages
 
-The Team Lead spawns and retires Developers, runs health checks and routes questions. Pod members message it, not the Manager.
+The Team Lead spawns, respawns and retires the pod and the Developers, runs health checks and routes questions. Pod members message it, not the Manager.
 
 ## MSG-6 Team Lead to Manager
 roles: team-lead
@@ -38,7 +38,7 @@ topic: messages
 
 Message the Manager only for these, each as one line pointing at a file; never for a routine matter:
 - an "Always goes to PO" item ([WHO-1b]);
-- a signal to add a role to the team ([SIZE-13]);
+- a signal to add a role to the team ([SIZE-13]): the Manager adds it and the Team Lead spawns it;
 - a dispute that two rounds did not settle (the parties go to the Manager themselves; you are not a relay), or one you are yourself a party to;
 - a plan change you need, as an `ASK` (you never reorder the plan);
 - 3 returns on one task (one budget line);

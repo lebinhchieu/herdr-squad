@@ -101,7 +101,7 @@ topic: owners
 
 | Topic | Owner | Breaks a dispute | Always goes to PO |
 |---|---|---|---|
-| Process, roster, spawning, the team | Manager; Team Lead for Developers | n/a | Changes to role instructions; team confirmation and removing a role |
+| Process, roster, spawning, the team | Manager; Team Lead for the pod roles and Developers | n/a | Changes to role instructions; team confirmation and removing a role |
 
 ## WHO-4 UI design owner
 roles: designer, manager, tech-lead
