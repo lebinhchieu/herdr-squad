@@ -54,6 +54,13 @@ role=${row%%$'\t'*}
 rest=${row#*$'\t'}
 scope=${rest%%$'\t'*}
 role=$(tr 'A-Z ' 'a-z-' <<<"$role")
+# A Team Lead respawns pod roles and itself, never the Manager, a Token Coach or another Team Lead: refuse before any event or rename.
+if [[ ${SQUAD_ROLE:-} == team-lead ]]; then
+  case $role in
+    manager|token-coach) echo "a Team Lead may not respawn $name ($role)" >&2; exit 2 ;;
+    team-lead) [[ $name == "${SQUAD_NAME:-}" ]] || { echo "a Team Lead may not respawn another team-lead ($name)" >&2; exit 2; } ;;
+  esac
+fi
 
 project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
 squad=$(basename "$squad_dir")

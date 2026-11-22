@@ -151,19 +151,31 @@ class ComposedRulesTest(unittest.TestCase):
         self.assertNotIn("exist only when", CARD)  # 07: the Team Lead is always on the team
         self.assertIn("## Handover", composed("team-lead", "L"))
 
-    def test_team_lead_spawns_and_retires_dev_only(self):
+    def test_team_lead_spawns_and_retires_the_pod(self):
         rules = composed("team-lead", "L")
         self.assertIn("squad-spawn dev", rules)
         self.assertIn("squad-retire", rules)
         self.assertNotIn("owns the plan", rules)  # AC4: the Team Lead never reorders the plan
         self.assertNotIn("task order", rules.split("## SIZE-6b ")[1].split("## ")[0])
-        self.assertIn("no", rules.split("## SPAWN-9")[1].split("##")[0].lower())
+        sp9 = rules.split("## SPAWN-9")[1].split("\n## ")[0]
+        self.assertNotIn("only", BY_ID["SPAWN-9"].title)
+        self.assertIn("spawns, respawns and retires", sp9)
+        for never in ("manager", "token-coach", "team-lead"):
+            self.assertIn(never, sp9)
+
+    def test_team_lead_acts_on_spawn_rules_and_no_id_is_removed(self):
+        for rid in ("SPAWN-3", "SPAWN-4", "SPAWN-4a", "START-4a"):
+            self.assertIn("team-lead", BY_ID[rid].roles, rid)
+        removed = (ROOT / "templates/squad/process/_removed.md").read_text(encoding="utf-8")
+        for rid in ("SPAWN-9", "SPAWN-2b", "SPAWN-2c", "SPAWN-8b"):
+            self.assertNotIn("## " + rid + " (removed", removed)
 
     def test_spawning_cost_and_safety_follow_the_team(self):  # spawning.md, cost.md, safety.md in the team language
         tl = "team-lead, tech-lead, qa-white, qa-black"
         self.assertIn("SPAWN-2b", rule_ids(composed("manager", team=tl)))
         self.assertIn("SPAWN-2c", rule_ids(composed("manager", team=tl)))
-        self.assertIn("every other role on `team:`", composed("manager", team=MG))
+        self.assertIn("`team-lead` and `token-coach` only", composed("manager", team=MG))
+        self.assertNotIn("every other role on", composed("manager", team=MG))
         self.assertNotIn("SPAWN-5b", rule_ids(composed("manager", team=tl)))
         self.assertIn("SPAWN-5b", rule_ids(composed("team-lead", team=tl)))
         self.assertIn("SPAWN-9", rule_ids(composed("team-lead", team=tl)))

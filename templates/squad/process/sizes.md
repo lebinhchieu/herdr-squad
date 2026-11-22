@@ -52,7 +52,7 @@ The BA owns the business AC and writes them with QA blackbox.
 roles: team-lead
 topic: sizes
 
-The Team Lead assigns tickets per the Manager's plan, spawns and retires Developers and tracks status; it never reorders the plan. A task of those kinds cites its rule in the task file ([GOAL-6b], [PROMO-5], [REV-15]) because the Developer does not carry them.
+The Team Lead assigns tickets per the Manager's plan, spawns, respawns and retires the pod and tracks status; it never reorders the plan. A task of those kinds cites its rule in the task file ([GOAL-6b], [PROMO-5], [REV-15]) because the Developer does not carry them.
 
 ## SIZE-7a Code and test check, Manager
 roles: manager
@@ -136,7 +136,7 @@ roles: manager
 topic: sizes
 
 - **Add:** on a late signal the Manager adds the role on its own: business doubt (BA), risk flag or migration (Tech Lead, QA whitebox if absent), user-visible change (QA blackbox), 4 or more tasks or order that matters (Team Lead). UI work (Designer) and an irreversible choice (Architect) wait for the PO's yes. Report it at the check-in.
-- Run `squad-team add <role>` (`--po-ok` for the Designer or Architect, after the PO's yes): it edits `team:` and prints who to respawn. Write the `## Handover` when a duty owner changes, brief the joiner with it, respawn the listed roles, log the change in the iteration file.
+- Run `squad-team add <role>` (`--po-ok` for the Designer or Architect, after the PO's yes): it edits `team:` and prints who to respawn. The Manager writes the `## Handover` when a duty owner changes and logs the change in the iteration file; the Team Lead spawns the joiner from the Handover and respawns the listed roles.
 
 ## SIZE-14 Late signal found while building
 roles: manager
@@ -194,9 +194,10 @@ Add a second BA, Tech Lead or QA when the scope is large.
 
 ## SIZE-21a Spawning the confirmed team
 roles: manager
+aware: team-lead
 topic: sizes
 
-Spawn only the roles in `team:` of `scope.md`, plus Developers and the Token Coach. `squad-spawn` refuses a role not on the team; its duties pass along the chain ([SIZE-22]) and are never dropped.
+The Manager spawns the Team Lead and the Token Coach; the Team Lead spawns the rest of `team:` and the Developers, only roles in `team:` of `scope.md`. `squad-spawn` refuses a role not on the team; its duties pass along the chain ([SIZE-22]) and are never dropped.
 
 ## SIZE-22 Duty owner chains
 roles: manager

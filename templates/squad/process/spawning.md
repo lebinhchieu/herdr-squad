@@ -10,33 +10,33 @@ Spawn with the `squad-spawn` command (on your PATH from this plugin): `squad-spa
 roles: manager
 topic: spawning
 
-You spawn `team-lead`, every other role on `team:` and `token-coach` as [ITER-6b] says. `squad-spawn` refuses a role that is not on the team.
+You spawn `team-lead` and `token-coach` only (the Token Coach as [ITER-6b] says). The Team Lead spawns each remaining role on `team:`. `squad-spawn` refuses a role that is not on the team.
 
 ## SPAWN-2c Developers, Team Lead plans
 roles: manager
 topic: spawning
 
-The Team Lead spawns Developers; you do not.
+The Team Lead spawns Developers and the pod roles; you spawn neither.
 
 ## SPAWN-3 Team in the first prompt
-roles: manager
+roles: manager, team-lead
 topic: spawning
 
 Tell every agent its scope's team in the first prompt, so it knows which duties it carries ([SIZE-2]).
 
 ## SPAWN-4 Designer
-roles: manager
+roles: manager, team-lead
 when: design = yes
 topic: spawning
 
-Spawn the Designer only when `designer` is on `team:`. Spawn it after the plan names the UI tasks and before their Developers; retire it once every design is final ([START-5]).
+The Team Lead spawns the Designer only when `designer` is on `team:`, after the plan names the UI tasks and before their Developers, and retires it once every design is final ([START-5]).
 
 ## SPAWN-4a Architect
-roles: manager
+roles: manager, team-lead
 when: architecture = yes
 topic: spawning
 
-Besides the roles of [SPAWN-2b], spawn `architect` only when `architect` is on `team:`. Spawn it after the goal check and before the plan: before your task split or the plan. Retire it once `architecture.md` is `Status: final`; respawn it for a question on it.
+The Team Lead spawns `architect` only when `architect` is on `team:`, after the goal check and before the plan, and retires it once `architecture.md` is `Status: final`; it respawns it for a question on it. When the Architect is needed before a Team Lead is up, the Manager spawns the Team Lead first.
 
 ## SPAWN-5b Developers, Team Lead
 roles: team-lead
@@ -64,20 +64,22 @@ When you point an agent at a new ticket, relabel it: `squad-label --agent <name>
 roles: team-lead
 topic: spawning
 
-Retire a Developer with `squad-retire <agent-name>` after its task has passed: it asks the agent to save its notes, then closes its pane; its branch stays for the PO.
+Retire a Developer or any pod role with `squad-retire <agent-name>` once its work is accepted: it asks the agent to save its notes, then closes its pane; a Developer's branch stays for the PO.
 
-## SPAWN-9 Team Lead spawns only Developers
+## SPAWN-9 Team Lead spawns and retires the pod
 roles: team-lead
 topic: spawning
 
-Spawn and retire only Developers: no second Team Lead, no Tech Lead, BA, QA or Designer.
+The Team Lead spawns, respawns and retires every role on `team:` and the Developers, with `squad-spawn`, `squad-respawn` and `squad-retire`. It never spawns, respawns or retires `manager`, `token-coach` or another `team-lead`; the Manager spawns the Token Coach at the close ([ITER-6b]).
+
+`squad-spawn` refuses a role not on `team:`. A late role comes through the Manager (`squad-team add`, the `## Handover`, [SIZE-13]); the Team Lead then spawns the joiner from the Handover and respawns the roles `squad-team` lists. A role that needs the PO's yes joins only after it ([SIZE-13]).
 
 ## SPAWN-10b Health checks, Team Lead plans
 roles: manager
 topic: spawning
 
 Watch the Team Lead only; the Team Lead runs the pod's health checks.
-- `herdr agent list`: is the Team Lead alive. Dead or stuck → respawn it from its notes; Developers keep running.
+- `herdr agent list`: is the Team Lead alive. Dead or stuck → respawn it from its notes; the pod keeps running.
 - Context filling (the Team Lead confused or repeating itself) → ask it to update its notes, retire it, respawn with the same name and a briefing that points at its notes and the plan file.
 - Read `iterations/<n>.summary.md` for the retro and the check-in, never transcripts.
 

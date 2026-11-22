@@ -90,7 +90,7 @@ class CrlfReadersTest(unittest.TestCase):
                 self.assertIn("goals/g1", out)  # the goal: line resolved, with no CR in the path
 
     def test_retire_team_lead_branch(self):
-        for name, rc in (("t-dev-s-1", 0), ("t-qa-s", 2)):
+        for name, rc in (("t-dev-s-1", 0), ("t-qa-s", 0), ("manager-t", 2)):
             with self.subTest(name=name):
                 *_, got = self.both(["squad-retire", name, "--no-notes"], role="team-lead")
                 self.assertEqual(got, rc)

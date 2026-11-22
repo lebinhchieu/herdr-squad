@@ -88,8 +88,15 @@ done
 
 case $role in manager|ba|team-lead|tech-lead|qa-whitebox|qa-blackbox|dev|token-coach|designer|architect) ;;
   *) echo "unknown role: $role" >&2; exit 2 ;; esac
-# A Team Lead respawning itself (squad-respawn) is team-lead under its own name; nothing else passes.
-[[ ${SQUAD_ROLE:-} != team-lead || $role == dev || ( $role == team-lead && $name == "${SQUAD_NAME:-}" ) ]] || { echo "a Team Lead may only spawn dev" >&2; exit 2; }
+# A Team Lead spawns every pod role except manager, token-coach and another team-lead (its own name is the self-respawn).
+# The team: gate below still refuses a role not on the team. The name-vs-row check (D2) follows once the scope folder is known.
+# The guard keys on SQUAD_ROLE only (it reads no respawn flag).
+if [[ ${SQUAD_ROLE:-} == team-lead ]]; then
+  case $role in
+    manager|token-coach) echo "a Team Lead may not spawn $role" >&2; exit 2 ;;
+    team-lead) [[ $name == "${SQUAD_NAME:-}" ]] || { echo "a Team Lead may not spawn another team-lead ($name)" >&2; exit 2; } ;;
+  esac
+fi
 [[ $role == manager || -n $prompt || -n ${task:-${SQUAD_SPAWN_TASK:-}} ]] || echo "warning: $role $name spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)" >&2
 [[ -z $base || -n $repo ]] || { echo "--base needs --repo" >&2; exit 2; }
 task=${task:-${SQUAD_SPAWN_TASK:-}}
@@ -128,6 +135,8 @@ project_dir=$(dirname "$(dirname "$(dirname "$squad_dir")")")
 # Per-scope squads keep each agent's roster, notes and logs in its scope folder (a goal Manager: its goal folder).
 # A flat squad (no scopes/ folder; legacy flat layout) keeps them all in the squad folder.
 home=$squad_dir scope_dir="" goal_dir="" runtime=""
+# A Team Lead spawns only inside its own scope: no --goal, no flat squad (both skip the name-vs-row and team checks below).
+[[ ${SQUAD_ROLE:-} != team-lead || ( -z $goal && -d $squad_dir/scopes ) ]] || { echo "a Team Lead may not spawn $role with --goal or in a flat squad; it spawns only inside its scope (--scope)" >&2; exit 2; }
 if [[ -d $squad_dir/scopes ]]; then
   [[ -z $scope || -z $goal ]] || { echo "pass --scope or --goal, not both" >&2; exit 2; }
   if [[ -n $goal ]]; then
@@ -138,6 +147,17 @@ if [[ -d $squad_dir/scopes ]]; then
     [[ -n $scope ]] || { echo "this squad is per-scope: pass --scope or --goal" >&2; exit 2; }
     scope_dir=$squad_dir/scopes/$scope home=$scope_dir
     [[ -d $scope_dir ]] || { echo "no scope folder at $scope_dir (run squad-start)" >&2; exit 1; }
+    # Team Lead caller (D2): a name that has a row in $scope_dir/roster.md must carry the role asked (the respawn case; the row
+    # role is lowercased, spaces to dashes). A name with no row passes; a missing or unreadable $scope_dir/roster.md refuses
+    # (exit 2). Runs before the team gate, any label, worktree or herdr call.
+    if [[ ${SQUAD_ROLE:-} == team-lead ]]; then
+      [[ -r $scope_dir/roster.md ]] || { echo "a Team Lead may not spawn $role: cannot read $scope_dir/roster.md to check the name $name" >&2; exit 2; }
+      tl_row=$("$(dirname "$(readlink -f "$0")")/squad-usage" --squad-dir "$scope_dir" --get "$name" 2>/dev/null) || tl_row=""
+      if [[ -n $tl_row ]]; then
+        tl_row_role=$(tr 'A-Z ' 'a-z-' <<<"${tl_row%%$'\t'*}")
+        [[ $tl_row_role == "$role" ]] || { echo "a Team Lead may not spawn $role under $name: the roster says $name is $tl_row_role" >&2; exit 2; }
+      fi
+    fi
     # Pinned scope below 0.6.0 (D7): its scope.md still says `size:` and its rules are the pin's, so the pin's own
     # squad-spawn runs with the same arguments (its gate, compose and prompts). Never a fallback: a runtime without
     # bin/squad-spawn refuses, nothing created. One hop: a runtime that is this very script, or a pin from 0.6.0 on,

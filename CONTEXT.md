@@ -9,7 +9,7 @@ The human who makes the requests, confirms each scope's team, and alone decides 
 _Avoid_: user, owner, client
 
 **Manager**:
-The role that runs one scope (a lone task) or one goal (several scopes): proposes the team, owns the plan (which tasks, their order, the iteration goal) and settles disputes. The Manager spawns the pod; the Team Lead spawns and retires only Developers and keeps them unblocked. It starts fresh for each request and never does another role's work. The one running a goal is the **goal Manager**.
+The role that runs one scope (a lone task) or one goal (several scopes): proposes the team, owns the plan (which tasks, their order, the iteration goal) and settles disputes. The Manager spawns the Team Lead and, at the close, the Token Coach; the Team Lead spawns, respawns and retires the rest of the pod and keeps it unblocked (ADR 0032). It starts fresh for each request and never does another role's work. The one running a goal is the **goal Manager**.
 _Avoid_: orchestrator, lead
 
 **BA**:
@@ -17,11 +17,11 @@ The role that owns the business need and the business AC of one scope. Optional:
 _Avoid_: analyst, product owner
 
 **Team Lead**:
-The **Coordinator** of the pod, always on the team: spawns and retires the Developers, assigns tasks per the Manager's plan, tracks STATUS messages and the ledger, checks on the pod, routes its questions, and is the pod's **single point of contact**. Never reorders the plan (ADR 0030).
+The **Coordinator** of the pod, always on the team: spawns, respawns and retires every pod role on `team:` and the Developers (never the Manager, the Token Coach or another Team Lead, ADR 0032), assigns tasks per the Manager's plan, tracks STATUS messages and the ledger, checks on the pod, routes its questions, and is the pod's **single point of contact**. Never reorders the plan (ADR 0030).
 _Avoid_: project manager, scrum master
 
 **Coordinator**:
-The Team Lead's role: spawns Developers, assigns tasks per the plan, tracks STATUS and the ledger, health-checks the pod, escalates to the Manager only on fixed triggers, and never reorders the plan. Always on the team (ADR 0030).
+The Team Lead's role: spawns, respawns and retires the pod and the Developers, assigns tasks per the plan, tracks STATUS and the ledger, health-checks the pod, escalates to the Manager only on fixed triggers, and never reorders the plan. Always on the team (ADR 0030).
 _Avoid_: scheduler, project manager
 
 **Plan owner** (retired):
