@@ -329,7 +329,7 @@ def team_lead_nudge_text(minutes, since, snap):
     waits = ", ".join(f"{t['id']} {t['status']}" for t in open_tickets) or "none open"
     mine = [g for g in open_goals(snap) if g[2] != "blocked"]  # blocked ones are already named in `tail`
     report = (f" Open goals: {goals_text({'goals': mine})}." if mine else "")
-    if open_goals(snap) and not open_tickets:
+    if mine and not open_tickets:
         report += (" No ticket is open: send the Manager one line (`STATUS`): each goal is done when all its tickets passed,"
                    " else blocked with the reason. The Manager updates goals.md; you never edit it.")
     return (f"{head} Waiting: {waits}. Agents: {states_text(snap)}.{tail}{report} "

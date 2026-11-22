@@ -660,6 +660,7 @@ class TeamLeadTest(unittest.TestCase):
         self.assertEqual([m for m, _ in self.sent], ["t-tl-s1", "t-tl-s1"])
         for _, text in self.sent:
             self.assertIn("G1 Ship the report: in progress", text)
+            self.assertIn("G2 Fix login: blocked", text)
             self.assertIn("send the Manager one line", text)
             self.assertIn("done when all its tickets passed, else blocked with the reason", text)
             self.assertIn("you never edit it", text)
@@ -669,12 +670,16 @@ class TeamLeadTest(unittest.TestCase):
         self.tickets(t03="ready")
         (self.home / "goals.md").write_text("| # | Goal | Status |\n|---|---|---|\n| G1 | Ship the report | in progress |\n", encoding="utf-8")
         self.up()
-        self.tick(0)
-        self.tick(5)
-        text = self.sent[0][1]
-        self.assertIn("Waiting: 03 ready", text)
-        self.assertIn("G1 Ship the report: in progress", text)
-        self.assertNotIn("send the Manager one line", text)
+        for m in (0, 5, 15):
+            self.tick(m)
+        self.assertEqual(len(self.sent), 2)
+        for _, text in self.sent:
+            self.assertIn("Waiting: 03 ready", text)
+            self.assertIn("G1 Ship the report: in progress", text)
+            self.assertNotIn("send the Manager one line", text)
+        only_blocked = W.team_lead_nudge_text(5, 0, {"tickets": [], "agents": [], "goals": [("G2", "Fix login", "blocked", "")]})
+        self.assertIn("G2 Fix login: blocked", only_blocked)
+        self.assertNotIn("send the Manager one line", only_blocked)
         plain = W.team_lead_nudge_text(5, 0, {"tickets": [], "agents": [], "goals": []})
         self.assertNotIn("Open goals", plain)
         self.assertIn("Waiting: none open", plain)
