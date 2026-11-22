@@ -133,7 +133,6 @@ The BA writes a question for an outside decision maker to the open-points place 
 
 ## SIZE-13 Adding a role
 roles: manager
-aware: team-lead
 topic: sizes
 
 - **Add:** on a late signal the Manager adds the role on its own: business doubt (BA), risk flag or migration (Tech Lead, QA whitebox if absent), user-visible change (QA blackbox), 4 or more tasks or order that matters (Team Lead). UI work (Designer) and an irreversible choice (Architect) wait for the PO's yes. Report it at the check-in.

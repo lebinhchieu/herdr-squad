@@ -72,7 +72,7 @@ topic: spawning
 
 The Team Lead spawns, respawns and retires every role on `team:` and the Developers, with `squad-spawn`, `squad-respawn` and `squad-retire`. It never spawns, respawns or retires `manager`, `token-coach` or another `team-lead`; the Manager spawns the Token Coach at the close ([ITER-6b]).
 
-`squad-spawn` refuses a role not on `team:`. A late role comes through the Manager (`squad-team add`, the `## Handover`, [SIZE-13]); the Team Lead then spawns the joiner from the Handover and respawns the roles `squad-team` lists. Designer and Architect join only after the PO's yes.
+`squad-spawn` refuses a role not on `team:`. A late role comes through the Manager (`squad-team add`, the `## Handover`, [SIZE-13]); the Team Lead then spawns the joiner from the Handover and respawns the roles `squad-team` lists. A role that needs the PO's yes joins only after it ([SIZE-13]).
 
 ## SPAWN-10b Health checks, Team Lead plans
 roles: manager

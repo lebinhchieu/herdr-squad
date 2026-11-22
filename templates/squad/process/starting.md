@@ -35,7 +35,7 @@ roles: manager
 topic: starting
 
 1. The PO runs `/squad:squad-start "<text>"`; it makes the folder and brief (`scope.md`, or `goal.md` for text starting `goal:`) and starts a fresh Manager. `squad-start --resume <name>` starts a new Manager for unfinished work whose Manager is gone.
-2. The Manager reads the brief, proposes the team ([SIZE-1]), proposes the plan, and spawns the pod only after the PO confirms.
+2. The Manager reads the brief, proposes the team ([SIZE-1]), proposes the plan, and spawns the Team Lead only after the PO confirms; the Team Lead spawns the rest of the pod.
 
 ## START-3b Team models, first move
 roles: manager
