@@ -11,9 +11,9 @@
 Goals: <home>/goals.md (only the Manager writes it) is one table, one row per request of Chieu: `| # | Goal | Status | Reason |
 Updated |`, Status `in progress`, `done` or `blocked` (any other word counts as `in progress`; `blocked` carries the reason and
 the inbox item id). With at least one row the watchdog follows the goals:
-  - Idle = nobody in the roster is `working` in herdr while a goal is not `done`. The start of an idle spell is logged with
+  - Idle = nobody in the roster is `working` in herdr while a goal is `in progress` (a `blocked` goal gets no nudge: it waits on Chieu). The start of an idle spell is logged with
     every agent's state. After 5 and after 15 minutes of the same spell the Manager gets a message (`herdr agent prompt`)
-    listing each open goal (a `blocked` one with its reason) and asking it to check and solve.
+    listing each `in progress` goal and asking it to check and solve. Only `blocked` goals open: one log line, no nudge, the watchdog keeps running.
   - Nobody working and every goal `done`: it logs `all goals done; watchdog stops` and `run` returns (the herdr tab closes;
     the heartbeat is cleared so `ensure` starts it again). While anyone works it never stops. While sleep-when-idle is on it
     stops only after the PC slept (the switch is then off), so the sleep is not lost.
@@ -178,9 +178,17 @@ def open_goals(snap):
     return [g for g in snap.get("goals") or [] if g[2] != "done"]
 
 
+def active_goals(snap):
+    """Goals the squad can work on: `in progress`. A `blocked` goal waits on Chieu and is never nudged for."""
+    return [g for g in snap.get("goals") or [] if g[2] == "in progress"]
+
+
 def goals_text(snap):
-    return "; ".join(f"{g[0]} {clean(g[1], 60)}: {g[2]}" + (f" ({clean(g[3], 120)})" if g[2] == "blocked" and g[3] else "")
-                     for g in open_goals(snap))
+    return "; ".join(f"{g[0]} {clean(g[1], 60)}: {g[2]}" for g in active_goals(snap))
+
+
+def goals_blocked_text(snap):
+    return "; ".join(f"{g[0]}" + (f": {clean(g[3], 80)}" if g[3] else "") for g in open_goals(snap))
 
 
 def passed_keys(h):
@@ -288,9 +296,9 @@ def snapshot(home, herdr_json=None):
 
 
 def waiting(snap):
-    """What keeps the team idle spell open: a goal not done when goals are recorded, else a waiting ticket."""
+    """What keeps the team idle spell open: an `in progress` goal when goals are recorded, else a waiting ticket."""
     if snap.get("goals"):
-        return open_goals(snap)
+        return active_goals(snap)
     return [t for t in snap["tickets"] if t["status"] in OPEN]
 
 
@@ -312,29 +320,27 @@ def nudge_text(minutes, since, snap):
             if first else f"WATCHDOG: still nobody working after {minutes} minutes (since {hhmm(since)}). This is the last reminder of this idle period.")
     if snap.get("goals"):
         return (f"{head} Open goals: {tickets_text(snap)}. Agents: {states_text(snap)}. "
-                "Check each goal and solve it: message the agent who owns the work, or spawn one; a blocked goal needs its inbox item with Chieu.")
+                "Check each goal and solve it: message the agent who owns the work, or spawn one.")
     return (f"{head} Waiting: {tickets_text(snap)}. Agents: {states_text(snap)}. "
             "Message the agent who owns a ticket, or spawn one.")
 
 
 def team_lead_nudge_text(minutes, since, snap):
-    """The Team Lead's wording: its ticket wait list and agents; a blocked goal is the Manager's and is only named.
+    """The Team Lead's wording: its ticket wait list and agents; blocked goals are never named.
     With open goals and no open ticket it also names each goal and asks the Manager one line per open goal: `goal <id> done` or `goal <id> blocked: <reason>`."""
     first = minutes == NUDGES[0]
     head = (f"WATCHDOG: nobody has worked for {minutes} minutes (since {hhmm(since)}) and work is waiting."
             if first else f"WATCHDOG: still nobody working after {minutes} minutes (since {hhmm(since)}). This is the last reminder of this idle period.")
-    goals = [g for g in open_goals(snap) if g[2] == "blocked"]
-    tail = (f" Blocked goals are the Manager's, not yours to solve: {goals_text({'goals': goals})}." if goals else "")
     open_tickets = [t for t in snap["tickets"] if t["status"] in OPEN]
     waits = ", ".join(f"{t['id']} {t['status']}" for t in open_tickets) or "none open"
-    mine = [g for g in open_goals(snap) if g[2] != "blocked"]  # blocked ones are already named in `tail`
+    mine = active_goals(snap)
     report = (f" Open goals: {goals_text({'goals': mine})}." if mine else "")
     if mine and not open_tickets:
         ids = "; ".join(f"`goal {g[0]} done` or `goal {g[0]} blocked: <reason>`" for g in mine)
         report += (f" No ticket is open: send the Manager one line per open goal, naming its id, as `goal <id> done` or"
                    f" `goal <id> blocked: <reason>`, here {ids}: a goal is done when all its tickets passed,"
                    " else blocked with the reason. The Manager updates goals.md; you never edit it.")
-    return (f"{head} Waiting: {waits}. Agents: {states_text(snap)}.{tail}{report} "
+    return (f"{head} Waiting: {waits}. Agents: {states_text(snap)}.{report} "
             "Message the Developer who owns a ticket, spawn one within your cap, or `ASK` the Manager.")
 
 
@@ -345,7 +351,7 @@ def all_done(snap):
 def decide(st, snap, now, sleep_enabled, sleep_after=SLEEP_AFTER_MIN * 60, bg_max=BG_MAX_MIN * 60):
     """Pure: (old state, snapshot, now, switch on?, seconds) -> (new state, [event]).
     event = ("start", since) | ("nudge", minutes, since) | ("end", minutes) | ("sleep", minutes, all_done) | ("down", why) | ("up",)
-    | ("stop",): goals are recorded, all done, nobody working, and the sleep switch is off
+    | ("all_blocked",) | ("stop",): goals are recorded, all done, nobody working, and the sleep switch is off
     | ("bg_busy", name, text) | ("bg_cap", name, minutes): roster agents only. `st` is never changed (deep copy)."""
     st = copy.deepcopy(st)
     events = []
@@ -378,6 +384,10 @@ def decide(st, snap, now, sleep_enabled, sleep_after=SLEEP_AFTER_MIN * 60, bg_ma
         events.append(("end", int((now - since) // 60)))
         st["idle_since"], st["nudged"] = None, []
         since = None
+    all_blocked = bool(snap.get("goals")) and bool(open_goals(snap)) and not active_goals(snap) and not working
+    if all_blocked and not st.get("blocked_logged"):
+        events.append(("all_blocked",))
+    st["blocked_logged"] = all_blocked
     if since is not None:
         for m in NUDGES:
             if m not in st["nudged"] and now - since >= m * 60:
@@ -508,6 +518,8 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None, t
             log(home, now, f"herdr does not answer ({ev[1]}); no idle check until it does")
         elif kind == "up":
             log(home, now, "herdr answers again")
+        elif kind == "all_blocked":
+            log(home, now, f"open goals are all blocked ({goals_blocked_text(snap)}); no idle nudge until one is in progress")
         elif kind == "stop":
             log(home, now, "all goals done; watchdog stops")
         elif kind == "sleep":

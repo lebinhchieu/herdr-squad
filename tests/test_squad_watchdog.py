@@ -442,12 +442,53 @@ class GoalsTest(WatchdogTest):
         self.assertIn("nobody has worked for 5 minutes", first)
         self.assertIn("still nobody working after 15 minutes", second)
         self.assertIn("G1 Ship the report: in progress", first)
-        self.assertIn("G2 Fix the login: blocked (needs the prod key; inbox item i7)", first)
+        self.assertNotIn("G2", first)  # blocked: never listed
         self.assertNotIn("G3", first)
         self.assertIn("solve", first)
         self.assertNotIn("ignore this", first)
         self.assertIn("idle start: nobody works and goals are open (G1", self.log())
         self.assertNotIn("watchdog stops", self.log())
+
+    BLOCKED = "| # | Goal | Status | Reason |\n|---|---|---|---|\n| G1 | Ship | blocked | inbox i7 |\n| G2 | Fix | blocked | key |\n"
+    MIXED = BLOCKED.replace("G1 | Ship | blocked", "G1 | Ship | in progress")
+
+    def test_all_blocked_goals_get_no_nudge_one_log_line_and_the_watchdog_keeps_running(self):  # AC1
+        self.goals(self.BLOCKED)
+        self.idle()
+        for m in (0, 5, 15, 40):
+            self.tick(m)
+        self.assertEqual(self.sent, [])
+        self.assertEqual(self.log().count("open goals are all blocked"), 1)
+        self.assertNotIn("watchdog stops", self.log())
+        self.assertNotIn(("stop",), self.tick(41))
+
+    def test_mixed_goals_nudge_names_only_the_in_progress_ones(self):  # AC2
+        self.goals(self.MIXED)
+        self.idle()
+        for m in (0, 5, 15):
+            self.tick(m)
+        self.assertEqual(len(self.sent), 2)
+        for _, text in self.sent:
+            self.assertIn("G1 Ship: in progress", text)
+            self.assertNotIn("G2", text)
+            self.assertNotIn("blocked", text)
+
+    def test_goal_turning_blocked_stops_the_nudges_and_back_to_in_progress_starts_a_fresh_spell(self):  # AC3
+        self.goals(self.MIXED)
+        self.idle()
+        self.tick(0)
+        self.tick(5)
+        self.assertEqual(len(self.sent), 1)
+        self.goals(self.BLOCKED)
+        self.tick(16)
+        self.tick(30)
+        self.assertEqual(len(self.sent), 1)  # no 15 min nudge
+        self.goals(self.MIXED)
+        self.tick(40)  # fresh spell starts here
+        self.tick(44)
+        self.assertEqual(len(self.sent), 1)
+        self.tick(45)
+        self.assertEqual(len(self.sent), 2)
 
     def test_all_goals_done_and_nobody_working_stops_and_run_returns(self):
         self.goals(ALL_DONE)
@@ -660,14 +701,13 @@ class TeamLeadTest(unittest.TestCase):
         self.assertEqual([m for m, _ in self.sent], ["t-tl-s1", "t-tl-s1"])
         for _, text in self.sent:
             self.assertIn("G1 Ship the report: in progress", text)
-            self.assertIn("G2 Fix login: blocked", text)
+            self.assertNotIn("G2", text)
             self.assertIn("send the Manager one line per open goal, naming its id", text)
             for gid in ("G1", "G3"):
                 self.assertIn(f"`goal {gid} done` or `goal {gid} blocked: <reason>`", text)
             self.assertIn("`goal <id> blocked: <reason>`", text)
             self.assertNotIn("STATUS", text)
             self.assertNotIn("goal G2 ", text)
-            self.assertIn("Blocked goals are the Manager's", text)
             self.assertIn("done when all its tickets passed, else blocked with the reason", text)
             self.assertIn("you never edit it", text)
             self.assertNotIn("write goals.md", text)
@@ -685,7 +725,7 @@ class TeamLeadTest(unittest.TestCase):
             self.assertNotIn("send the Manager one line", text)
             self.assertNotIn("STATUS", text)
         only_blocked = W.team_lead_nudge_text(5, 0, {"tickets": [], "agents": [], "goals": [("G2", "Fix login", "blocked", "")]})
-        self.assertIn("G2 Fix login: blocked", only_blocked)
+        self.assertNotIn("G2", only_blocked)
         self.assertNotIn("send the Manager one line", only_blocked)
         self.assertNotIn("STATUS", only_blocked)
         plain = W.team_lead_nudge_text(5, 0, {"tickets": [], "agents": [], "goals": []})
