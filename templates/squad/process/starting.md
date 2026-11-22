@@ -187,7 +187,7 @@ roles: manager
 topic: starting
 
 You alone write `goals.md` in your folder (scope or goal), one table: `| # | Goal | Status | Reason | Updated |`, one row per PO request.
-- Add a row, status `in progress`, from the brief at [START-19] and on each later request in chat; then run `squad-watchdog ensure --home <folder> --manager <you>`.
+- Add a row, status `in progress`, from the brief at [START-19] and on each later request in chat.
 - Set `done` when every task of that goal has passed.
 - Set `blocked`, with the reason and the inbox item id, only when nothing else can go on and the PO must act; also write the inbox item ([ITER-4]).
 

@@ -7,7 +7,7 @@ The watchdog woke the Manager on every `passed` ticket and judged idleness from 
 
 ## Decision
 - `<home>/goals.md` holds one row per PO request: `in progress`, `done` or `blocked` + reason. Only the Manager writes it ([START-19b], [FILE-6]).
-- When nobody works and a goal is not `done`, the watchdog nudges the Manager at 5 and 15 minutes. When every goal is `done` it stops; `squad-watchdog ensure` restarts it.
+- When nobody works and a goal is `in progress`, the watchdog nudges the Manager at 5 and 15 minutes; a `blocked` goal gets no nudge (amended by watchdog-blocked 01). When every goal is `done` it stops; `squad-watchdog ensure` restarts it.
 - No goals file: ticket-based idle check as before.
 - No `passed` wake. The Developer sends the plan owner `STATUS NN: passed <sha>`; the Team Lead tells the Manager only a goal done or blocked ([MSG-6]).
 - Sleep-when-idle and the blocked-pane wake of 0022 are unchanged.
