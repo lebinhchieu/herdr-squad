@@ -115,7 +115,7 @@ class QabNo(unittest.TestCase):
         t = compose("manager", "M", "no").stdout
         self.assertIn("SIZE-21a", ids(t))
         body = re.search(r"(?ms)^## SIZE-21a .*?(?=^## |\Z)", t).group(0)
-        self.assertIn("Spawn only the roles in `team:`", body)
+        self.assertIn("only roles in `team:`", body)
         self.assertIn("SIZE-1", ids(compose("manager", "M").stdout))  # the team proposal, every team
         self.assertNotIn("SIZE-19", ids(t))  # tombstoned: QA blackbox off is a non-pick
 

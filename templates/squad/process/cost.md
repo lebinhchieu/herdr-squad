@@ -68,7 +68,7 @@ After a PO wait longer than the 1h cache lifetime (`CACHE_TTL_S` in `bin/squadtr
 roles: manager, team-lead
 topic: cost
 
-Before a PO wait (a merge, a check-in answer, a close), the Manager retires every pod role over 60k; the Team Lead respawns the roles the next iteration needs.
+Before a PO wait (a merge, a check-in answer, a close), the Team Lead retires every pod role over 60k and respawns the roles the next iteration needs.
 
 ## COST-11 Step-up
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
