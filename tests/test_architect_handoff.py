@@ -26,8 +26,8 @@ class CardAndSettingsTest(unittest.TestCase):
     def test_architect_may_write_only_architecture_md_and_tasks(self):
         perms = json.loads((ROOT / "templates/squad/settings/architect.json").read_text())["permissions"]
         writes = sorted(p for p in perms["allow"] if p.startswith(("Write(", "Edit(")))
-        self.assertEqual(writes, ["Edit(/.claude/squads/*/scopes/*/architecture.md)", "Edit(/.claude/squads/*/scopes/*/tasks/**)",
-                                  "Write(/.claude/squads/*/scopes/*/architecture.md)", "Write(/.claude/squads/*/scopes/*/tasks/**)"])
+        self.assertEqual(writes, ["Edit(/.claude/squads/*/scopes/*/architecture.md)", "Edit(/.claude/squads/*/scopes/*/tasks/**)", "Edit(//tmp/**)",
+                                  "Write(/.claude/squads/*/scopes/*/architecture.md)", "Write(/.claude/squads/*/scopes/*/tasks/**)", "Write(//tmp/**)"])
         for level in ("*/*.md", "*/goals/*/*.md", "*/settings/**"):
             self.assertIn(f"Write(/.claude/squads/{level})", perms["deny"])
         for f in ("scope", "roster", "escalations"):

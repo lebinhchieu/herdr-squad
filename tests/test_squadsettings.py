@@ -113,19 +113,16 @@ class EffectiveTest(Base):
                 self.assertIn(f"Bash(git {g}:*)", perms["ask"], f.name)
             self.assertFalse([d for d in perms["deny"] if d.startswith("Bash(git")], f.name)
 
-    def test_scratch_rm_allowed_only_under_mktemp_dirs(self):
+    def test_every_role_works_anywhere_in_tmp(self):
         d = ROOT / "templates/squad/settings"
-        roles = ("dev", "qa-whitebox", "qa-blackbox", "manager", "tech-lead", "team-lead")
         for f in sorted(d.glob("*.json")):
             perms = json.loads(f.read_text(encoding="utf-8"))["permissions"]
             rm = [e for e in perms.get("allow", []) if e.startswith(("Bash(rm ", "Bash(rmdir "))]
-            if f.stem in roles:
-                self.assertEqual(sorted(rm), sorted(f"Bash({c} /tmp/tmp.*)" for c in ("rm -rf", "rm -r", "rm", "rmdir")), f.name)
-                self.assertEqual([e for e in perms.get("ask", []) if "/tmp/tmp." in e], [], f.name)
-            else:
-                self.assertEqual(rm, [], f.name)
-            for e in rm:
-                self.assertIn(" /tmp/tmp.", e)
+            self.assertEqual(sorted(rm), sorted(f"Bash({c} /tmp/*)" for c in ("rm -rf", "rm -r", "rm", "rmdir")), f.name)
+            self.assertEqual([e for e in perms.get("ask", []) if "/tmp" in e], [], f.name)
+            self.assertEqual(perms.get("additionalDirectories"), ["/tmp"], f.name)
+            for tool in ("Read", "Edit", "Write"):
+                self.assertIn(f"{tool}(//tmp/**)", perms["allow"], f.name)
 
     def test_safe11_rm_examples_match_allow_and_no_ask(self):
         import fnmatch
@@ -146,7 +143,7 @@ class EffectiveTest(Base):
                 self.assertFalse(hit(perms.get("ask", []), c), f"{role}: ask matches {c}")
                 if "$" not in c:
                     self.assertTrue(hit(perms["allow"], c), f"{role}: no allow for {c}")
-            self.assertTrue(hit(perms["allow"], "rm -rf /tmp/tmp.A") and not hit(perms.get("ask", []), "rm -rf /tmp/tmp.A"))
+            self.assertTrue(hit(perms["allow"], "rm -rf /tmp/scratch-A") and not hit(perms.get("ask", []), "rm -rf /tmp/scratch-A"))
 
     def test_ask_unions_and_other_arrays_are_replaced(self):
         r = ss.merge({"permissions": {"ask": ["a"]}, "l": [1, 2]}, {"permissions": {"ask": ["b"]}, "l": [3]})

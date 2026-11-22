@@ -3,9 +3,10 @@
   "effortLevel": "low",
   "advisorModel": "opus",
   "permissions": {
+    "additionalDirectories": ["/tmp"],
     "allow": [
       "SendMessage", "ListAgents", "Bash(squad-process rule:*)", "Bash(squad-process who:*)", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git branch:*)", "Bash(echo:*)", "Bash(squad-respawn:*)",
-      "Bash(squad-spawn dev:*)", "Bash(squad-spawn ba:*)", "Bash(squad-spawn tech-lead:*)", "Bash(squad-spawn qa-whitebox:*)", "Bash(squad-spawn qa-blackbox:*)", "Bash(squad-spawn designer:*)", "Bash(squad-spawn architect:*)", "Bash(squad-retire:*)", "Bash(herdr agent list:*)", "Bash(herdr agent get:*)", "Bash(herdr agent read:*)", "Bash(rm -rf /tmp/tmp.*)", "Bash(rm -r /tmp/tmp.*)", "Bash(rm /tmp/tmp.*)", "Bash(rmdir /tmp/tmp.*)"
+      "Bash(squad-spawn dev:*)", "Bash(squad-spawn ba:*)", "Bash(squad-spawn tech-lead:*)", "Bash(squad-spawn qa-whitebox:*)", "Bash(squad-spawn qa-blackbox:*)", "Bash(squad-spawn designer:*)", "Bash(squad-spawn architect:*)", "Bash(squad-retire:*)", "Bash(herdr agent list:*)", "Bash(herdr agent get:*)", "Bash(herdr agent read:*)", "Bash(rm -rf /tmp/*)", "Bash(rm -r /tmp/*)", "Bash(rm /tmp/*)", "Bash(rmdir /tmp/*)", "Read(//tmp/**)", "Edit(//tmp/**)", "Write(//tmp/**)"
     ],
     "ask": [
       "Bash(git push:*)", "Bash(git merge:*)", "Bash(git rebase:*)", "Bash(git reset --hard:*)", "Bash(git checkout main:*)", "Bash(git checkout dev:*)", "Bash(git branch -D:*)"

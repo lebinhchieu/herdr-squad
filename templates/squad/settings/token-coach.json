@@ -3,10 +3,11 @@
   "effortLevel": "high",
   "advisorModel": "opus",
   "permissions": {
+    "additionalDirectories": ["/tmp"],
     "allow": [
       "SendMessage", "ListAgents", "Bash(squad-process rule:*)", "Bash(squad-process who:*)", "Bash(squad-usage:*)", "Bash(echo:*)", "Bash(git log:*)",
       "Write(/.claude/squads/*/scopes/*/iterations/*.coach.md)", "Edit(/.claude/squads/*/scopes/*/iterations/*.coach.md)",
-      "Write(/.claude/squads/*/goals/*/coach/*.coach.md)", "Edit(/.claude/squads/*/goals/*/coach/*.coach.md)"
+      "Write(/.claude/squads/*/goals/*/coach/*.coach.md)", "Edit(/.claude/squads/*/goals/*/coach/*.coach.md)", "Bash(rm -rf /tmp/*)", "Bash(rm -r /tmp/*)", "Bash(rm /tmp/*)", "Bash(rmdir /tmp/*)", "Read(//tmp/**)", "Edit(//tmp/**)", "Write(//tmp/**)"
     ],
     "ask": [
       "Bash(git push:*)",
