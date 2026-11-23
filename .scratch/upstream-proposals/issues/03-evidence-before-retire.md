@@ -29,3 +29,6 @@ EVID-2d is titled "Manager" and sends `HANDIN ... evidence sha` to the Manager. 
 SQ-10: `tests/test_windows_safe.py`, `tests/test_utf8_helpers.py`, `tests/test_instructions.py`, plus the `grep -rl` hits of EVID-2b, EVID-2d, EVID-2e, EVID-9c, EVID-9e, LC-20b, LC-20f.
 
 ## Comments
+
+- Overlay SQ-20 (Team Lead keeps the Developer until the check exits 0) is replaced by plugin rule LC-20f.
+- Overlay EVID-2d (replace) is replaced by plugin rule EVID-2d (retitled, Team Lead target). `upgrade --check` shows it `stale`; the squads drop both ops by hand after re-pin.
