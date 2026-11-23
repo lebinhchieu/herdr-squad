@@ -19,7 +19,6 @@ Before [MRG-2]: `git merge-base --is-ancestor main <sha>` true needs no check. E
 
 ## MRG-6b Main moved, related changes
 roles: manager
-aware: team-lead, qa-whitebox
 topic: merge
 phase: merge
 
