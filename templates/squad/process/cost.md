@@ -62,7 +62,7 @@ The hook does not watch the Manager between those calls. Read the `line` column 
 roles: manager
 topic: cost
 
-After a PO wait longer than the 1h cache lifetime (`CACHE_TTL_S` in `bin/squadtranscript.py`, the 1-hour lifetime this squad's sessions use; not re-checked against Claude docs), write notes and run `squad-respawn` at the next quiet point (a merge, a close, or no role building).
+Before a PO wait passes the 1h cache lifetime (`CACHE_TTL_S` in `bin/squadtranscript.py`), your notes are written and you are respawned lazily; the watchdog does it at 55 min idle over 50k (COST-15). Knowing the wait is long, run `squad-respawn --lazy` yourself at the next quiet point.
 
 ## COST-10b PO wait, Team Lead plans
 roles: manager, team-lead
@@ -95,3 +95,10 @@ aware: manager
 topic: cost
 
 A role whose fresh event comes under 15 minutes after its previous respawn tells the Team Lead first; the Team Lead splits the remaining tickets or narrows what the role reads to the diff and the files its AC name.
+
+## COST-15 Cold cache, watchdog restarts you
+roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect, dev
+aware: manager
+topic: cost
+
+Idle 55 min or more, context over 50k, work open: the watchdog prompts you once to write `roles/<you>.notes.md` (NOTE-1), one turn, then restarts you lazily. Under 50k you expire; with nothing open the Team Lead retires you (COST-13b); the Manager and Team Lead are restarted either way. Your first message after it is preceded by "read your notes".

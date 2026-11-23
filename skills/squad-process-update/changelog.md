@@ -1,3 +1,16 @@
+## v28 — 2026-11-24
+
+Plugin 0.10.10. The watchdog restarts idle roles lazily before their 1h prompt cache goes cold (ADR 0033).
+
+changed:
+- `bin/squad-watchdog`: a cold-cache pass: at 55 min idle over 50k context it prompts the role for notes, then respawns it. why: a **Cold cache** costs 2x on the next turn; no role watched the clock.
+- `bin/squad-respawn --lazy`, `bin/squad-spawn --lazy`: a **Lazy respawn** starts the session and sends no prompt. why: the restart must not wake the role.
+- `bin/squad-lazy-hook` and `hooks/hooks.json`: the first message after a lazy respawn gets "read your notes". why: the new session has no prompt telling it to.
+- COST-8b rewritten, COST-15 new. why: the Manager acts before the PO wait passes the hour, and every role knows the watchdog will prompt it.
+- ADR 0033 and the glossary (**Lazy respawn**, **Cold cache**, idle of a Home versus of one agent). why: the watchdog restarting a Manager or Team Lead is an exception to 0032.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.10.10; restart the watchdog (stale heartbeat, or close its tab); agents pick up the hook at their next respawn; `/squad:squad-process-update` for the rule change. Rollback: revert the merge, plugin back to 0.10.9 (leftover `roles/*.lazy` and `watchdog.cold.json` are inert).
+
 ## v27 — 2026-11-22
 
 Plugin 0.10.8. `/squads`: a "Resume session" command (`claude --resume` of the Manager's own session), lists newest touched first, and local date and time in the detail screen.

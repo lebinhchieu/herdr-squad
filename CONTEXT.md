@@ -196,6 +196,16 @@ _Avoid_: sleep-when-done
 `bin/squad-watchdog`, one per **Home**. It logs idle spells, nudges the scope's Team Lead (the Manager as fallback), and runs **Sleep-when-idle**. Inside herdr it runs alone in its own tab labelled `watchdog`; when the tab cannot be opened it falls back to a detached process.
 _Avoid_: monitor, supervisor
 
+**Lazy respawn**:
+A respawn (`squad-respawn <name> --lazy`) that starts the new session but sends no prompt. A marker `roles/<name>.lazy` holds the new session's id; `bin/squad-lazy-hook` adds "read your notes" before the first message to that session. The **Watchdog** does it to an agent with a **Cold cache** risk (ADR 0033).
+_Avoid_: soft respawn
+
+**Cold cache**:
+A session whose 1h prompt cache has expired; its next turn rewrites the whole context at 2x. The **Watchdog** acts at 55 min idle (see **Idle**), over 50k context.
+
+**Idle**:
+Two meanings. Of a **Home**: nobody is working while work waits (idle spell, nudges, **Sleep-when-idle**). Of one agent: its last main-thread turn is at least 55 min old (the **Cold cache** pass). The "idle" entries elsewhere in this file are the first meaning or transcript buckets.
+
 **Goal check**:
 The start of an iteration, where the Manager and PO agree the iteration's goal and the PO confirms the scope's team.
 _Avoid_: kickoff
