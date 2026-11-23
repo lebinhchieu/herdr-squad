@@ -13,14 +13,16 @@ at `squad-start`, and at `sleep on` when it is not running; a lone Manager has n
 Goals: <home>/goals.md (only the Manager writes it) is one table, one row per request of Chieu: `| # | Goal | Status | Reason |
 Updated |`, Status `in progress`, `done` or `blocked` (any other word counts as `in progress`; `blocked` carries the reason and
 the inbox item id). With at least one row the watchdog follows the goals:
-  - Idle = nobody in the roster is `working` in herdr while a goal is `in progress` (a `blocked` goal gets no nudge: it waits on Chieu). The start of an idle spell is logged with
+  - Idle = nobody in the roster, the Manager not counted, is `working` in herdr while a goal is `in progress` (a `blocked` goal gets no nudge: it waits on Chieu). The start of an idle spell is logged with
     every agent's state. After 5 and after 15 minutes of the same spell the Manager gets a message (`herdr agent prompt`)
     listing each `in progress` goal and asking it to check and solve. Only `blocked` goals open: one log line, no nudge, the watchdog keeps running.
   - Nobody working and every goal `done`: it logs `all goals done; watchdog stops` and `run` returns (the herdr tab closes;
     the heartbeat is cleared so `ensure` starts it again). While anyone works it never stops. While sleep-when-idle is on it
     stops only after the PC slept (the switch is then off), so the sleep is not lost.
-No goals file, or a table without rows (a scope from before goals): the old check. Idle = nobody `working` while a ticket
-waits (ready, building, returned, handed in, checking); the same nudges; it never stops.
+No goals file, or a table without rows (a scope from before goals): the old check. Idle = nobody `working` (the Manager not
+counted) while a ticket waits (ready, building, returned, handed in, checking); the same nudges; it never stops. Blind: no goals
+recorded, the scope has tickets and none has a status: once per spell it logs `blind: <N> tickets, none with a status` and
+sends it the way a nudge goes.
 
 Background shell: an agent that waits for a background shell (a test suite) ends its turn, so herdr calls it `idle`/`done`, but
 herdr reports the shell as the `bg` token of its `tokens` (hooks/herdr-bg writes it). A herdr `bg` shell token counts as
@@ -59,6 +61,7 @@ import argparse
 import copy
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -84,6 +87,7 @@ DONE = {"passed", "done", "resolved", "merged"}
 RETIRED = {"retired", "closed"}
 WSL_PS = ("Add-Type -AssemblyName System.Windows.Forms; "
           "[System.Windows.Forms.Application]::SetSuspendState('Suspend',$false,$false)")
+WSL_PS_PATH = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 LOG, STATE, SLEEP, WAKE = "watchdog.log", "watchdog.state.json", "watchdog.sleep", "watchdog.wake"
 GOALS = "goals.md"
 GOAL_STATUS = {"in progress", "done", "blocked"}
@@ -352,8 +356,11 @@ def all_done(snap):
 
 def decide(st, snap, now, sleep_enabled, sleep_after=SLEEP_AFTER_MIN * 60, bg_max=BG_MAX_MIN * 60):
     """Pure: (old state, snapshot, now, switch on?, seconds) -> (new state, [event]).
+    The Manager (role `manager`) never counts as working for the idle spell (`start`, `nudge`); `all_blocked` and `stop` still count
+    every agent, as does `machine_working` for sleep.
     event = ("start", since) | ("nudge", minutes, since) | ("end", minutes) | ("sleep", minutes, all_done) | ("down", why) | ("up",)
     | ("all_blocked",) | ("stop",): goals are recorded, all done, nobody working, and the sleep switch is off
+    | ("blind", n): no goals recorded, n tickets, none with a status; once per spell (st blind_logged)
     | ("bg_busy", name, text) | ("bg_cap", name, minutes): roster agents only. `st` is never changed (deep copy)."""
     st = copy.deepcopy(st)
     events = []
@@ -375,8 +382,9 @@ def decide(st, snap, now, sleep_enabled, sleep_after=SLEEP_AFTER_MIN * 60, bg_ma
     roster = {a["name"] for a in snap["agents"]}
     events += [("bg_busy", n, tokens[n]) for n in sorted(busy - prev) if n in roster]
     events += [("bg_cap", n, bg_max / 60) for n in sorted(prev - busy) if n in roster and n in tokens]
-    working = any(a["state"] == "working" or a["name"] in busy for a in snap["agents"])
-    idle = not working and bool(waiting(snap))
+    working = any(a["state"] == "working" or a["name"] in busy for a in snap["agents"])  # anyone: all_blocked and stop
+    team_working = any((a["state"] == "working" or a["name"] in busy) and a.get("role") != "manager" for a in snap["agents"])
+    idle = not team_working and bool(waiting(snap))
     since = st.get("idle_since")
     if idle and since is None:
         since = st["idle_since"] = now
@@ -390,6 +398,10 @@ def decide(st, snap, now, sleep_enabled, sleep_after=SLEEP_AFTER_MIN * 60, bg_ma
     if all_blocked and not st.get("blocked_logged"):
         events.append(("all_blocked",))
     st["blocked_logged"] = all_blocked
+    blind = not snap.get("goals") and bool(snap["tickets"]) and not any(t["status"] for t in snap["tickets"])
+    if blind and not st.get("blind_logged"):
+        events.append(("blind", len(snap["tickets"])))
+    st["blind_logged"] = blind
     if since is not None:
         for m in NUDGES:
             if m not in st["nudged"] and now - since >= m * 60:
@@ -432,7 +444,8 @@ def suspend_cmd():
     except OSError:
         wsl = False
     if wsl:
-        return ["powershell.exe", "-NoProfile", "-Command", WSL_PS], False
+        exe = shutil.which("powershell.exe") or (WSL_PS_PATH if os.path.exists(WSL_PS_PATH) else "powershell.exe")
+        return [exe, "-NoProfile", "-Command", WSL_PS], False
     return ["systemctl", "suspend"], False
 
 
@@ -442,6 +455,8 @@ def suspend():
     try:
         r = subprocess.run(cmd, shell=shell, capture_output=True, text=True, encoding="utf-8", errors="replace")  # no timeout: a suspend returns after the wake-up
     except (OSError, subprocess.SubprocessError) as e:
+        if isinstance(e, FileNotFoundError) and isinstance(cmd, list) and cmd[0] == "powershell.exe":
+            return False, f"{e}; not on PATH and not at {WSL_PS_PATH}"
         return False, str(e)
     return r.returncode == 0, (r.stderr.strip().splitlines() or ["suspend command failed"])[-1] if r.returncode else ""
 
@@ -522,6 +537,18 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None, t
             log(home, now, "herdr answers again")
         elif kind == "all_blocked":
             log(home, now, f"open goals are all blocked ({goals_blocked_text(snap)}); no idle nudge until one is in progress")
+        elif kind == "blind":
+            text = f"blind: {ev[1]} tickets, none with a status"
+            log(home, now, text)
+            target, why = route(home, manager, team_lead, snap)
+            if is_blocked(snap, target, home):  # a prompt may be open: held, the flag stays free for the next pass
+                st["blind_logged"] = False
+                log(home, now, f"blind held: {target} is blocked")
+                continue
+            if why:
+                log(home, now, f"route: blind -> {target} ({why})")
+            ok, why = send(target, text)
+            log(home, now, f"blind to {target}: " + ("sent: " if ok else f"NOT sent ({why}): ") + text)
         elif kind == "stop":
             log(home, now, "all goals done; watchdog stops")
         elif kind == "sleep":
