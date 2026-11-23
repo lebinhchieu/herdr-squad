@@ -1,6 +1,0 @@
-| AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |
-|---|---|---|---|
-| AC1 | tests/test_squadtickets.py test_watchdog_blind_state_line_is_read_when_no_status (State: ready -> ready; State: handed in (..) -> handed in; State past line 12 -> ''); `cd tests; python3 -m unittest -q test_squadtickets` OK | cd tests; python3 -m unittest -q test_squadtickets (ran on da9c43a in a detached worktree: OK); read bin/squadtickets.py status_of diff | live: status_of on State: fixtures -> ready / handed in / in progress; 90 more of 229 real guardian tickets read (evidence/02/qa-b.md) PASS |
-| AC2 | same test: "State: ready\nStatus: done" and "Status: done\nState: ready" -> done | same test file; code reads Status first then State over the same 12 lines | live: both orders -> done PASS |
-| AC3 | `cd tests; python3 -m unittest -q test_squadtickets test_squadboard_tasks test_squadtask` OK (grep -rl squadtickets tests/ hits) | cd tests; python3 -m unittest -q test_squadtickets test_squadboard_tasks test_squadtask test_windows_safe test_utf8_helpers test_instructions -> Ran 98 OK | live: 98 OK (same six modules) PASS |
-| AC4 | `grep -n 'Status:' CONTEXT.md` hits only line 54 and 220, no definition of the ticket line; no edit | grep -n "Status:" CONTEXT.md (lines 54, 220: no definition of the ticket line) | live: no CONTEXT.md edit needed PASS |
