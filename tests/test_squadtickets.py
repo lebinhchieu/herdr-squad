@@ -129,6 +129,12 @@ class ScopeTasksRule(unittest.TestCase):
                            ("# t", ""), ("\n" * 12 + "Status: done", "")):
             self.assertEqual(sti.status_of(text), want, text)
 
+    def test_watchdog_blind_state_line_is_read_when_no_status(self):
+        for text, want in (("State: ready (no Developer yet)", "ready"), ("State: handed in (5bc3126); QA next", "handed in"),
+                           ("State: ready\nStatus: done", "done"), ("Status: done\nState: ready", "done"),
+                           ("\n" * 12 + "State: ready", "")):
+            self.assertEqual(sti.status_of(text), want, text)
+
     def test_T28_AC13_TA1_I_coach_and_summary_files_are_not_tasks(self):
         tk = self.home / "tasks"
         for n in ("03-x.md", "03-x.coach.md", "05-y.summary.md", "07.md"):
