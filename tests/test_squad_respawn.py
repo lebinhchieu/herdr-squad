@@ -254,6 +254,30 @@ class RespawnTest(unittest.TestCase):
         self.assertEqual((ev["rule"], ev["agent"], ev["role"]), ("respawn", "dev-1", "dev"))
         self.assertEqual(len(self.events()), 2)
 
+    def test_lazy_respawn_spawns_with_lazy_no_prompt_and_marks_the_event(self):  # AC1, AC4, AC5
+        r = self.respawn("--dry-run", "--lazy")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertRegex(r.stdout, r"would run: .*squad-spawn dev dev-1 .* --lazy\n")
+        self.assertNotIn("--prompt", r.stdout)
+        self.assertEqual(self.events(), [])
+        r = self.respawn("--lazy")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        log = self.log.read_text(encoding="utf-8")
+        self.assertIn("agent start dev-1", log)
+        self.assertNotIn("agent prompt", log)
+        self.assertTrue((self.squad / "roles" / "dev-1.lazy").is_file())
+        [ev] = [json.loads(l) for l in self.events()]
+        self.assertEqual((ev["rule"], ev.get("lazy")), ("respawn", True))
+        # the default respawn: prompt, no marker, no lazy key
+        self.log.write_text("", encoding="utf-8")
+        (self.squad / "usage-events.jsonl").unlink()
+        self.assertEqual(self.respawn().returncode, 0)
+        self.assertIn("agent prompt", self.log.read_text(encoding="utf-8"))
+        self.assertFalse((self.squad / "roles" / "dev-1.lazy").exists())
+        [ev] = [json.loads(l) for l in self.events()]
+        self.assertNotIn("lazy", ev)
+        self.assertIn("--lazy", self.respawn("--bogus").stderr)  # usage text lists it
+
     def test_no_event_when_the_run_is_refused_or_a_dry_run(self):  # AC2: missing notes, no live agent, --dry-run
         (self.squad / "roles" / "dev-1.notes.md").unlink()
         self.assertEqual(self.respawn().returncode, 1)  # refused: notes missing

@@ -4,11 +4,11 @@
 # Safe to run from the agent's own pane: the old pane is closed last.
 set -euo pipefail
 
-[[ $# -lt 1 || $1 == -h || $1 == --help ]] && { echo "Usage: squad-respawn <agent-name> [--dry-run] [--force]"; exit 2; }
-name=$1 dry=0 force=0
+[[ $# -lt 1 || $1 == -h || $1 == --help ]] && { echo "Usage: squad-respawn <agent-name> [--dry-run] [--force] [--lazy]"; exit 2; }
+name=$1 dry=0 force=0 lazy=0
 shift
 for a in "$@"; do
-  case $a in --dry-run) dry=1 ;; --force) force=1 ;; *) echo "Usage: squad-respawn <agent-name> [--dry-run] [--force]" >&2; exit 2 ;; esac
+  case $a in --dry-run) dry=1 ;; --force) force=1 ;; --lazy) lazy=1 ;; *) echo "Usage: squad-respawn <agent-name> [--dry-run] [--force] [--lazy]" >&2; exit 2 ;; esac
 done
 set -- "$name" "$@"  # the pinned hand-off below passes the original arguments on
 
@@ -91,7 +91,9 @@ if [[ -f $home/roles/$name.overrides ]]; then
     ovr_args+=("--$k" "$v")
   done < "$home/roles/$name.overrides"
 fi
-spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" "${title_args[@]}" "${ovr_args[@]}" --prompt "$prompt")
+# --lazy: start the session and send nothing; the first message that reaches it is the first turn (squad-lazy-hook reads the marker).
+spawn=("$bin/squad-spawn" "$role" "$name" "${scope_args[@]}" "${wt_args[@]}" "${title_args[@]}" "${ovr_args[@]}")
+if [[ $lazy == 1 ]]; then spawn+=(--lazy); else spawn+=(--prompt "$prompt"); fi
 
 notes=$home/roles/$name.notes.md
 # The new session starts from the notes: no notes, no respawn (NOTE-1). --force skips both checks. A dry run says so but goes on.
@@ -128,8 +130,8 @@ old_pane=$(herdr agent get "$name" | jq -r '.result.agent.pane_id // .result.pan
 # (flock, else an atomic mkdir lock). A log problem warns once and never stops the respawn.
 log_respawn() {
   local log=$home/usage-events.jsonl record held n rc=0
-  record=$(jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg agent "$name" --arg role "$role" \
-    '{ts:$ts, agent:$agent, role:$role, rule:"respawn"}') || return 1
+  record=$(jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg agent "$name" --arg role "$role" --argjson lazy "$lazy" \
+    '{ts:$ts, agent:$agent, role:$role, rule:"respawn"} + (if $lazy == 1 then {lazy:true} else {} end)') || return 1
   if command -v flock >/dev/null; then
     { flock 9 2>/dev/null; printf '%s\n' "$record" >&9; } 9>>"$log" || return 1
   else

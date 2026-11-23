@@ -200,6 +200,45 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertNotIn("send-keys", self.log.read_text(encoding="utf-8"))
         self.assertNotIn("did not start", r.stderr)
 
+    def test_lazy_writes_the_marker_and_sends_nothing_not_even_a_wait(self):  # AC2, AC3, AC6
+        self._fake_herdr(live="")
+        self.env.update(AGENT_STATUS="idle", SQUAD_SPAWN_START_WAIT="600")  # a wait would hang past the timeout
+        marker = self.squad / "roles" / "dev-1.lazy"
+        run = lambda *a: winlaunch.run_script(SCRIPT, ["dev", "dev-1", "--scope", "s", *a], env=self.env,
+                                              text=True, encoding="utf-8", capture_output=True, timeout=20)
+        r = run("--lazy", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertRegex(r.stdout, rf"would write {re.escape(str(marker))} \({UUID}\)")
+        self.assertFalse(marker.exists())
+        r = run("--lazy")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        sid = json.loads(r.stdout)["session"]
+        self.assertEqual(marker.read_bytes(), sid.encode() + b"\n")  # one line, no CRLF
+        self.assertIn(sid, (self.squad / "roster.md").read_text(encoding="utf-8"))
+        log = self.log.read_text(encoding="utf-8")
+        self.assertNotIn("agent prompt", log)
+        self.assertNotIn("send-keys", log)
+        self.assertNotIn("without --prompt", r.stderr)
+        self.assertNotIn("did not start", r.stderr)
+
+    def test_a_plain_spawn_removes_a_stale_lazy_marker(self):  # AC3
+        self._fake_herdr(live="")
+        marker = self.squad / "roles" / "dev-1.lazy"
+        marker.parent.mkdir(exist_ok=True)
+        marker.write_text("old-sid\n", encoding="utf-8")
+        r = winlaunch.run_script(SCRIPT, ["dev", "dev-1", "--scope", "s", "--prompt", "go"], env=self.env,
+                                 text=True, encoding="utf-8", capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(marker.exists())
+
+    def test_lazy_with_prompt_or_task_exits_2_and_starts_nothing(self):  # AC2
+        self._fake_herdr(live="")
+        for extra in (["--prompt", "go"], ["--task", "1"]):
+            r = winlaunch.run_script(SCRIPT, ["dev", "dev-1", "--scope", "s", "--lazy", *extra], env=self.env,
+                                     text=True, encoding="utf-8", capture_output=True, timeout=10)
+            self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertFalse(self.log.exists() and self.log.read_text(encoding="utf-8").strip())
+
     def test_refuses_a_name_that_is_already_live_in_another_squad(self):
         self._fake_herdr(live="bill-ba-invoices")
         r = winlaunch.run_script(SCRIPT, ["ba", "bill-ba-invoices"], env=self.env,

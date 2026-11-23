@@ -218,10 +218,13 @@ class SmallRulesTest(unittest.TestCase):
     def test_bundle_long_wait_and_experiment_rules(self):
         self.assertIn("one `HANDIN` lists each ticket", rule("LC-6c").replace("One `HANDIN`", "one `HANDIN`"))
         self.assertIn("1h cache lifetime", rule("COST-8b"))
-        self.assertIn("squad-respawn", rule("COST-8b"))
+        self.assertIn("squad-respawn --lazy", rule("COST-8b"))
         self.assertIn("CACHE_TTL_S", rule("COST-8b"))
         self.assertIn("next quiet point", rule("COST-8b"))  # task 19 AC3
         self.assertNotIn("at any context length", rule("COST-8b"))
+        c15 = rule("COST-15")  # warmcache 04 AC3
+        for s_ in ("55 min", "50k", "roles/<you>.notes.md", "lazily", "COST-13b"):
+            self.assertIn(s_, c15)
 
     def test_cost_3_carries_the_cost_hook_and_cost_1_and_9_are_gone(self):  # task 19 AC1, AC2, AC4
         text = composed("qa-whitebox")

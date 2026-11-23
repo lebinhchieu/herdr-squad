@@ -33,6 +33,9 @@ Options:
   --task NN        builds the first prompt from the ticket (dev and checkers); a dev also claims ticket NN for this Developer once it is up (squad-task claim, so the board shows
                    it `in progress`). Also read from env SQUAD_SPAWN_TASK. A claim problem warns, never fails the spawn.
                    Another role: warning, ignored. No claim with --worktree (a respawn).
+  --lazy           Start the session and send it nothing (squad-respawn --lazy): no prompt, no first-prompt wait, and
+                   roles/<agent>.lazy holds its session id so squad-lazy-hook briefs it on its first message.
+                   Refused (exit 2) with --prompt or --task.
   --dry-run        Print what would run, start nothing
 
 Env:
@@ -67,7 +70,7 @@ for a in "${orig_args[@]}"; do
   handoff_args+=("$a")
 done
 role=$1 name=$2; shift 2
-squad=${SQUAD:-} scope="" goal="" repo="" base="" worktree="" prompt="" title="" model="" effort="" dry=0 task="" claim_branch=""
+squad=${SQUAD:-} scope="" goal="" repo="" base="" worktree="" prompt="" title="" model="" effort="" dry=0 lazy=0 task="" claim_branch=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --squad) squad=$2; shift 2 ;;
@@ -81,6 +84,7 @@ while [[ $# -gt 0 ]]; do
     --model) model=$2; shift 2 ;;
     --effort) effort=$2; shift 2 ;;
     --task) [[ $# -ge 2 ]] || { echo "--task needs a ticket number" >&2; exit 2; }; task=$2; shift 2 ;;
+    --lazy) lazy=1; shift ;;
     --dry-run) dry=1; shift ;;
     *) echo "unknown option: $1" >&2; usage; exit 2 ;;
   esac
@@ -97,7 +101,8 @@ if [[ ${SQUAD_ROLE:-} == team-lead ]]; then
     team-lead) [[ $name == "${SQUAD_NAME:-}" ]] || { echo "a Team Lead may not spawn another team-lead ($name)" >&2; exit 2; } ;;
   esac
 fi
-[[ $role == manager || -n $prompt || -n ${task:-${SQUAD_SPAWN_TASK:-}} ]] || echo "warning: $role $name spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)" >&2
+[[ $lazy != 1 || ( -z $prompt && -z ${task:-${SQUAD_SPAWN_TASK:-}} ) ]] || { echo "--lazy sends no first message: drop --prompt and --task" >&2; exit 2; }
+[[ $role == manager || $lazy == 1 || -n $prompt || -n ${task:-${SQUAD_SPAWN_TASK:-}} ]] || echo "warning: $role $name spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)" >&2
 [[ -z $base || -n $repo ]] || { echo "--base needs --repo" >&2; exit 2; }
 task=${task:-${SQUAD_SPAWN_TASK:-}}
 [[ -z $task || $task =~ ^[0-9]+$ ]] || { echo "bad --task value: $task (a ticket number, digits only)" >&2; exit 2; }
@@ -511,6 +516,7 @@ if [[ $dry == 1 ]]; then
   echo "would run: herdr tab create --cwd $cwd --label $label --no-focus ${ws_args[*]} ${env_args[*]}"
   echo "would run: squad-usage --squad-dir $home --set-session $name $session --role $role --scope $scope"
   echo "would run: herdr agent start $name --kind claude --pane <pane> -- ${claude_args[*]}"
+  [[ $lazy != 1 ]] || echo "would write $home/roles/$name.lazy ($session)"
   [[ -z $task ]] || echo "would run: herdr agent prompt $name ${prompt%% Your process rules*}"
   [[ -z $task || -z $claim_branch ]] || echo "would run: squad-task claim $task --scope-home $home --owner $name${claim_branch:+ --branch $claim_branch}"
   exit 0
@@ -564,6 +570,14 @@ start_err=$(herdr agent start "$name" --kind claude --pane "$pane" --timeout 120
 # No branch (--worktree, a respawn): no claim, so a respawn never re-claims. A failure never fails the spawn.
 if [[ -n $task && -n $claim_branch ]]; then
   "$plugin_root/bin/squad-task" claim "$task" --scope-home "$home" --owner "$name" --branch "$claim_branch" >&2 || true
+fi
+
+# Lazy marker (contract C1): the session id, written before anything can send a prompt. A plain spawn clears a stale one.
+lazy_file=$home/roles/$name.lazy
+rm -f "$lazy_file"
+if [[ $lazy == 1 ]]; then
+  mkdir -p "$home/roles"
+  printf '%s\n' "$session" > "$lazy_file"
 fi
 
 ovr_file=$home/roles/$name.overrides
