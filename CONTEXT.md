@@ -230,6 +230,14 @@ _Avoid_: requirements, definition of done
 A task is passed when every non-retired QA on the team sent `PASS` for its current sha; with no QA on the team, when the `HANDIN` evidence check (`squad-evidence check`) exits 0. No role confirms it. Passed is not done: only a merged task is done. A tip that moved after the PASS reads "sha changed after PASS"; a commit that touches only the ticket's evidence folder does not move it. The watchdog and the board read `passed` from the event store, else from ledger verdicts, never from the ticket `Status:` word.
 _Avoid_: done, finished, complete, ready for review
 
+**Finding**:
+One problem a checker (QA whitebox, QA blackbox, or the Team Lead with no QA) writes in its verdict file (`qa-w.md`, `qa-b.md`) for a handed-in sha: file:line or what it saw, why it matters, what would pass. A finding causes a `FAIL` (a **Return**) or goes in the `PASS` as a **Follow-up**; all findings of one sha go in one verdict (REV-17).
+_Avoid_: issue, bug, comment, remark
+
+**Follow-up**:
+A finding that does not block the `PASS`: listed under `Follow-ups` in the verdict file, and batched by the Team Lead into one last, droppable ticket (LC-22b). In `qa: light` mode (LC-21, LC-22a) test-strength gaps are follow-ups; in the plugin squad, any finding that breaks no written AC and no test is one (overlay SQ-4, local only).
+_Avoid_: nit, nice-to-have, backlog item
+
 **Merged**:
 A passed task whose branch is in `main`. The board derives it from git; `squad-merge-record` or `squad-task merged NN` records it when git cannot show it.
 
