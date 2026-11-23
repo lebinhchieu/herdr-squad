@@ -67,7 +67,7 @@ class MergeCheck(unittest.TestCase):
         r = subprocess.run([sys.executable, str(TOOL), *args], cwd=self.repo, capture_output=True, text=True, env=env)
         return r.returncode, r.stdout, r.stderr
 
-    def test_ok_main_moved_no_shared_file_and_read_only(self):  # AC4 ok, SQ-7 note, T1, T7 untracked warns
+    def test_ok_main_moved_no_shared_file_and_read_only(self):  # AC4 ok, MRG-6 note, T1, T7 untracked warns
         self.passed()
         (self.repo / "other").write_text("2", encoding="utf-8")
         self.g("commit", "-q", "-am", "main moves")
@@ -116,7 +116,7 @@ class MergeCheck(unittest.TestCase):
         self.assertIn("main-related: shared files ['libx']", out)
         self.assertIn("a Developer merges main first", out.splitlines()[-1])
 
-    def test_main_moved_shared_test_hit_only_refuses(self):  # SQ-7: no shared file, one test mentions both
+    def test_main_moved_shared_test_hit_only_refuses(self):  # MRG-6: no shared file, one test mentions both
         self.passed()
         (self.repo / "tests" / "test_a.py").write_text("uses libx and other\n", encoding="utf-8")
         self.g("commit", "-q", "-am", "test mentions other")

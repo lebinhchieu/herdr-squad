@@ -64,7 +64,7 @@ CHANGED = {
     "M/ba": "",
     "M/designer": "",
     "M/dev": "",
-    "M/manager": "WHO-2d WHO-2b WHO-3b WHO-8b START-1 START-2c FILE-5b START-3 START-3b START-19 FILE-6 FILE-7 GOAL-6b CLOSE-1 ITER-1 ITER-6 ITER-6b",
+    "M/manager": "WHO-2d WHO-2b WHO-3b WHO-8b START-1 START-2c FILE-5b START-3 START-3b START-19 FILE-6 FILE-7 GOAL-6b GOAL-6d CLOSE-1 ITER-1 ITER-6 ITER-6b",
     "M/qa-blackbox": "",
     "M/qa-whitebox": "",
     "M/team-lead": "FILE-7",

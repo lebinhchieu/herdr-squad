@@ -167,7 +167,7 @@ def check(target, base_ref, scope):
     for p in untracked:
         lines.append("warning: untracked file outside .claude/squads/: " + p)
 
-    # SQ-7: main moved
+    # MRG-6: main moved
     if is_ancestor(base, sha):
         lines.append("main-moved: no")
     else:
@@ -183,11 +183,11 @@ def check(target, base_ref, scope):
         lines.append("main-moved: yes, %d file(s) on base, %d on branch" % (len(on_base), len(on_sha)))
         if shared or hits:
             lines.append("main-related: shared files %s; shared test hits %s" % (shared or "none", sorted(hits) or "none"))
-            reasons.append("main moved with related changes: a Developer merges main first (SQ-7b)")
+            reasons.append("main moved with related changes: a Developer merges main first (MRG-6b)")
         else:
             lines.append("main-related: main moved, %d files, none related" % len(on_base))
 
-    # SQ-6: related passed siblings that are not ancestors
+    # GOAL-6e: related passed siblings that are not ancestors
     mine_branches = {s.get("branch") for s in mine} | {target}
     my_files = changed(merge_base(base, sha) or base, sha)
     my_hits = test_hits(my_files, sha)
