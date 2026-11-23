@@ -28,3 +28,5 @@ Use the `line` column. Do not add a fixed 100k or 150k.
 - AC6: Duties: SQ-10 files (`tests/test_windows_safe.py`, `tests/test_utf8_helpers.py`, `tests/test_instructions.py`) plus `grep -rl` hits of COST-16.
 
 ## Comments
+
+- COST-16 (`templates/squad/process/cost.md`) replaces board SQ-5 (cost op), plugin SQ-3c and plugin SQ-3d. `upgrade --check` lists each as kept (`add`) until the squads drop it by hand after re-pin.
