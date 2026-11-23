@@ -4,6 +4,7 @@ import os
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import winlaunch
@@ -280,7 +281,102 @@ class WatchdogTest(unittest.TestCase):
             W.sys.platform = plat
             if wsl:
                 os.environ["WSL_DISTRO_NAME"] = wsl
-            self.assertEqual(W.suspend_cmd()[0][0], want)
+            with mock.patch.object(W.shutil, "which", return_value=None), mock.patch.object(W.os.path, "exists", return_value=False):
+                self.assertEqual(W.suspend_cmd()[0][0], want)  # host-independent: no powershell anywhere -> the bare name
+
+    # watchdog-blind 03 AC3: WSL powershell by PATH, else /mnt/c path, else the bare name; nothing suspends
+    def test_wsl_suspend_cmd_takes_path_then_mnt_c_then_the_bare_name_and_a_failure_names_the_path(self):
+        old = (W.sys.platform, os.environ.pop("SQUAD_WATCHDOG_SLEEP_CMD", None), os.environ.get("WSL_DISTRO_NAME"))
+        self.addCleanup(lambda: (setattr(W.sys, "platform", old[0]), os.environ.pop("WSL_DISTRO_NAME", None),
+                                 old[2] and os.environ.__setitem__("WSL_DISTRO_NAME", old[2])))
+        W.sys.platform, os.environ["WSL_DISTRO_NAME"] = "linux", "Ubuntu"
+        boom = mock.patch.object(W.subprocess, "run", side_effect=AssertionError("must not suspend"))
+        with boom:
+            with mock.patch.object(W.shutil, "which", return_value="/usr/bin/powershell.exe"):
+                argv, shell = W.suspend_cmd()
+                self.assertEqual((argv[0], argv[1:], shell), ("/usr/bin/powershell.exe", ["-NoProfile", "-Command", W.WSL_PS], False))
+            with mock.patch.object(W.shutil, "which", return_value=None), mock.patch.object(W.os.path, "exists", return_value=True):
+                self.assertEqual(W.suspend_cmd()[0][0], W.WSL_PS_PATH)
+            with mock.patch.object(W.shutil, "which", return_value=None), mock.patch.object(W.os.path, "exists", return_value=False):
+                self.assertEqual(W.suspend_cmd()[0][0], "powershell.exe")
+        with mock.patch.object(W.shutil, "which", return_value=None), mock.patch.object(W.os.path, "exists", return_value=False), \
+                mock.patch.object(W.subprocess, "run", side_effect=FileNotFoundError("powershell.exe")):
+            ok, why = W.suspend()
+        self.assertFalse(ok)
+        self.assertIn(W.WSL_PS_PATH, why)
+
+    # watchdog-blind 03 AC1 + T1
+    def test_a_working_manager_does_not_hold_the_idle_spell_but_still_counts_for_stop_and_sleep(self):
+        import copy
+        self.tickets(t03="building")
+        self.agents(t_mgr_s1="working", t_dev_s1="idle", t_qa_s1="idle")
+        snap = W.snapshot(self.home, str(self.herdr))
+        st0 = {"idle_since": None}
+        before = copy.deepcopy(st0)
+        st, ev = W.decide(st0, snap, T0, True)
+        self.assertEqual(st0, before)
+        self.assertEqual([e[0] for e in ev], ["start"])  # Manager working, rest idle: the spell starts
+        self.assertIsNone(st["quiet_since"])  # machine_working is untouched: no sleep clock
+        # a Manager's bg shell does not hold it either
+        snap["bg"] = {"t-mgr-s1": "1 shell"}
+        st, ev = W.decide({"idle_since": None}, snap, T0, False)
+        self.assertEqual([e[0] for e in ev if e[0] != "bg_busy"], ["start"])
+        # a working Developer does hold it
+        self.agents(t_mgr_s1="idle", t_dev_s1="working", t_qa_s1="idle")
+        self.assertEqual(W.decide({"idle_since": None}, W.snapshot(self.home, str(self.herdr)), T0, False)[1], [])
+
+    def test_goals_all_blocked_or_done_with_a_working_manager_still_follow_the_all_agents_rule(self):
+        goal = self.home.parent.parent / "goals" / "g1"
+        goal.mkdir(parents=True)
+        (goal / "goal.md").write_text("# g1\n", encoding="utf-8")
+        (goal / "roster.md").write_text(ROSTER.replace("s1", "g1"), encoding="utf-8")
+        (goal / "goals.md").write_text("| # | Goal | Status |\n|---|---|---|\n| G1 | x | done |\n", encoding="utf-8")
+        self.agents(t_mgr_g1="working", t_dev_g1="idle", t_qa_g1="idle")
+        snap = W.snapshot(goal, str(self.herdr))
+        self.assertNotIn("stop", [e[0] for e in W.decide({}, snap, T0, False)[1]])  # Manager working: never stops
+        self.agents(t_mgr_g1="idle", t_dev_g1="idle", t_qa_g1="idle")
+        self.assertIn("stop", [e[0] for e in W.decide({}, W.snapshot(goal, str(self.herdr)), T0, False)[1]])
+        (goal / "goals.md").write_text("| # | Goal | Status | Reason |\n|---|---|---|---|\n| G1 | x | blocked | r |\n", encoding="utf-8")
+        self.agents(t_mgr_g1="working", t_dev_g1="idle", t_qa_g1="idle")
+        ev = W.decide({}, W.snapshot(goal, str(self.herdr)), T0, False)[1]
+        self.assertNotIn("all_blocked", [e[0] for e in ev])  # unchanged: needs nobody working
+        self.assertNotIn("start", [e[0] for e in ev])
+
+    # watchdog-blind 03 AC2 + T2/T3 (real status_of: State: lines)
+    def test_blind_is_logged_and_sent_once_per_spell_and_again_in_a_new_one(self):
+        (self.home / "tasks" / "03.md").write_text("# T\n\nno status here\n", encoding="utf-8")
+        for n in ("04", "05"):
+            (self.home / "tasks" / f"{n}.md").write_text("# T\n\nnothing\n", encoding="utf-8")
+        self.agents(t_mgr_s1="idle", t_dev_s1="idle", t_qa_s1="idle", t_tl_s1="idle")
+        self.tick(0)
+        self.tick(1)
+        text = "blind: 3 tickets, none with a status"
+        self.assertEqual([x for _m, x in self.sent if x.startswith("blind")], [text])
+        self.assertEqual(self.sent[0][0], "t-tl-s1")  # route(): the scope's Team Lead, as a nudge
+        self.assertRegex(self.log(), r"(?m)^2027-01-15T08:00:00Z blind: 3 tickets, none with a status$")
+        self.assertEqual(self.log().count("blind to t-tl-s1: sent: " + text), 1)
+        self.assertEqual(json.loads((self.home / "watchdog.state.json").read_text(encoding="utf-8"))["blind_logged"], True)
+        self.tickets(t03="ready")  # a status appears: the spell ends
+        self.tick(2)
+        for n in ("04", "05"):
+            (self.home / "tasks" / f"{n}.md").unlink()
+        (self.home / "tasks" / "03.md").write_text("# T\n\nnone\n", encoding="utf-8")
+        self.tick(3)
+        self.assertEqual(len([x for _m, x in self.sent if x.startswith("blind")]), 1 + 1)
+        self.assertIn("blind: 1 tickets, none with a status", self.log())
+
+    def test_blind_needs_tickets_none_with_a_status_and_no_goals(self):
+        self.agents(t_mgr_s1="idle", t_dev_s1="idle", t_qa_s1="idle")
+        self.tick(0)  # no ticket
+        (self.home / "tasks" / "03.md").write_text("# T\n\nStatus: ready\n", encoding="utf-8")
+        (self.home / "tasks" / "04.md").write_text("# T\n\nState: ready\n", encoding="utf-8")  # 02: a State: line is a status
+        self.tick(1)  # one has a status
+        self.assertNotIn("blind", self.log())
+        (self.home / "tasks" / "03.md").write_text("# T\n\nnone\n", encoding="utf-8")
+        goals = self.home / "goals.md"
+        goals.write_text("| # | Goal | Status |\n|---|---|---|\n| G1 | x | in progress |\n", encoding="utf-8")
+        self.tick(2)  # goals recorded
+        self.assertNotIn("blind", self.log())
 
     def test_a_name_listed_twice_in_the_roster_shows_once_in_the_log_and_the_nudge(self):
         (self.home / "roster.md").write_text(ROSTER + "| t-dev-s1 | dev | s1 | ticket 03 | live | b |\n", encoding="utf-8")
