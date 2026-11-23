@@ -573,7 +573,25 @@ if [[ -n $ovr_model || -n $ovr_effort ]]; then
   { [[ -z $ovr_model ]] || echo "model=$ovr_model"; [[ -z $ovr_effort ]] || echo "effort=$ovr_effort"; } > "$ovr_file"
 fi
 
-[[ -n $prompt ]] && herdr agent prompt "$name" "$prompt" >/dev/null
+if [[ -n $prompt ]]; then
+  herdr agent prompt "$name" "$prompt" >/dev/null
+  # The typed prompt can sit unsent in the input box (agent `idle`). Wait for `working`; resend Enter once; then warn.
+  # Two waits of SQUAD_SPAWN_START_WAIT seconds (default 15, so at most ~30 s). A failure never fails the spawn.
+  agent_started() {
+    local n=$(( ${SQUAD_SPAWN_START_WAIT:-15} * 2 )) i st
+    for ((i = 0; i < n; i++)); do
+      st=$(herdr agent get "$name" 2>/dev/null | jq -r '.result.agent.agent_status // .agent_status // empty') || st=""
+      [[ $st == working ]] && return 0
+      [[ -n $st ]] || return 0   # no status readable (get failed, no field): unknown is not idle; no resend, no warning
+      sleep 0.5
+    done
+    return 1
+  }
+  if ! agent_started; then
+    herdr agent send-keys "$name" Enter >/dev/null 2>&1 || true
+    agent_started || echo "warning: $name did not start on its first prompt; send it a message" >&2
+  fi
+fi
 
 # The home's watchdog starts with the first non-Manager agent (a scope inside a goal also starts the goal's). `ensure` is a
 # no-op while the heartbeat is fresh. A failure only warns; stdout stays the one JSON line.

@@ -159,6 +159,41 @@ class SpawnDryRunTest(unittest.TestCase):
         (self.squad / "roster.md").write_text(
             "| Agent | Role | Scope | Owns | Status |\n|---|---|---|---|---|\n", encoding="utf-8")
 
+    def _spawn_with_status(self, status, after_keys, *extra):
+        self._fake_herdr(live="")
+        self.env.update(AGENT_STATUS=status, SQUAD_SPAWN_START_WAIT="1")
+        if after_keys:
+            self.env["AGENT_STATUS_AFTER_KEYS"] = after_keys
+        return winlaunch.run_script(SCRIPT, ["dev", "dev-1", "--scope", "s", "--prompt", "go", *extra], env=self.env,
+                                    text=True, encoding="utf-8", capture_output=True, timeout=20)
+
+    def test_first_prompt_working_at_once_sends_no_enter(self):
+        r = self._spawn_with_status("working", "")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("send-keys", self.log.read_text(encoding="utf-8"))
+        self.assertNotIn("did not start", r.stderr)
+
+    def test_first_prompt_idle_gets_one_enter_then_works(self):
+        r = self._spawn_with_status("idle", "working")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.log.read_text(encoding="utf-8").count("agent send-keys dev-1 Enter"), 1)
+        self.assertNotIn("did not start", r.stderr)
+
+    def test_first_prompt_never_working_warns_and_still_succeeds(self):
+        r = self._spawn_with_status("idle", "")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.log.read_text(encoding="utf-8").count("agent send-keys dev-1 Enter"), 1)
+        self.assertIn("warning: dev-1 did not start on its first prompt; send it a message", r.stderr)
+        self.assertEqual(json.loads(r.stdout)["status"], "ready")
+
+    def test_no_prompt_means_no_status_wait(self):
+        self._fake_herdr(live="")
+        self.env.update(AGENT_STATUS="idle", SQUAD_SPAWN_START_WAIT="1")
+        r = winlaunch.run_script(SCRIPT, ["manager", "m", "--scope", "s"], env=self.env,
+                                 text=True, encoding="utf-8", capture_output=True, timeout=20)
+        self.assertNotIn("send-keys", self.log.read_text(encoding="utf-8"))
+        self.assertNotIn("did not start", r.stderr)
+
     def test_refuses_a_name_that_is_already_live_in_another_squad(self):
         self._fake_herdr(live="bill-ba-invoices")
         r = winlaunch.run_script(SCRIPT, ["ba", "bill-ba-invoices"], env=self.env,
