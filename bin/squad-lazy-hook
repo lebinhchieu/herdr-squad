@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""Claude UserPromptSubmit hook: the first prompt of a lazily respawned session says "read your notes first".
+
+Marker <home>/roles/<name>.lazy holds the new session's id (squad-spawn --lazy). When the hook input's
+session_id equals it: print the instruction once and delete the marker. Anything else: prints nothing.
+<home> is SCOPE_DIR, else GOAL_DIR, else SQUAD_DIR. Every role. Never blocks the prompt, always exits 0."""
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
+
+
+def main():
+    squadio.utf8_stdio()
+    try:
+        sid = str(json.load(sys.stdin).get("session_id") or "").strip()
+    except (ValueError, AttributeError, OSError):
+        return
+    home = os.environ.get("SCOPE_DIR") or os.environ.get("GOAL_DIR") or os.environ.get("SQUAD_DIR")
+    name = os.environ.get("SQUAD_NAME")
+    if not (sid and home and name):
+        return
+    roles = Path(home).resolve() / "roles"
+    marker = roles / (name + ".lazy")
+    try:
+        want = marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        return
+    if not want or want != sid:
+        return
+    try:
+        marker.unlink()
+    except OSError:
+        pass
+    text = ("You were respawned and your session is new. Before answering, read your notes %s and continue from them. "
+            "Your process rules are attached to this session (%s); read no other process file. "
+            "Then answer this message." % (roles / (name + ".notes.md"), roles / (name + ".rules.md")))
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text}}))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        pass
+    sys.exit(0)
