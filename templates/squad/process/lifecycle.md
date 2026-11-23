@@ -204,7 +204,14 @@ roles: dev
 when: handin-target = qas
 topic: lifecycle
 
-On every `PASS` send the Team Lead `STATUS NN: passed <sha>`; it retires you.
+On every `PASS` send the Team Lead `STATUS NN: passed <sha>`; stay until the Team Lead retires you ([LC-20f]).
+
+## LC-20f Retire after the evidence check, Team Lead
+roles: team-lead
+when: handin-target = qas
+topic: lifecycle
+
+Keep the Developer until both checkers sent `PASS` and its evidence commit is in. Run `squad-evidence check <folder>` on the final sha; only on exit 0 retire it and record `STATUS <task>: passed`, quoting the exit code and sha.
 
 ## LC-20e Passed, Team Lead alone
 roles: dev
