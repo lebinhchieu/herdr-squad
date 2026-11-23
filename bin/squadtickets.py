@@ -60,16 +60,18 @@ def title_of(text, nn, stem=""):
 
 
 def status_of(text):
-    """`Status:` value in the first 12 lines, lowercase, first word only."""
-    for line in (text or "").splitlines()[:12]:
-        m = re.match(r"^Status:[ \t]*(.*)$", line)
-        if m:
-            v = m.group(1).strip().lower()
-            for phrase in ("handed in", "in progress"):
-                if v.startswith(phrase):
-                    return phrase
-            w = re.match(r"[^\s,;:(]*", v)
-            return w.group(0)
+    """`Status:` value in the first 12 lines (else the `State:` value), lowercase, first word only."""
+    lines = (text or "").splitlines()[:12]
+    for key in ("Status", "State"):
+        for line in lines:
+            m = re.match(r"^" + key + r":[ \t]*(.*)$", line)
+            if m:
+                v = m.group(1).strip().lower()
+                for phrase in ("handed in", "in progress"):
+                    if v.startswith(phrase):
+                        return phrase
+                w = re.match(r"[^\s,;:(]*", v)
+                return w.group(0)
     return ""
 
 

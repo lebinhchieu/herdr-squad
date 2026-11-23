@@ -19,3 +19,5 @@ The watchdog woke the Manager on every `passed` ticket and judged idleness from 
 - The Team Lead reports goal status to the Manager (nudge text of tl-wake-status), who alone writes `goals.md`.
 
 Amended by 0030 (team-lead-always): the nudge goes to the scope's Team Lead; the goal's watchdog wakes the goal Manager only on `goals.md` events.
+
+Amended by watchdog-blind 03: the Manager is not counted as working for the idle test (the idle spell, its nudges); `all_blocked`, `stop` and sleep still count every agent.
