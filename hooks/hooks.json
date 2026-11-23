@@ -28,6 +28,9 @@
     "UserPromptSubmit": [
       {
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-away-hook\"" }]
+      },
+      {
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-lazy-hook\"" }]
       }
     ],
     "Stop": [
