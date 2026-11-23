@@ -30,3 +30,11 @@ T5. Shared stub: `tests/squadtest.py` `_FAKE_HERDR` `agent get` prints no `agent
 T6. Tests (a)(b)(c) assert on the herdr log (send-keys count 0 / 1 / 1) and on stderr text, not on timing. (c) also asserts exit 0 and the JSON line unchanged.
 T7. `squad-respawn` calls `squad-spawn` with a prompt: confirm by reading the code that a respawn still works and show one targeted test hit (grep -rl squad-respawn tests/).
 T8. SQ-10 three files and the `grep -rl` hits run and quoted; no new skips.
+
+## Design notes (Developer)
+Real `herdr agent get <name>` (read-only, fields cut to the ones used; herdr on this machine 2026-11-23):
+- idle: `{"result":{"agent":{"name":"guardian-mgr-consolidated","agent_status":"idle","agent":"claude","pane_id":"w4T:p77"}}}`
+  same agent from `herdr agent list | jq -c '.result.agents[]|select(.name=="guardian-mgr-consolidated")|{name,agent_status}'` -> `{"name":"guardian-mgr-consolidated","agent_status":"idle"}`
+- working: `{"result":{"agent":{"name":"plugin-qab-watchdog-blind","agent_status":"working","agent":"claude","pane_id":"w6M:p6"}}}`
+- The field is `.result.agent.agent_status`; statuses seen: idle, working, done (also blocked, unknown).
+Choices: poll `agent get` every 0.5 s, SQUAD_SPAWN_START_WAIT s per phase (default 15, about 30 s in all). `working`: started. `idle`/`done`: keep waiting, then one `agent send-keys <name> Enter`, wait again, then the warning. `blocked` (a trust/permission dialog), `unknown`, or an unreadable status (get fails, no field): no resend, no warning, the spawn goes on; Enter must never answer a dialog.

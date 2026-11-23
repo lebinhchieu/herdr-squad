@@ -186,6 +186,12 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertIn("warning: dev-1 did not start on its first prompt; send it a message", r.stderr)
         self.assertEqual(json.loads(r.stdout)["status"], "ready")
 
+    def test_a_blocked_agent_gets_no_enter(self):
+        r = self._spawn_with_status("blocked", "")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("send-keys", self.log.read_text(encoding="utf-8"))
+        self.assertNotIn("did not start", r.stderr)
+
     def test_no_prompt_means_no_status_wait(self):
         self._fake_herdr(live="")
         self.env.update(AGENT_STATUS="idle", SQUAD_SPAWN_START_WAIT="1")

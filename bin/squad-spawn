@@ -581,8 +581,9 @@ if [[ -n $prompt ]]; then
     local n=$(( ${SQUAD_SPAWN_START_WAIT:-15} * 2 )) i st
     for ((i = 0; i < n; i++)); do
       st=$(herdr agent get "$name" 2>/dev/null | jq -r '.result.agent.agent_status // .agent_status // empty') || st=""
-      [[ $st == working ]] && return 0
-      [[ -n $st ]] || return 0   # no status readable (get failed, no field): unknown is not idle; no resend, no warning
+      # Only idle/done keep waiting (then Enter, then the warning). working: started. blocked (a trust or permission dialog)
+      # or no readable status (get failed, no field, unknown): not ours to answer; no resend, no warning.
+      [[ $st == idle || $st == done ]] || return 0
       sleep 0.5
     done
     return 1
