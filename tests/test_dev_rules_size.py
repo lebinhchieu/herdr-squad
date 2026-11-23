@@ -13,7 +13,8 @@ sys.path.insert(0, str(BIN))
 from rulesview import ROOT, ROLES, run, shape_team, who
 
 # ticket 09 (check table rule); the Developer gets no rule index, so ticket 10 does not lower this
-LIMIT = 5580
+# upstream-proposals 01: +313 B (budget 450) for COST-16; worst no-designer team 5473 -> 5786 B
+LIMIT = 5580 + 313
 NOW = "2026-10-22T10:00:00Z"
 KEYS = ("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect")
 TEAMS = [tuple(k for i, k in enumerate(KEYS) if m >> i & 1) for m in range(128)]
