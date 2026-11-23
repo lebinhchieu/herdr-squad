@@ -17,13 +17,13 @@ AC trace:
 
 | AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |
 |---|---|---|---|
-| AC1 | `python3 tests/test_hooks_json.py` OK; hook file mode 755 |  |  |
-| AC2 | `python3 tests/test_lazy_hook.py` test_matching_session... OK |  |  |
-| AC3 | test_other_session..., test_second_prompt... OK |  |  |
-| AC4 | read: unlink in try/except OSError |  |  |
-| AC5 | session_id from tests/fixtures/squad-notify/subagent-stop.json |  |  |
-| AC6 | 3 tests OK |  |  |
-| AC7 | windows_safe 14, utf8_helpers 14, instructions 16 OK |  |  |
+| AC1 | `python3 tests/test_hooks_json.py` OK; hook file mode 755 | ls-tree 100755, hooks.json diff one entry, test_hooks_json OK | live: mode 755, two UserPromptSubmit entries |
+| AC2 | `python3 tests/test_lazy_hook.py` test_matching_session... OK | test_lazy_hook 3 OK, home order read | live: C5 text, marker gone, Manager role, home order |
+| AC3 | test_other_session..., test_second_prompt... OK | scratch runs: bad JSON, empty marker, unset env silent rc 0 | live: different session, no marker, bad stdin, 2nd prompt silent |
+| AC4 | read: unlink in try/except OSError | chmod a-w roles: text once, marker stays, rc 0 | live: chmod 555 roles: text printed, rc 0 |
+| AC5 | session_id from tests/fixtures/squad-notify/subagent-stop.json | session_id in subagent-stop.json; confirm live | read Behaviour: session_id, no UPS capture; live check later |
+| AC6 | 3 tests OK | 3 tests, test_hooks_json 5 OK | live: test_lazy_hook 3 OK, test_hooks_json 5 OK |
+| AC7 | windows_safe 14, utf8_helpers 14, instructions 16 OK | windows_safe 14, utf8 14, instructions 16 OK | covered by QA whitebox |
 
 ## Behaviour
 
