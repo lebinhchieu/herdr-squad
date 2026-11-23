@@ -1,0 +1,24 @@
+# 06 Small edits: rm, UI AC, notes pointers
+
+Status: ready-for-agent
+
+Spec: `.scratch/upstream-proposals/spec.md`
+
+## Change
+
+| Source | Target | Edit |
+|---|---|---|
+| guardian SQ-35 | SAFE-11, all roles | Replace "`cd` out before `rm`" with: `rm` under /tmp takes only a literal absolute path (`rm -f /tmp/<dir>/<file>`, or `rm -rf "$D"` after `D=$(mktemp -d)`). Run `rm` alone: no `cd`, `&&` or `;` in that command; no glob, relative path or `$(...)` target. Why: Claude Code's dangerous-rm check fires on these, and no permission rule can allow it |
+| board SQ-8 | REV-8 | A UI business AC names the size it is checked at and the value or rule it must show, with one example for "shortest", "fits" or a count limit. A relative time names the fixture's fixed clock. Leave out the "retire the BA" sentence (START-5 owns that) |
+| board SQ-9 | NOTE-1 | `Pointers` holds at most 5 paths, each with a line range or section. After a respawn, read only these before your first reply (COST-7) |
+
+This is the last ticket that touches plugin files: bump the plugin version, add a changelog entry in `skills/squad-process-update/changelog.md` covering 01-06, and grep for the old version.
+
+## AC
+
+- AC1: SAFE-11 attaches to all roles and no longer says "cd out before rm".
+- AC2: `grep -rn '<old version>' .claude-plugin templates skills` finds nothing.
+- AC3: `python3 bin/squad-process lint` exits 0.
+- AC4: run the targeted tests: `grep -rl` over `tests/` for each changed rule ID and string (CLAUDE.md, Running tests).
+
+## Comments
