@@ -54,8 +54,16 @@ suspend`, macOS `pmset sleepnow`, Windows `rundll32.exe powrprof.dll,SetSuspendS
 (a shell command) replaces it (tests use it).
 
 Files in <home>: watchdog.log (one line per event, UTC), watchdog.state.json (state and heartbeat), watchdog.sleep (`on`).
+Cold cache: a session idle for an hour loses its 1h prompt cache. After each pass of the idle/wake events, for the agents of its
+own roster that herdr reports idle: at COLD_IDLE_MIN (55) minutes since the last main-thread turn, a context over COLD_CTX (50k)
+and open work (a Manager and a Team Lead need none), the agent is told to write its notes; once the notes file is newer than
+that prompt the watchdog runs `squad-respawn <name> --lazy` (never `--force`). No notes after COLD_RETRY_S (120) seconds: up to
+COLD_PROMPTS (2) prompts, then it gives up for that spell. A blocked pane, a background shell and a small context are logged,
+never touched. State: <home>/watchdog.cold.json; log lines start `cold-cache:`.
 Env: SQUAD_WATCHDOG_INTERVAL (seconds between passes, default 60), SQUAD_WATCHDOG_SLEEP_AFTER, SQUAD_WATCHDOG_SLEEP_CMD,
 SQUAD_WATCHDOG_BG_MAX (minutes a background shell counts as working, default 60, 0 = off), SQUAD_DIR / SCOPE_DIR / GOAL_DIR (default --home).
+Cold cache env: SQUAD_WATCHDOG_COLD=0 (off), SQUAD_WATCHDOG_COLD_IDLE_MIN (55), SQUAD_WATCHDOG_COLD_CTX (50000),
+SQUAD_WATCHDOG_COLD_PROMPTS (2), SQUAD_WATCHDOG_COLD_RETRY_S (120); a bad value means the default.
 """
 import argparse
 import copy
@@ -76,6 +84,7 @@ import squadboard_active as active  # noqa: E402
 import squadboard_agents as agents_mod  # noqa: E402
 import squadreport  # noqa: E402
 import squadtask  # noqa: E402
+import squadtranscript  # noqa: E402
 import squadtickets  # noqa: E402
 
 NUDGES = (5, 15)            # minutes of an idle spell
@@ -93,6 +102,9 @@ GOALS = "goals.md"
 GOAL_STATUS = {"in progress", "done", "blocked"}
 BLOCKED_WAKE_S = 600        # a pane blocked this long wakes the Manager
 TEXT_CAP = 80
+COLD_IDLE_MIN, COLD_CTX, COLD_PROMPTS, COLD_RETRY_S = 55, 50_000, 2, 120   # cold-cache pass; env SQUAD_WATCHDOG_COLD_*
+COLD_RESPAWN_TIMEOUT_S = 120  # squad-spawn's readiness wait runs inside tick()
+COLD = "watchdog.cold.json"
 
 
 def iso(t):
@@ -253,6 +265,30 @@ def bg_max_s():
     except ValueError:
         return BG_MAX_MIN * 60
     return v * 60 if 0 <= v < float("inf") else BG_MAX_MIN * 60
+
+
+def cold_num(name, default):
+    """Env SQUAD_WATCHDOG_COLD_<name> as a number; empty, not a number or negative -> the default."""
+    try:
+        v = float(os.environ.get("SQUAD_WATCHDOG_COLD_" + name) or default)
+    except ValueError:
+        return default
+    return v if 0 <= v < float("inf") else default
+
+
+def read_cold(home):
+    try:
+        o = json.loads((home / COLD).read_text(encoding="utf-8"))
+        return o if isinstance(o, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def write_cold(home, cold):
+    tmp = home / (COLD + ".tmp")
+    with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(cold, fh)
+    os.replace(tmp, home / COLD)
 
 
 def scope_homes(home):
@@ -485,7 +521,137 @@ def route(home, manager, team_lead, snap, subject=None):
     return team_lead, None
 
 
-def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None, team_lead=None):
+def respawn(argv, env, timeout):
+    """-> (ok, reason): run `squad-respawn <name> --lazy` (the cold-cache pass; tests pass a fake)."""
+    try:
+        r = subprocess.run(argv, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return False, "timeout"
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, str(e)
+    return r.returncode == 0, (r.stderr.strip().splitlines() or ["exit %d" % r.returncode])[0] if r.returncode else ""
+
+
+def respawn_env(home):
+    """The child's environment: no SQUAD_ROLE / SQUAD_NAME (the watchdog inherits the env of whoever spawned it) and exactly
+    one of SCOPE_DIR / GOAL_DIR, so squad-respawn picks this home's roster."""
+    env = {k: v for k, v in os.environ.items() if k not in ("SQUAD_ROLE", "SQUAD_NAME", "SCOPE_DIR", "GOAL_DIR")}
+    env["SQUAD_DIR"] = str(home.parent.parent)
+    env["GOAL_DIR" if is_goal_home(home) else "SCOPE_DIR"] = str(home)
+    return env
+
+
+def last_turn(session):
+    """-> (epoch, ctx) of the last main-thread turn of a session, or None."""
+    path = squadtranscript.find_transcript(session) if session else None
+    rows = [r for r in squadtranscript.read_session(path)[0] if not r["side"]] if path else []
+    return (int(rows[-1]["ts"].timestamp()), rows[-1]["ctx"]) if rows else None
+
+
+def has_open_work(a, snap):
+    """Manager and Team Lead: always. A Developer: the ticket of its Owns when it names one, else any open ticket of the scope.
+    Every other role: any open ticket."""
+    if a["role"] in ("manager", "team-lead"):
+        return True
+    opened = [t for t in snap["tickets"] if not t["passed"]]
+    n = active.task_of(a["owns"]) if a["role"] == "dev" else None
+    return any(squadledger.key(t["id"]) == squadledger.key(n) for t in opened) if n else bool(opened)
+
+
+def cold_cache_pass(home, manager, team_lead, snap, now, send, respawn_fn, beat=lambda: None):
+    """The cold-cache pass over the roster of `home` (see the module docstring). State: <home>/watchdog.cold.json."""
+    idle_s, ctx_min = cold_num("IDLE_MIN", COLD_IDLE_MIN) * 60, cold_num("CTX", COLD_CTX)
+    max_prompts, retry_s = cold_num("PROMPTS", COLD_PROMPTS), cold_num("RETRY_S", COLD_RETRY_S)
+    sessions = {r["name"]: r["session"] for r in active.roster_rows(home)}
+    cold = read_cold(home)
+    before = json.dumps(cold, sort_keys=True)
+    cold = {n: e for n, e in cold.items() if n in sessions and isinstance(e, dict)}
+
+    def say(text):
+        log(home, now, "cold-cache: " + text)
+
+    def once(e, flag, text):
+        if flag not in e["logged"]:
+            e["logged"].append(flag)
+            say(text)
+
+    for a in snap["agents"]:
+        name, state = a["name"], a["state"]
+        if name not in sessions or state in ("working", "gone", "retired", "unknown"):
+            continue
+        e = cold.setdefault(name, {"spell": None, "prompts": 0, "prompt_ts": None, "gave_up_ts": None, "logged": []})
+        e["logged"] = [f for f in e.get("logged") or [] if not (f == "blocked" and state != "blocked") and not (f == "bg" and name not in snap["bg"])]
+        pending = e["prompt_ts"] is not None and e["gave_up_ts"] is None
+        turn = None if pending else last_turn(sessions[name])
+        if not pending:
+            if turn is None:
+                continue
+            last, ctx = turn
+            if e["gave_up_ts"] is not None and last <= e["gave_up_ts"]:
+                continue
+            if e["spell"] is None:
+                e["spell"] = last
+            elif e["spell"] != last:  # a new turn is a new spell
+                e.update(spell=last, prompts=0, prompt_ts=None, gave_up_ts=None, logged=[])
+            if now - last < idle_s:
+                continue
+        if state == "blocked":
+            once(e, "blocked", f"unavoidable: blocked {name}")
+            continue
+        if name in snap["bg"]:
+            once(e, "bg", f"unavoidable: background shell {name}")
+            continue
+        if not pending:
+            if ctx <= ctx_min:
+                once(e, "small", f"skipped: small context {name} (ctx {ctx // 1000}k)")
+                continue
+            if not has_open_work(a, snap):
+                if "nothing-open" not in e["logged"]:
+                    target, _ = route(home, manager, team_lead, snap, name)
+                    if is_blocked(snap, target, home):  # held: retried on a later pass, flag not set
+                        continue
+                    e["logged"].append("nothing-open")
+                    ok, why = send(target, f"{clean(name, 60)} has nothing open and a {ctx // 1000}k context; retire it (COST-13b)")
+                    say(f"nothing open {name} (told {target})" + ("" if ok else f"; NOT sent ({why})"))
+                continue
+        else:
+            ctx = None
+        notes = home / "roles" / f"{name}.notes.md"
+        try:
+            written = e["prompt_ts"] is not None and notes.stat().st_mtime > e["prompt_ts"]
+        except OSError:
+            written = False
+        if written:
+            beat()  # a respawn takes up to COLD_RESPAWN_TIMEOUT_S and squad-spawn's `ensure` calls a beat older than 3 intervals stale
+            ok, why = respawn_fn([(PLUGIN / "bin" / "squad-respawn").as_posix(), name, "--lazy"], respawn_env(home), COLD_RESPAWN_TIMEOUT_S)
+            if ok:
+                say(f"respawned lazy {name}")
+                del cold[name]
+            else:
+                say(f"respawn lazy failed {name}: {why}")
+                e["gave_up_ts"] = now
+            continue
+        if pending and now - e["prompt_ts"] < retry_s:
+            continue
+        if pending and e["prompts"] >= max_prompts:
+            say(f"gave up: notes not written {name}")
+            e["gave_up_ts"] = now
+            continue
+        if ctx is None:  # a second prompt: the first one's context is not stored
+            ctx = (last_turn(sessions[name]) or (0, 0))[1]
+        ok, why = send(name, f"COLD CACHE: {clean(name, 60)}, your prompt cache expires in about 5 minutes. Write roles/{clean(name, 60)}.notes.md now "
+                             "(NOTE-1), one turn, nothing else; the watchdog restarts you afterwards.")
+        if ok:
+            e["prompts"], e["prompt_ts"] = e["prompts"] + 1, now
+            say(f"prompted {name} ({e['prompts']}/{int(max_prompts)}, ctx {ctx // 1000}k, idle {int((now - e['spell']) // 60)} min)")
+        else:
+            say(f"prompt NOT sent {name} ({why})")
+    cold = {n: e for n, e in cold.items() if e["spell"] is not None or e["logged"]}
+    if json.dumps(cold, sort_keys=True) != before:
+        write_cold(home, cold)
+
+
+def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None, team_lead=None, respawn=respawn):
     """One pass: read, decide, act, log, save. Returns the events. A scope home tells its Team Lead (default
     <squad>-tl-<scope>) and falls back to the Manager; a goal home tells the goal Manager."""
     now = time.time() if now is None else now
@@ -561,6 +727,14 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None, t
             ok, why = (suspend_fn or suspend)()
             if not ok:
                 log(home, time.time(), f"suspend failed ({why})")
+    if snap["ok"] and os.environ.get("SQUAD_WATCHDOG_COLD") != "0":
+        try:
+            def beat():
+                st["beat"], st["pid"] = time.time(), os.getpid()
+                write_state(home, st)
+            cold_cache_pass(home, manager, team_lead, snap, now, send, respawn, beat)
+        except Exception as e:  # never stops the idle/wake pass
+            log(home, now, f"cold-cache: pass failed: {type(e).__name__}: {e}")
     stopping = any(ev[0] == "stop" for ev in events)
     st["beat"], st["pid"] = (None, None) if stopping else (now, os.getpid())  # no beat: `ensure` may start it at once
     write_state(home, st)

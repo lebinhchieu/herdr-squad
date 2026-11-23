@@ -915,3 +915,217 @@ class TeamLeadTest(unittest.TestCase):
     def test_the_default_manager_of_an_in_goal_scope_is_the_goal_manager(self):
         (self.home / "scope.md").write_text("# s1\ngoal: g1\n", encoding="utf-8")
         self.assertEqual(W.default_manager(self.home), "t-mgr-g1")
+
+
+class ColdCacheTest(unittest.TestCase):
+    """Warm-cache ticket 03: the cold-cache pass (design notes C4 and "Cold-cache pass"). `send` and `respawn` are fakes."""
+
+    ROSTER = ("# Roster\n\n| Agent | Role | Scope | Owns | Status | Session |\n| --- | --- | --- | --- | --- | --- |\n"
+              "| t-mgr-s1 | manager | s1 | plan | live | sid-mgr |\n| t-tl-s1 | team-lead | s1 | plan | live | sid-tl |\n"
+              "| t-dev-s1 | dev | s1 | ticket 03 | building | sid-dev |\n")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        self.home = root / ".claude" / "squads" / "t" / "scopes" / "s1"
+        (self.home / "tasks").mkdir(parents=True)
+        (self.home / "roles").mkdir()
+        (self.home / "scope.md").write_text("# s1\n", encoding="utf-8")
+        (self.home / "roster.md").write_text(self.ROSTER, encoding="utf-8")
+        (self.home / "tasks" / "03.md").write_text("# T\n\nStatus: building\n", encoding="utf-8")
+        self.proj = root / "claude" / "projects" / "-p"
+        self.proj.mkdir(parents=True)
+        env = mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(root / "claude")})
+        env.start()
+        self.addCleanup(env.stop)
+        self.herdr = root / "herdr.json"
+        self.sent, self.calls, self.result = [], [], (True, "")
+
+    def turn(self, sid, at_min, ctx=120_000, side=False):
+        """An assistant turn `at_min` minutes after T0 in the main transcript, or in its subagent folder."""
+        rec = {"type": "assistant", "timestamp": W.iso(T0 + at_min * MIN), "message": {
+            "id": f"m{at_min}", "model": "m", "usage": {"input_tokens": 1, "cache_read_input_tokens": ctx - 1,
+                                                       "cache_creation_input_tokens": 0, "output_tokens": 5}}}
+        path = self.proj / f"{sid}.jsonl"
+        if side:
+            path = self.proj / sid / "subagents" / "a.jsonl"
+            path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec) + "\n")
+
+    def agents(self, **spec):
+        rows = []
+        for n, v in spec.items():
+            status, bg = v if isinstance(v, tuple) else (v, None)
+            rows.append({"name": n.replace("_", "-"), "agent_status": status, "pane_id": "p", **({"tokens": {"bg": bg}} if bg else {})})
+        self.herdr.write_text(json.dumps({"result": {"agents": rows}}), encoding="utf-8")
+
+    def tick(self, minutes, home=None, manager="t-mgr-s1"):
+        return W.tick(home or self.home, manager, now=T0 + minutes * MIN, herdr_json=str(self.herdr),
+                      send=lambda m, text: (self.sent.append((m, text)) or (True, "")),
+                      respawn=lambda argv, env, timeout: (self.calls.append((argv, env, timeout)) or self.result))
+
+    def prompts(self):
+        return [(m, t) for m, t in self.sent if t.startswith("COLD CACHE")]
+
+    def log(self, home=None):
+        return ((home or self.home) / "watchdog.log").read_text(encoding="utf-8")
+
+    def notes(self, name, at_min, home=None):
+        p = (home or self.home) / "roles" / f"{name}.notes.md"
+        p.write_text("notes\n", encoding="utf-8")
+        os.utime(p, (T0 + at_min * MIN, T0 + at_min * MIN))
+
+    def busy(self, **more):
+        self.agents(**dict(dict(t_mgr_s1="working", t_tl_s1="working", t_dev_s1="idle"), **more))
+
+    # AC2, AC3
+    def test_idle_means_55_minutes_since_the_last_main_turn_and_a_subagent_turn_does_not_count(self):
+        self.turn("sid-dev", 0)
+        self.turn("sid-dev", 50, side=True)  # newer than the main turn: must not hide the idleness
+        self.busy()
+        self.tick(54)
+        self.assertEqual(self.prompts(), [])
+        self.tick(56)
+        self.tick(57)  # once per message
+        self.assertEqual([m for m, _ in self.prompts()], ["t-dev-s1"])
+        self.assertIn("COLD CACHE: t-dev-s1, your prompt cache expires in about 5 minutes. Write roles/t-dev-s1.notes.md now (NOTE-1)", self.prompts()[0][1])
+        self.assertIn("cold-cache: prompted t-dev-s1 (1/2, ctx 120k, idle 56 min)", self.log())
+
+    # AC4
+    def test_notes_newer_than_the_prompt_respawn_lazy_with_a_clean_environment(self):
+        self.turn("sid-dev", 0)
+        self.busy()
+        self.tick(56)
+        self.notes("t-dev-s1", 55)  # older than the prompt: not enough
+        self.tick(57)
+        self.assertEqual(self.calls, [])
+        self.notes("t-dev-s1", 57)
+        parent = {"SCOPE_DIR": "/parent/scope", "GOAL_DIR": "/parent/goal", "SQUAD_ROLE": "team-lead", "SQUAD_NAME": "parent"}
+        with mock.patch.dict(os.environ, parent):
+            self.tick(58)
+        (argv, env, timeout), = self.calls
+        self.assertEqual((Path(argv[0]).name, argv[1:], timeout), ("squad-respawn", ["t-dev-s1", "--lazy"], 120))
+        self.assertNotIn("SQUAD_ROLE", env)
+        self.assertNotIn("SQUAD_NAME", env)
+        self.assertNotIn("GOAL_DIR", env)
+        self.assertEqual((env["SCOPE_DIR"], env["SQUAD_DIR"]), (str(self.home), str(self.home.parent.parent)))
+        self.assertIn("cold-cache: respawned lazy t-dev-s1", self.log())
+        self.assertFalse((self.home / "watchdog.cold.json").read_text(encoding="utf-8").count("t-dev-s1"))
+
+    def test_a_failed_respawn_is_logged_and_not_retried(self):
+        self.turn("sid-dev", 0)
+        self.busy()
+        self.tick(56)
+        self.notes("t-dev-s1", 57)
+        self.result = (False, "timeout")
+        for m in (58, 60, 70):
+            self.tick(m)
+        self.assertEqual(len(self.calls), 1)
+        self.assertIn("cold-cache: respawn lazy failed t-dev-s1: timeout", self.log())
+
+    # AC10
+    def test_a_goal_home_respawns_its_own_manager_with_goal_dir_and_no_scope_dir(self):
+        goal = self.home.parent.parent / "goals" / "g1"
+        (goal / "roles").mkdir(parents=True)
+        (goal / "goal.md").write_text("# g1\n", encoding="utf-8")
+        (goal / "roster.md").write_text(self.ROSTER.replace("s1", "g1"), encoding="utf-8")
+        self.turn("sid-mgr", 0)
+        self.turn("sid-dev", 0)  # a scope agent of the goal is not this home's roster row to touch
+        self.agents(t_mgr_g1="idle", t_dev_g1="idle")
+        self.tick(56, goal, "t-mgr-g1")
+        self.assertEqual([m for m, _ in self.prompts()], ["t-mgr-g1"])  # a Manager needs no open work
+        self.notes("t-mgr-g1", 57, goal)
+        with mock.patch.dict(os.environ, {"SCOPE_DIR": "/parent/scope"}):
+            self.tick(58, goal, "t-mgr-g1")
+        (argv, env, _), = self.calls
+        self.assertEqual(argv[1:], ["t-mgr-g1", "--lazy"])
+        self.assertNotIn("SCOPE_DIR", env)
+        self.assertEqual(env["GOAL_DIR"], str(goal))
+
+    # AC5
+    def test_two_prompts_then_gave_up_and_a_new_turn_starts_a_new_spell(self):
+        self.turn("sid-dev", 0)
+        self.busy()
+        for m in (56, 57, 59, 62, 65, 70):
+            self.tick(m)
+        self.assertEqual(len(self.prompts()), 2)
+        self.assertEqual(self.log().count("cold-cache: gave up: notes not written t-dev-s1"), 1)
+        self.assertEqual(self.calls, [])
+        self.turn("sid-dev", 71)
+        self.tick(130)
+        self.assertEqual(len(self.prompts()), 3)
+
+    # AC6
+    def test_a_blocked_pane_a_background_shell_and_a_small_context_are_logged_once_and_get_no_message(self):
+        self.turn("sid-dev", 0)
+        self.turn("sid-mgr", 0, ctx=30_000)
+        self.turn("sid-tl", 0)
+        self.agents(t_mgr_s1="idle", t_tl_s1=("idle", "1 shell"), t_dev_s1="blocked")
+        for m in (56, 57, 60):
+            self.tick(m)
+        log = self.log()
+        self.assertEqual(self.prompts(), [])
+        for line in ("cold-cache: unavoidable: blocked t-dev-s1", "cold-cache: unavoidable: background shell t-tl-s1",
+                     "cold-cache: skipped: small context t-mgr-s1 (ctx 30k)"):
+            self.assertEqual(log.count(line), 1, line)
+
+    # AC7
+    def test_nothing_open_tells_the_team_lead_once_and_prompts_no_one_but_a_manager_is_respawned(self):
+        (self.home / "tasks" / "03.md").write_text("# T\n\nStatus: passed\n", encoding="utf-8")
+        for sid in ("sid-dev", "sid-mgr"):
+            self.turn(sid, 0)
+        self.agents(t_mgr_s1="idle", t_tl_s1="idle", t_dev_s1="idle")
+        for m in (56, 57):
+            self.tick(m)
+        told = [(m, t) for m, t in self.sent if "has nothing open" in t]
+        self.assertEqual(told, [("t-tl-s1", "t-dev-s1 has nothing open and a 120k context; retire it (COST-13b)")])
+        self.assertEqual(self.log().count("cold-cache: nothing open t-dev-s1 (told t-tl-s1)"), 1)
+        self.assertEqual([m for m, _ in self.prompts()], ["t-mgr-s1"])  # the Manager has no open work to need
+        self.assertNotIn("t-dev-s1", "".join(a[1] for a in self.calls))
+
+    # AC8, AC9, AC1
+    def test_the_state_file_survives_garbage_and_an_env_override_and_the_kill_switch_apply(self):
+        self.turn("sid-dev", 0, ctx=60_000)
+        self.busy()
+        (self.home / "watchdog.cold.json").write_text("{nope", encoding="utf-8")
+        with mock.patch.dict(os.environ, {"SQUAD_WATCHDOG_COLD_CTX": "70000"}):
+            self.tick(56)
+        self.assertIn("skipped: small context t-dev-s1 (ctx 60k)", self.log())
+        with mock.patch.dict(os.environ, {"SQUAD_WATCHDOG_COLD_CTX": "x"}):  # a bad value: the 50k default
+            self.tick(57)
+        self.assertEqual(len(self.prompts()), 1)
+        self.assertIsInstance(json.loads((self.home / "watchdog.cold.json").read_text(encoding="utf-8")), dict)
+        with mock.patch.dict(os.environ, {"SQUAD_WATCHDOG_COLD": "0"}):
+            self.tick(300)
+        self.assertEqual(len(self.prompts()), 1)
+
+    def test_a_failure_in_the_pass_is_logged_and_the_idle_events_still_run(self):
+        (self.home / "tasks" / "03.md").write_text("# T\n\nStatus: ready\n", encoding="utf-8")
+        self.agents(t_mgr_s1="idle", t_tl_s1="idle", t_dev_s1="idle")
+        with mock.patch.object(W, "last_turn", side_effect=RuntimeError("boom")):
+            self.tick(0)
+        log = self.log()
+        self.assertIn("idle start", log)
+        self.assertIn("cold-cache: pass failed: RuntimeError: boom", log)
+
+    # QA whitebox F1
+    def test_the_heartbeat_stays_fresh_while_several_agents_are_respawned_in_one_pass(self):
+        """Each respawn can take minutes and squad-spawn's `ensure` starts a second watchdog once the beat is stale."""
+        start = load_cli("squad-start")
+        for sid in ("sid-mgr", "sid-tl", "sid-dev"):
+            self.turn(sid, 0)
+        self.agents(t_mgr_s1="idle", t_tl_s1="idle", t_dev_s1="idle")
+        self.tick(56)
+        for n in ("t-mgr-s1", "t-tl-s1", "t-dev-s1"):
+            self.notes(n, 57)
+        clock, alive = [T0 + 58 * MIN], []
+
+        def slow(argv, env, timeout):
+            clock[0] += 100  # 3 x 100 s: longer than the 180 s a beat may be old
+            alive.append(start.watchdog_alive(self.home))
+            return True, ""
+        with mock.patch.object(time, "time", lambda: clock[0]):
+            W.tick(self.home, "t-mgr-s1", now=T0 + 58 * MIN, herdr_json=str(self.herdr), send=lambda m, t: (True, ""), respawn=slow)
+        self.assertEqual(alive, [True, True, True])
