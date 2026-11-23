@@ -1109,3 +1109,23 @@ class ColdCacheTest(unittest.TestCase):
         log = self.log()
         self.assertIn("idle start", log)
         self.assertIn("cold-cache: pass failed: RuntimeError: boom", log)
+
+    # QA whitebox F1
+    def test_the_heartbeat_stays_fresh_while_several_agents_are_respawned_in_one_pass(self):
+        """Each respawn can take minutes and squad-spawn's `ensure` starts a second watchdog once the beat is stale."""
+        start = load_cli("squad-start")
+        for sid in ("sid-mgr", "sid-tl", "sid-dev"):
+            self.turn(sid, 0)
+        self.agents(t_mgr_s1="idle", t_tl_s1="idle", t_dev_s1="idle")
+        self.tick(56)
+        for n in ("t-mgr-s1", "t-tl-s1", "t-dev-s1"):
+            self.notes(n, 57)
+        clock, alive = [T0 + 58 * MIN], []
+
+        def slow(argv, env, timeout):
+            clock[0] += 100  # 3 x 100 s: longer than the 180 s a beat may be old
+            alive.append(start.watchdog_alive(self.home))
+            return True, ""
+        with mock.patch.object(time, "time", lambda: clock[0]):
+            W.tick(self.home, "t-mgr-s1", now=T0 + 58 * MIN, herdr_json=str(self.herdr), send=lambda m, t: (True, ""), respawn=slow)
+        self.assertEqual(alive, [True, True, True])

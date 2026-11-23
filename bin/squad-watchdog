@@ -558,7 +558,7 @@ def has_open_work(a, snap):
     return any(squadledger.key(t["id"]) == squadledger.key(n) for t in opened) if n else bool(opened)
 
 
-def cold_cache_pass(home, manager, team_lead, snap, now, send, respawn_fn):
+def cold_cache_pass(home, manager, team_lead, snap, now, send, respawn_fn, beat=lambda: None):
     """The cold-cache pass over the roster of `home` (see the module docstring). State: <home>/watchdog.cold.json."""
     idle_s, ctx_min = cold_num("IDLE_MIN", COLD_IDLE_MIN) * 60, cold_num("CTX", COLD_CTX)
     max_prompts, retry_s = cold_num("PROMPTS", COLD_PROMPTS), cold_num("RETRY_S", COLD_RETRY_S)
@@ -622,6 +622,7 @@ def cold_cache_pass(home, manager, team_lead, snap, now, send, respawn_fn):
         except OSError:
             written = False
         if written:
+            beat()  # a respawn takes up to COLD_RESPAWN_TIMEOUT_S and squad-spawn's `ensure` calls a beat older than 3 intervals stale
             ok, why = respawn_fn([(PLUGIN / "bin" / "squad-respawn").as_posix(), name, "--lazy"], respawn_env(home), COLD_RESPAWN_TIMEOUT_S)
             if ok:
                 say(f"respawned lazy {name}")
@@ -728,7 +729,10 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None, t
                 log(home, time.time(), f"suspend failed ({why})")
     if snap["ok"] and os.environ.get("SQUAD_WATCHDOG_COLD") != "0":
         try:
-            cold_cache_pass(home, manager, team_lead, snap, now, send, respawn)
+            def beat():
+                st["beat"], st["pid"] = time.time(), os.getpid()
+                write_state(home, st)
+            cold_cache_pass(home, manager, team_lead, snap, now, send, respawn, beat)
         except Exception as e:  # never stops the idle/wake pass
             log(home, now, f"cold-cache: pass failed: {type(e).__name__}: {e}")
     stopping = any(ev[0] == "stop" for ev in events)
