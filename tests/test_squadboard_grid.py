@@ -18,7 +18,7 @@ import squadboard  # noqa: E402
 from test_squadboard_page import CHROME, TPL  # noqa: E402
 from test_squadboard_panels import HEAD, real_payloads, run_page  # noqa: E402
 
-SCRIPTS = ("panel_inbox.js", "panel_scopes.js", "panel_tasks.js", "panel_agents.js", "panel_plan.js", "panel_files.js", "timeline.js")
+SCRIPTS = ("panel_inbox.js", "panel_scopes.js", "panel_tasks.js", "panel_agents.js", "panel_files.js", "timeline.js")
 HEAD_ALL = HEAD.replace('<script src="file://%(tpl)s/panel_scopes.js"></script>',
                         "".join('<script src="file://%%(tpl)s/%s"></script>' % f for f in SCRIPTS), 1)
 
