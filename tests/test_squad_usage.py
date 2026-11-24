@@ -85,8 +85,8 @@ class UsageTest(UsageBase):
         # turns=3, peak=70002 -> 70k, last=70002, out=80+100+70=250 -> 0k, 0 expiries, 0 compactions
         self.assertEqual(row[1], "claude-sonnet-5-5/medium")
         self.assertEqual(row[2], "3")
-        self.assertEqual(row[3:5], ["70k", "70k"])
-        self.assertEqual(row[5:], ["-", "180k", "0k", "0", "0", "0", "1"])  # 1st act, line, out, expiries, compactions, subagents, sessions
+        self.assertEqual(row[3:6], ["70k", "70k", "70k"])  # peak ctx, max peak, last ctx
+        self.assertEqual(row[6:], ["-", "-", "180k", "0k", "0", "0", "0", "1"])  # 1st act, act turn, line, out, expiries, compactions, subagents, sessions
         self.assertNotIn("manager", r.stdout)
 
     def test_cache_expiry_needs_gap_and_big_write(self):
@@ -161,12 +161,12 @@ class UsageTest(UsageBase):
                                               "| late | sid-3 |\n| gone | nope |\n", encoding="utf-8")
         out = self.run_cli("--squad-dir", str(self.squad)).stdout.splitlines()
         head = out[0].split("  ")
-        self.assertEqual([h.strip() for h in head if h.strip()][4:7], ["last ctx", "1st act", "line"])
+        self.assertEqual([h.strip() for h in head if h.strip()][5:9], ["last ctx", "1st act", "act turn", "line"])
         cols = lambda n: next(l for l in out if l.startswith(n)).split()
-        self.assertEqual(cols("mgr")[5:7], ["20k", "70k"])
-        self.assertEqual(cols("ro")[5:7], ["-", "180k"])
-        self.assertEqual(cols("late")[5:7], ["150k", "180k"])
-        self.assertEqual(cols("gone")[1:], ["no", "transcript"] + ["-"] * 10)
+        self.assertEqual(cols("mgr")[6:9], ["20k", "1", "70k"])
+        self.assertEqual(cols("ro")[6:9], ["-", "-", "180k"])
+        self.assertEqual(cols("late")[6:9], ["150k", "1", "180k"])
+        self.assertEqual(cols("gone")[1:], ["no", "transcript"] + ["-"] * 12)
 
     def test_the_line_never_passes_180k(self):
         act = turn(0, "a", ctx=(2, 150_000, 0), tool="Write", base=NOW)         # 150k + 50k would be 200k
@@ -246,6 +246,12 @@ class OrphanFreshTest(UsageBase):
         self.assertEqual(self.run_cli("--check", "s1").stdout, "fresh\n")
         self.assertEqual(self.run_cli("--check-detail", "s1").stdout, "fresh\t100002\t70002\t2\n")
 
+    def test_check_detail_prints_none_with_the_numbers_when_no_rule_fires(self):  # ticket 09: the hook's stamp
+        self.transcript("s1", [turn(0, "a", ctx=(2, 0, 20_000), tool="Write", base=NOW), turn(1, "b", ctx=(2, 20_000, 10_000), base=NOW)])
+        self.assertEqual(self.run_cli("--check", "s1").stdout, "")
+        self.assertEqual(self.run_cli("--check-detail", "s1").stdout, "none\t30002\t70002\t2\n")
+        self.assertEqual(self.run_cli("--check-detail", "missing").stdout, "")
+
 
 class UndercountTest(UsageBase):
     """AT-05: subagents, every session of an agent, symlinked config dirs."""
@@ -275,7 +281,7 @@ class UndercountTest(UsageBase):
         rows, head = self.table()
         row = rows["dev-1"]
         self.assertEqual(row[2], "2")                    # turns: main thread only
-        self.assertEqual(row[7], "4k")                   # out: 100+200+3000 (max of x1's lines)+1000 = 4300
+        self.assertEqual(row[9], "4k")                   # out: 100+200+3000 (max of x1's lines)+1000 = 4300
         self.assertEqual(row[-2], "4k")                  # subagents: their output tokens, 4000
         self.assertIn("turns = main-thread", self.run_cli("--squad-dir", str(self.squad)).stdout)
         self.assertEqual(row[4], "5k")                   # last ctx is the agent's own, not the subagent's
@@ -293,8 +299,8 @@ class UndercountTest(UsageBase):
         self.roster(("dev-1", "new"), ("dev-2", "other"))
         rows, _ = self.table()
         self.assertEqual(rows["dev-1"][1], "m-new/medium")
-        self.assertEqual((rows["dev-1"][2], rows["dev-1"][3], rows["dev-1"][4], rows["dev-1"][7]), ("3", "5k", "5k", "4k"))  # ctx from the newest session
-        self.assertEqual((rows["dev-2"][2], rows["dev-2"][7]), ("1", "50k"))
+        self.assertEqual((rows["dev-1"][2], rows["dev-1"][3], rows["dev-1"][5], rows["dev-1"][9]), ("3", "5k", "5k", "4k"))  # ctx from the newest session
+        self.assertEqual((rows["dev-2"][2], rows["dev-2"][9]), ("1", "50k"))
 
     @unittest.skipIf(os.name == "nt", "os.symlink needs Developer Mode or admin (WinError 1314)")
     def test_symlinked_projects_dir_gives_same_numbers(self):
@@ -319,7 +325,7 @@ class UndercountTest(UsageBase):
         self.named("mine", "dev-1", [turn(0, "a", out=1000)])
         self.roster(("dev-1", "mine"))
         row = self.table()[0]["dev-1"]
-        self.assertEqual((row[2], row[7]), ("2", "3k"))   # own dir + its worktree dir, not -another-squad
+        self.assertEqual((row[2], row[9]), ("2", "3k"))   # own dir + its worktree dir, not -another-squad
 
     def test_missing_roster_session_is_reported_not_guessed(self):
         self.named("x", "dev-1", [turn(0, "a")])
@@ -339,7 +345,7 @@ class UndercountTest(UsageBase):
         self.roster(("dev-1", "s1"))
         rows, head = self.table()
         self.assertEqual(head.split()[:3], ["agent", "model/effort", "turns"])
-        self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "-", "180k", "0k", "0", "0", "0", "1"])
+        self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "60k", "-", "-", "180k", "0k", "0", "0", "0", "1"])
 
     def test_sessions_column_and_flag_list_each_session_and_agree_with_the_row(self):
         self.named("old", "dev-1", [turn(0, "a", ctx=(2, 90_000, 0)), turn(1, "b", ctx=(2, 91_000, 0))])
@@ -351,9 +357,82 @@ class UndercountTest(UsageBase):
         r = self.run_cli("--squad-dir", str(self.squad), "--sessions", "dev-1")
         self.assertEqual(r.returncode, 0, r.stderr)
         lst = [l.split() for l in r.stdout.splitlines()[1:]]
-        self.assertEqual([(x[0], x[1], x[2]) for x in lst], [("1", "91k", "2"), ("2", "5k", "1")])   # oldest first
-        self.assertEqual(sum(int(x[2]) for x in lst), int(rows["dev-1"][2]))   # turns sum = row turns
+        self.assertEqual([(x[0], x[1], x[5]) for x in lst], [("1", "91k", "2"), ("2", "5k", "1")])   # oldest first
+        self.assertEqual(sum(int(x[5]) for x in lst), int(rows["dev-1"][2]))   # turns sum = row turns
         self.assertEqual(lst[-1][1], rows["dev-1"][3])                         # newest session's peak = row peak ctx
+
+    def test_peak_ctx_is_the_newest_session_and_max_peak_the_largest(self):
+        self.named("old", "dev-1", [turn(0, "a", ctx=(2, 331_000, 0))])
+        self.named("new", "dev-1", [turn(0, "b", ctx=(2, 61_000, 0), base=T0 + timedelta(days=1))])
+        self.roster(("dev-1", "new"))
+        rows, head = self.table()
+        self.assertEqual(head.split()[3:7], ["peak", "ctx", "max", "peak"])
+        self.assertEqual(rows["dev-1"][3:5], ["61k", "331k"])
+
+    def spawn_event(self, agent, session, ts="2026-10-01T09:00:00Z", rule="spawn"):
+        with open(self.squad / "usage-events.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps({"ts": ts, "agent": agent, "rule": rule, "session": session}) + "\n")
+
+    def test_a_roster_session_without_transcript_falls_back_to_the_newest_spawn_session_with_one(self):
+        self.named("first", "ux", [turn(0, "a", ctx=(2, 40_000, 0))])
+        self.named("second", "ux", [turn(0, "b", ctx=(2, 50_000, 0), base=T0 + timedelta(days=1))])
+        self.spawn_event("ux", "first")
+        self.spawn_event("ux", "second", ts="2026-10-02T09:00:00Z")
+        self.spawn_event("ux", "never-written", ts="2026-10-03T09:00:00Z")   # newer, but no transcript: skipped
+        self.named("elsewhere", "other", [turn(0, "c", ctx=(2, 90_000, 0), base=T0 + timedelta(days=5))])
+        self.spawn_event("other", "elsewhere", ts="2026-10-04T09:00:00Z")    # newest, has a transcript, another agent: ignored
+        self.roster(("ux", "lazy-respawn-no-transcript"))
+        rows, _ = self.table()
+        self.assertEqual((rows["ux"][2], rows["ux"][3], rows["ux"][-1]), ("2", "50k", "2"))
+        r = self.run_cli("--squad-dir", str(self.squad))
+        self.assertNotIn("could not be told", r.stdout)
+        lst = [l.split() for l in self.run_cli("--squad-dir", str(self.squad), "--sessions", "ux").stdout.splitlines()[1:]]
+        self.assertEqual([(x[0], x[1]) for x in lst], [("1", "40k"), ("2", "50k")])
+
+    def test_no_spawn_event_with_a_transcript_keeps_no_transcript_and_the_footer(self):
+        self.spawn_event("ux", "never-written")
+        self.spawn_event("ux", "x", rule="respawn")
+        self.roster(("ux", "gone"))
+        r = self.run_cli("--squad-dir", str(self.squad))
+        self.assertIn("no transcript", r.stdout)
+        self.assertIn("could not be told", r.stdout)
+
+    def test_help_says_what_the_peak_and_first_action_columns_count(self):
+        out = self.run_cli("--help").stdout
+        for col in ("peak ctx", "max peak", "1st act"):
+            self.assertIn(col, out)
+
+    def start_and_act(self, lines):
+        self.named("s1", "dev-1", lines)
+        self.roster(("dev-1", "s1"))
+        out = self.run_cli("--squad-dir", str(self.squad), "--sessions", "dev-1").stdout.splitlines()
+        self.assertEqual(out[0].split("  ")[:5], ["session", "peak ctx", "start", "1st act", "act turn"])
+        return out[1].split()[2:5], next(l for l in self.run_cli("--squad-dir", str(self.squad)).stdout.splitlines()
+                                         if l.startswith("dev-1")).split()[7]
+
+    def test_act_turn_counts_main_thread_turns_up_to_the_first_action_and_start_is_the_first_turn(self):
+        sess, table = self.start_and_act([turn(0, "a", ctx=(2, 30_000, 0), tool="Read"), turn(1, "b", ctx=(2, 40_000, 0), tool="Read"),
+                                          turn(2, "c", ctx=(2, 45_000, 0), tool="Edit")])
+        self.assertEqual((sess, table), (["30k", "45k", "3"], "3"))
+
+    def test_a_leading_sidechain_turn_does_not_shift_act_turn_or_start(self):
+        sess, table = self.start_and_act([turn(0, "x", ctx=(2, 99_000, 0), tool="Edit", isSidechain=True),
+                                          turn(1, "a", ctx=(2, 30_000, 0), tool="Read"), turn(2, "b", ctx=(2, 40_000, 0), tool="Write")])
+        self.assertEqual((sess, table), (["30k", "40k", "2"], "2"))
+
+    def test_a_synthetic_turn_is_not_a_turn_so_act_turn_agrees_with_the_turns_column(self):
+        sess, table = self.start_and_act([turn(0, "syn", model="<synthetic>", ctx=(0, 0, 0), tool="Edit"),
+                                          turn(1, "a", ctx=(2, 30_000, 0), tool="Read"), turn(2, "b", ctx=(2, 40_000, 0), tool="Edit")])
+        self.assertEqual((sess, table), (["30k", "40k", "2"], "2"))
+
+    def test_no_action_gives_a_dash_for_act_turn(self):
+        sess, table = self.start_and_act([turn(0, "a", ctx=(2, 30_000, 0), tool="Read"), turn(1, "b", ctx=(2, 40_000, 0))])
+        self.assertEqual((sess, table), (["30k", "-", "-"], "-"))
+
+    def test_a_message_over_several_lines_keeps_the_max_for_start_and_act_ctx(self):
+        sess, _ = self.start_and_act([turn(0, "a", ctx=(2, 10_000, 0)), turn(1, "a", ctx=(2, 30_000, 0)), turn(2, "a", ctx=(2, 20_000, 0)),
+                                      turn(3, "b", ctx=(2, 40_000, 0), tool="Edit"), turn(4, "b", ctx=(2, 50_000, 0))])
+        self.assertEqual(sess, ["30k", "50k", "2"])
 
     def test_check_ignores_other_sessions_and_subagents(self):
         self.named("old", "dev-1", [turn(0, "a", ctx=(2, 190_000, 0), base=NOW)])

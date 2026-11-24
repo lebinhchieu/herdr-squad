@@ -41,6 +41,14 @@ class HooksJsonTest(unittest.TestCase):
         self.assertIn((bg, None, 5), commands("Stop"))
         self.assertTrue((Path(__file__).resolve().parent.parent / "hooks" / "herdr-bg").is_file())
 
+    def test_usage_hook_on_stop_and_once_on_post_tool_use_without_matcher(self):  # ticket 09 AC1
+        hook = '"${CLAUDE_PLUGIN_ROOT}/bin/squad-usage-hook"'
+        self.assertIn((hook, None, None), commands("Stop"))
+        self.assertEqual(commands("PostToolUse", None), [(hook, None, 10)])
+        count = sum(h["command"] == hook for g in HOOKS["PostToolUse"] for h in g["hooks"])
+        self.assertEqual(count, 1)
+        self.assertEqual(sum(h["command"] == hook for g in HOOKS["Stop"] for h in g["hooks"]), 1)
+
     def test_one_module_listed_beside_the_command_hooks(self):
         # The engine takes one module per plugin: ./register.tsx runs po-inbox and squads.
         self.assertEqual(HOOKS_FILE["modules"], ["./register.tsx"])

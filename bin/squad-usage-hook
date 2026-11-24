@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Stop hook: when a cost rule fires for this squad session, tell the agent and log the event
+# Stop and PostToolUse hook: when a cost rule fires for this squad session, tell the agent and log the event
 # to usage-events.jsonl in the agent's own folder ($SCOPE_DIR, else $GOAL_DIR, else $SQUAD_DIR). No LLM call. Each rule fires once per session, so a
 # session that ignores it is not nagged every turn. The Manager (talks to the PO) is exempt.
-# Exit 2 + stderr is how a Stop hook hands text back to the agent.
+# Exit 2 + stderr is how a Stop hook hands text back to the agent; on PostToolUse the notice is JSON additionalContext, exit 0.
+# PostToolUse is throttled by transcript growth (see "Usage stamp" below), so a long tool run gets the notice too.
 set -uo pipefail
 
 input=$(cat) || exit 0
@@ -16,22 +17,47 @@ fi
 home=${SCOPE_DIR:-${GOAL_DIR:-$SQUAD_DIR}}  # legacy flat layout: SQUAD_DIR
 [[ -d $home ]] || exit 0
 
-[[ $(jq -r '.stop_hook_active // false' <<<"$input" 2>/dev/null) == true ]] && exit 0
-session=$(jq -r '.session_id // empty' <<<"$input" 2>/dev/null)
+# One jq call: event, stop_hook_active, session, transcript (unit-separator fields keep empty ones in place).
+IFS=$'\x1f' read -r event active session transcript < <(
+  jq -r '[.hook_event_name // "Stop", (.stop_hook_active // false | tostring), .session_id // "", .transcript_path // ""] | join("\u001f")' <<<"$input" 2>/dev/null)
+[[ $active == true ]] && exit 0
 [[ -n $session ]] || exit 0
 
-args=(--check-detail "$session")
-transcript=$(jq -r '.transcript_path // empty' <<<"$input" 2>/dev/null)
-[[ -n $transcript ]] && args+=(--transcript "$transcript")
-detail=$("$(dirname "$(readlink -f "$0")")/squad-usage" "${args[@]}" 2>/dev/null) || exit 0
-[[ -n $detail ]] || exit 0
-IFS=$'\t' read -r rule ctx line turns <<<"$detail"  # one computation: rule, ctx, respawn line, turns
-[[ -n $rule ]] || exit 0
-
-log=$home/usage-events.jsonl  # the dedupe skips corrupt, blank and non-object lines (fromjson? | objects)
-if [[ -f $log ]] && jq -R -e --arg s "$session" --arg r "$rule" 'fromjson? | objects | select(.session == $s and .rule == $r)' "$log" >/dev/null 2>&1; then
-  exit 0
+# Usage stamp (ticket 09): roles/<agent>.usage-check, one JSON line, rewritten after every run, from Stop too. An old ts shows a miss.
+# PostToolUse runs on every tool call, so it only goes on when the transcript grew by STEP bytes since the stamp (about 7k tokens).
+STEP=65536
+stamp=$home/roles/$SQUAD_NAME.usage-check
+size=0
+[[ -n $transcript && -f $transcript ]] && size=$(( $(wc -c <"$transcript" 2>/dev/null || echo 0) ))
+if [[ $event == PostToolUse ]]; then
+  [[ -n $transcript && -f $transcript ]] || exit 0
+  if [[ -f $stamp ]]; then
+    IFS=$'\x1f' read -r stamp_session stamp_size < <(jq -r '[.session // "", (.size // 0 | tostring)] | join("\u001f")' "$stamp" 2>/dev/null)
+    if [[ $stamp_session == "$session" && $stamp_size =~ ^[0-9]+$ ]] && (( size >= stamp_size && size - stamp_size < STEP )); then
+      exit 0
+    fi
+  fi
 fi
+
+args=(--check-detail "$session")
+[[ -n $transcript ]] && args+=(--transcript "$transcript")
+detail=$("$(dirname "$(readlink -f "$0")")/squad-usage" "${args[@]}" 2>/dev/null) || detail=
+IFS=$'\t' read -r rule ctx line turns <<<"$detail"  # one computation: rule (or none), ctx, respawn line, turns
+write_stamp() {  # fail open: a stamp that cannot be written never stops the hook
+  mkdir -p "$home/roles" 2>/dev/null || return 0
+  { jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg session "$session" --argjson size "$size" \
+      --argjson ctx "${ctx:-0}" --argjson line "${line:-0}" '{ts:$ts, session:$session, size:$size, ctx:$ctx, line:$line}' \
+      >"$stamp.$$"; } 2>/dev/null && mv -f "$stamp.$$" "$stamp" 2>/dev/null
+  rm -f "$stamp.$$" 2>/dev/null
+  return 0
+}
+write_stamp
+[[ -n $rule && $rule != none ]] || exit 0
+
+log=$home/usage-events.jsonl
+# The dedupe skips corrupt, blank and non-object lines (fromjson? | objects). It runs under the append lock, so
+# parallel PostToolUse calls of one turn cannot both record: only the call that appends prints the notice.
+seen() { [[ -f $log ]] && jq -R -e --arg s "$session" --arg r "$rule" 'fromjson? | objects | select(.session == $s and .rule == $r)' "$log" >/dev/null 2>&1; }
 
 case $rule in
   fresh) why="your context is past your respawn line (your context at first action + 50k, at most 180k) or was compacted" ;;
@@ -46,8 +72,9 @@ record=$(jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg agent "$SQUA
   --arg session "$session" --arg rule "$rule" --arg action "$action" \
   --argjson ctx "${ctx:-0}" --argjson line "${line:-0}" --argjson turns "${turns:-0}" \
   '{ts:$ts, agent:$agent, role:$role, session:$session, rule:$rule, ctx:$ctx, line:$line, turns:$turns, action:$action}') || exit 0
+appended=
 if command -v flock >/dev/null; then
-  { flock 9 2>/dev/null; printf '%s\n' "$record" >&9; } 9>>"$log" || exit 0
+  { flock 9 2>/dev/null; seen || { printf '%s\n' "$record" >&9 && appended=1; }; } 9>>"$log" || exit 0
 else
   # No flock (Git for Windows): a plain >> append of a record over 4 KiB is torn by concurrent writers
   # (see ADR 0011 D3b), so serialise with an atomic mkdir lock. A lock left by a killed
@@ -59,9 +86,15 @@ else
     sleep 0.02
   done
   (( n <= 250 )) && held=1
-  { printf '%s\n' "$record" >&9; } 9>>"$log" || true
+  { seen || { printf '%s\n' "$record" >&9 && appended=1; }; } 9>>"$log" || true
   [[ -z $held ]] || rmdir "$log.lock" 2>/dev/null
 fi
+[[ -n $appended ]] || exit 0
 
-echo "Cost rule '$rule' fired: $why. Finish the step you are on, then $action" >&2
+msg="Cost rule '$rule' fired: $why. Finish the step you are on, then $action"
+if [[ $event == PostToolUse ]]; then  # a tool boundary has nothing to re-prompt: the notice rides as context, exit 0
+  jq -nc --arg m "$msg" '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $m}}' 2>/dev/null
+  exit 0
+fi
+echo "$msg" >&2
 exit 2
