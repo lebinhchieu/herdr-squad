@@ -1,0 +1,26 @@
+DUMP
+--- E23 at 80 columns ---
+[← Back]
+  E23 · blocks erd13 · 5h
+erd13 passed: confirm close
+scope 13 of 15 · ERD v12 rewritten · next: promotion
+<Your reply>
+--- E24 at 40 columns ---
+[← Back]
+  E24 · blocks 10 · 5h
+Task ten done: confirm
+task 10 of 11 · step 4 · next: 11
+<Your reply>
+--- E25 at 80 columns ---
+[← Back]
+  E25 · blocks nothing · 5h
+Plain question
+<Your reply>
+[Send answer]
+--- E26 at 80 columns ---
+[← Back (b)]
+  E26 · blocks erd13 · 5h
+Done one
+scope 13 of 15 · ERD v12 rewritten · next: promotion
+Withdrawn by the Manager 2026-10-16 12:00: x.
+ENDDUMP
