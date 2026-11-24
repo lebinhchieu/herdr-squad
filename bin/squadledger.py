@@ -4,6 +4,9 @@ Row keys (always present, null when empty): task, sha, branch, handin_from, verd
 the current sha), returns, fail_messages, blocked (open BLOCKED texts), ask_rounds. Task IDs 3 and 03 are one row.
 
 A return = a handed-in sha with at least one FAIL (two checkers failing one sha = one return).
+
+history(records, task) lists every PASS and FAIL of one task in order, from any sender, with sha, cause and the
+criteria named; it is separate from build(), so the rows above stay as they are.
 """
 import json
 import os
@@ -14,6 +17,8 @@ SHA_COMMIT = re.compile(r"(?:commit|sha)[ \t:]+([0-9a-fA-F]{6,40})")
 HEX = re.compile(r"\b[0-9a-f]{6,40}\b")
 EVIDENCE = re.compile(r"evidence[ \t]+sha", re.I)
 BRANCH = re.compile(r"branch[ \t:]+([^\s,]+)")
+AC_TOKEN = re.compile(r"\bAC\d+[a-z]?\b")
+CAUSE_MAX = 160
 
 
 def home_dir(arg=None, env=None):
@@ -66,15 +71,32 @@ def _canon(sha, known):
     return sha
 
 
-def build(records):
-    """-> list of per-task dicts, ordered by first appearance."""
+def _cause(text):
+    """First non-empty line after `FAIL NN:` (or `PASS NN:`), up to CAUSE_MAX characters; "" when none."""
+    rest = text.split(":", 1)[1] if ":" in text.split("\n", 1)[0] else ""
+    for line in rest.split("\n"):
+        if line.strip():
+            return line.strip()[:CAUSE_MAX]
+    return ""
+
+
+def _acs(text):
+    seen = []
+    for m in AC_TOKEN.findall(text):
+        if m not in seen:
+            seen.append(m)
+    return seen
+
+
+def _scan(records):
     tasks = {}
     for r in records:
         t, typ = key(r.get("task")), r.get("type")
         if t is None or typ is None:
             continue
         st = tasks.setdefault(t, {"task": r["task"], "handin": None, "cur": None, "verdicts": {},
-                                  "fail_shas": [], "fail_messages": 0, "blocked": [], "asks": []})
+                                  "fail_shas": [], "fail_messages": 0, "blocked": [], "asks": [],
+                                  "history": []})
         text = r.get("text") or ""
         hand = parse_handin(text) if typ == "HANDIN" else None
         if hand and hand["evidence"]:
@@ -93,6 +115,8 @@ def build(records):
                      if k.startswith(w) or w.startswith(k)]
             sha = named[0] if named else st["cur"] or "?"
             st["verdicts"].setdefault(sha, {})[r.get("from")] = typ
+            st["history"].append({"sha": sha, "from": r.get("from"), "verdict": typ, "cause": _cause(text),
+                                  "acs": _acs(text)})
             if typ == "FAIL":
                 st["fail_messages"] += 1
                 if sha not in st["fail_shas"]:
@@ -104,6 +128,18 @@ def build(records):
             st["asks"] = []
         if typ == "ASK":
             st["asks"].append(frozenset((r.get("from"), r.get("to"))))
+    return tasks
+
+
+def history(records, task):
+    """-> every PASS and FAIL of `task` in message order, from any sender: [{sha, from, verdict, cause, acs}]."""
+    st = _scan(records).get(key(task))
+    return list(st["history"]) if st else []
+
+
+def build(records):
+    """-> list of per-task dicts, ordered by first appearance."""
+    tasks = _scan(records)
     result = []
     for st in tasks.values():
         rounds = 0
@@ -142,6 +178,16 @@ def table(rows):
     return "\n".join("  ".join(c.ljust(w) for c, w in zip(line, widths)).rstrip() for line in [head] + body)
 
 
+def history_lines(entries):
+    out = []
+    for e in entries:
+        line = "  %s  %s  %s: %s" % (e["sha"], e["from"], e["verdict"], e["cause"] or "-")
+        if e["acs"]:
+            line += "  [%s]" % ", ".join(e["acs"])
+        out.append(line)
+    return out
+
+
 def run(argv):
     home, task, as_json = None, None, False
     it = iter(argv)
@@ -159,8 +205,17 @@ def run(argv):
     if not home:
         print("squad-ledger: no --home and no $SCOPE_DIR / $GOAL_DIR / $SQUAD_DIR")
         return 2
-    rows = build(read_records(os.path.join(home, "messages.jsonl")))
-    if task is not None:
-        rows = [r for r in rows if key(r["task"]) == key(task)]
-    print(json.dumps(rows, indent=2) if as_json else table(rows))
+    records = read_records(os.path.join(home, "messages.jsonl"))
+    rows = build(records)
+    if task is None:
+        print(json.dumps(rows, indent=2) if as_json else table(rows))
+        return 0
+    rows = [r for r in rows if key(r["task"]) == key(task)]
+    entries = history(records, task)
+    if as_json:
+        for r in rows:
+            r["history"] = entries
+        print(json.dumps(rows, indent=2))
+    else:
+        print("\n".join([table(rows)] + history_lines(entries)))
     return 0

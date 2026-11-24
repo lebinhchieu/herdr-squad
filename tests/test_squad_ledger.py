@@ -72,10 +72,38 @@ class LedgerTest(unittest.TestCase):
 
     def test_task_filter_and_table(self):
         r = self.ledger("--task", "4")
-        lines = r.stdout.splitlines()
+        lines = r.stdout.splitlines()[:2]  # the table; history lines follow it (test_history_*)
         self.assertEqual(len(lines), 2)
         self.assertRegex(lines[1], r"^04\s+3333333\s+squad/x/dev\s+qab FAIL\s+3\s+1\s+2$")
         self.assertEqual(len(json.loads(self.ledger("--task", "03", "--json").stdout)), 1)
+
+    def test_history_lists_every_verdict_with_cause_and_acs(self):
+        self.write([hi("05", "a1a1a1a"), rec("FAIL", "tl", "dev", "FAIL 05: a1a1a1a misses AC5.\nsecond line"),
+                    hi("05", "b2b2b2b"), rec("FAIL", "mgr", "dev", "FAIL 05: x" + "y" * 200 + " AC3 AC3 AC12b"),
+                    hi("05", "c3c3c3c"), rec("PASS", "mgr", "dev", "PASS 05: sha c3c3c3c ok")])
+        [row] = json.loads(self.ledger("--task", "05", "--json").stdout)
+        h = row["history"]
+        self.assertEqual([(e["sha"], e["from"], e["verdict"]) for e in h],
+                         [("a1a1a1a", "tl", "FAIL"), ("b2b2b2b", "mgr", "FAIL"), ("c3c3c3c", "mgr", "PASS")])
+        self.assertEqual((h[0]["cause"], h[0]["acs"]), ("a1a1a1a misses AC5.", ["AC5"]))
+        self.assertEqual((len(h[1]["cause"]), h[1]["acs"]), (160, ["AC3", "AC12b"]))
+        self.assertEqual((row["returns"], row["verdicts"]), (2, {"mgr": "PASS"}))
+        # no --task: no history key
+        self.assertNotIn("history", json.loads(self.ledger("--json").stdout)[0])
+        out = self.ledger("--task", "05").stdout.splitlines()
+        self.assertEqual(len(out), 5)
+        self.assertEqual(out[2], "  a1a1a1a  tl  FAIL: a1a1a1a misses AC5.  [AC5]")
+
+    def test_history_handin_without_checker_keeps_verdicts_null(self):
+        self.write([hi("06", "aaaaaaa"), rec("FAIL", "tl", "dev", "FAIL 06: AC5 wrong"), hi("06", "bbbbbbb")])
+        [row] = json.loads(self.ledger("--task", "06", "--json").stdout)
+        self.assertEqual((row["verdicts"], row["returns"], len(row["history"])), (None, 1, 1))
+
+    def test_history_of_integration_task(self):
+        self.write([rec("FAIL", "tl", "mgr", "FAIL integration: merge of 03 and 04 breaks AC2")])
+        [row] = json.loads(self.ledger("--task", "integration", "--json").stdout)
+        self.assertEqual(row["task"], "integration")
+        self.assertEqual([(e["verdict"], e["acs"]) for e in row["history"]], [("FAIL", ["AC2"])])
 
     def test_decision_resets_ask_rounds_and_closes_blocked(self):
         self.write(FIXTURE + [rec("DECISION", "tl", "dev", "DECISION 04: go")])
