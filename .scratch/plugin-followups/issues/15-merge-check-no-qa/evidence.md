@@ -2,7 +2,7 @@
 
 ## Behaviour
 
-Code sha 19b1f8a (base 2033fa8 = 53577d plus the merge of ticket 14's branch dfb2a3d, an ancestor of HEAD). Files: `bin/squadtask.py`, `bin/squadmergecheck.py`, `.claude-plugin/plugin.json`, `skills/squad-process-update/changelog.md`, `README.md` (row `squad-merge-check`), `tests/test_squadtask.py`, `tests/test_squad_merge_check.py`.
+Code sha 19b1f8a (base 2033fa8 = 535077d plus the merge of ticket 14's branch dfb2a3d, an ancestor of HEAD). Files: `bin/squadtask.py`, `bin/squadmergecheck.py`, `.claude-plugin/plugin.json`, `skills/squad-process-update/changelog.md`, `README.md` (row `squad-merge-check`), `tests/test_squadtask.py`, `tests/test_squad_merge_check.py`.
 
 **AC1 checkers and slots.** `test_squadtask.py::CheckersAndWords::test_checkers_of_a_team_without_qa_ignore_retired_rows`: two retired QA rows; team `tech-lead, designer` and `none` give `{"qa": []}` and slots `["evidence"]`; `qa-white`, `ba, qa-black`, a blank or missing line and an invalid token keep the two retired agents; a live QA row still wins. FAILS on the base `bin/` (checked: base `squadtask.py` and `squadmergecheck.py` restored over HEAD, 3 new tests failed, then the patch re-applied).
 
@@ -41,13 +41,13 @@ Fresh-context reviewer (sonnet, high) on `2033fa8..19b1f8a`, Standards and Spec 
 
 ## Checks
 
-| AC | Dev: test or capture |
-|---|---|
-| AC1 | `test_checkers_of_a_team_without_qa_ignore_retired_rows` OK; real scope gives `{'qa': []}`, `['evidence']` |
-| AC2 | `test_hook_records_evidence_pass_for_a_no_qa_team_with_retired_qa_rows` OK |
-| AC3 | `test_no_qa_team_evidence_pass_is_ok_and_a_rule_id_row_is_no_ticket` OK |
-| AC4 | `test_squadboard_tasks`, `test_squad_watchdog`, `test_squadplan` OK |
-| AC5 | plugin.json count 1; `## v32` on top; `squad-process lint` exit 0 |
+| AC | Dev | QA whitebox | QA blackbox |
+|---|---|---|---|
+| AC1 | `test_checkers_of_a_team_without_qa_ignore_retired_rows` OK; real scope gives `{'qa': []}`, `['evidence']` | - | - |
+| AC2 | `test_hook_records_evidence_pass_for_a_no_qa_team_with_retired_qa_rows` OK | - | - |
+| AC3 | `test_no_qa_team_evidence_pass_is_ok_and_a_rule_id_row_is_no_ticket` OK | - | - |
+| AC4 | `test_squadboard_tasks`, `test_squad_watchdog`, `test_squadplan` OK | - | - |
+| AC5 | plugin.json count 1; `## v32` on top; `squad-process lint` exit 0 | - | - |
 
 ## Changelog line
 
