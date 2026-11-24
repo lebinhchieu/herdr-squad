@@ -42,7 +42,7 @@ topic: iterations
 
 - A PO answer in chat to an open item: record it with `squad-inbox answer E<n> --source chat <<'EOF' … EOF`, the PO's words verbatim inside the quoted heredoc. Run `squad-inbox list` first; never answer from memory of what is open.
 - With several open items and an unclear answer, ask which one first. A prompt that arrives from the inbox is the PO's answer to the id it names.
-- The inbox carries only `read` and `answer` items. Never offer a merge, push or deploy as an item (the check-in item may name the passed sha with the words "to merge, ask in chat").
+- The inbox carries only `read` and `answer` items. Never offer a merge, push or deploy as an item (the check-in item may name the passed sha with the words "to merge, ask in chat"; it names a missing full-suite answer, [ITER-19]).
 - Never treat an inbox answer as a request to merge, push or deploy: that stays the PO's explicit request in this chat. Never put a permission approval for another agent in the inbox.
 
 ## ITER-6 Token Coach spawn
@@ -96,7 +96,7 @@ roles: manager
 topic: iterations
 
 - Send the check-in at the end of each iteration as ONE `squad-inbox add` item (`--kind read`; `--kind answer` when it asks the PO to choose), never as a chat report. Unless a question blocks the squad now, bring it to the next check-in.
-- It lists each step the PO must take (clean-up, checklist, close confirmation, open choices) next to: what has passed, what is next, any task at 3 returns (one budget line), open escalations, proposed role-instruction changes.
+- It lists each step the PO must take (clean-up, checklist, open choices, a close that is not routine; a routine close or start is only a notice, [ITER-19]) next to: what has passed, what is next, any task at 3 returns (one budget line), open escalations, proposed role-instruction changes.
 - What has passed carries evidence links: per ticket, the link to its `evidence.md` (a path in the repo or on the Dev branch, not a folder), the Dev branch and the evidence sha.
 - Then copy each answered escalation's outcome into the iteration file and delete its row from `escalations.md`.
 
@@ -147,3 +147,22 @@ roles: manager, token-coach
 topic: iterations
 
 Each rule added to a squad overlay names its metric and baseline (a `squad-usage` or `squad-report` number). The Coach reads the metric at scope close. No change after 2 scopes: remove the rule; the PO may keep one on purpose.
+
+## ITER-19 Routine gates
+roles: manager
+topic: iterations
+
+| Gate | Kind | What happens |
+|---|---|---|
+| Close a passed scope, 0 open findings | routine | goes ahead, `[info]` notice |
+| Start the next scope already in the agreed plan | routine | goes ahead, `[info]` notice |
+| Full `--tz` suite on the final sha | ask, non-blocking | asked, work goes on |
+| Merge, push, deploy | always asks | ([MRG-1], [ITER-5]) |
+| Team, plan or scope change | always asks | the PO's call |
+
+- A routine gate goes ahead. Then send one `squad-inbox add --kind read` (not `answer`) whose verdict line is `[info] <scope> closed; say undo` or `[info] <scope> started; say undo`.
+- Undo is yours, on the PO's word "undo" in chat: for a close `mv scopes/_done/<scope> scopes/` and respawn the roles needed; for a start retire the roles and move it back. The notice says what undo does not bring back (`squad-close` removed the worktrees of merged, clean branches).
+- Routine means exactly the two rows. "Close" only when every checker passed every task, the promotion passed ([PROMO-4]) and no open inbox item or finding is left; anything else keeps its check-in ([CLOSE-1]).
+- Full-suite ask: the suite owner sends `ASK <task>: full suite? <why>`; you add an `answer` item with no `--blocks` (`--blocks ""`, [ITER-4]). Nothing waits on it: tasks go on and the scope may pass and close. The suite owner runs `--tz` the moment the PO says yes.
+- A check-in or merge item carries `[warn] full suite: not answered` in its verdict line while the answer is missing.
+- With `away` set nothing here changes ([ITER-17]).

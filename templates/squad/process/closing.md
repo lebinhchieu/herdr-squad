@@ -4,7 +4,7 @@
 roles: manager
 topic: closing
 
-- The PO confirms the close at a check-in. The Manager proposes it with evidence links once every checker on the team has passed every task, makes sure the promotion task passed ([PROMO-4]), and runs the Token Coach if [ITER-6] says so.
+- A routine close goes ahead and the PO gets an `[info]` notice with "undo" ([ITER-19]). Any other close the PO confirms at a check-in. The Manager closes or proposes it with evidence links once every checker on the team has passed every task, makes sure the promotion task passed ([PROMO-4]), and runs the Token Coach if [ITER-6] says so.
 - It tells the PO which branches are unmerged, resolves or withdraws (`squad-inbox withdraw E<n> --reason "<why>"`) every open inbox item, tells the PO of any unanswered, then runs `squad-close <squad> --scope <scope>` as its last action, after `--dry-run` (it prints the close rules). Its `$SCOPE_DIR` moves, so it says everything first; chat-only after. The PO ends it with `squad-retire <manager>`.
 
 ## CLOSE-2 What squad-close does
@@ -33,7 +33,7 @@ roles: manager
 when: goal = yes
 topic: closing
 
-With the PO's confirmation at an iteration check-in, update the `goal.md` table, run `squad-close <squad> --scope <scope>`, then update your notes and `squad-respawn $SQUAD_NAME`: a goal Manager resets after every scope close.
+On a routine close ([ITER-19]), or else with the PO's confirmation at an iteration check-in, update the `goal.md` table, run `squad-close <squad> --scope <scope>`, then update your notes and `squad-respawn $SQUAD_NAME`: a goal Manager resets after every scope close.
 
 ## CLOSE-4 Close a goal
 roles: manager
