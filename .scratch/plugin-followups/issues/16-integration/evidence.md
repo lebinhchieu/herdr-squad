@@ -31,7 +31,22 @@ $ python3 bin/squad-process lint    exit 0
 
 ## Review
 
-Fresh-context reviewer (sonnet, high) on the merge `3b76f3f` (parents `8dbcccf`, `bb77826`), Standards and Spec axes. Spec: AC1-AC4 met. Standards: none. Findings: none. It diffed the added and removed lines of `git diff 46d2f4b bb77826` against `git diff 46d2f4b HEAD` for `bin/squad-usage`, `bin/squad-usage-hook`, `hooks/hooks.json` and the three usage and hook tests: identical, so no 09-11 hunk was dropped. README squad-usage row appears once (09 wording), rows from 12-15 intact; changelog has one `## v32` with bullets 09-15 in order; plugin.json 0.11.1; `hooks.json` has the usage hook once in Stop and once in PostToolUse. It re-ran `test_hooks_json`, `test_squad_usage`, `test_squad_usage_hook`: 67 OK. Checks: see `## Checks` below.
+Fresh-context reviewer (sonnet, high) on the merge `3b76f3f` (parents `8dbcccf`, `bb77826`), Standards and Spec axes. Spec: AC1-AC4 met. Standards: none. Findings: none. It diffed the added and removed lines of `git diff 46d2f4b bb77826` against `git diff 46d2f4b HEAD` for `bin/squad-usage`, `bin/squad-usage-hook`, `hooks/hooks.json` and the three usage and hook tests: identical, so no 09-11 hunk was dropped. README squad-usage row appears once (09 wording), rows from 12-15 intact; changelog has one `## v32` with bullets 09-15 in order; plugin.json 0.11.1; `hooks.json` has the usage hook once in Stop and once in PostToolUse. It re-ran `test_hooks_json`, `test_squad_usage`, `test_squad_usage_hook`: 67 OK. Checks: see `## Main merge
+
+Main moved to `cf45853` (tmp-scratch, plugin 0.11.1, changelog `## v32`) after ticket 16 passed. Merge `f333b18` (parents `6e58543`, `cf45853`) on branch `squad/plugin/po-clarity/plugin-dev-po-clarity-18`; fix commit `8d80f1f`.
+
+```
+$ git merge-base --is-ancestor cf45853 HEAD; echo $?
+0
+$ git merge-base --is-ancestor 6e58543 HEAD; echo $?
+0
+```
+
+Conflicts: `README.md` (kept main's `squad-retire` and `squad-tmp` rows and the branch's `squad-usage` row) and `skills/squad-process-update/changelog.md` (branch bullets 09-15 became a new `## v33`, plugin 0.11.2, above main's `## v32`, main's text unchanged). `bin/squad-spawn` and `tests/test_squad_spawn.py` merged with no conflict; `.claude-plugin/plugin.json` is 0.11.2.
+
+Tests (foreground, `< /dev/null`, run without the squad env vars): `test_squad_spawn` 122 OK; the SQ-10 trio `test_windows_safe` 14, `test_utf8_helpers` 14, `test_instructions` 16 OK; the other files that name a changed path (`test_squad_retire`, `test_squad_close`, `test_squadsettings`, `test_team_lead_perms`, `test_dev_rules_size`, `test_squad_usage`, `test_squad_watchdog`, `test_squad_respawn`, `test_squad_start`, `test_team_models` and 14 more) OK; `python3 bin/squad-process lint` exit 0. `test_old_language_inventory` failed on the branch already (`bin/squad-usage-hook` has a jq key `size:`, from ticket 09): one allow-list line added in `8d80f1f`, now 2 OK. `test_team_models` fails 3 tests only when `SQUAD_DIR` and the other squad variables are set (the overlay pin of the real squad); with them unset it is 19 OK.
+
+## Checks` below.
 
 ## Checks
 
