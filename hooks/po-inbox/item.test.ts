@@ -1239,3 +1239,26 @@ test('F4: Details says `↓ more below` at 47 columns, never `↓ context`', asy
   expect(text).not.toContain('↓ context')
   await ui.unmount()
 })
+
+test('05 plan line: one dim row right under the title, one row less for the body, nothing without a plan', async ($, on) => {
+  const PLAN = { pos: 'scope 13 of 15', step: null, aim: 'ERD v12 rewritten', next: 'next: promotion' }
+  const rowsAt = async (it: any, cols = 80) => {
+    const { ui } = await open($, on, [it], it.id, cols, ROWS_40)
+    const tree = await ui.drawn()
+    return { rows: rowsOf(tree), tree, tall: treeRows(tree, cols) }
+  }
+  const without = await rowsAt(E2)
+  expect(without.rows.some((r) => r.includes('scope 13'))).toBe(false)
+  const withPlan = await rowsAt({ ...E2, plan: PLAN })
+  const at = withPlan.rows.findIndex((r) => r.includes('scope 13 of 15'))
+  expect(withPlan.rows[at]).toBe('scope 13 of 15 · ERD v12 rewritten · next: promotion')
+  expect(withPlan.rows[at - 1]).toContain('inbox-visual: clarify')
+  const style = styleOf(withPlan.tree, 'scope 13 of 15') as Record<string, unknown>
+  expect(style.dimColor).toBe(true)
+  expect([style.color, style.bold]).toEqual([undefined, undefined])
+  expect(withPlan.tall - without.tall).toBe(1)
+  const narrow = await rowsAt({ ...E2, plan: PLAN }, 40)
+  const nrow = narrow.rows.find((r) => r.includes('scope 13 of 15'))!
+  expect(cellWidth(nrow)).toBeLessThanOrEqual(40)
+  expect(nrow.startsWith('scope 13 of 15 · ')).toBe(true)
+})

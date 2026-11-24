@@ -17,6 +17,14 @@ export type InboxDone = {
   reason: string | null;
 };
 
+/** Where the item sits in the plan, from `squad-inbox list --json` (the one plan reader). Each part is text or null. */
+export type InboxPlan = {
+  pos: string;
+  step: string | null;
+  aim: string | null;
+  next: string;
+};
+
 export type InboxItem = {
   id: string;
   kind: 'answer' | 'read';
@@ -26,6 +34,8 @@ export type InboxItem = {
   options: InboxOption[] | null;
   recommendation: string | null;
   blocks: string;
+  /** The plan line parts; null when `blocks` names nothing in the plan. Absent from an older CLI. */
+  plan?: InboxPlan | null;
   created: string;
   created_precision?: 'day' | 'second';
   /** The Options cell as written, when it did not parse (options is null); absent otherwise. */

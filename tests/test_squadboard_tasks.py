@@ -400,13 +400,14 @@ class EvidenceTip(StoreReader):
         sha = self.passed_sha()
         calls = []
         orig = bt.squadboard_git._git
-        bt.squadboard_git._git = lambda *a: calls.append(a) or orig(*a)
+        bt.squadboard_git._git = lambda *a, **k: calls.append(a) or orig(*a, **k)
         try:
             self.assertEqual(self.stage(sha), "passed")
-            self.assertEqual(calls, [])
+            ev = lambda: [c for c in calls if c[1] in ("merge-base", "diff")]   # the evidence-only check (ticket 01's ticket reads use for-each-ref)
+            self.assertEqual(ev(), [])
             self.commit(".scratch/tf/issues/01-t/evidence.md")
             self.stage(self.git("rev-parse", "HEAD"))
-            self.assertTrue(calls)
+            self.assertTrue(ev())
         finally:
             bt.squadboard_git._git = orig
 

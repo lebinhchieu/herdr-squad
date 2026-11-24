@@ -17,6 +17,9 @@ HEAD = ("# Escalations\n\n| # | Date | Question | Options | Manager's recommenda
         "|---|---|---|---|---|---|---|\n")
 MIXED_ROWS = ("| 3 | 2026-10-15 | Merge the inbox branch?<br>body line | (a) yes; (b) no | (a) | PI-07 | |\n"
               "| 2 | 2026-10-15 | Which port?<br>body line | | | | |\n")
+GOAL = ("# Goal: inbox\n\n## Scopes\n\n| Scope | Depends on | Aim | Est | Status |\n|---|---|---|---|---|\n"
+        "| PI-06 | - | Fixtures first | 1h | passed |\n| PI-07 | PI-06 | Pane shows the plan | 1h | building |\n"
+        "| PI-08 | PI-07 | Ship it | 1h | open |\n")  # the home of `mixed`: E3 blocks PI-07, so it carries a plan line
 AGENT_ENV = ("SQUAD_DIR", "SCOPE_DIR", "GOAL_DIR", "SQUAD_NAME", "SQUAD_ROLE", "SQUAD_SCOPE")
 
 
@@ -32,6 +35,7 @@ def cli(home, now, *args, stdin=""):
 def mixed():
     with tempfile.TemporaryDirectory() as home:
         (Path(home) / "escalations.md").write_text(HEAD + MIXED_ROWS, encoding="utf-8")
+        (Path(home) / "goal.md").write_text(GOAL, encoding="utf-8")
         cli(home, "2026-10-15T09:00:00Z", "add", "--kind", "read", "--title", "Spec digest", stdin="body line")
         cli(home, "2026-10-13T09:00:00Z", "add", "--kind", "read", "--title", "Old note", stdin="body line")
         cli(home, "2026-10-14T10:00:00Z", "read", "R2")

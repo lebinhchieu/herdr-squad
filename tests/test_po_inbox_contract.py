@@ -102,5 +102,39 @@ class ContractTest(unittest.TestCase):
             self.assertIn("'%s':" % name, index)
 
 
+class PlanFieldTest(unittest.TestCase):
+    """Ticket 05: `plan` is an additive item field built by the one plan reader; never written to inbox.jsonl."""
+
+    def home_with(self, rows, goal=fx.GOAL):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        home = Path(tmp.name)
+        (home / "escalations.md").write_text(fx.HEAD + rows, encoding="utf-8")
+        if goal is not None:
+            (home / "goal.md").write_text(goal, encoding="utf-8")
+        return home
+
+    def plans(self, home):
+        return {i["id"]: i["plan"] for i in list_json(home)["items"]}
+
+    def test_T05_3_every_item_has_the_key_and_a_named_scope_gets_its_parts(self):
+        home = self.home_with(fx.MIXED_ROWS)
+        before = (home / "escalations.md").read_bytes()
+        self.assertEqual(self.plans(home), {
+            "E3": {"pos": "scope 2 of 3", "step": None, "aim": "Pane shows the plan", "next": "next: PI-08"}, "E2": None})
+        self.assertEqual((home / "escalations.md").read_bytes(), before)
+        self.assertFalse((home / "inbox.jsonl").exists(), "list --no-write must not write the log")
+        self.assertTrue(all("plan" in i for i in list_json(HOME)["items"]))  # the key is there even where the plan is null
+
+    def test_T05_2_unknown_none_nothing_and_a_goal_without_a_table_give_null(self):
+        rows = "| 3 | 2026-10-15 | A | | | PI-99 | |\n| 2 | 2026-10-15 | B | | | nothing | |\n| 1 | 2026-10-15 | C | | | | |\n"
+        self.assertEqual(set(self.plans(self.home_with(rows)).values()), {None})
+        no_table = self.home_with("| 3 | 2026-10-15 | A | | | PI-07 | |\n", goal="# Goal: x\n\nno scopes here\n")
+        self.assertEqual(self.plans(no_table), {"E3": None})
+        broken = self.home_with("| 3 | 2026-10-15 | A | | | PI-07 | |\n", goal=None)
+        (broken / "goal.md").mkdir()  # unreadable as a file
+        self.assertEqual(self.plans(broken), {"E3": None})
+
+
 if __name__ == "__main__":
     unittest.main()

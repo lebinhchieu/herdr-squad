@@ -285,6 +285,8 @@ def read_scope(squad_name, name, home, repo_root, since, now, git=None, with_det
                "where": (by_id.get(tid) or {}).get("where", ""), "ticket_status": status}
         if (by_id.get(tid) or {}).get("untitled"):
             row["untitled"] = True
+        if "origin" in (by_id.get(tid) or {}):
+            row.update({k: by_id[tid][k] for k in ("origin", "origin_ref", "on_main")})
         if "abs" in (by_id.get(tid) or {}):
             row["abs"] = by_id[tid]["abs"]
         if with_detail:

@@ -20,7 +20,7 @@ MGR, QAW, DEV, RETIRED = ("2b2bbc79-8708-45e3-8c15-b00c24fdb0df", "98789c41-dc76
                           "c7a0caa3-8754-4808-8445-adb3b988a526", "7eef7d82-874b-4029-bc3e-90cec4e6f528")
 GOAL_MGR = "8993fe3f-7d89-4fa1-a5bc-a649ca59646f"
 HOOKS = ("squad-log-message", "squad-usage-hook", "squad-lazy-hook", "squad-notify", "squad-path-guard",
-         "squad-manager-guard", "squad-merge-record", "squad-away-hook")
+         "squad-manager-guard", "squad-merge-record", "squad-away-hook", "squad-handin-gate")
 
 
 class Project(unittest.TestCase):

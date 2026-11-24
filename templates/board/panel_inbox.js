@@ -20,11 +20,18 @@
     });
   }
 
+  /* planLine(plan): the one grey line under an item's title, "scope 13 of 15 \u00b7 aim \u00b7 next: name", or "" when the server sent
+     no plan. The parts come from squad-inbox (the one reader); a part with no data is left out with its dot. */
+  function planLine(p) {
+    if (!p || typeof p !== "object") return "";
+    return [p.pos, p.step, p.aim, p.next].filter(function (x) { return typeof x === "string" && x !== ""; }).join(" \u00b7 ");
+  }
+
   /* rowsForInbox(data): the rows as plain data. open: oldest first (the server sorts; unknown age last); reads: items to read. */
   function rowsForInbox(data, tz) {
     var d = data || {}, rows = d.rows || [], pr = d.parked_rows || [];
     var mk = function (r) {
-      return { id: r.id, title: r.title, age: BOARD.ageWords(r.age_s), blocks: r.blocks || "", options: optionRows(r.options),
+      return { id: r.id, title: r.title, age: BOARD.ageWords(r.age_s), blocks: r.blocks || "", plan: planLine(r.plan), options: optionRows(r.options),
                answer: answerCommand(r.id), park: parkCommand(r.id), scope: r.scope, read: r.kind === "answer" };
     };
     var out = (d.others || []).map(function (o) { return o.scope; });
@@ -87,6 +94,7 @@
       ".nb-item{background:var(--bg);border:1px solid var(--border);border-left:5px solid var(--mango);border-radius:8px;padding:5px 9px}" +
       ".nb-item.read{border-left-color:var(--border)}.nb-item.parked{border:1px dashed var(--muted2);border-left:5px solid var(--muted2)}" +
       ".nb-item .top{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}.nb-item .age{margin-left:auto;font-weight:700;white-space:nowrap}" +
+      ".nb-item .plan{margin:2px 0;font-size:.92em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
       ".nb-item .blocks{color:var(--muted)}.nb-item.parked .blocks{color:var(--ink)}" +
       ".nb-opts{list-style:none;margin:3px 0;padding:0;display:flex;flex-direction:column;gap:2px}" +
       ".nb-opts li{padding:1px 7px;border-radius:6px}.nb-opts li.rec{background:var(--t-need3);outline:1px solid var(--t-edge)}" +
@@ -122,6 +130,7 @@
     if (multi && r.scope) top.appendChild(chip("idle", r.scope));
     top.appendChild(el("span", "age", r.age));
     li.appendChild(top);
+    if (r.plan) { var pl = el("p", "plan muted", r.plan); pl.title = r.plan; li.appendChild(pl); }
     if (r.blocks) li.appendChild(el("p", "blocks", "Blocks: " + r.blocks));
     if (r.options.length) {
       var ul = el("ul", "nb-opts");

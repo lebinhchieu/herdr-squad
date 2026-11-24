@@ -72,7 +72,7 @@ def parse(argv):
 def find_ticket(scope, nn, top):
     """-> (path, repo-relative evidence folder or None). Committed tickets come from squadtickets; a draft in
     `$SCOPE_DIR/tasks/` is the fallback (notes files next to a ticket, like NN-design-notes.md, are not the ticket)."""
-    for row in squadtickets.scope_tasks(scope, repo_root=top)["tasks"]:
+    for row in squadtickets.scope_tasks(scope, repo_root=top, git=False)["tasks"]:
         if int(row["id"]) == int(nn) and row["source"] in ("declared", "scratch"):
             p = Path(row.get("abs") or (Path(top) / row["where"]))
             if p.is_file():

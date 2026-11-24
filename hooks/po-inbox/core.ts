@@ -560,6 +560,25 @@ export function kindTone(it: { kind: string; state: string }): Tone {
   return it.kind === 'answer' && it.state === 'open' ? 'warn' : 'none'
 }
 
+// The plan line under an item's title: `pos · step · aim · next: name`, parts in this order, a missing one left out with its dot.
+// Over `cols` the cuts go aim, then step, then the name after `next:` (clipped with `…`). `cols` null is the full line.
+const MIN_NEXT_CELLS = 8 // less than `next: …` cannot say anything: drop the name and keep the position
+export function planLine(plan: unknown, cols: number | null): string {
+  if (typeof plan !== 'object' || plan === null) return ''
+  const p = plan as Record<string, unknown>
+  const part = (k: string): string => (typeof p[k] === 'string' ? oneLine(sanitize(p[k] as string)) : '')
+  const [pos, step, aim, next] = [part('pos'), part('step'), part('aim'), part('next')]
+  const join = (xs: string[]): string => xs.filter((x) => x !== '').join(' · ')
+  const full = join([pos, step, aim, next])
+  if (cols === null || cellWidth(full) <= cols) return full
+  for (const cut of [[pos, step, next], [pos, next]]) {
+    if (cellWidth(join(cut)) <= cols) return join(cut)
+  }
+  const head = pos === '' ? '' : `${pos} · `
+  const room = cols - cellWidth(head)
+  return next !== '' && room >= MIN_NEXT_CELLS ? head + clipCells(next, room) : clipCells(join([pos, next]), cols)
+}
+
 // "blocks X": red; "blocks nothing": dim.
 export function blocksTone(blocks: string): Tone {
   return blocksNothing(blocks) ? 'dim' : 'bad'

@@ -487,6 +487,26 @@ out({title:item.querySelector('b:not(.nb-opts b)').textContent,id:item.dataset.i
         self.assertEqual((r["code"], r["clip"], r["copyRet"]), ("squad-inbox answer E1", ["squad-inbox answer E1"], "squad-inbox answer E1"))
         self.assertEqual(r["labels"], [])   # AC10: no control is labelled answer, park, merge, approve, delete
 
+    def test_T05_AC1_AC2_plan_line_sits_under_the_title_above_blocks_and_a_null_plan_leaves_no_line(self):
+        r = self.page(r"""
+const q=P['inbox:questions'];
+q.data.rows[0].plan={pos:'scope 13 of 15',step:null,aim:'ERD <b>v12</b> rewritten',next:'next: promotion'};
+await start12();
+const item=$('section[data-panel=inbox]').querySelector('.nb-item'),kids=Array.from(item.children).map(c=>c.className.split(' ')[0]);
+const plan=item.querySelector('p.plan'),css=getComputedStyle(plan);
+out({kids,text:plan.textContent,title:plan.title,muted:plan.classList.contains('muted'),html:plan.innerHTML.includes('<b>'),ws:css.whiteSpace,to:css.textOverflow});
+""", "#/scope/questions")
+        self.assertEqual(r["kids"][:3], ["top", "plan", "blocks"])
+        self.assertEqual(r["text"], "scope 13 of 15 · ERD <b>v12</b> rewritten · next: promotion")
+        self.assertEqual((r["title"], r["muted"], r["html"], r["ws"], r["to"]), (r["text"], True, False, "nowrap", "ellipsis"))
+        none = self.page(r"""
+const q=P['inbox:questions'];q.data.rows.forEach(x=>x.plan=null);
+await start12();
+out({n:$$('.nb-item p.plan').length,blocks:$$('.nb-item .blocks').length});
+""", "#/scope/questions")
+        self.assertEqual(none["n"], 0)
+        self.assertGreater(none["blocks"], 0)
+
     def test_T12_AC2_AC4_empty_text_parked_group_tab_title_from_the_server_and_two_banner_lines(self):
         r = self.page(r"""
 const q=P['inbox:questions'];
@@ -1178,8 +1198,6 @@ out({res,fits:P({left:100,bottom:40},{w:200,h:100},{w:1440,h:900}),right:P({left
         self.assertGreaterEqual(r["neg"]["left"], 8)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
@@ -1272,6 +1290,79 @@ out({a,b,redrawn,gone:txt(),A:links[0].dataset.abs,B:links[1].dataset.abs,alerts
         # TA8 (browser side): the clicks and the redraw sent no request that could write
         self.assertEqual([c for c in r["calls"] if not c.startswith("GET /api/files")], [], r["calls"])
 
+    def test_T07_AC1_AC2_AC4_AC5_preview_draws_fences_images_and_refuses_bad_paths_and_a_row_click_sends_nothing(self):
+        r = self.page(r"""
+const FN='`'.repeat(3);
+const md=['# 04 Plan','',FN+'text','  a   b','    c',FN,'',FN+'diagram What <b>x</b> changes','A','\u25bc','B',FN,'',FN+'bash','ls',FN,'',
+ '![ok](img/ok.png)','![ex](../../etc/passwd)','![abs](/etc/passwd)','![sc](http://x/a.png)','![ext](img/a.gif)','![<scr'+'ipt>window.__x=1<'+'/script>](img/ok.png)'].join('\n');
+const calls=[],srcs=[];
+window.fetch=async(u)=>{calls.push(u);return {ok:true,status:200,text:async()=>md}};
+const os=Element.prototype.setAttribute;
+Element.prototype.setAttribute=function(n,v){if(this.tagName==='IMG'&&n==='src'){srcs.push(v);return os.call(this,n,'data:image/gif;base64,R0lGODlhAQABAAAAACw=')}return os.call(this,n,v)};
+await start14();
+const panel=$('section[data-panel=files]');
+panel.addEventListener('click',e=>{if(e.target.closest('a'))e.preventDefault()});
+const tr=panel.querySelector('tr[data-open] a[data-abs$=".md"]').closest('tr');
+const rowAbs=tr.querySelector('a').dataset.abs;
+tr.querySelector('a').click();
+const afterRow=calls.filter(u=>u.startsWith('/api/file')).length;   /* the row click may POST /api/open (ticket 34), never /api/file */
+const btn=tr.querySelector('button[data-pv]');
+const folderBtn=panel.querySelector('tr.fl-nothing,button[data-pv]')===btn;
+btn.click();
+const loading=panel.querySelector('.pvr .pstate')&&panel.querySelector('.pvr .pstate').textContent;
+await sleep(200);
+const box=panel.querySelector('.pvr .pvbox');
+const pres=Array.from(box.querySelectorAll('pre')).map(p=>p.textContent);
+const caps=Array.from(box.querySelectorAll('.mdcap')).map(c=>c.textContent);
+out({afterRow,calls:calls.filter(u=>u.startsWith('/api/file')),srcs,loading,pres,caps,figPre:box.querySelector('.mdfig pre').textContent,
+ pbtn:Array.from(panel.querySelectorAll('button[data-pv]')).length,nTickets:Array.from(panel.querySelectorAll('tr .chip')).filter(c=>c.textContent==='ticket').length,
+ expanded:document.querySelector('button[data-pv][aria-expanded=true]')!==null,alts:Array.from(box.querySelectorAll('.mdalt')).map(a=>a.textContent),
+ imgs:box.querySelectorAll('img').length,scripts:box.querySelectorAll('script').length,x:typeof window.__x,link:!!box.querySelector('.pvhead a'),h1:box.querySelector('h1').textContent,
+ pvrows:panel.querySelectorAll('tr.pvr').length,rowAbs});
+""")
+        self.assertEqual(r["afterRow"], 0)                          # AC5: the row click sent nothing
+        self.assertEqual(len(r["calls"]), 1)                        # only the Preview button read the ticket
+        self.assertTrue(r["calls"][0].startswith("/api/file?squad=") and "img=1" not in r["calls"][0])
+        self.assertEqual(r["loading"], "Loading ticket\u2026")
+        self.assertEqual(r["pres"][0], "  a   b\n    c")                # AC1: spacing kept
+        self.assertEqual(r["figPre"], "A\n\u25bc\nB")
+        self.assertEqual(r["caps"], ["diagramWhat <b>x</b> changes"])  # caption above the diagram only; bash has none; markup stays text
+        self.assertEqual(len(r["pres"]), 3)
+        self.assertEqual(len(r["srcs"]), 2)                         # AC2: only the two allowed paths made a request
+        for u in r["srcs"]:
+            self.assertIn("img=1&base=", u)
+            self.assertIn("&path=", u)
+        self.assertEqual(r["pbtn"], r["nTickets"])
+        self.assertEqual(r["pvrows"], 1)
+        for refused in ("ex", "abs", "sc", "ext"):
+            self.assertIn(refused, r["alts"])                       # alt text only
+        self.assertIn("<script>window.__x=1</script>", r["alts"])  # AC4: shown as text
+        self.assertEqual((r["scripts"], r["x"]), (0, "undefined"))
+        self.assertTrue(r["link"])
+        self.assertEqual(r["h1"], "04 Plan")
+
+    def test_T07_states_error_empty_and_escape_returns_focus(self):
+        r = self.page(r"""
+let mode='err';window.fetch=async(u)=>mode==='err'?{ok:false,status:404,text:async()=>''}:{ok:true,status:200,text:async()=>'  \n'};
+await start14();
+const panel=$('section[data-panel=files]');
+const btn=()=>panel.querySelector('button[data-pv]');
+const first=btn().dataset.pv;
+btn().click();await sleep(150);
+const err=panel.querySelector('.pvr .pstate.perr').textContent;
+btn().click();                         /* closes */
+const closed=panel.querySelectorAll('tr.pvr').length;
+mode='empty';btn().click();await sleep(150);
+const empty=panel.querySelector('.pvr .pstate').textContent;
+document.activeElement.blur();   /* a mouse click leaves the focus on BODY: Esc still closes */
+document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+out({err,closed,empty,after:panel.querySelectorAll('tr.pvr').length,focus:document.activeElement===btn(),exp:btn().getAttribute('aria-expanded')});
+""")
+        self.assertEqual(r["err"], "Cannot show this ticket. Open it in VS Code.")
+        self.assertEqual(r["closed"], 0)
+        self.assertEqual(r["empty"], "This ticket is empty.")
+        self.assertEqual((r["after"], r["focus"], r["exp"]), (0, True, "false"))
+
     def test_T30_TA7_folder_row_path_line_stays_with_only_the_file_column(self):
         r = self.page(r"""
 cur.saved={version:1,saved_at:'2026-11-04T09:00:00Z',font:'normal',choice:{kind:'scope',name:'checkout'},recent:[],panels:{},auto:true,columns:{files:['file']}};
@@ -1321,6 +1412,31 @@ out({long,pillL:cell(tr('77.md'),k).textContent,whatL:cell(tr('77.md'),w).textCo
             js = f.read_text(encoding="utf-8")
             self.assertIsNone(re.search(r"_blank|window\.open|root\.open|openMarkdown", js), f.name)
 
+    def test_T01_tasks_source_tag_in_task_cell_textcontent_and_absent_without_origin(self):
+        pg = Panels12.__new__(Panels12)
+        pg.real = dict(real_payloads(), saved=None, p12=payloads12())
+        pg.head = head12()
+        r = Panels12.page(pg, r"""
+const rows=P['tasks:checkout'].data.rows;
+Object.assign(rows[0],{origin:'main',origin_ref:'',on_main:true});
+Object.assign(rows[1],{origin:'branch',origin_ref:'squad/s/c/dev-<b>x</b>-10',on_main:true});
+Object.assign(rows[2],{origin:'draft',origin_ref:'',on_main:false});
+rows.slice(3).forEach(x=>{delete x.origin;delete x.origin_ref;delete x.on_main});
+await start12();await sleep(100);
+const tags=Array.from(document.querySelectorAll('section[data-panel=tasks] tr.r')).map(tr=>{const c=tr.children[0].querySelector('.chip.src');return c&&{t:c.textContent,c:c.className,ti:c.title}});
+out({tags,html:document.querySelectorAll('section[data-panel=tasks] tr.r td:first-child b b').length,
+ first:document.querySelector('section[data-panel=tasks] tr.r').children[0].textContent});
+""", "#/scope/checkout")
+        self.assertEqual(r["tags"][0]["t"], "main")
+        self.assertIn("idle", r["tags"][0]["c"])
+        self.assertEqual(r["tags"][1]["t"], "branch -10")
+        self.assertIn("quiet", r["tags"][1]["c"])
+        self.assertIn("also on main", r["tags"][1]["ti"])
+        self.assertEqual(r["tags"][2]["t"], "draft")
+        self.assertIn("draft", r["tags"][2]["c"])
+        self.assertTrue(all(t is None for t in r["tags"][3:]), r["tags"])   # rows without origin: no tag
+        self.assertNotIn("undefined", r["first"])
+
     def test_T30_TA11_AC4_tasks_where_file_name_is_a_vscode_link_without_a_tab(self):
         pg = Panels12.__new__(Panels12)
         pg.real = dict(real_payloads(), saved=None, p12=payloads12())
@@ -1340,3 +1456,61 @@ out({n:wf.length,links:wf.map(w=>{const a=w.querySelector('a');return a&&{h:a.ge
             self.assertTrue(x["h"].startswith("vscode://vscode-remote/wsl+Ubuntu/"), x)   # TA11: href is vscodeUrl(abs, distro)
             self.assertEqual(x["tg"], "")
             self.assertIn("opens in VS Code", x["t"])
+
+
+HEAD04 = HEAD.replace('<script src="file://%(tpl)s/panel_scopes.js"></script>',
+                      '<script src="file://%(tpl)s/panel_scopes.js"></script><script src="file://%(tpl)s/panel_plan.js"></script>', 1)
+PRE04 = r"""
+const P=BOARD.panels.find(p=>p.id==='plan');
+const mount=()=>{document.getElementById('app').innerHTML='<div class=panel><div class=ph><h2>Plan</h2></div><div class=pb></div></div>';return $('.pb')};
+const draw=(d,b)=>{b=b||mount();P.render(b,d,{setCount(){}});return b};
+const row=(id,o)=>Object.assign({id:id,title:'T'+id,aim:'aim '+id,est_min:60,spent_min:null,deps:[],unknown_deps:[],state:'ready',step:1,passed:false,loop:false},o||{});
+"""
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
+class Plan04(unittest.TestCase):
+    """Ticket 04: the plan panel (AC1, AC3, AC4, T04-6)."""
+    def page(self, body):
+        return run_page(PRE04 + body, {"squads": {}, "scopes": {}, "checks": {}}, "", HEAD04)
+
+    def test_T04_AC1_steps_with_deps_arrows(self):
+        r = self.page(r"""const b=draw({kind:'scope',name:'s',aim:'Ship it',rows:[row('01'),row('02',{step:2,deps:['01']}),row('03',{step:3,deps:['01','02']})]});
+out({steps:$$('.pl-step').map(x=>x.textContent),deps:$$('.pl-dp').map(x=>x.textContent)});""")
+        self.assertEqual(len(r["steps"]), 3)
+        self.assertEqual(r["steps"][0], "STEP 1 · can start now")
+        self.assertEqual(r["deps"][1], "← 01")
+        self.assertEqual(r["deps"][2], "← 01, 02")
+
+    def test_T04_AC3_over_estimate_boundary_shows_both_numbers(self):
+        r = self.page(r"""const q=s=>{const b=draw({kind:'scope',name:'s',aim:'a',rows:[row('01',{spent_min:s})]});return [b.textContent.indexOf('over estimate')>=0,(b.querySelector('.pl-sp')||{}).textContent||'']};
+out({at:q(90),over:q(91)});""")
+        self.assertFalse(r["at"][0])
+        self.assertTrue(r["over"][0])
+        self.assertIn("est 1h", r["over"][1])
+        self.assertIn("spent 1h 31m", r["over"][1])
+
+    def test_T04_AC4_missing_aim_and_estimate_dash_and_loop_chip(self):
+        r = self.page(r"""const b=draw({kind:'scope',name:'s',aim:'',rows:[row('01',{aim:'',est_min:null}),row('02',{loop:true})]});
+out({est:$$('.pl-est')[0].textContent,aim:$$('td.pl-a')[0].textContent,chips:$$('.pl-st .chip').map(x=>x.textContent),step:$$('.pl-step').map(x=>x.textContent)});""")
+        self.assertEqual(r["est"], "–")
+        self.assertEqual(r["aim"], "–")
+        self.assertIn("loop", r["chips"])
+        self.assertTrue(r["step"][-1].startswith("STEP ? · loop"))
+
+    def test_T04_T6_markup_in_aim_title_waits_stays_text_and_fold_and_goal_waits(self):
+        r = self.page(r"""const X='<scr'+'ipt>window.hit=1</scr'+'ipt>';
+let b=draw({kind:'scope',name:'s',aim:X,rows:[row('01',{title:X,aim:X,waits:X,passed:true,state:'passed'}),row('02',{step:2,deps:['01']})]});
+const o={scripts:$$('.pl script').length,hit:!!window.hit,txt:b.textContent.indexOf(X.slice(0,8))>=0,folded:$$('.pl-step.fold').length,rows:$$('tr.pl-r').length};
+b=draw({kind:'goal',name:'g',aim:'a',rows:[row('a1',{waits:'Chieu answer'})]});
+o.wait=$$('.chip.wait').map(x=>x.textContent);out(o);""")
+        self.assertEqual(r["scripts"], 0)
+        self.assertFalse(r["hit"])
+        self.assertTrue(r["txt"])
+        self.assertEqual(r["folded"], 1)
+        self.assertEqual(r["rows"], 1)  # the passed step is folded: only task 02 shows
+        self.assertEqual(r["wait"], ["waits: Chieu answer"])
+
+
+if __name__ == "__main__":
+    unittest.main()

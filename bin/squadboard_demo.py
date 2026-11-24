@@ -67,6 +67,38 @@ def _transcript(config_dir, template, agent, session, old_agent="fix-qaw-checkou
     _write(Path(config_dir) / "projects" / "-fixture-repo" / (session + ".jsonl"), text)
 
 
+PLAN_TASKS = (  # (task, aim, estimate, depends on): the Plan panel of the scope `checkout`; the tickets themselves stay as the fixture has them
+    ("01", "Cart totals add up with the tax rule", "1h", "none"), ("02", "Payment form keeps what the buyer typed", "30m", "01"),
+    ("03", "Failed card shows a plain reason", "1h 30m", "01, 02"), ("04", "Shipping choice waits for the address", ".5h", "02"),
+    ("05", "Both reviewers see the order summary", "1h", "03"), ("06", "Receipt page is ready to ship", "1h", "04, 05"),
+    ("07", "Receipt keeps its numbers after a re-run", "30m", "06"), ("08", "Old carts open without errors", "1h", "none"),
+    ("09", "Remove the retired checkout flag", "30m", "08"))
+PLAN_GOAL = """Aim: Orders show the new fields on every page
+
+## Scopes
+
+| Scope | Depends on | Aim | Est | Status |
+|---|---|---|---|---|
+| alpha-api | - | Orders can be read through one service | 3h | passed |
+| alpha-ui | alpha-api | Order page shows the new fields | 2h | building |
+| alpha-docs | alpha-api | Guide explains the new fields | 1h | open |
+| alpha-qa | alpha-ui, alpha-docs, Matt A5, A6 | Release check on both pages | 1h 30m | open |
+"""
+
+
+def _plan_data(squad, scopes):
+    """Aims, estimates and dependencies for the Plan panel: tasks/NN.md of `checkout` and the goal table of `alpha`."""
+    (scopes / SOURCE / "tasks").mkdir(parents=True, exist_ok=True)
+    for nn, aim, est, dep in PLAN_TASKS:
+        _write(scopes / SOURCE / "tasks" / (nn + ".md"), "# Task %s\n\nAim: %s\nEstimate: %s\nDepends on: %s\n" % (nn, aim, est, dep))
+    _write(scopes / SOURCE / "scope.md", _read(scopes / SOURCE / "scope.md").rstrip("\n") + "\n\nAim: Checkout works end to end for a buyer\n")
+    goal = squad / "goals" / GOAL / "goal.md"
+    text = _read(goal)
+    head, _, tail = text.partition("## Scopes")
+    rest = tail.split("\n## ", 1)
+    _write(goal, head + PLAN_GOAL + ("\n## " + rest[1] if len(rest) > 1 else ""))
+
+
 def extend(fx, now=None):
     """Give the scopes of goal `alpha` and the scope `checkout` what a full page needs. Copy only; nothing real is read."""
     now = now or datetime.now(timezone.utc)
@@ -113,6 +145,7 @@ def extend(fx, now=None):
         rec = {"ts": stamp, "msg_id": "d-" + s, "from": "fix-mgr-" + s, "to": "fix-dev-02", "type": "STATUS", "task": "02",
                "text": "STATUS 02: start", "iteration": 1}
         _write(h / "messages.jsonl", json.dumps(rec) + "\n")
+    _plan_data(squad, scopes)
     env = {**os.environ, **GIT_ENV}
     refs = subprocess.run(["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/squad/fix/%s/" % SOURCE], cwd=str(repo),
                           capture_output=True, text=True, encoding="utf-8", check=True, env=env).stdout.split()

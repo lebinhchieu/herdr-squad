@@ -261,6 +261,26 @@ The commit where the Developer assembled the reviewers' files into `evidence.md`
 **Check table**:
 `evidence/<NN>/checks.md` in the scope folder: one row per AC, columns Dev, QA whitebox and QA blackbox. Each role fills only its own column, with a command and its result, never code. `squad-evidence checks <file>` checks the table; once `## Checks` is in `evidence.md`, `squad-evidence check` also requires every QA cell (`-` is allowed).
 
+**Origin tag**:
+Where a ticket row on the board came from: `main`, `branch` (a Developer or scope branch not yet merged) or `draft` (`tasks/NN-ticket.md`). Main beats a draft; a branch already merged into main is ignored. Not the HTTP `Origin` header of the write routes.
+_Avoid_: source, status
+
+**Plan fields**:
+Three plain lines of a task file the plan panel reads: `Aim:` (one line, at most 60 characters, no bare IDs), `Estimate:` (`30m`, `1h 30m`) and `Depends on:`. A missing field shows `–` and never blocks work ([START-19c]).
+_Avoid_: plan metadata
+
+**Plan line**:
+The one grey line under an inbox item's title, `scope 13 of 15 · aim · next: name`, built by `squadplan.plan_line_parts` from the item's `--blocks` and sent as the `plan` field of `squad-inbox list --json` (additive, contract version 1, `null` when `--blocks` names nothing in the plan). The pane and the board only draw it.
+_Avoid_: breadcrumb
+
+**Bare ID**:
+A ticket, item or rule number with no words beside it (`E12`, `LC-14`, `13`). `squad-inbox add` refuses a title or body that has one (exit 2) unless it sits in a code span, a fence or a link, or a gloss follows its first use.
+_Avoid_: raw ID
+
+**Routine gate**:
+A gate the Manager passes without asking Chieu: closing a passed scope with no open finding, and starting the next scope already in the agreed plan. It sends one `read` notice (`[info] <scope> closed; say undo`) instead of an `answer` item ([ITER-19]).
+_Avoid_: auto-approve
+
 **Phase rule**:
 A Manager-only rule tagged `phase: merge|close|coach`. It is not attached to the Manager: the tool that starts the phase prints it (`squad-merge-check`, `squad-close`, `squad-spawn token-coach`), and `squad-process phase <name> --home D` prints it by hand. The rule index lists only its ID.
 
