@@ -9,7 +9,7 @@ changed:
 - GOAL-6a/6d/6e/6f, MRG-6, MRG-6b (04): integration only for related branches; a merge after main moved compares files first. `bin/squadmergecheck.py` text points at them. why: replaces plugin SQ-6, SQ-6b, SQ-7, SQ-7b.
 - LC-14, LC-28, START-18, SPAWN-9 (05): a task waits for an open PO ask; the pin check at start; both QAs spawn before the first Developer. why: replaces plugin SQ-1, SQ-8, SQ-21, SQ-22.
 - SAFE-11, SAFE-11b (06), all roles: `rm` under `/tmp` takes a literal absolute path and runs alone. why: Claude Code's dangerous-rm check fires on `cd`, `&&`, `;`, globs and `$(...)`; replaces guardian SQ-35.
-- REV-8 (06): a UI business AC names its size, the value or rule, and a fixed clock. why: replaces board SQ-8.
+- REV-8, REV-8b (06): REV-8 is unchanged; new REV-8b: a UI business AC names its viewport width, the value or rule, and a fixed clock. why: replaces board SQ-8.
 - NOTE-1 (06): `Pointers` holds at most 5 paths with a line range or section. why: replaces board SQ-9.
 - `tests/test_dev_rules_size.py`: the Developer byte limit is the measured worst case over every team set, designer and architect sets too (6858 B, limit 6950 B). why: the test already failed on 224 design teams at v28.
 

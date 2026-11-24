@@ -90,3 +90,4 @@ Hits of the changed IDs and strings: test_dev_rules_size 9 OK (the sweep that fa
 - `$SQUAD_DIR/base-failures.md` written with the one row, fix "fixed by 06".
 
 Verdict: Tech Lead review passes at f9b7a9f. Full suite not run: waiting for the PO's yes (SUITE-1).
+- Return by the Tech Lead's DECISION (REV-8 lost "and records the agreement", an existing base clause): REV-8 restored to its base body; the UI clause is new REV-8b "UI AC width and clock" (the title the Tech Lead named said "size", which `test_promotion_0_6_0` forbids, so I retitled it). `who REV-8b`: ba, qa-blackbox only, so Developer bytes are unchanged. lint exit 0; test_promotion_0_6_0, test_rules_contract, test_rules_wording, test_squadcompose, test_sizes, test_dev_rules_size, test_windows_safe, test_utf8_helpers, test_instructions, test_small_files_equivalence and test_qab_optional (SQUAD_* unset) all OK.
