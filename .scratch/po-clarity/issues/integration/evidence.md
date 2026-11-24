@@ -26,3 +26,27 @@ Board, both changes on one page (`squad-board --squad <demo copy> --scope alpha-
 ## Review
 
 Run: `/mattpocock-skills:code-review` since 05's sha `e0ab63b` (two sub-agents, sonnet, high).
+
+### Standards
+No violation of a documented standard (repo `CLAUDE.md`, ADR 0020 and 0034, the changelog format, version match 0.11.0 = v31). Judgement calls, none changed:
+- Mysterious Name: v31 bullets carry ticket numbers "(01)".."(07)"; v29 does the same and each has words beside it, so no bare ID.
+- Duplicated Code in 07's merged code (`real.suffix.lower()` twice in `bin/squadboard.py`; `BOARD.page.state.squad` twice in `panel_files.js`): minor, reviewed in 07, not touched here.
+- Shotgun Surgery: the hook list in `HOOKS` of `test_session_lookup.py` is one more place to edit when a hook is added; v29 says "eight hooks" and stays history.
+- `squad-handin-gate` repeats part of the session lookup the other hooks use: main's reviewed code, not judged here.
+
+### Spec
+- Fixed: the merge dropped the blank line between v29's Deploy paragraph and `## v28`, so v29 was not byte-for-byte main's. Blank line restored; `git diff main -- skills/squad-process-update/changelog.md` now only adds v31.
+- Evidence of this task was not committed when the reviewer ran; it is now.
+- 02's bullet does not name the `[warn] full suite: not answered` line on a check-in or merge item; the bullet already says the ask is non-blocking. Not added.
+- 07's bullet leaves out Esc to close and the "Open in VS Code" link; harmless, not added.
+- Everything else matched: heading order v31, v30, v29, v28; no conflict markers; `plugin.json` 0.11.0 and only that line differs from main; ADR 0034 present; bullets for 01, 03, 04, 05, 02, 07, LC-9c; Deploy and Rollback name 0.11.0 and the `squad-inbox add` refusal. No scope creep: only the two test-list lines are new.
+
+## Checks
+
+| AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |
+|---|---|---|---|
+| Merges | `git merge-base --is-ancestor` of the 02 branch, the 07 branch and `main` against HEAD: all three true | - | - |
+| plugin.json 0.11.0 | `grep version .claude-plugin/plugin.json` = 0.11.0 = changelog top heading v31; v30 below it, v29 untouched | - | - |
+| Changelog v31 | bullets for 01, 03, 04, 07, 05, 02 and LC-9c; Deploy names 0.11.0 and the `squad-inbox add` refusal; no conflict markers | - | - |
+| ADR 0034 kept | `ls docs/adr/0034-handin-evidence-gate-blocks.md` | - | - |
+| Shared tests | see `## Behaviour`: all OK | - | - |

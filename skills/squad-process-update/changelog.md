@@ -41,6 +41,7 @@ changed:
 - Hooks (11): `bin/squadsession.py` and `bin/squad-whoami` find the agent of a session id in `roster.md`. The eight hooks `squad-log-message`, `squad-usage-hook`, `squad-lazy-hook`, `squad-notify`, `squad-path-guard`, `squad-manager-guard`, `squad-merge-record` and `squad-away-hook` call it only when `SQUAD_NAME` or `SQUAD_DIR` is missing. why: herdr restores a pane with `claude --resume <id>`, which has no `SQUAD_*` variables, so those hooks did nothing for a resumed session.
 
 Deploy (Chieu): merge; `claude plugin update` to 0.10.11; every squad runs `/squad:squad-process-update`, then `squad-process upgrade --check` and drops the overlay ops named above (guardian SQ-35, SQ-41; board SQ-5, SQ-8, SQ-9; plugin SQ-1, SQ-3c, SQ-3d, SQ-6, SQ-6b, SQ-7, SQ-7b, SQ-8, SQ-15, SQ-17, SQ-20, SQ-21, SQ-22, EVID-2d replace). Running scopes keep their pin. Rollback: revert the merge, plugin back one version; the overlay ops stay until dropped, so nothing breaks.
+
 ## v28 — 2026-11-24
 
 Plugin 0.10.10. The watchdog restarts idle roles lazily before their 1h prompt cache goes cold (ADR 0033).
