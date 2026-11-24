@@ -28,7 +28,7 @@ Goal `alpha` (AC2, AC7): scope rows by step from "Depends on", outside waits as 
 
 ### Other states (Manager UI check on 0945f9b)
 
-Playwright 1.x against `bin/squad-board --demo`, `/api/plan` answered by route mocking (`page.route`), shots of `[data-panel=plan]`. Console: no error, except the 500 on the error shot (by design).
+Playwright 1.x against `bin/squad-board --demo`, `/api/plan` answered by route mocking (`page.route`), shots of `[data-panel=plan]`. Console (read by the script, not visible in a shot): no error, except the 500 on the error shot (by design). Panels other than Plan were not part of the shots.
 
 Loop (AC4): rows in one `STEP ? · loop` step, each with the `loop` chip and its `← NN`; the passed step 1 stays folded above it.
 
@@ -78,3 +78,8 @@ No hard violation of CLAUDE.md or the test economy. Judgement calls:
 - `_split_cell` also splits goal dependency cells on " and ": open, follow-up.
 - No DOM test for the 40-character `waits:` clip: follow-up.
 - Aim cell is clipped visually at 15em besides the 60-character clip (design: never wraps): a difference from the design, for the Tech Lead.
+
+### Review of the evidence commit (fresh-context subagent, diff 0945f9b..c93aeb8)
+No blocking finding. The CSS edit is wholly inside `@container plan (max-width:560px)`, so the wide layout is unchanged; the six shots match their claims. Fixed in this file: the console and "other panels" claims now say they come from the script, not the shots. Left as is: the 426px (before) and 363px (after) numbers are from a measuring script, with no "before" shot; in the narrow state the two chips stack even when both would fit (design does not say side by side); no goal-variant narrow shot.
+
+Tests after the CSS edit (c93aeb8, from `tests/`): `test_squadboard_panels test_squadboard_demo test_squadboard_page`: `Ran 96 tests ... OK`. The first run of the same three files reported one failure that I did not capture (output was cut to the last lines); the identical rerun passed, so it was a flake or a load effect, not reproduced. `bin/__pycache__` made by these runs was deleted before the commit.
