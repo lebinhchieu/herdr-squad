@@ -1,3 +1,13 @@
+## v29 — 2026-11-24
+
+Ticket writers open a ticket with a picture when the change has a shape (po-clarity ticket 06). No plugin version bump here: the po-clarity bump rides ticket 05.
+
+changed:
+- LC-9c new (Manager, Tech Lead, BA, Architect): a ticket opens with a picture chosen by the change, and its Problem is at most 3 sentences. why: Chieu rebuilt the picture of long tickets in his head.
+- `templates/squad/ticket.md` new: Problem (with picture) / Change / AC / Comments, with the plan lines `Aim:`, `Estimate:`, `Depends on:`. why: the rule points writers at one starting file.
+
+Deploy (Chieu): `/squad:squad-process-update` for the rule change. Rollback: revert the merge.
+
 ## v28 — 2026-11-24
 
 Plugin 0.10.10. The watchdog restarts idle roles lazily before their 1h prompt cache goes cold (ADR 0033).

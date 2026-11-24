@@ -103,6 +103,12 @@ topic: lifecycle
 
 Name each task's touched files and test harness or fixtures in its task file before its technical AC is written; if the touches change, re-issue the task file instead of correcting it by message.
 
+## LC-9c Ticket opens with a picture
+roles: manager, tech-lead, ba, architect
+topic: lifecycle
+
+A ticket opens with a picture when its change has a shape (wireframe, `diagram` fence of at most 44 columns, item-by-place table, before / after block); a rule or test fix needs none. Problem: at most 3 sentences plus the picture; details go in Change or AC. Start from `templates/squad/ticket.md`.
+
 ## LC-10 Design each task
 roles: tech-lead
 when: design-notes = tech-lead
