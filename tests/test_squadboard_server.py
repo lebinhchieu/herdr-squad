@@ -320,6 +320,34 @@ class ServerTest(Base):
         self.assertEqual(q(self.squad / "nothing.md")[0], 404)
         self.assertIn("default-src 'self'", get(base + "/")[1]["Content-Security-Policy"])
 
+    def test_T07_AC3_image_mode_stays_inside_base_and_serves_svg_sandboxed(self):
+        base = self.squad / "scopes" / "alpha" / "07-t"
+        (base / "img").mkdir(parents=True)
+        (base / "img" / "a.png").write_bytes(b"\x89PNG")
+        (base / "img" / "v.svg").write_text("<svg><script>1</script></svg>", encoding="utf-8")
+        (base / "img" / "n.txt").write_text("t", encoding="utf-8")
+        other = self.squad / "scopes" / "alpha" / "other.png"
+        other.write_bytes(b"x")
+        link = base / "img" / "out.png"
+        try:
+            link.symlink_to(other)
+        except OSError:
+            link = None
+        _, srv = self.serve()
+        q = lambda p, b=base, img="&img=1": get(srv + "/api/file?path=" + urllib.request.quote(str(p), safe="") + img + "&base=" + urllib.request.quote(str(b), safe=""))
+        code, h, body = q(base / "img" / "a.png")
+        self.assertEqual((code, body, h["Content-Type"]), (200, b"\x89PNG", "image/png"))
+        code, h, _ = q(base / "img" / "v.svg")
+        self.assertEqual((code, h["Content-Type"], h["Content-Security-Policy"]), (200, "image/svg+xml", "sandbox"))
+        self.assertEqual(q(base / "img" / "n.txt")[0], 400)
+        self.assertEqual(q(other)[0], 403)                      # a file outside base
+        self.assertEqual(q(base / "img" / "a.png", self.squad.parent)[0], 403)   # base outside the squad and .scratch
+        if link:
+            self.assertEqual(q(link)[0], 403)                   # a symlink that resolves outside base
+        self.assertEqual(get(srv + "/api/file?path=" + urllib.request.quote(str(base / "img" / "a.png"), safe=""))[0], 200)   # no img=1: as before
+        code, h, _ = q(base / "img" / "v.svg", img="")          # without img=1 an .svg is still text/html
+        self.assertEqual((code, h["Content-Type"]), (200, "text/html; charset=utf-8"))
+
     def test_T03_AC11_serving_changes_nothing_in_the_squad_folder(self):
         def snap():
             return {str(p): (hashlib.sha256(p.read_bytes()).hexdigest(), p.stat().st_size, p.stat().st_mtime_ns)

@@ -46,6 +46,7 @@ DEFAULT_PORT = 8765
 HOSTS = ("127.0.0.1", "localhost")
 READ_BUDGET_S = 3.0  # one constant for every reader; the page says "not updating" after 3 failed polls (architecture 1)
 MAX_FILE = 5_000_000
+IMG_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml"}  # image mode of /api/file (ticket 07)
 OK, ERROR, REFUSED = 0, 1, 2
 FLAT_MESSAGE = "flat squad: not supported"
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -441,6 +442,26 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(403, {"error": "path not allowed"})
         if not real.is_file():
             return self._json(404, {"error": "not found"})
+        if params.get("img") == "1":  # image mode (ticket 07): png/jpg/svg only, and the file stays inside `base`
+            if real.suffix.lower() not in IMG_TYPES:
+                return self._json(400, {"error": "not an image"})
+            braw = params.get("base", "")
+            if not braw or "\x00" in braw:
+                return self._json(400, {"error": "base required"})
+            bp = Path(braw)
+            try:
+                base = (bp if bp.is_absolute() else squad.path / bp).resolve(strict=True)
+            except (OSError, RuntimeError, ValueError):
+                return self._json(404, {"error": "not found"})
+            if not _under(base, [squad.path, (squad.repo_root / ".scratch").resolve()]) or not _under(real, [base]):
+                return self._json(403, {"error": "path not allowed"})
+            try:
+                if real.stat().st_size > MAX_FILE:
+                    return self._json(413, {"error": "file too large"})
+                body = real.read_bytes()
+            except OSError:
+                return self._json(404, {"error": "not found"})
+            return self._send(200, body, IMG_TYPES[real.suffix.lower()], csp="sandbox")
         try:
             if real.stat().st_size > MAX_FILE:
                 return self._json(413, {"error": "file too large"})
