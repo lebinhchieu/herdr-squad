@@ -69,6 +69,7 @@ topic: files
 | `escalations.md` | Manager | Waiting on the PO |
 | `goals.md` | Manager alone ([START-19b]) | One row per PO request: status `in progress`, `done`, `blocked` |
 | `promote.md` | The `promote-owner` of `duties:` (Tech Lead, QA whitebox or Developer) | For the project docs |
+| `base-failures.md` (in `$SQUAD_DIR`) | The suite owner (Tech Lead, else QA whitebox, else Developer) | Tests that fail on their base sha, one row per name |
 | `messages.jsonl`, `usage-events.jsonl` | hooks | Message log; cost-rule firings |
 
 ## FILE-7 Plan and iteration files

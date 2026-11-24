@@ -113,3 +113,28 @@ when: suite-owner = qa-white
 topic: suites
 
 Read the receipt QA whitebox saved when it covers the sha (same sha, clean, OK). With none, check the targeted tests and the diff; you never run the suite.
+
+## SUITE-7 Base failures file
+roles: tech-lead, qa-whitebox
+topic: suites
+
+The suite owner (Tech Lead, else QA whitebox) keeps `$SQUAD_DIR/base-failures.md`, one row per test name, append only. Columns: test name, sha it fails on, one-line cause, first scope that saw it, fix ticket or the PO's keep. Create it on the first row. A Developer who is the owner reads this rule with `squad-process rule SUITE-7`.
+
+## SUITE-7b Base check before the first spawn
+roles: tech-lead, qa-whitebox
+aware: team-lead
+topic: suites
+
+Before a task's first spawn, run its grep and test AC on the base sha. An AC that cannot pass there is fixed in the ticket first. A test that fails on base becomes a row of [SUITE-7].
+
+## SUITE-7c Failing test, look it up
+roles: dev, qa-whitebox, qa-blackbox
+topic: suites
+
+Look a failing test name up in `$SQUAD_DIR/base-failures.md` first. A listed name is not run on base again and is no `FAIL`. Run an unlisted name on base once and send it to the suite owner to add; never edit the file yourself ([SAFE-4]).
+
+## SUITE-7d Old base failures at check-in
+roles: manager
+topic: suites
+
+At a check-in, tell the PO of each row of `$SQUAD_DIR/base-failures.md` from an earlier scope with no fix ticket and no keep. The Manager runs no test and reads no other scope's folder ([SAFE-6], [SAFE-7]).
