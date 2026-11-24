@@ -676,6 +676,35 @@ class Python39Test(unittest.TestCase):
                         self.assertFalse(isinstance(side, ast.Constant) and side.value is None, "X | None in %s" % path.name)
 
 
+class BareIdTest(Base):
+    E23 = "Decisions: D73 (amends D42/D44), D74 (closes O10/O11/O13/O15/O16 with your answers). Open: O17 ..."
+
+    def add(self, h, body, kind="read", title="Hello"):
+        return run(h, "add", "--kind", kind, "--title", title, stdin=body)
+
+    def test_e23_refused_naming_every_bare_id_and_writes_nothing(self):  # AC1, T03-2
+        before = digest(self.home)
+        for kind in ("read", "answer"):
+            r = self.add(self.home, self.E23, kind)
+            self.assertEqual(r.returncode, 2)
+            self.assertIn("bare IDs: D42, D44, O10, O11, O13, O15, O16, O17", r.stderr)
+        self.assertEqual(digest(self.home), before)
+
+    def test_glossed_body_accepted_later_uses_free(self):  # AC2
+        body = "D74 (config tables key by GuardianConfigID)\ncloses O11 (engine takes workflowID) and\nO13 = no Activity join. O11 again, D74."
+        self.assertEqual(self.add(self.empty_home(), body).returncode, 0)
+
+    def test_code_fence_link_not_checked_and_crlf_same(self):  # AC3
+        h = self.empty_home()
+        body = "see `LC-14` and\r\n```\r\nD42 O10\r\n```\r\n[E22](http://x/D5)\r\n"
+        self.assertEqual(self.add(h, body).returncode, 0)
+        self.assertEqual(self.add(h, "plain LC-14\r\n").returncode, 2)
+
+    def test_title_is_checked(self):
+        r = self.add(self.empty_home(), "fine body", title="Pick D42")
+        self.assertEqual((r.returncode, "D42" in r.stderr), (2, True))
+
+
 class NoBytecodeTest(Base):
     def test_no_pyc(self):  # AC15
         r = subprocess.run([sys.executable, "-B", CLI, "--home", str(self.home), "list"], capture_output=True, env=env())  # a real process
