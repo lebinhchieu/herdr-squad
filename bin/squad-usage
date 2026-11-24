@@ -2,7 +2,7 @@
 """Token usage per squad agent, read from Claude Code transcripts.
 
   squad-usage [--squad-dir DIR]                 table for every roster.md row with a session id
-  squad-usage --sessions NAME                   per-session list of an agent: peak ctx, turns, last turn (oldest first)
+  squad-usage --sessions NAME                   per-session list of an agent: peak ctx, start, 1st act, act turn, turns, last turn (oldest first)
   squad-usage --check SESSION [--transcript F]  print `fresh` when the session is past its respawn line, or nothing
   squad-usage --check-detail SESSION [--transcript F]
                                                 like --check; `fresh` is followed by TAB ctx TAB line TAB turns (what the Stop hook logs)
@@ -15,6 +15,9 @@ Table columns:
   max peak   largest context of any session of the agent
   1st act    context at the first action of the newest session (an Edit, Write, message or state-changing Bash call);
              `-` before one exists
+  act turn   1-based number of the main-thread turn that holds that first action; `-` before one exists
+  start      (--sessions only) context of the session's first main-thread turn
+Sidechain (subagent) turns are never counted in start, 1st act or act turn.
 A roster session with no transcript (after a lazy respawn) is replaced by the newest `spawn` event session of the agent in
 usage-events.jsonl that has one; its earlier sessions are then listed too.
 
@@ -57,22 +60,26 @@ def is_action(b):
     return first in ACTION_BASH or (first == "git" and len(words) > 1 and words[1] in ACTION_GIT)
 
 
-def first_action_ctx(path):
-    """Context on the first main-thread call that edits, writes, sends a message or runs a state-changing Bash
-    command (ACTION_BASH), or None before one exists."""
-    first = None
+def first_turns(path):
+    """Start and first action of a session's main thread: {"start": ctx of the first turn, "first_action": ctx on the
+    first call that edits, writes, sends a message or runs a state-changing Bash command (ACTION_BASH), "act_turn": its
+    1-based turn number}. first_action and act_turn are None before an action exists. Sidechain turns are not counted;
+    a message spans several lines whose usage only grows, so each turn keeps the max."""
+    order, ctx, first = [], {}, None
     for o in read_lines(path):
         m = o.get("message")
         if o.get("type") != "assistant" or o.get("isSidechain") or not isinstance(m, dict):
             continue
-        content = m.get("content")
-        if first is None and isinstance(content, list) and any(is_action(b) for b in content):
-            first = m.get("id") or o.get("uuid")
-            ctx = 0
-        if first is not None and (m.get("id") or o.get("uuid")) == first and isinstance(m.get("usage"), dict):
-            # a message spans several lines whose usage only grows: keep the max
-            ctx = max(ctx, sum(m["usage"].get(f, 0) for f in TOKEN_FIELDS[:3]))
-    return ctx if first is not None else None
+        mid = m.get("id") or o.get("uuid")
+        if mid not in ctx:
+            order.append(mid)
+            ctx[mid] = 0
+        if first is None and isinstance(m.get("content"), list) and any(is_action(b) for b in m["content"]):
+            first = mid
+        if isinstance(m.get("usage"), dict):
+            ctx[mid] = max(ctx[mid], sum(m["usage"].get(f, 0) for f in TOKEN_FIELDS[:3]))
+    return {"start": ctx[order[0]] if order else None, "first_action": None if first is None else ctx[first],
+            "act_turn": None if first is None else order.index(first) + 1}
 
 
 def respawn_line(s):
@@ -93,7 +100,7 @@ def summarize(path):
             "subagents": sum(t["out"] for t in every if t["side"]),
             "peak": max(t["ctx"] for t in rows), "last": last["ctx"], "out": sum(t["out"] for t in every),
             "expiries": expiries, "compactions": compactions, "last_ts": last["ts"],
-            "just_expired": len(rows) > 1 and is_expiry(rows[-2], last), "first_action": first_action_ctx(path)}
+            "just_expired": len(rows) > 1 and is_expiry(rows[-2], last), **first_turns(path)}
 
 
 def agent_summaries(paths):
@@ -236,9 +243,10 @@ def sessions_report(squad_dir, name):
     if not ss:
         print(f"{name}: no transcript")
         return
-    rows = [("session", "peak ctx", "turns", "last turn")]
-    rows += [(i, fmt_k(s["peak"]), s["turns"], s["last_ts"].strftime("%Y-%m-%d %H:%M")) for i, s in enumerate(ss, 1)]
-    widths = [max(len(str(r[i])) for r in rows) for i in range(4)]
+    rows = [("session", "peak ctx", "start", "1st act", "act turn", "turns", "last turn")]
+    rows += [(i, fmt_k(s["peak"]), fmt_k(s["start"]), "-" if s["first_action"] is None else fmt_k(s["first_action"]),
+              s["act_turn"] or "-", s["turns"], s["last_ts"].strftime("%Y-%m-%d %H:%M")) for i, s in enumerate(ss, 1)]
+    widths = [max(len(str(r[i])) for r in rows) for i in range(len(rows[0]))]
     for r in rows:
         print("  ".join(str(c).ljust(w) for c, w in zip(r, widths)).rstrip())
 
@@ -247,7 +255,7 @@ def report(squad_dir):
     entries = roster_sessions(squad_dir / "roster.md")
     if not entries:
         sys.exit("no session ids in roster.md")
-    head = ("agent", "model/effort", "turns", "peak ctx", "max peak", "last ctx", "1st act", "line", "out", "expiries", "compactions", "subagents", "sessions")
+    head = ("agent", "model/effort", "turns", "peak ctx", "max peak", "last ctx", "1st act", "act turn", "line", "out", "expiries", "compactions", "subagents", "sessions")
     body, seen, unsure = [], set(), []
     for name, sid in entries:
         if name in seen:
@@ -258,10 +266,10 @@ def report(squad_dir):
             unsure.append(name)
         s = summarize_agent(paths)
         if not s:
-            body.append((name, "no transcript", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"))
+            body.append((name, "no transcript", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"))
             continue
         body.append((name, f"{s['model']}/{s['effort']}", s["turns"], fmt_k(s["peak"]), fmt_k(s["max_peak"]), fmt_k(s["last"]),
-                     "-" if s["first_action"] is None else fmt_k(s["first_action"]), fmt_k(respawn_line(s)),
+                     "-" if s["first_action"] is None else fmt_k(s["first_action"]), s["act_turn"] or "-", fmt_k(respawn_line(s)),
                      fmt_k(s["out"]), s["expiries"], s["compactions"],
                      str(s["subagents"]) if s["subagents"] < 1000 else fmt_k(s["subagents"]), s["sessions"]))
     widths = [max(len(str(r[i])) for r in [head] + body) for i in range(len(head))]
@@ -270,7 +278,7 @@ def report(squad_dir):
     print("note: turns = main-thread turns only; out includes subagents; subagents = their output tokens (inside out);"
           " peak/last ctx, expiries, model are the agent's own thread;"
           " max peak = the largest peak of any session; sessions = transcripts of the agent (--sessions NAME lists each one's peak and turns);"
-          " 1st act = context at the first action, line = respawn line (1st act + 50k, at most 180k)")
+          " 1st act = context at the first action, act turn = its main-thread turn number, line = respawn line (1st act + 50k, at most 180k)")
     orphans = orphan_fresh(squad_dir / "usage-events.jsonl")
     if orphans:
         print("note: fresh with no later respawn or retire: " + ", ".join(
