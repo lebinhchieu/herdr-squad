@@ -8,6 +8,9 @@ import unittest
 from pathlib import Path
 
 from squadtest import BIN
+
+sys.path.insert(0, str(BIN))
+sys.dont_write_bytecode = True
 TOOL = BIN / "squad-evidence"
 PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
 
@@ -363,17 +366,37 @@ class CheckBaseTest(Base):
         self.assertRegex(lines[0], r"^code\.py:\d+: .*outside an evidence folder.*\*\.evidence/")
         self.assertRegex(lines[1], r"^notes\.evidence\.md:\d+: ")
 
-    def test_other_files_in_the_ticket_folder_and_stemless_folders_fail(self):
+    def test_any_file_under_the_ticket_folder_passes_stemless_folders_fail(self):  # 14 AC2
         put(self.folder / "evidence.md", "# E\n\n## B\n\n![a](img/a/b.png)\n")
         put(self.folder / "img/a/b.png", png("a"))
-        put(self.folder / "notes.txt", "x\n")
+        put(self.folder / "checks.md", "x\n")
+        put(self.folder / "pane-states.txt", "x\n")
+        self.commit("evidence")
+        r = tool("check", str(self.folder), "--base", self.base)
+        self.assertEqual((r.returncode, r.stdout.startswith("ok")), (0, True), r.stdout)
         put(self.root / "bin/x", "x\n")
         put(self.root / "docs/foo/evidence.md", "# E\n")
         self.commit("mixed")
         r = tool("check", str(self.folder), "--base", self.base)
         self.assertEqual(r.returncode, 1)
         bad = sorted(l.split(":")[0] for l in r.stdout.strip().split("\n"))
-        self.assertEqual(bad, [".scratch/f/issues/03-x/notes.txt", "bin/x", "docs/foo/evidence.md"])
+        self.assertEqual(bad, ["bin/x", "docs/foo/evidence.md"])
+
+    def test_path_table(self):  # 14 AC1: same table as test_squad_merge_check
+        import squadevidence
+        stem = ".scratch/f/issues/03-x"
+        for p in (stem + "/evidence.md", stem + "/img/a.png", stem + "/checks.md", stem + "/pane-states.txt",
+                  stem + "/sub/x.md", stem + ".evidence/x"):
+            self.assertTrue(squadevidence.is_evidence_path(str(self.root), p), p)
+        for p in (stem + "x/a.md", stem + ".md", ".scratch/f/issues/09-other/checks.md", "bin/x.py",
+                  ".scratch/f/issues/08-none/evidence.md"):
+            self.assertFalse(squadevidence.is_evidence_path(str(self.root), p), p)
+
+    def test_add_leaves_a_sibling_checks_md(self):  # 14 AC3
+        put(self.folder / "checks.md", "keep\n")
+        r = tool("add", str(self.ticket), "--heading", "H", "--from", str(put(self.work / "r.md", "x\n")))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(text(self.folder / "checks.md"), "keep\n")
 
     def test_ticket_deleted_in_the_same_diff_fails(self):
         put(self.folder / "evidence.md", "# E\n\n## B\n\nx\n")

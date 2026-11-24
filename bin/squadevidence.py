@@ -331,16 +331,13 @@ def cmd_checks(args):
 # ---------------------------------------------------------------- check
 
 def is_evidence_path(top, p):
-    """A changed path (relative to the repo top) that may appear in an evidence commit."""
+    """A changed path (relative to the repo top) that may appear in an evidence commit: any file under `<stem>/`
+    where `<stem>.md` exists on disk, or under an old `<stem>.evidence/` folder. The prefix carries the slash, so
+    `<stem>x/` and `<stem>.md` itself are refused."""
     if re.search(r"(^|/)[^/]+\.evidence/", p):
         return True
     parts = p.split("/")
-    for i in range(len(parts) - 1):
-        rest = parts[i + 1:]
-        if rest == ["evidence.md"] or (rest[0] == "img" and len(rest) > 1):
-            stem = "/".join(parts[:i + 1])
-            return os.path.isfile(os.path.join(top, stem + ".md"))
-    return False
+    return any(os.path.isfile(os.path.join(top, "/".join(parts[:i + 1]) + ".md")) for i in range(len(parts) - 1))
 
 
 def cmd_check(args):
@@ -421,7 +418,7 @@ def cmd_check(args):
             p = p.strip()
             if p and not is_evidence_path(top, p):
                 bad(p, 1, f"changed since {args.base} but outside an evidence folder "
-                          "(<stem>/evidence.md or <stem>/img/ beside <stem>.md, or an old *.evidence/ folder)")
+                          "(any file under <stem>/ beside <stem>.md, or an old *.evidence/ folder)")
 
     for line in problems:
         print(line)

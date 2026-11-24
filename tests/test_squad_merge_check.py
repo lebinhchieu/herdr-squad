@@ -1,5 +1,6 @@
 """squad-merge-check: one verdict path per test (ticket 04 T5), read-only proof (T1), exit codes (T2), injection (T7)."""
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,7 @@ from squadtest import BIN, GIT_ENV, clean_env, git
 sys.path.insert(0, str(BIN))
 sys.dont_write_bytecode = True
 import squadtask  # noqa: E402
+import squadmergecheck  # noqa: E402
 
 TOOL = BIN / "squad-merge-check"
 BR = "squad/plugin/s1/dev"
@@ -50,6 +52,11 @@ class MergeCheck(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def in_repo(self):  # squadmergecheck.git runs in the current directory
+        old = os.getcwd()
+        os.chdir(self.repo)
+        self.addCleanup(os.chdir, old)
 
     def g(self, *a):
         return git(*a, cwd=self.repo)
@@ -144,6 +151,27 @@ class MergeCheck(unittest.TestCase):
         self.g("commit", "-q", "-am", "code")
         self.g("checkout", "-q", "main")
         self.assertEqual(self.run_tool(BR)[0], 1)
+
+    def test_evidence_path_table(self):  # 14 AC1: same table as test_squad_evidence
+        self.in_repo()
+        stem = "t05"
+        for p in (stem + "/evidence.md", stem + "/img/a.png", stem + "/checks.md", stem + "/pane-states.txt",
+                  stem + "/sub/x.md", stem + ".evidence/x"):
+            self.assertTrue(squadmergecheck.is_evidence_path(self.sha, p), p)
+        for p in (stem + "x/a.md", stem + ".md", "other/checks.md", "bin/x.py", "t06/evidence.md"):
+            self.assertFalse(squadmergecheck.is_evidence_path(self.sha, p), p)
+
+    def test_evidence_commit_with_checks_and_pane_states_is_evidence_only(self):  # 14 AC2
+        self.g("checkout", "-q", BR)
+        (self.repo / "t05").mkdir()
+        for n in ("evidence.md", "checks.md", "pane-states.txt"):
+            (self.repo / "t05" / n).write_text("e", encoding="utf-8")
+        self.g("add", "-A")
+        self.g("commit", "-q", "-m", "evidence")
+        ev = self.g("rev-parse", "HEAD")
+        self.g("checkout", "-q", "main")
+        self.in_repo()
+        self.assertTrue(squadmergecheck.evidence_only(self.sha, ev))
 
     def test_no_merge_base_refuses(self):  # fail closed (QAW follow-up)
         self.passed()
