@@ -562,6 +562,7 @@ export function kindTone(it: { kind: string; state: string }): Tone {
 
 // The plan line under an item's title: `pos · step · aim · next: name`, parts in this order, a missing one left out with its dot.
 // Over `cols` the cuts go aim, then step, then the name after `next:` (clipped with `…`). `cols` null is the full line.
+const MIN_NEXT_CELLS = 8 // less than `next: …` cannot say anything: drop the name and keep the position
 export function planLine(plan: unknown, cols: number | null): string {
   if (typeof plan !== 'object' || plan === null) return ''
   const p = plan as Record<string, unknown>
@@ -575,7 +576,7 @@ export function planLine(plan: unknown, cols: number | null): string {
   }
   const head = pos === '' ? '' : `${pos} · `
   const room = cols - cellWidth(head)
-  return next !== '' && room >= 8 ? head + clipCells(next, room) : clipCells(join([pos, next]), cols)
+  return next !== '' && room >= MIN_NEXT_CELLS ? head + clipCells(next, room) : clipCells(join([pos, next]), cols)
 }
 
 // "blocks X": red; "blocks nothing": dim.

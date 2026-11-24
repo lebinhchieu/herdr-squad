@@ -122,6 +122,7 @@ class LineTest(unittest.TestCase):
         self.assertEqual(squadplan.plan_line_parts(home, "2", None),
                          {"pos": "task 2 of 2", "step": "step 2", "aim": "second", "next": "next: nothing, last one"})
         self.assertEqual(squadplan.plan_line_parts(home, "01 and more", None)["next"], "next: t02")
+        self.assertEqual(squadplan.plan_line_parts(home, "ticket 02, other", None)["pos"], "task 2 of 2")  # first word that names a row
         self.assertIsNone(squadplan.plan_line_parts(home, "blocks", None))
         self.assertIsNone(squadplan.plan_line_parts(home, "", None))
         gtmp = tempfile.TemporaryDirectory()
@@ -175,8 +176,8 @@ class InboxPlanTest(unittest.TestCase):
 
 
 def squadinbox_head():
-    return ("# Escalations\n\n| # | Date | Question | Options | Manager's recommendation | Blocks | Answer |\n"
-            "|---|---|---|---|---|---|---|\n")
+    import po_inbox_fixtures
+    return po_inbox_fixtures.HEAD
 
 
 if __name__ == "__main__":

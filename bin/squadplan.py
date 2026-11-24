@@ -198,20 +198,21 @@ def plan_model(home, repo_root=None):
 
 
 def plan_line_parts(home, blocks, repo_root=None, model=None):
-    """The inbox line of ticket 05: `blocks` is the first token of an item's `--blocks`. -> {pos, step, aim, next} or None
+    """The inbox line of ticket 05: `blocks` is the item's `--blocks` text: the first word that names a row wins. -> {pos, step, aim, next} or None
     (unknown token, no plan, any error). A goal home gives `scope N of M`, a scope home `task N of M` and `step S`.
     `model` is a `plan_model` result, so one snapshot reads the plan once."""
     try:
-        token = (str(blocks or "").split() or [""])[0].strip(",;:")
-        if not token:
+        tokens = [t for t in re.split(r"[\s,;/]+", str(blocks or "")) if t]
+        if not tokens:
             return None
         plan, noun = model or plan_model(home, repo_root)
         rows = plan["rows"]
         keys = [squadledger.key(r["id"]) if noun == "task" else r["id"].lower() for r in rows]
-        want = squadledger.key(token) if noun == "task" else token.lower()
-        if want not in keys:
+        wants = [squadledger.key(t) if noun == "task" else t.lower() for t in tokens]
+        hit = next((w for w in wants if w in keys), None)  # the first token that names a row of the plan
+        if hit is None:
             return None
-        i = keys.index(want)
+        i = keys.index(hit)
         row = rows[i]
         nxt = next((r for r in rows[i + 1:] if not r["passed"]), None)
         label = (nxt["title"] or nxt["id"]) if nxt else None
