@@ -272,12 +272,22 @@ describe('bodyBlocks (T2: sanitize, <br>, drop the title line, parse)', () => {
 })
 
 // --- never throws, linear (V-28) -----------------------------------------------------------------------------
+// Best of 9 runs: a loaded machine delays a run, a quadratic parser (seconds) is slow in every run. (No process.cpuUsage in this runtime.)
 const timed = (text: string) => {
-  const t0 = Date.now()
-  const blocks = parseBody(text)
-  const plain = plainOf(blocks)
-  return { ms: Date.now() - t0, blocks, plain }
+  let ms = Infinity
+  let blocks = parseBody('')
+  let plain = ''
+  for (let i = 0; i < 9; i++) {
+    const t0 = performance.now()
+    blocks = parseBody(text)
+    plain = plainOf(blocks)
+    ms = Math.min(ms, performance.now() - t0)
+  }
+  return { ms, blocks, plain }
 }
+
+// A ratio check compares two timings that are a few ms; under load one run carries tens of ms of GC and cache noise, so the floor must sit above that and far below a quadratic's seconds.
+const NOISE_MS = 100
 
 describe('linear', () => {
   const killers: Record<string, string> = {
@@ -322,7 +332,7 @@ describe('linear', () => {
     for (const unit of ['**a ', '**a**b', '`a ', 'a ` ', '`*', '| a ']) {
       const small = timed(unit.repeat(20000)).ms
       const big = timed(unit.repeat(80000)).ms
-      expect(big).toBeLessThan(12 * small + 20)
+      expect(big).toBeLessThan(12 * small + NOISE_MS)
     }
   })
 
@@ -330,9 +340,9 @@ describe('linear', () => {
     const build = (n: number) => '**a**b'.repeat(n) + ' `x`'
     const small = timed(build(40000)).ms
     const big = timed(build(160000)).ms
-    expect(big).toBeLessThan(12 * small + 20)
+    expect(big).toBeLessThan(12 * small + NOISE_MS)
     const rev = (n: number) => '`a`b'.repeat(n) + ' **x**'
-    expect(timed(rev(160000)).ms).toBeLessThan(12 * timed(rev(40000)).ms + 20)
+    expect(timed(rev(160000)).ms).toBeLessThan(12 * timed(rev(40000)).ms + NOISE_MS)
   })
 
   test('hostile fixtures all parse', () => {

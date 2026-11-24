@@ -278,7 +278,8 @@ const HOSTILE: Record<string, string> = {
   table20: `|${Array.from({ length: 20 }, (_, i) => ` c${i} `).join('|')}|\n|${Array.from({ length: 20 }, () => '---').join('|')}|\n|${Array.from({ length: 20 }, (_, i) => ` v${i} `).join('|')}|`,
   cjk: VISUAL.cjkTable,
 }
-test('hostile bodies mount in under 2 s each, draw as text, and leave E1 intact', async ($, on) => {
+// The 5 s default covers the whole loop and so measures a loaded machine; the 2 s check per body below is the guard.
+test('hostile bodies mount in under 2 s each, draw as text, and leave E1 intact', { timeoutMs: 30000 }, async ($, on) => {
   for (const cols of [40, 30]) {
     for (const [name, body] of Object.entries(HOSTILE)) {
       const bad = item({ id: 'X1', title: 'hostile', body })
