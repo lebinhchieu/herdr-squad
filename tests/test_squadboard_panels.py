@@ -1321,6 +1321,31 @@ out({long,pillL:cell(tr('77.md'),k).textContent,whatL:cell(tr('77.md'),w).textCo
             js = f.read_text(encoding="utf-8")
             self.assertIsNone(re.search(r"_blank|window\.open|root\.open|openMarkdown", js), f.name)
 
+    def test_T01_tasks_source_tag_in_task_cell_textcontent_and_absent_without_origin(self):
+        pg = Panels12.__new__(Panels12)
+        pg.real = dict(real_payloads(), saved=None, p12=payloads12())
+        pg.head = head12()
+        r = Panels12.page(pg, r"""
+const rows=P['tasks:checkout'].data.rows;
+Object.assign(rows[0],{origin:'main',origin_ref:'',on_main:true});
+Object.assign(rows[1],{origin:'branch',origin_ref:'squad/s/c/dev-<b>x</b>-10',on_main:true});
+Object.assign(rows[2],{origin:'draft',origin_ref:'',on_main:false});
+rows.slice(3).forEach(x=>{delete x.origin;delete x.origin_ref;delete x.on_main});
+await start12();await sleep(100);
+const tags=Array.from(document.querySelectorAll('section[data-panel=tasks] tr.r')).map(tr=>{const c=tr.children[0].querySelector('.chip.src');return c&&{t:c.textContent,c:c.className,ti:c.title}});
+out({tags,html:document.querySelectorAll('section[data-panel=tasks] tr.r td:first-child b b').length,
+ first:document.querySelector('section[data-panel=tasks] tr.r').children[0].textContent});
+""", "#/scope/checkout")
+        self.assertEqual(r["tags"][0]["t"], "main")
+        self.assertIn("idle", r["tags"][0]["c"])
+        self.assertEqual(r["tags"][1]["t"], "branch -10")
+        self.assertIn("quiet", r["tags"][1]["c"])
+        self.assertIn("also on main", r["tags"][1]["ti"])
+        self.assertEqual(r["tags"][2]["t"], "draft")
+        self.assertIn("draft", r["tags"][2]["c"])
+        self.assertTrue(all(t is None for t in r["tags"][3:]), r["tags"])   # rows without origin: no tag
+        self.assertNotIn("undefined", r["first"])
+
     def test_T30_TA11_AC4_tasks_where_file_name_is_a_vscode_link_without_a_tab(self):
         pg = Panels12.__new__(Panels12)
         pg.real = dict(real_payloads(), saved=None, p12=payloads12())

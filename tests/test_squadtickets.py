@@ -150,3 +150,165 @@ class ScopeTasksRule(unittest.TestCase):
         self.put(self.home / "plan.md", ("| id | t |\n" + "junk\n" * (sti.TEXT_MAX // 5 + 10)) + "| 5 | Past the cap |\n")
         self.assertEqual(self.run_()["tasks"][0]["id"], "09")   # plan.md has no row inside the cap: next candidate
 
+
+
+import subprocess  # noqa: E402
+from unittest import mock  # noqa: E402
+
+GENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+sys.path.insert(0, os.path.join(HERE, "..", "bin"))
+import squadboard_git as sbg  # noqa: E402
+
+
+class TicketMerge(unittest.TestCase):
+    """Ticket 01: copies of a ticket on main, unmerged scope branches and drafts merge by number (real git repo)."""
+    clock = 1_700_000_000
+
+    def setUp(self):
+        self.td = tempfile.TemporaryDirectory()
+        self.root = Path(self.td.name).resolve()
+        self.home = self.root / ".claude" / "squads" / "s" / "scopes" / "foo"
+        (self.home / "tasks").mkdir(parents=True)
+        self.git("init", "-q", "-b", "main")
+        self.put(".scratch/foo/issues/01-one.md", "# 01 One\nStatus: ready-for-agent\n")
+        self.put(".scratch/foo/issues/02-two.md", "# 02 Two v1\nStatus: ready-for-agent\n")
+        self.put(".scratch/foo/issues/05-five.md", "# 05 Five main\nStatus: ready-for-agent\n")
+        self.commit("main")
+        sti._TREES.clear()
+        sti._BASES.clear()
+        sti._HEADS.clear()
+        sti._BLOBS.clear()
+
+    def tearDown(self):
+        self.td.cleanup()
+
+    def git(self, *a, date=None):
+        env = dict(GENV)
+        if date:
+            env.update(GIT_AUTHOR_DATE="@%d +0000" % date, GIT_COMMITTER_DATE="@%d +0000" % date)
+        return subprocess.run(["git", "-C", str(self.root), *a], check=True, capture_output=True, text=True, env=env).stdout
+
+    def put(self, rel, text):
+        p = self.root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding="utf-8")
+
+    def commit(self, msg, date=None):
+        self.git("add", "-A", ".scratch")
+        self.git("commit", "-q", "-m", msg, date=date or self.clock)
+
+    def branch(self, name, files, date):
+        """A branch off main holding `files` ({rel: text}); main is checked out again after."""
+        self.git("checkout", "-q", "-b", name, "main")
+        for rel, text in files.items():
+            self.put(rel, text)
+        self.commit(name, date)
+        self.git("checkout", "-q", "main")
+
+    def tasks(self, **kw):
+        sti._HEADS.clear()
+        r = sti.scope_tasks(self.home, self.root, "foo", **kw)
+        return {t["id"]: t for t in r["tasks"]}
+
+    def test_AC1_main_branch_and_draft_tickets_listed_once_each(self):
+        self.branch("squad/s/foo/dev-03", {".scratch/foo/issues/03-three.md": "# 03 Three\nStatus: building\n"}, self.clock + 10)
+        self.put(".claude/squads/s/scopes/foo/tasks/04-ticket.md", "# 04 Four\n")
+        r = sti.scope_tasks(self.home, self.root, "foo")
+        self.assertEqual([t["id"] for t in r["tasks"]], ["01", "02", "03", "04", "05"])
+        o = {t["id"]: (t["origin"], t["origin_ref"], t["on_main"]) for t in r["tasks"]}
+        self.assertEqual(o["01"], ("main", "", True))
+        self.assertEqual(o["03"], ("branch", "squad/s/foo/dev-03", False))
+        self.assertEqual(o["04"], ("draft", "", False))
+        self.assertEqual(r["source"], "scratch")
+        self.assertNotIn("abs", self.tasks()["03"])   # branch-only: no file on disk to open
+        self.assertIn("abs", self.tasks()["04"])
+
+    def test_AC2_T01_2_pick_order_own_branch_then_newest_other_then_main_then_draft(self):
+        self.branch("squad/s/foo/other", {".scratch/foo/issues/05-five.md": "# 05 Five other\nStatus: returned\n"}, self.clock + 50)
+        self.branch("squad/s/foo/dev-05", {".scratch/foo/issues/05-five.md": "# 05 Five own\nStatus: building\n"}, self.clock + 10)
+        self.put(".claude/squads/s/scopes/foo/tasks/05-ticket.md", "# 05 Five draft\n")
+        t = self.tasks()["05"]
+        self.assertEqual((t["title"], t["status"], t["origin_ref"], t["on_main"]), ("Five own", "building", "squad/s/foo/dev-05", True))
+        self.git("branch", "-D", "squad/s/foo/dev-05")
+        self.assertEqual(self.tasks()["05"]["title"], "Five other")   # newest other branch
+        self.git("branch", "-D", "squad/s/foo/other")
+        t = self.tasks()["05"]
+        self.assertEqual((t["title"], t["origin"]), ("Five main", "main"))   # main beats the draft
+
+    def test_T01_2_branch_copy_equal_to_main_is_main_and_merged_branch_is_ignored(self):
+        self.branch("squad/s/foo/dev-01", {".scratch/foo/issues/09-nine.md": "# 09 Nine\n"}, self.clock + 5)   # 01 untouched: same blob
+        self.assertEqual(self.tasks()["01"]["origin"], "main")
+        self.branch("squad/s/foo/old", {".scratch/foo/issues/02-two.md": "# 02 Two v0\n"}, self.clock + 6)
+        self.git("merge", "-q", "--no-ff", "-m", "m", "squad/s/foo/old")
+        self.put(".scratch/foo/issues/02-two.md", "# 02 Two v2\n")
+        self.commit("v2", self.clock + 20)
+        t = self.tasks()["02"]
+        self.assertEqual((t["title"], t["origin"]), ("Two v2", "main"))   # the merged branch holds an older copy
+
+    def test_T01_3_no_git_and_spent_budget_give_the_non_git_rows_and_no_raise(self):
+        self.branch("squad/s/foo/dev-03", {".scratch/foo/issues/03-three.md": "# 03 Three\n"}, self.clock + 10)
+        empty = tempfile.mkdtemp(dir=self.td.name)
+        with mock.patch.dict(os.environ, {"PATH": empty}):
+            self.assertEqual(sorted(self.tasks()), ["01", "02", "05"])
+        with mock.patch.object(sti.time, "monotonic", side_effect=[0, 100, 200, 300, 400, 500]):
+            self.assertEqual(sorted(self.tasks()), ["01", "02", "05"])
+        with mock.patch.object(sti, "GIT_BUDGET_S", 0):   # a spent budget: non-git rows, and the budget stays under the reader's 3 s
+            self.assertEqual(sorted(self.tasks()), ["01", "02", "05"])
+        self.assertLess(sti.GIT_BUDGET_S, 3.0)
+        sti._BLOBS.clear()   # the budget spent before `git show`: no show call, no text
+        with mock.patch.object(sbg, "show_blob", side_effect=AssertionError("show")):
+            self.assertIsNone(sti._blob_text(self.root, "a" * 40, lambda: 0))
+        with mock.patch.object(sbg, "show_blob", return_value="x") as sh:   # budget left: the timeout is what is left
+            self.assertEqual(sti._blob_text(self.root, "b" * 40, lambda: 1.5), "x")
+        self.assertEqual(sh.call_args.kwargs["timeout"], 1.5)
+        self.assertEqual(sorted(self.tasks(git=False)), ["01", "02", "05"])
+        self.assertEqual(sorted(self.tasks()), ["01", "02", "03", "05"])
+
+    def test_T01_3b_budget_spent_mid_phase_stops_git_show_and_keeps_main_rows(self):
+        for n in (3, 4, 6):
+            self.branch("squad/s/foo/dev-0%d" % n, {".scratch/foo/issues/0%d-x.md" % n: "# 0%d X\n" % n}, self.clock + n)
+        self.put(".claude/squads/s/scopes/foo/tasks/07-ticket.md", "# 07 Draft\n")
+        self.assertEqual(sorted(self.tasks()), ["01", "02", "03", "04", "05", "06", "07"])   # warms heads, bases, trees
+        sti._BLOBS.clear()
+        now, shows = [0.0], []
+        real = sbg._git
+
+        def counted(repo, *a, **k):
+            if a[0] == "show":
+                shows.append(a)
+                now[0] += 100   # the first slow `git show` spends the budget
+            return real(repo, *a, **k)
+        with mock.patch.object(sbg, "_git", counted), mock.patch.object(sti.time, "monotonic", lambda: now[0]):
+            got = {t["id"]: t["origin"] for t in sti.scope_tasks(self.home, self.root, "foo")["tasks"]}
+        self.assertEqual(len(shows), 1)   # three uncached blobs, one read, then none
+        self.assertEqual({k: v for k, v in got.items() if v != "branch"}, {"01": "main", "02": "main", "05": "main", "07": "draft"})
+
+    def test_T01_4_helpers_refuse_anything_but_a_40_hex_sha(self):
+        for bad in ("main", "--output=x", "HEAD", "abc", "g" * 40, None):
+            self.assertIsNone(sbg.ls_tree_blobs(self.root, bad, ".scratch/foo/issues"))
+            self.assertIsNone(sbg.show_blob(self.root, bad))
+
+    def test_T01_6_second_call_for_the_same_tip_is_served_from_the_cache(self):
+        self.branch("squad/s/foo/dev-03", {".scratch/foo/issues/03-three.md": "# 03 Three\n"}, self.clock + 10)
+        self.tasks()
+        with mock.patch.object(sbg, "ls_tree_blobs", side_effect=AssertionError("ls-tree")), \
+                mock.patch.object(sbg, "show_blob", side_effect=AssertionError("show")):
+            self.assertEqual(self.tasks()["03"]["origin"], "branch")
+
+    def test_AC3_report_picker_and_panel_list_the_same_tickets(self):
+        self.branch("squad/s/foo/dev-03", {".scratch/foo/issues/03-three.md": "# 03 Three\n"}, self.clock + 10)
+        self.put(".claude/squads/s/scopes/foo/tasks/04-ticket.md", "# 04 Four\n")
+        import squadboard_list
+        import squadboard_tasks
+        report = sorted(sti.find_tickets(SimpleNamespace(scope_home=str(self.home), name="foo"), [])[0])
+        squad = SimpleNamespace(repo_root=self.root)
+        picker = sorted(squadboard_list._tickets(squad, self.home, "", None))
+        prow = squadboard_tasks.read_scope("s", "foo", self.home, self.root, 0, 0)[0]
+        panel = sorted(t["id"] for t in prow)
+        self.assertEqual({t["id"]: (t["origin"], t["on_main"]) for t in prow}["03"], ("branch", False))   # row fields reach the panel
+        self.assertEqual(report, ["01", "02", "03", "04", "05"])
+        self.assertEqual((picker, panel), (report, report))
+
+    def test_T01_8_watchdog_and_reviewpack_skip_git(self):
+        for f in ("bin/squad-watchdog", "bin/squadreviewpack.py"):
+            self.assertIn("git=False", Path(HERE, "..", f).read_text(encoding="utf-8"))

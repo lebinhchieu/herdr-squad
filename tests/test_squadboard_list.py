@@ -145,7 +145,7 @@ class PickerTests(Base):
 
 
 class TechnicalTests(Base):
-    def test_T04_TA2_cheap_two_git_calls_no_transcript_no_write(self):
+    def test_T04_TA2_cheap_three_git_calls_no_transcript_no_write(self):
         before = snapshot(self.fx.root)
         opened = []
         real_open = open
@@ -156,7 +156,7 @@ class TechnicalTests(Base):
         with unittest.mock.patch.object(squadboard_git, "_git", wraps=squadboard_git._git) as g, \
                 unittest.mock.patch("builtins.open", spy):
             L.read_picker(self.sel())
-        self.assertLessEqual(g.call_count, 2)
+        self.assertLessEqual(g.call_count, 3)   # branch list, merged list, and the one shared ticket-branch read (ticket 01)
         self.assertFalse([p for p in opened if p.endswith(".jsonl") and "claude-config" in p])
         self.assertEqual(snapshot(self.fx.root), before)  # TC.2: nothing written
 
