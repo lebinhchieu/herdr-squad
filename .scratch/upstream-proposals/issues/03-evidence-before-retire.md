@@ -18,9 +18,17 @@ EVID-2d is titled "Manager" and sends `HANDIN ... evidence sha` to the Manager. 
 
 ## AC
 
-- AC1: no rule retires a Developer before `squad-evidence check` exits 0 on its evidence sha.
+- AC1: on the QA path (`handin-target = qas`) no rule retires a Developer before `squad-evidence check` exits 0 on its evidence sha. The no-QA path (`handin-target = team-lead`) is gated by LC-27.
 - AC2: no rule sends the evidence `HANDIN` to the Manager when a Team Lead is on the team.
 - AC3: `python3 bin/squad-process lint` exits 0, and the `when:` line of EVID-2d parses.
-- AC4: the plugin SQ-20 and EVID-2d overlay ops show as adopted in `upgrade --check`.
+- AC4: the Developer quotes `squad-process upgrade --check --squad-dir <dir> --plugin-root <worktree>` output; the SQ-20 and EVID-2d ops show as `add` (kept) or `stale`, and Comments list which plugin rule replaces each (LC-20f, EVID-2d). The squads drop the ops by hand after re-pin.
+- AC5: rule text says "the PO", never a name.
+
+## Duties
+
+SQ-10: `tests/test_windows_safe.py`, `tests/test_utf8_helpers.py`, `tests/test_instructions.py`, plus the `grep -rl` hits of EVID-2b, EVID-2d, EVID-2e, EVID-9c, EVID-9e, LC-20b, LC-20f.
 
 ## Comments
+
+- Overlay SQ-20 (Team Lead keeps the Developer until the check exits 0) is replaced by plugin rule LC-20f.
+- Overlay EVID-2d (replace) is replaced by plugin rule EVID-2d (retitled, Team Lead target). `upgrade --check` shows it `stale`; the squads drop both ops by hand after re-pin.
