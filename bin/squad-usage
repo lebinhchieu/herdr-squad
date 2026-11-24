@@ -70,14 +70,15 @@ def first_turns(path):
         m = o.get("message")
         if o.get("type") != "assistant" or o.get("isSidechain") or not isinstance(m, dict):
             continue
+        if not isinstance(m.get("usage"), dict) or m.get("model") == "<synthetic>":
+            continue  # not a turn: read_session skips it too, so act turn agrees with the turns column
         mid = m.get("id") or o.get("uuid")
         if mid not in ctx:
             order.append(mid)
             ctx[mid] = 0
         if first is None and isinstance(m.get("content"), list) and any(is_action(b) for b in m["content"]):
             first = mid
-        if isinstance(m.get("usage"), dict):
-            ctx[mid] = max(ctx[mid], sum(m["usage"].get(f, 0) for f in TOKEN_FIELDS[:3]))
+        ctx[mid] = max(ctx[mid], sum(m["usage"].get(f, 0) for f in TOKEN_FIELDS[:3]))
     return {"start": ctx[order[0]] if order else None, "first_action": None if first is None else ctx[first],
             "act_turn": None if first is None else order.index(first) + 1}
 

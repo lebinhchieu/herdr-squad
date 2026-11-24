@@ -414,6 +414,11 @@ class UndercountTest(UsageBase):
                                           turn(1, "a", ctx=(2, 30_000, 0), tool="Read"), turn(2, "b", ctx=(2, 40_000, 0), tool="Write")])
         self.assertEqual((sess, table), (["30k", "40k", "2"], "2"))
 
+    def test_a_synthetic_turn_is_not_a_turn_so_act_turn_agrees_with_the_turns_column(self):
+        sess, table = self.start_and_act([turn(0, "syn", model="<synthetic>", ctx=(0, 0, 0), tool="Edit"),
+                                          turn(1, "a", ctx=(2, 30_000, 0), tool="Read"), turn(2, "b", ctx=(2, 40_000, 0), tool="Edit")])
+        self.assertEqual((sess, table), (["30k", "40k", "2"], "2"))
+
     def test_no_action_gives_a_dash_for_act_turn(self):
         sess, table = self.start_and_act([turn(0, "a", ctx=(2, 30_000, 0), tool="Read"), turn(1, "b", ctx=(2, 40_000, 0))])
         self.assertEqual((sess, table), (["30k", "-", "-"], "-"))
