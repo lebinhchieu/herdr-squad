@@ -164,18 +164,13 @@ def _heads(root, squad, left):
     return val
 
 
-def _branch_copies(root, squad, scope, folder):
+def _branch_copies(root, squad, scope, folder, left):
     """-> {int(number): [{branch, ts, blob, name}]}, or None (no git, a failed call, budget spent).
 
     Only branches `squad/<squad>/<scope>/*`, the 40 newest, and only the tickets a branch changed since its merge-base
     with main (an untouched ticket is main's old copy; a branch merged into main changes nothing, so it drops out). Calls: for-each-ref, then merge-base and
     ls-tree per branch, cached by sha. One budget for the phase.
     """
-    deadline = time.monotonic() + GIT_BUDGET_S
-
-    def left():
-        return deadline - time.monotonic()
-
     if left() <= 0:
         return None
     got = _heads(root, squad, left)
@@ -228,9 +223,11 @@ def _branch_copies(root, squad, scope, folder):
     return out
 
 
-def _blob_text(root, blob):
+def _blob_text(root, blob, left):
     if blob not in _BLOBS:
-        t = squadboard_git.show_blob(root, blob, timeout=GIT_BUDGET_S)
+        if left() <= 0:
+            return None
+        t = squadboard_git.show_blob(root, blob, timeout=max(left(), 0.1))
         if t is None:
             return None
         _remember(_BLOBS, blob, t[:TEXT_MAX])
@@ -254,7 +251,12 @@ def _folder_rows(home, root, roots, folder, src, name, git):
         if re.match(r"^\d+-", f.name):
             main.setdefault(int(NUM_FILE.match(f.name).group(1)), f)
     squad = _squad_of(home)
-    copies = (_branch_copies(root, squad, name, folder) if git and squad else None) or {}
+    deadline = time.monotonic() + GIT_BUDGET_S   # one budget for every git call of this folder read
+
+    def left():
+        return deadline - time.monotonic()
+
+    copies = (_branch_copies(root, squad, name, folder, left) if git and squad else None) or {}
     if not main and not copies:
         return []   # a draft alone does not make a folder: the scope's own tasks/ source reads it
     drafts = _drafts(home)
@@ -266,7 +268,7 @@ def _folder_rows(home, root, roots, folder, src, name, git):
         own = [c for c in diff if re.search(r"-0*%d$" % n, c["branch"])]
         row = None
         for c in own + [c for c in diff if c not in own]:
-            text = _blob_text(root, c["blob"])
+            text = _blob_text(root, c["blob"], left)
             if text is not None:
                 where = ".scratch/%s/issues/%s" % (folder, c["name"])
                 row = _row_text(c["id"], Path(c["name"]).stem, text, where, src, mf, roots)

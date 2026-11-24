@@ -255,6 +255,12 @@ class TicketMerge(unittest.TestCase):
         with mock.patch.object(sti, "GIT_BUDGET_S", 0):   # a spent budget: non-git rows, and the budget stays under the reader's 3 s
             self.assertEqual(sorted(self.tasks()), ["01", "02", "05"])
         self.assertLess(sti.GIT_BUDGET_S, 3.0)
+        sti._BLOBS.clear()   # the budget spent before `git show`: no show call, no text
+        with mock.patch.object(sbg, "show_blob", side_effect=AssertionError("show")):
+            self.assertIsNone(sti._blob_text(self.root, "a" * 40, lambda: 0))
+        with mock.patch.object(sbg, "show_blob", return_value="x") as sh:   # budget left: the timeout is what is left
+            self.assertEqual(sti._blob_text(self.root, "b" * 40, lambda: 1.5), "x")
+        self.assertEqual(sh.call_args.kwargs["timeout"], 1.5)
         self.assertEqual(sorted(self.tasks(git=False)), ["01", "02", "05"])
         self.assertEqual(sorted(self.tasks()), ["01", "02", "03", "05"])
 
