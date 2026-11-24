@@ -7,6 +7,10 @@ Merge order on 05's branch (`e0ab63b`): 02 (`e2b05c8`), 07 (`eaab72e`), then `ma
 - 02's own `## v29` heading (ITER-19 text) is not kept: its bullet is in v31 (the plan said one heading), with the ITER-19 word added to the process-update line of Deploy.
 - v31 now has one bullet each for 01, 03, 04, 07, 05, 02 and LC-9c. Deploy names 0.11.0, a `squad-board` restart (07's image mode of `/api/file`), the po-inbox restart, and the `squad-inbox add` bare-ID refusal every Manager meets (exit 2); Rollback says the refusal goes with the revert.
 
+Second pass (Manager FAIL: 03's passed sha was not an ancestor): merged the 03 branch (`5f0288f`, evidence-only on top of code `2daf416`) into the integration branch; no conflict. 03's `evidence.md` now has `## Review` on the integrated tree. Ancestor check, `git merge-base --is-ancestor <sha> HEAD` exit 0 for every passed sha of the scope:
+- 01 `932173b` and `4629bb8`, 02 `e2b05c8`, 03 `5f0288f` (and its code `2daf416`), 04 `34191f3`, 05 `e0ab63b`, 06 `6bab9f1`, 07 `eaab72e`, `main` `9b74b02`.
+- The 03 merge changes only `03-inbox-refuses-bare-ids/evidence.md` (+19 lines), so no retest was needed; the SQ-10 trio and the two fixed tests ran again on the merged tree: 119 tests OK.
+
 Two tests failed on the integrated tree and on their own bases, so both were fixed here (one line each):
 - `test_squadinbox::ProjectionTest::test_contract_shape`: red on 05's sha `e0ab63b` (the `KEYS` set lacks the `plan` key 05 added). `KEYS` now has `plan`.
 - `test_session_lookup::HookTest::test_every_squad_hook_of_hooks_json_calls_the_lookup`: red on `main` (the new `squad-handin-gate` hook is in `hooks.json` but not in `HOOKS`); `bin/squad-handin-gate` calls `squad-whoami`, so it belongs there. `HOOKS` now has it.
@@ -45,7 +49,7 @@ No violation of a documented standard (repo `CLAUDE.md`, ADR 0020 and 0034, the 
 
 | AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |
 |---|---|---|---|
-| Merges | `git merge-base --is-ancestor` of the 02 branch, the 07 branch and `main` against HEAD: all three true | - | - |
+| Merges | `git merge-base --is-ancestor` of every passed sha (01 `932173b` `4629bb8`, 02 `e2b05c8`, 03 `5f0288f`, 04 `34191f3`, 05 `e0ab63b`, 06 `6bab9f1`, 07 `eaab72e`, `main` `9b74b02`) against HEAD: all true; 03's `evidence.md` has `## Review` | - | - |
 | plugin.json 0.11.0 | `grep version .claude-plugin/plugin.json` = 0.11.0 = changelog top heading v31; v30 below it, v29 untouched | - | - |
 | Changelog v31 | bullets for 01, 03, 04, 07, 05, 02 and LC-9c; Deploy names 0.11.0 and the `squad-inbox add` refusal; no conflict markers | - | - |
 | ADR 0034 kept | `ls docs/adr/0034-handin-evidence-gate-blocks.md` | - | - |
