@@ -4,6 +4,9 @@ Status: ready-for-agent
 
 Spec: `.scratch/po-clarity/spec.md`
 
+Duties: Design and technical AC: `$SCOPE_DIR/tasks/06-design-notes.md` (the "06a" rows; T06-1, T06-4, T06-6, T06-7 for the rule) with `$SCOPE_DIR/tasks/qaw-technical-ac.md` (QA whitebox, 06 and common lines, as amended in the notes). Build rule LC-9c in `lifecycle.md`, `templates/squad/ticket.md`, one changelog entry (no version bump). Run test_processlint, test_instructions, test_rules_wording and the SQ-10 trio; write `evidence.md`; HANDIN to both QAs. The ticket's AC2 and AC3 move to 07; AC4 reads "changelog entry, no version bump (it rides 05)".
+Files: `$SCOPE_DIR/tasks/06-design-notes.md`, `templates/squad/process/lifecycle.md`, `templates/squad/ticket.md`, `skills/squad-process-update/changelog.md`, `tests/test_processlint.py`
+
 ## Problem
 
 Squad tickets are hard to read. `upstream-proposals` ticket 10 has a Problem paragraph of 7 sentences and a Files paragraph of 6, and no picture of what changes. Chieu has to rebuild the picture in his head.
