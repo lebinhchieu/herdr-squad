@@ -99,7 +99,7 @@
       ".pl-t td:nth-child(2){min-width:9em}.pl-tt{font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}" +
       ".pl-sp{color:var(--muted);font-size:.92em}.pl-a{font-size:.92em;max-width:15em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pl-a2{display:none;color:var(--muted);font-size:.92em}" +
       ".pl-t.goal .pl-dp{white-space:normal;min-width:7em}.pl-st{white-space:nowrap}.pl-st .chip{margin:0 2px 2px 0}.pl-r.done td{color:var(--muted)}" +
-      "@container plan (max-width:560px){.pl-a{display:none}.pl-a2{display:block}}";
+      "@container plan (max-width:560px){.pl-a{display:none}.pl-a2{display:block}.pl-t td:nth-child(2){min-width:5em}.pl-st .chip{display:flex;width:fit-content;max-width:100%;white-space:normal;height:auto;min-height:1.65em;line-height:1.2;padding-top:1px;padding-bottom:1px}}";
     root.document.head.appendChild(s);
   }
   function chip(cls, text) { return el("span", "chip " + cls, text); }

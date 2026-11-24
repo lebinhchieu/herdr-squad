@@ -21,12 +21,40 @@ Goal `alpha` (AC2, AC7): scope rows by step from "Depends on", outside waits as 
 | AC1 | `test_squadboard_panels.Plan04.test_T04_AC1_steps_with_deps_arrows`; scope screenshot |
 | AC2 | goal screenshot; `test_squadplan` goal rows |
 | AC3 | `Plan04.test_T04_AC3_...` (90 min no chip, 91 chip, both numbers) |
-| AC4 | `Plan04.test_T04_AC4_...` (`–`, loop chip, `STEP ? · loop`); `test_squadplan` loop |
+| AC4 | `Plan04.test_T04_AC4_...` (`–`, loop chip, `STEP ? · loop`); `test_squadplan` loop; loop and missing-value shots above |
 | AC5 | `test_processlint`, `test_rules_contract`, `test_rules_wording` OK; START-19c attaches to manager and team-lead |
 | AC6 | `test_squadboard_server.PlanRouteTest` (bad Host 403, no write route) |
-| AC7 | the three screenshots; `test_squadboard_demo` |
+| AC7 | the three first screenshots; `test_squadboard_demo` |
 
-Not captured as screenshots (covered by tests or by reading only): the loading, "Cannot read the plan." and empty texts, and the narrow (<560px) layout. A resize in Playwright did not narrow the panel, so no narrow shot is claimed.
+### Other states (Manager UI check on 0945f9b)
+
+Playwright 1.x against `bin/squad-board --demo`, `/api/plan` answered by route mocking (`page.route`), shots of `[data-panel=plan]`. Console: no error, except the 500 on the error shot (by design).
+
+Loop (AC4): rows in one `STEP ? · loop` step, each with the `loop` chip and its `← NN`; the passed step 1 stays folded above it.
+
+![dependency loop](img/plan-loop.png)
+
+Missing `Aim:` and `Estimate:` (AC4): `Aim: –`, `–` in the Aim and Est cells, `est –` in the progress line, no over-estimate chip.
+
+![missing aim and estimate](img/plan-missing.png)
+
+Loading: the route is never answered, so the panel shows "Loading the plan…".
+
+![loading](img/plan-loading.png)
+
+`/api/plan` fails: the route returns 500; "Cannot read the plan." and the muted reason line, the other panels unaffected.
+
+![plan error](img/plan-error.png)
+
+Empty: the route returns no rows; "Nothing planned yet. Rows appear when the Manager writes tasks/NN.md." with `0 of 0`.
+
+![empty plan](img/plan-empty.png)
+
+Narrow panel (under 560px): the viewport is 1600px and the panel is dragged by its east handle to one column (385px wide), so the real layout runs, no style injected. The Aim moves under the title as a second muted line; ID, `←`, Est and state stay on the first line.
+
+![narrow panel](img/plan-narrow.png)
+
+Design fix found by this shot: at 385px the `over estimate` chip was cut off at the right edge (the table was 426px in a 363px body: state cell never wrapped, Title had a 9em minimum). In the narrow container query, `templates/board/panel_plan.js` now gives the Title cell a 5em minimum and lets the state chips stack and wrap their text (`.pl-st .chip{display:flex;width:fit-content;max-width:100%;white-space:normal;height:auto;...}`). Measured after: table 363px = body, no horizontal overflow. The wide layout is unchanged (the rule is inside `@container plan (max-width:560px)`).
 
 Tests (SQUAD_* unset, from `tests/`), run on f2b3bfa: `test_squadboard_panels test_squadboard_page test_squadboard_timeline test_small_files_equivalence test_windows_safe test_utf8_helpers test_instructions test_rules_wording test_rules_contract test_processlint`: `Ran 238 tests ... OK`. Also OK: `test_squadboard_grid`, `test_squadboard_demo`, `test_squadboard_server.PlanRouteTest`, `test_squadplan`.
 Notes: `test_squadboard_grid` does not load the plan panel (its fetch stub serves five routes); `test_squadboard_demo` counts now include `plan`; `templates/board/board.js` `PANEL_TEXT` got a `plan` entry (outside the Files line).
