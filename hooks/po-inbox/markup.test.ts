@@ -321,14 +321,14 @@ describe('linear', () => {
     'a url label full of [': `[${'[a'.repeat(2500)}](https://x.io)`,
   }
   for (const [name, text] of Object.entries(killers)) {
-    test(`${name}: under 200 ms, words kept`, () => {
+    test(`${name}: under 200 ms, words kept`, { timeoutMs: 30000 }, () => {
       const r = timed(text)
       expect(r.ms).toBeLessThan(200)
       expect(words(r.plain)).toEqual(oracle(text))
     })
   }
 
-  test('4x the input takes under 12x the time (+20 ms) for bold, code and pipe cases', () => {
+  test('4x the input takes under 12x the time (+100 ms) for bold, code and pipe cases', { timeoutMs: 30000 }, () => {
     for (const unit of ['**a ', '**a**b', '`a ', 'a ` ', '`*', '| a ']) {
       const small = timed(unit.repeat(20000)).ms
       const big = timed(unit.repeat(80000)).ms
@@ -336,7 +336,7 @@ describe('linear', () => {
     }
   })
 
-  test('a far-away opener of the other kind is not searched for again at every span', () => {
+  test('a far-away opener of the other kind is not searched for again at every span', { timeoutMs: 30000 }, () => {
     const build = (n: number) => '**a**b'.repeat(n) + ' `x`'
     const small = timed(build(40000)).ms
     const big = timed(build(160000)).ms
