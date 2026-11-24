@@ -45,19 +45,19 @@ detail=$("$(dirname "$(readlink -f "$0")")/squad-usage" "${args[@]}" 2>/dev/null
 IFS=$'\t' read -r rule ctx line turns <<<"$detail"  # one computation: rule (or none), ctx, respawn line, turns
 write_stamp() {  # fail open: a stamp that cannot be written never stops the hook
   mkdir -p "$home/roles" 2>/dev/null || return 0
-  jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg session "$session" --argjson size "$size" \
-    --argjson ctx "${ctx:-0}" --argjson line "${line:-0}" '{ts:$ts, session:$session, size:$size, ctx:$ctx, line:$line}' \
-    >"$stamp.$$" 2>/dev/null && mv -f "$stamp.$$" "$stamp" 2>/dev/null
+  { jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg session "$session" --argjson size "$size" \
+      --argjson ctx "${ctx:-0}" --argjson line "${line:-0}" '{ts:$ts, session:$session, size:$size, ctx:$ctx, line:$line}' \
+      >"$stamp.$$"; } 2>/dev/null && mv -f "$stamp.$$" "$stamp" 2>/dev/null
   rm -f "$stamp.$$" 2>/dev/null
   return 0
 }
 write_stamp
 [[ -n $rule && $rule != none ]] || exit 0
 
-log=$home/usage-events.jsonl  # the dedupe skips corrupt, blank and non-object lines (fromjson? | objects)
-if [[ -f $log ]] && jq -R -e --arg s "$session" --arg r "$rule" 'fromjson? | objects | select(.session == $s and .rule == $r)' "$log" >/dev/null 2>&1; then
-  exit 0
-fi
+log=$home/usage-events.jsonl
+# The dedupe skips corrupt, blank and non-object lines (fromjson? | objects). It runs under the append lock, so
+# parallel PostToolUse calls of one turn cannot both record: only the call that appends prints the notice.
+seen() { [[ -f $log ]] && jq -R -e --arg s "$session" --arg r "$rule" 'fromjson? | objects | select(.session == $s and .rule == $r)' "$log" >/dev/null 2>&1; }
 
 case $rule in
   fresh) why="your context is past your respawn line (your context at first action + 50k, at most 180k) or was compacted" ;;
@@ -72,8 +72,9 @@ record=$(jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" --arg agent "$SQUA
   --arg session "$session" --arg rule "$rule" --arg action "$action" \
   --argjson ctx "${ctx:-0}" --argjson line "${line:-0}" --argjson turns "${turns:-0}" \
   '{ts:$ts, agent:$agent, role:$role, session:$session, rule:$rule, ctx:$ctx, line:$line, turns:$turns, action:$action}') || exit 0
+appended=
 if command -v flock >/dev/null; then
-  { flock 9 2>/dev/null; printf '%s\n' "$record" >&9; } 9>>"$log" || exit 0
+  { flock 9 2>/dev/null; seen || { printf '%s\n' "$record" >&9 && appended=1; }; } 9>>"$log" || exit 0
 else
   # No flock (Git for Windows): a plain >> append of a record over 4 KiB is torn by concurrent writers
   # (see ADR 0011 D3b), so serialise with an atomic mkdir lock. A lock left by a killed
@@ -85,9 +86,10 @@ else
     sleep 0.02
   done
   (( n <= 250 )) && held=1
-  { printf '%s\n' "$record" >&9; } 9>>"$log" || true
+  { seen || { printf '%s\n' "$record" >&9 && appended=1; }; } 9>>"$log" || true
   [[ -z $held ]] || rmdir "$log.lock" 2>/dev/null
 fi
+[[ -n $appended ]] || exit 0
 
 msg="Cost rule '$rule' fired: $why. Finish the step you are on, then $action"
 if [[ $event == PostToolUse ]]; then  # a tool boundary has nothing to re-prompt: the notice rides as context, exit 0

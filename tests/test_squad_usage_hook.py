@@ -1,10 +1,11 @@
-"""Stop hook: payload on stdin in, exit 2 + stderr message and a line in usage-events.jsonl out."""
+"""Stop and PostToolUse hook: payload on stdin in; Stop: exit 2 + stderr message, PostToolUse: JSON context, exit 0; a line in usage-events.jsonl out."""
 import json
 import os
 import shutil
 import subprocess
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 import winlaunch
@@ -254,6 +255,20 @@ class PostToolUseTest(HookBase):
         self.assertEqual((r.returncode, r.stderr), (0, ""))
         self.assertEqual(self.stamp()["size"], size)
         self.assertEqual(self.stamp()["line"], 110_002)
+
+    def test_parallel_calls_of_one_session_record_and_notify_once(self):  # review: dedupe under the append lock
+        self.transcript("sid-1", 130_000)
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
+        env.update(CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "cfg"), SQUAD_NAME="dev-1", SQUAD_DIR=str(self.squad), SQUAD_ROLE="dev")
+        data = json.dumps({"hook_event_name": "PostToolUse", "session_id": "sid-1",
+                           "transcript_path": str(self.proj / "sid-1.jsonl")})
+        def call(_):
+            return winlaunch.run_script(SCRIPT, input=data, text=True, encoding="utf-8", env=env,
+                                        capture_output=True, timeout=30).stdout
+        with ThreadPoolExecutor(6) as pool:
+            outs = list(pool.map(call, range(6)))
+        self.assertEqual(len([o for o in outs if o]), 1)
+        self.assertEqual(len(self.events.read_text(encoding="utf-8").splitlines()), 1)
 
     def test_stop_stays_exit_2_with_stderr(self):  # AC6 beside the 13 inherited tests
         self.transcript("sid-1", 130_000)
