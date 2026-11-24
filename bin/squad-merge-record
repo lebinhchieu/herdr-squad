@@ -5,10 +5,16 @@
 # Git is the truth (the board derives `merged` from it too); this only makes the time and sha exact.
 set -uo pipefail
 
-[[ ${SQUAD_ROLE:-} == manager ]] || exit 0
 input=$(cat) || exit 0
 # Cheap prefilter: python starts only for a command that looks like a merge of a squad branch.
 [[ $input == *"git merge"* && $input == *"squad/"* ]] || exit 0
+# Resumed session (no SQUAD_* variables): the roster row of its session id gives them (squadsession).
+if [[ -z ${SQUAD_NAME:-} || -z ${SQUAD_DIR:-} ]]; then
+  while IFS== read -r k v; do
+    case $k in SQUAD_NAME|SQUAD_ROLE|SQUAD_SCOPE|SQUAD_DIR|SCOPE_DIR|GOAL_DIR) [[ -n ${!k:-} ]] || export "$k=$v" ;; esac
+  done < <("$(dirname "$(readlink -f "$0")")/squad-whoami" <<<"$input" 2>/dev/null)
+fi
+[[ ${SQUAD_ROLE:-} == manager ]] || exit 0
 command -v python3 >/dev/null || exit 0
 here=$(dirname "$(readlink -f "$0")")
 

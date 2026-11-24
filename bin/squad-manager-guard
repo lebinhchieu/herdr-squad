@@ -143,7 +143,12 @@ def main():
         payload = json.loads(sys.stdin.read())
         if not isinstance(payload, dict):
             return 0
-        text = decide(os.environ, payload)
+        cmd = (payload.get("tool_input") or {}).get("command")
+        env = os.environ
+        if isinstance(cmd, str) and QUIET.match(cmd):  # only the commands the guard acts on pay for a roster scan
+            import squadsession  # here, so a bin/ without it stays silent like a missing squad-usage
+            env = squadsession.fill(env, payload)
+        text = decide(env, payload)
     except Exception:
         return 0
     if text:
