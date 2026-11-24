@@ -1,10 +1,10 @@
 | AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |
 |---|---|---|---|
-| AC1 | test_squadboard_panels T07_AC1…: spacing, caption, no bar for bash: OK; the shot in Behaviour | `cd tests; python3 -m unittest test_squadboard_panels -k T07` at 87c730d: OK (spacing kept, caption only on diagram) | live at 87c730d: caption chip on diagram, plain pre for text/bash: OK |
-| AC2 | same test: 2 image requests, 4 refused paths alt only: OK | same test: 2 image requests with `img=1&base=`, `../`, absolute, scheme, .gif show alt only; imgPath read in panel_files.js | live at 87c730d: 4 safe image requests, refused paths alt only: OK |
-| AC3 | test_squadboard_server T07_AC3: outside base 403, symlink 403, .txt 400, svg sandbox, no img=1 text/html: OK | `python3 -m unittest test_squadboard_server -k T07` OK; read `_file` image branch in bin/squadboard.py (base under squad or .scratch, file under base, resolved path) | live at 87c730d: curl on /api/file, 403/400/CSP as written: OK |
-| AC4 | same panel test: script in alt shown as text, `__x` undefined: OK | same panel test: script in alt and caption shown as text, no script element, `window.__x` undefined; no innerHTML in diff | live at 87c730d: script in title, caption, alt shown as text: OK |
-| AC5 | same panel test: row click sends no /api/file, Preview sends one: OK | same panel test: row click sends no /api/file, Preview sends one; Static14 passes | live at 87c730d: row click sends 0 /api/file requests: OK |
-| AC6 | T07_states (loading, err, empty, Esc focus) + the shot in Behaviour | QA blackbox owns the look (REV-18a); T07_states test (error, empty, Esc returns focus) OK | live: states walked at 87c730d; Esc re-checked live at eaab72e after mouse click, from BODY, and from keyboard: closes, focus on button: OK |
-| AC7 | 7 test files listed in Behaviour: OK | `grep -rl "renderMd, mdBlocks, /api/file (grep -E)" tests/` hits (files, panels, demo, server) all OK, plus open, grid, page; SQ-10 trio OK | not run by blackbox (whitebox owns tests) |
-| AC8 | the shot in Behaviour (diagram, image, refused image in one shot) | the shot in Behaviour exists in the commit; judged by QA blackbox | live shots match the Developer the shot in Behaviour: OK |
+| AC1 | test_squadboard_panels T07_AC1…: spacing, caption, no bar for bash: OK; img/preview.png | | |
+| AC2 | same test: 2 image requests, 4 refused paths alt only: OK | | |
+| AC3 | test_squadboard_server T07_AC3: outside base 403, symlink 403, .txt 400, svg sandbox, no img=1 text/html: OK | | |
+| AC4 | same panel test: script in alt shown as text, `__x` undefined: OK | | |
+| AC5 | same panel test: row click sends no /api/file, Preview sends one: OK | | |
+| AC6 | T07_states (loading, err, empty, Esc focus) + img/preview.png | | |
+| AC7 | 7 test files listed in Behaviour: OK | | |
+| AC8 | img/preview.png (diagram, image, refused image in one shot) | | |
