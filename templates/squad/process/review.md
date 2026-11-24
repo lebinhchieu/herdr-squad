@@ -81,7 +81,7 @@ roles: ba, qa-blackbox
 when: business-ac = ba and qa-black = yes
 topic: review
 
-Agree the business AC before work starts, as Given/When/Then a user can observe in the running app; the BA writes them where `project.md` says. A UI AC names the size it is checked at and the value or rule it must show, with one example for "shortest", "fits" or a count limit. A relative time names the fixed clock.
+Agree the business AC before work starts, as Given/When/Then a user can observe in the running app; the BA writes them where `project.md` says. A UI AC names the viewport width it is checked at and the value or rule it must show, with one example for "shortest", "fits" or a count limit. A relative time names the fixed clock.
 
 ## REV-9 QA blackbox check
 roles: qa-blackbox
