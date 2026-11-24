@@ -487,6 +487,26 @@ out({title:item.querySelector('b:not(.nb-opts b)').textContent,id:item.dataset.i
         self.assertEqual((r["code"], r["clip"], r["copyRet"]), ("squad-inbox answer E1", ["squad-inbox answer E1"], "squad-inbox answer E1"))
         self.assertEqual(r["labels"], [])   # AC10: no control is labelled answer, park, merge, approve, delete
 
+    def test_T05_AC1_AC2_plan_line_sits_under_the_title_above_blocks_and_a_null_plan_leaves_no_line(self):
+        r = self.page(r"""
+const q=P['inbox:questions'];
+q.data.rows[0].plan={pos:'scope 13 of 15',step:null,aim:'ERD <b>v12</b> rewritten',next:'next: promotion'};
+await start12();
+const item=$('section[data-panel=inbox]').querySelector('.nb-item'),kids=Array.from(item.children).map(c=>c.className.split(' ')[0]);
+const plan=item.querySelector('p.plan'),css=getComputedStyle(plan);
+out({kids,text:plan.textContent,title:plan.title,muted:plan.classList.contains('muted'),html:plan.innerHTML.includes('<b>'),ws:css.whiteSpace,to:css.textOverflow});
+""", "#/scope/questions")
+        self.assertEqual(r["kids"][:3], ["top", "plan", "blocks"])
+        self.assertEqual(r["text"], "scope 13 of 15 · ERD <b>v12</b> rewritten · next: promotion")
+        self.assertEqual((r["title"], r["muted"], r["html"], r["ws"], r["to"]), (r["text"], True, False, "nowrap", "ellipsis"))
+        none = self.page(r"""
+const q=P['inbox:questions'];q.data.rows.forEach(x=>x.plan=null);
+await start12();
+out({n:$$('.nb-item p.plan').length,blocks:$$('.nb-item .blocks').length});
+""", "#/scope/questions")
+        self.assertEqual(none["n"], 0)
+        self.assertGreater(none["blocks"], 0)
+
     def test_T12_AC2_AC4_empty_text_parked_group_tab_title_from_the_server_and_two_banner_lines(self):
         r = self.page(r"""
 const q=P['inbox:questions'];

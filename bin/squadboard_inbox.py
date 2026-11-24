@@ -131,7 +131,7 @@ def rows_of(home, label, snap, now):
             continue
         t = seen.get(it["id"])
         rows.append({"id": it["id"], "title": it.get("title") or "", "age_s": None if t is None else max(0, int(now - t)),
-                     "blocks": it.get("blocks") or "", "options": options_of(it),
+                     "blocks": it.get("blocks") or "", "plan": it.get("plan"), "options": options_of(it),
                      "kind": "open" if it.get("kind") == "answer" else "answer", "scope": label})
     rows.sort(key=lambda r: (r["age_s"] is None, -(r["age_s"] or 0)))  # oldest first, unknown age last
     return rows, hidden

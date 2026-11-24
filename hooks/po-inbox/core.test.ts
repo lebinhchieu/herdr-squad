@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { ACCENT, QUIET, ageOf, chipProps, chipText, describePrompt, diagramRuns, fit, heightTier, legendTags, newOpenIds, oneLine, parseAdd, parseSnapshot, sanitize, stamp } from './core'
+import { ACCENT, QUIET, ageOf, chipProps, chipText, describePrompt, diagramRuns, fit, heightTier, legendTags, newOpenIds, oneLine, parseAdd, parseSnapshot, planLine, sanitize, stamp } from './core'
 import { FIXTURES } from './fixtures'
 
 const mixed = () => JSON.parse(FIXTURES['contract-mixed'])
@@ -306,5 +306,33 @@ describe('diagramRuns (body-styles.md 9.4)', () => {
     expect(legendTags(['a [warn] [warn]'])).toEqual(['warn'])
     expect(legendTags(['BRD-01 ──> x', '[ok]x'])).toEqual([])
     expect(legendTags([])).toEqual([])
+  })
+})
+
+describe('planLine (05)', () => {
+  const task = { pos: 'task 10 of 11', step: 'step 4', aim: 'no flaky timing', next: 'next: 11' }
+  const goal = { pos: 'scope 13 of 15', step: null, aim: 'ERD v12 rewritten', next: 'next: promotion' }
+
+  test('parts in order, a missing one leaves its dot; no plan gives no line', () => {
+    expect(planLine(task, null)).toBe('task 10 of 11 · step 4 · no flaky timing · next: 11')
+    expect(planLine(goal, 80)).toBe('scope 13 of 15 · ERD v12 rewritten · next: promotion')
+    expect(planLine({ ...goal, aim: null }, 80)).toBe('scope 13 of 15 · next: promotion')
+    expect(planLine(null, 80)).toBe('')
+    expect(planLine(undefined, 80)).toBe('')
+  })
+
+  test('a narrow pane cuts the aim, then the step, then the name after next:', () => {
+    const full = planLine(task, null)
+    expect(planLine(task, full.length - 1)).toBe('task 10 of 11 · step 4 · next: 11')
+    expect(planLine(task, 'task 10 of 11 · step 4 · next: 11'.length - 1)).toBe('task 10 of 11 · next: 11')
+    const long = { ...task, next: 'next: a very long name of the following task' }
+    const cut = planLine(long, 30)
+    expect(cut.length).toBe(30)
+    expect(cut.startsWith('task 10 of 11 · next: ')).toBe(true)
+    expect(cut.endsWith('…')).toBe(true)
+  })
+
+  test('control characters in a part never reach the line', () => {
+    expect(planLine({ ...goal, aim: 'a\u001b[31mb\nc' }, null)).not.toMatch(/[\u001b\n]/)
   })
 })

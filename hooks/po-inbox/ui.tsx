@@ -6,7 +6,7 @@ import type { InboxItem, InboxSnapshot } from '../../types'
 import { goTo, markRead, openPane, patchUi, pickOption, readView, setDraft, submitAnswer } from './actions'
 import type { Tone } from './core'
 import {
-  ageOf, bandCounts, blocksTone, bodyBudget, capGroup, cellWidth, clipCells, DEFAULT_BODY_ROWS, doneItems, fit, kindTone, listGroups, oneLine, outcomeTone, parseAdd,
+  ageOf, bandCounts, blocksTone, bodyBudget, capGroup, cellWidth, clipCells, DEFAULT_BODY_ROWS, doneItems, fit, kindTone, listGroups, oneLine, outcomeTone, parseAdd, planLine,
   heightTier, recommendedKey, rowsFor, sanitize, stamp, wrapRows,
 } from './core'
 import { clipRows, drawBody, optionRows, toneProps } from './draw'
@@ -521,6 +521,11 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   const titleCut = titleShown !== titleFull
   add(<Text key="title" bold wrap="wrap">{titleShown}</Text>, rowsFor(titleShown, cols))
 
+  // where the item sits in the plan (ticket 05): one dim row under the title, none when `blocks` names nothing in the plan
+  const planText = planLine(it.plan, detail ? null : cols)
+  const planRows = planText === '' ? 0 : rowsFor(planText, cols)
+  if (planText !== '') add(<Text key="plan" dimColor wrap="wrap">{planText}</Text>, planRows)
+
   const optionBlock = (picked: string | null, pick: ((k: string) => void) | null) => {
     const d = optionRows(opts, rec, recKey, picked, cols, tall, pick, T)
     add(<Box key="opts" flexDirection="column">{d.nodes}</Box>, d.rows)
@@ -596,7 +601,7 @@ function itemScreen($: any, e: any, ui: any, snap: InboxSnapshot, it: InboxItem,
   } else if (!isRead) {
     // the outcome line takes up to 4 rows, fewer when the notice and the title already took the window; a cut one leaves
     // a row for Details. The changed line and the unsent note come after the Details row: they are not part of `room`.
-    const room = bodyRows - row1Rows - (notice ? notice.rows : 0) - rowsFor(titleShown, cols)
+    const room = bodyRows - row1Rows - (notice ? notice.rows : 0) - rowsFor(titleShown, cols) - planRows
     const hb = handledBlock(it, ui, error, cols, { whole: Math.min(4, Math.max(2, room)), cut: Math.min(4, Math.max(1, room - 1)) }, T)
     outcomeCut = hb.cut
     add(<Box key="state" flexDirection="column">{hb.parts}</Box>, hb.rows)

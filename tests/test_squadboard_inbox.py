@@ -19,7 +19,7 @@ import squadboard_inbox as I  # noqa: E402
 
 NOW = datetime.datetime(2026, 11, 4, 10, 0, tzinfo=datetime.timezone.utc)
 SAMPLES = Path(__file__).resolve().parent / "fixtures" / "board" / "inbox"
-ROW_KEYS = {"id", "title", "age_s", "blocks", "options", "kind", "scope"}
+ROW_KEYS = {"id", "title", "age_s", "blocks", "plan", "options", "kind", "scope"}
 
 
 def append(path, text):
@@ -71,6 +71,14 @@ class Rows(Base):
         self.assertEqual(e1["options"], [{"key": "a", "text": "Stripe", "recommended": True},
                                          {"key": "b", "text": "Adyen", "recommended": False}])
         self.assertEqual(d["count_choice"], 2)
+
+    def test_T05_plan_passes_through_to_the_row(self):  # ticket 05 AC1/AC2: the row carries what squad-inbox computed, null stays null
+        plan = {"pos": "scope 13 of 15", "step": None, "aim": "ERD v12 rewritten", "next": "next: promotion"}
+        snap = {"version": 1, "items": [
+            {"id": "E1", "state": "open", "kind": "answer", "title": "t", "blocks": "erd13", "plan": plan, "options": None},
+            {"id": "E2", "state": "open", "kind": "answer", "title": "t", "blocks": "", "options": None}]}
+        rows, _ = I.rows_of("/nowhere", "s", snap, NOW.timestamp())
+        self.assertEqual({r["id"]: r["plan"] for r in rows}, {"E1": plan, "E2": None})
 
     def test_T05_AC2_nothing_open(self):
         d = self.read("search")["data"]

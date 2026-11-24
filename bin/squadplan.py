@@ -189,18 +189,23 @@ def build_goal(goal_text):
     return {"kind": "goal", "aim": fields_of(goal_text)["aim"], "rows": _place(rows)}
 
 
-def plan_line_parts(home, blocks, repo_root=None):
+def plan_model(home, repo_root=None):
+    """-> (plan, noun) of a home: the goal table (`scope`) or the scope's tasks (`task`). Raises on an unreadable home."""
+    home = Path(str(home))
+    if (home / "goal.md").is_file():
+        return build_goal(_read(home / "goal.md")), "scope"
+    return build_scope(home, repo_root), "task"
+
+
+def plan_line_parts(home, blocks, repo_root=None, model=None):
     """The inbox line of ticket 05: `blocks` is the first token of an item's `--blocks`. -> {pos, step, aim, next} or None
-    (unknown token, no plan, any error). A goal home gives `scope N of M`, a scope home `task N of M` and `step S`."""
+    (unknown token, no plan, any error). A goal home gives `scope N of M`, a scope home `task N of M` and `step S`.
+    `model` is a `plan_model` result, so one snapshot reads the plan once."""
     try:
-        home = Path(str(home))
         token = (str(blocks or "").split() or [""])[0].strip(",;:")
         if not token:
             return None
-        if (home / "goal.md").is_file():
-            plan, noun = build_goal(_read(home / "goal.md")), "scope"
-        else:
-            plan, noun = build_scope(home, repo_root), "task"
+        plan, noun = model or plan_model(home, repo_root)
         rows = plan["rows"]
         keys = [squadledger.key(r["id"]) if noun == "task" else r["id"].lower() for r in rows]
         want = squadledger.key(token) if noun == "task" else token.lower()
@@ -211,7 +216,7 @@ def plan_line_parts(home, blocks, repo_root=None):
         nxt = next((r for r in rows[i + 1:] if not r["passed"]), None)
         label = (nxt["title"] or nxt["id"]) if nxt else None
         return {"pos": "%s %d of %d" % (noun, i + 1, len(rows)),
-                "step": "step %d" % row["step"] if row["step"] else None, "aim": row["aim"],
+                "step": "step %d" % row["step"] if noun == "task" and row["step"] else None, "aim": row["aim"],
                 "next": "next: " + label if label else "next: nothing, last one"}
     except Exception:
         return None

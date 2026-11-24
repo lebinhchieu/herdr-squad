@@ -1,3 +1,16 @@
+## v31 — 2026-11-24
+
+Plugin 0.11.0. Chieu sees where an inbox item sits in the plan, and tickets say what they want in plain words (the po-clarity scope).
+
+changed:
+- Board (01): the Tasks panel lists every ticket of a scope, from the Developer branch, the scope branch, a draft or main, with its source tagged. why: a ticket that lived only on a branch was missing from the board.
+- `squad-inbox add` (03): a title or body with a bare ID (a ticket or item number, no words beside it) is refused with exit 2 and the IDs listed; a code span, a fenced block, a link or a first use followed by a gloss passes. `docs/inbox-body-guide.md` says so. why: Chieu could not read items that name things only by number. **Breaking for other squads:** an `add` they scripted with a bare ID now exits 2 until they add the words.
+- Plan panel (04): `bin/squadplan.py`, `GET /api/plan` and `panel_plan.js` show each task or scope with aim, estimate, step, what it waits on and time spent. START-19c new (Manager, Team Lead): `Aim:` (60 characters, no bare IDs) and `Estimate:` lines in the task file. why: the order of work had to be rebuilt from the tickets each time.
+- Inbox plan line (05): `squad-inbox list --json` gives each item a `plan` field `{pos, step, aim, next}` (or `null`) from the same reader, for the first scope or task its `--blocks` names. The po-inbox pane draws it as one dim row under the title; the board's inbox panel draws it as a muted line. Nothing is written to `inbox.jsonl`; the contract stays version 1 (additive field). why: "erd13 passed: confirm close" did not say which part of the plan erd13 was.
+- LC-9c new (Manager, Tech Lead, BA, Architect) and `templates/squad/ticket.md` new: a ticket opens with a picture chosen by the change, and its Problem is at most 3 sentences; Problem / Change / AC / Comments, with the plan lines `Aim:`, `Estimate:`, `Depends on:`. why: Chieu rebuilt the picture of long tickets in his head.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.11.0; `/squad:squad-process-update` for START-19c and LC-9c; restart open po-inbox panes (`/inbox`) and reload the board to see the plan line. Rollback: revert the merge, plugin back one version; a `plan` key in a snapshot is ignored by an older pane, and an older board ignores it too.
+
 ## v29 — 2026-11-24
 
 Plugin 0.10.11. Upstream proposals from the guardian, board and plugin squads become plugin rules (tickets 01-06).
@@ -15,14 +28,6 @@ changed:
 - Hooks (11): `bin/squadsession.py` and `bin/squad-whoami` find the agent of a session id in `roster.md`. The eight hooks `squad-log-message`, `squad-usage-hook`, `squad-lazy-hook`, `squad-notify`, `squad-path-guard`, `squad-manager-guard`, `squad-merge-record` and `squad-away-hook` call it only when `SQUAD_NAME` or `SQUAD_DIR` is missing. why: herdr restores a pane with `claude --resume <id>`, which has no `SQUAD_*` variables, so those hooks did nothing for a resumed session.
 
 Deploy (Chieu): merge; `claude plugin update` to 0.10.11; every squad runs `/squad:squad-process-update`, then `squad-process upgrade --check` and drops the overlay ops named above (guardian SQ-35, SQ-41; board SQ-5, SQ-8, SQ-9; plugin SQ-1, SQ-3c, SQ-3d, SQ-6, SQ-6b, SQ-7, SQ-7b, SQ-8, SQ-15, SQ-17, SQ-20, SQ-21, SQ-22, EVID-2d replace). Running scopes keep their pin. Rollback: revert the merge, plugin back one version; the overlay ops stay until dropped, so nothing breaks.
-Ticket writers open a ticket with a picture when the change has a shape (po-clarity ticket 06). No plugin version bump here: the po-clarity bump rides ticket 05.
-
-changed:
-- LC-9c new (Manager, Tech Lead, BA, Architect): a ticket opens with a picture chosen by the change, and its Problem is at most 3 sentences. why: Chieu rebuilt the picture of long tickets in his head.
-- `templates/squad/ticket.md` new: Problem (with picture) / Change / AC / Comments, with the plan lines `Aim:`, `Estimate:`, `Depends on:`. why: the rule points writers at one starting file.
-
-Deploy (Chieu): `/squad:squad-process-update` for the rule change. Rollback: revert the merge.
-
 ## v28 — 2026-11-24
 
 Plugin 0.10.10. The watchdog restarts idle roles lazily before their 1h prompt cache goes cold (ADR 0033).

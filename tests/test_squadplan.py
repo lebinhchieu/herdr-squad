@@ -128,7 +128,7 @@ class LineTest(unittest.TestCase):
         self.addCleanup(gtmp.cleanup)
         (Path(gtmp.name) / "goal.md").write_text(GOAL, encoding="utf-8")
         got = squadplan.plan_line_parts(gtmp.name, "ERD2")
-        self.assertEqual((got["pos"], got["step"], got["aim"], got["next"]), ("scope 2 of 3", "step 2", "Second part", "next: erd-c"))
+        self.assertEqual((got["pos"], got["step"], got["aim"], got["next"]), ("scope 2 of 3", None, "Second part", "next: erd-c"))
 
     def test_cost_no_git_and_no_worktime(self):
         import squadboard_git
@@ -141,6 +141,42 @@ class LineTest(unittest.TestCase):
                 unittest.mock.patch("subprocess.run", side_effect=boom):
             self.assertIsNotNone(squadplan.plan_line_parts(home, "01"))
             self.assertEqual(len(squadplan.build_scope(home)["rows"]), 2)
+
+
+class InboxPlanTest(unittest.TestCase):
+    """Ticket 05 on a scope home: the item's `plan` comes from `squadinbox.snapshot(plans=True)`, the one plan reader."""
+    def inbox(self):
+        import squadinbox
+        tmp, home = scope({"09": "Aim: base\nDepends on: none", "10": "Aim: no flaky timing\nDepends on: 09", "11": "Aim: last\nDepends on: 10"})
+        self.addCleanup(tmp.cleanup)
+        (home / "escalations.md").write_text(
+            squadinbox_head() + "| 1 | 2026-10-15 | Close it? | | | 10 | |\n| 2 | 2026-10-15 | Other | | | 99 | |\n", encoding="utf-8")
+        return squadinbox, home
+
+    def test_AC1b_scope_home_item_shows_step_aim_and_next_task_and_AC2_unknown_shows_none(self):
+        squadinbox, home = self.inbox()
+        got = {i["id"]: i["plan"] for i in squadinbox.snapshot(str(home), False, plans=True)["items"]}
+        self.assertEqual(got["E1"], {"pos": "task 2 of 3", "step": "step 2", "aim": "no flaky timing", "next": "next: t11"})
+        self.assertIsNone(got["E2"])
+
+    def test_T05_cost_no_git_and_a_slow_reader_is_cut_at_the_cap(self):
+        import time
+        import squadinbox
+        _, home = self.inbox()
+        with unittest.mock.patch("subprocess.run", side_effect=AssertionError("list --json makes no git call")):
+            self.assertIsNotNone(squadinbox.snapshot(str(home), False, plans=True)["items"][0]["plan"])
+        with unittest.mock.patch.object(squadplan, "plan_model", side_effect=lambda *a: time.sleep(1)), \
+                unittest.mock.patch.object(squadinbox, "PLAN_CAP_S", 0.05):
+            t0 = time.time()
+            snap = squadinbox.snapshot(str(home), False, plans=True)
+        self.assertLess(time.time() - t0, 0.9)
+        self.assertEqual([i["plan"] for i in snap["items"]], [None, None])
+        self.assertEqual(len(snap["items"]), 2)
+
+
+def squadinbox_head():
+    return ("# Escalations\n\n| # | Date | Question | Options | Manager's recommendation | Blocks | Answer |\n"
+            "|---|---|---|---|---|---|---|\n")
 
 
 if __name__ == "__main__":

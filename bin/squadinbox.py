@@ -317,14 +317,14 @@ def fold(events, rows, ts):
         if ev == "add":
             items[eid] = {"id": eid, "kind": "read", "state": "open", "title": e.get("title", ""), "body": e.get("body", ""),
                           "options": None, "options_raw": None, "recommendation": None, "blocks": clean_blocks(e.get("blocks")),
-                          "created": e.get("ts"), "created_precision": "second", "answer": None, "done": None, "flags": []}
+                          "created": e.get("ts"), "created_precision": "second", "answer": None, "done": None, "flags": [], "plan": None}
         elif ev == "seen":
             row = by_key.get(e.get("key"))
             items[eid] = {"id": eid, "kind": "answer", "state": "open", "title": e.get("title", ""), "body": e.get("body", ""),
                           "options": parse_options(e.get("options")), "options_raw": raw_options(e.get("options")),
                           "recommendation": e.get("rec") or None, "blocks": clean_blocks(e.get("blocks")), "created": iso_day(e.get("date")) or e.get("ts"),
                           "created_precision": "day" if iso_day(e.get("date")) else "second", "answer": None,
-                          "done": None, "flags": [], "_row": row}
+                          "done": None, "flags": [], "plan": None, "_row": row}
     for e in events:
         it = items.get(e.get("id"))
         if it is None:
@@ -405,9 +405,37 @@ def find_repairs(events, rows):
     return out
 
 
-def snapshot(home, write):
+PLAN_CAP_S = 2  # the plan read may never hold up the pane: past this every item has no plan line
+
+
+def add_plans(items, home):
+    """Set `plan` ({pos, step, aim, next}) on each item whose `blocks` names a row of the plan of `home`; the rest keep None.
+    One plan model per call, read in a thread with a hard cap; any failure leaves every plan None. Writes nothing."""
+    import threading
+    wanted = [i for i in items if i["blocks"].strip()]
+    if not wanted:
+        return
+    box = {}
+
+    def run():
+        try:
+            import squadplan
+            model = squadplan.plan_model(home)
+            box["plans"] = {i["id"]: squadplan.plan_line_parts(home, i["blocks"], model=model) for i in wanted}
+        except Exception:
+            pass
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    t.join(PLAN_CAP_S)
+    plans = box.get("plans") or {}
+    for i in wanted:
+        i["plan"] = plans.get(i["id"])
+
+
+def snapshot(home, write, plans=False):
     """The contract dict for a home; with write, missing sync events are appended and empty Answer cells repaired
-    (under the lock). Without write nothing changes on disk and the result is the same as if it had."""
+    (under the lock). Without write nothing changes on disk and the result is the same as if it had. With plans each item
+    carries its plan line parts (`list --json` only: every other caller has no use for them)."""
     log_path, table_path = os.path.join(home, LOG), os.path.join(home, TABLE)
     ts = now()
 
@@ -433,6 +461,8 @@ def snapshot(home, write):
         pending = []
     events = events + pending  # --no-write: fold as if synced, write nothing
     items = fold(events, rows, ts)
+    if plans:
+        add_plans(items, home)
     counts = {"answer_open": sum(1 for i in items if i["kind"] == "answer" and i["state"] == "open"),
               "read_open": sum(1 for i in items if i["kind"] == "read" and i["state"] == "open"),
               "waiting": sum(1 for i in items if i["state"] == "answered-waiting")}
@@ -616,7 +646,7 @@ def cmd_add(home, args):
 def cmd_list(home, args):
     if not os.path.isdir(home):
         raise Refused("home %s is not a folder" % home)
-    snap = snapshot(home, write=not args.no_write)
+    snap = snapshot(home, write=not args.no_write, plans=bool(args.json))
     if args.open:
         snap["items"] = [i for i in snap["items"] if i["state"] != "done"]
     if args.json:
