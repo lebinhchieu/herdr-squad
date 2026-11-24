@@ -4,7 +4,7 @@
 
 Code sha 7c14057 (base 46d2f4b). Files: `bin/squadevidence.py`, `bin/squadmergecheck.py`, `tests/test_squad_evidence.py`, `tests/test_squad_merge_check.py`.
 
-**AC1 path table, both functions.** `test_squad_evidence.py::CheckBaseTest::test_path_table` and `test_squad_merge_check.py::MergeCheck::test_evidence_path_table` assert the same table. Accepted: `<stem>/evidence.md`, `<stem>/img/a.png`, `<stem>/checks.md`, `<stem>/pane-states.txt`, `<stem>/sub/x.md`, `<stem>.evidence/x`. Refused: `<stem>x/a.md`, `<stem>.md`, `<other>/checks.md`, `bin/x.py`, a stem with no ticket file. Both tests FAIL on the base `bin/` files (checked: base `squadevidence.py` and `squadmergecheck.py` copied over a copy of HEAD).
+**AC1 path table, both functions.** `test_squad_evidence.py::CheckBaseTest::test_path_table` and `test_squad_merge_check.py::MergeCheck::test_evidence_path_table` assert the same table. Accepted: `<stem>/evidence.md`, `<stem>/img/<file>`, `<stem>/checks.md`, `<stem>/pane-states.txt`, `<stem>/sub/x.md`, `<stem>.evidence/x`. Refused: `<stem>x/a.md`, `<stem>.md`, `<other>/checks.md`, `bin/x.py`, a stem with no ticket file. Both tests FAIL on the base `bin/` files (checked: base `squadevidence.py` and `squadmergecheck.py` copied over a copy of HEAD).
 
 **AC2 temp repo, evidence commit adds `checks.md` and `pane-states.txt`** (real CLI run in a `/tmp` repo: ticket `03-x.md`, code commit, evidence commit with `evidence.md`, `checks.md`, `pane-states.txt`):
 ```
