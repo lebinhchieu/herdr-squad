@@ -173,7 +173,8 @@ topic: start
    - Goal Manager: `$GOAL_DIR/goal.md`, `shared/decisions.md`, `shared/summaries/`, `roster.md`, `escalations.md`, `open-questions.md` if present, your notes.
    - Never read a `_done/` folder.
 3. Check live agents with `herdr agent list` and reconcile `roster.md` with it (mark dead agents, note who needs respawning).
-4. Tell the PO in 3–5 lines: where the work stands, what you do next, anything waiting on them. A brand-new scope has no iteration file yet: that is your first move ([START-19]).
+4. Before the first spawn run `squad-process homes --check`. If this scope's pin is older than the squad's `plugin.pin`, `ASK` the PO at the plan check-in whether to re-pin it. A running scope is never re-pinned.
+5. Tell the PO in 3–5 lines: where the work stands, what you do next, anything waiting on them. A brand-new scope has no iteration file yet: that is your first move ([START-19]).
 
 ## START-19 First move: team and plan
 roles: manager
