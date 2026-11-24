@@ -16,11 +16,11 @@ The proposals put the check on the Manager and grep `_done/`, which breaks SAFE-
 
 ## Change
 
-1. One file, `$SQUAD_DIR/base-failures.md`. Each row holds: the test name, the sha it fails on, a one-line cause, the first scope that saw it, and a fix ticket or Chieu's "keep".
+1. One file, `$SQUAD_DIR/base-failures.md`. Each row holds: the test name, the sha it fails on, a one-line cause, the first scope that saw it, and a fix ticket or the PO's "keep".
 2. Owner: the Tech Lead. Without a Tech Lead, QA whitebox; with neither, the Developer.
 3. Before a task's first spawn, the owner runs the task's grep and test AC on the base sha. An AC that cannot pass there is fixed in the ticket first. A test failing on base is added to the file.
 4. A Developer or QA checks a failing test name against the file. A listed name is not run on base again and is no `FAIL`. A name that is not listed is run on base once and added.
-5. A name that is already in the file from an earlier scope, with no fix ticket and no keep: the Manager raises it at the next check-in.
+5. A name that is already in the file from an earlier scope, with no fix ticket and no keep: the Manager raises it with the PO at the next check-in.
 
 ## AC
 
@@ -28,5 +28,14 @@ The proposals put the check on the Manager and grep `_done/`, which breaks SAFE-
 - AC2: no rule text asks the Manager to run tests or read `_done/`.
 - AC3: the file is listed in `files.md` with its owner.
 - AC4: `python3 bin/squad-process lint` exits 0.
+- AC5: no rule text names Chieu; it says "the PO" (so "the PO's keep", not "Chieu's keep").
+
+## Duties
+
+SQ-10 files (`tests/test_windows_safe.py`, `tests/test_utf8_helpers.py`, `tests/test_instructions.py`) plus the `grep -rl` hits of SUITE-7..7d and `base-failures`.
 
 ## Comments
+
+- Overlay SQ-15 (dry-run the checkable AC on the base sha) is replaced by plugin rule SUITE-7b; its "Known failing on base" line is now a row in `$SQUAD_DIR/base-failures.md` (SUITE-7), looked up by SUITE-7c.
+- Overlay SQ-17 (a repeat base failure gets a ticket) is replaced by SUITE-7d (the Manager raises a row with no fix ticket and no keep at the next check-in; it reads no `_done/`).
+- `upgrade --check` lists both ops as kept (`add`) or `stale`; the squads drop them by hand after re-pin. Filled in by ticket 06 (the ticket's own Comments were empty).

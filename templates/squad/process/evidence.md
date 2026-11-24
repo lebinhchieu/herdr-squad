@@ -19,14 +19,14 @@ roles: dev
 when: tech-ac = tech-lead
 topic: evidence
 
-After all `PASS`: `squad-evidence add <ticket> --heading "<H>" --from <file>` per file in `$SCOPE_DIR/evidence/<task>/`, `squad-evidence check <folder>`, commit, `HANDIN <task>: evidence sha <sha>` to the Tech Lead.
+After all `PASS`: `squad-evidence add <ticket> --heading "<H>" --from <file>` per file in `$SCOPE_DIR/evidence/<task>/`, `squad-evidence check <folder>`, commit, `HANDIN <task>: evidence sha <sha>` to the Tech Lead, copy the Team Lead.
 
-## EVID-2d Assemble evidence, Manager
+## EVID-2d Assemble evidence, the task's Developer
 roles: dev
 when: tech-ac = qa-white
 topic: evidence
 
-Once every checker has passed: `squad-evidence add <ticket> --heading "<H>" --from <review file>` per review file in `$SCOPE_DIR/evidence/<task>/`, `squad-evidence check <folder>`, commit, `HANDIN <task>: evidence sha <sha>` to the Manager.
+Once every checker has passed: `squad-evidence add <ticket> --heading "<H>" --from <review file>` per review file in `$SCOPE_DIR/evidence/<task>/`, `squad-evidence check <folder>`, commit, `HANDIN <task>: evidence sha <sha>` to the Team Lead. Nobody asks the Manager to assemble it.
 
 ## EVID-2c Check the evidence commit, Tech Lead
 roles: tech-lead
@@ -35,8 +35,9 @@ topic: evidence
 
 On the Developer's `HANDIN <task>: evidence sha <sha>`, run `squad-evidence check <folder> --base <passed sha>` and accept it only when it exits 0.
 
-## EVID-2e Check the evidence commit, Manager
-roles: manager
+## EVID-2e Check the evidence commit, Team Lead
+roles: team-lead
+aware: manager
 when: tech-ac = qa-white
 topic: evidence
 
@@ -118,10 +119,11 @@ roles: dev
 when: tech-ac = dev and qa-black = yes
 topic: evidence
 
-Assemble and `HANDIN` as [EVID-2d], to the Manager.
+Assemble and `HANDIN` as [EVID-2d].
 
-## EVID-9e Check the evidence commit, Manager
-roles: manager
+## EVID-9e Check the evidence commit, Team Lead
+roles: team-lead
+aware: manager
 when: tech-ac = dev and qa-black = yes
 topic: evidence
 

@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+"""For the bash hooks: read a hook payload on stdin, print one KEY=value line for each squad variable the session
+id of the payload has in roster.md (squadsession.resolve), nothing when there is no match. Always exits 0."""
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
+import squadsession  # noqa: E402
+
+
+def main():
+    squadio.utf8_stdio()
+    try:
+        payload = json.loads(sys.stdin.read())
+        found = squadsession.resolve(dict(os.environ), payload) if isinstance(payload, dict) else None
+        for k in squadsession.KEYS:
+            if found and found.get(k) and "\n" not in found[k]:
+                print("%s=%s" % (k, found[k]))
+    except Exception:
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

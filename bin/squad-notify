@@ -11,6 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadio  # noqa: E402
+import squadsession  # noqa: E402
 
 TIMEOUT = 3
 WINDOWS = os.name == "nt"
@@ -124,7 +125,11 @@ def run(payload, env, proc_root="/proc"):
 def main():
     squadio.utf8_stdio()
     try:
-        run(json.loads(sys.stdin.read() or "{}"), dict(os.environ))
+        payload = json.loads(sys.stdin.read() or "{}")
+        env = dict(os.environ)
+        if env.get("HERDR_ENV") == "1" and not env.get("SQUAD_NAME"):  # no toast outside herdr: no scan
+            env = squadsession.fill(env, payload)  # a resumed session: the roster row of its session id
+        run(payload, env)
     except Exception as e:  # never harm the session
         log(f"{type(e).__name__}: {e}")
     return 0

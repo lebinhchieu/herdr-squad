@@ -113,3 +113,43 @@ when: suite-owner = qa-white
 topic: suites
 
 Read the receipt QA whitebox saved when it covers the sha (same sha, clean, OK). With none, check the targeted tests and the diff; you never run the suite.
+
+## SUITE-7 Base failures file
+roles: tech-lead
+when: suite-owner = tech-lead
+topic: suites
+
+You keep `$SQUAD_DIR/base-failures.md`, one row per test name, append only. Columns: test name, sha it fails on, one-line cause, first scope that saw it, fix ticket or the PO's keep. Create it on the first row.
+
+## SUITE-7e Base failures file, QA whitebox
+roles: qa-whitebox
+when: suite-owner = qa-white
+topic: suites
+
+You keep `$SQUAD_DIR/base-failures.md`, one row per test name, append only. Each row holds the test name, the sha it fails on, a one-line cause, the first scope that saw it, and the fix ticket or the PO's keep. Create it on the first row.
+
+## SUITE-7f Base failures file, Developer
+roles: dev
+when: suite-owner = dev
+topic: suites
+
+You keep `$SQUAD_DIR/base-failures.md` as [SUITE-7] says; read it with `squad-process rule SUITE-7`.
+
+## SUITE-7b Base check before the first spawn
+roles: tech-lead, qa-whitebox
+aware: team-lead
+topic: suites
+
+If you keep the base-failures file ([SUITE-7]), before a task's first spawn, run its grep and test AC on the base sha. An AC that cannot pass there is fixed in the ticket first. A test that fails on base becomes a row of [SUITE-7].
+
+## SUITE-7c Failing test, look it up
+roles: dev, qa-whitebox, qa-blackbox
+topic: suites
+
+Look a failing test name up in `$SQUAD_DIR/base-failures.md` first. A listed name is not run on base again and is no `FAIL`. Run an unlisted name on base once and send it to the suite owner to add; never edit the file yourself ([SAFE-4]).
+
+## SUITE-7d Old base failures at check-in
+roles: manager
+topic: suites
+
+At a check-in, tell the PO of each row of `$SQUAD_DIR/base-failures.md` from an earlier scope with no fix ticket and no keep. The Manager runs no test and reads no other scope's folder ([SAFE-6], [SAFE-7]).

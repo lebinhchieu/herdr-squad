@@ -5,10 +5,16 @@
 # Exit 2 + stderr is how a Stop hook hands text back to the agent.
 set -uo pipefail
 
+input=$(cat) || exit 0
+# Resumed session (no SQUAD_* variables): the roster row of its session id gives them (squadsession).
+if [[ -z ${SQUAD_NAME:-} || -z ${SQUAD_DIR:-} ]]; then
+  while IFS== read -r k v; do
+    case $k in SQUAD_NAME|SQUAD_ROLE|SQUAD_SCOPE|SQUAD_DIR|SCOPE_DIR|GOAL_DIR) [[ -n ${!k:-} ]] || export "$k=$v" ;; esac
+  done < <("$(dirname "$(readlink -f "$0")")/squad-whoami" <<<"$input" 2>/dev/null)
+fi
 [[ -n ${SQUAD_NAME:-} && -n ${SQUAD_DIR:-} && -d ${SQUAD_DIR:-} && ${SQUAD_ROLE:-} != manager ]] || exit 0
 home=${SCOPE_DIR:-${GOAL_DIR:-$SQUAD_DIR}}  # legacy flat layout: SQUAD_DIR
 [[ -d $home ]] || exit 0
-input=$(cat) || exit 0
 
 [[ $(jq -r '.stop_hook_active // false' <<<"$input" 2>/dev/null) == true ]] && exit 0
 session=$(jq -r '.session_id // empty' <<<"$input" 2>/dev/null)

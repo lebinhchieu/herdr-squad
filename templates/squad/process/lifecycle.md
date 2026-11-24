@@ -147,10 +147,11 @@ Write the deploy plan, never run it. Order, migration steps, rollback and the ch
 
 ## LC-14 Help the plan
 roles: tech-lead
+aware: manager
 when: tech-lead = yes
 topic: lifecycle
 
-Help the Manager plan: write each task's dependencies, touched files and parallel-safe groups, and the technical risks, in a file under `tasks/`, with the `## Handover` section ([SIZE-16]). Send the Manager one line pointing at it, Team Lead on copy; the Manager writes them into the plan.
+Help the Manager plan: write each task's dependencies, touched files, parallel-safe groups and technical risks in a file under `tasks/`, with the `## Handover` section ([SIZE-16]). For each ticket that deletes or moves files, list the tickets that read them; a reader goes before its deleter. Send the Manager one line pointing at the file, Team Lead on copy.
 
 ## LC-15 Shape the plan
 roles: team-lead
@@ -204,7 +205,14 @@ roles: dev
 when: handin-target = qas
 topic: lifecycle
 
-On every `PASS` send the Team Lead `STATUS NN: passed <sha>`; it retires you.
+On every `PASS` send the Team Lead `STATUS NN: passed <sha>`; stay until the Team Lead retires you ([LC-20f]).
+
+## LC-20f Retire after the evidence check, Team Lead
+roles: team-lead
+when: handin-target = qas
+topic: lifecycle
+
+Keep the Developer until both checkers sent `PASS` and its evidence commit is in. Run `squad-evidence check <folder>` on the final sha; only on exit 0 retire it and record `STATUS <task>: passed`, quoting the exit code and sha.
 
 ## LC-20e Passed, Team Lead alone
 roles: dev
@@ -262,3 +270,9 @@ topic: lifecycle
 - `passed` = every QA on the roster sent `PASS` for the current sha. A `PASS` from anyone else warns and is not counted.
 - No QA on the team: the `HANDIN` hook runs `squad-evidence check`. Exit 0 is `passed`; else a warning, and the ticket stays `in progress`.
 - A step the hook missed: `squad-task claim|handin|pass|fail|blocked|merged NN`; `squad-task passed NN` overrides and warns.
+
+## LC-28 Hold a task for an open PO question
+roles: manager, team-lead
+topic: lifecycle
+
+A task waits while an open `ASK` to the PO changes it, or its open part becomes a later ticket. When a `PASS` lists choices for the PO, ask the PO before you retire the Developer, 45 minutes at most; the PO's fix on that unmerged branch is a return ([CORE-1]).

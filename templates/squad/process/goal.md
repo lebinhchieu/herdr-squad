@@ -56,10 +56,9 @@ topic: goal
 
 ## GOAL-6a Integration task, Tech Lead
 roles: tech-lead
-when: goal = yes
 topic: goal
 
-Plan one integration task at the end of the scope: one Developer branches from the scope's base, merges the scope's passed task branches into its own branch and runs the targeted tests. A scope with one task has none: that task's passed branch is its integration branch.
+Plan an integration task only for related branches ([GOAL-6e]): one Developer branches from the scope's base, merges the related passed task branches into its own branch and runs the targeted tests. A scope with one task has none: that task's passed branch is its integration branch.
 
 ## GOAL-6b Integration task, Developer
 roles: manager, tech-lead
@@ -76,10 +75,24 @@ The next scope builds on the integration branch; the PO merges it.
 
 ## GOAL-6d Integration task, Manager
 roles: manager
-when: goal = yes and tech-lead = no
+when: tech-lead = no
 topic: goal
 
-Plan one integration task for a scope of several tasks, as [GOAL-6b] describes. A scope with one task has none: its passed branch is the integration branch.
+Plan an integration task only for related branches ([GOAL-6e]), as [GOAL-6b] describes. A scope with one task has none: its passed branch is the integration branch.
+
+## GOAL-6e Integration by relation
+roles: team-lead, manager
+aware: tech-lead, qa-whitebox
+topic: goal
+
+When the last task passes, the Team Lead checks its passed branches. Each an ancestor of the last (`git merge-base --is-ancestor`): no integration. Siblings are related when they change one file, share a `grep -rl` test hit, or one writes what the other reads (the touched-files table in `tasks/`). Unrelated ones need none, in a lone scope too.
+
+## GOAL-6f Integrating related siblings
+roles: team-lead, manager
+aware: tech-lead, qa-whitebox
+topic: goal
+
+The Developer of the last task that depends on related siblings merges them and runs the targeted tests on the result. With no such task, the Team Lead asks the Manager to add an integration task ([GOAL-6b]).
 
 ## GOAL-7 Check a merge target
 roles: manager

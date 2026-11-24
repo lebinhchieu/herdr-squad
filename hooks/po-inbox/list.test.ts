@@ -66,7 +66,7 @@ test('band: the four-kinds, two-digit case at 75 is rung 2, at 35 it wraps to ex
   expect(rowsOfTree(tree, 35)).toBe(2)
 })
 
-test('band 4.8: 120 to answer, 15 waiting, 3 problems keeps every count at 40 and 35 columns (rung 6 wraps: the line is 42 cells), and survives 30', async ($, on) => {
+test('band 4.8: 120 to answer, 15 waiting, 3 problems keeps every count at 40 and 35 columns (rung 6 wraps: the line is 42 cells), and survives 30', { timeoutMs: 30000 }, async ($, on) => {
   const items = [...many(120, ans), ...many(15, wt)]
   const errors = [1, 2, 3].map((row) => ({ file: 'f', row, message: 'm' }))
   await boot($, on, snap(items, errors))

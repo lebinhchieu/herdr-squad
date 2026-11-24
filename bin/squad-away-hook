@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadio  # noqa: E402
+import squadsession  # noqa: E402
 
 WATCHDOG = Path(os.path.dirname(os.path.realpath(__file__))) / "squad-watchdog"
 AWAY_RE = re.compile(r"^i(?: am|'m|\u2019m) away\b", re.I)
@@ -50,14 +51,18 @@ def switch(home, on):
 def main():
     squadio.utf8_stdio()
     try:
-        prompt = str(json.load(sys.stdin).get("prompt") or "").strip()
+        payload = json.load(sys.stdin)
+        prompt = str(payload.get("prompt") or "").strip()
     except (ValueError, AttributeError, OSError):
-        return
-    home = os.environ.get("SCOPE_DIR") or os.environ.get("GOAL_DIR")
-    if os.environ.get("SQUAD_ROLE") != "manager" or not home or not os.path.isdir(home):
         return
     away = bool(AWAY_RE.match(prompt))
     if not (away or BACK_RE.match(prompt)):
+        return
+    env = os.environ
+    if not (env.get("SQUAD_ROLE") and (env.get("SCOPE_DIR") or env.get("GOAL_DIR"))):
+        env = squadsession.fill(env, payload)  # a resumed session: the roster row of its session id
+    home = env.get("SCOPE_DIR") or env.get("GOAL_DIR")
+    if env.get("SQUAD_ROLE") != "manager" or not home or not os.path.isdir(home):
         return
     err = switch(home, away)
     text = (AWAY_TEXT if away else BACK_TEXT) if err is None else \

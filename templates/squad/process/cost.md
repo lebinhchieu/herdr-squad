@@ -38,6 +38,13 @@ topic: cost
 
 Retire (no `squad-respawn`) when the hook says `fresh` with the ticket merged-ready, or when no open ticket touches your files. Mid-ticket respawn once; the Team Lead splits the rest. Never reuse a retired name.
 
+## COST-16 Read your usage row
+roles: dev, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
+aware: manager
+topic: cost
+
+Run `squad-usage` in the same command as each `git commit`, `HANDIN`, `PASS`, `FAIL` or `DECISION` you send. Past your `line` column, save your findings or notes first, then act as [COST-3] says, or [COST-5] for a Developer. A Developer ends each `HANDIN` with `ctx <n>k`.
+
 ## COST-6b Ticket assignment, Team Lead
 roles: team-lead
 topic: cost

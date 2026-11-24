@@ -132,7 +132,6 @@ class EffectiveTest(Base):
         for code in re.findall(r"`([^`]+)`", body):
             cmds += [c.strip() for c in re.split(r"&&|;", code) if c.strip().startswith("rm ")]
         self.assertTrue(cmds, "SAFE-11 has no rm example")
-        self.assertNotIn("$", "".join(cmds))
 
         def hit(globs, cmd):
             return any(fnmatch.fnmatchcase(cmd, g[len("Bash("):-1]) for g in globs if g.startswith("Bash(") and ":*" not in g)

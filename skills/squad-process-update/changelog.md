@@ -1,3 +1,21 @@
+## v29 — 2026-11-24
+
+Plugin 0.10.11. Upstream proposals from the guardian, board and plugin squads become plugin rules (tickets 01-06).
+
+changed:
+- COST-16 (01): a Developer reads its usage row at each commit. why: it replaces the usage ops of board SQ-5 and plugin SQ-3c and SQ-3d.
+- SUITE-7, 7b, 7c, 7d, 7e, 7f and a FILE-6 row (02): `$SQUAD_DIR/base-failures.md` lists tests that fail on their base sha; the suite owner keeps it. why: the same failing test was proven again in scope after scope (replaces plugin SQ-15, SQ-17).
+- LC-20f, EVID-2b, EVID-2d, LC-20b (03): the Team Lead keeps the Developer until `squad-evidence check` exits 0. why: replaces plugin SQ-20 and the EVID-2d op.
+- GOAL-6a/6d/6e/6f, MRG-6, MRG-6b (04): integration only for related branches; a merge after main moved compares files first. `bin/squadmergecheck.py` text points at them. why: replaces plugin SQ-6, SQ-6b, SQ-7, SQ-7b.
+- LC-14, LC-28, START-18, SPAWN-9 (05): a task waits for an open PO ask; the pin check at start; both QAs spawn before the first Developer. why: replaces plugin SQ-1, SQ-8, SQ-21, SQ-22.
+- SAFE-11, SAFE-11b (06), all roles: `rm` under `/tmp` takes a literal absolute path and runs alone. why: Claude Code's dangerous-rm check fires on `cd`, `&&`, `;`, globs and `$(...)`; replaces guardian SQ-35.
+- REV-8, REV-8b (06): REV-8 is unchanged; new REV-8b: a UI business AC names its viewport width, the value or rule, and a fixed clock. why: replaces board SQ-8.
+- NOTE-1 (06): `Pointers` holds at most 5 paths with a line range or section. why: replaces board SQ-9.
+- `tests/test_dev_rules_size.py`: the Developer byte limit is the measured worst case over every team set, designer and architect sets too (6858 B, limit 6950 B). why: the test already failed on 224 design teams at v28.
+- Hooks (11): `bin/squadsession.py` and `bin/squad-whoami` find the agent of a session id in `roster.md`. The eight hooks `squad-log-message`, `squad-usage-hook`, `squad-lazy-hook`, `squad-notify`, `squad-path-guard`, `squad-manager-guard`, `squad-merge-record` and `squad-away-hook` call it only when `SQUAD_NAME` or `SQUAD_DIR` is missing. why: herdr restores a pane with `claude --resume <id>`, which has no `SQUAD_*` variables, so those hooks did nothing for a resumed session.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.10.11; every squad runs `/squad:squad-process-update`, then `squad-process upgrade --check` and drops the overlay ops named above (guardian SQ-35, SQ-41; board SQ-5, SQ-8, SQ-9; plugin SQ-1, SQ-3c, SQ-3d, SQ-6, SQ-6b, SQ-7, SQ-7b, SQ-8, SQ-15, SQ-17, SQ-20, SQ-21, SQ-22, EVID-2d replace). Running scopes keep their pin. Rollback: revert the merge, plugin back one version; the overlay ops stay until dropped, so nothing breaks.
+
 ## v28 — 2026-11-24
 
 Plugin 0.10.10. The watchdog restarts idle roles lazily before their 1h prompt cache goes cold (ADR 0033).
