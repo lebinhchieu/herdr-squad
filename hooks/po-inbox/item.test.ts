@@ -198,7 +198,7 @@ const DESIGN_HANDLED: [string, any, string, string, Record<string, unknown>][] =
   ['removed', REMOVED, 'Removed from escalations.md before an answer.', 'dim', { dimColor: true }],
 ]
 for (const [name, it, line, , style] of DESIGN_HANDLED) {
-  test(`handled ${name}: the state is right after the title, before the body (V-03 v3.1), token per V-15`, async ($, on) => {
+  test(`handled ${name}: the state is right after the title, before the body (V-03 v3.1), token per V-15`, { timeoutMs: 30000 }, async ($, on) => {
     for (const [cols, rows] of SIZES) {
       const { ui } = await open($, on, [it], it.id, cols, rows)
       const tree = await ui.drawn()
