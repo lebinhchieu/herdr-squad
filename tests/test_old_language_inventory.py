@@ -14,6 +14,7 @@ CONVERTER = "converter input or old-format rejection (names the old key to point
 ALLOW = {
     "bin/squad-respawn": (2, "pinned-runtime comment and refusal text (D7)"),
     "bin/squad-spawn": (2, "pinned-runtime comment and refusal text (D7)"),
+    "bin/squad-usage-hook": (1, "false positive: jq stamp key `size` (transcript byte size)"),
     "bin/squadcompose.py": (4, CONVERTER),
     "bin/squadinbox.py": (1, "false positive: os.stat st_size"),
     "bin/squadreport.py": (3, "report display of legacy rows"),
