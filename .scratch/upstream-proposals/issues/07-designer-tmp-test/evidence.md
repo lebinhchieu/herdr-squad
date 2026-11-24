@@ -14,7 +14,7 @@ sha: 4945bca
 
 | AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |
 |---|---|---|---|
-| AC1-AC5 | `python3 -m unittest test_templates` OK 8; AC2 scratch copy fails on extra allow; lint 0 | `cd tests; python3 -m unittest test_templates`; scratch copy of 4945bca with `Write(//etc/**)` added to designer.json, rerun test_templates; `git diff --stat 39039b3 4945bca`; `python3 -m unittest test_squadsettings test_architect_handoff test_team_lead_perms` plus the `grep -l designer tests/test_*.py` hits; `python3 bin/squad-process lint` | |
+| AC1-AC5 | `python3 -m unittest test_templates` OK 8; AC2 scratch copy fails on extra allow; lint 0 | `cd tests; python3 -m unittest test_templates`; scratch copy of 4945bca with `Write(//etc/**)` added to designer.json, rerun test_templates; `git diff --stat 39039b3 4945bca`; `python3 -m unittest test_squadsettings test_architect_handoff test_team_lead_perms` plus the `grep -l designer tests/test_*.py` hits; `python3 bin/squad-process lint` |  `cd tests; python3 -m unittest test_templates` (8 OK); `git diff 39039b3 HEAD --stat` (no `templates/` or `bin/` file); `python3 bin/squad-process lint` (exit 0); AC2 read from the Developer's quoted failure, not re-run |
 
 ## Review, QA whitebox
 
