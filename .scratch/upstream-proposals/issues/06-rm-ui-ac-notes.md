@@ -17,7 +17,7 @@ This is the last ticket that touches plugin files: bump the plugin version, add 
 ## AC
 
 - AC1: SAFE-11 attaches to all roles and no longer says "cd out before rm".
-- AC2: `grep -rn '<old version>' .claude-plugin templates skills` finds nothing.
+- AC2 (as reworded by the Tech Lead, tl-design section 6): `.claude-plugin/plugin.json` says 0.10.11, and the only hits of `0.10.10` under `.claude-plugin templates skills` are inside changelog entries older than v29.
 - AC3: `python3 bin/squad-process lint` exits 0.
 - AC4: run the targeted tests: `grep -rl` over `tests/` for each changed rule ID and string (CLAUDE.md, Running tests).
 
