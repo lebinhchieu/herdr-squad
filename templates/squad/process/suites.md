@@ -115,17 +115,32 @@ topic: suites
 Read the receipt QA whitebox saved when it covers the sha (same sha, clean, OK). With none, check the targeted tests and the diff; you never run the suite.
 
 ## SUITE-7 Base failures file
-roles: tech-lead, qa-whitebox
+roles: tech-lead
+when: suite-owner = tech-lead
 topic: suites
 
-The suite owner (the `suite-owner` in your `duties:` line) keeps `$SQUAD_DIR/base-failures.md`, one row per test name, append only. Columns: test name, sha it fails on, one-line cause, first scope that saw it, fix ticket or the PO's keep. Create it on the first row. A Developer who is the owner reads this rule with `squad-process rule SUITE-7`.
+You keep `$SQUAD_DIR/base-failures.md`, one row per test name, append only. Columns: test name, sha it fails on, one-line cause, first scope that saw it, fix ticket or the PO's keep. Create it on the first row.
+
+## SUITE-7e Base failures file, QA whitebox
+roles: qa-whitebox
+when: suite-owner = qa-white
+topic: suites
+
+You keep `$SQUAD_DIR/base-failures.md`, one row per test name, append only. Each row holds the test name, the sha it fails on, a one-line cause, the first scope that saw it, and the fix ticket or the PO's keep. Create it on the first row.
+
+## SUITE-7f Base failures file, Developer
+roles: dev
+when: suite-owner = dev
+topic: suites
+
+You keep `$SQUAD_DIR/base-failures.md` as [SUITE-7] says; read it with `squad-process rule SUITE-7`.
 
 ## SUITE-7b Base check before the first spawn
 roles: tech-lead, qa-whitebox
 aware: team-lead
 topic: suites
 
-Before a task's first spawn, run its grep and test AC on the base sha. An AC that cannot pass there is fixed in the ticket first. A test that fails on base becomes a row of [SUITE-7].
+If you keep the base-failures file ([SUITE-7]), before a task's first spawn, run its grep and test AC on the base sha. An AC that cannot pass there is fixed in the ticket first. A test that fails on base becomes a row of [SUITE-7].
 
 ## SUITE-7c Failing test, look it up
 roles: dev, qa-whitebox, qa-blackbox

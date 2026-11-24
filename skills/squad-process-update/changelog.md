@@ -4,7 +4,7 @@ Plugin 0.10.11. Upstream proposals from the guardian, board and plugin squads be
 
 changed:
 - COST-16 (01): a Developer reads its usage row at each commit. why: it replaces the usage ops of board SQ-5 and plugin SQ-3c and SQ-3d.
-- SUITE-7, 7b, 7c, 7d and a FILE-6 row (02): `$SQUAD_DIR/base-failures.md` lists tests that fail on their base sha; the suite owner keeps it. why: the same failing test was proven again in scope after scope (replaces plugin SQ-15, SQ-17).
+- SUITE-7, 7b, 7c, 7d, 7e, 7f and a FILE-6 row (02): `$SQUAD_DIR/base-failures.md` lists tests that fail on their base sha; the suite owner keeps it. why: the same failing test was proven again in scope after scope (replaces plugin SQ-15, SQ-17).
 - LC-20f, EVID-2b, EVID-2d, LC-20b (03): the Team Lead keeps the Developer until `squad-evidence check` exits 0. why: replaces plugin SQ-20 and the EVID-2d op.
 - GOAL-6a/6d/6e/6f, MRG-6, MRG-6b (04): integration only for related branches; a merge after main moved compares files first. `bin/squadmergecheck.py` text points at them. why: replaces plugin SQ-6, SQ-6b, SQ-7, SQ-7b.
 - LC-14, LC-28, START-18, SPAWN-9 (05): a task waits for an open PO ask; the pin check at start; both QAs spawn before the first Developer. why: replaces plugin SQ-1, SQ-8, SQ-21, SQ-22.

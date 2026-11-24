@@ -15,7 +15,9 @@ from rulesview import ROOT, ROLES, run, shape_team, who
 # ticket 09 (check table rule); the Developer gets no rule index, so ticket 10 does not lower this
 # upstream-proposals 06: the measured worst case over every team set (designer and architect sets included) is 6858 B
 # (tech-lead+designer+architect, goal yes, qa light), plus 92 B. Growth of the worst no-designer team: 01 313 B, 02 286 B, 06 265 B.
-LIMIT = 6950
+# upstream-proposals 08: SUITE-7f gives a Developer who owns base-failures.md its rule. The measured worst case is 7002 B
+# (team-lead+qa-black+designer+architect, goal yes, qa light), plus 48 B.
+LIMIT = 7050
 NOW = "2026-10-22T10:00:00Z"
 KEYS = ("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect")
 TEAMS = [tuple(k for i, k in enumerate(KEYS) if m >> i & 1) for m in range(128)]
