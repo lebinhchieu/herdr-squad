@@ -246,6 +246,12 @@ class OrphanFreshTest(UsageBase):
         self.assertEqual(self.run_cli("--check", "s1").stdout, "fresh\n")
         self.assertEqual(self.run_cli("--check-detail", "s1").stdout, "fresh\t100002\t70002\t2\n")
 
+    def test_check_detail_prints_none_with_the_numbers_when_no_rule_fires(self):  # ticket 09: the hook's stamp
+        self.transcript("s1", [turn(0, "a", ctx=(2, 0, 20_000), tool="Write", base=NOW), turn(1, "b", ctx=(2, 20_000, 10_000), base=NOW)])
+        self.assertEqual(self.run_cli("--check", "s1").stdout, "")
+        self.assertEqual(self.run_cli("--check-detail", "s1").stdout, "none\t30002\t70002\t2\n")
+        self.assertEqual(self.run_cli("--check-detail", "missing").stdout, "")
+
 
 class UndercountTest(UsageBase):
     """AT-05: subagents, every session of an agent, symlinked config dirs."""

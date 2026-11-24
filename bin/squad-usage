@@ -5,7 +5,7 @@
   squad-usage --sessions NAME                   per-session list of an agent: peak ctx, start, 1st act, act turn, turns, last turn (oldest first)
   squad-usage --check SESSION [--transcript F]  print `fresh` when the session is past its respawn line, or nothing
   squad-usage --check-detail SESSION [--transcript F]
-                                                like --check; `fresh` is followed by TAB ctx TAB line TAB turns (what the Stop hook logs)
+                                                like --check, with TAB ctx TAB line TAB turns after the word; prints `none` there when no rule fires (the usage hook's stamp)
   squad-usage --get NAME                        print "role<TAB>scope<TAB>session" of a roster row
   squad-usage --set-session NAME SESSION [--role R --scope S]
                                                 record a session id in roster.md (adds the column)
@@ -313,6 +313,8 @@ def main():
         rule = check(s) if s else None
         if rule:
             print(f"{rule}\t{s['last']}\t{respawn_line(s)}\t{s['turns']}" if a.check_detail else rule)
+        elif s and a.check_detail:  # no rule: "none" keeps the tab fields in place (the hook's stamp wants ctx and line)
+            print(f"none\t{s['last']}\t{respawn_line(s)}\t{s['turns']}")
         return
     if not squad_dir:
         sys.exit("set SQUAD_DIR or pass --squad-dir")
