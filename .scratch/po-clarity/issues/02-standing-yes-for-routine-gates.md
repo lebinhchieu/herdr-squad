@@ -3,6 +3,8 @@
 Status: ready-for-agent
 
 Spec: `.scratch/po-clarity/spec.md`
+Duties: Design and technical AC: `$SCOPE_DIR/tasks/02-design-notes.md` (Tech Lead) with `$SCOPE_DIR/tasks/qaw-technical-ac.md` (QA whitebox, 02 and common lines). Write rule ITER-19 and edit every place the notes list; no version bump; lint exit 0; run the test files the notes list plus the SQ-10 trio; write `evidence.md`; HANDIN to both QAs.
+Files: `$SCOPE_DIR/tasks/02-design-notes.md`, `templates/squad/process/iterations.md`, `templates/squad/process/closing.md`, `templates/squad/process/suites.md`, `templates/squad/process/goal.md`, `CLAUDE.md`, `tests/test_rules_wording.py`, `skills/squad-process-update/changelog.md`
 
 ## Problem
 
