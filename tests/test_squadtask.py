@@ -320,6 +320,39 @@ class NoQaEvidence(Base):
         self.assertTrue(any("W9 evidence check failed: not checked" in x for x in w))
         self.assertNotIn("pass", [x["ev"] for x in self.events()])
 
+    def test_gate_refuses_a_handin_whose_evidence_check_fails(self):  # EVID-0: the 13 evidence-only returns
+        bad = self.commit("![a](img/gone.png)\n", image=False)
+        why = squadtask.handin_gate(self.home, "HANDIN 01: branch squad/sq/s1/dev, commit %s" % bad)
+        self.assertIn("refused [EVID-0]", why)
+        self.assertIn("gone.png", why)
+        good = self.commit("![a](img/a.png)\n")
+        self.assertIsNone(squadtask.handin_gate(self.home, "HANDIN 01: branch squad/sq/s1/dev, commit %s" % good))
+
+    def test_gate_lets_a_check_that_could_not_run_through(self):  # never wedge a Developer on tooling
+        old = self.commit("![a](img/gone.png)\n", image=False)
+        self.commit("![a](img/a.png)\n")
+        self.assertIsNone(squadtask.handin_gate(self.home, "HANDIN 01: branch squad/sq/s1/dev, commit %s" % old))
+
+    def test_gate_checks_an_evidence_handin_against_the_code_sha(self):  # --base: a change outside the evidence folder
+        code = self.commit("![a](img/a.png)\n")
+        self.handin(code)
+        (self.wt / "stray.txt").write_text("x", encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "e")
+        ev = self.git("rev-parse", "HEAD")
+        why = squadtask.handin_gate(self.home, "HANDIN 01: branch squad/sq/s1/dev, evidence sha %s" % ev)
+        self.assertIn("refused [EVID-0]", why)
+
+    def test_gate_hook_denies_the_send_message(self):
+        bad = self.commit("![a](img/gone.png)\n", image=False)
+        payload = {"tool_name": "SendMessage", "tool_input": {"to": "qaw", "message": "HANDIN 01: branch squad/sq/s1/dev, commit %s" % bad}}
+        code = "import squadtask,runpy,sys; squadtask.squadtickets._repo_of=lambda h: __import__('pathlib').Path(%r); " \
+               "sys.argv=['g']; runpy.run_path(%r, run_name='__main__')" % (str(self.repo), str(BIN / "squad-handin-gate"))
+        r = subprocess.run([sys.executable, "-c", code], input=json.dumps(payload), capture_output=True, text=True,
+                           env=dict(os.environ, SCOPE_DIR=str(self.home), PYTHONPATH=str(BIN)), cwd=str(self.wt))
+        out = json.loads(r.stdout)["hookSpecificOutput"]
+        self.assertEqual((out["hookEventName"], out["permissionDecision"]), ("PreToolUse", "deny"))
+
     def test_override_and_tip_moves_check_again(self):  # W6, AC20 (the board derives `sha changed`; the next HANDIN re-checks)
         self.handin(self.commit("![a](img/gone.png)\n", image=False))
         _, w = self.rec("01", "pass", by="mgr", slot="override")

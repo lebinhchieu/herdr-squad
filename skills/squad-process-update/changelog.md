@@ -1,3 +1,14 @@
+## v30 — 2026-11-24
+
+Plugin 0.10.12. A HANDIN whose evidence check fails is refused before it is sent (ADR 0034).
+
+changed:
+- `bin/squad-handin-gate` and `hooks/hooks.json`: a PreToolUse hook on SendMessage runs `squad-evidence check` before every `HANDIN` (`--base` the code sha on an `evidence sha` one) and denies it on a failure; a check that cannot run lets it through. why: 13 of 119 returns were evidence-only, the code was fine.
+- `bin/squadtask.py`: `evidence_check` takes `base`; new `handin_gate`. why: the gate and the no-QA W9 path share one check.
+- EVID-0 new (reviewers): no `FAIL` for a failing evidence check. LC-27: the HANDIN gate is the one blocking gate. why: the gate makes those returns impossible; two reviewers returned the same finding twice.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.10.12; `/squad:squad-process-update` for EVID-0 and LC-27. Running agents get the hook at their next session start. Rollback: revert the merge, plugin back to 0.10.11.
+
 ## v29 — 2026-11-24
 
 Plugin 0.10.11. Upstream proposals from the guardian, board and plugin squads become plugin rules (tickets 01-06).

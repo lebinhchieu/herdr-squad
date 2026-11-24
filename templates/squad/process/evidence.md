@@ -7,6 +7,13 @@ topic: evidence
 
 Evidence lives next to the ticket in `evidence.md`: folder = ticket path minus `.md`, so `issues/05-x.md` → `issues/05-x/evidence.md` (a project without ticket files: `tasks/<id>/evidence.md`); an old `<stem>.evidence/` folder is still read. Embed screenshots as `![alt](img/<file>)`; a screenshot only named or linked is not evidence.
 
+## EVID-0 The HANDIN gate
+roles: tech-lead, qa-whitebox, qa-blackbox
+aware: team-lead
+topic: evidence
+
+A hook runs `squad-evidence check` before each `HANDIN` is sent (`--base` the code sha on an `evidence sha` one) and refuses it on a failure. A hand-in that reached you passed it, or the check could not run. Send no `FAIL` for a failing evidence check; note it in your `PASS`.
+
 ## EVID-2a Behaviour
 roles: dev
 when: handin-target = qas
