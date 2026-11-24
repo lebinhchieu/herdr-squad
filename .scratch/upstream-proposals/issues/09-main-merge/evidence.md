@@ -1,5 +1,5 @@
 # Evidence: 09 09 Merge main into the 08 branch (SQ-7b)
-
+sha: 668fa15
 ## Checks
 
 | AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |
@@ -28,3 +28,9 @@ Verdict: PASS.
 
 #### Follow-up (not FAIL)
 - Follow-up entry says a follow-up is "batched by the Team Lead into one last, droppable ticket (LC-22b)". LC-22b has `when: qa = light`, so the batching holds only in light mode; the sentence after it names light mode, but the first one reads as general.
+
+## QA whitebox, task 09, re-verdict sha 668fa15
+
+### Re-verdict cell, sha 668fa15 (Team Lead ASK 09)
+
+PASS on 668fa15: `git diff --name-status 4e7d547 668fa15` lists only `.scratch/upstream-proposals/issues/09-main-merge.md` and `.../09-main-merge/evidence.md` (both added), `git diff --check` clean, 4e7d547 is its parent. No code, rule or `CONTEXT.md` change since my PASS on 4e7d547.
