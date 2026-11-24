@@ -11,16 +11,21 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadio  # noqa: E402
+import squadsession  # noqa: E402
 
 
 def main():
     squadio.utf8_stdio()
     try:
-        sid = str(json.load(sys.stdin).get("session_id") or "").strip()
+        payload = json.load(sys.stdin)
+        sid = str(payload.get("session_id") or "").strip()
     except (ValueError, AttributeError, OSError):
         return
-    home = os.environ.get("SCOPE_DIR") or os.environ.get("GOAL_DIR") or os.environ.get("SQUAD_DIR")
-    name = os.environ.get("SQUAD_NAME")
+    env = os.environ
+    if not (env.get("SQUAD_NAME") and (env.get("SCOPE_DIR") or env.get("GOAL_DIR") or env.get("SQUAD_DIR"))):
+        env = squadsession.fill(env, payload)  # a resumed session: the roster row of its session id
+    home = env.get("SCOPE_DIR") or env.get("GOAL_DIR") or env.get("SQUAD_DIR")
+    name = env.get("SQUAD_NAME")
     if not (sid and home and name):
         return
     roles = Path(home).resolve() / "roles"
