@@ -147,7 +147,7 @@ class RunningDemo(unittest.TestCase):
                 routes_here = [r for r in routes if r != "/api/scopes"]
             else:
                 routes_here = routes
-            self.assertEqual(len(routes_here), 6 if view.startswith("goal") else 5, view)
+            self.assertEqual(len(routes_here), 7 if view.startswith("goal") else 6, view)
             for r in routes_here:
                 o = self.api(r, view)
                 self.assertEqual(o["unknown"], [], (view, r))
@@ -156,7 +156,7 @@ class RunningDemo(unittest.TestCase):
                 n = {"/api/inbox": lambda: len(d["rows"]) + len((d["banner"] or {}).get("entries") or []),
                      "/api/tasks": lambda: len(d["rows"]), "/api/agents": lambda: len(d["agents"]),
                      "/api/files": lambda: len(d["rows"]), "/api/worktime": lambda: len(d["agents"]),
-                     "/api/scopes": lambda: len(d["scopes"])}[r]()
+                     "/api/scopes": lambda: len(d["scopes"]), "/api/plan": lambda: len(d["rows"])}[r]()
                 self.assertGreater(n, 0, (view, r))
             inbox = self.api("/api/inbox", view)["data"]
             self.assertTrue(inbox["rows"] and inbox["banner"]["entries"], view)  # an open question and a blocked agent
@@ -366,7 +366,7 @@ class Browser(unittest.TestCase):
             second = browser("check", port, profile)
         finally:
             self.stop(p)
-        self.assertEqual(sorted(second["panels"]), sorted(["inbox", "scopes", "tasks", "agents", "files", "worktime"]), second)
+        self.assertEqual(sorted(second["panels"]), sorted(["inbox", "scopes", "tasks", "agents", "plan", "files", "worktime"]), second)
         self.assertEqual(second["keys"], [])
 
     def test_T37_AC11_no_age_in_days_in_the_rendered_demo(self):

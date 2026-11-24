@@ -1178,8 +1178,6 @@ out({res,fits:P({left:100,bottom:40},{w:200,h:100},{w:1440,h:900}),right:P({left
         self.assertGreaterEqual(r["neg"]["left"], 8)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 @unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
@@ -1365,3 +1363,61 @@ out({n:wf.length,links:wf.map(w=>{const a=w.querySelector('a');return a&&{h:a.ge
             self.assertTrue(x["h"].startswith("vscode://vscode-remote/wsl+Ubuntu/"), x)   # TA11: href is vscodeUrl(abs, distro)
             self.assertEqual(x["tg"], "")
             self.assertIn("opens in VS Code", x["t"])
+
+
+HEAD04 = HEAD.replace('<script src="file://%(tpl)s/panel_scopes.js"></script>',
+                      '<script src="file://%(tpl)s/panel_scopes.js"></script><script src="file://%(tpl)s/panel_plan.js"></script>', 1)
+PRE04 = r"""
+const P=BOARD.panels.find(p=>p.id==='plan');
+const mount=()=>{document.getElementById('app').innerHTML='<div class=panel><div class=ph><h2>Plan</h2></div><div class=pb></div></div>';return $('.pb')};
+const draw=(d,b)=>{b=b||mount();P.render(b,d,{setCount(){}});return b};
+const row=(id,o)=>Object.assign({id:id,title:'T'+id,aim:'aim '+id,est_min:60,spent_min:null,deps:[],unknown_deps:[],state:'ready',step:1,passed:false,loop:false},o||{});
+"""
+
+
+@unittest.skipUnless(CHROME, "no Chrome/Chromium on this machine: browser test skipped")
+class Plan04(unittest.TestCase):
+    """Ticket 04: the plan panel (AC1, AC3, AC4, T04-6)."""
+    def page(self, body):
+        return run_page(PRE04 + body, {"squads": {}, "scopes": {}, "checks": {}}, "", HEAD04)
+
+    def test_T04_AC1_steps_with_deps_arrows(self):
+        r = self.page(r"""const b=draw({kind:'scope',name:'s',aim:'Ship it',rows:[row('01'),row('02',{step:2,deps:['01']}),row('03',{step:3,deps:['01','02']})]});
+out({steps:$$('.pl-step').map(x=>x.textContent),deps:$$('.pl-dp').map(x=>x.textContent)});""")
+        self.assertEqual(len(r["steps"]), 3)
+        self.assertEqual(r["steps"][0], "STEP 1 · can start now")
+        self.assertEqual(r["deps"][1], "← 01")
+        self.assertEqual(r["deps"][2], "← 01, 02")
+
+    def test_T04_AC3_over_estimate_boundary_shows_both_numbers(self):
+        r = self.page(r"""const q=s=>{const b=draw({kind:'scope',name:'s',aim:'a',rows:[row('01',{spent_min:s})]});return [b.textContent.indexOf('over estimate')>=0,(b.querySelector('.pl-sp')||{}).textContent||'']};
+out({at:q(90),over:q(91)});""")
+        self.assertFalse(r["at"][0])
+        self.assertTrue(r["over"][0])
+        self.assertIn("est 1h", r["over"][1])
+        self.assertIn("spent 1h 31m", r["over"][1])
+
+    def test_T04_AC4_missing_aim_and_estimate_dash_and_loop_chip(self):
+        r = self.page(r"""const b=draw({kind:'scope',name:'s',aim:'',rows:[row('01',{aim:'',est_min:null}),row('02',{loop:true})]});
+out({est:$$('.pl-est')[0].textContent,aim:$$('td.pl-a')[0].textContent,chips:$$('.pl-st .chip').map(x=>x.textContent),step:$$('.pl-step').map(x=>x.textContent)});""")
+        self.assertEqual(r["est"], "–")
+        self.assertEqual(r["aim"], "–")
+        self.assertIn("loop", r["chips"])
+        self.assertTrue(r["step"][-1].startswith("STEP ? · loop"))
+
+    def test_T04_T6_markup_in_aim_title_waits_stays_text_and_fold_and_goal_waits(self):
+        r = self.page(r"""const X='<scr'+'ipt>window.hit=1</scr'+'ipt>';
+let b=draw({kind:'scope',name:'s',aim:X,rows:[row('01',{title:X,aim:X,waits:X,passed:true,state:'passed'}),row('02',{step:2,deps:['01']})]});
+const o={scripts:$$('.pl script').length,hit:!!window.hit,txt:b.textContent.indexOf(X.slice(0,8))>=0,folded:$$('.pl-step.fold').length,rows:$$('tr.pl-r').length};
+b=draw({kind:'goal',name:'g',aim:'a',rows:[row('a1',{waits:'Chieu answer'})]});
+o.wait=$$('.chip.wait').map(x=>x.textContent);out(o);""")
+        self.assertEqual(r["scripts"], 0)
+        self.assertFalse(r["hit"])
+        self.assertTrue(r["txt"])
+        self.assertEqual(r["folded"], 1)
+        self.assertEqual(r["rows"], 1)  # the passed step is folded: only task 02 shows
+        self.assertEqual(r["wait"], ["waits: Chieu answer"])
+
+
+if __name__ == "__main__":
+    unittest.main()

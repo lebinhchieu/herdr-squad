@@ -341,5 +341,16 @@ class StartPrintsTest(unittest.TestCase):
         self.assertNotIn('"squad-board"', src)  # printed as text only, never spawned (tests/test_squad_start.py checks the line)
 
 
+class PlanRouteTest(Base):
+    def test_T04_AC6_plan_route_checks_host_and_has_no_write_route(self):
+        routes, errs = squadboard.load_routes()
+        self.assertEqual(errs, [])
+        srv, base = self.serve(routes=routes)
+        url = base + "/api/plan?squad=t&scope=alpha"
+        self.assertEqual(get(url)[0], 200)
+        self.assertEqual(get(url, host="evil.example:%d" % srv.port)[0], 403)
+        self.assertNotIn("/api/plan", squadboard._collect_put_routes(routes))
+
+
 if __name__ == "__main__":
     unittest.main()
