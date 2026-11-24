@@ -14,6 +14,8 @@ import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
+from squadids import bare_ids
+
 try:
     import fcntl
 except ImportError:  # Windows: the lock is msvcrt.locking
@@ -588,6 +590,10 @@ def cmd_add(home, args):
     if not body.strip():
         raise Refused("an item needs a body (--body-file or stdin)")
     body = body.rstrip("\n")
+    bare = bare_ids(title + "\n" + body)
+    if bare:
+        raise Refused('bare IDs: %s\n  gloss each on first use, e.g. "%s (what it is)", or put a non-ID in `backticks`'
+                      % (", ".join(bare), bare[0]))
     if args.kind == "read":
         if args.options or args.rec:
             raise Refused("--options and --rec are for answer items")

@@ -3,6 +3,10 @@
 Status: ready-for-agent
 
 Spec: `.scratch/po-clarity/spec.md`
+Duties: Design and technical AC: `$SCOPE_DIR/tasks/03-design-notes.md` (Tech Lead) with `$SCOPE_DIR/tasks/qaw-technical-ac.md` (QA whitebox, 03 and common lines). Build `bin/squadids.py`, the `cmd_add` refusal, the guide rule with its Why line; fix failing fixtures, never the check; run the test files the notes list plus the SQ-10 trio; write `evidence.md`; HANDIN to both QAs.
+Files: `$SCOPE_DIR/tasks/03-design-notes.md`, `$SCOPE_DIR/tasks/03-idcheck-prototype.py`, `bin/squadinbox.py`, `bin/squadids.py`, `docs/inbox-body-guide.md`, `tests/test_squadinbox.py`, `tests/test_inbox_body_guide.py`
+Duties: Design and technical AC: `$SCOPE_DIR/tasks/03-design-notes.md` (Tech Lead) with `$SCOPE_DIR/tasks/qaw-technical-ac.md` (QA whitebox, 03 and common lines). Build `bin/squadids.py`, the `cmd_add` refusal, the guide rule with its Why line; fix failing fixtures, never the check; run the test files the notes list plus the SQ-10 trio; write `evidence.md`; HANDIN to both QAs.
+Files: `$SCOPE_DIR/tasks/03-design-notes.md`, `$SCOPE_DIR/tasks/03-idcheck-prototype.py`, `bin/squadinbox.py`, `bin/squadids.py`, `docs/inbox-body-guide.md`, `tests/test_squadinbox.py`, `tests/test_inbox_body_guide.py`
 
 ## Problem
 

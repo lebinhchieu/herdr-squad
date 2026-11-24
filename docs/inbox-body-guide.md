@@ -58,6 +58,8 @@ Anything the pane does not know stays as plain text. No word is ever lost.
   - Why: some terminals show no colour.
 - Use a heading only when the body is longer than 15 lines.
   - Why: a heading costs a row, and rows are few.
+- Gloss every ID (`D42`, `O10`, `LC-14`) the first time it appears, on the same line: `D42 (EDI columns kept)` or `D42 = EDI columns kept`. `squad-inbox add` refuses a bare ID. Put a non-ID such as `UTF8` in `backticks`.
+  - Why: the PO does not remember what a code stands for, and looking it up costs more than the few words.
 - Put local paths and commands in `` `code` ``. Do not align text with spaces outside a table or a diagram.
   - Why: code keeps its exact characters, and text lined up with spaces breaks when a line wraps.
 - Colour comes only from the tags. Use `[ok]` and `[fail]` for facts, not for decoration. Use at most 4 tag kinds in one diagram.
