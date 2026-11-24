@@ -33,7 +33,7 @@ def _can_symlink():
 
 
 CAN_SYMLINK = _can_symlink()
-KEYS = {"id", "kind", "state", "title", "body", "options", "options_raw", "recommendation", "blocks", "created", "created_precision", "answer", "done", "flags"}
+KEYS = {"id", "kind", "state", "title", "body", "options", "options_raw", "recommendation", "blocks", "plan", "created", "created_precision", "answer", "done", "flags"}
 
 
 def env(role="manager", **extra):
