@@ -264,6 +264,25 @@ class TicketMerge(unittest.TestCase):
         self.assertEqual(sorted(self.tasks(git=False)), ["01", "02", "05"])
         self.assertEqual(sorted(self.tasks()), ["01", "02", "03", "05"])
 
+    def test_T01_3b_budget_spent_mid_phase_stops_git_show_and_keeps_main_rows(self):
+        for n in (3, 4, 6):
+            self.branch("squad/s/foo/dev-0%d" % n, {".scratch/foo/issues/0%d-x.md" % n: "# 0%d X\n" % n}, self.clock + n)
+        self.put(".claude/squads/s/scopes/foo/tasks/07-ticket.md", "# 07 Draft\n")
+        self.assertEqual(sorted(self.tasks()), ["01", "02", "03", "04", "05", "06", "07"])   # warms heads, bases, trees
+        sti._BLOBS.clear()
+        now, shows = [0.0], []
+        real = sbg._git
+
+        def counted(repo, *a, **k):
+            if a[0] == "show":
+                shows.append(a)
+                now[0] += 100   # the first slow `git show` spends the budget
+            return real(repo, *a, **k)
+        with mock.patch.object(sbg, "_git", counted), mock.patch.object(sti.time, "monotonic", lambda: now[0]):
+            got = {t["id"]: t["origin"] for t in sti.scope_tasks(self.home, self.root, "foo")["tasks"]}
+        self.assertEqual(len(shows), 1)   # three uncached blobs, one read, then none
+        self.assertEqual({k: v for k, v in got.items() if v != "branch"}, {"01": "main", "02": "main", "05": "main", "07": "draft"})
+
     def test_T01_4_helpers_refuse_anything_but_a_40_hex_sha(self):
         for bad in ("main", "--output=x", "HEAD", "abc", "g" * 40, None):
             self.assertIsNone(sbg.ls_tree_blobs(self.root, bad, ".scratch/foo/issues"))
