@@ -1,0 +1,12 @@
+# Evidence: 06 Small edits: rm, UI AC, notes pointers
+
+## Behaviour
+- SQ-6b merge: branches merged by passed sha into this worktree; `git merge-base --is-ancestor <sha> HEAD` is true for 6d132da (01), 9fcfd1a (03), a728476 (04), d4a022c (02, on branch -04), 9306e09 (05, on branch -03). One conflict, the `LIMIT` line of `tests/test_dev_rules_size.py` (01 vs 02); resolved, then set finally by 06.
+- AC1: SAFE-11 and SAFE-11b are `roles: all`; `test_scratch_rule_reaches_every_role_without_cd_out` composes every role: both rules present, each at most 60 words, "anywhere under `/tmp`" kept, no "out before". `test_safe11_rm_examples_match_allow_and_no_ask` (the `$` assertion dropped: the mktemp form has `$D`) passes. The example is `rm /tmp/<dir>/<file>`, not `rm -f`: the settings allow `rm`, `rm -r`, `rm -rf`, `rmdir` under `/tmp/*` only.
+- AC2: `grep -rn '0.10.10' .claude-plugin templates skills` hits only changelog lines 20 and 29 (the v28 entry); `plugin.json` says 0.10.11. Changelog v29 covers 01-06 with what/why, Deploy, Rollback.
+- AC3: `python3 bin/squad-process lint` exit 0 (REV-8 is 60 words or fewer).
+- LIMIT (tl-design section 4): measured worst case over every team set, designer and architect sets included: 6858 B (tech-lead, designer, architect, goal yes, qa light). LIMIT = 6950 (+92, cap +120). Worst no-designer team 5473 (base) -> 6354; growth by ticket: 01 313, 02 286, 06 265 B (budget 500); the rest is 03-05. `test_every_team_set_fits_the_limit` passes in full.
+- AC4 + SQ-10: test_windows_safe 14, test_utf8_helpers 14, test_instructions 16, test_sizes 8, test_small_files_equivalence 2, test_squadcompose 44, test_squadsettings 25, test_dev_rules_size 9, test_squad_merge_check 9: all OK. test_qab_optional passes with SQUAD_DIR unset; with this session's SQUAD_DIR it fails 1 (`who SIZE-8b` stops: "EVID-2d: overlay written for @ecb878fe, plugin now @8983d961", the plugin squad's stale EVID-2d overlay from 03; expected until re-pin, not a regression).
+- `upgrade --check` against the plugin squad: stops at `EVID-2d stale` (03); `review` lists SQ-3c (COST-16), SQ-4/SQ-10 and REV-8, SQ-20 and the EVID rules. Replacements are in each ticket's Comments (01-06).
+- `base-failures.md` does not exist yet (no Tech Lead has written it); the "fixed by 06" row is the Tech Lead's to add (SAFE-4, SUITE-7). Not done by me.
+- No full suite run (not asked).

@@ -62,7 +62,13 @@ topic: safety
 Do not read source code, diffs or the Developer's explanation of how it works; no setting enforces this. You judge behaviour, so the code must not shape your expectations.
 
 ## SAFE-11 Scratch directories
-roles: dev, qa-whitebox, qa-blackbox
+roles: all
 topic: safety
 
-Scratch: anywhere under `/tmp`. `cd` out before `rm`. One path per `rm`: `rm -rf /tmp/X`; repeat per dir.
+Scratch: anywhere under `/tmp`. `rm` there takes only a literal absolute path: `rm /tmp/<dir>/<file>`, or `rm -rf "$D"` after `D=$(mktemp -d)`.
+
+## SAFE-11b Run rm alone
+roles: all
+topic: safety
+
+Run `rm` alone: no `cd`, `&&` or `;` in that command, and no glob, relative path or `$(...)` target. Why: Claude Code's dangerous-rm check fires on these, and no permission rule can allow it.

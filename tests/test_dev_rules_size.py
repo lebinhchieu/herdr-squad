@@ -13,8 +13,9 @@ sys.path.insert(0, str(BIN))
 from rulesview import ROOT, ROLES, run, shape_team, who
 
 # ticket 09 (check table rule); the Developer gets no rule index, so ticket 10 does not lower this
-# upstream-proposals 01: +313 B (COST-16), 02: +286 B (SUITE-7c); merged, final value set in 06
-LIMIT = 5580 + 313 + 286
+# upstream-proposals 06: the measured worst case over every team set (designer and architect sets included) is 6858 B
+# (tech-lead+designer+architect, goal yes, qa light), plus 92 B. Growth of the worst no-designer team: 01 313 B, 02 286 B, 06 265 B.
+LIMIT = 6950
 NOW = "2026-10-22T10:00:00Z"
 KEYS = ("ba", "team-lead", "tech-lead", "qa-white", "qa-black", "designer", "architect")
 TEAMS = [tuple(k for i, k in enumerate(KEYS) if m >> i & 1) for m in range(128)]
@@ -137,12 +138,14 @@ class DevRulesSize(unittest.TestCase):
                 self.assertIn("squad-process rule <ID>", body)
                 self.assertIn("squad-process who <ID>", body)
 
-    def test_scratch_rule_reaches_dev_and_both_qas_only(self):
-        have = {r for r in ROLES if "Scratch: anywhere under `/tmp`" in compose(r, "M").decode() and "rm -rf /tmp/X" in compose(r, "M").decode()}
-        self.assertEqual(have, {"dev", "qa-whitebox", "qa-blackbox"})
-        self.assertLessEqual(len(section(compose("dev", "M").decode(), "SAFE-11").split()), 45)
-        for r in ("dev", "qa-whitebox", "qa-blackbox"):
-            self.assertIn("`cd` out before `rm`", section(compose(r, "M").decode(), "SAFE-11"))
+    def test_scratch_rule_reaches_every_role_without_cd_out(self):
+        for r in ROLES:
+            t = compose(r, "M").decode()
+            for rid in ("SAFE-11", "SAFE-11b"):
+                with self.subTest(role=r, rule=rid):
+                    self.assertLessEqual(len(section(t, rid).split()), 60)
+            self.assertIn("anywhere under `/tmp`", section(t, "SAFE-11"))
+            self.assertNotIn("out before", section(t, "SAFE-11") + section(t, "SAFE-11b"))
 
     def test_core_file_stays_within_40_lines(self):
         self.assertLessEqual(len((ROOT / "templates/squad/process/core.md").read_text().rstrip("\n").split("\n")), 40)

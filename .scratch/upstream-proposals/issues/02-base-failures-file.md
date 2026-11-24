@@ -35,3 +35,7 @@ The proposals put the check on the Manager and grep `_done/`, which breaks SAFE-
 SQ-10 files (`tests/test_windows_safe.py`, `tests/test_utf8_helpers.py`, `tests/test_instructions.py`) plus the `grep -rl` hits of SUITE-7..7d and `base-failures`.
 
 ## Comments
+
+- Overlay SQ-15 (dry-run the checkable AC on the base sha) is replaced by plugin rule SUITE-7b; its "Known failing on base" line is now a row in `$SQUAD_DIR/base-failures.md` (SUITE-7), looked up by SUITE-7c.
+- Overlay SQ-17 (a repeat base failure gets a ticket) is replaced by SUITE-7d (the Manager raises a row with no fix ticket and no keep at the next check-in; it reads no `_done/`).
+- `upgrade --check` lists both ops as kept (`add`) or `stale`; the squads drop them by hand after re-pin. Filled in by ticket 06 (the ticket's own Comments were empty).

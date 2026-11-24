@@ -4,7 +4,7 @@
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: notes
 
-`roles/<agent>.notes.md` is a snapshot of now, not a log: rewrite on every save, about 80 lines (`Now`, `Open threads`, `Decisions that bind later work`, `Pointers`).
+`roles/<agent>.notes.md` is a snapshot of now, not a log: rewrite on every save, about 80 lines (`Now`, `Open threads`, `Decisions that bind later work`, `Pointers`). `Pointers` holds at most 5 paths, each with a line range or section. After a respawn, read only these before your first reply ([COST-7]).
 
 ## NOTE-2 Notes upkeep
 roles: manager

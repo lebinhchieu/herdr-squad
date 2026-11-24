@@ -203,6 +203,9 @@ _Avoid_: soft respawn
 **Cold cache**:
 A session whose 1h prompt cache has expired; its next turn rewrites the whole context at 2x. The **Watchdog** acts at 55 min idle (see **Idle**), over 50k context.
 
+**Base failures file**:
+`$SQUAD_DIR/base-failures.md`, kept by the suite owner (SUITE-7): one row per test that fails on its base sha, with the sha, a one-line cause, the first scope that saw it, and a fix ticket or the PO's keep. A listed name is run on base once, never again, and is no `FAIL` (SUITE-7c).
+
 **Idle**:
 Two meanings. Of a **Home**: nobody is working while work waits (idle spell, nudges, **Sleep-when-idle**). Of one agent: its last main-thread turn is at least 55 min old (the **Cold cache** pass). The "idle" entries elsewhere in this file are the first meaning or transcript buckets.
 

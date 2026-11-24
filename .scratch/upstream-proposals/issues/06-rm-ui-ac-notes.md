@@ -22,3 +22,9 @@ This is the last ticket that touches plugin files: bump the plugin version, add 
 - AC4: run the targeted tests: `grep -rl` over `tests/` for each changed rule ID and string (CLAUDE.md, Running tests).
 
 ## Comments
+
+- Guardian SQ-35 (scratch `rm`) is replaced by plugin rules SAFE-11 (what `rm` takes) and SAFE-11b (run it alone); both attach to all roles. Example is `rm /tmp/<dir>/<file>` (no `-f`), because the settings allow `rm`, `rm -r`, `rm -rf` and `rmdir` under `/tmp/*` only.
+- Board SQ-8 (UI business AC) is replaced by plugin rule REV-8 (UI clause added; no "retire the BA" sentence, START-5 owns it).
+- Board SQ-9 (notes pointers) is replaced by plugin rule NOTE-1 (`Pointers`, at most 5 paths, read after a respawn, [COST-7]).
+- The squads drop these three ops by hand after re-pin (`upgrade --check` shows them kept or `stale`).
+- AC2 as fixed by the Tech Lead (tl-design section 6): the only `0.10.10` hits under `.claude-plugin templates skills` are inside changelog entries older than v29.
