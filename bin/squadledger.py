@@ -17,6 +17,7 @@ SHA_COMMIT = re.compile(r"(?:commit|sha)[ \t:]+([0-9a-fA-F]{6,40})")
 HEX = re.compile(r"\b[0-9a-f]{6,40}\b")
 EVIDENCE = re.compile(r"evidence[ \t]+sha", re.I)
 BRANCH = re.compile(r"branch[ \t:]+([^\s,]+)")
+VERDICT_HEAD = re.compile(r"\s*(?:PASS|FAIL)[ \t]+\S+?[ \t]*:")
 AC_TOKEN = re.compile(r"\bAC\d+[a-z]?\b")
 CAUSE_MAX = 160
 
@@ -73,19 +74,15 @@ def _canon(sha, known):
 
 def _cause(text):
     """First non-empty line after `FAIL NN:` (or `PASS NN:`), up to CAUSE_MAX characters; "" when none."""
-    rest = text.split(":", 1)[1] if ":" in text.split("\n", 1)[0] else ""
-    for line in rest.split("\n"):
+    m = VERDICT_HEAD.match(text)
+    for line in (text[m.end():] if m else "").split("\n"):
         if line.strip():
             return line.strip()[:CAUSE_MAX]
     return ""
 
 
 def _acs(text):
-    seen = []
-    for m in AC_TOKEN.findall(text):
-        if m not in seen:
-            seen.append(m)
-    return seen
+    return list(dict.fromkeys(AC_TOKEN.findall(text)))
 
 
 def _scan(records):

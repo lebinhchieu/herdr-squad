@@ -72,8 +72,8 @@ class LedgerTest(unittest.TestCase):
 
     def test_task_filter_and_table(self):
         r = self.ledger("--task", "4")
-        lines = r.stdout.splitlines()[:2]  # the table; history lines follow it (test_history_*)
-        self.assertEqual(len(lines), 2)
+        lines = r.stdout.splitlines()
+        self.assertEqual(len(lines), 2 + 3)  # table, then one history line per FAIL of 04
         self.assertRegex(lines[1], r"^04\s+3333333\s+squad/x/dev\s+qab FAIL\s+3\s+1\s+2$")
         self.assertEqual(len(json.loads(self.ledger("--task", "03", "--json").stdout)), 1)
 
@@ -95,9 +95,12 @@ class LedgerTest(unittest.TestCase):
         self.assertEqual(out[2], "  a1a1a1a  tl  FAIL: a1a1a1a misses AC5.  [AC5]")
 
     def test_history_handin_without_checker_keeps_verdicts_null(self):
-        self.write([hi("06", "aaaaaaa"), rec("FAIL", "tl", "dev", "FAIL 06: AC5 wrong"), hi("06", "bbbbbbb")])
+        self.write([hi("06", "aaaaaaa"), rec("FAIL", "tl", "dev", "FAIL 06: AC5 wrong"), hi("06", "bbbbbbb"),
+                    rec("FAIL", "mgr", "dev", "FAIL 06 AC3 see http://x/y"), hi("06", "ccccccc")])
         [row] = json.loads(self.ledger("--task", "06", "--json").stdout)
-        self.assertEqual((row["verdicts"], row["returns"], len(row["history"])), (None, 1, 1))
+        self.assertEqual((row["verdicts"], row["returns"]), (None, 2))
+        self.assertEqual([(e["sha"], e["from"], e["cause"], e["acs"]) for e in row["history"]],
+                         [("aaaaaaa", "tl", "AC5 wrong", ["AC5"]), ("bbbbbbb", "mgr", "", ["AC3"])])
 
     def test_history_of_integration_task(self):
         self.write([rec("FAIL", "tl", "mgr", "FAIL integration: merge of 03 and 04 breaks AC2")])
