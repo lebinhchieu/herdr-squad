@@ -21,7 +21,7 @@ Verdict: PASS.
 #### Checked
 - AC3: `squad-process lint` exit 0.
 - AC1 / agreed design (tl-design §3, qaw-technical-ac T for 05): LC-14 keeps its tech-lead attachment (+1 sentence); LC-28 reaches manager and team-lead only; START-18 step 4 manager only, names `squad-process homes --check`; SPAWN-9 team-lead. Composed dev and QA rules hold none of the four (Developer bytes +0).
-- AC2/AC5: `git diff 5db40ff fc6f3f0 -- templates | grep '^+' | grep -i '_done\|0\.10\|chieu'` empty. "pin 0.10.4" text gone.
+- AC2/AC5: `git diff 5db40ff fc6f3f0 -- templates`, added lines grep for `_done`, `0.10` and the PO's name: empty. "pin 0.10.4" text gone.
 - AC4: `upgrade --check` shows SQ-21 (START-18) and SQ-22 (SPAWN-9) as `review`; ticket Comments name the replacing rule for SQ-1, SQ-8, SQ-21, SQ-22.
 - Pass: test_windows_safe, test_utf8_helpers, test_instructions, test_rules_contract, test_rules_wording, test_small_files_equivalence, test_sizes, test_squadcompose, test_dev_rules_size (155 tests, 1 failure: design team 5692 B > 5580, known on base).
 
@@ -58,7 +58,7 @@ Diff fc6f3f0..9306e09 is one line: `aware: manager` on LC-14. Lint exit 0. Compo
 | AC | Dev: test or capture | QA whitebox: check | QA blackbox: check |
 |---|---|---|---|
 | AC1 | rule headers: LC-14 tech-lead, LC-28 manager+team-lead, START-18 manager, SPAWN-9 team-lead | composed manager, team-lead, tech-lead, dev rules (qa-w.md) | `compose <role>` on a scratch squad dir; LC-14 reaches manager after 9306e09 (qa-b.md) |
-| AC2 | `git diff -U0 -G_done -G0.10` on the added lines: no hit | `git diff 5db40ff fc6f3f0 -- templates | grep '^+' | grep -i '_done\|0\.10\|chieu'` empty | grep the four rules for `_done/` and version text |
+| AC2 | `git diff -U0 -G_done -G0.10` on the added lines: no hit | `git diff 5db40ff fc6f3f0 -- templates`, added lines grep for `_done`, `0.10` and the PO's name: empty | grep the four rules for `_done/` and version text |
 | AC3 | `python3 bin/squad-process lint` exit 0 | `squad-process lint` exit 0 | `squad-process lint` exit 0 |
 | AC4 | `upgrade --check` quoted in evidence.md; Comments list replacements | `upgrade --check`; ticket Comments name the four rules | `upgrade --check`: SQ-21, SQ-22 under review |
 | AC5 | no `Chieu` in added rule text | same grep as AC2, empty | read the ticket Comments |
