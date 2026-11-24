@@ -272,7 +272,7 @@ Before an irreversible design choice, consult the advisor and leave the [LC-25] 
 roles: manager, team-lead, tech-lead, qa-whitebox, qa-blackbox
 topic: lifecycle
 
-- A hook records each ticket's state; only `merged` is done, `passed` is not. Gates warn, never block: fix the cause of a warning.
+- A hook records each ticket's state; only `merged` is done, `passed` is not. Gates warn, never block: fix the cause of a warning. One exception: the HANDIN gate ([EVID-0]) refuses a hand-in whose evidence check fails.
 - `passed` = every QA on the roster sent `PASS` for the current sha. A `PASS` from anyone else warns and is not counted.
 - No QA on the team: the `HANDIN` hook runs `squad-evidence check`. Exit 0 is `passed`; else a warning, and the ticket stays `in progress`.
 - A step the hook missed: `squad-task claim|handin|pass|fail|blocked|merged NN`; `squad-task passed NN` overrides and warns.

@@ -9,6 +9,10 @@
       {
         "matcher": "Bash",
         "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-manager-guard\"" }]
+      },
+      {
+        "matcher": "SendMessage",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/squad-handin-gate\"", "timeout": 30 }]
       }
     ],
     "PostToolUse": [

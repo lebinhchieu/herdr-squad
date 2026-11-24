@@ -1,5 +1,6 @@
 """hooks/hooks.json: valid, existing hooks kept, squad-notify wired for Stop and Notification."""
 import json
+import os
 import unittest
 from pathlib import Path
 
@@ -18,13 +19,18 @@ class HooksJsonTest(unittest.TestCase):
     def test_path_guard_on_the_write_tools_only(self):
         guard = '"${CLAUDE_PLUGIN_ROOT}/bin/squad-path-guard"'
         self.assertEqual(commands("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit"), [(guard, None, None)])
-        self.assertEqual(len(HOOKS["PreToolUse"]), 2)
+        self.assertEqual(len(HOOKS["PreToolUse"]), 3)
         self.assertTrue((Path(__file__).resolve().parent.parent / "bin" / "squad-path-guard").is_file())
 
     def test_manager_guard_on_bash_only(self):
         guard = '"${CLAUDE_PLUGIN_ROOT}/bin/squad-manager-guard"'
         self.assertEqual(commands("PreToolUse", "Bash"), [(guard, None, None)])
         self.assertTrue((Path(__file__).resolve().parent.parent / "bin" / "squad-manager-guard").is_file())
+
+    def test_handin_gate_before_send_message(self):  # EVID-0: the one blocking gate
+        gate = '"${CLAUDE_PLUGIN_ROOT}/bin/squad-handin-gate"'
+        self.assertEqual(commands("PreToolUse", "SendMessage"), [(gate, None, 30)])
+        self.assertTrue(os.access(Path(__file__).resolve().parent.parent / "bin" / "squad-handin-gate", os.X_OK))
 
     def test_notify_on_notification(self):
         self.assertEqual(commands("Notification", "permission_prompt|elicitation_dialog"), [(NOTIFY, True, 5)])

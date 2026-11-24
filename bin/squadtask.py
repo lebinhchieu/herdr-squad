@@ -386,9 +386,10 @@ def _worktree_of(scope_home, branch):
     return Path.cwd()
 
 
-def evidence_check(scope_home, nn, branch, sha):
-    """D9. -> (ok, problem|None). Runs `squad-evidence check <ticket evidence folder>` (no --base) in the Developer's
-    worktree; its HEAD must be the handed-in sha. Never raises; timeout 20 s."""
+def evidence_check(scope_home, nn, branch, sha, base=None):
+    """D9. -> (ok, problem|None). Runs `squad-evidence check <ticket evidence folder>` (with `--base` when given) in the
+    Developer's worktree; its HEAD must be the handed-in sha. Never raises; timeout 20 s. A problem starting with
+    `not checked` or `not run` means the check could not run, not that the evidence is wrong."""
     try:
         wt = _worktree_of(scope_home, branch)
         head = _git_head(wt)
@@ -407,14 +408,44 @@ def evidence_check(scope_home, nn, branch, sha):
         if not folder.is_dir():
             old = Path(str(folder) + ".evidence")
             folder = old if old.is_dir() else folder
-        r = subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "squad-evidence"), "check", str(folder)],
-                           capture_output=True, encoding="utf-8", timeout=20)
+        cmd = [sys.executable, str(Path(__file__).resolve().parent / "squad-evidence"), "check", str(folder)]
+        r = subprocess.run(cmd + (["--base", base] if base else []), capture_output=True, encoding="utf-8", timeout=20)
         if r.returncode == 0:
             return True, None
         lines = [x for x in (r.stdout + r.stderr).splitlines() if x.strip()]
         return False, lines[0] if lines else "exit %d" % r.returncode
     except Exception as exc:  # a hook must never fail
         return False, "not run (%s)" % exc
+
+
+HANDIN_TASK = re.compile(r"^HANDIN[ \t]+([A-Z][A-Z0-9]*-[0-9]+|[0-9]+)(?![A-Za-z0-9-])")
+
+
+def handin_gate(scope_home, text):
+    """EVID-0 (ADR 0034), the PreToolUse gate on SendMessage. -> the refusal reason, or None to let the message go.
+    Refuses a HANDIN only when `squad-evidence check` ran and failed: a code hand-in checks the ticket folder, an
+    `evidence sha` hand-in adds `--base <last handed-in code sha>`. A check that could not run lets the message go."""
+    m = HANDIN_TASK.match(text or "")
+    if not m:
+        return None
+    nn, h = m.group(1), squadledger.parse_handin(text)
+    if not h["sha"]:
+        return None
+    base = None
+    if h["evidence"]:
+        k = squadledger.key(nn)
+        code = [e.get("sha") for e in read_events(squad_dir_of(scope_home), slug_of(scope_home))
+                if e.get("ev") == "handin" and squadledger.key(e.get("task")) == k and e.get("sha")
+                and not _same_sha(e.get("sha"), h["sha"])]
+        if not code:
+            return None
+        base = code[-1]
+    ok, problem = evidence_check(scope_home, nn, h["branch"], h["sha"], base=base)
+    if ok or problem.startswith(("not checked", "not run")):
+        return None
+    return ("HANDIN %s refused [EVID-0]: `squad-evidence check` fails on %s: %s. Fix the evidence, commit, and send "
+            "the HANDIN again with the new sha. If the check itself is wrong, send `BLOCKED %s: evidence check` to "
+            "the Team Lead." % (nn, h["sha"][:9], problem, nn))
 
 
 # ---- the hook entry --------------------------------------------------------------------------------------------
