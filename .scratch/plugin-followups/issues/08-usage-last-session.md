@@ -1,6 +1,6 @@
 # squad-usage shows only the last session of an agent
 
-Status: needs-triage
+Status: wontfix
 
 Source: upstream-proposals Token Coach (iterations/1.coach.md, Plugin proposals), 2026-11-24.
 
@@ -11,3 +11,4 @@ Row `plugin-tech-upstream-proposals` shows peak 61k; `--sessions` shows session 
 Print the largest session peak beside the last one, and say in `--help` what "1st act" and "peak ctx" count.
 
 ## Comments
+- 2026-11-25: superseded by 10 (scope po-clarity, iteration 3).
