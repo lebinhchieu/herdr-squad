@@ -1290,6 +1290,79 @@ out({a,b,redrawn,gone:txt(),A:links[0].dataset.abs,B:links[1].dataset.abs,alerts
         # TA8 (browser side): the clicks and the redraw sent no request that could write
         self.assertEqual([c for c in r["calls"] if not c.startswith("GET /api/files")], [], r["calls"])
 
+    def test_T07_AC1_AC2_AC4_AC5_preview_draws_fences_images_and_refuses_bad_paths_and_a_row_click_sends_nothing(self):
+        r = self.page(r"""
+const FN='`'.repeat(3);
+const md=['# 04 Plan','',FN+'text','  a   b','    c',FN,'',FN+'diagram What <b>x</b> changes','A','\u25bc','B',FN,'',FN+'bash','ls',FN,'',
+ '![ok](img/ok.png)','![ex](../../etc/passwd)','![abs](/etc/passwd)','![sc](http://x/a.png)','![ext](img/a.gif)','![<scr'+'ipt>window.__x=1<'+'/script>](img/ok.png)'].join('\n');
+const calls=[],srcs=[];
+window.fetch=async(u)=>{calls.push(u);return {ok:true,status:200,text:async()=>md}};
+const os=Element.prototype.setAttribute;
+Element.prototype.setAttribute=function(n,v){if(this.tagName==='IMG'&&n==='src'){srcs.push(v);return os.call(this,n,'data:image/gif;base64,R0lGODlhAQABAAAAACw=')}return os.call(this,n,v)};
+await start14();
+const panel=$('section[data-panel=files]');
+panel.addEventListener('click',e=>{if(e.target.closest('a'))e.preventDefault()});
+const tr=panel.querySelector('tr[data-open] a[data-abs$=".md"]').closest('tr');
+const rowAbs=tr.querySelector('a').dataset.abs;
+tr.querySelector('a').click();
+const afterRow=calls.filter(u=>u.startsWith('/api/file')).length;   /* the row click may POST /api/open (ticket 34), never /api/file */
+const btn=tr.querySelector('button[data-pv]');
+const folderBtn=panel.querySelector('tr.fl-nothing,button[data-pv]')===btn;
+btn.click();
+const loading=panel.querySelector('.pvr .pstate')&&panel.querySelector('.pvr .pstate').textContent;
+await sleep(200);
+const box=panel.querySelector('.pvr .pvbox');
+const pres=Array.from(box.querySelectorAll('pre')).map(p=>p.textContent);
+const caps=Array.from(box.querySelectorAll('.mdcap')).map(c=>c.textContent);
+out({afterRow,calls:calls.filter(u=>u.startsWith('/api/file')),srcs,loading,pres,caps,figPre:box.querySelector('.mdfig pre').textContent,
+ pbtn:Array.from(panel.querySelectorAll('button[data-pv]')).length,nTickets:Array.from(panel.querySelectorAll('tr .chip')).filter(c=>c.textContent==='ticket').length,
+ expanded:document.querySelector('button[data-pv][aria-expanded=true]')!==null,alts:Array.from(box.querySelectorAll('.mdalt')).map(a=>a.textContent),
+ imgs:box.querySelectorAll('img').length,scripts:box.querySelectorAll('script').length,x:typeof window.__x,link:!!box.querySelector('.pvhead a'),h1:box.querySelector('h1').textContent,
+ pvrows:panel.querySelectorAll('tr.pvr').length,rowAbs});
+""")
+        self.assertEqual(r["afterRow"], 0)                          # AC5: the row click sent nothing
+        self.assertEqual(len(r["calls"]), 1)                        # only the Preview button read the ticket
+        self.assertTrue(r["calls"][0].startswith("/api/file?squad=") and "img=1" not in r["calls"][0])
+        self.assertEqual(r["loading"], "Loading ticket\u2026")
+        self.assertEqual(r["pres"][0], "  a   b\n    c")                # AC1: spacing kept
+        self.assertEqual(r["figPre"], "A\n\u25bc\nB")
+        self.assertEqual(r["caps"], ["diagramWhat <b>x</b> changes"])  # caption above the diagram only; bash has none; markup stays text
+        self.assertEqual(len(r["pres"]), 3)
+        self.assertEqual(len(r["srcs"]), 2)                         # AC2: only the two allowed paths made a request
+        for u in r["srcs"]:
+            self.assertIn("img=1&base=", u)
+            self.assertIn("&path=", u)
+        self.assertEqual(r["pbtn"], r["nTickets"])
+        self.assertEqual(r["pvrows"], 1)
+        for refused in ("ex", "abs", "sc", "ext"):
+            self.assertIn(refused, r["alts"])                       # alt text only
+        self.assertIn("<script>window.__x=1</script>", r["alts"])  # AC4: shown as text
+        self.assertEqual((r["scripts"], r["x"]), (0, "undefined"))
+        self.assertTrue(r["link"])
+        self.assertEqual(r["h1"], "04 Plan")
+
+    def test_T07_states_error_empty_and_escape_returns_focus(self):
+        r = self.page(r"""
+let mode='err';window.fetch=async(u)=>mode==='err'?{ok:false,status:404,text:async()=>''}:{ok:true,status:200,text:async()=>'  \n'};
+await start14();
+const panel=$('section[data-panel=files]');
+const btn=()=>panel.querySelector('button[data-pv]');
+const first=btn().dataset.pv;
+btn().click();await sleep(150);
+const err=panel.querySelector('.pvr .pstate.perr').textContent;
+btn().click();                         /* closes */
+const closed=panel.querySelectorAll('tr.pvr').length;
+mode='empty';btn().click();await sleep(150);
+const empty=panel.querySelector('.pvr .pstate').textContent;
+document.activeElement.blur();   /* a mouse click leaves the focus on BODY: Esc still closes */
+document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+out({err,closed,empty,after:panel.querySelectorAll('tr.pvr').length,focus:document.activeElement===btn(),exp:btn().getAttribute('aria-expanded')});
+""")
+        self.assertEqual(r["err"], "Cannot show this ticket. Open it in VS Code.")
+        self.assertEqual(r["closed"], 0)
+        self.assertEqual(r["empty"], "This ticket is empty.")
+        self.assertEqual((r["after"], r["focus"], r["exp"]), (0, True, "false"))
+
     def test_T30_TA7_folder_row_path_line_stays_with_only_the_file_column(self):
         r = self.page(r"""
 cur.saved={version:1,saved_at:'2026-11-04T09:00:00Z',font:'normal',choice:{kind:'scope',name:'checkout'},recent:[],panels:{},auto:true,columns:{files:['file']}};
