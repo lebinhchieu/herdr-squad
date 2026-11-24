@@ -10,6 +10,20 @@ topic: merge
 - Merge only what the PO names, into the branch checked out in the project root; never switch branches.
 - Run `squad-merge-check <branch>` first; it prints the merge rules.
 
+## MRG-6 Main moved before the merge
+roles: manager
+topic: merge
+phase: merge
+
+Before [MRG-2]: `git merge-base --is-ancestor main <sha>` true needs no check. Else compare `git diff --name-only <base> main` with `... <base> <sha>` (`base` = `git merge-base main <sha>`). No shared file and no shared `grep -rl` test hit: merge, note "main moved, N files, none related" ([MRG-4]).
+
+## MRG-6b Main moved, related changes
+roles: manager
+topic: merge
+phase: merge
+
+Related changes: ask the Team Lead for a Developer to merge `main` into the branch, run the shared tests and hand in ([REV-14a]); a conflict goes to the Developer ([MRG-3]). Then merge.
+
 ## MRG-2 Before the merge
 roles: manager
 topic: merge

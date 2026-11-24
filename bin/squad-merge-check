@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pre-merge checks in one command (MRG-2, MRG-5, GOAL-7, SQ-6, SQ-7). Read-only: it never merges or writes.
+"""Pre-merge checks in one command (MRG-2, MRG-5, GOAL-7, GOAL-6e, MRG-6). Read-only: it never merges or writes.
 
   squad-merge-check <branch-or-sha> [--base REF] [--scope DIR]
 
