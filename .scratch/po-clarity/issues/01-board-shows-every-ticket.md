@@ -37,9 +37,9 @@ Example, on 2026-11-24:
 `squadtickets.scope_tasks` merges all sources by ticket number instead of stopping at the first one. When a ticket has several copies, the newest wins:
 
 1. the copy on the ticket's own Developer branch (`...-NN`), read with `git show <branch>:<path>`
-2. else the copy on the newest scope branch that has it
-3. else the draft `tasks/NN-ticket.md`
-4. else `main`'s `.scratch`
+2. else the copy on the newest scope branch that has a changed copy
+3. else `main`'s `.scratch`
+4. else the draft `tasks/NN-ticket.md` (main beats a draft; ADR 0020)
 
 Each row keeps a `source` field. The tasks panel shows the source as a small grey tag (`main`, `branch -10`, `draft`), so Chieu can see that a ticket is not on main yet:
 
@@ -57,7 +57,7 @@ Each row keeps a `source` field. The tasks panel shows the source as a small gre
 - AC1: on a fixture scope with tickets on main (01-02), on a Dev branch only (03) and as a draft only (04), the tasks panel lists 01-04 once each.
 - AC2: a ticket on both main and its own branch shows the branch copy's title and `Status:`.
 - AC3: `squad-report` and the picker use the same function and list the same tickets (one test).
-- AC4: the board still makes no writes to git. A branch is read with `git show` and `git ls-tree` only, with the 5 s timeout `squadboard_git.py` already uses.
+- AC4: the board still makes no writes to git. A branch is read with `git show` and `git ls-tree` only (plus `for-each-ref` and `merge-base`), inside one 2 s phase budget, under the reader's 3 s.
 - AC6: the built UI matches the design (`ui-design/01.md`): every screen and state.
 - AC5: the ADR 0020 amendment line "first source with a task wins" is changed to "all sources merge by number, newest copy wins".
 
