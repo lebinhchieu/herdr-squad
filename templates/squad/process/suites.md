@@ -118,7 +118,7 @@ Read the receipt QA whitebox saved when it covers the sha (same sha, clean, OK).
 roles: tech-lead, qa-whitebox
 topic: suites
 
-The suite owner (Tech Lead, else QA whitebox) keeps `$SQUAD_DIR/base-failures.md`, one row per test name, append only. Columns: test name, sha it fails on, one-line cause, first scope that saw it, fix ticket or the PO's keep. Create it on the first row. A Developer who is the owner reads this rule with `squad-process rule SUITE-7`.
+The suite owner (the `suite-owner` in your `duties:` line) keeps `$SQUAD_DIR/base-failures.md`, one row per test name, append only. Columns: test name, sha it fails on, one-line cause, first scope that saw it, fix ticket or the PO's keep. Create it on the first row. A Developer who is the owner reads this rule with `squad-process rule SUITE-7`.
 
 ## SUITE-7b Base check before the first spawn
 roles: tech-lead, qa-whitebox
