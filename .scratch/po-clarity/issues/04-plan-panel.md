@@ -4,6 +4,12 @@ Status: ready-for-agent
 
 Spec: `.scratch/po-clarity/spec.md` · Blocked by: 01
 
+# Lines for ticket 04 (Developer's spawn prompt; committed under `Spec:`)
+Duties: Design and technical AC: `$SCOPE_DIR/tasks/04-design-notes.md` (Tech Lead) with `$SCOPE_DIR/tasks/qaw-technical-ac.md` (QA whitebox, 04 and common lines, as amended in the notes). UI: `$SCOPE_DIR/ui-design/04.md` and `04.html` (final). Build `squadplan.py`, `/api/plan`, the panel, the demo data and rule START-19c; reuse 01's `scope_tasks` and 03's `squadids.bare_ids`; run the test files the notes list plus the SQ-10 trio; write `evidence.md` with two screenshots; HANDIN to both QAs.
+Files: `$SCOPE_DIR/tasks/04-design-notes.md`, `$SCOPE_DIR/ui-design/04.md`, `bin/squadplan.py`, `bin/squadboard_plan.py`, `bin/squadboard_demo.py`, `templates/board/panel_plan.js`, `templates/board/index.html`, `templates/board/board.css`, `templates/squad/process/starting.md`, `tests/test_squadplan.py`, `tests/test_squadboard_panels.py`, `tests/test_squadboard_server.py`, `tests/test_squadboard_page.py`, `tests/test_squadboard_grid.py`, `tests/test_squadboard_demo.py`
+Design: ui-design/04.md
+AC (added, LC-11): built UI matches the design: every screen and state.
+
 ## Problem
 
 Chieu can't see **how** the work will be done: in which order, what blocks what, how long each part should take, and what each part is for. The facts are partly written already (`tasks/NN.md` has `Lane:` and `Depends on:`), but nothing shows them together. Aims and estimates are not written anywhere.
@@ -67,7 +73,7 @@ It has no Needs-you list: the inbox panel already shows that.
 - AC3: a task with spent over 1.5x its estimate shows `[warn]` and both numbers.
 - AC4: a missing `Aim:` or `Estimate:` shows `–`. A dependency loop shows the looped rows in one step marked `[fail] loop`, never a crash.
 - AC5: the new plan rule passes `squad-process lint` and attaches to the Manager and the Team Lead. The ticket template from 06 has the three lines.
-- AC6: one new read route, `GET /api/plan`, under the existing Host and token checks; no write route.
+- AC6: one new read route, `GET /api/plan`, under the existing Host check (GET routes carry no token, Manager accepted); no write route.
 - AC7: `squad-board --demo` shows the panel for a scope and for a goal. Both screenshots go in the evidence.
 
 ## Comments
