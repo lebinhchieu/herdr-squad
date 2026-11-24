@@ -65,15 +65,12 @@ def is_evidence_path(ref, p):
     if OLD_EVIDENCE.search(p):
         return True
     parts = p.split("/")
-    for i in range(len(parts) - 1):
-        rest = parts[i + 1:]
-        if rest == ["evidence.md"] or (rest[0] == "img" and len(rest) > 1):
-            return git("cat-file", "-e", "%s:%s.md" % (ref, "/".join(parts[:i + 1]))).returncode == 0
-    return False
+    return any(git("cat-file", "-e", "%s:%s.md" % (ref, "/".join(parts[:i + 1]))).returncode == 0
+               for i in range(len(parts) - 1))
 
 
 def evidence_only(old, new):
-    """New is old plus commits that touch only a ticket's evidence.md / img (MRG-2)."""
+    """New is old plus commits that touch only files under a ticket's folder (MRG-2)."""
     if not is_ancestor(old, new):
         return False
     return all(is_evidence_path(new, p) for p in changed(old, new))
@@ -109,7 +106,10 @@ def task_states(scope):
     if not scope or not os.path.isdir(scope):
         raise Usage("no scope home: pass --scope DIR or set $SCOPE_DIR")
     sd = squadtask.squad_dir_of(scope)
-    return squadtask.fold(squadtask.read_events(sd, squadtask.slug_of(scope))), squadtask.checkers(scope)
+    states = squadtask.fold(squadtask.read_events(sd, squadtask.slug_of(scope)))
+    # old rows keyed by a rule id (SQ-10, ...) are no ticket: they never gate a merge
+    states = {k: st for k, st in states.items() if squadtask.is_task_id(str(st.get("task")))}
+    return states, squadtask.checkers(scope)
 
 
 def check(target, base_ref, scope):

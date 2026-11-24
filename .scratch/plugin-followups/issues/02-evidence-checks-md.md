@@ -1,6 +1,6 @@
 # Evidence assembly deletes checks.md
 
-Status: needs-triage
+Status: wontfix
 
 Source: upstream-proposals retro (iterations/1.md, 1.summary.md Friction), 2026-11-24.
 
@@ -11,4 +11,4 @@ Developers 07 and 11 deleted `checks.md` in the ticket folder while assembling e
 `squad-evidence add` keeps the other files in the ticket folder, or the Developer rule says so.
 
 ## Comments
-- 2026-11-24, Token Coach plugin proposal 4: third scope with this (watchdog-blind dev-4, dev-5). Fixing it unblocks the SQ-20 `--base` replace held in the coach backlog.
+- 2026-11-25: superseded by 14 (scope po-clarity, iteration 3).

@@ -32,6 +32,13 @@ LABELS = {"needs-triage": "todo", "needs-info": "todo", "ready-for-agent": "todo
           "claimed": "in progress", "done": "passed", "wontfix": "wontfix"}
 TICKET_FILE = re.compile(r"^(?:ticket-)?(\d+)(?:-.*)?\.md$")
 HEX = re.compile(r"\b[0-9a-f]{6,40}\b")
+# The one task-id grammar (ticket 12). Copies: the jq filter in squad-log-message and the bash test in squad-spawn;
+# tests/test_squadtask.py runs one id table through all three. MSG-3 still says `NN` alone: the two names are tolerated.
+TASK_ID = r"[0-9]+|integration|promotion"  # ASCII digits, as the jq and bash copies
+
+
+def is_task_id(s):
+    return isinstance(s, str) and re.fullmatch(TASK_ID, s) is not None
 
 
 # ---- where things are ----------------------------------------------------------------------------------------
@@ -92,13 +99,30 @@ def role_of(scope_home, name):
     return os.environ.get("SQUAD_ROLE", "") if name and name == os.environ.get("SQUAD_NAME") else ""
 
 
+def _team_without_qa(scope_home):
+    """True when scope.md has a decided `team:` with no `qa-white`/`qa-black` token (`none` counts). A missing,
+    undecided or unreadable team line is False: the roster rows then decide, as before."""
+    try:
+        import squadrules
+        text = (Path(str(scope_home)) / "scope.md").read_text(encoding="utf-8", errors="replace")
+        m = re.search(r"^team:[ \t]*(.*\S)[ \t]*$", text, re.M)
+        team = squadrules.parse_team(m.group(1) if m else "", "scope.md")
+    except (OSError, ValueError, ImportError):
+        return False
+    return team is not None and "qa-white" not in team and "qa-black" not in team
+
+
 def checkers(scope_home):
-    """-> {"qa": [agent...]}: the QA agents on the roster that are not retired; when every QA row is retired, all of
-    them (a QA retired after its PASS must not shrink M). No QA row at all: [] (the slot is `evidence`, see `slots`)."""
+    """-> {"qa": [agent...]}: the QA agents on the roster that are not retired. None live: a team that decided no QA
+    (`team:` without `qa-white`/`qa-black`) has [] (the slot is `evidence`, see `slots`); else all the retired QA rows
+    (a QA retired after its PASS must not shrink M). No QA row at all: []."""
     rows = _roster_rows(scope_home)
-    qa = [a for a, role, st in rows if role in QA_ROLES and not st.startswith("retired")] \
-        or [a for a, role, _ in rows if role in QA_ROLES]
-    return {"qa": qa}
+    live = [a for a, role, st in rows if role in QA_ROLES and not st.startswith("retired")]
+    if live:
+        return {"qa": live}
+    if _team_without_qa(scope_home):
+        return {"qa": []}
+    return {"qa": [a for a, role, _ in rows if role in QA_ROLES]}
 
 
 def slots(chk):
@@ -399,7 +423,7 @@ def evidence_check(scope_home, nn, branch, sha, base=None):
         ticket = None
         for f in sorted(issues.iterdir()) if issues.is_dir() else []:
             m = TICKET_FILE.match(f.name)
-            if m and f.is_file() and int(m.group(1)) == int(nn):
+            if m and f.is_file() and str(nn).isdigit() and int(m.group(1)) == int(nn):  # no numbered ticket for integration
                 ticket = f
                 break
         if ticket is None:
@@ -418,7 +442,7 @@ def evidence_check(scope_home, nn, branch, sha, base=None):
         return False, "not run (%s)" % exc
 
 
-HANDIN_TASK = re.compile(r"^HANDIN[ \t]+([A-Z][A-Z0-9]*-[0-9]+|[0-9]+)(?![A-Za-z0-9-])")
+HANDIN_TASK = re.compile(r"^HANDIN[ \t]+(%s)(?![A-Za-z0-9-])" % TASK_ID)
 
 
 def handin_gate(scope_home, text):
@@ -465,11 +489,11 @@ def _named_sha(text, events):
 
 def from_message(scope_home, rec, role=None):
     """One messages.jsonl record -> events (design 4.1). -> [warning]. ASK, ANSWER, STATUS, evidence hand-ins and
-    records with no task id write nothing."""
+    records with no task id (or a rule id) write nothing."""
     typ, nn, text = rec.get("type"), rec.get("task"), rec.get("text") or ""
     if not isinstance(nn, str) or not isinstance(text, str):
         return []
-    if not nn or typ not in ("HANDIN", "PASS", "FAIL", "BLOCKED", "DECISION"):
+    if not is_task_id(nn) or typ not in ("HANDIN", "PASS", "FAIL", "BLOCKED", "DECISION"):  # a rule id is no task
         return []
     role = role_of(scope_home, rec.get("from")) if role is None else role
     base = {"by": rec.get("from"), "role": role, "ts": rec.get("ts"), "msg_id": rec.get("msg_id")}
@@ -506,7 +530,7 @@ def hook_output(warnings):
 
 # ---- CLI -------------------------------------------------------------------------------------------------------
 
-USAGE = """usage: squad-task claim   NN --owner AGENT [--branch B]
+USAGE = """usage: squad-task claim   NN --owner AGENT [--branch B]   (NN: a ticket number, integration or promotion)
        squad-task handin  NN --sha S [--branch B] [--by AGENT]
        squad-task pass|passed|fail NN [--sha S] [--slot SLOT]
        squad-task blocked NN [--why TEXT]
@@ -581,8 +605,8 @@ def run(argv):
             if len(args) > 1:
                 raise ValueError("show takes at most one task")
             return _show(home, args[0] if args else None, "json" in flags)
-        if len(args) != 1 or not args[0].isdigit():
-            raise ValueError("%s needs one ticket number (digits), got %r" % (cmd, " ".join(args)))
+        if len(args) != 1 or not is_task_id(args[0]):
+            raise ValueError("%s needs one task id (a ticket number, integration or promotion), got %r" % (cmd, " ".join(args)))
         nn = args[0]
         if cmd == "claim" and not opts.get("owner"):
             raise ValueError("claim needs --owner")

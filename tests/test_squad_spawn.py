@@ -923,6 +923,23 @@ class SpawnTaskPromptTest(unittest.TestCase):
         self.refused("--task", "07", msg="no team-lead row")
         self.assertEqual(self.spawn("--task", "07", "--dry-run", dry=False).returncode, 2)
 
+    def test_integration_and_inline_files_and_aim_build_the_prompt(self):  # ticket 12 AC4, AC5
+        sc = self.scope("qa-white, qa-black")
+        (sc / "tasks" / "integration.md").write_text(
+            "# Task integration\n\nDepends on: none \u00b7 Files: `bin/squadtask.py`\nDuties: merge the siblings\n", encoding="utf-8")
+        p = self.prompt_of(self.spawn("--task", "integration"))
+        self.assertIn("Ticket integration of scope sc1", p)
+        self.assertIn('"`bin/squadtask.py`"', p)
+        r = self.spawn("--task", "integration", "--repo", str(self.root))
+        self.assertIn("squad-task claim integration", r.stdout)
+        # Duties inline after ` \u00b7 ` and from the draft when the ticket has none; the Aim line when nothing has
+        (sc / "tasks" / "08-t.md").write_text("# 08\nStatus: ready-for-agent\nAim: Short aim\nFiles: `bin/x`\n", encoding="utf-8")
+        self.assertIn('"Short aim"', self.prompt_of(self.spawn("--task", "08")))
+        (sc / "tasks" / "09-t.md").write_text("# 09\nStatus: ready-for-agent\nFiles: `bin/x`\n", encoding="utf-8")
+        self.log.unlink(missing_ok=True)  # the dry runs above listed agents
+        self.refused("--task", "09", msg="no Duties: line")
+        self.refused("--task", "SQ-10", msg="bad --task value")
+
     def test_ticket_lines_are_quoted_data_and_nothing_runs(self):  # T4
         evil = "`a` \"q\" $(touch pwned) ; touch pwned2 \\n"
         self.scope("qa-white, qa-black", ticket_lines=f"Duties: x\nFiles: {evil}\n")
@@ -979,6 +996,31 @@ class SpawnTaskClaimTest(unittest.TestCase):
         self.assertEqual(json.loads(r.stdout)["status"], "ready")  # stdout stays the one JSON line
         (ev,) = self.events()
         self.assertEqual((ev["ev"], ev["task"], ev["by"], ev["branch"]), ("claim", "03", "t-dev-sc1-1", "squad/t/sc1/t-dev-sc1-1"))
+
+    def test_the_task_id_table_agrees_across_python_jq_and_bash(self):  # ticket 12 AC6
+        sys.path.insert(0, str(BIN))
+        import squadtask
+        table = {"12": True, "007": True, "integration": True, "promotion": True, "12x": False, "SQ-10": False,
+                 "Integration": False, "integration2": False, "": False}
+        for tid, valid in table.items():
+            self.assertEqual(squadtask.is_task_id(tid), valid, tid)
+            if tid:  # bash: squad-spawn refuses a bad --task value before any other check
+                r = self.spawn("--task", tid, "--dry-run")
+                self.assertEqual("bad --task value" in r.stderr, not valid, (tid, r.stderr))
+            msg = "HANDIN %s: branch b, commit abc1234" % tid
+            hook_env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
+            squad = self.root / "logsquad"
+            (squad / "iterations").mkdir(parents=True, exist_ok=True)
+            hook_env.update(SQUAD_NAME="t-dev", SQUAD_DIR=str(squad))
+            winlaunch.run_script(BIN / "squad-log-message", input=json.dumps({
+                "hook_event_name": "PostToolUse", "tool_name": "SendMessage", "tool_input": {"to": "m", "message": msg},
+                "tool_response": {"success": True, "msg_id": "m-" + tid}}), text=True, encoding="utf-8", env=hook_env,
+                capture_output=True, timeout=10)
+        recs = [json.loads(l) for l in (self.root / "logsquad" / "messages.jsonl").read_text(encoding="utf-8").splitlines()]
+        for rec in recs:
+            tid = rec["msg_id"][2:]
+            if tid not in ("SQ-10", ""):  # a first-token rule id is still logged as history (jq only)
+                self.assertEqual(rec["task"] == tid, table[tid], tid)
 
     def test_claim_with_an_open_blocker_is_recorded_with_w1_and_never_refused(self):  # AC8
         drafts = self.squad / "scopes" / "sc1" / "tasks"

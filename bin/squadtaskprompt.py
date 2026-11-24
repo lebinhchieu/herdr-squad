@@ -7,6 +7,7 @@ from pathlib import Path
 
 import squadrules
 import squadreviewpack
+import squadtask
 
 USAGE = "usage: squad-task-prompt NN --role ROLE --name AGENT --scope-home DIR [--repo-root DIR]"
 ROLE_OF_TOKEN = {"qa-white": "qa-whitebox", "qa-black": "qa-blackbox", "team-lead": "team-lead", "tech-lead": "tech-lead",
@@ -18,8 +19,8 @@ class Refuse(Exception):
 
 
 def parse(argv):
-    if not argv or not re.fullmatch(r"\d+", argv[0]):
-        raise Refuse("bad ticket number %r (digits only). %s" % (argv[:1] and argv[0] or "", USAGE))
+    if not argv or not squadtask.is_task_id(argv[0]):
+        raise Refuse("bad task id %r (a ticket number, integration or promotion). %s" % (argv[:1] and argv[0] or "", USAGE))
     out = {"nn": argv[0], "role": "", "name": "", "scope": "", "repo": ""}
     keys = {"--role": "role", "--name": "name", "--scope-home": "scope", "--repo-root": "repo"}
     i = 1
@@ -52,9 +53,28 @@ def names_of(rows, role):
     return live or [a for a, r, _, _ in rows if r == role]
 
 
-def field(text, label):
-    m = re.search(r"^%s:[ \t]*(.*\S)[ \t]*$" % label, text, re.M)
+def field(text, label, inline=False):
+    """The value of `Label:` at a line start; `inline` also takes it after ` · ` (`Depends on: none · Files: a, b`)."""
+    start = r"(?:^|[ \t]\u00b7[ \t])" if inline else "^"
+    m = re.search(r"%s%s:[ \t]*(.*\S)[ \t]*$" % (start, label), text, re.M)
     return m.group(1) if m else ""
+
+
+def duties_files(a, text):
+    """-> (duties, files): the ticket's lines; a missing one from the scope's `tasks/<id>.md`; no Duties line at all
+    falls back to the ticket's `Aim:` line (followups 07)."""
+    drafts = [p.read_text(encoding="utf-8", errors="replace") for p in squadreviewpack.find_drafts(a["scope"], a["nn"])]
+    out = []
+    for label in ("Duties", "Files"):
+        val = ""
+        for t in [text] + drafts:
+            val = field(t, label, inline=True)
+            if val:
+                break
+        out.append(val)
+    if not out[0]:
+        out[0] = field(text, "Aim")
+    return out[0], out[1]
 
 
 def team_of(scope):
@@ -85,7 +105,8 @@ def handin_names(team, rows):
 
 def developer_of(rows, nn):
     for a, r, owns, _ in rows:
-        if r == "dev" and "ticket" in owns.lower() and re.search(r"(?<!\d)0*%d(?!\d)" % int(nn), owns):
+        if r == "dev" and "ticket" in owns.lower() and re.search(
+                r"(?<!\d)0*%d(?!\d)" % int(nn) if nn.isdigit() else r"\b%s\b" % nn, owns):
             return a
     return ""
 
@@ -98,7 +119,7 @@ def build(a):
     except squadreviewpack.Usage as e:
         raise Refuse(str(e))
     text = path.read_text(encoding="utf-8", errors="replace")
-    duties, files = field(text, "Duties"), field(text, "Files")
+    duties, files = duties_files(a, text)
     for label, val in (("Duties:", duties), ("Files:", files)):
         if not val:
             raise Refuse("ticket %s: no %s line in %s; nothing spawned" % (a["nn"], label, path))

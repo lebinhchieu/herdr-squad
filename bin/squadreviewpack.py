@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import squadtask
 import squadtickets
 
 USAGE = "usage: squad-review-pack NN [--sha S] [--base REF] [--scope DIR] [--max-lines N]"
@@ -61,8 +62,8 @@ def parse(argv):
             nn = a
         else:
             raise Usage("one task number only")
-    if nn is None or not re.fullmatch(r"\d+", nn):
-        raise Usage(USAGE if nn is None else "NN must be digits: %s" % nn)
+    if nn is None or not squadtask.is_task_id(nn):
+        raise Usage(USAGE if nn is None else "NN must be a ticket number, integration or promotion: %s" % nn)
     scope = scope or os.environ.get("SCOPE_DIR")
     if not scope or not os.path.isdir(scope):
         raise Usage("no scope home: pass --scope DIR or set $SCOPE_DIR")
@@ -72,20 +73,28 @@ def parse(argv):
 def find_ticket(scope, nn, top):
     """-> (path, repo-relative evidence folder or None). Committed tickets come from squadtickets; a draft in
     `$SCOPE_DIR/tasks/` is the fallback (notes files next to a ticket, like NN-design-notes.md, are not the ticket)."""
-    for row in squadtickets.scope_tasks(scope, repo_root=top, git=False)["tasks"]:
-        if int(row["id"]) == int(nn) and row["source"] in ("declared", "scratch"):
-            p = Path(row.get("abs") or (Path(top) / row["where"]))
-            if p.is_file():
-                return p, row["where"][:-3] if row["where"].endswith(".md") else row["where"]
-    drafts = []
-    for p in sorted((Path(scope) / "tasks").glob("*.md")):
-        m = re.match(r"^(\d+)(?:-.*)?\.md$", p.name)
-        if m and int(m.group(1)) == int(nn) and "notes" not in p.name:
-            drafts.append(p)
-    drafts.sort(key=lambda p: "## Business AC" not in p.read_text(encoding="utf-8", errors="replace"))
+    if nn.isdigit():
+        for row in squadtickets.scope_tasks(scope, repo_root=top, git=False)["tasks"]:
+            if int(row["id"]) == int(nn) and row["source"] in ("declared", "scratch"):
+                p = Path(row.get("abs") or (Path(top) / row["where"]))
+                if p.is_file():
+                    return p, row["where"][:-3] if row["where"].endswith(".md") else row["where"]
+    drafts = find_drafts(scope, nn)
     if drafts:
         return drafts[0], None
     raise Usage("no ticket file for task %s in %s" % (nn, scope))
+
+
+def find_drafts(scope, nn):
+    """The scope's `tasks/<id>.md` or `tasks/<id>-*.md` files of task `nn` (a number, integration or promotion), a
+    file with Business AC first."""
+    drafts = []
+    for p in sorted((Path(scope) / "tasks").glob("*.md")):
+        m = re.match(r"^(%s)(?:-.*)?\.md$" % squadtask.TASK_ID, p.name)
+        if m and "notes" not in p.name and (int(m.group(1)) == int(nn) if nn.isdigit() and m.group(1).isdigit() else m.group(1) == nn):
+            drafts.append(p)
+    drafts.sort(key=lambda p: "## Business AC" not in p.read_text(encoding="utf-8", errors="replace"))
+    return drafts
 
 
 def section(text, prefix):

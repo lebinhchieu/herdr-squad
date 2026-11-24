@@ -30,7 +30,7 @@ Options:
   --prompt TEXT    First message to send once the session is ready
   --model M        Model override (default: scope.md "model <role>: <model> <effort>", else settings/<role>.json "model", else Claude's default)
   --effort E       Effort override (low|medium|high|xhigh|max; default: scope.md line, else settings/<role>.json "effortLevel")
-  --task NN        builds the first prompt from the ticket (dev and checkers); a dev also claims ticket NN for this Developer once it is up (squad-task claim, so the board shows
+  --task NN        (NN: a ticket number, integration or promotion) builds the first prompt from the ticket (dev and checkers); a dev also claims ticket NN for this Developer once it is up (squad-task claim, so the board shows
                    it `in progress`). Also read from env SQUAD_SPAWN_TASK. A claim problem warns, never fails the spawn.
                    Another role: warning, ignored. No claim with --worktree (a respawn).
   --lazy           Start the session and send it nothing (squad-respawn --lazy): no prompt, no first-prompt wait, and
@@ -83,7 +83,7 @@ while [[ $# -gt 0 ]]; do
     --title) title=$2; shift 2 ;;
     --model) model=$2; shift 2 ;;
     --effort) effort=$2; shift 2 ;;
-    --task) [[ $# -ge 2 ]] || { echo "--task needs a ticket number" >&2; exit 2; }; task=$2; shift 2 ;;
+    --task) [[ $# -ge 2 ]] || { echo "--task needs a task id" >&2; exit 2; }; task=$2; shift 2 ;;
     --lazy) lazy=1; shift ;;
     --dry-run) dry=1; shift ;;
     *) echo "unknown option: $1" >&2; usage; exit 2 ;;
@@ -105,7 +105,7 @@ fi
 [[ $role == manager || $lazy == 1 || -n $prompt || -n ${task:-${SQUAD_SPAWN_TASK:-}} ]] || echo "warning: $role $name spawned without --prompt; an unbriefed agent sits idle (pass --prompt with its first message)" >&2
 [[ -z $base || -n $repo ]] || { echo "--base needs --repo" >&2; exit 2; }
 task=${task:-${SQUAD_SPAWN_TASK:-}}
-[[ -z $task || $task =~ ^[0-9]+$ ]] || { echo "bad --task value: $task (a ticket number, digits only)" >&2; exit 2; }
+[[ -z $task || $task =~ ^([0-9]+|integration|promotion)$ ]] || { echo "bad --task value: $task (a ticket number, integration or promotion)" >&2; exit 2; }
 [[ -z $task || $role == dev || $role == qa-whitebox || $role == qa-blackbox ]] || { echo "warning: --task ignored for role $role (a dev claims it; a checker gets the prompt)" >&2; task=""; }
 for v in "$model" "$effort"; do
   [[ -z $v || $v =~ ^[A-Za-z0-9][][A-Za-z0-9._-]*$ ]] || { echo "bad --model/--effort value: $v (allowed: A-Za-z0-9._[]-)" >&2; exit 2; }

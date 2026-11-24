@@ -81,6 +81,20 @@ class CheckersAndWords(Base):
         c = squadtask.checkers(self.home)
         self.assertEqual((c, squadtask.slots(c)), ({"qa": []}, ["evidence"]))
 
+    def test_checkers_of_a_team_without_qa_ignore_retired_rows(self):  # 15 AC1: only retired QA rows, team decides
+        hdr = "| Agent | Role | Scope | Owns | Status | Session |\n| --- | --- | --- | --- | --- | --- |\n"
+        (self.home / "roster.md").write_text(hdr + "| qaw | qa-whitebox | s1 | x | retired | c |\n"
+                                             "| qab | qa-blackbox | s1 | x | retired | d |\n", encoding="utf-8")
+        for team, want in (("tech-lead, designer", []), ("none", []), ("qa-white", ["qaw", "qab"]),
+                           ("ba, qa-black", ["qaw", "qab"]), ("", ["qaw", "qab"]), ("bogus", ["qaw", "qab"])):
+            (self.home / "scope.md").write_text(("team: %s\n" % team) if team else "x\n", encoding="utf-8")
+            c = squadtask.checkers(self.home)
+            self.assertEqual(c, {"qa": want}, team)
+            self.assertEqual(squadtask.slots(c), want or ["evidence"], team)
+        (self.home / "scope.md").write_text("team: tech-lead\n", encoding="utf-8")  # a live QA row still wins
+        (self.home / "roster.md").write_text(hdr + "| qab | qa-blackbox | s1 | x | live | d |\n", encoding="utf-8")
+        self.assertEqual(squadtask.checkers(self.home), {"qa": ["qab"]})
+
     def test_words_and_label_table(self):  # states.md s2 precedence, s5 label table
         c = squadtask.checkers(self.home)
         self.assertEqual({k: squadtask.word(None, c, (), k) for k in squadtask.LABELS},
@@ -242,6 +256,23 @@ class StoreAndHook(Base):
         self.assertEqual(run("merged", "09").returncode, 2)
         self.assertEqual(run("show", "02", "--json").returncode, 0)
 
+    def test_integration_and_promotion_are_tasks_and_rule_ids_are_not(self):  # ticket 12 AC1, AC3
+        def run(*a):
+            return subprocess.run([sys.executable, str(CLI), *a, "--scope-home", str(self.home)], text=True,
+                                  capture_output=True, timeout=20)
+        self.assertEqual(run("claim", "integration", "--owner", "dev").returncode, 0)
+        self.assertEqual(run("handin", "promotion", "--sha", "abc1234").returncode, 0)
+        self.assertEqual(run("handin", "integration", "--sha", "abc1234").returncode, 0)
+        for bad in ("SQ-10", "12x", "Integration"):
+            self.assertEqual(run("claim", bad, "--owner", "dev").returncode, 2, bad)
+        rows = {r["task"]: r for r in json.loads(run("show", "--json").stdout)}
+        self.assertEqual(sorted(rows), ["integration", "promotion"])
+        self.assertEqual(rows["integration"]["state"]["owner"], "dev")
+        before = self.events()
+        squadtask.from_message(self.home, {"from": "dev", "type": "HANDIN", "task": "SQ-10",
+                                           "text": "HANDIN SQ-10: branch b, commit abc1234"}, role="dev")
+        self.assertEqual(self.events(), before)  # a rule id writes no event
+
     def test_concurrent_writers_and_mkdir_lock(self):  # T2
         code = ("import sys; sys.path.insert(0, %r); import squadtask\n"
                 "for i in range(25): squadtask.record(%r, '01', 'blocked', by='w'+sys.argv[1], why='x'*5000)\n"
@@ -302,6 +333,17 @@ class NoQaEvidence(Base):
         e = self.events()
         self.assertEqual([x["ev"] for x in e], ["handin", "pass"])
         self.assertEqual((e[1]["slot"], e[1]["by"], e[1]["role"], e[1]["sha"]), ("evidence", "hook", "hook", e[0]["sha"]))
+        self.assertEqual(self.word(), "passed")
+
+    def test_hook_records_evidence_pass_for_a_no_qa_team_with_retired_qa_rows(self):  # 15 AC2
+        hdr = "| Agent | Role | Scope | Owns | Status | Session |\n| --- | --- | --- | --- | --- | --- |\n"
+        (self.home / "roster.md").write_text(hdr + "| qaw | qa-whitebox | s1 | x | retired | c |\n"
+                                             "| qab | qa-blackbox | s1 | x | retired | d |\n"
+                                             "| dev | dev | s1 |  | live | f |\n", encoding="utf-8")
+        (self.home / "scope.md").write_text("team: tech-lead, designer\n", encoding="utf-8")
+        self.handin(self.commit("## Behaviour\n![a](img/a.png)\n"))
+        e = self.events()
+        self.assertEqual([(x["ev"], x.get("slot"), x.get("by")) for x in e], [("handin", None, "dev"), ("pass", "evidence", "hook")])
         self.assertEqual(self.word(), "passed")
 
     def test_missing_image_is_w9_on_event_and_output_no_pass(self):  # AC4, R9

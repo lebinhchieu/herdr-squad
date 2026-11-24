@@ -1,3 +1,18 @@
+## v33 — 2026-11-25
+
+Plugin 0.11.2. Tooling fixes found in the po-clarity iterations; no rule changes.
+
+changed:
+- Usage hook (09): it also runs after a tool call (PostToolUse, throttled to one check per 64 KiB of transcript growth, stamp `roles/<agent>.usage-check`), and `squad-usage --check-detail` prints `none` plus the numbers when no rule fires. why: `fresh` ran only when a turn ended, so a long run of tool calls went 70k to 240k past the line with no notice.
+- `squad-usage` (10): an agent whose roster session has no transcript (after a lazy respawn) is found again through its newest `spawn` event, and the table shows `max peak`. why: the designer row read "no transcript" and `peak ctx` hid a 331k session behind a 61k one.
+- `squad-usage` (11): `--sessions NAME` shows `start`, `1st act` and `act turn` per session, and the table gets `act turn` after `1st act`. why: nothing showed how many turns a Developer read before its first edit, and the context at its start.
+- Task ids (12): `squad-task`, `squad-log-message`, `squad-spawn --task` and `squad-task-prompt` accept `integration` and `promotion` and never a rule id; `--task` falls back to `tasks/<id>.md` and the `Aim:` line and reads `Files:` after ` · `. why: integration hand-ins were logged with no task and rule ids became task events.
+- `squad-ledger` (13): `--task NN` lists every PASS and FAIL of the task (sha, sender, cause, criteria named), and `--json` adds `history` for it. why: with no QA the cause of each return was lost and the failing sha's verdicts vanished at the next HANDIN.
+- `squad-evidence check --base` and `squad-merge-check` (14): any file under a ticket's evidence folder (`checks.md`, `pane-states.txt`, subfolders) counts as evidence, not only `evidence.md` and `img/`. why: Developers deleted `checks.md` to get past the check, and the two tools disagreed with the board's `_evidence_only`.
+- `squad-task` checkers and `squad-merge-check` (15): when no QA row is live and `scope.md` has a decided `team:` with no `qa-white` or `qa-black`, the only checker slot is `evidence` (the HANDIN hook's evidence PASS counts), and `squad-merge-check` skips old rows keyed by a rule id such as `SQ-10`. why: it refused a passed branch because it wanted PASSes from the retired QAs and read a rule id as a ticket.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.11.2. No `/squad:squad-process-update` run is needed (no rule text changed). The new usage check is a hook entry: it takes effect in sessions started after the update. Rollback: revert the merge, plugin back one version; `history` in `squad-ledger --json` and the extra `squad-usage` columns are additive.
+
 ## v32 — 2026-11-25
 
 Plugin 0.11.1. Scratch work in `/tmp` no longer prompts Chieu (the tmp-scratch tickets 01-05).
