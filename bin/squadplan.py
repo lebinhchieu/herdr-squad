@@ -19,7 +19,6 @@ import squadledger  # noqa: E402
 import squadtask  # noqa: E402
 import squadtickets  # noqa: E402
 
-AIM_MAX = 60
 NONE_WORDS = ("", "none", "-", "–", "—")
 KEY_RE = re.compile(r"^\s*([A-Za-z][A-Za-z ]{0,20}):\s*(.*)$")
 DURATION_RE = re.compile(r"^(?:(\d*\.?\d+)\s*h)?\s*(?:(\d+)\s*m)?$")
