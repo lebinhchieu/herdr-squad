@@ -192,6 +192,20 @@ You alone write `goals.md` in your folder (scope or goal), one table: `| # | Goa
 - Set `done` when every task of that goal has passed.
 - Set `blocked`, with the reason and the inbox item id, only when nothing else can go on and the PO must act; also write the inbox item ([ITER-4]).
 
+## START-19c Plan fields
+roles: manager, team-lead
+topic: starting
+
+The board's plan panel reads three plain fields of each task, so write them at the plan.
+
+| Field | Where | Who |
+|---|---|---|
+| `Aim:` one line, at most 60 characters, plain words, no bare IDs (the ID check of `squad-inbox`) | `tasks/NN.md`; goal.md column `Aim` | Manager at plan |
+| `Estimate:` `30m`, `1h`, `1h 30m` or `.5h` (Developer build plus checks) | `tasks/NN.md`; goal.md column `Est` | Tech Lead, else Manager |
+| `Depends on:` the task numbers, or `none` | `tasks/NN.md`; goal.md column `Depends on` | as today |
+
+A missing field shows `–` on the board; it never blocks work.
+
 ## START-20 Architect start
 roles: architect
 when: architecture = yes

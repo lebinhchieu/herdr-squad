@@ -812,7 +812,8 @@
 
     /* design-v7 s5: a panel with texts here shows a muted "Loading" note until its first answer, and a dashed --err note on a failed answer
        (resp.error, or an answer with no data and the panel unknown). resp.errors [{file, reason}] adds the note above rows that were read. */
-    var PANEL_TEXT = { tasks: { loading: "Loading tasks\u2026", error: "Could not read the tasks of this scope." } };
+    var PANEL_TEXT = { tasks: { loading: "Loading tasks\u2026", error: "Could not read the tasks of this scope." },
+                         plan: { loading: "Loading the plan\u2026", error: "Cannot read the plan." } };
     function stateNote(cls, text, extra) {
       var n = el("p", "note pstate " + cls, text);
       if (extra) n.appendChild(el("span", "pwhy", extra));
