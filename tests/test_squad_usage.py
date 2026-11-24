@@ -372,8 +372,9 @@ class UndercountTest(UsageBase):
         self.named("second", "ux", [turn(0, "b", ctx=(2, 50_000, 0), base=T0 + timedelta(days=1))])
         self.spawn_event("ux", "first")
         self.spawn_event("ux", "second", ts="2026-10-02T09:00:00Z")
-        self.spawn_event("ux", "never-written", ts="2026-10-03T09:00:00Z")   # newest, but no transcript: skipped
-        self.spawn_event("other", "elsewhere")
+        self.spawn_event("ux", "never-written", ts="2026-10-03T09:00:00Z")   # newer, but no transcript: skipped
+        self.named("elsewhere", "other", [turn(0, "c", ctx=(2, 90_000, 0), base=T0 + timedelta(days=5))])
+        self.spawn_event("other", "elsewhere", ts="2026-10-04T09:00:00Z")    # newest, has a transcript, another agent: ignored
         self.roster(("ux", "lazy-respawn-no-transcript"))
         rows, _ = self.table()
         self.assertEqual((rows["ux"][2], rows["ux"][3], rows["ux"][-1]), ("2", "50k", "2"))
