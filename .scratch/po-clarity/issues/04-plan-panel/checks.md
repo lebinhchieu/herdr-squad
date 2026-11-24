@@ -4,7 +4,7 @@
 | AC2 | `test_squadplan` goal rows; goal screenshot OK | - | - |
 | AC3 | `Plan04.test_T04_AC3_over_estimate_boundary...` (90 no chip, 91 chip) OK | - | - |
 | AC4 | `Plan04.test_T04_AC4_missing_aim...` OK | - | - |
-| AC5 | `test_processlint`, `test_rules_contract`, `test_rules_wording` OK; `grep -n '^Aim:\|^Estimate:\|^Depends on:' templates/squad/ticket.md` = lines 6, 7, 8 | - | - |
+| AC5 | `test_processlint`, `test_rules_contract`, `test_rules_wording` OK; grep of `templates/squad/ticket.md` for the three field names: lines 6, 7, 8 | - | - |
 | AC6 | `PlanRouteTest` (bad Host 403, no write route) OK | - | - |
 | AC7 | `test_squadboard_demo` OK; 2 screenshots in evidence.md | - | - |
 | LC-11 design states | `Plan04` tests: steps, over-estimate chip, `–` and loop, escaped text, fold, goal waits; shots `plan-scope.png`, `plan-unfolded.png`, `plan-goal.png`. Loading, "Cannot read the plan.", empty and narrow (<560px): not shot (see evidence.md); aim cell also clipped at 15em | - | - |
