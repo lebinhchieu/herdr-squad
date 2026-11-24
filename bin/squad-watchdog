@@ -322,7 +322,7 @@ def snapshot(home, herdr_json=None):
                 state = got[r["name"]]["status"] if r["name"] in got else "gone"
             agents.append({"name": r["name"], "role": r["role"], "scope": label, "owns": r["owns"], "state": state})
         done = passed_keys(h)
-        for t in squadtickets.scope_tasks(h)["tasks"]:
+        for t in squadtickets.scope_tasks(h, git=False)["tasks"]:
             key = t.get("where") or (label, t["id"])  # scopes of a goal may share one ticket folder: one row per file
             if key in seen:
                 seen[key]["scopes"].append(label)

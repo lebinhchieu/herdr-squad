@@ -27,7 +27,7 @@
       return { key: (r.scope ? r.scope + "/" : "") + r.id, id: r.id, scope: r.scope || "", title: r.title, stage: r.stage, ready: isReady(r.stage),
                done: isDone(r.stage), cls: stageClass(r.stage), owner: r.owner, waits: r.waits_on, lastIso: r.last_active_iso || null,
                last: secs == null ? "no activity recorded" : BOARD.ageWords(secs), returns: r.returns || 0, failLine: r.last_fail_line || "",
-               note: r.detail_note || "", where: r.where || "", abs: r.abs || "", untitled: !!r.untitled, branch: r.branch || "", newCount: r.new_count > 0 ? r.new_count : 0 };
+               note: r.detail_note || "", where: r.where || "", abs: r.abs || "", untitled: !!r.untitled, branch: r.branch || "", origin: r.origin || "", originRef: r.origin_ref || "", onMain: !!r.on_main, newCount: r.new_count > 0 ? r.new_count : 0 };
     });
   }
   function filterRows(rows, f) {
@@ -37,7 +37,17 @@
   var COLS = [{ id: "task", label: "Task", identity: true }, { id: "title", label: "Title" }, { id: "where", label: "Where" }, { id: "stage", label: "Stage" },
               { id: "last_active", label: "Last active" }, { id: "happened", label: "What happened" }, { id: "owner", label: "Owner" },
               { id: "waits", label: "Waits on" }];
-  BOARD.rowsForTasks = rowsForTasks; BOARD.taskStageClass = stageClass; BOARD.taskFilter = filterRows;
+  /* the source tag of a row (ui-design/01): {text, cls, title} or null when the row has no origin */
+  function srcTag(r) {
+    if (r.origin === "main") return { text: "main", cls: "idle", title: "on main" };
+    if (r.origin === "draft") return { text: "draft", cls: "quiet draft", title: "draft in tasks/, not committed" };
+    if (r.origin !== "branch") return null;
+    var seg = String(r.originRef || "").split("/").pop(), m = /-(\d+)$/.exec(seg);
+    var t = m ? "-" + m[1] : (seg.length > 14 ? seg.slice(0, 14) + "\u2026" : seg);
+    return { text: "branch" + (t ? " " + t : ""), cls: "quiet",
+             title: "on branch " + r.originRef + " \u00b7 " + (r.onMain ? "also on main" : "not on main") };
+  }
+  BOARD.rowsForTasks = rowsForTasks; BOARD.taskSrcTag = srcTag; BOARD.taskStageClass = stageClass; BOARD.taskFilter = filterRows;
 
   /* ---------- drawing ---------- */
   var F = "all", OPEN = null, DET = {}, LAST = null, wired = false;
@@ -68,6 +78,7 @@
       ".tk .ttl{max-width:28em}.tk .tt{font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}.tk .tt.nm{font-weight:400;font-style:italic;color:var(--muted)}" +
       ".tk td.wh{font-size:.875em;overflow-wrap:anywhere;min-width:10em}.tk .wf b{color:var(--ink)}" +
       ".tk-empty{border:1px dashed var(--border);border-radius:6px;padding:8px 10px;color:var(--muted)}.tk-empty ul{margin:4px 0 0;padding-left:18px}" +
+      ".chip.src{margin-left:5px;padding:0 6px;white-space:nowrap}.chip.src.draft{border-style:dashed}" +
       ".tk .cp{border:1px solid var(--border);background:var(--bg);border-radius:5px;padding:0 6px;font-size:.92em}.tk .cp:hover{border-color:var(--mango)}";
     root.document.head.appendChild(s);
   }
@@ -174,10 +185,11 @@
     rows.forEach(function (r) {
       var cell = {}, tr = el("tr", "r" + (r.ready ? " need" : r.done ? " done" : "") + (OPEN === r.key ? " on" : ""));
       tr.dataset.k = r.key; tr.tabIndex = 0;
-      var a = el("td", "nw");
+      var tg = srcTag(r), a = el("td", tg ? "" : "nw");   /* with a tag the cell may wrap it under the number */
       if (r.scope) a.appendChild(el("span", "muted", r.scope + "/"));
-      a.appendChild(el("b", null, r.id));
+      a.appendChild(el("b", "nw", r.id));
       var nn = newOf(r); if (nn > 0) { a.appendChild(root.document.createTextNode(" ")); a.appendChild(BOARD.newBadge(nn)); }
+      if (tg) { var tc = chip("src " + tg.cls, tg.text); tc.title = tg.title; a.appendChild(tc); }
       cell.task = a;
       var tt = el("td", "ttl"), tb2 = el("div", r.untitled ? "tt nm" : "tt", r.title);
       tb2.title = r.title; tt.appendChild(tb2);
