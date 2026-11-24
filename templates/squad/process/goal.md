@@ -85,7 +85,7 @@ roles: team-lead, manager
 aware: tech-lead, qa-whitebox
 topic: goal
 
-When the last task passes, the Team Lead checks its passed branches. Each an ancestor of the last (`git merge-base --is-ancestor`): no integration. Siblings are related when they change one file, share a `grep -rl` test hit, or one writes what the other reads (the Tech Lead's table). Unrelated ones need none, in a lone scope too.
+When the last task passes, the Team Lead checks its passed branches. Each an ancestor of the last (`git merge-base --is-ancestor`): no integration. Siblings are related when they change one file, share a `grep -rl` test hit, or one writes what the other reads (the touched-files table in `tasks/`). Unrelated ones need none, in a lone scope too.
 
 ## GOAL-6f Integrating related siblings
 roles: team-lead, manager
