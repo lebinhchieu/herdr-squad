@@ -99,13 +99,30 @@ def role_of(scope_home, name):
     return os.environ.get("SQUAD_ROLE", "") if name and name == os.environ.get("SQUAD_NAME") else ""
 
 
+def _team_without_qa(scope_home):
+    """True when scope.md has a decided `team:` with no `qa-white`/`qa-black` token (`none` counts). A missing,
+    undecided or unreadable team line is False: the roster rows then decide, as before."""
+    try:
+        import squadrules
+        text = (Path(str(scope_home)) / "scope.md").read_text(encoding="utf-8", errors="replace")
+        m = re.search(r"^team:[ \t]*(.*\S)[ \t]*$", text, re.M)
+        team = squadrules.parse_team(m.group(1) if m else "", "scope.md")
+    except (OSError, ValueError, ImportError):
+        return False
+    return team is not None and "qa-white" not in team and "qa-black" not in team
+
+
 def checkers(scope_home):
-    """-> {"qa": [agent...]}: the QA agents on the roster that are not retired; when every QA row is retired, all of
-    them (a QA retired after its PASS must not shrink M). No QA row at all: [] (the slot is `evidence`, see `slots`)."""
+    """-> {"qa": [agent...]}: the QA agents on the roster that are not retired. None live: a team that decided no QA
+    (`team:` without `qa-white`/`qa-black`) has [] (the slot is `evidence`, see `slots`); else all the retired QA rows
+    (a QA retired after its PASS must not shrink M). No QA row at all: []."""
     rows = _roster_rows(scope_home)
-    qa = [a for a, role, st in rows if role in QA_ROLES and not st.startswith("retired")] \
-        or [a for a, role, _ in rows if role in QA_ROLES]
-    return {"qa": qa}
+    live = [a for a, role, st in rows if role in QA_ROLES and not st.startswith("retired")]
+    if live:
+        return {"qa": live}
+    if _team_without_qa(scope_home):
+        return {"qa": []}
+    return {"qa": [a for a, role, _ in rows if role in QA_ROLES]}
 
 
 def slots(chk):

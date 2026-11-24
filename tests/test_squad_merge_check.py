@@ -98,6 +98,21 @@ class MergeCheck(unittest.TestCase):
         self.assertNotIn("## MRG-2", out)
         self.assertEqual(out.splitlines()[-1], "VERDICT: ok")
 
+    def test_no_qa_team_evidence_pass_is_ok_and_a_rule_id_row_is_no_ticket(self):  # 15 AC3
+        hdr = "| Agent | Role | Scope | Owns | Status | Session |\n| --- | --- | --- | --- | --- | --- |\n"
+        (self.home / "roster.md").write_text(hdr + "| qaw | qa-whitebox | s1 | x | retired | c |\n"
+                                             "| qab | qa-blackbox | s1 | x | retired | d |\n", encoding="utf-8")
+        (self.home / "scope.md").write_text("team: tech-lead, designer\n", encoding="utf-8")
+        squadtask.record(self.home, "05", "claim", by="dev", branch=BR)
+        squadtask.record(self.home, "05", "handin", by="dev", sha=self.sha, branch=BR)
+        squadtask.record(self.home, "05", "pass", by="hook", slot="evidence", sha=self.sha)
+        squadtask.record(self.home, "SQ-10", "handin", by="dev", sha=self.sha, branch=BR)  # an old rule-id row
+        code, out, err = self.run_tool(BR)
+        self.assertEqual((code, err), (0, ""), out)
+        self.assertIn("[evidence=PASS]", out)
+        self.assertNotIn("SQ-10", out)
+        self.assertEqual(out.splitlines()[-1], "VERDICT: ok")
+
     def test_dirty_root_refuses(self):
         self.passed()
         (self.repo / "other").write_text("dirty", encoding="utf-8")

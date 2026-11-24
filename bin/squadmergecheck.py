@@ -106,7 +106,10 @@ def task_states(scope):
     if not scope or not os.path.isdir(scope):
         raise Usage("no scope home: pass --scope DIR or set $SCOPE_DIR")
     sd = squadtask.squad_dir_of(scope)
-    return squadtask.fold(squadtask.read_events(sd, squadtask.slug_of(scope))), squadtask.checkers(scope)
+    states = squadtask.fold(squadtask.read_events(sd, squadtask.slug_of(scope)))
+    # old rows keyed by a rule id (SQ-10, ...) are no ticket: they never gate a merge
+    states = {k: st for k, st in states.items() if squadtask.is_task_id(str(st.get("task")))}
+    return states, squadtask.checkers(scope)
 
 
 def check(target, base_ref, scope):
