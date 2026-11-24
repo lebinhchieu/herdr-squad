@@ -73,8 +73,11 @@ class TemplateLayersTest(unittest.TestCase):
     def test_designer_may_write_only_ui_design_files(self):
         perms = json.loads((T / "squad/settings/designer.json").read_text())["permissions"]
         writes = [p for p in perms["allow"] if p.startswith(("Write(", "Edit("))]
+        # /tmp is open to every role (bd2563c, SAFE-11)
         self.assertEqual(sorted(writes), ["Edit(/.claude/squads/*/scopes/*/ui-design/**)",
-                                          "Write(/.claude/squads/*/scopes/*/ui-design/**)"])
+                                          "Edit(//tmp/**)",
+                                          "Write(/.claude/squads/*/scopes/*/ui-design/**)",
+                                          "Write(//tmp/**)"])
         for level in ("*/*.md", "*/scopes/*/*.md", "*/goals/*/*.md", "*/settings/**"):
             self.assertIn(f"Write(/.claude/squads/{level})", perms["deny"])
         self.assertIn("Bash(squad-respawn:*)", perms["allow"])
