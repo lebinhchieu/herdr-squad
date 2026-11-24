@@ -243,6 +243,20 @@ class SmallRulesTest(unittest.TestCase):
         self.assertIn("remove the rule", t)
 
 
+class RoutineGatesTest(unittest.TestCase):
+    def test_iter19_and_old_wording(self):
+        pd = ROOT / "templates/squad/process"
+        t = (pd / "iterations.md").read_text(encoding="utf-8").split("## ITER-19 ")[1]
+        for s in ("Close a passed scope", "Start the next scope", "Full `--tz` suite",
+                  "Merge, push, deploy", "Team, plan or scope change", "non-blocking",
+                  "[info] <scope> closed; say undo", "`--blocks \"\"`", "--kind read"):
+            self.assertIn(s, t)
+        self.assertIn("nothing here changes ([ITER-17])", t)
+        self.assertNotIn("The PO confirms the close at a check-in",
+                         (pd / "closing.md").read_text(encoding="utf-8"))
+        self.assertIn("non-blocking", (ROOT / "CLAUDE.md").read_text(encoding="utf-8"))
+
+
 class CheckTableRulesTest(unittest.TestCase):
     def test_rules_reach_the_right_roles(self):
         dev = composed("dev", team=("qa-white",))

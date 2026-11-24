@@ -6,7 +6,7 @@ when: goal = yes
 topic: goal
 
 - `goal.md` orders the scopes with their dependencies. The goal Manager makes each scope with `squad-start "<text>" --in-goal <goal> --name <scope>` (`<goal>` is the last part of `$GOAL_DIR`); its `scope.md` says `goal: <goal>`. Then it spawns each scope's Team Lead with `squad-spawn team-lead <name> --scope <scope>`, and the Team Lead spawns the rest of the pod.
-- Start a scope when everything it depends on is closed, or passed if it only needs the code ([GOAL-5]). Independent scopes may run at once within the Developer cap ([START-2c]).
+- Start a scope when everything it depends on is closed, or passed if it only needs the code ([GOAL-5]). Independent scopes may run at once within the Developer cap ([START-2c]). A scope already in the agreed plan starts without asking: one `read` notice ([ITER-19]).
 
 ## GOAL-2 Shared folder
 roles: manager
@@ -65,7 +65,7 @@ Plan one integration task at the end of the scope: one Developer branches from t
 roles: manager, tech-lead
 topic: goal
 
-An integration task merges the scope's passed branches into the Developer's own branch, runs the targeted tests for the changed files and is handed in; the suite owner then follows [SUITE-1]: targeted tests by default, a full run only after the PO's yes ([SUITE-1], [SUITE-1b], [SUITE-2d]).
+An integration task merges the scope's passed branches into the Developer's own branch, runs the targeted tests for the changed files and is handed in; the suite owner then follows [SUITE-1]: targeted tests by default, a full run when the PO says yes, the ask blocking nothing ([ITER-19]; [SUITE-1], [SUITE-1b], [SUITE-2d]).
 
 ## GOAL-6c Integration task, next scope
 roles: manager

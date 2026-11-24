@@ -1,3 +1,11 @@
+## v29 — 2026-11-24
+
+changed:
+- `iterations.md` ITER-19 new; `ITER-5`, `ITER-11`, `closing.md` CLOSE-1 and CLOSE-3b, `goal.md` GOAL-1 and GOAL-6b, `suites.md` SUITE-1, 1b, 2d, 3, 3b: a routine gate (close a passed scope with 0 open findings, start the next scope in the agreed plan) goes ahead with one `read` `[info]` notice that says "undo"; the full-suite ask has no `--blocks` and blocks nothing. why: on guardian `clarify` 8 of 24 inbox items were a yes Chieu always gives.
+- Repo `CLAUDE.md` "Running tests": the `--tz` ask is non-blocking.
+
+Deploy (Chieu): other squads see this after `/squad:squad-process-update`. The version line and Deploy paragraph come with ticket 05.
+
 ## v28 — 2026-11-24
 
 Plugin 0.10.10. The watchdog restarts idle roles lazily before their 1h prompt cache goes cold (ADR 0033).
