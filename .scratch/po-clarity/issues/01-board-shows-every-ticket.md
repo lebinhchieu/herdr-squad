@@ -4,6 +4,7 @@ Status: ready-for-agent
 
 Spec: `.scratch/po-clarity/spec.md`
 
+Design: `ui-design/01.md` (Status: final)
 Duties: Design and technical AC: `$SCOPE_DIR/tasks/01-design-notes.md` (Tech Lead) with `$SCOPE_DIR/tasks/qaw-technical-ac.md` (QA whitebox, 01 and common lines, as amended in the design notes). UI: `$SCOPE_DIR/ui-design/01.md` (final). Build the merge in `squadtickets.scope_tasks` with `origin` rows, the git read helpers, the Tasks panel tag, the ADR 0020 line; run targeted tests (the files the notes list) plus `test_windows_safe`, `test_utf8_helpers`, `test_instructions`; write `evidence.md`; HANDIN to both QAs.
 Files: `$SCOPE_DIR/tasks/01-design-notes.md`, `$SCOPE_DIR/ui-design/01.md`, `bin/squadtickets.py`, `bin/squadboard_git.py`, `bin/squadboard_tasks.py`, `bin/squad-watchdog`, `bin/squadreviewpack.py`, `templates/board/panel_tasks.js`, `docs/adr/0020-dashboard-replaces-removed-board.md`, `tests/test_squadtickets.py`, `tests/test_squadboard_git.py`, `tests/test_squadboard_tasks.py`, `tests/test_squadboard_panels.py`
 
@@ -57,6 +58,7 @@ Each row keeps a `source` field. The tasks panel shows the source as a small gre
 - AC2: a ticket on both main and its own branch shows the branch copy's title and `Status:`.
 - AC3: `squad-report` and the picker use the same function and list the same tickets (one test).
 - AC4: the board still makes no writes to git. A branch is read with `git show` and `git ls-tree` only, with the 5 s timeout `squadboard_git.py` already uses.
+- AC6: the built UI matches the design (`ui-design/01.md`): every screen and state.
 - AC5: the ADR 0020 amendment line "first source with a task wins" is changed to "all sources merge by number, newest copy wins".
 
 ## Comments

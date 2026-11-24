@@ -252,6 +252,9 @@ class TicketMerge(unittest.TestCase):
             self.assertEqual(sorted(self.tasks()), ["01", "02", "05"])
         with mock.patch.object(sti.time, "monotonic", side_effect=[0, 100, 200, 300, 400, 500]):
             self.assertEqual(sorted(self.tasks()), ["01", "02", "05"])
+        with mock.patch.object(sti, "GIT_BUDGET_S", 0):   # a spent budget: non-git rows, and the budget stays under the reader's 3 s
+            self.assertEqual(sorted(self.tasks()), ["01", "02", "05"])
+        self.assertLess(sti.GIT_BUDGET_S, 3.0)
         self.assertEqual(sorted(self.tasks(git=False)), ["01", "02", "05"])
         self.assertEqual(sorted(self.tasks()), ["01", "02", "03", "05"])
 

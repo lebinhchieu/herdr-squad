@@ -2,7 +2,7 @@
 
 ## Behaviour
 
-`squadtickets.scope_tasks` now merges tickets by number from main's `.scratch/<folder>/issues/`, the scope's unmerged Dev branches (read with `for-each-ref`, `merge-base`, `ls-tree`, `show` only, 5 s budget) and drafts `tasks/NN-ticket.md`. Each row gets `origin` (main|branch|draft), `origin_ref`, `on_main`; the Tasks panel shows a tag in the Task cell (`main` grey, `branch -NN` amber, `draft` amber dashed).
+`squadtickets.scope_tasks` now merges tickets by number from main's `.scratch/<folder>/issues/`, the scope's unmerged Dev branches (read with `for-each-ref`, `merge-base`, `ls-tree`, `show` only, 2 s budget (below the reader's 3 s)) and drafts `tasks/NN-ticket.md`. Each row gets `origin` (main|branch|draft), `origin_ref`, `on_main`; the Tasks panel shows a tag in the Task cell (`main` grey, `branch -NN` amber, `draft` amber dashed).
 
 Run with `SQUAD_*` unset, `PYTHONDONTWRITEBYTECODE=1`, from `tests/`: `python3 -m unittest -q test_squadtickets test_squadboard_tasks test_squadboard_list test_squadboard_git test_squadboard_files test_squad_review_pack test_squadtask test_squadreport_tasks test_squad_report_cli test_squad_watchdog test_windows_safe test_utf8_helpers test_instructions test_squadboard_panels` -> Ran 353 tests, OK (includes the SQ-10 trio).
 

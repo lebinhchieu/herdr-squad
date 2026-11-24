@@ -5,7 +5,7 @@ Sources, in this order (SOURCES); the first one with at least one task wins; nev
 Inside a ticket folder (declared, scratch) the copies of a ticket merge by number: the scope's own Dev branch `...-NN`
 (not merged into main, differing from main), else the newest such scope branch, else main's file, else the draft
 `tasks/NN-ticket.md`. Rows of the folder carry origin (main|branch|draft), origin_ref (branch or ""), on_main.
-git=False skips the branch reads (the watchdog, reviewpack). Git is read-only: for-each-ref, ls-tree, show; 5 s budget.
+git=False skips the branch reads (the watchdog, reviewpack). Git is read-only: for-each-ref, ls-tree, show; 2 s budget.
   declared  `tickets: <slug>` line of scope.md -> .scratch/<slug>/issues/NN-*.md
   scratch   .scratch/<scope name>/issues/NN-*.md
   scope     <scope home>/tasks/NN.md | NN-*.md, and tasks/issues/NN-*.md (drafts)
@@ -122,7 +122,7 @@ def _row(f, root, roots, source):
 
 
 # ---- merge by number (ticket 01): main, unmerged scope branches, drafts. Read-only git; see _branch_copies.
-GIT_BUDGET_S = 5.0
+GIT_BUDGET_S = 2.0   # below the board reader's READ_BUDGET_S (3 s): a slow git must leave time for the non-git rows
 MAX_BRANCHES = 40
 HEADS_TTL_S = 2.0
 _TREES, _BLOBS, _BASES, _HEADS = {}, {}, {}, {}   # (tip sha, path) -> {name: blob}; blob sha -> text; (main sha, tip) -> merge-base. Shas are immutable, so no expiry.
