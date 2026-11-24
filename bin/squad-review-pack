@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """One review file per HANDIN: the task's AC, diff stat, hunks, test commands, evidence path (REV-15).
 
-  squad-review-pack NN [--sha S] [--base REF] [--scope DIR] [--max-lines N]
+  squad-review-pack NN (a ticket number, integration or promotion) [--sha S] [--base REF] [--scope DIR] [--max-lines N]
 
 Writes only $SCOPE_DIR/evidence/NN/pack.md and pack-blackbox.md (the blind copy: no code, no diff).
 Run in the Developer's worktree. Exit 0 ok, 2 usage error.

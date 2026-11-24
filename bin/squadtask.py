@@ -34,7 +34,7 @@ TICKET_FILE = re.compile(r"^(?:ticket-)?(\d+)(?:-.*)?\.md$")
 HEX = re.compile(r"\b[0-9a-f]{6,40}\b")
 # The one task-id grammar (ticket 12). Copies: the jq filter in squad-log-message and the bash test in squad-spawn;
 # tests/test_squadtask.py runs one id table through all three. MSG-3 still says `NN` alone: the two names are tolerated.
-TASK_ID = r"\d+|integration|promotion"
+TASK_ID = r"[0-9]+|integration|promotion"  # ASCII digits, as the jq and bash copies
 
 
 def is_task_id(s):
@@ -406,7 +406,7 @@ def evidence_check(scope_home, nn, branch, sha, base=None):
         ticket = None
         for f in sorted(issues.iterdir()) if issues.is_dir() else []:
             m = TICKET_FILE.match(f.name)
-            if m and f.is_file() and int(m.group(1)) == int(nn):
+            if m and f.is_file() and str(nn).isdigit() and int(m.group(1)) == int(nn):  # no numbered ticket for integration
                 ticket = f
                 break
         if ticket is None:
@@ -513,7 +513,7 @@ def hook_output(warnings):
 
 # ---- CLI -------------------------------------------------------------------------------------------------------
 
-USAGE = """usage: squad-task claim   NN --owner AGENT [--branch B]
+USAGE = """usage: squad-task claim   NN --owner AGENT [--branch B]   (NN: a ticket number, integration or promotion)
        squad-task handin  NN --sha S [--branch B] [--by AGENT]
        squad-task pass|passed|fail NN [--sha S] [--slot SLOT]
        squad-task blocked NN [--why TEXT]
