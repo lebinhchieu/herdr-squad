@@ -65,10 +65,10 @@ Do not read source code, diffs or the Developer's explanation of how it works; n
 roles: all
 topic: safety
 
-Scratch: anywhere under `/tmp`. `rm` there takes only a literal absolute path: `rm /tmp/<dir>/<file>`, or `rm -rf "$D"` after `D=$(mktemp -d)`.
+Scratch goes in `$TMPDIR` (`mktemp -d` lands there). Never `rm` scratch: `squad-retire` deletes it. To free space mid-task: `squad-tmp rm <path>`.
 
 ## SAFE-11b Run rm alone
 roles: all
 topic: safety
 
-Run `rm` alone: no `cd`, `&&` or `;` in that command, and no glob, relative path or `$(...)` target. Why: Claude Code's dangerous-rm check fires on these, and no permission rule can allow it.
+Any other `rm` runs alone: no `cd`, `&&` or `;` in that command, and no glob, relative path, `$VAR` or `$(...)` target. Why: Claude Code's dangerous-rm check fires on these, and no permission rule can allow it.

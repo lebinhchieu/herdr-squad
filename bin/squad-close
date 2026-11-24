@@ -251,7 +251,11 @@ fi
 retire() {
   for a in "$@"; do
     if [[ $dry == 1 ]]; then echo "would retire $a"
-    else "$bin/squad-retire" "$a" --no-notes >/dev/null 2>&1 && echo "retired $a" || echo "skipped $a (not live)"; fi
+    elif "$bin/squad-retire" "$a" --no-notes >/dev/null 2>&1; then echo "retired $a"
+    else
+      python3 "$bin/squad-tmp" clean "$a" >/dev/null 2>&1 || true  # not live: its scratch dir still goes
+      echo "skipped $a (not live)"
+    fi
   done
 }
 

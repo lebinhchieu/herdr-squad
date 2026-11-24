@@ -82,7 +82,7 @@ class DevRulesSize(unittest.TestCase):
                 "SAFE-1a": "Never touch another worktree",
                 "SAFE-3": "by PID",
                 "SAFE-4": "files your role owns",
-                "SAFE-11": "anywhere under `/tmp`",
+                "SAFE-11": "Never `rm` scratch",
                 {"S": "SUITE-2d", "M": "SUITE-2c", "L": "SUITE-2a"}[size]: "the test files you touched",
                 "MSG-4b": ask_owner,
                 "MSG-11b": f"to the {ask_owner}",
@@ -146,7 +146,7 @@ class DevRulesSize(unittest.TestCase):
             for rid in ("SAFE-11", "SAFE-11b"):
                 with self.subTest(role=r, rule=rid):
                     self.assertLessEqual(len(section(t, rid).split()), 60)
-            self.assertIn("anywhere under `/tmp`", section(t, "SAFE-11"))
+            self.assertIn("`squad-tmp rm <path>`", section(t, "SAFE-11"))
             self.assertNotIn("out before", section(t, "SAFE-11") + section(t, "SAFE-11b"))
 
     def test_core_file_stays_within_40_lines(self):

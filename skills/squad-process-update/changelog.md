@@ -1,3 +1,16 @@
+## v32 — 2026-11-25
+
+Plugin 0.11.1. Scratch work in `/tmp` no longer prompts Chieu (the tmp-scratch tickets 01-05).
+
+changed:
+- `bin/squad-tmp` new; `squad-spawn` (01): each agent gets a scratch dir `/tmp/squad-<uid>/<agent>` (0700) as `TMPDIR` and `SQUAD_TMP`, and `CLAUDE_CODE_TMPDIR` pins Claude Code's own task dir where `herdr-bg` looks for it. A respawn keeps the dir. why: agents cleaned scratch with `rm`, and Claude Code's built-in dangerous-rm check blocked 45 of those in 10 days; no permission rule can allow it.
+- `squad-retire`, `squad-close` (02): delete the agent's scratch dir (`squad-tmp clean`), a not-live agent's too. why: the agent no longer deletes it.
+- SAFE-11, SAFE-11b (03), all roles: scratch goes in `$TMPDIR`; never `rm` scratch; any other `rm` runs alone on literal paths. why: the old rule still recommended `rm -rf "$D"`, which the check blocks.
+- `squad-tmp rm <path>` (04), all ten role settings templates allow `Bash(squad-tmp:*)`: deletes paths strictly inside the caller's `$SQUAD_TMP`, a symlink as a link. why: a big clone sometimes has to go before retire. It passes the built-in check on purpose; it checks the path itself.
+- `squad-spawn` lean settings (05): the user's `rtk hook` PreToolUse hook is not merged into a role. why: it rewrites a command after auto mode reviewed it, so auto mode gives no verdict and the call prompts (332 times in 10 days).
+
+Deploy (Chieu): merge; `claude plugin update` to 0.11.1; `/squad:squad-process-update` for SAFE-11 and SAFE-11b. Running agents keep plain `/tmp` until their next spawn or respawn; a squad with `settings/<role>.local.json` overlays gets `Bash(squad-tmp:*)` from the template; a legacy squad with full `settings/<role>.json` copies needs it added by hand. Rollback: revert the merge, plugin back to 0.11.0; scratch dirs left under `/tmp/squad-<uid>` are plain files.
+
 ## v31 — 2026-11-24
 
 Plugin 0.11.0. Chieu sees where an inbox item sits in the plan, and tickets say what they want in plain words (the po-clarity scope).

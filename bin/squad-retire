@@ -28,6 +28,8 @@ if [[ $notes == 1 ]]; then
 fi
 
 herdr pane close "$pane" >/dev/null
+# The agent's scratch dir (SAFE-11) goes with it; a respawn closes the pane itself and keeps it. A failure only warns.
+python3 "$(dirname "$(readlink -f "$0")")/squad-tmp" clean "$name" 2>/dev/null || echo "warning: could not delete the scratch dir of $name; going on" >&2
 # Log the retire (a `fresh` with no later respawn or retire is otherwise unexplained). A log problem only warns.
 home=${SCOPE_DIR:-${GOAL_DIR:-${SQUAD_DIR:-}}}
 if [[ -d $home ]]; then

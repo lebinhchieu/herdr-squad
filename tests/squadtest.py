@@ -30,11 +30,22 @@ def load_cli(name):
     return mod
 
 
+_SCRATCH = []
+
+
+def _scratch_root():
+    if not _SCRATCH:
+        _SCRATCH.append(tempfile.mkdtemp(prefix="squad-tmp-test-"))
+        atexit.register(shutil.rmtree, _SCRATCH[0], True)
+    return _SCRATCH[0]
+
+
 def clean_env(**extra):
     """os.environ without the agent variables (SQUAD*, SCOPE_DIR, GOAL_DIR, HERDR*), plus `extra`. SQUAD_WATCHDOG=off: a
     squad-start run in a test starts no watchdog (a test of the watchdog passes its own value)."""
     env = {k: v for k, v in os.environ.items() if not k.startswith(_AGENT_ENV)}
     env["SQUAD_WATCHDOG"] = "off"
+    env["SQUAD_TMP_ROOT"] = _scratch_root()  # squad-spawn/-retire make and delete scratch dirs here, never in the real root
     env.update(extra)
     return env
 

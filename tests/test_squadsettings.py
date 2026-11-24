@@ -124,25 +124,16 @@ class EffectiveTest(Base):
             for tool in ("Read", "Edit", "Write"):
                 self.assertIn(f"{tool}(//tmp/**)", perms["allow"], f.name)
 
-    def test_safe11_rm_examples_match_allow_and_no_ask(self):
-        import fnmatch
+    def test_safe11_names_no_rm_and_squad_tmp_is_allowed_for_every_role(self):
+        # tmp-scratch 03/04: an agent never runs rm on scratch (the built-in dangerous-rm check prompts on it)
         text = (ROOT / "templates/squad/process/safety.md").read_text(encoding="utf-8")
         body = re.search(r"(?ms)^## SAFE-11 .*?(?=^## |\Z)", text).group(0)
-        cmds = []
-        for code in re.findall(r"`([^`]+)`", body):
-            cmds += [c.strip() for c in re.split(r"&&|;", code) if c.strip().startswith("rm ")]
-        self.assertTrue(cmds, "SAFE-11 has no rm example")
-
-        def hit(globs, cmd):
-            return any(fnmatch.fnmatchcase(cmd, g[len("Bash("):-1]) for g in globs if g.startswith("Bash(") and ":*" not in g)
-
-        for role in ("dev", "qa-whitebox", "qa-blackbox", "manager", "tech-lead", "team-lead"):
-            perms = json.loads((ROOT / f"templates/squad/settings/{role}.json").read_text(encoding="utf-8"))["permissions"]
-            for c in cmds:
-                self.assertFalse(hit(perms.get("ask", []), c), f"{role}: ask matches {c}")
-                if "$" not in c:
-                    self.assertTrue(hit(perms["allow"], c), f"{role}: no allow for {c}")
-            self.assertTrue(hit(perms["allow"], "rm -rf /tmp/scratch-A") and not hit(perms.get("ask", []), "rm -rf /tmp/scratch-A"))
+        self.assertFalse([c for c in re.findall(r"`([^`]+)`", body) if c.lstrip().startswith("rm ")], body)
+        self.assertIn("`squad-tmp rm <path>`", body)
+        for f in sorted((ROOT / "templates/squad/settings").glob("*.json")):
+            perms = json.loads(f.read_text(encoding="utf-8"))["permissions"]
+            self.assertIn("Bash(squad-tmp:*)", perms["allow"], f.name)
+            self.assertFalse([e for e in perms.get("ask", []) + perms.get("deny", []) if "squad-tmp" in e], f.name)
 
     def test_ask_unions_and_other_arrays_are_replaced(self):
         r = ss.merge({"permissions": {"ask": ["a"]}, "l": [1, 2]}, {"permissions": {"ask": ["b"]}, "l": [3]})

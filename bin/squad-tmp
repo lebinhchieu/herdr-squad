@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""Per-agent scratch dirs, so no agent ever runs `rm` on scratch (Claude Code's dangerous-rm check prompts on it).
+
+  squad-tmp root             print the scratch root: $SQUAD_TMP_ROOT, else <system tmp>/squad-<uid>
+  squad-tmp path <agent>     print <root>/<agent>
+  squad-tmp make <agent>     create it (mode 0700) and print it; squad-spawn runs this
+  squad-tmp clean <agent>    delete it; squad-retire runs this. A missing dir is fine
+  squad-tmp rm <path>...     delete paths strictly inside the caller's $SQUAD_TMP, for big scratch mid-task
+
+Exit 2: a bad agent name or a path outside the caller's scratch dir; nothing is deleted for that argument."""
+import os
+import re
+import shutil
+import sys
+import tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import squadio  # noqa: E402
+
+NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def root():
+    r = os.environ.get("SQUAD_TMP_ROOT")
+    if not r:
+        # /tmp, not $TMPDIR: inside a squad agent TMPDIR is its own scratch dir.
+        base = "/tmp" if os.path.isdir("/tmp") else tempfile.gettempdir()
+        uid = os.getuid() if hasattr(os, "getuid") else os.environ.get("USERNAME", "user")
+        r = os.path.join(base, "squad-%s" % uid)
+    return os.path.realpath(r)
+
+
+def agent_dir(name):
+    if not NAME.match(name or "") or name in (".", ".."):
+        print("squad-tmp: bad agent name %r (allowed: A-Za-z0-9._-, starting with a letter or digit)" % name, file=sys.stderr)
+        sys.exit(2)
+    return os.path.join(root(), name)
+
+
+def remove(path):
+    if os.path.islink(path) or not os.path.isdir(path):
+        os.unlink(path)
+    else:
+        shutil.rmtree(path)
+
+
+def cmd_rm(paths):
+    own = os.environ.get("SQUAD_TMP")
+    if not own:
+        print("squad-tmp rm: SQUAD_TMP is not set (not a squad agent); nothing deleted", file=sys.stderr)
+        return 2
+    own = os.path.realpath(own)
+    rc = 0
+    for p in paths:
+        # Resolve the parent only: a symlink inside scratch is removed as a link, never followed out.
+        full = os.path.join(os.path.realpath(os.path.dirname(os.path.abspath(p))), os.path.basename(os.path.abspath(p)))
+        if os.path.basename(full) in ("", ".", "..") or os.path.commonpath([own, full]) != own or full == own:
+            print("squad-tmp rm: refused %s: not strictly inside your scratch dir %s" % (p, own), file=sys.stderr)
+            rc = 2
+            continue
+        if not os.path.lexists(full):
+            continue
+        remove(full)
+    return rc
+
+
+def main(argv):
+    squadio.utf8_stdio()
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__)
+        return 0 if argv else 2
+    cmd, args = argv[0], argv[1:]
+    if cmd == "root" and not args:
+        print(root())
+    elif cmd in ("path", "make", "clean") and len(args) == 1:
+        d = agent_dir(args[0])
+        if cmd == "make":
+            os.makedirs(root(), mode=0o700, exist_ok=True)
+            os.makedirs(d, mode=0o700, exist_ok=True)
+            os.chmod(d, 0o700)
+        elif cmd == "clean":
+            if os.path.lexists(d):
+                remove(d)
+            return 0
+        print(d)
+    elif cmd == "rm" and args:
+        return cmd_rm(args)
+    else:
+        print("usage: squad-tmp root | path <agent> | make <agent> | clean <agent> | rm <path>...", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

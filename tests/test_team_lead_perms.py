@@ -16,7 +16,7 @@ TL_ALLOW = {
     "Bash(squad-spawn qa-blackbox:*)", "Bash(squad-spawn designer:*)", "Bash(squad-spawn architect:*)", "Bash(squad-retire:*)", "Bash(squad-process rule:*)", "Bash(squad-process who:*)", "Bash(herdr agent list:*)", "Bash(herdr agent get:*)",
     "Bash(herdr agent read:*)",
     "Bash(rm /tmp/*)", "Bash(rm -r /tmp/*)", "Bash(rm -rf /tmp/*)", "Bash(rmdir /tmp/*)",
-    "Read(//tmp/**)", "Edit(//tmp/**)", "Write(//tmp/**)",
+    "Read(//tmp/**)", "Edit(//tmp/**)", "Write(//tmp/**)", "Bash(squad-tmp:*)",
 }
 ROSTER = """| Agent | Role | Scope | Owns | Status | Session |
 | --- | --- | --- | --- | --- | --- |
