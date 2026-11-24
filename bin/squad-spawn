@@ -406,7 +406,14 @@ if [[ ${SQUAD_SPAWN_USER_CONFIG:-} != 1 ]]; then
                        then reduce (b|keys_unsorted[]) as $k (a; .[$k] = (if has($k) then m(.[$k]; b[$k]) else b[$k] end))
                      elif (a|type) == "array" and (b|type) == "array" then a + (b - a)
                      else b end;
-        m($user[0] | with_entries(select(.key | test("plugin|skill|marketplace"; "i") | not))
+        # rtk hook rewrites a Bash command after auto mode reviewed it: no verdict, so the call prompts. Dropped,
+        # with any matcher group or event it leaves empty; the user'"'"'s other hooks stay.
+        def norewrite: if (.hooks | type) == "object" then .hooks |= with_entries(
+            .value |= (if type == "array" then map(
+                if (.hooks | type) == "array" then .hooks |= map(select((.command // "" | tostring | test("^\\s*rtk\\s+hook\\b")) | not)) else . end
+                | select((.hooks | type) != "array" or (.hooks | length) > 0)) else . end)
+            | select(.value != [])) else . end;
+        m($user[0] | norewrite | with_entries(select(.key | test("plugin|skill|marketplace"; "i") | not))
           + (if ($keep | length) > 0 and ($user[0].enabledPlugins | type) == "object"
              then {enabledPlugins: ($user[0].enabledPlugins | with_entries(select(.value == true and (.key as $k | $keep | any(. as $n | $k == $n or ($k | startswith($n + "@")))))))}
              else {} end); $role)' 2>/dev/null); then
@@ -491,6 +498,19 @@ env_args=(--env "SQUAD=$squad" --env "SQUAD_DIR=$squad_dir" --env "SQUAD_NAME=$n
 [[ -z $goal_dir ]] || env_args+=(--env "GOAL_DIR=$goal_dir")
 [[ -n $plugin_dir ]] && env_args+=(--env "SQUAD_PLUGIN_DIR=$plugin_dir")
 env_args+=("${runtime_env[@]}")
+
+# Scratch dir (SAFE-11): mktemp in the agent lands in <root>/<name>, which squad-retire deletes, so the agent never runs
+# rm on scratch (Claude Code's dangerous-rm check prompts on it). TMPDIR also moves Claude Code's own task dir, which
+# herdr-bg looks for under /tmp/claude-<uid>: CLAUDE_CODE_TMPDIR pins it to the caller's. A respawn keeps the dir.
+# A failure only warns; the agent then runs on plain /tmp.
+if [[ $dry == 1 ]]; then
+  scratch=$(python3 "$plugin_root/bin/squad-tmp" path "$name" 2>/dev/null) || scratch=""
+else
+  scratch=$(python3 "$plugin_root/bin/squad-tmp" make "$name") || { scratch=""; echo "warning: no scratch dir for $name; it uses /tmp" >&2; }
+fi
+if [[ -n $scratch ]]; then
+  env_args+=(--env "TMPDIR=$scratch" --env "SQUAD_TMP=$scratch" --env "CLAUDE_CODE_TMPDIR=${CLAUDE_CODE_TMPDIR:-${TMPDIR:-/tmp}}")
+fi
 
 # Agents are addressed by bare name, so a second live agent with this name would be unreachable or misrouted.
 # Checked before the label store is written: a refused spawn must not overwrite the live agent's stored label.

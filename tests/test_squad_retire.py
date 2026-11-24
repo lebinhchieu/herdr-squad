@@ -36,6 +36,28 @@ class RetireTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.survivors(), ["mgr", "tl"])
 
+    def test_retire_deletes_the_agents_scratch_dir_and_squad_tmp_rm_stays_inside_scratch(self):
+        # tmp-scratch 02/04: tools delete scratch, so no agent runs rm (Claude Code's dangerous-rm check prompts on it)
+        tmp = [str(BIN / "squad-tmp")]
+        mk = lambda *a: subprocess.run(["python3", *tmp, *a], env=self.env, text=True, capture_output=True)
+        scratch = Path(mk("make", "dev").stdout.strip())
+        outside = Path(self.tmp.name) / "outside"
+        outside.mkdir()
+        (scratch / "big").mkdir()
+        (scratch / "link").symlink_to(outside)
+        env = {**self.env, "SQUAD_TMP": str(scratch)}
+        rm = lambda *a: subprocess.run(["python3", *tmp, "rm", *a], env=env, text=True, capture_output=True).returncode
+        self.assertEqual(rm(str(scratch / "big"), str(scratch / "link")), 0)
+        self.assertEqual(sorted(p.name for p in scratch.iterdir()), [])
+        self.assertTrue(outside.is_dir())  # the link went, not its target
+        for bad in (str(outside), str(scratch), str(scratch / ".." / "dev")):
+            self.assertEqual(rm(bad), 2, bad)
+        self.assertTrue(outside.is_dir() and scratch.is_dir())
+        self.assertEqual(mk("clean", "..").returncode, 2)
+        self.panes.write_text("p3 t3 dev\n", encoding="utf-8")
+        self.assertEqual(self.retire("dev").returncode, 0)
+        self.assertFalse(scratch.exists())
+
     def test_retire_leaves_agents_sharing_its_tab_alone(self):
         # The PO merged the Manager and Tech Lead panes into the dev's tab; closing the tab killed all three.
         self.panes.write_text("p1 t1 mgr\np2 t1 tl\np3 t1 dev\n", encoding="utf-8")

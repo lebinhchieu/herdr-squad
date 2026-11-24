@@ -18,7 +18,8 @@
       "Bash(rmdir /tmp/*)",
       "Read(//tmp/**)",
       "Edit(//tmp/**)",
-      "Write(//tmp/**)"
+      "Write(//tmp/**)",
+      "Bash(squad-tmp:*)"
     ],
     "ask": [
       "Bash(git push:*)",
