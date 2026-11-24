@@ -305,6 +305,7 @@
     if (!LAST) return;
     var body = LAST.body, d = LAST.d, c = LAST.c;
     css();
+    var ae = root.document.activeElement, keep = ae && ae.dataset && ae.dataset.pv && body.contains(ae) ? ae.dataset.pv : null;   /* a redraw keeps focus on the Preview button */
     body.textContent = "";
     var R = rowsForFiles(d, F);
     c.setCount(R.total, false);
@@ -339,6 +340,7 @@
     else if (!R.rows.length && !R.missing) body.appendChild(el("p", "muted", "No file in this filter."));
     if (R.truncated) body.appendChild(el("p", "note", "The list is cut: this scope has more files than the board lists."));
     showStatus(body);
+    if (keep) focusPv(body, keep);
   }
 
   function focusPv(body, abs) {
@@ -360,8 +362,8 @@
       var tr = t.closest && t.closest("tr[data-open]");        /* the whole row is the link */
       if (tr && tr.querySelector("a[data-abs]")) tr.querySelector("a[data-abs]").click();
     });
-    body.addEventListener("keydown", function (e) {   /* Esc closes the preview and returns focus to its button */
-      if (e.key !== "Escape" || !PV) return;
+    root.document.addEventListener("keydown", function (e) {   /* Esc closes the preview and returns focus to its button, wherever the focus is (the page redraws and drops it) */
+      if (e.key !== "Escape" || !PV || !body.isConnected) return;
       var abs = PV.abs; PV = null; draw(); focusPv(body, abs);
     });
   }

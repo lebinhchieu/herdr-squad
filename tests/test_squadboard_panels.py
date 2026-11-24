@@ -1336,7 +1336,8 @@ btn().click();                         /* closes */
 const closed=panel.querySelectorAll('tr.pvr').length;
 mode='empty';btn().click();await sleep(150);
 const empty=panel.querySelector('.pvr .pstate').textContent;
-panel.querySelector('.pvr').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+document.activeElement.blur();   /* a mouse click leaves the focus on BODY: Esc still closes */
+document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
 out({err,closed,empty,after:panel.querySelectorAll('tr.pvr').length,focus:document.activeElement===btn(),exp:btn().getAttribute('aria-expanded')});
 """)
         self.assertEqual(r["err"], "Cannot show this ticket. Open it in VS Code.")
