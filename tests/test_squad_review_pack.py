@@ -111,6 +111,13 @@ class ReviewPack(unittest.TestCase):
         self.assertIn("ticket not committed yet", pack)
         self.assertIn("MARKER_TECH_AC", pack)
 
+    def test_integration_pack_comes_from_its_draft(self):  # ticket 12
+        (self.scope / "tasks" / "integration.md").write_text(TICKET, encoding="utf-8")
+        code, out, err = self.run_tool("integration", "--base", "main")
+        self.assertEqual(code, 0, err)
+        self.assertTrue((self.scope / "evidence/integration/pack.md").is_file())
+        self.assertEqual(self.run_tool("SQ-10", "--base", "main")[0], 2)
+
     def test_ticket_without_technical_ac(self):  # T6 shape
         (self.repo / ".scratch/feat/issues/07-fake.md").write_text("# 07: x\n\n## Business AC\n1. do it\n", encoding="utf-8")
         self.g("commit", "-q", "-am", "no tech")

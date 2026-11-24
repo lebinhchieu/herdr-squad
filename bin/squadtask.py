@@ -32,6 +32,13 @@ LABELS = {"needs-triage": "todo", "needs-info": "todo", "ready-for-agent": "todo
           "claimed": "in progress", "done": "passed", "wontfix": "wontfix"}
 TICKET_FILE = re.compile(r"^(?:ticket-)?(\d+)(?:-.*)?\.md$")
 HEX = re.compile(r"\b[0-9a-f]{6,40}\b")
+# The one task-id grammar (ticket 12). Copies: the jq filter in squad-log-message and the bash test in squad-spawn;
+# tests/test_squadtask.py runs one id table through all three. MSG-3 still says `NN` alone: the two names are tolerated.
+TASK_ID = r"\d+|integration|promotion"
+
+
+def is_task_id(s):
+    return isinstance(s, str) and re.fullmatch(TASK_ID, s) is not None
 
 
 # ---- where things are ----------------------------------------------------------------------------------------
@@ -418,7 +425,7 @@ def evidence_check(scope_home, nn, branch, sha, base=None):
         return False, "not run (%s)" % exc
 
 
-HANDIN_TASK = re.compile(r"^HANDIN[ \t]+([A-Z][A-Z0-9]*-[0-9]+|[0-9]+)(?![A-Za-z0-9-])")
+HANDIN_TASK = re.compile(r"^HANDIN[ \t]+(%s)(?![A-Za-z0-9-])" % TASK_ID)
 
 
 def handin_gate(scope_home, text):
@@ -465,11 +472,11 @@ def _named_sha(text, events):
 
 def from_message(scope_home, rec, role=None):
     """One messages.jsonl record -> events (design 4.1). -> [warning]. ASK, ANSWER, STATUS, evidence hand-ins and
-    records with no task id write nothing."""
+    records with no task id (or a rule id) write nothing."""
     typ, nn, text = rec.get("type"), rec.get("task"), rec.get("text") or ""
     if not isinstance(nn, str) or not isinstance(text, str):
         return []
-    if not nn or typ not in ("HANDIN", "PASS", "FAIL", "BLOCKED", "DECISION"):
+    if not is_task_id(nn) or typ not in ("HANDIN", "PASS", "FAIL", "BLOCKED", "DECISION"):  # a rule id is no task
         return []
     role = role_of(scope_home, rec.get("from")) if role is None else role
     base = {"by": rec.get("from"), "role": role, "ts": rec.get("ts"), "msg_id": rec.get("msg_id")}
@@ -581,8 +588,8 @@ def run(argv):
             if len(args) > 1:
                 raise ValueError("show takes at most one task")
             return _show(home, args[0] if args else None, "json" in flags)
-        if len(args) != 1 or not args[0].isdigit():
-            raise ValueError("%s needs one ticket number (digits), got %r" % (cmd, " ".join(args)))
+        if len(args) != 1 or not is_task_id(args[0]):
+            raise ValueError("%s needs one task id (a ticket number, integration or promotion), got %r" % (cmd, " ".join(args)))
         nn = args[0]
         if cmd == "claim" and not opts.get("owner"):
             raise ValueError("claim needs --owner")

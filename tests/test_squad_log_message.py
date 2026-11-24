@@ -92,10 +92,16 @@ class LogMessageTest(unittest.TestCase):
         self.assertEqual(rec["iteration"], 10)
         self.assertRegex(rec["ts"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d")
 
-    def test_status_with_colon_finds_task_later_in_text(self):
-        self.run_hook(payload("STATUS: building SET-01, 60%, no blockers", to="manager"))
-        [rec] = self.records()
-        self.assertEqual((rec["type"], rec["task"]), ("STATUS", "SET-01"))
+    def test_a_rule_id_in_the_text_is_no_task_and_integration_is(self):  # ticket 12 AC2 (base: SQ-10)
+        for text, want in (("STATUS: building SET-01, 60%, no blockers", None), ("STATUS 12: ran SQ-10 trio", "12"),
+                           ("HANDIN integration: branch b, commit abc123", "integration"),
+                           ("FAIL integration: one finding", "integration"),
+                           ("STATUS integration: SQ-10 files clean", "integration"),
+                           ("PASS promotion: ok", "promotion"), ("HANDIN 12x: branch b", None),
+                           ("HANDIN SQ-10: branch b, commit abc123", "SQ-10")):  # a first-token rule id is history, still logged
+            self.run_hook(payload(text, to="manager"))
+        self.assertEqual([r["task"] for r in self.records()], [None, "12", "integration", "integration", "integration",
+                                                               "promotion", None, "SQ-10"])
 
     def test_untyped_message_has_null_type_and_task(self):
         self.run_hook(payload("hello there, quick question"))

@@ -242,6 +242,23 @@ class StoreAndHook(Base):
         self.assertEqual(run("merged", "09").returncode, 2)
         self.assertEqual(run("show", "02", "--json").returncode, 0)
 
+    def test_integration_and_promotion_are_tasks_and_rule_ids_are_not(self):  # ticket 12 AC1, AC3
+        def run(*a):
+            return subprocess.run([sys.executable, str(CLI), *a, "--scope-home", str(self.home)], text=True,
+                                  capture_output=True, timeout=20)
+        self.assertEqual(run("claim", "integration", "--owner", "dev").returncode, 0)
+        self.assertEqual(run("handin", "promotion", "--sha", "abc1234").returncode, 0)
+        self.assertEqual(run("handin", "integration", "--sha", "abc1234").returncode, 0)
+        for bad in ("SQ-10", "12x", "Integration"):
+            self.assertEqual(run("claim", bad, "--owner", "dev").returncode, 2, bad)
+        rows = {r["task"]: r for r in json.loads(run("show", "--json").stdout)}
+        self.assertEqual(sorted(rows), ["integration", "promotion"])
+        self.assertEqual(rows["integration"]["state"]["owner"], "dev")
+        before = self.events()
+        squadtask.from_message(self.home, {"from": "dev", "type": "HANDIN", "task": "SQ-10",
+                                           "text": "HANDIN SQ-10: branch b, commit abc1234"}, role="dev")
+        self.assertEqual(self.events(), before)  # a rule id writes no event
+
     def test_concurrent_writers_and_mkdir_lock(self):  # T2
         code = ("import sys; sys.path.insert(0, %r); import squadtask\n"
                 "for i in range(25): squadtask.record(%r, '01', 'blocked', by='w'+sys.argv[1], why='x'*5000)\n"

@@ -31,8 +31,7 @@ record=$(jq -c --arg from "$SQUAD_NAME" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%
   | {ts: $ts, msg_id: .tool_response.msg_id, from: $from,
      to: (.tool_input.to // .tool_input.recipient),
      type: ($text | capture("^(?<t>ASK|ANSWER|DECISION|BLOCKED|HANDIN|PASS|FAIL|STATUS)(?=[\\s:]|$)").t? // null),
-     task: ($text | (capture("^(?:ASK|ANSWER|DECISION|BLOCKED|HANDIN|PASS|FAIL|STATUS)[ \\t]+(?<id>[A-Z][A-Z0-9]*-[0-9]+|[0-9]+)(?![A-Za-z0-9-])").id?
-                      // [match("\\b[A-Z][A-Z0-9]*-[0-9]+\\b").string][0]? // null)),
+     task: ($text | capture("^(?:ASK|ANSWER|DECISION|BLOCKED|HANDIN|PASS|FAIL|STATUS)[ \\t]+(?<id>[A-Z][A-Z0-9]*-[0-9]+|[0-9]+|integration|promotion)(?![A-Za-z0-9-])").id? // null),
      text: $text, iteration: $iteration}' <<<"$input" 2>/dev/null) || exit 0
 [[ -n $record ]] || exit 0
 
