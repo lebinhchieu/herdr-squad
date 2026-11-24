@@ -23,4 +23,16 @@ Plain question
 Done one
 scope 13 of 15 · ERD v12 rewritten · next: promotion
 Withdrawn by the Manager 2026-10-16 12:00: x.
+--- E27 at 80 columns (last row: scope 4 of 4) ---
+[← Back]
+  E27 · blocks nothing · 5h
+inbox-visual: clarify what the TUI inbox should show
+scope 4 of 4 · Release check on both pages · next: nothing, last one
+... body rows follow
+--- E27 at 40 columns (last row: task 11 of 11, step and aim cut first) ---
+[← Back]
+  E27 · blocks nothing · 5h
+inbox-visual: clarify what the TUI inbox should show
+task 11 of 11 · next: nothing, last one
+... body rows follow
 ENDDUMP

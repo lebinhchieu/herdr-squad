@@ -4,7 +4,7 @@
 | AC1b | `test_squadplan.InboxPlanTest.test_AC1b_...` (task 2 of 3 · step 2 · aim · next: t11); shot `board-scope.png` | - | - |
 | AC2 | `PlanFieldTest.test_T05_2_...` (unknown, nothing, none, no table, unreadable: null); shot `board-goal.png` E4 has no line | - | - |
 | AC3 | pane `item.test.ts` "05 plan line" and `core.test.ts` planLine, both in `claude plugin test` (652 pass); board `Panels12` test | - | - |
-| LC-11 design states | board: `board-goal.png`, `board-scope.png`, `board-narrow.png`; pane: `pane-states.txt` (80 cols, 40 cols, no plan, done item) | - | - |
+| LC-11 design states | board: `board-goal.png`, `board-scope.png`, `board-last.png` (next: nothing, last one), `board-narrow.png` (260 px panel, ellipsis); pane: `pane-states.txt` (80 cols, 40 cols, no plan, done item, last row at 80 and 40 cols) | - | - |
 | T05-1 | `grep -rn "plan_line_parts" bin/` shows one builder; both surfaces read the `plan` field only | - | - |
 | T05-2 | `PlanFieldTest.test_T05_2_...` | - | - |
 | T05-3 | `PlanFieldTest.test_T05_3_...` (escalations.md bytes equal, no inbox.jsonl written, `plan` key on every item); contract byte test OK | - | - |

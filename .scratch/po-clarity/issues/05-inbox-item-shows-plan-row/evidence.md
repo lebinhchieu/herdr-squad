@@ -14,11 +14,15 @@ Scope home, AC1b: E1 (blocks `02`) shows `task 2 of 9 · step 1 · next: returne
 
 ![scope home](img/board-scope.png)
 
-Narrow panel (420 px): one line, cut with an ellipsis, full text in `title` (computed `text-overflow: ellipsis`, `white-space: nowrap`).
+Last row of the plan (design States, "Last row in the plan"): the goal home, `alpha-qa` is scope 4 of 4, so the line ends `next: nothing, last one`. The board panel is at its widest here (532 px) so the whole line shows. (The same shot also shows the scope item `E1` of `alpha-api` and `E2`.)
+
+![last row](img/board-last.png)
+
+Narrow panel: the panel handle was dragged in with the mouse (Playwright) until the panel was 260 px wide (the layout's smallest), with a long aim on the last-row item (`Release check passes on both pages with every field shown`). All three lines are one line, cut with `…`, full text in `title`; measured: `scrollWidth > clientWidth`, computed `text-overflow: ellipsis`, `white-space: nowrap`, `title` equal to the text. Console: only the `favicon.ico` 404.
 
 ![narrow](img/board-narrow.png)
 
-Pane (rows drawn by the real mod in `claude plugin test`, [pane-states.txt](pane-states.txt)): line right under the title at 80 columns; 40 columns drops the aim first; no plan gives no row; a done item keeps the line, dim. Style asserted in `item.test.ts`: `dimColor` true, no colour, no bold.
+Pane (rows drawn by the real mod in `claude plugin test`, [pane-states.txt](pane-states.txt)): line right under the title at 80 columns; 40 columns drops the aim first; no plan gives no row; a done item keeps the line, dim; the last row of the plan ends `next: nothing, last one` (80 columns `scope 4 of 4 · Release check on both pages · next: nothing, last one`; 40 columns `task 11 of 11 · next: nothing, last one`, step and aim cut first, `next:` kept). Style asserted in `item.test.ts`: `dimColor` true, no colour, no bold.
 
 ```text
 --- E23 at 80 columns ---          --- E24 at 40 columns ---
