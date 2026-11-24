@@ -147,6 +147,7 @@ Write the deploy plan, never run it. Order, migration steps, rollback and the ch
 
 ## LC-14 Help the plan
 roles: tech-lead
+aware: manager
 when: tech-lead = yes
 topic: lifecycle
 
