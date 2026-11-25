@@ -53,6 +53,10 @@ of its scopes, is passed or later), `team idle with open tickets`, or `team idle
 suspend`, macOS `pmset sleepnow`, Windows `rundll32.exe powrprof.dll,SetSuspendState 0,1,0`; SQUAD_WATCHDOG_SLEEP_CMD
 (a shell command) replaces it (tests use it).
 
+Unsent first prompt: `squad-spawn` leaves roles/<agent>.unsent (the spawner's name) when the agent did not start. Each pass: the agent
+`working`, gone or retired removes the marker; `blocked` does nothing; idle/done with a marker 2 minutes old sends one message to the
+spawner (else the Team Lead, else the Manager) naming `herdr agent send-keys <agent> Enter`, once per marker (state: unsent_sent).
+The watchdog never sends Enter into a pane. Log lines start `unsent`.
 Files in <home>: watchdog.log (one line per event, UTC), watchdog.state.json (state and heartbeat), watchdog.sleep (`on`).
 Cold cache: a session idle for an hour loses its 1h prompt cache. After each pass of the idle/wake events, for the agents of its
 own roster that herdr reports idle: at COLD_IDLE_MIN (55) minutes since the last main-thread turn, a context over COLD_CTX (50k)
@@ -521,6 +525,47 @@ def route(home, manager, team_lead, snap, subject=None):
     return team_lead, None
 
 
+UNSENT_MIN_S = 120   # a marker must be this old, with the agent idle, before the spawner is told
+
+
+def unsent_pass(home, manager, team_lead, snap, now, send, st):
+    """Markers roles/<agent>.unsent (squad-spawn: the agent did not start on its first prompt; the file holds the spawner's name).
+    working, gone or retired: marker removed. blocked: nothing. idle/done for UNSENT_MIN_S: one message to the spawner (else the
+    Team Lead, else the Manager), kept in st["unsent_sent"] {agent: marker mtime}. Never sends Enter into the pane."""
+    sent = st.get("unsent_sent") if isinstance(st.get("unsent_sent"), dict) else {}
+    states = {a["name"]: a["state"] for a in snap["agents"]}
+    live = []
+    for f in sorted((home / "roles").glob("*.unsent")):
+        name = f.name[: -len(".unsent")]
+        try:
+            mtime, spawner = f.stat().st_mtime, f.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            continue
+        state = states.get(name) or snap.get("herdr", {}).get(name) or "gone"
+        if state in ("working", "gone", "retired"):
+            try:
+                f.unlink()
+            except OSError:
+                pass
+            log(home, now, f"unsent: {name} is {state}; marker removed")
+            continue
+        live.append(name)
+        if state != "idle" or now - mtime < UNSENT_MIN_S or sent.get(name) == mtime:
+            continue  # blocked/unknown: Chieu's or later; too young; already told
+        known = {n for n, v in states.items() if v not in ("gone", "retired")} | set(snap.get("herdr", {}))
+        target = next((t for t in (spawner, team_lead, manager) if t and t in known and t != name), manager)
+        if is_blocked(snap, target, home):
+            log(home, now, f"unsent {name} held: {target} is blocked")
+            continue
+        text = (f"{name} did not start on its first prompt (typed, not sent; idle for {int((now - mtime) // 60)} min). "
+                f"Send it: herdr agent send-keys {name} Enter")
+        ok, why = send(target, text)
+        log(home, now, f"unsent {name} to {target}: " + ("sent: " if ok else f"NOT sent ({why}): ") + text)
+        if ok:
+            sent[name] = mtime
+    st["unsent_sent"] = {n: m for n, m in sent.items() if n in live}
+
+
 def respawn(argv, env, timeout):
     """-> (ok, reason): run `squad-respawn <name> --lazy` (the cold-cache pass; tests pass a fake)."""
     try:
@@ -727,6 +772,11 @@ def tick(home, manager, now=None, herdr_json=None, send=send, suspend_fn=None, t
             ok, why = (suspend_fn or suspend)()
             if not ok:
                 log(home, time.time(), f"suspend failed ({why})")
+    if snap["ok"]:
+        try:
+            unsent_pass(home, manager, team_lead, snap, now, send, st)
+        except Exception as e:  # never stops the idle/wake pass
+            log(home, now, f"unsent: pass failed: {type(e).__name__}: {e}")
     if snap["ok"] and os.environ.get("SQUAD_WATCHDOG_COLD") != "0":
         try:
             def beat():

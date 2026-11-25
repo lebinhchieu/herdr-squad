@@ -607,25 +607,48 @@ if [[ -n $ovr_model || -n $ovr_effort ]]; then
   { [[ -z $ovr_model ]] || echo "model=$ovr_model"; [[ -z $ovr_effort ]] || echo "effort=$ovr_effort"; } > "$ovr_file"
 fi
 
+# A later spawn of this name clears an old "never started" marker (ticket 02's watchdog reads it).
+unsent_file=$home/roles/$name.unsent
+rm -f "$unsent_file"
+started=null
 if [[ -n $prompt ]]; then
+  step=${SQUAD_SPAWN_POLL:-0.5}
+  agent_field() { herdr agent get "$name" 2>/dev/null | jq -r "$1" 2>/dev/null || true; }
+  # Claude Code takes input only once herdr reports interactive_ready (the pane shows agent == claude earlier). Wait for it,
+  # at most SQUAD_SPAWN_READY_WAIT s (default 20). A herdr without the field, an unreadable get, a blocked agent: no wait.
+  # All waits are counts of SQUAD_SPAWN_POLL-second polls (default 0.5); tests shrink the poll to shrink every wait.
+  rdy=$(( ${SQUAD_SPAWN_READY_WAIT:-20} * 2 ))
+  for ((i = 0; i < rdy; i++)); do
+    [[ $(agent_field '.result.agent | if has("interactive_ready") and .agent_status != "blocked" then (.interactive_ready == true) else true end') == false ]] || break
+    sleep "$step"
+  done
   herdr agent prompt "$name" "$prompt" >/dev/null
-  # The typed prompt can sit unsent in the input box (agent `idle`). Wait for `working`; resend Enter once; then warn.
-  # Two waits of SQUAD_SPAWN_START_WAIT seconds (default 15, so at most ~30 s). A failure never fails the spawn.
-  agent_started() {
-    local n=$(( ${SQUAD_SPAWN_START_WAIT:-15} * 2 )) i st
+  # The typed prompt can sit unsent in the input box (agent `idle`/`done`). Wait for `working`; on each miss send Enter, with
+  # growing gaps: B, 1.5B, 2B, 2.5B s (B = SQUAD_SPAWN_START_WAIT, default 8; 3 Enters, total 7B = 56 s). Worst case with the
+  # ready wait: 76 s. Only idle/done keep waiting. working: started. blocked (a trust or permission dialog) or no readable
+  # status: not ours to answer; no Enter, no warning, started stays null. A failure never fails the spawn.
+  start_wait() {  # $1 = gap index 0..3; 0 started, 1 still idle/done, 2 unknown
+    local n=$(( ${SQUAD_SPAWN_START_WAIT:-8} * (2 + $1) )) i st
     for ((i = 0; i < n; i++)); do
       st=$(herdr agent get "$name" 2>/dev/null | jq -r '.result.agent.agent_status // .agent_status // empty') || st=""
-      # Only idle/done keep waiting (then Enter, then the warning). working: started. blocked (a trust or permission dialog)
-      # or no readable status (get failed, no field, unknown): not ours to answer; no resend, no warning.
-      [[ $st == idle || $st == done ]] || return 0
-      sleep 0.5
+      [[ $st != working ]] || return 0
+      [[ $st == idle || $st == done ]] || return 2
+      sleep "$step"
     done
     return 1
   }
-  if ! agent_started; then
-    herdr agent send-keys "$name" Enter >/dev/null 2>&1 || true
-    agent_started || echo "warning: $name did not start on its first prompt; send it a message" >&2
-  fi
+  for ((k = 0; k <= 3; k++)); do
+    start_wait "$k" && rc=0 || rc=$?
+    [[ $rc != 1 || $k == 3 ]] || { herdr agent send-keys "$name" Enter >/dev/null 2>&1 || true; continue; }
+    break
+  done
+  case $rc in
+    0) started=true ;;
+    1) started=false
+       echo "warning: $name did not start on its first prompt; send it a message" >&2
+       mkdir -p "$home/roles"
+       printf '%s\n' "${SQUAD_NAME:-}" > "$unsent_file" ;;
+  esac
 fi
 
 # The home's watchdog starts with the first non-Manager agent (a scope inside a goal also starts the goal's). `ensure` is a
@@ -639,8 +662,8 @@ if [[ $role != manager && -n ${scope_dir:-$goal_dir} ]]; then
   done
 fi
 
-jq -n --arg name "$name" --arg role "$role" --arg scope "$scope" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" --arg session "$session" \
-  '{name:$name, role:$role, scope:$scope, tab:$tab, pane:$pane, cwd:$cwd, session:$session, status:"ready"}'
+jq -n --arg name "$name" --arg role "$role" --arg scope "$scope" --arg tab "$tab" --arg pane "$pane" --arg cwd "$cwd" --arg session "$session" --argjson started "$started" \
+  '{name:$name, role:$role, scope:$scope, tab:$tab, pane:$pane, cwd:$cwd, session:$session, status:"ready", started:$started}'
 
 # After a Token Coach spawn: print the coach-phase rules (ITER-6c) on stderr; stdout stays the one JSON line.
 if [[ $role == token-coach ]]; then

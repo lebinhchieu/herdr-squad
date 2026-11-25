@@ -1,3 +1,12 @@
+## v34 — 2026-11-25
+
+Plugin 0.11.3. The watchdog wakes the spawner of an agent that never started (spawn-prompt-unsent 02); no rule changes.
+
+changed:
+- `squad-watchdog`: for each `roles/<agent>.unsent` marker (written by `squad-spawn` when the first prompt stayed unsent) it removes the marker when the agent is working, gone or retired, does nothing while it is blocked, and after 2 minutes of idle/done sends one `herdr agent prompt` to the spawner (else the Team Lead, else the Manager) naming `herdr agent send-keys <agent> Enter`. It never sends Enter itself. why: a spawner that missed the stdout warning left the agent idle with its prompt typed.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.11.3. No `/squad:squad-process-update` run is needed. Rollback: revert the merge; stale `.unsent` markers are plain files and harmless.
+
 ## v33 — 2026-11-25
 
 Plugin 0.11.2. Tooling fixes found in the po-clarity iterations; no rule changes.
