@@ -69,7 +69,7 @@ def squad_home(root, process=None, scope=None):
 # --- fake herdr -------------------------------------------------------------------------------------------------
 # One script for every test. Behaviour comes from the environment the test sets:
 #   HERDR_LOG  every call is appended (also the "agent rename" a respawn made: that agent is gone afterwards)
-#   AGENT_STATUS  status `agent get` reports (a test that sets it also sees a started agent as up; without it `agent get` gives `working`)   AGENT_STATUS_AFTER_KEYS  status once `agent send-keys <name>` was logged
+#   AGENT_STATUS  status `agent get` reports (a test that sets it also sees a started agent as up; without it `agent get` gives `working`)   AGENT_STATUS_AFTER_KEYS  status once `agent send-keys <name>` was logged KEYS_NEEDED times (default 1)   READY_AFTER_GETS  `interactive_ready` is null for the first N `agent get <name>` calls
 #   LIVE / DEAD  space-separated agent names that are (not) found; the rest follows the mode
 #   FAIL_PROMPT  agents whose `agent prompt --wait` fails (no DONE)   FAIL_RENAME  `tab rename` fails        PANES  a table "pane tab agent" that agent get / tab close / pane close use
 _FAKE_HERDR = r"""#!/usr/bin/env bash
@@ -90,8 +90,10 @@ case "$1 $2" in
     [[ -n ${AGENT_STATUS:-} && -n ${HERDR_LOG:-} ]] && grep -q "^agent start $3 " "$HERDR_LOG" && up=1   # status tests: the started agent is up
     (( up )) || { echo '{"error":{"code":"agent_not_found"}}'; exit 1; }
     ast=${AGENT_STATUS:-working}
-    [[ -n ${HERDR_LOG:-} ]] && grep -q "^agent send-keys $3 " "$HERDR_LOG" && ast=${AGENT_STATUS_AFTER_KEYS:-$ast}
-    echo "{\"result\":{\"agent\":{\"name\":\"$3\",\"pane_id\":\"p-$3\",\"tab_id\":\"tab-$3\",\"agent_status\":\"$ast\"}}}" ;;
+    [[ -n ${HERDR_LOG:-} ]] && (( $(grep -c "^agent send-keys $3 " "$HERDR_LOG") >= ${KEYS_NEEDED:-1} )) && ast=${AGENT_STATUS_AFTER_KEYS:-$ast}
+    ir=true
+    [[ -n ${READY_AFTER_GETS:-} && -n ${HERDR_LOG:-} ]] && (( $(grep -c "^agent get $3\$" "$HERDR_LOG") <= READY_AFTER_GETS )) && ir=null
+    echo "{\"result\":{\"agent\":{\"name\":\"$3\",\"interactive_ready\":$ir,\"pane_id\":\"p-$3\",\"tab_id\":\"tab-$3\",\"agent_status\":\"$ast\"}}}" ;;
   "agent prompt") [[ " ${FAIL_PROMPT:-} " == *" $3 "* ]] && { echo timeout >&2; exit 1; } ;;
   "tab create") echo '{"result":{"root_pane":{"pane_id":"p-new"},"tab":{"tab_id":"t-new"}}}' ;;
   "tab rename") [[ -n ${FAIL_RENAME:-} ]] && { echo boom >&2; exit 1; } ;;

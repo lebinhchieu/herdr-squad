@@ -161,7 +161,7 @@ class SpawnDryRunTest(unittest.TestCase):
 
     def _spawn_with_status(self, status, after_keys, *extra):
         self._fake_herdr(live="")
-        self.env.update(AGENT_STATUS=status, SQUAD_SPAWN_START_WAIT="1")
+        self.env.update(AGENT_STATUS=status, SQUAD_SPAWN_START_WAIT="1", SQUAD_SPAWN_POLL="0.05")
         if after_keys:
             self.env["AGENT_STATUS_AFTER_KEYS"] = after_keys
         return winlaunch.run_script(SCRIPT, ["dev", "dev-1", "--scope", "s", "--prompt", "go", *extra], env=self.env,
@@ -173,24 +173,48 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertNotIn("send-keys", self.log.read_text(encoding="utf-8"))
         self.assertNotIn("did not start", r.stderr)
 
-    def test_first_prompt_idle_gets_one_enter_then_works(self):
+    def test_first_prompt_idle_gets_two_enters_then_works(self):  # AC2
+        self.env["KEYS_NEEDED"] = "2"
         r = self._spawn_with_status("idle", "working")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.log.read_text(encoding="utf-8").count("agent send-keys dev-1 Enter"), 1)
+        self.assertEqual(self.log.read_text(encoding="utf-8").count("agent send-keys dev-1 Enter"), 2)
         self.assertNotIn("did not start", r.stderr)
+        self.assertIs(json.loads(r.stdout)["started"], True)
 
-    def test_first_prompt_never_working_warns_and_still_succeeds(self):
+    def test_first_prompt_never_working_warns_and_marks_unsent(self):  # AC3
+        self.env["SQUAD_NAME"] = "tl-1"
         r = self._spawn_with_status("idle", "")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.log.read_text(encoding="utf-8").count("agent send-keys dev-1 Enter"), 1)
-        self.assertIn("warning: dev-1 did not start on its first prompt; send it a message", r.stderr)
-        self.assertEqual(json.loads(r.stdout)["status"], "ready")
+        self.assertEqual(self.log.read_text(encoding="utf-8").count("agent send-keys dev-1 Enter"), 3)
+        self.assertEqual(r.stderr.count("warning: dev-1 did not start on its first prompt; send it a message"), 1)
+        out = json.loads(r.stdout)
+        self.assertEqual(out["status"], "ready")
+        self.assertIs(out["started"], False)
+        marker = self.squad / "roles" / "dev-1.unsent"
+        self.assertEqual(marker.read_text(encoding="utf-8"), "tl-1\n")
+        self.env["AGENT_STATUS"] = "working"  # a later spawn of that name removes the marker
+        self.log.write_text("", encoding="utf-8")  # the stub sees the first agent as gone
+        r = winlaunch.run_script(SCRIPT, ["dev", "dev-1", "--scope", "s", "--prompt", "go"], env=self.env,
+                                 text=True, encoding="utf-8", capture_output=True, timeout=20)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(marker.exists(), r.stderr)
+        self.assertIs(json.loads(r.stdout)["started"], True)
+
+    def test_prompt_waits_for_interactive_ready(self):  # AC1
+        self.env.update(READY_AFTER_GETS="3", SQUAD_SPAWN_READY_WAIT="5")
+        r = self._spawn_with_status("working", "")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        lines = self.log.read_text(encoding="utf-8").splitlines()
+        before = lines[:next(i for i, l in enumerate(lines) if l.startswith("agent prompt dev-1 go"))]
+        self.assertGreaterEqual(before.count("agent get dev-1"), 3, lines)
 
     def test_a_blocked_agent_gets_no_enter(self):
         r = self._spawn_with_status("blocked", "")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("send-keys", self.log.read_text(encoding="utf-8"))
         self.assertNotIn("did not start", r.stderr)
+        self.assertIsNone(json.loads(r.stdout)["started"])
+        self.assertFalse((self.squad / "roles" / "dev-1.unsent").exists())
 
     def test_no_prompt_means_no_status_wait(self):
         self._fake_herdr(live="")
@@ -199,6 +223,7 @@ class SpawnDryRunTest(unittest.TestCase):
                                  text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertNotIn("send-keys", self.log.read_text(encoding="utf-8"))
         self.assertNotIn("did not start", r.stderr)
+        self.assertIsNone(json.loads(r.stdout)["started"])
 
     def test_lazy_writes_the_marker_and_sends_nothing_not_even_a_wait(self):  # AC2, AC3, AC6
         self._fake_herdr(live="")
