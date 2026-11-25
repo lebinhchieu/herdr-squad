@@ -48,4 +48,8 @@ guardian-dev-cvlock-11c (2026-11-25) sat `idle` with the whole prompt typed; a l
 
 ## Design notes (Developer)
 
+- Root cause: the pane shows `agent == claude` before Claude Code takes input, and squad-spawn typed the prompt then. `herdr agent get` `.result.agent.interactive_ready` is `true` once input is taken (seen in the real fixtures `tests/fixtures/ca/agent-list*.json`, true on named idle, working and blocked agents). Used as a bounded gate: wait while the key is present and not true (not while `blocked`); an absent key (older herdr) or unreadable get: no wait. Signal not trusted alone, so step 2 stays.
+- Waits (all counts of `SQUAD_SPAWN_POLL`-second polls, default 0.5 s): ready wait `SQUAD_SPAWN_READY_WAIT` default 20 s; after the prompt gaps B, 1.5B, 2B, 2.5B with an Enter after each of the first three, B = `SQUAD_SPAWN_START_WAIT` default 8. Default worst case: 20 + 56 = 76 s, under 100 s. `SQUAD_SPAWN_START_WAIT` changed meaning: it was 15 s per wait (30 s total), it is now the base gap; a changed `SQUAD_SPAWN_POLL` scales every wait (tests only).
+- `started`: true on `working`; false after the last wait with idle/done (warning once, marker `roles/<name>.unsent` holding `$SQUAD_NAME`, possibly empty); null for no prompt or blocked/unreadable status. `--dry-run` exits before all of this. Any spawn removes the old marker.
+
 ## Comments

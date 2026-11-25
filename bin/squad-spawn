@@ -615,10 +615,11 @@ if [[ -n $prompt ]]; then
   step=${SQUAD_SPAWN_POLL:-0.5}
   agent_field() { herdr agent get "$name" 2>/dev/null | jq -r "$1" 2>/dev/null || true; }
   # Claude Code takes input only once herdr reports interactive_ready (the pane shows agent == claude earlier). Wait for it,
-  # at most SQUAD_SPAWN_READY_WAIT s (default 20). A herdr without the field, an unreadable get: no wait.
+  # at most SQUAD_SPAWN_READY_WAIT s (default 20). A herdr without the field, an unreadable get, a blocked agent: no wait.
+  # All waits are counts of SQUAD_SPAWN_POLL-second polls (default 0.5); tests shrink the poll to shrink every wait.
   rdy=$(( ${SQUAD_SPAWN_READY_WAIT:-20} * 2 ))
   for ((i = 0; i < rdy; i++)); do
-    [[ $(agent_field '.result.agent | if has("interactive_ready") then (.interactive_ready == true) else true end') == false ]] || break
+    [[ $(agent_field '.result.agent | if has("interactive_ready") and .agent_status != "blocked" then (.interactive_ready == true) else true end') == false ]] || break
     sleep "$step"
   done
   herdr agent prompt "$name" "$prompt" >/dev/null
