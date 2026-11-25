@@ -1129,3 +1129,78 @@ class ColdCacheTest(unittest.TestCase):
         with mock.patch.object(time, "time", lambda: clock[0]):
             W.tick(self.home, "t-mgr-s1", now=T0 + 58 * MIN, herdr_json=str(self.herdr), send=lambda m, t: (True, ""), respawn=slow)
         self.assertEqual(alive, [True, True, True])
+
+
+class UnsentMarkerTest(unittest.TestCase):
+    """Spawn-prompt-unsent 02: the watchdog wakes the spawner of an agent whose roles/<name>.unsent marker is left."""
+
+    ROSTER = ColdCacheTest.ROSTER
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        self.home = root / ".claude" / "squads" / "t" / "scopes" / "s1"
+        (self.home / "tasks").mkdir(parents=True)
+        (self.home / "roles").mkdir()
+        (self.home / "scope.md").write_text("# s1\n", encoding="utf-8")
+        (self.home / "roster.md").write_text(self.ROSTER, encoding="utf-8")
+        self.herdr, self.sent = root / "herdr.json", []
+        self.marker = self.home / "roles" / "t-dev-s1.unsent"
+
+    def mark(self, spawner="t-tl-s1", at=0):
+        self.marker.write_text(spawner + "\n", encoding="utf-8")
+        os.utime(self.marker, (T0 + at * MIN, T0 + at * MIN))
+
+    def agents(self, **state):
+        rows = [{"name": n.replace("_", "-"), "agent_status": s, "pane_id": "p"} for n, s in state.items()]
+        self.herdr.write_text(json.dumps({"result": {"agents": rows}}), encoding="utf-8")
+
+    def tick(self, minutes):
+        return W.tick(self.home, "t-mgr-s1", now=T0 + minutes * MIN, herdr_json=str(self.herdr),
+                      send=lambda m, text: (self.sent.append((m, text)) or (True, "")))
+
+    def unsent(self):
+        return [(m, t) for m, t in self.sent if "did not start" in t]
+
+    def test_ac1_idle_agent_after_2_minutes_tells_the_spawner_once_and_never_sends_enter(self):  # AC1
+        self.mark()
+        self.agents(t_mgr_s1="working", t_tl_s1="working", t_dev_s1="idle")
+        self.tick(1)
+        self.assertEqual(self.unsent(), [])  # marker only 1 min old
+        self.tick(2)
+        self.tick(5)
+        got = self.unsent()
+        self.assertEqual(len(got), 1)
+        self.assertEqual(got[0][0], "t-tl-s1")
+        self.assertIn("t-dev-s1", got[0][1])
+        self.assertIn("herdr agent send-keys t-dev-s1 Enter", got[0][1])
+        self.assertTrue(self.marker.exists())
+        self.assertIn("unsent t-dev-s1 to t-tl-s1: sent", (self.home / "watchdog.log").read_text(encoding="utf-8"))
+
+    def test_ac2_working_gone_or_retired_removes_the_marker_without_a_message_and_blocked_does_nothing(self):  # AC2
+        for state, kept in (("working", False), ("blocked", True)):
+            self.mark()
+            self.agents(t_mgr_s1="working", t_tl_s1="working", t_dev_s1=state)
+            self.tick(10)
+            self.assertEqual(self.marker.exists(), kept, state)
+        self.agents(t_mgr_s1="working", t_tl_s1="working")  # gone
+        self.tick(11)
+        self.assertFalse(self.marker.exists())
+        self.mark()
+        (self.home / "roster.md").write_text(self.ROSTER.replace("building", "retired"), encoding="utf-8")
+        self.agents(t_mgr_s1="working", t_tl_s1="working", t_dev_s1="idle")
+        self.tick(12)
+        self.assertFalse(self.marker.exists())
+        self.assertEqual(self.unsent(), [])
+
+    def test_ac3_a_missing_spawner_falls_back_to_the_team_lead_then_the_manager(self):  # AC3
+        self.mark(spawner="t-gone-s1")
+        self.agents(t_mgr_s1="working", t_tl_s1="working", t_dev_s1="idle")
+        self.tick(5)
+        self.assertEqual([m for m, _t in self.unsent()], ["t-tl-s1"])
+        self.sent.clear()
+        self.mark(spawner="", at=10)
+        self.agents(t_mgr_s1="working", t_dev_s1="idle")  # no Team Lead in herdr
+        self.tick(15)
+        self.assertEqual([m for m, _t in self.unsent()], ["t-mgr-s1"])
