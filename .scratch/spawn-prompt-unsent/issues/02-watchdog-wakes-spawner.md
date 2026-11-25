@@ -41,4 +41,6 @@ At most one message per marker; logged in the watchdog log. The watchdog never s
 
 ## Design notes (Developer)
 
+- New `unsent_pass` in `tick()` (after the wake/idle events, before the cold-cache pass; only when herdr answers, errors logged and never stop the pass). Reads `<home>/roles/*.unsent`; marker age = file mtime, spawner = file content. State `unsent_sent` {agent: mtime} in watchdog.state.json keeps one message per marker; a rewritten marker is a new one. Agent state comes from the roster snapshot (retired/gone/working/idle/blocked), else the herdr list. Target: spawner, else the Team Lead, else the Manager, each only if live; held when the target pane is blocked. No Enter is ever sent by the watchdog. Own scope home only: a goal's scopes have their own watchdogs.
+
 ## Comments
