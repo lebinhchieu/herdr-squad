@@ -148,3 +148,36 @@ def read_session(path):
     rows = sorted(turns.values(), key=lambda t: t["ts"])
     # one compaction may leave both a boundary and a summary line
     return rows, max(boundaries, summaries)
+
+
+PROMPT_HEAD = 40  # characters of a first prompt that identify it in the transcript
+
+
+def prompt_head(text):
+    """The part of a prompt that `prompt_seen` looks for: its first line, at most PROMPT_HEAD characters."""
+    return (text or "").strip().split("\n", 1)[0][:PROMPT_HEAD]
+
+
+def prompt_seen(session, head):
+    """Did the session receive the prompt that starts with `head`? -> "seen", "missing" (the transcript exists, the prompt
+    is not in it: something else woke the session while the prompt still sat in the input box) or "none" (no transcript
+    yet). A raw-line search: Claude writes JSON with raw non-ASCII, so json.dumps(ensure_ascii=False) gives the same escapes."""
+    path = find_transcript(session) if session and head else None
+    if path is None:
+        return "none"
+    esc = json.dumps(head, ensure_ascii=False)[1:-1]
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return "none"
+    return "seen" if esc in text else "missing"
+
+
+if __name__ == "__main__":
+    import sys
+    # squadtranscript.py prompt-seen <session> <prompt text>: prints seen | missing | none (squad-spawn's start check)
+    if len(sys.argv) == 4 and sys.argv[1] == "prompt-seen":
+        print(prompt_seen(sys.argv[2], prompt_head(sys.argv[3])))
+        sys.exit(0)
+    print("usage: squadtranscript.py prompt-seen <session> <prompt text>", file=sys.stderr)
+    sys.exit(2)

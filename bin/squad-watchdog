@@ -53,8 +53,9 @@ of its scopes, is passed or later), `team idle with open tickets`, or `team idle
 suspend`, macOS `pmset sleepnow`, Windows `rundll32.exe powrprof.dll,SetSuspendState 0,1,0`; SQUAD_WATCHDOG_SLEEP_CMD
 (a shell command) replaces it (tests use it).
 
-Unsent first prompt: `squad-spawn` leaves roles/<agent>.unsent (the spawner's name) when the agent did not start. Each pass: the agent
-`working`, gone or retired removes the marker; `blocked` does nothing; idle/done with a marker 2 minutes old sends one message to the
+Unsent first prompt: `squad-spawn` leaves roles/<agent>.unsent (the spawner's name, then the prompt's first line) when the agent did
+not start. Each pass: the prompt found in the agent's transcript, or the agent gone or retired, removes the marker (`working` alone
+does not: a cross-session message wakes an agent whose prompt is still typed; a marker without a prompt line keeps the old rule); `blocked` does nothing; idle/done with a marker 2 minutes old sends one message to the
 spawner (else the Team Lead, else the Manager) naming `herdr agent send-keys <agent> Enter`, once per marker (state: unsent_sent).
 The watchdog never sends Enter into a pane. Log lines start `unsent`.
 Files in <home>: watchdog.log (one line per event, UTC), watchdog.state.json (state and heartbeat), watchdog.sleep (`on`).
@@ -534,20 +535,26 @@ def unsent_pass(home, manager, team_lead, snap, now, send, st):
     Team Lead, else the Manager), kept in st["unsent_sent"] {agent: marker mtime}. Never sends Enter into the pane."""
     sent = st.get("unsent_sent") if isinstance(st.get("unsent_sent"), dict) else {}
     states = {a["name"]: a["state"] for a in snap["agents"]}
+    sessions = {r["name"]: r["session"] for r in active.roster_rows(home)}
     live = []
     for f in sorted((home / "roles").glob("*.unsent")):
         name = f.name[: -len(".unsent")]
         try:
-            mtime, spawner = f.stat().st_mtime, f.read_text(encoding="utf-8", errors="replace").strip()
+            mtime, lines = f.stat().st_mtime, f.read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError:
             continue
+        spawner = lines[0].strip() if lines else ""
+        head = squadtranscript.prompt_head(lines[1]) if len(lines) > 1 else ""
         state = states.get(name) or snap.get("herdr", {}).get(name) or "gone"
-        if state in ("working", "gone", "retired"):
+        # `working` is no proof: a cross-session message wakes the agent while the prompt still sits in the input box.
+        # The prompt in the transcript is; a marker from before 0.11.4 (no prompt line) keeps the old `working` rule.
+        seen = squadtranscript.prompt_seen(sessions.get(name), head) if head else ("seen" if state == "working" else "none")
+        if state in ("gone", "retired") or seen == "seen" or (state == "working" and seen == "none"):
             try:
                 f.unlink()
             except OSError:
                 pass
-            log(home, now, f"unsent: {name} is {state}; marker removed")
+            log(home, now, f"unsent: {name} is {state}" + (" and has its prompt" if seen == "seen" else "") + "; marker removed")
             continue
         live.append(name)
         if state != "idle" or now - mtime < UNSENT_MIN_S or sent.get(name) == mtime:

@@ -1194,6 +1194,27 @@ class UnsentMarkerTest(unittest.TestCase):
         self.assertFalse(self.marker.exists())
         self.assertEqual(self.unsent(), [])
 
+    def test_working_from_another_message_keeps_the_marker_until_the_prompt_is_in_the_transcript(self):
+        """The gap of 0.11.3: a cross-session message makes the agent `working` while its first prompt is still typed."""
+        cfg = Path(self.tmp.name) / "claude"
+        tx = cfg / "projects" / "p" / "sid-dev.jsonl"
+        tx.parent.mkdir(parents=True)
+        tx.write_text('{"type":"user","message":{"content":"DECISION 01: use the old form"}}\n', encoding="utf-8")
+        self.marker.write_text("t-tl-s1\nTicket 03 of scope s1: build it\n", encoding="utf-8")
+        os.utime(self.marker, (T0, T0))
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(cfg)}):
+            self.agents(t_mgr_s1="working", t_tl_s1="working", t_dev_s1="working")
+            self.tick(3)
+            self.assertTrue(self.marker.exists())
+            self.assertEqual(self.unsent(), [])  # never told while it works
+            self.agents(t_mgr_s1="working", t_tl_s1="working", t_dev_s1="idle")
+            self.tick(5)
+            self.assertEqual([m for m, _t in self.unsent()], ["t-tl-s1"])
+            with tx.open("a", encoding="utf-8") as f:
+                f.write('{"type":"user","message":{"content":"Ticket 03 of scope s1: build it"}}\n')
+            self.tick(6)
+        self.assertFalse(self.marker.exists())
+
     def test_ac3_a_missing_spawner_falls_back_to_the_team_lead_then_the_manager(self):  # AC3
         self.mark(spawner="t-gone-s1")
         self.agents(t_mgr_s1="working", t_tl_s1="working", t_dev_s1="idle")

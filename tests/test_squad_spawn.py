@@ -191,7 +191,7 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertEqual(out["status"], "ready")
         self.assertIs(out["started"], False)
         marker = self.squad / "roles" / "dev-1.unsent"
-        self.assertEqual(marker.read_text(encoding="utf-8"), "tl-1\n")
+        self.assertEqual(marker.read_text(encoding="utf-8"), "tl-1\ngo\n")
         self.env["AGENT_STATUS"] = "working"  # a later spawn of that name removes the marker
         self.log.write_text("", encoding="utf-8")  # the stub sees the first agent as gone
         r = winlaunch.run_script(SCRIPT, ["dev", "dev-1", "--scope", "s", "--prompt", "go"], env=self.env,
@@ -199,6 +199,16 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse(marker.exists(), r.stderr)
         self.assertIs(json.loads(r.stdout)["started"], True)
+
+    def test_working_from_another_message_is_not_a_start(self):
+        """The gap of 0.11.3: a cross-session message makes the agent `working` while its prompt is only typed."""
+        self.env.update(SQUAD_NAME="tl-1", CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "cfg"),
+                        TRANSCRIPT_TEXT='{"type":"user","message":{"content":"DECISION 01: use the old form"}}')
+        r = self._spawn_with_status("working", "")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.log.read_text(encoding="utf-8").count("agent send-keys dev-1 Enter"), 3)
+        self.assertIs(json.loads(r.stdout)["started"], False)
+        self.assertEqual((self.squad / "roles" / "dev-1.unsent").read_text(encoding="utf-8"), "tl-1\ngo\n")
 
     def test_prompt_waits_for_interactive_ready(self):  # AC1
         self.env.update(READY_AFTER_GETS="3", SQUAD_SPAWN_READY_WAIT="5")
