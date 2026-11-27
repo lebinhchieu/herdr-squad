@@ -627,7 +627,7 @@ if [[ -n $prompt ]]; then
   # (squadtranscript.py prompt-seen), not `working`: a cross-session message or a notification makes the agent `working`
   # while the prompt is still only typed. On each miss send Enter (a busy Claude queues it), with growing gaps: B, 1.5B,
   # 2B, 2.5B s (B = SQUAD_SPAWN_START_WAIT, default 8; 3 Enters, total 7B = 56 s). Worst case with the ready wait: 76 s.
-  # No transcript at all (none): `working` held for 4 polls counts, as before. blocked (a trust or permission dialog) or no
+  # No transcript at all (none): `working` on 2 polls in a row counts, as before. blocked (a trust or permission dialog) or no
   # readable status: not ours to answer; no Enter, no warning, started stays null. A failure never fails the spawn.
   seen_state() { python3 "$plugin_root/bin/squadtranscript.py" prompt-seen "$session" "$prompt" 2>/dev/null || echo none; }
   start_wait() {  # $1 = gap index 0..3; 0 started, 1 not yet, 2 unknown
@@ -637,7 +637,7 @@ if [[ -n $prompt ]]; then
       [[ $st == working || $st == idle || $st == done ]] || return 2
       s=$(seen_state)
       [[ $s != seen ]] || return 0
-      if [[ $st == working && $s == none ]]; then (( ++held < 4 )) || return 0; else held=0; fi
+      if [[ $st == working && $s == none ]]; then (( ++held < 2 )) || return 0; else held=0; fi
       sleep "$step"
     done
     return 1

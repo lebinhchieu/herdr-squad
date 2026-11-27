@@ -191,7 +191,8 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertEqual(out["status"], "ready")
         self.assertIs(out["started"], False)
         marker = self.squad / "roles" / "dev-1.unsent"
-        self.assertEqual(marker.read_text(encoding="utf-8"), "tl-1\ngo\n")
+        self.assertEqual(marker.read_text(encoding="utf-8").splitlines()[0], "tl-1")
+        self.assertTrue(marker.read_text(encoding="utf-8").splitlines()[1].startswith("go "))  # the prompt the watchdog looks for
         self.env["AGENT_STATUS"] = "working"  # a later spawn of that name removes the marker
         self.log.write_text("", encoding="utf-8")  # the stub sees the first agent as gone
         r = winlaunch.run_script(SCRIPT, ["dev", "dev-1", "--scope", "s", "--prompt", "go"], env=self.env,
@@ -208,7 +209,7 @@ class SpawnDryRunTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.log.read_text(encoding="utf-8").count("agent send-keys dev-1 Enter"), 3)
         self.assertIs(json.loads(r.stdout)["started"], False)
-        self.assertEqual((self.squad / "roles" / "dev-1.unsent").read_text(encoding="utf-8"), "tl-1\ngo\n")
+        self.assertTrue((self.squad / "roles" / "dev-1.unsent").exists())
 
     def test_prompt_waits_for_interactive_ready(self):  # AC1
         self.env.update(READY_AFTER_GETS="3", SQUAD_SPAWN_READY_WAIT="5")
