@@ -1,3 +1,13 @@
+## v35 — 2026-11-27
+
+Plugin 0.11.4. A first prompt counts as sent only once it is in the agent's transcript; no rule changes.
+
+changed:
+- `squad-spawn`: started = the prompt's first line is in the new session's transcript (`squadtranscript.py prompt-seen`), not the agent `working`. With no transcript at all, `working` on 2 polls in a row still counts. The `.unsent` marker now holds the spawner, then the prompt's first line. why: a cross-session message or a notification makes the agent `working` while the briefing is only typed; 0.11.3 read that as started, sent no Enter and wrote no marker (seen in guardian-dev-settingsui-1; reproduced 10 of 10 times with real herdr and Claude).
+- `squad-watchdog`: removes an `.unsent` marker when the prompt is in the transcript (or the agent is gone or retired), not when the agent is `working`; it still tells the spawner only while the agent is idle. A marker without a prompt line keeps the 0.11.3 rule.
+
+Deploy (Chieu): merge; `claude plugin update` to 0.11.4; re-pin squads (guardian is waiting for it). No `/squad:squad-process-update` run is needed. Live sessions keep their runtime until respawned. Rollback: revert the merge.
+
 ## v34 — 2026-11-25
 
 Plugin 0.11.3. The watchdog wakes the spawner of an agent that never started (spawn-prompt-unsent 02); no rule changes.
