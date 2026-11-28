@@ -86,7 +86,7 @@ class UsageTest(UsageBase):
         self.assertEqual(row[1], "claude-sonnet-5-5/medium")
         self.assertEqual(row[2], "3")
         self.assertEqual(row[3:6], ["70k", "70k", "70k"])  # peak ctx, max peak, last ctx
-        self.assertEqual(row[6:], ["-", "-", "180k", "0k", "0", "0", "0", "1"])  # 1st act, act turn, line, out, expiries, compactions, subagents, sessions
+        self.assertEqual(row[6:], ["-", "-", "600k", "0k", "0", "0", "0", "1"])  # 1st act, act turn, line, out, expiries, compactions, subagents, sessions
         self.assertNotIn("manager", r.stdout)
 
     def test_cache_expiry_needs_gap_and_big_write(self):
@@ -112,45 +112,40 @@ class UsageTest(UsageBase):
         self.transcript(sid, list(turns))
         return self.run_cli("--check", sid).stdout.strip()
 
-    def test_check_fresh_at_first_action_plus_50k(self):
-        act = turn(0, "a", ctx=(2, 60_000, 0), tool="Write", base=NOW)          # first action at 60k: line 110k
-        self.assertEqual(self.check("hot", act, turn(1, "b", ctx=(2, 111_000, 0), base=NOW)), "fresh")
-        self.assertEqual(self.check("ok", act, turn(1, "b", ctx=(2, 109_000, 0), base=NOW)), "")
-        # a fixed 100k or 120k line would have decided both of these the other way
-        late = turn(0, "a", ctx=(2, 99_000, 0), tool="Edit", base=NOW)          # first action at 99k: line 149k
-        self.assertEqual(self.check("late", late, turn(1, "b", ctx=(2, 140_000, 0), base=NOW)), "")
+    def first_act(self, sid, *turns):
+        """The `1st act` column of the session's table row: the first action's context, or '-'."""
+        self.transcript(sid, list(turns))
+        (self.squad / "roster.md").write_text(f"| Agent | Session |\n|---|---|\n| a | {sid} |\n", encoding="utf-8")
+        return next(l for l in self.run_cli("--squad-dir", str(self.squad)).stdout.splitlines() if l.startswith("a ")).split()[6]
+
+    def test_the_line_is_600k_whatever_the_first_action(self):
+        act = turn(0, "a", ctx=(2, 20_000, 0), tool="Write", base=NOW)          # the old rule: line 70k
+        self.assertEqual(self.check("ok", act, turn(1, "b", ctx=(2, 599_000, 0), base=NOW)), "")
+        self.assertEqual(self.check("hot", act, turn(1, "b", ctx=(2, 601_000, 0), base=NOW)), "fresh")
+        self.assertEqual(self.check("ro", turn(0, "a", ctx=(2, 601_000, 0), tool="Read", base=NOW)), "fresh")
 
     def test_the_first_action_is_the_first_edit_write_or_send_not_a_read(self):
         reads = turn(0, "r", ctx=(2, 30_000, 0), tool="Read", base=NOW)         # a read is not an action
-        act = turn(1, "a", ctx=(2, 80_000, 0), tool="SendMessage", base=NOW)    # line 130k
-        later = turn(2, "b", ctx=(2, 120_000, 0), tool="Write", base=NOW)       # a later action does not move the line
-        self.assertEqual(self.check("s", reads, act, later, turn(3, "c", ctx=(2, 129_000, 0), base=NOW)), "")
-        self.assertEqual(self.check("t", reads, act, later, turn(3, "c", ctx=(2, 131_000, 0), base=NOW)), "fresh")
+        act = turn(1, "a", ctx=(2, 80_000, 0), tool="SendMessage", base=NOW)
+        later = turn(2, "b", ctx=(2, 120_000, 0), tool="Write", base=NOW)       # a later action does not move it
+        self.assertEqual(self.first_act("s", reads, act, later), "80k")
 
     def test_a_state_changing_bash_call_is_the_first_action_when_no_action_tool_ran(self):
         read = turn(0, "r", ctx=(2, 30_000, 0), tool="Bash", cmd="squad-usage; ls", base=NOW)   # a read: no action
-        spawn = turn(1, "a", ctx=(2, 70_000, 0), tool="Bash", cmd="cd /x && bin/squad-spawn dev", base=NOW)  # line 120k
-        self.assertEqual(self.check("b1", read, spawn, turn(2, "c", ctx=(2, 119_000, 0), base=NOW)), "")
-        self.assertEqual(self.check("b2", read, spawn, turn(2, "c", ctx=(2, 121_000, 0), base=NOW)), "fresh")
+        spawn = turn(1, "a", ctx=(2, 70_000, 0), tool="Bash", cmd="cd /x && bin/squad-spawn dev", base=NOW)
+        self.assertEqual(self.first_act("b1", read, spawn), "70k")
         for c in ("git commit -m x", "git merge main", "squad-inbox add y"):
-            self.assertEqual(self.check("g", turn(0, "a", ctx=(2, 70_000, 0), tool="Bash", cmd=c, base=NOW),
-                                        turn(1, "c", ctx=(2, 121_000, 0), base=NOW)), "fresh", c)
+            self.assertEqual(self.first_act("g", turn(0, "a", ctx=(2, 70_000, 0), tool="Bash", cmd=c, base=NOW)), "70k", c)
         for c in ("ls squad-spawn", "echo git commit", "git -C d commit", "X=1 squad-spawn a", "squad-ledger", "cat x && squad-close"):
-            self.assertEqual(self.check("r", turn(0, "a", ctx=(2, 70_000, 0), tool="Bash", cmd=c, base=NOW),
-                                        turn(1, "c", ctx=(2, 121_000, 0), base=NOW)), "", c)
-        self.assertEqual(self.check("bad", turn(0, "a", ctx=(2, 70_000, 0), tool="Bash", base=NOW),
-                                    turn(1, "c", ctx=(2, 121_000, 0), base=NOW)), "")  # no command: a read, no crash
+            self.assertEqual(self.first_act("r", turn(0, "a", ctx=(2, 70_000, 0), tool="Bash", cmd=c, base=NOW)), "-", c)
+        self.assertEqual(self.first_act("bad", turn(0, "a", ctx=(2, 70_000, 0), tool="Bash", base=NOW)), "-")  # no command: no crash
 
-    def test_whichever_of_an_action_tool_or_a_bash_action_comes_first_sets_the_line(self):
-        bash = turn(0, "a", ctx=(2, 60_000, 0), tool="Bash", cmd="squad-label x", base=NOW)    # line 110k
+    def test_whichever_of_an_action_tool_or_a_bash_action_comes_first_is_the_first_action(self):
+        bash = turn(0, "a", ctx=(2, 60_000, 0), tool="Bash", cmd="squad-label x", base=NOW)
         write = turn(1, "b", ctx=(2, 80_000, 0), tool="Write", base=NOW)
-        self.assertEqual(self.check("bw", bash, write, turn(2, "c", ctx=(2, 111_000, 0), base=NOW)), "fresh")
-        write0 = turn(0, "a", ctx=(2, 60_000, 0), tool="Write", base=NOW)                      # line 110k
-        bash1 = turn(1, "b", ctx=(2, 80_000, 0), tool="Bash", cmd="squad-label x", base=NOW)
-        self.assertEqual(self.check("wb", write0, bash1, turn(2, "c", ctx=(2, 109_000, 0), base=NOW)), "")
-        self.assertEqual(self.check("wb2", write0, bash1, turn(2, "c", ctx=(2, 111_000, 0), base=NOW)), "fresh")
-        self.assertEqual(self.check("ro", turn(0, "a", ctx=(2, 60_000, 0), tool="Bash", cmd="cat x", base=NOW),
-                                    turn(1, "c", ctx=(2, 179_000, 0), base=NOW)), "")
+        self.assertEqual(self.first_act("bw", bash, write), "60k")
+        self.assertEqual(self.first_act("wb", turn(0, "a", ctx=(2, 50_000, 0), tool="Write", base=NOW),
+                                        turn(1, "b", ctx=(2, 80_000, 0), tool="Bash", cmd="squad-label x", base=NOW)), "50k")
 
     def test_table_shows_the_first_action_context_and_the_line(self):
         self.transcript("sid-1", [turn(0, "a", ctx=(2, 0, 20_000), tool="Bash", cmd="squad-spawn x"),
@@ -163,41 +158,28 @@ class UsageTest(UsageBase):
         head = out[0].split("  ")
         self.assertEqual([h.strip() for h in head if h.strip()][5:9], ["last ctx", "1st act", "act turn", "line"])
         cols = lambda n: next(l for l in out if l.startswith(n)).split()
-        self.assertEqual(cols("mgr")[6:9], ["20k", "1", "70k"])
-        self.assertEqual(cols("ro")[6:9], ["-", "-", "180k"])
-        self.assertEqual(cols("late")[6:9], ["150k", "1", "180k"])
+        self.assertEqual(cols("mgr")[6:9], ["20k", "1", "600k"])
+        self.assertEqual(cols("ro")[6:9], ["-", "-", "600k"])
+        self.assertEqual(cols("late")[6:9], ["150k", "1", "600k"])
         self.assertEqual(cols("gone")[1:], ["no", "transcript"] + ["-"] * 12)
-
-    def test_the_line_never_passes_180k(self):
-        act = turn(0, "a", ctx=(2, 150_000, 0), tool="Write", base=NOW)         # 150k + 50k would be 200k
-        self.assertEqual(self.check("cap", act, turn(1, "b", ctx=(2, 179_000, 0), base=NOW)), "")
-        self.assertEqual(self.check("capped", act, turn(1, "b", ctx=(2, 181_000, 0), base=NOW)), "fresh")
-
-    def test_before_a_first_action_only_the_cap_applies(self):
-        self.assertEqual(self.check("r1", turn(0, "a", ctx=(2, 170_000, 0), tool="Read", base=NOW)), "")
-        self.assertEqual(self.check("r2", turn(0, "a", ctx=(2, 181_000, 0), tool="Read", base=NOW)), "fresh")
 
     def test_a_subagent_action_does_not_set_the_line(self):
         side = turn(0, "s", ctx=(2, 20_000, 0), tool="Write", base=NOW, isSidechain=True)
-        self.assertEqual(self.check("sub", side, turn(1, "b", ctx=(2, 100_000, 0), base=NOW)), "")  # no own action: cap 180k
+        self.assertEqual(self.first_act("sub", side, turn(1, "b", ctx=(2, 100_000, 0), base=NOW)), "-")  # no own action
 
     def test_an_idle_session_past_its_line_is_fresh_there_is_no_idle_line(self):
         old = NOW - timedelta(hours=3)
-        act = turn(0, "a", ctx=(2, 60_000, 0), tool="Write", base=old)           # line 110k
-        self.assertEqual(self.check("idle-over", act, turn(0, "b", ctx=(2, 0, 115_000), base=NOW)), "fresh")
-        self.assertEqual(self.check("idle-under", act, turn(0, "b", ctx=(2, 0, 105_000), base=NOW)), "")
+        act = turn(0, "a", ctx=(2, 60_000, 0), tool="Write", base=old)
+        self.assertEqual(self.check("idle-over", act, turn(0, "b", ctx=(2, 0, 615_000), base=NOW)), "fresh")
+        self.assertEqual(self.check("idle-under", act, turn(0, "b", ctx=(2, 0, 585_000), base=NOW)), "")
 
     def test_check_unknown_session_prints_nothing(self):
         r = self.run_cli("--check", "nope")
         self.assertEqual((r.returncode, r.stdout), (0, ""))
 
-    def test_the_limit_is_the_same_on_a_1m_model(self):
-        self.transcript("big", [turn(0, "a", ctx=(2, 190_000, 0), model="claude-opus-5-5[1m]", base=NOW)])
-        self.assertEqual(self.run_cli("--check", "big").stdout.strip(), "fresh")
-
     def test_check_with_explicit_transcript(self):
         p = Path(self.tmp.name) / "elsewhere.jsonl"
-        p.write_text(json.dumps(turn(0, "a", ctx=(2, 190_000, 0))) + "\n", encoding="utf-8")
+        p.write_text(json.dumps(turn(0, "a", ctx=(2, 610_000, 0))) + "\n", encoding="utf-8")
         self.assertEqual(self.run_cli("--check", "x", "--transcript", str(p)).stdout.strip(), "fresh")
 
     def test_set_session_updates_row_adds_column_and_appends(self):
@@ -242,14 +224,14 @@ class OrphanFreshTest(UsageBase):
             self.assertNotIn("no later respawn", self.table_out(log))
 
     def test_check_detail_adds_ctx_line_and_turns_while_check_stays_one_word(self):
-        self.transcript("s1", [turn(0, "a", ctx=(2, 0, 20_000), tool="Write", base=NOW), turn(1, "b", ctx=(2, 20_000, 80_000), base=NOW)])
+        self.transcript("s1", [turn(0, "a", ctx=(2, 0, 20_000), tool="Write", base=NOW), turn(1, "b", ctx=(2, 20_000, 600_000), base=NOW)])
         self.assertEqual(self.run_cli("--check", "s1").stdout, "fresh\n")
-        self.assertEqual(self.run_cli("--check-detail", "s1").stdout, "fresh\t100002\t70002\t2\n")
+        self.assertEqual(self.run_cli("--check-detail", "s1").stdout, "fresh\t620002\t600000\t2\n")
 
     def test_check_detail_prints_none_with_the_numbers_when_no_rule_fires(self):  # ticket 09: the hook's stamp
         self.transcript("s1", [turn(0, "a", ctx=(2, 0, 20_000), tool="Write", base=NOW), turn(1, "b", ctx=(2, 20_000, 10_000), base=NOW)])
         self.assertEqual(self.run_cli("--check", "s1").stdout, "")
-        self.assertEqual(self.run_cli("--check-detail", "s1").stdout, "none\t30002\t70002\t2\n")
+        self.assertEqual(self.run_cli("--check-detail", "s1").stdout, "none\t30002\t600000\t2\n")
         self.assertEqual(self.run_cli("--check-detail", "missing").stdout, "")
 
 
@@ -335,7 +317,7 @@ class UndercountTest(UsageBase):
         self.assertIn("could not be told", r.stdout)
 
     def test_two_paths_for_one_session_id_take_the_sorted_first(self):
-        for d, ctx in (("-b-cwd", 5000), ("-a-cwd", 190_000)):
+        for d, ctx in (("-b-cwd", 5000), ("-a-cwd", 610_000)):
             (self.cfg / "projects" / d).mkdir()
             (self.cfg / "projects" / d / "dup.jsonl").write_text(json.dumps(turn(0, "a", ctx=(2, ctx, 0), base=NOW)) + "\n", encoding="utf-8")
         self.assertEqual(self.run_cli("--check", "dup").stdout.strip(), "fresh")   # -a-cwd wins
@@ -345,7 +327,7 @@ class UndercountTest(UsageBase):
         self.roster(("dev-1", "s1"))
         rows, head = self.table()
         self.assertEqual(head.split()[:3], ["agent", "model/effort", "turns"])
-        self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "60k", "-", "-", "180k", "0k", "0", "0", "0", "1"])
+        self.assertEqual(rows["dev-1"], ["dev-1", "claude-sonnet-5-5/medium", "2", "60k", "60k", "60k", "-", "-", "600k", "0k", "0", "0", "0", "1"])
 
     def test_sessions_column_and_flag_list_each_session_and_agree_with_the_row(self):
         self.named("old", "dev-1", [turn(0, "a", ctx=(2, 90_000, 0)), turn(1, "b", ctx=(2, 91_000, 0))])
@@ -435,9 +417,9 @@ class UndercountTest(UsageBase):
         self.assertEqual(sess, ["30k", "50k", "2"])
 
     def test_check_ignores_other_sessions_and_subagents(self):
-        self.named("old", "dev-1", [turn(0, "a", ctx=(2, 190_000, 0), base=NOW)])
+        self.named("old", "dev-1", [turn(0, "a", ctx=(2, 610_000, 0), base=NOW)])
         self.named("new", "dev-1", [turn(0, "b", ctx=(2, 5000, 0), base=NOW)])
-        self.sub("new", "agent-a", [turn(0, "x", ctx=(2, 190_000, 0), base=NOW, isSidechain=True)])
+        self.sub("new", "agent-a", [turn(0, "x", ctx=(2, 610_000, 0), base=NOW, isSidechain=True)])
         self.assertEqual(self.run_cli("--check", "new").stdout, "")
         self.assertEqual(self.run_cli("--check", "old").stdout.strip(), "fresh")
 

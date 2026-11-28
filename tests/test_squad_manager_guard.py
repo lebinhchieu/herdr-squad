@@ -27,8 +27,8 @@ def turn(ago_min, msg_id, ctx=1000, write=0, tool=None):
                         "usage": {"input_tokens": 2, "cache_read_input_tokens": ctx - write,
                                   "cache_creation_input_tokens": write, "output_tokens": 100}}}
 
-# first action at 60k, so the Manager's respawn line is 110k; the last turn is over it
-HOT = (turn(9, "h0", 60_000, tool="Write"), turn(5, "a", 144_000))
+# the Manager's respawn line is a fixed 600k; the last turn is over it
+HOT = (turn(9, "h0", 60_000, tool="Write"), turn(5, "a", 644_000))
 
 
 class GuardBase(unittest.TestCase):
@@ -65,17 +65,17 @@ class DecisionTable(GuardBase):
     def test_over_threshold_gives_one_notice_naming_size_respawn_and_rule(self):
         self.write(*HOT)
         msg = guard.decide(self.env(), self.payload())
-        self.assertEqual(msg, "context 144k (over its 110k line): after this step write your notes and run squad-respawn mgr [COST-8]")
+        self.assertEqual(msg, "context 644k (over its 600k line): after this step write your notes and run squad-respawn mgr [COST-8]")
         [ev] = self.events()
         self.assertEqual((ev["agent"], ev["role"], ev["session"], ev["rule"]), ("mgr", "manager", "sid-1", "manager-ctx"))
         self.assertIn("squad-respawn mgr", ev["action"])
 
-    def test_the_line_is_the_sessions_own_not_a_fixed_number(self):
-        # first action at 99k: line 149k, so 144k is under it (a fixed 100k line would have fired)
-        self.write(turn(9, "h0", 99_000, tool="Write"), turn(5, "a", 144_000))
+    def test_the_line_is_a_fixed_600k_whatever_the_first_action(self):
+        # first action at 20k: the old line (+50k) would have fired at 144k
+        self.write(turn(9, "h0", 20_000, tool="Write"), turn(5, "a", 144_000))
         self.assertIsNone(guard.decide(self.env(), self.payload()))
-        self.write(turn(9, "h0", 99_000, tool="Write"), turn(5, "a", 150_000))
-        self.assertIn("over its 149k line", guard.decide(self.env(), self.payload()))
+        self.write(turn(9, "h0", 20_000, tool="Write"), turn(5, "a", 601_000))
+        self.assertIn("over its 600k line", guard.decide(self.env(), self.payload()))
 
     def test_a_second_call_in_the_same_session_gives_nothing(self):
         self.write(*HOT)
