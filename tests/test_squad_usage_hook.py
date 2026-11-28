@@ -38,7 +38,7 @@ class HookBase(unittest.TestCase):
         self.tmp.cleanup()
 
     def transcript(self, sid, ctx, pad=0):
-        # first action at 60k, so the respawn line is 110k; pad = bytes of a non-assistant row (the file's size)
+        # the respawn line is a fixed 600k; pad = bytes of a non-assistant row (the file's size)
         rows = [line(60_000, "Write", "first"), line(ctx)]
         if pad:
             rows.append({"type": "user", "message": {"content": "x" * pad}})
@@ -56,7 +56,7 @@ class HookBase(unittest.TestCase):
 
 class HookTest(HookBase):
     def test_fixture_over_the_line_gives_fresh_message_and_event(self):
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         r = self.run_hook()
         self.assertEqual(r.returncode, 2)
         self.assertIn("'fresh'", r.stderr)
@@ -66,8 +66,8 @@ class HookTest(HookBase):
         self.assertIn("mid-ticket, run once: squad-respawn dev-1", r.stderr)
         [ev] = [json.loads(l) for l in self.events.read_text(encoding="utf-8").splitlines()]
         self.assertEqual((ev["agent"], ev["role"], ev["session"], ev["rule"]), ("dev-1", "dev", "sid-1", "fresh"))
-        self.assertEqual((ev["line"], ev["turns"]), (110_002, 2))   # 60k first action + 50k; two main-thread turns
-        self.assertGreater(ev["ctx"], 130_000 - 1)                  # last context, from the same summarize as the row
+        self.assertEqual((ev["line"], ev["turns"]), (600_000, 2))   # the fixed line; two main-thread turns
+        self.assertGreater(ev["ctx"], 630_000 - 1)                  # last context, from the same summarize as the row
         self.assertIn("tell your plan owner (the Team Lead) and stop ([COST-5], no squad-respawn)", ev["action"])
         self.assertIn("mid-ticket, run once: squad-respawn dev-1", ev["action"])
         self.assertNotEqual(ev["action"], "write roles/dev-1.notes.md, then run: squad-respawn dev-1")
@@ -75,7 +75,7 @@ class HookTest(HookBase):
     def test_event_goes_to_the_scope_folder_when_the_agent_has_one(self):
         scope = Path(self.tmp.name) / "squad" / "scopes" / "sc1"
         scope.mkdir(parents=True)
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
         env.update(CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "cfg"), SQUAD_NAME="dev-1", SQUAD_ROLE="dev",
                    SQUAD_DIR=str(self.squad), SCOPE_DIR=str(scope))
@@ -91,7 +91,7 @@ class HookTest(HookBase):
         scope.mkdir(parents=True)
         if scope_md is not None:
             (scope / "scope.md").write_text(scope_md, encoding="utf-8")
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
         env.update(CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "cfg"), SQUAD_NAME="dev-1", SQUAD_ROLE="dev",
                    SQUAD_DIR=str(self.squad), SCOPE_DIR=str(scope))
@@ -109,11 +109,11 @@ class HookTest(HookBase):
         self.assertEqual(len(set(texts)), 1)
 
     def test_other_roles_text_is_unchanged(self):  # task 18 AC3
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         r = self.run_hook(role="qa-whitebox")
         self.assertEqual(r.returncode, 2)
         self.assertEqual(r.stderr, "Cost rule 'fresh' fired: your context is past your respawn line "
-                         "(your context at first action + 50k, at most 180k) or was compacted. Finish the step you are on, "
+                         "(600k) or was compacted. Finish the step you are on, "
                          "then write roles/dev-1.notes.md, then run: squad-respawn dev-1\n")
 
     def test_under_threshold_is_silent(self):
@@ -123,17 +123,17 @@ class HookTest(HookBase):
         self.assertFalse(self.events.exists())
 
     def test_non_squad_session_is_ignored(self):
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         r = self.run_hook(squad_session=False)
         self.assertEqual((r.returncode, r.stderr), (0, ""))
         self.assertFalse(self.events.exists())
 
     def test_manager_is_exempt(self):
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         self.assertEqual(self.run_hook(role="manager").returncode, 0)
 
     def test_rule_fires_once_per_session(self):
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         self.assertEqual(self.run_hook().returncode, 2)
         self.assertEqual(self.run_hook().returncode, 0)
         self.assertEqual(len(self.events.read_text(encoding="utf-8").splitlines()), 1)
@@ -143,7 +143,7 @@ class HookTest(HookBase):
             return json.dumps({"agent": "dev-1", "session": session, "rule": "fresh"})
         mess = ['{"session": "sid-1", "rul', "", ev("sid-1"), "5", "[]", "null", '"x"']
         self.events.write_text("\n".join(mess) + "\n", encoding="utf-8")
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         self.assertEqual(self.run_hook().returncode, 0)  # the valid event of this session still stops it
         self.assertEqual(self.events.read_text(encoding="utf-8").splitlines(), mess)
         # control: the same mess, the valid event is for another session: the hook fires and appends one line
@@ -153,13 +153,13 @@ class HookTest(HookBase):
         self.assertEqual(len(self.events.read_text(encoding="utf-8").splitlines()), before + 1)
 
     def test_stop_hook_active_is_not_re_fired(self):
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         self.assertEqual(self.run_hook(stop_hook_active=True).returncode, 0)
         self.assertFalse(self.events.exists())
 
     def test_uses_transcript_path_from_payload(self):
         p = Path(self.tmp.name) / "elsewhere.jsonl"
-        p.write_text(json.dumps(line(190_000)) + "\n", encoding="utf-8")  # no first action: only the 180k cap
+        p.write_text(json.dumps(line(610_000)) + "\n", encoding="utf-8")  # over the fixed line
         self.assertEqual(self.run_hook(sid="unlisted", transcript_path=str(p)).returncode, 2)
 
     def test_garbage_stdin_exits_zero(self):
@@ -170,8 +170,8 @@ class HookTest(HookBase):
     def test_a_stale_lock_dir_does_not_wedge_the_event_append(self):  # ticket 06: no flock, lock left by a killed writer
         lock = Path(str(self.events) + ".lock")
         lock.mkdir()
-        self.transcript("sid-1", 130_000)
-        self.transcript("sid-2", 130_000)
+        self.transcript("sid-1", 630_000)
+        self.transcript("sid-2", 630_000)
         env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
         env.update(CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "cfg"), SQUAD_NAME="dev-1", SQUAD_DIR=str(self.squad),
                    SQUAD_ROLE="dev")
@@ -199,7 +199,7 @@ class PostToolUseTest(HookBase):
         return json.loads(self.stamp_file.read_text(encoding="utf-8"))
 
     def test_fresh_notice_is_context_json_exit_0_once_per_session(self):  # AC2
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         r = self.post()
         self.assertEqual((r.returncode, r.stderr), (0, ""))
         out = json.loads(r.stdout)["hookSpecificOutput"]
@@ -213,7 +213,7 @@ class PostToolUseTest(HookBase):
         self.assertEqual(len(self.events.read_text(encoding="utf-8").splitlines()), 1)
 
     def test_growth_under_the_step_skips_the_check_and_keeps_the_stamp(self):  # AC3
-        self.transcript("sid-1", 130_000, pad=100_000)
+        self.transcript("sid-1", 630_000, pad=100_000)
         size = (self.proj / "sid-1.jsonl").stat().st_size
         self.stamp_file.parent.mkdir()
         old = {"ts": "2026-01-01T00:00:00.000Z", "session": "sid-1", "size": size - 65_535, "ctx": 5, "line": 6}
@@ -228,14 +228,14 @@ class PostToolUseTest(HookBase):
         self.assertEqual(self.stamp()["size"], size)
 
     def test_a_stamp_of_another_session_does_not_throttle(self):
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         self.stamp_file.parent.mkdir()
         size = (self.proj / "sid-1.jsonl").stat().st_size
         self.stamp_file.write_text(json.dumps({"ts": "t", "session": "old", "size": size}) + "\n", encoding="utf-8")
         self.assertIn("fresh", self.post().stdout)
 
     def test_manager_unknown_session_and_missing_transcript_are_silent(self):  # AC4
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         for r in (self.post(role="manager"), self.post(sid="nope"), self.post(squad_session=False)):
             self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
         gone = self.run_hook(hook_event_name="PostToolUse", transcript_path=str(self.proj / "gone.jsonl"))
@@ -247,17 +247,17 @@ class PostToolUseTest(HookBase):
         size = (self.proj / "sid-1.jsonl").stat().st_size
         self.assertEqual(self.post().stdout, "")
         s = self.stamp()
-        self.assertEqual((s["session"], s["size"], s["line"]), ("sid-1", size, 110_002))
+        self.assertEqual((s["session"], s["size"], s["line"]), ("sid-1", size, 600_000))
         self.assertGreater(s["ctx"], 49_999)
         self.assertRegex(s["ts"], r"^\d{4}-\d\d-\d\dT")
         self.stamp_file.unlink()
         r = self.run_hook(transcript_path=str(self.proj / "sid-1.jsonl"))  # Stop, no rule fires
         self.assertEqual((r.returncode, r.stderr), (0, ""))
         self.assertEqual(self.stamp()["size"], size)
-        self.assertEqual(self.stamp()["line"], 110_002)
+        self.assertEqual(self.stamp()["line"], 600_000)
 
     def test_parallel_calls_of_one_session_record_and_notify_once(self):  # review: dedupe under the append lock
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         env = {k: v for k, v in os.environ.items() if not k.startswith(("SQUAD_", "SCOPE_DIR", "GOAL_DIR"))}
         env.update(CLAUDE_CONFIG_DIR=str(Path(self.tmp.name) / "cfg"), SQUAD_NAME="dev-1", SQUAD_DIR=str(self.squad), SQUAD_ROLE="dev")
         data = json.dumps({"hook_event_name": "PostToolUse", "session_id": "sid-1",
@@ -271,7 +271,7 @@ class PostToolUseTest(HookBase):
         self.assertEqual(len(self.events.read_text(encoding="utf-8").splitlines()), 1)
 
     def test_stop_stays_exit_2_with_stderr(self):  # AC6 beside the 13 inherited tests
-        self.transcript("sid-1", 130_000)
+        self.transcript("sid-1", 630_000)
         r = self.run_hook()
         self.assertEqual((r.returncode, r.stdout), (2, ""))
         self.assertIn("'fresh'", r.stderr)

@@ -60,7 +60,7 @@ log=$home/usage-events.jsonl
 seen() { [[ -f $log ]] && jq -R -e --arg s "$session" --arg r "$rule" 'fromjson? | objects | select(.session == $s and .rule == $r)' "$log" >/dev/null 2>&1; }
 
 case $rule in
-  fresh) why="your context is past your respawn line (your context at first action + 50k, at most 180k) or was compacted" ;;
+  fresh) why="your context is past your respawn line (600k) or was compacted" ;;
   *)     exit 0 ;;
 esac
 action="write roles/$SQUAD_NAME.notes.md, then run: squad-respawn $SQUAD_NAME"

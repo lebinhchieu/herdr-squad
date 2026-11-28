@@ -33,8 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import squadio  # noqa: E402
 from squadtranscript import TOKEN_FIELDS, agent_sessions, find_transcript, is_expiry, read_lines, read_session  # noqa: E402
 
-ROOM = 50_000                # [COST-3]: a session may grow this much past its first action
-CAP = 180_000                # hard upper bound of the line, and the line before a first action exists
+LINE = 600_000               # [COST-3]: one fixed respawn line for every session (Chieu, 2026-11-28)
 ACTION_TOOLS = ("Edit", "Write", "NotebookEdit", "SendMessage")  # a call that edits, writes or sends a message
 # A Bash call that changes state counts as a first action too, for sessions that never call an action tool (the
 # Manager). Its first word (basename of a path) is one of ACTION_BASH, or it is `git` with a subcommand in ACTION_GIT.
@@ -84,9 +83,9 @@ def first_turns(path):
 
 
 def respawn_line(s):
-    """The session's one respawn line: its context at first action + 50k, never above 180k."""
-    first = s["first_action"]
-    return CAP if first is None else min(first + ROOM, CAP)
+    """The session's one respawn line: a fixed 600k, the same for every session. A warm cache makes a working
+    session cheap enough; idle sessions are the watchdog's (COST-15)."""
+    return LINE
 
 
 def summarize(path):

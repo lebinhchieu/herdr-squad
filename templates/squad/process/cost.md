@@ -10,7 +10,7 @@ Reuse a session on the same task until `fresh` fires ([COST-3]).
 roles: manager, ba, team-lead, tech-lead, qa-whitebox, qa-blackbox, designer, architect
 topic: cost
 
-`squad-usage --check` fires `fresh` at your respawn line: context at first action (first edit, write or message) + 50k, at most 180k; limits are absolute tokens, never a percent. Start fresh then, after a compaction, on a Stop-hook cost message, or when a new ticket or PO wait makes old context useless: write `roles/<you>.notes.md`, then `squad-respawn <you>`.
+`squad-usage --check` fires `fresh` at your respawn line: 600k context, the same for every session; limits are absolute tokens, never a percent. Start fresh then, after a compaction, on a Stop-hook cost message, or when a new ticket or PO wait makes old context useless: write `roles/<you>.notes.md`, then `squad-respawn <you>`.
 
 ## COST-4a Tech Lead splits
 roles: tech-lead

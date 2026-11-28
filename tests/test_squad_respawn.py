@@ -332,11 +332,11 @@ class RespawnTest(unittest.TestCase):
         self.assertEqual(guard.seen_keys(str(events), "sid-1"), {"manager-x"})
         cfg = self.root / "cfg"
         (cfg / "projects" / "-cwd").mkdir(parents=True)
-        for sid in ("sid-1", "sid-2"):  # both over the respawn line (first action at 60k, now 130k)
+        for sid in ("sid-1", "sid-2"):  # both over the fixed 600k respawn line
             rows = [{"type": "assistant", "timestamp": now, "effort": "medium", "message": {"id": m, "model": "claude-sonnet-5-5",
                      "content": [{"type": "tool_use", "name": "Write", "input": {}}] if m == "first" else [],
                      "usage": {"input_tokens": 2, "cache_read_input_tokens": ctx, "cache_creation_input_tokens": 0, "output_tokens": 10}}}
-                    for m, ctx in (("first", 60_000), ("last", 130_000))]
+                    for m, ctx in (("first", 60_000), ("last", 630_000))]
             (cfg / "projects" / "-cwd" / f"{sid}.jsonl").write_text("".join(json.dumps(x) + "\n" for x in rows), encoding="utf-8")
         hook_env = dict(self.env, CLAUDE_CONFIG_DIR=str(cfg), SQUAD_NAME="dev-1", SQUAD_ROLE="dev")
 

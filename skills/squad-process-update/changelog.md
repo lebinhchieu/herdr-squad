@@ -1,3 +1,13 @@
+## v36 — 2026-11-28
+
+Plugin 0.11.5. The respawn line is a fixed 600k for every session (Chieu's call).
+
+changed:
+- COST-3, all roles; `bin/squad-usage` (`LINE`), the usage hook and the Manager guard: `fresh` fires at 600k context, the same for every session, and no longer at the context at first action + 50k (capped at 180k). A compaction still fires `fresh`. The `1st act` column stays as information. why: the watchdog now respawns idle sessions before their cache expires (COST-15), and a working session reads a warm cache, so an early respawn mostly cost the re-reading of rules, notes and context.
+- `iterations.md`: the Token Coach tunes "the 600k respawn line" rather than "room and cap".
+
+Deploy (Chieu): merge; `claude plugin update` to 0.11.5; run `/squad:squad-process-update` so the squads get the new COST-3 text. Live sessions keep the old line until they are respawned. Rollback: revert the merge.
+
 ## v35 — 2026-11-27
 
 Plugin 0.11.4. A first prompt counts as sent only once it is in the agent's transcript; no rule changes.
